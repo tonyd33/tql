@@ -13,11 +13,11 @@ class_declaration {
 
 (source_file
   (query
-    (node_kind_identifier)
+    (node_type_identifier)
     (query
-      (node_kind_identifier)
+      (node_type_identifier)
       (query
-        (node_kind_identifier)))))
+        (node_type_identifier)))))
 
 ========================================
 child selectors
@@ -32,7 +32,7 @@ class_declaration {
 }
 
 class_declaration > class_body {
-  method_definition {
+  > method_definition {
 
   }
 }
@@ -50,29 +50,70 @@ class_declaration > class_body > method_definition {
 
 (source_file
   (query
-    (node_kind_identifier)
+    (node_type_identifier)
     (query
-      (node_kind_identifier)
+      (node_type_identifier)
       (query
-        (node_kind_identifier))))
+        (node_type_identifier))))
   (query
     (child_selector
-      (node_kind_identifier)
-      (node_kind_identifier))
-    (query
-      (node_kind_identifier)))
-  (query
-    (node_kind_identifier)
+      (node_type_identifier)
+      (node_type_identifier))
     (query
       (child_selector
-        (node_kind_identifier)
-        (node_kind_identifier))))
+        (node_type_identifier))))
+  (query
+    (node_type_identifier)
+    (query
+      (child_selector
+        (node_type_identifier)
+        (node_type_identifier))))
   (query
     (child_selector
       (child_selector
-        (node_kind_identifier)
-        (node_kind_identifier))
-      (node_kind_identifier))))
+        (node_type_identifier)
+        (node_type_identifier))
+      (node_type_identifier))))
+
+========================================
+descendant selectors
+========================================
+
+class_declaration class_body method_definition {
+
+}
+
+
+---
+
+(source_file
+  (query
+    (descendant_selector
+      (descendant_selector
+        (node_type_identifier)
+        (node_type_identifier))
+      (node_type_identifier))))
+
+========================================
+named field selectors
+========================================
+
+class_declaration -> decorator -> function {
+
+}
+
+
+---
+
+(source_file
+  (query
+    (descendant_selector
+      (descendant_selector
+        (node_type_identifier)
+        (named_field_selector
+          (node_type_identifier)))
+      (named_field_selector
+        (node_type_identifier)))))
 
 ========================================
 attribute selectors
@@ -103,96 +144,96 @@ class_declaration[.name = 'foo' || (.name = 'bar' && .name = 'baz')] {
 
 (source_file
   (query
-    (attribute_selector
-      (node_kind_identifier)
+    (node_condition
+      (node_type_identifier)
       (attribute_condition
         (attribute_identifier
           (identifier))
-        (attribute_relation)
+        (relation)
         (string_literal
           (string_fragment)))))
   (query
-    (attribute_selector
-      (node_kind_identifier)
+    (node_condition
+      (node_type_identifier)
       (and_condition
         (attribute_condition
           (attribute_identifier
             (identifier))
-          (attribute_relation)
+          (relation)
           (string_literal
             (string_fragment)))
         (attribute_condition
           (attribute_identifier
             (identifier))
-          (attribute_relation)
+          (relation)
           (string_literal
             (string_fragment))))))
   (query
-    (attribute_selector
-      (node_kind_identifier)
+    (node_condition
+      (node_type_identifier)
       (or_condition
         (and_condition
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment)))
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment))))
         (attribute_condition
           (attribute_identifier
             (identifier))
-          (attribute_relation)
+          (relation)
           (string_literal
             (string_fragment))))))
   (query
-    (attribute_selector
-      (node_kind_identifier)
+    (node_condition
+      (node_type_identifier)
       (and_condition
         (or_condition
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment)))
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment))))
         (attribute_condition
           (attribute_identifier
             (identifier))
-          (attribute_relation)
+          (relation)
           (string_literal
             (string_fragment))))))
   (query
-    (attribute_selector
-      (node_kind_identifier)
+    (node_condition
+      (node_type_identifier)
       (or_condition
         (attribute_condition
           (attribute_identifier
             (identifier))
-          (attribute_relation)
+          (relation)
           (string_literal
             (string_fragment)))
         (and_condition
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment)))
           (attribute_condition
             (attribute_identifier
               (identifier))
-            (attribute_relation)
+            (relation)
             (string_literal
               (string_fragment))))))))

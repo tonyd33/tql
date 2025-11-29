@@ -38,7 +38,7 @@ const evaluateExpression = (
 const interpretCondition = (c: Tql.Backend.Condition): InterpretedPredicate => {
   switch (c.type) {
     case "attribute":
-      return (m) => {
+      return m => {
         const v1 = evaluateExpression(c.e1, m);
         const v2 = evaluateExpression(c.e2, m);
         switch (c.relation) {
@@ -53,17 +53,17 @@ const interpretCondition = (c: Tql.Backend.Condition): InterpretedPredicate => {
     case "or": {
       const p1 = interpretCondition(c.c1);
       const p2 = interpretCondition(c.c2);
-      return (m) => p1(m) || p2(m);
+      return m => p1(m) || p2(m);
     }
     case "and": {
       const p1 = interpretCondition(c.c1);
       const p2 = interpretCondition(c.c2);
-      return (m) => p1(m) && p2(m);
+      return m => p1(m) && p2(m);
     }
     case "true":
-      return (_) => true;
+      return _ => true;
     case "false":
-      return (_) => false;
+      return _ => false;
   }
 };
 
@@ -72,7 +72,7 @@ const interpretPredicate = (
 ): InterpretedPredicate => {
   switch (p.type) {
     case "universal":
-      return (_) => true;
+      return _ => true;
     case "node-kind":
       return ({ value }) => value.type === p.kind;
     case "attribute": {
@@ -84,7 +84,7 @@ const interpretPredicate = (
 
 const interpretCapture =
   (cs: Tql.Backend.Capture[]): InterpretedCapturer =>
-  (m) => {
+  m => {
     return [
       {
         value: m.value,
@@ -104,13 +104,13 @@ const interpretCapture =
 export const interpret = (q: Tql.Backend.Query): InterpretedStep => {
   switch (q.type) {
     case "zero":
-      return (_) => [];
+      return _ => [];
     case "one":
-      return (m) => [m];
+      return m => [m];
     case "node-predicate": {
       const pred = interpretPredicate(q.predicate);
       const capture = interpretCapture(q.captures);
-      return (m) => (pred(m) ? capture(m) : []);
+      return m => (pred(m) ? capture(m) : []);
     }
     case "outer-sum":
       return T.TreeCapture.outerSum(interpret(q.left), interpret(q.right));

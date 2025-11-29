@@ -14,13 +14,14 @@ export type Program = {
 export type TqlFunction = {
   identifier: string;
   parameters: string[];
-  query: Query;
+  statements: Statement[];
 };
 
 export type Selector =
   | { type: "universal" }
   | { type: "node-kind"; kind: string }
-  | { type: "child"; parent: Selector; child: Selector }
+  | { type: "child"; parent: Selector | null; child: Selector }
+  | { type: "descendant"; parent: Selector; child: Selector }
   | { type: "attribute"; selector: Selector; condition: Condition };
 
 export type Expression =

@@ -8,19 +8,19 @@ const ast1: TS.Node = {
   typeId: 0,
   type: "root",
   text: "",
-  children: [
+  namedChildren: [
     {
       id: 1,
       typeId: 1,
       type: "class_declaration",
       text: "",
-      children: [
+      namedChildren: [
         {
           id: 2,
           typeId: 2,
           type: "decorator",
           text: "",
-          children: [],
+          namedChildren: [],
         },
       ],
     },
@@ -32,19 +32,19 @@ const ast2: TS.Node = {
   typeId: 0,
   type: "root",
   text: "",
-  children: [
+  namedChildren: [
     {
       id: 1,
       typeId: 1,
       type: "class_declaration",
       text: "",
-      children: [
+      namedChildren: [
         {
           id: 2,
           typeId: 2,
           type: "decorator",
           text: "Controller",
-          children: [],
+          namedChildren: [],
         },
       ],
     },
@@ -57,10 +57,10 @@ it("runs children", () => {
     Core.predicate((n: TS.Node) => n.type === "class_declaration"),
     Tree.children,
     Core.predicate((n: TS.Node) => n.type === "decorator"),
-  ].reduce(Core.kleisli, (x) => [x]);
+  ].reduce(Core.kleisli, x => [x]);
   const results = Core.runPath([ast1], query);
   assert.deepEqual(results, [
-    { children: [], id: 2, text: "", type: "decorator", typeId: 2 },
+    { namedChildren: [], id: 2, text: "", type: "decorator", typeId: 2 },
   ]);
 });
 
@@ -68,9 +68,9 @@ it("runs descendants", () => {
   const query = [
     Tree.descendant,
     Core.predicate((n: TS.Node) => n.type === "decorator"),
-  ].reduce(Core.kleisli, (x) => [x]);
+  ].reduce(Core.kleisli, x => [x]);
   const results = Core.runPath([ast1], query);
   assert.deepEqual(results, [
-    { children: [], id: 2, text: "", type: "decorator", typeId: 2 },
+    { namedChildren: [], id: 2, text: "", type: "decorator", typeId: 2 },
   ]);
 });

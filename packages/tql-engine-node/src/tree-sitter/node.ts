@@ -3,7 +3,7 @@ export type Node = {
   typeId: number;
   type: string;
   text: string;
-  children: Node[];
+  namedChildren: Node[];
 };
 
-export const children = (n: Node) => n.children;
+export const children = (n: Node) => n.namedChildren;

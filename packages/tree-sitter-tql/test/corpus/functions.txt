@@ -15,7 +15,7 @@ fn my_function(v1, v2) {
     (function_parameter)
     (function_parameter)
     (query
-      (node_kind_identifier))))
+      (node_type_identifier))))
 
 ========================================
 function call
@@ -29,7 +29,7 @@ class_declaration {
 
 (source_file
   (query
-    (node_kind_identifier)
+    (node_type_identifier)
     (function_match
       (function_call
         (identifier)

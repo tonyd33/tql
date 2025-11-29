@@ -115,6 +115,12 @@ export type Axis = { type: "child" } | { type: "descendant" };
 export const childAxis: Axis = { type: "child" };
 export const descendantAxis: Axis = { type: "descendant" };
 
+export type TqlFunction = {
+  identifier: string;
+  parameters: string[];
+  query: Query;
+};
+
 /**
  * A query describes a way to traverse the tree to match nodes.
  *
@@ -197,3 +203,8 @@ export const axisQuery = (axis: Axis, q: Query): Query => ({
   axis,
   q,
 });
+
+export type Program = {
+  functions: TqlFunction[];
+  main: Query;
+};

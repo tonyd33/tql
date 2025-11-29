@@ -11,7 +11,7 @@ export const outerSum =
     left: Capture.CapturedStep<TS.Node, B>,
     right: Capture.CapturedStep<TS.Node, B>,
   ): Capture.CapturedStep<TS.Node, B> =>
-  (s) => {
+  s => {
     const lefts = Core.runPath([s], left);
     const rights = Core.runPath([s], right);
     return [...lefts, ...rights];
@@ -22,11 +22,11 @@ export const outerProduct =
     left: Capture.CapturedStep<TS.Node, B>,
     right: Capture.CapturedStep<TS.Node, B>,
   ): Capture.CapturedStep<TS.Node, B> =>
-  (s) => {
+  s => {
     const lefts = Core.runPath([s], left);
     const rights = Core.runPath([s], right);
-    return lefts.flatMap((l) =>
-      rights.flatMap((r) => ({
+    return lefts.flatMap(l =>
+      rights.flatMap(r => ({
         value: s.value,
         captures: Capture.sum(l.captures, r.captures),
       })),

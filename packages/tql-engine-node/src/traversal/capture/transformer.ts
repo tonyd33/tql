@@ -17,14 +17,14 @@ export const lift = <A>(a: A) => ({ value: a, captures: empty });
 export const bind =
   <A, B = any>(sa: Step<A>): CapturedStep<A, B> =>
   ({ value: a, captures }) =>
-    sa(a).map((x) => ({ value: x, captures }));
+    sa(a).map(x => ({ value: x, captures }));
 
 export const bindWith =
   <A, B = any>(fb: (_: A) => Captures<B>) =>
   (sa: Step<A>): CapturedStep<A, B> =>
   ({ value: a, captures: b1 }) => {
     const b2 = fb(a);
-    return sa(a).map((x) => ({ value: x, captures: sum(b1, b2) }));
+    return sa(a).map(x => ({ value: x, captures: sum(b1, b2) }));
   };
 
 export const bindWith2 =
@@ -32,5 +32,5 @@ export const bindWith2 =
   (sa: Step<A>): CapturedStep<A, B> =>
   ({ value: a, captures: b1 }) => {
     const b2 = fb(lift(a));
-    return sa(a).map((x) => ({ value: x, captures: sum(b1, b2) }));
+    return sa(a).map(x => ({ value: x, captures: sum(b1, b2) }));
   };

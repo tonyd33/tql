@@ -53,15 +53,24 @@ const parseSelector = (node: Parser.SyntaxNode): Frontend.Selector => {
   switch (node.type) {
     case "universal_selector":
       return { type: "universal" };
-    case "node_kind_identifier":
+    case "node_type_identifier":
       return { type: "node-kind", kind: node.text };
-    case "child_selector":
+    case "child_selector": {
+      const parent = node.childForFieldName("parent");
       return {
         type: "child",
-        parent: parseSelector(unwrap(node.childForFieldName("parent"))),
+        parent: parent ? parseSelector(parent) : null,
         child: parseSelector(unwrap(node.childForFieldName("child"))),
       };
-    case "attribute_selector": {
+    }
+    case "descendant_selector": {
+      return {
+        type: "descendant",
+        parent: parseSelector(unwrap(node.childForFieldName("parent"))),
+        child: parseSelector(unwrap(node.childForFieldName("descendant"))),
+      };
+    }
+    case "node_condition": {
       return {
         type: "attribute",
         selector: parseSelector(unwrap(node.childForFieldName("selector"))),
@@ -69,7 +78,9 @@ const parseSelector = (node: Parser.SyntaxNode): Frontend.Selector => {
       };
     }
   }
-  throw new ParseError(`parseSelector not implemented ${node.toString()}`);
+  throw new ParseError(
+    `parseSelector not implemented ${node.type} ${node.toString()}`,
+  );
 };
 
 const parseExpression = (node: Parser.SyntaxNode): Frontend.Expression => {
@@ -129,13 +140,31 @@ const parseQuery = (node: Parser.SyntaxNode): Frontend.Query => {
   return { selector: frontendSelector, statements: frontendStatements };
 };
 
-export const parseTql = (buf: string): Frontend.Query => {
+const parseFunction = (node: Parser.SyntaxNode): Frontend.TqlFunction => {
+  const identifier = unwrap(node.childForFieldName("name")).text;
+  const parameters = node.childrenForFieldName("parameter").map(p => p.text);
+  const statements = node.childrenForFieldName("statement").map(parseStatement);
+
+  return {
+    identifier,
+    parameters,
+    statements,
+  };
+};
+
+export const parseTql = (buf: string): Frontend.Program => {
   const tqlParser = new Parser();
   tqlParser.setLanguage(Tql as Parser.Language);
   const tsTqlTree = tqlParser.parse(buf);
-  const main = tsTqlTree.rootNode.firstNamedChild;
-  if (main == null) {
-    throw new ParseError("Bad program");
+  const functions: Frontend.TqlFunction[] = [];
+  const queries: Frontend.Query[] = [];
+  for (const node of tsTqlTree.rootNode.namedChildren) {
+    switch (node.type) {
+      case "function_declaration":
+        functions.push(parseFunction(node));
+      case "query":
+        queries.push(parseQuery(node));
+    }
   }
-  return parseQuery(main);
+  return { functions, queries };
 };

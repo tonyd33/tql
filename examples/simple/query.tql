@@ -1,11 +1,6 @@
 class_declaration {
-  let match_1 = 'm1'
-  let match_2 = 'm2'
-  identifier {
-    let class_name = .text
-  }
-  method_definition > property_identifier {
+  decorator > call_expression > identifier[.text = 'Controller'] {}
+  method_definition > property_identifier[.text = 'm1' || .text = 'm2'] {
     let method_name = .text
-    .text = match_1 || .text = match_2
   }
 }

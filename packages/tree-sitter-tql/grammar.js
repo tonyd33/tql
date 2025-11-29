@@ -12,42 +12,38 @@ const alphanumeric = /[a-zA-Z0-9_]/;
 
 module.exports = grammar({
   name: "tql",
+  externals: $ => [$._descendant_operator],
+  extras: $ => [/\s/, $.comment],
+  reserved: {
+    global: _ => ["inheriting", "matching", "fn", "let"],
+  },
   rules: {
-    source_file: ($) =>
-      repeat(choice($.comment, $.query, $.function_declaration)),
+    source_file: $ => repeat(choice($.query, $.function_declaration)),
 
-    comment: (_) => token(seq("--", /[^\r\n\u2028\u2029]*/)),
+    comment: _ => token(seq("--", /[^\r\n\u2028\u2029]*/)),
 
-    query: ($) =>
+    query: $ =>
       seq(
         field("selector", $._selector),
-        braces_enclosed(
-          repeat(
-            seq(
-              field(
-                "statement",
-                choice(
-                  $.comment,
-                  $.query,
-                  $.lexical_binding,
-                  $.lexical_binding_inheritance,
-                  $.function_match,
-                  $.condition,
-                ),
-              ),
-              choice("\n", "\r\n", ";"),
-            ),
-          ),
-        ),
+        braces_enclosed(repeat(field("statement", $._statement))),
       ),
 
-    identifier: (_) => token(seq(alpha, repeat(alphanumeric))),
+    _statement: $ =>
+      choice(
+        $.query,
+        $.lexical_binding,
+        $.lexical_binding_inheritance,
+        $.function_match,
+        $.condition,
+      ),
 
-    attribute_relation: (_) => choice("=", "!=", "~"),
+    identifier: _ => token(seq(alpha, repeat(alphanumeric))),
 
-    unescaped_single_string_fragment: (_) =>
+    relation: _ => choice("=", "!=", "~"),
+
+    unescaped_single_string_fragment: _ =>
       token.immediate(prec(1, /[^'\\\r\n]+/)),
-    escape_sequence: (_) =>
+    escape_sequence: _ =>
       token.immediate(
         seq(
           "\\",
@@ -62,7 +58,7 @@ module.exports = grammar({
         ),
       ),
 
-    lexical_binding: ($) =>
+    lexical_binding: $ =>
       seq(
         "let",
         field("identifier", $.identifier),
@@ -70,7 +66,7 @@ module.exports = grammar({
         field("value", $._expression),
       ),
 
-    lexical_binding_inheritance: ($) =>
+    lexical_binding_inheritance: $ =>
       seq(
         "inheriting",
         $.variable_declarator,
@@ -78,15 +74,15 @@ module.exports = grammar({
         field("function", $.function_call),
       ),
 
-    variable_declarator: ($) => choice($.identifier, $.object_pattern),
+    variable_declarator: $ => choice($.identifier, $.object_pattern),
 
-    object_pattern: ($) =>
+    object_pattern: $ =>
       choice(braces_enclosed(comma_sep(choice($.identifier, $.pair_pattern)))),
 
-    pair_pattern: ($) =>
+    pair_pattern: $ =>
       seq(field("key", $.identifier), ":", field("value", $.identifier)),
 
-    string_literal: ($) =>
+    string_literal: $ =>
       seq(
         "'",
         field(
@@ -101,41 +97,42 @@ module.exports = grammar({
         "'",
       ),
 
-    _expression: ($) =>
-      choice(
-        $.string_literal,
-        $.attribute_identifier,
-        $.function_call,
-        alias($.identifier, $.variable),
+    _expression: $ =>
+      prec.left(
+        choice(
+          $.string_literal,
+          $.attribute_identifier,
+          $.function_call,
+          alias($.identifier, $.variable),
+        ),
       ),
 
-    attribute_identifier: ($) => seq(".", field("identifier", $.identifier)),
+    attribute_identifier: $ => seq(".", field("identifier", $.identifier)),
 
     // functions
-    function_declaration: ($) =>
+    function_declaration: $ =>
       seq(
         "fn",
         field("name", $.identifier),
         parentheses_enclosed(
-          field(
-            "parameters",
-            comma_sep(alias($.identifier, $.function_parameter)),
+          comma_sep(
+            field("parameter", alias($.identifier, $.function_parameter)),
           ),
         ),
-        braces_enclosed(repeat($.query)),
+        braces_enclosed(repeat(field("statement", $._statement))),
       ),
 
-    function_call: ($) =>
+    function_call: $ =>
       seq(
         field("name", $.identifier),
         parentheses_enclosed(field("arguments", comma_sep($._expression))),
       ),
 
-    function_match: ($) => seq(optional("not"), "matching", $.function_call),
+    function_match: $ => seq(optional("not"), "matching", $.function_call),
 
     // conditions
-    condition: ($) => field("condition", $._condition),
-    _condition: ($) =>
+    condition: $ => field("condition", $._condition),
+    _condition: $ =>
       choice(
         seq(parentheses_enclosed($._condition)),
         $.and_condition,
@@ -143,7 +140,7 @@ module.exports = grammar({
         $.attribute_condition,
       ),
 
-    and_condition: ($) =>
+    and_condition: $ =>
       prec.left(
         seq(
           field("condition_1", $._condition),
@@ -152,7 +149,7 @@ module.exports = grammar({
         ),
       ),
 
-    or_condition: ($) =>
+    or_condition: $ =>
       prec.left(
         seq(
           field("condition_1", $._condition),
@@ -161,30 +158,52 @@ module.exports = grammar({
         ),
       ),
 
-    attribute_condition: ($) =>
+    attribute_condition: $ =>
       seq(
         field("expression_1", $._expression),
-        field("relation", $.attribute_relation),
+        field("relation", $.relation),
         field("expression_2", $._expression),
       ),
 
     // selectors
-    _selector: ($) =>
+    _selector: $ =>
       choice(
         $.universal_selector,
-        alias($.identifier, $.node_kind_identifier),
+        alias($.identifier, $.node_type_identifier),
         $.child_selector,
-        $.attribute_selector,
+        $.descendant_selector,
+        $.named_field_selector,
+        $.node_condition,
       ),
 
-    universal_selector: (_) => "*",
+    universal_selector: _ => "*",
 
-    child_selector: ($) =>
+    child_selector: $ =>
       prec.left(
-        seq(field("parent", $._selector), ">", field("child", $._selector)),
+        seq(
+          optional(field("parent", $._selector)),
+          ">",
+          field("child", $._selector),
+        ),
       ),
 
-    attribute_selector: ($) =>
+    descendant_selector: $ =>
+      prec.left(
+        seq(
+          field("parent", $._selector),
+          $._descendant_operator,
+          field("descendant", $._selector),
+        ),
+      ),
+    named_field_selector: $ =>
+      prec.left(
+        seq(
+          optional(field("parent", $._selector)),
+          "->",
+          field("field", $._selector),
+        ),
+      ),
+    node_condition: $ =>
       seq(
         field("selector", $._selector),
         token(prec(1, "[")),

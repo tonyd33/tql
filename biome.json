@@ -6,7 +6,11 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": [
+      "packages/tql-engine-node/**/*",
+      "packages/tree-sitter-tql/grammar.js"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -21,7 +25,8 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double"
+      "quoteStyle": "double",
+      "arrowParentheses": "asNeeded"
     }
   },
   "assist": {
