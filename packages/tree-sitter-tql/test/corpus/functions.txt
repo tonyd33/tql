@@ -1,0 +1,39 @@
+========================================
+function declaration
+========================================
+
+fn my_function(v1, v2) {
+  class_declaration {
+  }
+}
+
+---
+
+(source_file
+  (function_declaration
+    (identifier)
+    (function_parameter)
+    (function_parameter)
+    (query
+      (node_kind_identifier))))
+
+========================================
+function call
+========================================
+
+class_declaration {
+  matching my_function('foo', 'bar')
+}
+
+---
+
+(source_file
+  (query
+    (node_kind_identifier)
+    (function_match
+      (function_call
+        (identifier)
+        (string_literal
+          (string_fragment))
+        (string_literal
+          (string_fragment))))))

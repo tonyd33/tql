@@ -1,0 +1,29 @@
+{
+  "name": "tql-engine-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.23.0",
+  "dependencies": {
+    "fp-ts": "^2.16.11",
+    "fp-ts-contrib": "^0.1.29",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-tql": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chai": "5.2.3",
+    "@types/mocha": "10.0.10",
+    "@types/node": "24.10.1",
+    "@typescript/native-preview": "7.0.0-dev.20251128.1",
+    "chai": "6.2.1",
+    "mocha": "11.7.5",
+    "ts-node": "10.9.2"
+  }
+}

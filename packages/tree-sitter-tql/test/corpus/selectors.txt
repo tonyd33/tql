@@ -1,0 +1,198 @@
+========================================
+simple
+========================================
+
+class_declaration {
+  class_body {
+    method_definition {
+    }
+  }
+}
+
+---
+
+(source_file
+  (query
+    (node_kind_identifier)
+    (query
+      (node_kind_identifier)
+      (query
+        (node_kind_identifier)))))
+
+========================================
+child selectors
+========================================
+
+class_declaration {
+  class_body {
+    method_definition {
+
+    }
+  }
+}
+
+class_declaration > class_body {
+  method_definition {
+
+  }
+}
+
+class_declaration {
+  class_body > method_definition {
+
+  }
+}
+class_declaration > class_body > method_definition {
+
+}
+
+---
+
+(source_file
+  (query
+    (node_kind_identifier)
+    (query
+      (node_kind_identifier)
+      (query
+        (node_kind_identifier))))
+  (query
+    (child_selector
+      (node_kind_identifier)
+      (node_kind_identifier))
+    (query
+      (node_kind_identifier)))
+  (query
+    (node_kind_identifier)
+    (query
+      (child_selector
+        (node_kind_identifier)
+        (node_kind_identifier))))
+  (query
+    (child_selector
+      (child_selector
+        (node_kind_identifier)
+        (node_kind_identifier))
+      (node_kind_identifier))))
+
+========================================
+attribute selectors
+========================================
+
+
+class_declaration[.name = 'foo'] {
+
+}
+
+class_declaration[.name = 'foo' && .baz = 'bar'] {
+
+}
+
+class_declaration[.name = 'foo' && .name = 'bar' || .name = 'baz'] {
+
+}
+
+class_declaration[.name = 'foo' || .name = 'bar' && .name = 'baz'] {
+
+}
+
+class_declaration[.name = 'foo' || (.name = 'bar' && .name = 'baz')] {
+
+}
+
+---
+
+(source_file
+  (query
+    (attribute_selector
+      (node_kind_identifier)
+      (attribute_condition
+        (attribute_identifier
+          (identifier))
+        (attribute_relation)
+        (string_literal
+          (string_fragment)))))
+  (query
+    (attribute_selector
+      (node_kind_identifier)
+      (and_condition
+        (attribute_condition
+          (attribute_identifier
+            (identifier))
+          (attribute_relation)
+          (string_literal
+            (string_fragment)))
+        (attribute_condition
+          (attribute_identifier
+            (identifier))
+          (attribute_relation)
+          (string_literal
+            (string_fragment))))))
+  (query
+    (attribute_selector
+      (node_kind_identifier)
+      (or_condition
+        (and_condition
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment)))
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment))))
+        (attribute_condition
+          (attribute_identifier
+            (identifier))
+          (attribute_relation)
+          (string_literal
+            (string_fragment))))))
+  (query
+    (attribute_selector
+      (node_kind_identifier)
+      (and_condition
+        (or_condition
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment)))
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment))))
+        (attribute_condition
+          (attribute_identifier
+            (identifier))
+          (attribute_relation)
+          (string_literal
+            (string_fragment))))))
+  (query
+    (attribute_selector
+      (node_kind_identifier)
+      (or_condition
+        (attribute_condition
+          (attribute_identifier
+            (identifier))
+          (attribute_relation)
+          (string_literal
+            (string_fragment)))
+        (and_condition
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment)))
+          (attribute_condition
+            (attribute_identifier
+              (identifier))
+            (attribute_relation)
+            (string_literal
+              (string_fragment))))))))
