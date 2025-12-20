@@ -15,32 +15,27 @@ module.exports = grammar({
   externals: $ => [$._descendant_operator],
   extras: $ => [/\s/, $.comment],
   reserved: {
-    global: _ => ["inheriting", "matching", "fn", "let"],
+    global: _ => [],
   },
   rules: {
-    source_file: $ => repeat(choice($.query, $.function_declaration)),
-
+    source_file: $ => repeat($.query),
     comment: _ => token(seq("--", /[^\r\n\u2028\u2029]*/)),
-
-    query: $ =>
-      seq(
-        field("selector", $._selector),
-        braces_enclosed(repeat(field("statement", $._statement))),
-      ),
-
-    _statement: $ =>
-      choice(
-        $.query,
-        $.lexical_binding,
-        $.lexical_binding_inheritance,
-        $.function_match,
-        $.condition,
-      ),
-
     identifier: _ => token(seq(alpha, repeat(alphanumeric))),
 
-    relation: _ => choice("=", "!=", "~"),
-
+    string_literal: $ =>
+      seq(
+        "'",
+        field(
+          "content",
+          repeat(
+            choice(
+              alias($.unescaped_single_string_fragment, $.string_fragment),
+              $.escape_sequence,
+            ),
+          ),
+        ),
+        "'",
+      ),
     unescaped_single_string_fragment: _ =>
       token.immediate(prec(1, /[^'\\\r\n]+/)),
     escape_sequence: _ =>
@@ -58,126 +53,45 @@ module.exports = grammar({
         ),
       ),
 
-    lexical_binding: $ =>
+    query: $ =>
       seq(
-        "let",
-        field("identifier", $.identifier),
-        "=",
-        field("value", $._expression),
-      ),
-
-    lexical_binding_inheritance: $ =>
-      seq(
-        "inheriting",
-        $.variable_declarator,
-        "matching",
-        field("function", $.function_call),
-      ),
-
-    variable_declarator: $ => choice($.identifier, $.object_pattern),
-
-    object_pattern: $ =>
-      choice(braces_enclosed(comma_sep(choice($.identifier, $.pair_pattern)))),
-
-    pair_pattern: $ =>
-      seq(field("key", $.identifier), ":", field("value", $.identifier)),
-
-    string_literal: $ =>
-      seq(
-        "'",
-        field(
-          "content",
-          repeat(
-            choice(
-              alias($.unescaped_single_string_fragment, $.string_fragment),
-              $.escape_sequence,
-            ),
-          ),
-        ),
-        "'",
-      ),
-
-    _expression: $ =>
-      prec.left(
-        choice(
-          $.string_literal,
-          $.attribute_identifier,
-          $.function_call,
-          alias($.identifier, $.variable),
-        ),
-      ),
-
-    attribute_identifier: $ => seq(".", field("identifier", $.identifier)),
-
-    // functions
-    function_declaration: $ =>
-      seq(
-        "fn",
-        field("name", $.identifier),
-        parentheses_enclosed(
-          comma_sep(
-            field("parameter", alias($.identifier, $.function_parameter)),
-          ),
-        ),
+        field("selector", $._selector),
         braces_enclosed(repeat(field("statement", $._statement))),
       ),
+    variable_identifier: $ => seq("@", $.identifier),
 
-    function_call: $ =>
-      seq(
-        field("name", $.identifier),
-        parentheses_enclosed(field("arguments", comma_sep($._expression))),
-      ),
-
-    function_match: $ => seq(optional("not"), "matching", $.function_call),
-
-    // conditions
-    condition: $ => field("condition", $._condition),
-    _condition: $ =>
-      choice(
-        seq(parentheses_enclosed($._condition)),
-        $.and_condition,
-        $.or_condition,
-        $.attribute_condition,
-      ),
-
-    and_condition: $ =>
-      prec.left(
-        seq(
-          field("condition_1", $._condition),
-          "&&",
-          field("condition_2", $._condition),
-        ),
-      ),
-
-    or_condition: $ =>
-      prec.left(
-        seq(
-          field("condition_1", $._condition),
-          "||",
-          field("condition_2", $._condition),
-        ),
-      ),
-
-    attribute_condition: $ =>
-      seq(
-        field("expression_1", $._expression),
-        field("relation", $.relation),
-        field("expression_2", $._expression),
-      ),
+    _statement: $ => choice($.query, $.assignment, $.condition),
 
     // selectors
-    _selector: $ =>
+    _pure_selector: $ =>
       choice(
         $.universal_selector,
-        alias($.identifier, $.node_type_identifier),
+        $.node_type_selector,
+        $.field_name_selector,
         $.child_selector,
         $.descendant_selector,
-        $.named_field_selector,
-        $.node_condition,
+        $.variable_identifier,
       ),
-
+    _selector: $ =>
+      prec.right(
+        seq(
+          field("pure_selector", $._pure_selector),
+          field(
+            "node_operation",
+            optional(seq("[", repeat($.inline_node_operation), "]")),
+          ),
+        ),
+      ),
     universal_selector: _ => "*",
-
+    node_type_selector: $ => alias($.identifier, $.node_type),
+    field_name_selector: $ =>
+      prec.left(
+        seq(
+          optional(field("parent_field", $._selector)),
+          ".",
+          alias($.identifier, $.field_name),
+        ),
+      ),
     child_selector: $ =>
       prec.left(
         seq(
@@ -186,7 +100,6 @@ module.exports = grammar({
           field("child", $._selector),
         ),
       ),
-
     descendant_selector: $ =>
       prec.left(
         seq(
@@ -195,21 +108,29 @@ module.exports = grammar({
           field("descendant", $._selector),
         ),
       ),
-    named_field_selector: $ =>
-      prec.left(
-        seq(
-          optional(field("parent", $._selector)),
-          "->",
-          field("field", $._selector),
-        ),
+
+    inline_node_operation: $ => choice($.inline_node_assignment),
+    inline_node_assignment: $ => seq("@", $.identifier),
+
+    assignment: $ => seq($.variable_identifier, "<-", $._expression),
+
+    // expressions
+    _expression: $ => prec.left(1, choice($._selector)),
+
+    // conditions
+    condition: $ =>
+      choice(
+        $._parenthesized_condition,
+        $.empty_condition,
+        $.text_eq_condition,
+        $.or_condition,
+        $.and_condition,
       ),
-    node_condition: $ =>
-      seq(
-        field("selector", $._selector),
-        token(prec(1, "[")),
-        field("condition", $._condition),
-        "]",
-      ),
+    _parenthesized_condition: $ => prec(100, seq("(", $.condition, ")")),
+    empty_condition: $ => seq("!", $._expression),
+    text_eq_condition: $ => seq($._expression, "=", $.string_literal),
+    or_condition: $ => prec.left(seq($.condition, "||", $.condition)),
+    and_condition: $ => prec.left(seq($.condition, "&&", $.condition)),
   },
 });
 

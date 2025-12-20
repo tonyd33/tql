@@ -1,0 +1,128 @@
+-- variant
+class_declaration {
+  class_name = .name
+  .decorator > call_expression {
+    decorator_name = .identifier
+  }
+
+  .body > method_definition[!.return_type] {
+    method_name = .name
+  }
+
+  decorator_name = 'Controller' or class_name ~ /.*Service$/
+}
+
+-- variant
+class_declaration {
+  class_name = .name
+  .decorator > call_expression {
+    decorator_name = .identifier
+  }
+
+  .body > method_definition {
+    !.return_type
+    method_name = .name
+  }
+
+  decorator_name = 'Controller' or class_name ~ /.*Service$/
+}
+
+-- variant
+class_declaration {
+  @class_name = .name
+  .decorator > call_expression {
+    @decorator_name = .identifier
+  }
+
+  .body > method_definition {
+    !.return_type
+    @method_name = .name
+  }
+
+  @decorator_name = 'Controller' or @class_name ~ /.*Service$/
+}
+
+-- variant
+class_declaration {
+  @class_name = .name
+
+  .decorator > call_expression {
+    @decorator_name = .identifier
+  }
+
+  .body > method_definition[@method_definition] {
+    @method_name = .name
+  }
+
+  (@decorator_name = 'Controller' or @class_name ~ /.*Service$/) and
+  !@method_definition.return_type
+}
+
+-- variant
+-- this looks good!!
+class_declaration {
+  @class_name = .name
+
+  .decorator > call_expression {
+    @decorator_name = .identifier
+  }
+
+  .body > method_definition[@_method_definition]
+
+  @method_name = @_method_definition.name
+
+  (@decorator_name = 'Controller' or @class_name ~ /.*Service$/) and
+  !@_method_definition.return_type
+}
+
+-- variant
+-- this looks good!!
+class_declaration {
+  @class_name = .name
+  .decorator > call_expression.identifier[@decorator_name]
+  .body > method_definition[@_method_definition]
+
+  @method_name = @_method_definition.name
+
+  (@decorator_name = 'Controller' or @class_name ~ /.*Service$/) and
+  !@_method_definition.return_type
+}
+
+-- variant
+class_declaration {
+  let
+    class_name = .name
+    decorator_name = .decorator > call_expression.identifier
+    method_name = .body > method_definition[!.return_type].name
+  satisfying
+    decorator_name = 'Controller' or class_name ~ /.*Service$/
+  returning
+    {class_name, method_name}
+}
+
+-- variant
+fn method_without_decorator() {
+  returning .body > method_definition[!.return_type]
+}
+
+fn needs_method_returns() {
+  let
+    class_name = .name
+    decorator_name = .decorator > call_expression.identifier
+  satisfying
+    decorator_name = 'Controller' or class_name ~ /.*Service$/
+  returning {class_name}
+}
+
+class_declaration {
+  inheriting
+    {class_name} from needs_method_returns()
+    method from method_without_decorator()
+  -- the let statements can be before the inheriting statements.
+  -- this just reads more nicely.
+  let
+    method_name = method.name
+  returning
+    {class_name, method_name}
+}
+
