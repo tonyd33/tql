@@ -4,7 +4,8 @@
 void engine_init(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
-  Ops_init(&engine->program);
+  FunctionTable_init(&engine->function_table);
+  Stack_init(&engine->stack);
 }
 
 void engine_load_ast(Engine *engine, TSTree *ast) { engine->ast = ast; }
@@ -13,15 +14,12 @@ void engine_load_source(Engine *engine, const char *source) {
   engine->source = source;
 }
 
-void engine_load_program(Engine *engine, Ops *program) {
-  Ops_reserve(&engine->program, program->cap);
-  engine->program.len = program->len;
-  for (int i = 0; i < program->cap; i++) {
-    engine->program.data[i] = program->data[i];
-  }
+void engine_load_function(Engine *engine, Function *function) {
+  // FIXME: We need to copy over the Ops so it's owned by the engine.
+  FunctionTable_append(&engine->function_table, *function);
 }
 
-Matches *engine_run(Engine *engine) {
+void engine_exec(Engine *engine) {
   // IMPROVE: Use arena allocation
   Bindings *root_bindings = malloc(sizeof(Bindings));
   bindings_init(root_bindings);
@@ -35,24 +33,35 @@ Matches *engine_run(Engine *engine) {
       .bindings = root_bindings,
       .node_stack = root_node_stack,
   };
-  Stack stack;
-  Stack_init(&stack);
-  Stack_append(&stack, root_frame);
+  Stack_append(&engine->stack, root_frame);
+}
 
-  Matches *matches = malloc(sizeof(Matches));
-  Matches_init(matches);
+bool engine_find_main(Engine *engine, Function *out) {
+  for (uint64_t i = 0; i < engine->function_table.len; i++) {
+    if (engine->function_table.data[i].id == 0) {
+      *out = engine->function_table.data[i];
+      return true;
+    }
+  }
+  return false;
+}
 
+bool engine_next_match(Engine *engine, Match *match) {
   const TSLanguage *language = ts_tree_language(engine->ast);
-  while (stack.len > 0) {
-    Frame frame = stack.data[--stack.len];
+  Function main;
+  assert(engine_find_main(engine, &main) && "Could not find main");
+  while (engine->stack.len > 0) {
+    Frame frame = engine->stack.data[--engine->stack.len];
     bool frame_done = false;
+    bool match_found = false;
+
     do {
-      if (frame.pc >= engine->program.len) {
+      if (frame.pc >= main.function.len) {
         frame_done = true;
         break;
       }
 
-      Op op = engine->program.data[frame.pc];
+      Op op = main.function.data[frame.pc];
       switch (op.opcode) {
       case Noop: {
         frame.pc++;
@@ -133,7 +142,7 @@ Matches *engine_run(Engine *engine) {
               .bindings = overlay,
               .node_stack = node_stack,
           };
-          Stack_append(&stack, frame);
+          Stack_append(&engine->stack, frame);
         }
 
         frame_done = true;
@@ -183,14 +192,17 @@ Matches *engine_run(Engine *engine) {
         frame.pc++;
         break;
       }
+      case Call: {
+        break;
+      }
       case Yield: {
         Bindings *overlay = malloc(sizeof(Bindings));
         bindings_overlay(overlay, frame.bindings);
-        Match match = {
+        *match = (Match){
             .node = frame.node,
             .bindings = overlay,
         };
-        Matches_append(matches, match);
+        match_found = true;
         frame_done = true;
         break;
       }
@@ -202,13 +214,17 @@ Matches *engine_run(Engine *engine) {
     // The overlays may be referenced in other stackframes though...
     // Possibly use a ref count for memory management?
     NodeStack_free(frame.node_stack);
+    if (match_found) {
+      return true;
+    }
   }
 
-  Stack_free(&stack);
-  return matches;
+  return false;
 }
 
 void engine_free(Engine *engine) {
   engine->ast = NULL;
-  Ops_free(&engine->program);
+  engine->source = NULL;
+  FunctionTable_free(&engine->function_table);
+  Stack_free(&engine->stack);
 }

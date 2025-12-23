@@ -47,12 +47,24 @@ typedef struct {
 } Predicate;
 
 typedef enum {
+  Join,
+  Exists,
+  NotExists,
+} CallMode;
+
+typedef struct {
+  CallMode mode;
+  uint64_t function_id;
+} CallParameters;
+
+typedef enum {
   Noop,
   PushNode,
   PopNode,
   Branch,
   Bind,
   If,
+  Call,
   Yield,
 } Opcode;
 
@@ -67,6 +79,14 @@ DA_DEFINE(Op, Ops);
 DA_DEFINE(Match, Matches);
 DA_DEFINE(TSNode, NodeStack);
 
+typedef Ops FunctionBody;
+
+typedef struct {
+  uint64_t id;
+  FunctionBody function;
+} Function;
+DA_DEFINE(Function, FunctionTable);
+
 typedef struct {
   uint64_t pc;
   TSNode node;
@@ -77,12 +97,12 @@ DA_DEFINE(Frame, Stack);
 
 typedef struct {
   TSTree *ast;
-  Ops program;
+  FunctionTable function_table;
+  Stack stack;
   const char *source;
 } Engine;
 
 void engine_init(Engine *engine);
-void engine_free(Engine *engine);
 
 /*
  * In this step, I imagine the engine to take note of the source language and
@@ -90,8 +110,11 @@ void engine_free(Engine *engine);
  */
 void engine_load_ast(Engine *engine, TSTree *ast);
 void engine_load_source(Engine *engine, const char* source);
-void engine_load_program(Engine *engine, Ops *program);
+void engine_load_function(Engine *engine, Function *function);
 
-Matches *engine_run(Engine *engine);
+void engine_exec(Engine *engine);
+bool engine_next_match(Engine *engine, Match *match);
+
+void engine_free(Engine *engine);
 
 #endif /* _ENGINE_H_ */
