@@ -13,21 +13,6 @@ typedef struct {
 } Match;
 
 typedef enum {
-  Noop,
-  PushNode,
-  PopNode,
-  Branch,
-  Bind,
-  If,
-  Yield,
-} Opcode;
-
-typedef struct {
-  Opcode opcode;
-  void *operand;
-} Op;
-
-typedef enum {
   Child,
   Descendant,
   Field,
@@ -37,6 +22,46 @@ typedef struct {
   AxisType axis_type;
   void *operand;
 } Axis;
+
+typedef enum {
+  /* operand_1: NodeExpression, operand_2: String */
+  TextEquals,
+  /* operand_1: NodeExpression, operand_2: Id */
+  TypeEquals,
+} PredicateType;
+
+typedef enum {
+  Self,
+  Var,
+} NodeExpressionType;
+
+typedef struct {
+  NodeExpressionType node_expression_type;
+  void *operand;
+} NodeExpression;
+
+typedef struct {
+  PredicateType predicate_type;
+  void *operand_1;
+  void *operand_2;
+} Predicate;
+
+typedef enum {
+  Noop,
+  PushNode,
+  PopNode,
+  Branch,
+  Bind,
+  If,
+  Yield,
+} Opcode;
+
+// TODO: We really need a typesafe way to encode operations!
+// And this should ideally be completely flat in memory.
+typedef struct {
+  Opcode opcode;
+  void *operand;
+} Op;
 
 DA_DEFINE(Op, Ops);
 DA_DEFINE(Match, Matches);
@@ -53,6 +78,7 @@ DA_DEFINE(Frame, Stack);
 typedef struct {
   TSTree *ast;
   Ops program;
+  const char *source;
 } Engine;
 
 void engine_init(Engine *engine);
@@ -63,6 +89,7 @@ void engine_free(Engine *engine);
  * AST and determine what optimizations it can make.
  */
 void engine_load_ast(Engine *engine, TSTree *ast);
+void engine_load_source(Engine *engine, const char* source);
 void engine_load_program(Engine *engine, Ops *program);
 
 Matches *engine_run(Engine *engine);

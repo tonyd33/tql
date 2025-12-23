@@ -3,10 +3,15 @@
 
 void engine_init(Engine *engine) {
   engine->ast = NULL;
+  engine->source = NULL;
   Ops_init(&engine->program);
 }
 
 void engine_load_ast(Engine *engine, TSTree *ast) { engine->ast = ast; }
+
+void engine_load_source(Engine *engine, const char *source) {
+  engine->source = source;
+}
 
 void engine_load_program(Engine *engine, Ops *program) {
   Ops_reserve(&engine->program, program->cap);
@@ -136,7 +141,41 @@ Matches *engine_run(Engine *engine) {
         break;
       }
       case If: {
-        assert(false && "Not Implemented");
+        Predicate *predicate = (Predicate *)op.operand;
+        switch (predicate->predicate_type) {
+        case TypeEquals: {
+          NodeExpression *left = (NodeExpression *)predicate->operand_1;
+          TSSymbol right = (TSSymbol)predicate->operand_2;
+
+          assert(left->node_expression_type == Self && "Only self supported");
+
+          frame_done = ts_node_symbol(frame.node) != right;
+          break;
+        }
+        case TextEquals: {
+          NodeExpression *left = (NodeExpression *)predicate->operand_1;
+          // FIXME: This is dangerous...
+          const char *right = (char *)predicate->operand_2;
+
+          assert(left->node_expression_type == Self && "Only self supported");
+
+          uint32_t start_byte = ts_node_start_byte(frame.node);
+          uint32_t end_byte = ts_node_end_byte(frame.node);
+          uint32_t buf_len = end_byte - start_byte;
+          char buf[buf_len + 1];
+
+          strncpy(buf, engine->source + start_byte, buf_len);
+          buf[buf_len] = '\0';
+          frame_done = strncmp(buf, right, buf_len) != 0;
+          break;
+        }
+        default: {
+          assert(false && "Unknown predicate type");
+          break;
+        }
+        }
+
+        frame.pc++;
         break;
       }
       case Bind: {

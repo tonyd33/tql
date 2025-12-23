@@ -7,6 +7,8 @@
 
 const TSLanguage *tree_sitter_typescript(void);
 
+static const char *CONTROLLER_TEXT = "Controller";
+
 int main() {
   Ops program;
   Ops_init(&program);
@@ -15,6 +17,10 @@ int main() {
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);
   TSFieldId function_field_id =
       ts_language_field_id_for_name(tree_sitter_typescript(), "function", 8);
+  TSSymbol class_declaration_type_symbol = ts_language_symbol_for_name(
+      tree_sitter_typescript(), "class_declaration", 17, true);
+
+  const VarId decorator_name_var_id = 1;
 
   Axis descendant_axis = {
       .axis_type = Descendant,
@@ -32,13 +38,31 @@ int main() {
       .axis_type = Field,
       .operand = (void *)function_field_id,
   };
-  Ops_append(&program, (Op){
-                           .opcode = PushNode,
-                           .operand = NULL,
-                       });
+  NodeExpression self = {
+      .node_expression_type = Self,
+      .operand = NULL,
+  };
+  Predicate self_is_class_declaration = {
+      .predicate_type = TypeEquals,
+      .operand_1 = (void *)&self,
+      .operand_2 = (void *)class_declaration_type_symbol,
+  };
+  Predicate self_text_is_controller = {
+      .predicate_type = TextEquals,
+      .operand_1 = (void *)&self,
+      .operand_2 = (void *)CONTROLLER_TEXT,
+  };
   Ops_append(&program, (Op){
                            .opcode = Branch,
                            .operand = &descendant_axis,
+                       });
+  Ops_append(&program, (Op){
+                           .opcode = If,
+                           .operand = &self_is_class_declaration,
+                       });
+  Ops_append(&program, (Op){
+                           .opcode = PushNode,
+                           .operand = NULL,
                        });
   Ops_append(&program, (Op){
                            .opcode = Branch,
@@ -53,8 +77,12 @@ int main() {
                            .operand = &function_field_axis,
                        });
   Ops_append(&program, (Op){
+                           .opcode = If,
+                           .operand = &self_text_is_controller,
+                       });
+  Ops_append(&program, (Op){
                            .opcode = Bind,
-                           .operand = (void *)1,
+                           .operand = (void *)decorator_name_var_id,
                        });
   Ops_append(&program, (Op){
                            .opcode = PopNode,
@@ -74,12 +102,14 @@ int main() {
   const char *source_code = "@Controller()\n"
                             "class UserService {}\n"
                             "@SomethingElse()\n"
-                            "class Other {}";
+                            "class Other {}\n"
+                            "const x = UserService();";
   TSTree *tree =
       ts_parser_parse_string(parser, NULL, source_code, strlen(source_code));
 
   Engine engine;
   engine_init(&engine);
+  engine_load_source(&engine, source_code);
   engine_load_ast(&engine, tree);
   engine_load_program(&engine, &program);
 
@@ -87,6 +117,7 @@ int main() {
 
   char buf[1024];
   for (int i = 0; i < matches->len; i++) {
+    printf("=================\n");
     Match match = matches->data[i];
     uint32_t start_byte = ts_node_start_byte(match.node);
     uint32_t end_byte = ts_node_end_byte(match.node);
@@ -94,8 +125,8 @@ int main() {
     strncpy(buf, source_code + start_byte, buf_len);
     buf[buf_len] = '\0';
 
-    printf("match text: %s\n", buf);
-    TQLValue *bound_value = bindings_get(match.bindings, 1);
+    printf("match text:\n%s\n", buf);
+    TQLValue *bound_value = bindings_get(match.bindings, decorator_name_var_id);
     if (bound_value != NULL) {
       uint32_t start_byte = ts_node_start_byte(*bound_value);
       uint32_t end_byte = ts_node_end_byte(*bound_value);
@@ -103,8 +134,9 @@ int main() {
       strncpy(buf, source_code + start_byte, buf_len);
       buf[buf_len] = '\0';
 
-      printf("bound text: %s\n", buf);
+      printf("bound text:\n%s\n", buf);
     }
+    printf("=================\n");
   }
 
   engine_free(&engine);
