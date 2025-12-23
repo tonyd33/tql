@@ -2,6 +2,7 @@
 #define _ARRAY_H_
 
 #include <stddef.h>
+#include <string.h>
 
 static inline size_t dyn_array_next_cap(size_t cap) {
   return cap ? cap * 2 : 1;
@@ -49,6 +50,14 @@ static inline size_t dyn_array_next_cap(size_t cap) {
                                                                                \
     a->data[a->len++] = value;                                                 \
     return true;                                                               \
+  }                                                                            \
+                                                                               \
+  static inline void Name##_clone(Name *dest, Name *src) {                     \
+    Name##_init(dest);                                                         \
+    dest->len = src->len;                                                      \
+    dest->cap = src->cap;                                                      \
+    dest->data = (T *)malloc(sizeof(T) * src->cap);                            \
+    memcpy(dest->data, src->data, sizeof(T) * src->cap);                       \
   }                                                                            \
                                                                                \
   static inline const T *Name##_get(const Name *a, size_t i) {                 \

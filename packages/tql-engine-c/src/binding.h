@@ -20,7 +20,7 @@ DA_DEFINE(Binding, _Bindings);
 typedef _Bindings Bindings;
 
 /*
- * The idea is that, to be more memory-efficient in the future, clone
+ * The idea is that, to be more memory-efficient in the future, overlay
  * operations will create an "overlay" of the previous bindings, such that
  * lookups on the new bindings will search in the overlay first, and have the
  * ability to fall back to the previous binding.
@@ -30,7 +30,7 @@ typedef _Bindings Bindings;
 
 void bindings_init(Bindings *bindings);
 void bindings_free(Bindings *bindings);
-Bindings *bindings_clone(Bindings *bindings);
+void bindings_overlay(Bindings *dest, Bindings *src);
 
 TQLValue *bindings_get(Bindings *bindings, VarId variable);
 void bindings_insert(Bindings *bindings, VarId variable, TQLValue value);
