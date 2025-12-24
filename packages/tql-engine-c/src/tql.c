@@ -41,12 +41,15 @@ int main(int argc, char **argv) {
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);
   const TSFieldId FUNCTION_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "function", 8);
+  const TSFieldId NAME_FIELD_ID =
+      ts_language_field_id_for_name(tree_sitter_typescript(), "name", 4);
   const TSFieldId RETURN_TYPE_FIELD_ID = ts_language_field_id_for_name(
       tree_sitter_typescript(), "return_type", 11);
   const TSSymbol CLASS_DECLARATION_TYPE_SYMBOL = ts_language_symbol_for_name(
       tree_sitter_typescript(), "class_declaration", 17, true);
 
   const VarId DECORATOR_NAME_VAR_ID = 1;
+  const VarId CLASS_NAME_VAR_ID = 2;
 
   Ops prog_has_return_type;
   Ops_init(&prog_has_return_type);
@@ -135,6 +138,24 @@ int main(int argc, char **argv) {
                              .opcode = OP_POPNODE,
                          });
   Ops_append(&prog_main, (Op){
+                             .opcode = OP_PUSHNODE,
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BRANCH,
+                             .data = {.axis =
+                                          {
+                                              .axis_type = AXIS_FIELD,
+                                              .data = {.field = NAME_FIELD_ID},
+                                          }},
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BIND,
+                             .data = {.var_id = CLASS_NAME_VAR_ID},
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_POPNODE,
+                         });
+  Ops_append(&prog_main, (Op){
                              .opcode = OP_YIELD,
                          });
   Function function_main = {
@@ -159,18 +180,23 @@ int main(int argc, char **argv) {
   engine_exec(&engine);
 
   Match match;
+  TQLValue *bound_value;
   char buf[4096];
 
   while (engine_next_match(&engine, &match)) {
-    get_ts_node_text(source_code, match.node, buf);
     printf("=================\n");
-    printf("match text:\n%s\n", buf);
-
-    TQLValue *bound_value =
-        bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
+    bound_value = bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
     assert(bound_value != NULL && "Did not find bound value");
     get_ts_node_text(source_code, *bound_value, buf);
-    printf("bound text:\n%s\n", buf);
+    printf("decorator name: %s\n", buf);
+
+    bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
+    assert(bound_value != NULL && "Did not find bound value");
+    get_ts_node_text(source_code, *bound_value, buf);
+    printf("class name: %s\n", buf);
+
+    get_ts_node_text(source_code, match.node, buf);
+    printf("full match:\n%s\n", buf);
     printf("=================\n");
   }
 

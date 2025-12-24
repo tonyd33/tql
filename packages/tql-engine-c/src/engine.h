@@ -28,9 +28,7 @@ typedef struct {
 } Axis;
 
 typedef enum {
-  /* operand_1: NodeExpression, operand_2: String */
   PREDICATE_TEXTEQ,
-  /* operand_1: NodeExpression, operand_2: Id */
   PREDICATE_TYPEEQ,
 } PredicateType;
 
@@ -107,9 +105,6 @@ typedef struct {
 DA_DEFINE(Function, FunctionTable);
 
 typedef struct {
-  // FIXME: The memory layout should be such that the execution frame doesn't
-  // need access to a function id
-  FunctionId function_id;
   uint64_t pc;
   TSNode node;
   Bindings bindings;
