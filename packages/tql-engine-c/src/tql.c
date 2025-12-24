@@ -2,6 +2,7 @@
 #include "engine.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <tree_sitter/api.h>
 
@@ -22,7 +23,20 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
   buf[buf_len] = '\0';
 }
 
-int main() {
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    fprintf(stderr, "Expected 1 argument\n");
+    return EXIT_FAILURE;
+  }
+
+  FILE *source_fp = fopen(argv[1], "rb");
+  if (source_fp == NULL) {
+    perror("fopen");
+    return EXIT_FAILURE;
+  }
+  char source_code[4096] = {0};
+  int bytes_read = fread(source_code, sizeof(source_code), 1, source_fp);
+
   const TSFieldId DECORATOR_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);
   const TSFieldId FUNCTION_FIELD_ID =
@@ -133,12 +147,6 @@ int main() {
 
   ts_parser_set_language(parser, tree_sitter_typescript());
 
-  // Build a syntax tree based on source code stored in a string.
-  const char *source_code = "@NotController()\n"
-                            "class UserService {}\n"
-                            "@Controller()\n"
-                            "class Other {}\n"
-                            "const x = UserService();";
   TSTree *tree =
       ts_parser_parse_string(parser, NULL, source_code, strlen(source_code));
 
@@ -151,24 +159,25 @@ int main() {
   engine_exec(&engine);
 
   Match match;
-  char buf[1024];
+  char buf[4096];
 
   while (engine_next_match(&engine, &match)) {
     get_ts_node_text(source_code, match.node, buf);
+    printf("=================\n");
     printf("match text:\n%s\n", buf);
 
     TQLValue *bound_value =
         bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
-    if (bound_value != NULL) {
-      get_ts_node_text(source_code, *bound_value, buf);
-      printf("bound text:\n%s\n", buf);
-    }
+    assert(bound_value != NULL && "Did not find bound value");
+    get_ts_node_text(source_code, *bound_value, buf);
+    printf("bound text:\n%s\n", buf);
     printf("=================\n");
   }
 
+  fclose(source_fp);
   // Free all of the heap-allocated memory.
   engine_free(&engine);
   ts_tree_delete(tree);
   ts_parser_delete(parser);
-  return 0;
+  return EXIT_SUCCESS;
 }
