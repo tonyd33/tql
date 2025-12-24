@@ -5,7 +5,7 @@ void engine_init(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
   FunctionTable_init(&engine->function_table);
-  Stack_init(&engine->stack);
+  ExecutionStack_init(&engine->stack);
 }
 
 void engine_load_ast(Engine *engine, TSTree *ast) { engine->ast = ast; }
@@ -27,13 +27,13 @@ void engine_exec(Engine *engine) {
   NodeStack *root_node_stack = malloc(sizeof(NodeStack));
   NodeStack_init(root_node_stack);
 
-  Frame root_frame = {
+  ExecutionFrame root_frame = {
       .pc = 0,
       .node = ts_tree_root_node(engine->ast),
       .bindings = root_bindings,
       .node_stack = root_node_stack,
   };
-  Stack_append(&engine->stack, root_frame);
+  ExecutionStack_append(&engine->stack, root_frame);
 }
 
 bool engine_find_main(Engine *engine, Function *out) {
@@ -51,7 +51,7 @@ bool engine_next_match(Engine *engine, Match *match) {
   Function main;
   assert(engine_find_main(engine, &main) && "Could not find main");
   while (engine->stack.len > 0) {
-    Frame frame = engine->stack.data[--engine->stack.len];
+    ExecutionFrame frame = engine->stack.data[--engine->stack.len];
     bool frame_done = false;
     bool match_found = false;
 
@@ -63,34 +63,34 @@ bool engine_next_match(Engine *engine, Match *match) {
 
       Op op = main.function.data[frame.pc];
       switch (op.opcode) {
-      case Noop: {
+      case OP_NOOP: {
         frame.pc++;
         break;
       }
-      case PushNode: {
+      case OP_PUSHNODE: {
         NodeStack_append(frame.node_stack, frame.node);
         frame.pc++;
         break;
       }
-      case PopNode: {
+      case OP_POPNODE: {
         frame.node = frame.node_stack->data[--frame.node_stack->len];
         frame.pc++;
         break;
       }
-      case Branch: {
-        Axis *axis = (Axis *)op.operand;
+      case OP_BRANCH: {
+        Axis axis = op.data.axis;
         uint64_t next_pc = frame.pc + 1;
         TSNodes branches;
         TSNodes_init(&branches);
 
-        switch (axis->axis_type) {
-        case Child: {
+        switch (axis.axis_type) {
+        case AXIS_CHILD: {
           for (uint32_t i = 0; i < ts_node_named_child_count(frame.node); i++) {
             TSNodes_append(&branches, ts_node_named_child(frame.node, i));
           }
           break;
         }
-        case Descendant: {
+        case AXIS_DESCENDANT: {
           TSNodes desc_stack;
           TSNodes_init(&desc_stack);
           TSNodes_append(&desc_stack, frame.node);
@@ -108,8 +108,8 @@ bool engine_next_match(Engine *engine, Match *match) {
           TSNodes_free(&desc_stack);
           break;
         }
-        case Field: {
-          TSFieldId field_id = (TSFieldId)axis->operand;
+        case AXIS_FIELD: {
+          TSFieldId field_id = axis.data.field;
           const char *field_name =
               ts_language_field_name_for_id(language, field_id);
           for (uint32_t i = 0; i < ts_node_named_child_count(frame.node); i++) {
@@ -136,37 +136,37 @@ bool engine_next_match(Engine *engine, Match *match) {
           // IMPROVE: There should be a better way to do this
           NodeStack *node_stack = malloc(sizeof(NodeStack));
           NodeStack_clone(node_stack, frame.node_stack);
-          Frame frame = {
+          ExecutionFrame frame = {
               .pc = next_pc,
               .node = branch,
               .bindings = overlay,
               .node_stack = node_stack,
           };
-          Stack_append(&engine->stack, frame);
+          ExecutionStack_append(&engine->stack, frame);
         }
 
         frame_done = true;
         TSNodes_free(&branches);
         break;
       }
-      case If: {
-        Predicate *predicate = (Predicate *)op.operand;
-        switch (predicate->predicate_type) {
-        case TypeEquals: {
-          NodeExpression *left = (NodeExpression *)predicate->operand_1;
-          TSSymbol right = (TSSymbol)predicate->operand_2;
+      case OP_IF: {
+        Predicate predicate = op.data.predicate;
+        switch (predicate.predicate_type) {
+        case PREDICATE_TYPEEQ: {
+          NodeExpression left = predicate.data.typeeq.node_expression;
+          TSSymbol right = predicate.data.typeeq.symbol;
 
-          assert(left->node_expression_type == Self && "Only self supported");
+          assert(left.node_expression_type == NODEEXPR_SELF && "Only self supported");
 
           frame_done = ts_node_symbol(frame.node) != right;
           break;
         }
-        case TextEquals: {
-          NodeExpression *left = (NodeExpression *)predicate->operand_1;
+        case PREDICATE_TEXTEQ: {
+          NodeExpression left = predicate.data.texteq.node_expression;
           // FIXME: This is dangerous...
-          const char *right = (char *)predicate->operand_2;
+          const char *right = predicate.data.texteq.text;
 
-          assert(left->node_expression_type == Self && "Only self supported");
+          assert(left.node_expression_type == NODEEXPR_SELF && "Only self supported");
 
           uint32_t start_byte = ts_node_start_byte(frame.node);
           uint32_t end_byte = ts_node_end_byte(frame.node);
@@ -187,15 +187,15 @@ bool engine_next_match(Engine *engine, Match *match) {
         frame.pc++;
         break;
       }
-      case Bind: {
-        bindings_insert(frame.bindings, (VarId)op.operand, frame.node);
+      case OP_BIND: {
+        bindings_insert(frame.bindings, op.data.var_id, frame.node);
         frame.pc++;
         break;
       }
-      case Call: {
+      case OP_CALL: {
         break;
       }
-      case Yield: {
+      case OP_YIELD: {
         Bindings *overlay = malloc(sizeof(Bindings));
         bindings_overlay(overlay, frame.bindings);
         *match = (Match){
@@ -226,5 +226,5 @@ void engine_free(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
   FunctionTable_free(&engine->function_table);
-  Stack_free(&engine->stack);
+  ExecutionStack_free(&engine->stack);
 }

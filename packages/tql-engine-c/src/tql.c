@@ -9,58 +9,34 @@ const TSLanguage *tree_sitter_typescript(void);
 
 static const char *CONTROLLER_TEXT = "Controller";
 
+static const NodeExpression NODE_EXPRESSION_SELF = {
+    .node_expression_type = NODEEXPR_SELF,
+    .operand = NULL,
+};
+
 int main() {
-  TSFieldId decorator_field_id =
+  const TSFieldId DECORATOR_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);
-  TSFieldId function_field_id =
+  const TSFieldId FUNCTION_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "function", 8);
-  TSFieldId return_type_field_id = ts_language_field_id_for_name(
+  const TSFieldId RETURN_TYPE_FIELD_ID = ts_language_field_id_for_name(
       tree_sitter_typescript(), "return_type", 11);
-  TSSymbol class_declaration_type_symbol = ts_language_symbol_for_name(
+  const TSSymbol CLASS_DECLARATION_TYPE_SYMBOL = ts_language_symbol_for_name(
       tree_sitter_typescript(), "class_declaration", 17, true);
 
-  const VarId decorator_name_var_id = 1;
-
-  Axis descendant_axis = {
-      .axis_type = Descendant,
-      .operand = NULL,
-  };
-  Axis child_axis = {
-      .axis_type = Child,
-      .operand = NULL,
-  };
-  Axis decorator_field_axis = {
-      .axis_type = Field,
-      .operand = (void *)decorator_field_id,
-  };
-  Axis function_field_axis = {
-      .axis_type = Field,
-      .operand = (void *)function_field_id,
-  };
-  Axis return_type_field_axis = {
-      .axis_type = Field,
-      .operand = (void *)return_type_field_id,
-  };
-  NodeExpression self = {
-      .node_expression_type = Self,
-      .operand = NULL,
-  };
-  Predicate self_is_class_declaration = {
-      .predicate_type = TypeEquals,
-      .operand_1 = (void *)&self,
-      .operand_2 = (void *)class_declaration_type_symbol,
-  };
-  Predicate self_text_is_controller = {
-      .predicate_type = TextEquals,
-      .operand_1 = (void *)&self,
-      .operand_2 = (void *)CONTROLLER_TEXT,
-  };
+  const VarId DECORATOR_NAME_VAR_ID = 1;
 
   Ops prog_has_return_type;
   Ops_init(&prog_has_return_type);
   Ops_append(&prog_has_return_type,
-             (Op){.opcode = Branch, .operand = &return_type_field_axis});
-  Ops_append(&prog_has_return_type, (Op){.opcode = Yield, .operand = NULL});
+             (Op){.opcode = OP_BRANCH,
+                  .data = {.axis = {
+                               .axis_type = AXIS_FIELD,
+                               .data = {.field = RETURN_TYPE_FIELD_ID},
+                           }}});
+  Ops_append(&prog_has_return_type, (Op){
+                                        .opcode = OP_YIELD,
+                                    });
   Function function_has_return_type = {
       .id = 1,
       .function = prog_has_return_type,
@@ -69,44 +45,75 @@ int main() {
   Ops prog_main;
   Ops_init(&prog_main);
   Ops_append(&prog_main, (Op){
-                             .opcode = Branch,
-                             .operand = &descendant_axis,
+                             .opcode = OP_BRANCH,
+                             .data = {.axis =
+                                          {
+                                              .axis_type = AXIS_DESCENDANT,
+                                          }},
+                         });
+  Ops_append(
+      &prog_main,
+      (Op){
+          .opcode = OP_IF,
+          .data = {.predicate =
+                       {
+                           .predicate_type = PREDICATE_TYPEEQ,
+                           .data =
+                               {
+                                   {.node_expression = NODE_EXPRESSION_SELF,
+                                    .symbol = CLASS_DECLARATION_TYPE_SYMBOL},
+                               },
+                       }},
+      });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_PUSHNODE,
+                         });
+  Ops_append(&prog_main,
+             (Op){.opcode = OP_BRANCH,
+                  .data = {.axis = {
+                               .axis_type = AXIS_FIELD,
+                               .data = {.field = DECORATOR_FIELD_ID},
+
+                           }}});
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BRANCH,
+                             .data = {.axis =
+                                          {
+                                              .axis_type = AXIS_CHILD,
+                                          }},
+                         });
+  Ops_append(&prog_main,
+             (Op){
+                 .opcode = OP_BRANCH,
+                 .data = {.axis =
+                              {
+                                  .axis_type = AXIS_FIELD,
+                                  .data = {.field = FUNCTION_FIELD_ID},
+                              }},
+             });
+  Ops_append(&prog_main,
+             (Op){
+                 .opcode = OP_IF,
+                 .data =
+                     {
+                         .predicate =
+                             {
+                                 .predicate_type = PREDICATE_TEXTEQ,
+                                 .data = {.texteq = {.node_expression =
+                                                         NODE_EXPRESSION_SELF,
+                                                     .text = CONTROLLER_TEXT}},
+                             },
+                     },
+             });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BIND,
+                             .data = {.var_id = DECORATOR_NAME_VAR_ID},
                          });
   Ops_append(&prog_main, (Op){
-                             .opcode = If,
-                             .operand = &self_is_class_declaration,
+                             .opcode = OP_POPNODE,
                          });
   Ops_append(&prog_main, (Op){
-                             .opcode = PushNode,
-                             .operand = NULL,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = Branch,
-                             .operand = &decorator_field_axis,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = Branch,
-                             .operand = &child_axis,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = Branch,
-                             .operand = &function_field_axis,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = If,
-                             .operand = &self_text_is_controller,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = Bind,
-                             .operand = (void *)decorator_name_var_id,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = PopNode,
-                             .operand = NULL,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = Yield,
-                             .operand = NULL,
+                             .opcode = OP_YIELD,
                          });
   Function function_main = {
       .id = 0,
@@ -119,7 +126,7 @@ int main() {
   ts_parser_set_language(parser, tree_sitter_typescript());
 
   // Build a syntax tree based on source code stored in a string.
-  const char *source_code = "@Controller()\n"
+  const char *source_code = "@NotController()\n"
                             "class UserService {}\n"
                             "@Controller()\n"
                             "class Other {}\n"
@@ -146,7 +153,7 @@ int main() {
     buf[buf_len] = '\0';
 
     printf("match text:\n%s\n", buf);
-    TQLValue *bound_value = bindings_get(match.bindings, decorator_name_var_id);
+    TQLValue *bound_value = bindings_get(match.bindings, DECORATOR_NAME_VAR_ID);
     if (bound_value != NULL) {
       uint32_t start_byte = ts_node_start_byte(*bound_value);
       uint32_t end_byte = ts_node_end_byte(*bound_value);

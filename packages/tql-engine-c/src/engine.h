@@ -13,26 +13,28 @@ typedef struct {
 } Match;
 
 typedef enum {
-  Child,
-  Descendant,
-  Field,
+  AXIS_CHILD,
+  AXIS_DESCENDANT,
+  AXIS_FIELD,
 } AxisType;
 
 typedef struct {
   AxisType axis_type;
-  void *operand;
+  union {
+      TSFieldId field;
+  } data;
 } Axis;
 
 typedef enum {
   /* operand_1: NodeExpression, operand_2: String */
-  TextEquals,
+  PREDICATE_TEXTEQ,
   /* operand_1: NodeExpression, operand_2: Id */
-  TypeEquals,
+  PREDICATE_TYPEEQ,
 } PredicateType;
 
 typedef enum {
-  Self,
-  Var,
+  NODEEXPR_SELF,
+  NODEEXPR_VAR,
 } NodeExpressionType;
 
 typedef struct {
@@ -42,14 +44,22 @@ typedef struct {
 
 typedef struct {
   PredicateType predicate_type;
-  void *operand_1;
-  void *operand_2;
+  union {
+    struct {
+      NodeExpression node_expression;
+      TSSymbol symbol;
+    } typeeq;
+    struct {
+      NodeExpression node_expression;
+      const char *text;
+    } texteq;
+  } data;
 } Predicate;
 
 typedef enum {
-  Join,
-  Exists,
-  NotExists,
+  CALLMODE_JOIN,
+  CALLMODE_EXISTS,
+  CALLMODE_NOTEXISTS,
 } CallMode;
 
 typedef struct {
@@ -58,21 +68,25 @@ typedef struct {
 } CallParameters;
 
 typedef enum {
-  Noop,
-  PushNode,
-  PopNode,
-  Branch,
-  Bind,
-  If,
-  Call,
-  Yield,
+  OP_NOOP,
+  OP_PUSHNODE,
+  OP_POPNODE,
+  OP_BRANCH,
+  OP_BIND,
+  OP_IF,
+  OP_CALL,
+  OP_YIELD,
 } Opcode;
 
 // TODO: We really need a typesafe way to encode operations!
 // And this should ideally be completely flat in memory.
 typedef struct {
   Opcode opcode;
-  void *operand;
+  union {
+    Axis axis;
+    Predicate predicate;
+    VarId var_id;
+  } data;
 } Op;
 
 DA_DEFINE(Op, Ops);
@@ -92,13 +106,13 @@ typedef struct {
   TSNode node;
   Bindings *bindings;
   NodeStack *node_stack;
-} Frame;
-DA_DEFINE(Frame, Stack);
+} ExecutionFrame;
+DA_DEFINE(ExecutionFrame, ExecutionStack);
 
 typedef struct {
   TSTree *ast;
   FunctionTable function_table;
-  Stack stack;
+  ExecutionStack stack;
   const char *source;
 } Engine;
 
@@ -109,7 +123,7 @@ void engine_init(Engine *engine);
  * AST and determine what optimizations it can make.
  */
 void engine_load_ast(Engine *engine, TSTree *ast);
-void engine_load_source(Engine *engine, const char* source);
+void engine_load_source(Engine *engine, const char *source);
 void engine_load_function(Engine *engine, Function *function);
 
 void engine_exec(Engine *engine);
