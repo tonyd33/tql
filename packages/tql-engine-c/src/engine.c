@@ -21,11 +21,11 @@ void engine_load_function(Engine *engine, Function *function) {
 
 void engine_exec(Engine *engine) {
   // IMPROVE: Use arena allocation
-  Bindings *root_bindings = malloc(sizeof(Bindings));
-  bindings_init(root_bindings);
+  Bindings root_bindings;
+  bindings_init(&root_bindings);
 
-  NodeStack *root_node_stack = malloc(sizeof(NodeStack));
-  NodeStack_init(root_node_stack);
+  NodeStack root_node_stack;
+  NodeStack_init(&root_node_stack);
 
   ExecutionFrame root_frame = {
       .pc = 0,
@@ -68,12 +68,12 @@ bool engine_next_match(Engine *engine, Match *match) {
         break;
       }
       case OP_PUSHNODE: {
-        NodeStack_append(frame.node_stack, frame.node);
+        NodeStack_append(&frame.node_stack, frame.node);
         frame.pc++;
         break;
       }
       case OP_POPNODE: {
-        frame.node = frame.node_stack->data[--frame.node_stack->len];
+        frame.node = frame.node_stack.data[--frame.node_stack.len];
         frame.pc++;
         break;
       }
@@ -131,11 +131,10 @@ bool engine_next_match(Engine *engine, Match *match) {
         for (uint32_t i = 0; i < branches.len; i++) {
           TSNode branch = branches.data[i];
 
-          Bindings *overlay = malloc(sizeof(Bindings));
-          bindings_overlay(overlay, frame.bindings);
-          // IMPROVE: There should be a better way to do this
-          NodeStack *node_stack = malloc(sizeof(NodeStack));
-          NodeStack_clone(node_stack, frame.node_stack);
+          Bindings overlay;
+          bindings_overlay(&overlay, &frame.bindings);
+          NodeStack node_stack;
+          NodeStack_clone(&node_stack, &frame.node_stack);
           ExecutionFrame frame = {
               .pc = next_pc,
               .node = branch,
@@ -188,7 +187,7 @@ bool engine_next_match(Engine *engine, Match *match) {
         break;
       }
       case OP_BIND: {
-        bindings_insert(frame.bindings, op.data.var_id, frame.node);
+        bindings_insert(&frame.bindings, op.data.var_id, frame.node);
         frame.pc++;
         break;
       }
@@ -196,8 +195,8 @@ bool engine_next_match(Engine *engine, Match *match) {
         break;
       }
       case OP_YIELD: {
-        Bindings *overlay = malloc(sizeof(Bindings));
-        bindings_overlay(overlay, frame.bindings);
+        Bindings overlay;
+        bindings_overlay(&overlay, &frame.bindings);
         *match = (Match){
             .node = frame.node,
             .bindings = overlay,
@@ -213,7 +212,7 @@ bool engine_next_match(Engine *engine, Match *match) {
 
     // The overlays may be referenced in other stackframes though...
     // Possibly use a ref count for memory management?
-    NodeStack_free(frame.node_stack);
+    NodeStack_free(&frame.node_stack);
     if (match_found) {
       return true;
     }

@@ -11,8 +11,16 @@ static const char *CONTROLLER_TEXT = "Controller";
 
 static const NodeExpression NODE_EXPRESSION_SELF = {
     .node_expression_type = NODEEXPR_SELF,
-    .operand = NULL,
 };
+
+void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
+  uint32_t start_byte = ts_node_start_byte(node);
+  uint32_t end_byte = ts_node_end_byte(node);
+  uint32_t buf_len = end_byte - start_byte;
+
+  strncpy(buf, source_code + start_byte, buf_len);
+  buf[buf_len] = '\0';
+}
 
 int main() {
   const TSFieldId DECORATOR_FIELD_ID =
@@ -146,28 +154,20 @@ int main() {
   char buf[1024];
 
   while (engine_next_match(&engine, &match)) {
-    uint32_t start_byte = ts_node_start_byte(match.node);
-    uint32_t end_byte = ts_node_end_byte(match.node);
-    uint32_t buf_len = end_byte - start_byte;
-    strncpy(buf, source_code + start_byte, buf_len);
-    buf[buf_len] = '\0';
-
+    get_ts_node_text(source_code, match.node, buf);
     printf("match text:\n%s\n", buf);
-    TQLValue *bound_value = bindings_get(match.bindings, DECORATOR_NAME_VAR_ID);
-    if (bound_value != NULL) {
-      uint32_t start_byte = ts_node_start_byte(*bound_value);
-      uint32_t end_byte = ts_node_end_byte(*bound_value);
-      uint32_t buf_len = end_byte - start_byte;
-      strncpy(buf, source_code + start_byte, buf_len);
-      buf[buf_len] = '\0';
 
+    TQLValue *bound_value =
+        bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
       printf("bound text:\n%s\n", buf);
     }
     printf("=================\n");
   }
 
-  engine_free(&engine);
   // Free all of the heap-allocated memory.
+  engine_free(&engine);
   ts_tree_delete(tree);
   ts_parser_delete(parser);
   return 0;

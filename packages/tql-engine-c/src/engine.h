@@ -5,11 +5,13 @@
 #include "dyn_array.h"
 #include <tree_sitter/api.h>
 
+typedef uint64_t FunctionId;
+
 DA_DEFINE(TSNode, TSNodes);
 
 typedef struct {
   TSNode node;
-  Bindings *bindings;
+  Bindings bindings;
 } Match;
 
 typedef enum {
@@ -21,7 +23,7 @@ typedef enum {
 typedef struct {
   AxisType axis_type;
   union {
-      TSFieldId field;
+    TSFieldId field;
   } data;
 } Axis;
 
@@ -39,7 +41,9 @@ typedef enum {
 
 typedef struct {
   NodeExpressionType node_expression_type;
-  void *operand;
+  union {
+    VarId var_id;
+  } operand;
 } NodeExpression;
 
 typedef struct {
@@ -51,6 +55,9 @@ typedef struct {
     } typeeq;
     struct {
       NodeExpression node_expression;
+      // TODO: Create a symbol lookup table and use a reference to the symbol
+      // id here. This is currently dangerous, since the string is not owned by
+      // the engine.
       const char *text;
     } texteq;
   } data;
@@ -64,7 +71,7 @@ typedef enum {
 
 typedef struct {
   CallMode mode;
-  uint64_t function_id;
+  FunctionId function_id;
 } CallParameters;
 
 typedef enum {
@@ -78,8 +85,6 @@ typedef enum {
   OP_YIELD,
 } Opcode;
 
-// TODO: We really need a typesafe way to encode operations!
-// And this should ideally be completely flat in memory.
 typedef struct {
   Opcode opcode;
   union {
@@ -96,16 +101,19 @@ DA_DEFINE(TSNode, NodeStack);
 typedef Ops FunctionBody;
 
 typedef struct {
-  uint64_t id;
+  FunctionId id;
   FunctionBody function;
 } Function;
 DA_DEFINE(Function, FunctionTable);
 
 typedef struct {
+  // FIXME: The memory layout should be such that the execution frame doesn't
+  // need access to a function id
+  FunctionId function_id;
   uint64_t pc;
   TSNode node;
-  Bindings *bindings;
-  NodeStack *node_stack;
+  Bindings bindings;
+  NodeStack node_stack;
 } ExecutionFrame;
 DA_DEFINE(ExecutionFrame, ExecutionStack);
 
