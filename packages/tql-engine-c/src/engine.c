@@ -168,7 +168,7 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
         }
         }
 
-        for (uint32_t i = 0; i < branches.len; i++) {
+        for (int i = branches.len - 1; i >= 0; i--) {
           TSNode branch = branches.data[i];
 
           Bindings overlay;
@@ -200,6 +200,7 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
                  "Only self supported");
 
           frame_done = ts_node_symbol(exc_frame.node) != right;
+          frame_done = predicate.negate ? !frame_done : frame_done;
           break;
         }
         case PREDICATE_TEXTEQ: {
@@ -218,6 +219,7 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
           strncpy(buf, engine->source + start_byte, buf_len);
           buf[buf_len] = '\0';
           frame_done = strncmp(buf, right, buf_len) != 0;
+          frame_done = predicate.negate ? !frame_done : frame_done;
           break;
         }
         default: {
@@ -282,60 +284,64 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
 }
 
 bool engine_next_match(Engine *engine, Match *match) {
-  CallFrame *call_frame = NULL;
-  CallFrame *prev_call_frame = NULL;
+  CallFrame *call_frame = NULL, *prev_call_frame = NULL;
+  bool restore_continuation, pop_call_frame, match_found;
   ExecutionResult result;
+
   while (engine->call_stack.len > 0) {
+    restore_continuation = false, pop_call_frame = false, match_found = false;
+
     call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
     prev_call_frame = engine->call_stack.len > 1
                           ? &engine->call_stack.data[engine->call_stack.len - 2]
                           : NULL;
+
     result = engine_step_execution_frame(engine, &call_frame->exc_stack, match);
     switch (result) {
     case EXC_FAIL: {
       switch (call_frame->call_mode) {
       case CALLMODE_JOIN:
-      case CALLMODE_EXISTS: {
-        // FIXME: deinitialize the call frame before going next
-        engine->call_stack.len--;
-        continue;
-      }
+      case CALLMODE_EXISTS:
+        pop_call_frame = true;
+        break;
       case CALLMODE_NOTEXISTS:
-        if (call_frame->has_continuation && prev_call_frame != NULL) {
-          ExecutionStack_append(&prev_call_frame->exc_stack,
-                                call_frame->continuation);
-        }
-        // FIXME: deinitialize the call frame before going next
-        engine->call_stack.len--;
-        continue;
+        restore_continuation = true;
+        pop_call_frame = true;
+        break;
       }
     }
     case EXC_MATCH: {
       switch (call_frame->call_mode) {
-      case CALLMODE_JOIN: {
-        if (call_frame->has_continuation && prev_call_frame != NULL) {
-          ExecutionStack_append(&prev_call_frame->exc_stack,
-                                call_frame->continuation);
-        }
-        return true;
-      }
+      case CALLMODE_JOIN:
+        restore_continuation = true;
+        match_found = true;
+        break;
       case CALLMODE_EXISTS: {
-        if (call_frame->has_continuation && prev_call_frame != NULL) {
-          ExecutionStack_append(&prev_call_frame->exc_stack,
-                                call_frame->continuation);
-        }
-        // FIXME: deinitialize the call frame before going next
-        engine->call_stack.len--;
-        continue;
+        restore_continuation = true;
+        pop_call_frame = true;
+        break;
       }
       case CALLMODE_NOTEXISTS:
-        // FIXME: deinitialize the call frame before going next
-        engine->call_stack.len--;
-        continue;
+        pop_call_frame = true;
+        break;
       }
     }
     case EXC_CONTINUE:
-      continue;
+      break;
+    }
+
+    if (restore_continuation && call_frame->has_continuation &&
+        prev_call_frame != NULL) {
+      ExecutionStack_append(&prev_call_frame->exc_stack,
+                            call_frame->continuation);
+    }
+    if (pop_call_frame) {
+      // FIXME: deinitialize the call frame before going next
+      engine->call_stack.len--;
+    }
+
+    if (match_found) {
+      return true;
     }
   }
 

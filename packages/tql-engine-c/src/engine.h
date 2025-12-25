@@ -46,6 +46,7 @@ typedef struct {
 
 typedef struct {
   PredicateType predicate_type;
+  bool negate;
   union {
     struct {
       NodeExpression node_expression;

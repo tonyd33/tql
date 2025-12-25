@@ -8,8 +8,6 @@
 
 const TSLanguage *tree_sitter_typescript(void);
 
-static const char *CONTROLLER_TEXT = "Controller";
-
 static const NodeExpression NODE_EXPRESSION_SELF = {
     .node_expression_type = NODEEXPR_SELF,
 };
@@ -90,6 +88,7 @@ int main(int argc, char **argv) {
           .data = {.predicate =
                        {
                            .predicate_type = PREDICATE_TYPEEQ,
+                           .negate = false,
                            .data =
                                {
                                    {.node_expression = NODE_EXPRESSION_SELF,
@@ -131,9 +130,10 @@ int main(int argc, char **argv) {
                          .predicate =
                              {
                                  .predicate_type = PREDICATE_TEXTEQ,
+                                 .negate = false,
                                  .data = {.texteq = {.node_expression =
                                                          NODE_EXPRESSION_SELF,
-                                                     .text = CONTROLLER_TEXT}},
+                                                     .text = "Controller"}},
                              },
                      },
              });
@@ -180,6 +180,7 @@ int main(int argc, char **argv) {
           .data = {.predicate =
                        {
                            .predicate_type = PREDICATE_TYPEEQ,
+                           .negate = false,
                            .data =
                                {
                                    {.node_expression = NODE_EXPRESSION_SELF,
@@ -198,6 +199,21 @@ int main(int argc, char **argv) {
                                               .data = {.field = NAME_FIELD_ID},
                                           }},
                          });
+  Ops_append(&prog_main,
+             (Op){
+                 .opcode = OP_IF,
+                 .data =
+                     {
+                         .predicate =
+                             {
+                                 .predicate_type = PREDICATE_TEXTEQ,
+                                 .negate = true,
+                                 .data = {.texteq = {.node_expression =
+                                                         NODE_EXPRESSION_SELF,
+                                                     .text = "constructor"}},
+                             },
+                     },
+             });
   Ops_append(&prog_main, (Op){
                              .opcode = OP_BIND,
                              .data = {.var_id = METHOD_NAME_VAR_ID},
