@@ -80,6 +80,7 @@ typedef enum {
   OP_BIND,
   OP_IF,
   OP_CALL,
+  OP_RETURN,
   OP_YIELD,
 } Opcode;
 
@@ -89,6 +90,7 @@ typedef struct {
     Axis axis;
     Predicate predicate;
     VarId var_id;
+    CallParameters call_parameters;
   } data;
 } Op;
 
@@ -98,6 +100,7 @@ DA_DEFINE(TSNode, NodeStack);
 
 typedef Ops FunctionBody;
 
+// TODO: use a generic symbol table instead
 typedef struct {
   FunctionId id;
   FunctionBody function;
@@ -105,6 +108,9 @@ typedef struct {
 DA_DEFINE(Function, FunctionTable);
 
 typedef struct {
+  // FIXME: The memory layout should be such that the execution frame doesn't
+  // need access to a function id
+  FunctionId function_id;
   uint64_t pc;
   TSNode node;
   Bindings bindings;
@@ -113,9 +119,17 @@ typedef struct {
 DA_DEFINE(ExecutionFrame, ExecutionStack);
 
 typedef struct {
+  CallMode call_mode;
+  ExecutionStack exc_stack;
+  bool has_continuation;
+  ExecutionFrame continuation;
+} CallFrame;
+DA_DEFINE(CallFrame, CallStack);
+
+typedef struct {
   TSTree *ast;
   FunctionTable function_table;
-  ExecutionStack stack;
+  CallStack call_stack;
   const char *source;
 } Engine;
 

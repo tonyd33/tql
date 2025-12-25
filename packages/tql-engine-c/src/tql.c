@@ -41,12 +41,16 @@ int main(int argc, char **argv) {
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);
   const TSFieldId FUNCTION_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "function", 8);
+  const TSFieldId BODY_FIELD_ID =
+      ts_language_field_id_for_name(tree_sitter_typescript(), "body", 4);
   const TSFieldId NAME_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "name", 4);
   const TSFieldId RETURN_TYPE_FIELD_ID = ts_language_field_id_for_name(
       tree_sitter_typescript(), "return_type", 11);
   const TSSymbol CLASS_DECLARATION_TYPE_SYMBOL = ts_language_symbol_for_name(
       tree_sitter_typescript(), "class_declaration", 17, true);
+  const TSSymbol METHOD_DEFINITION_TYPE_SYMBOL = ts_language_symbol_for_name(
+      tree_sitter_typescript(), "method_definition", 17, true);
 
   const VarId DECORATOR_NAME_VAR_ID = 1;
   const VarId CLASS_NAME_VAR_ID = 2;
@@ -61,6 +65,9 @@ int main(int argc, char **argv) {
                            }}});
   Ops_append(&prog_has_return_type, (Op){
                                         .opcode = OP_YIELD,
+                                    });
+  Ops_append(&prog_has_return_type, (Op){
+                                        .opcode = OP_RETURN,
                                     });
   Function function_has_return_type = {
       .id = 1,
@@ -156,6 +163,43 @@ int main(int argc, char **argv) {
                              .opcode = OP_POPNODE,
                          });
   Ops_append(&prog_main, (Op){
+                             .opcode = OP_PUSHNODE,
+                         });
+  Ops_append(&prog_main, (Op){.opcode = OP_BRANCH,
+                              .data = {.axis = {
+                                           .axis_type = AXIS_FIELD,
+                                           .data = {.field = BODY_FIELD_ID},
+                                       }}});
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BRANCH,
+                             .data = {.axis =
+                                          {
+                                              .axis_type = AXIS_CHILD,
+                                          }},
+                         });
+  Ops_append(
+      &prog_main,
+      (Op){
+          .opcode = OP_IF,
+          .data = {.predicate =
+                       {
+                           .predicate_type = PREDICATE_TYPEEQ,
+                           .data =
+                               {
+                                   {.node_expression = NODE_EXPRESSION_SELF,
+                                    .symbol = METHOD_DEFINITION_TYPE_SYMBOL},
+                               },
+                       }},
+      });
+  Ops_append(&prog_main, (Op){.opcode = OP_CALL,
+                              .data = {.call_parameters = {
+                                           .mode = CALLMODE_NOTEXISTS,
+                                           .function_id = 1,
+                                       }}});
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_POPNODE,
+                         });
+  Ops_append(&prog_main, (Op){
                              .opcode = OP_YIELD,
                          });
   Function function_main = {
@@ -186,14 +230,16 @@ int main(int argc, char **argv) {
   while (engine_next_match(&engine, &match)) {
     printf("=================\n");
     bound_value = bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
-    assert(bound_value != NULL && "Did not find bound value");
-    get_ts_node_text(source_code, *bound_value, buf);
-    printf("decorator name: %s\n", buf);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
+      printf("decorator name: %s\n", buf);
+    }
 
     bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
-    assert(bound_value != NULL && "Did not find bound value");
-    get_ts_node_text(source_code, *bound_value, buf);
-    printf("class name: %s\n", buf);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
+      printf("class name: %s\n", buf);
+    }
 
     get_ts_node_text(source_code, match.node, buf);
     printf("full match:\n%s\n", buf);

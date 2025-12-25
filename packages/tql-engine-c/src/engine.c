@@ -1,11 +1,31 @@
 #include "engine.h"
 #include <stdio.h>
 
+static const FunctionId MAIN_ID = 0;
+
+typedef enum {
+  /* An execution stack has been exhausted and nothing was found. */
+  EXC_FAIL,
+  /* A match was found while executing an execution stack.
+   * There may be more matches. */
+  EXC_MATCH,
+  /* There may or may not be a match in this execution stack. We must continue
+   * evaluating a new execution stack to determine. */
+  EXC_CONTINUE,
+} ExecutionResultType;
+
 void engine_init(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
   FunctionTable_init(&engine->function_table);
-  ExecutionStack_init(&engine->stack);
+  CallStack_init(&engine->call_stack);
+}
+
+void engine_free(Engine *engine) {
+  CallStack_free(&engine->call_stack);
+  FunctionTable_free(&engine->function_table);
+  engine->source = NULL;
+  engine->ast = NULL;
 }
 
 void engine_load_ast(Engine *engine, TSTree *ast) { engine->ast = ast; }
@@ -20,25 +40,27 @@ void engine_load_function(Engine *engine, Function *function) {
 }
 
 void engine_exec(Engine *engine) {
-  // IMPROVE: Use arena allocation
-  Bindings root_bindings;
-  bindings_init(&root_bindings);
+  CallFrame root_call_frame = {
+      .call_mode = CALLMODE_JOIN,
+      .has_continuation = false,
+  };
 
-  NodeStack root_node_stack;
-  NodeStack_init(&root_node_stack);
-
-  ExecutionFrame root_frame = {
+  ExecutionFrame root_exc_frame = {
+      .function_id = MAIN_ID,
       .pc = 0,
       .node = ts_tree_root_node(engine->ast),
-      .bindings = root_bindings,
-      .node_stack = root_node_stack,
   };
-  ExecutionStack_append(&engine->stack, root_frame);
+  bindings_init(&root_exc_frame.bindings);
+  NodeStack_init(&root_exc_frame.node_stack);
+
+  ExecutionStack_init(&root_call_frame.exc_stack);
+  ExecutionStack_append(&root_call_frame.exc_stack, root_exc_frame);
+  CallStack_append(&engine->call_stack, root_call_frame);
 }
 
-bool engine_find_main(Engine *engine, Function *out) {
+static bool engine_find_function(Engine *engine, FunctionId id, Function *out) {
   for (uint64_t i = 0; i < engine->function_table.len; i++) {
-    if (engine->function_table.data[i].id == 0) {
+    if (engine->function_table.data[i].id == id) {
       *out = engine->function_table.data[i];
       return true;
     }
@@ -46,54 +68,70 @@ bool engine_find_main(Engine *engine, Function *out) {
   return false;
 }
 
-bool engine_next_match(Engine *engine, Match *match) {
+static bool engine_find_main(Engine *engine, Function *out) {
+  return engine_find_function(engine, MAIN_ID, out);
+}
+
+/*
+ * Termination of this function means either:
+ * - EXC_MATCH: We found a result. The current execution stack may be resumed to
+ * find more results.
+ * - EXC_FAIL: All execution frames in the stack were exhausted without any
+ * results.
+ * - EXC_CONTINUE: We must continue in a separate execution frame.
+ */
+static ExecutionResultType
+engine_step(Engine *engine, ExecutionStack *exc_stack, Match *match) {
   const TSLanguage *language = ts_tree_language(engine->ast);
-  Function main;
-  assert(engine_find_main(engine, &main) && "Could not find main");
-  while (engine->stack.len > 0) {
-    ExecutionFrame frame = engine->stack.data[--engine->stack.len];
+  while (exc_stack->len > 0) {
+    ExecutionFrame exc_frame = exc_stack->data[--exc_stack->len];
+    Function curr_function;
+    assert(
+        engine_find_function(engine, exc_frame.function_id, &curr_function) &&
+        "Could not find function");
     bool frame_done = false;
-    bool match_found = false;
 
     do {
-      if (frame.pc >= main.function.len) {
+      if (exc_frame.pc >= curr_function.function.len) {
         frame_done = true;
         break;
       }
 
-      Op op = main.function.data[frame.pc];
+      Op op = curr_function.function.data[exc_frame.pc];
+      // printf("function id %llu, opcode %d\n", curr_function.id, op.opcode);
       switch (op.opcode) {
       case OP_NOOP: {
-        frame.pc++;
+        exc_frame.pc++;
         break;
       }
       case OP_PUSHNODE: {
-        NodeStack_append(&frame.node_stack, frame.node);
-        frame.pc++;
+        NodeStack_append(&exc_frame.node_stack, exc_frame.node);
+        exc_frame.pc++;
         break;
       }
       case OP_POPNODE: {
-        frame.node = frame.node_stack.data[--frame.node_stack.len];
-        frame.pc++;
+        exc_frame.node = exc_frame.node_stack.data[--exc_frame.node_stack.len];
+        exc_frame.pc++;
         break;
       }
       case OP_BRANCH: {
         Axis axis = op.data.axis;
-        uint64_t next_pc = frame.pc + 1;
+        uint64_t next_pc = exc_frame.pc + 1;
         TSNodes branches;
         TSNodes_init(&branches);
 
         switch (axis.axis_type) {
         case AXIS_CHILD: {
-          for (uint32_t i = 0; i < ts_node_named_child_count(frame.node); i++) {
-            TSNodes_append(&branches, ts_node_named_child(frame.node, i));
+          for (uint32_t i = 0; i < ts_node_named_child_count(exc_frame.node);
+               i++) {
+            TSNodes_append(&branches, ts_node_named_child(exc_frame.node, i));
           }
           break;
         }
         case AXIS_DESCENDANT: {
           TSNodes desc_stack;
           TSNodes_init(&desc_stack);
-          TSNodes_append(&desc_stack, frame.node);
+          TSNodes_append(&desc_stack, exc_frame.node);
           TSNode curr;
           TSNode child;
           while (desc_stack.len > 0) {
@@ -112,14 +150,15 @@ bool engine_next_match(Engine *engine, Match *match) {
           TSFieldId field_id = axis.data.field;
           const char *field_name =
               ts_language_field_name_for_id(language, field_id);
-          for (uint32_t i = 0; i < ts_node_named_child_count(frame.node); i++) {
+          for (uint32_t i = 0; i < ts_node_named_child_count(exc_frame.node);
+               i++) {
             const char *field_name_for_named_child =
-                ts_node_field_name_for_named_child(frame.node, i);
+                ts_node_field_name_for_named_child(exc_frame.node, i);
             if (field_name_for_named_child == NULL ||
                 strcmp(field_name_for_named_child, field_name) != 0) {
               continue;
             }
-            TSNodes_append(&branches, ts_node_named_child(frame.node, i));
+            TSNodes_append(&branches, ts_node_named_child(exc_frame.node, i));
           }
           break;
         }
@@ -132,16 +171,17 @@ bool engine_next_match(Engine *engine, Match *match) {
           TSNode branch = branches.data[i];
 
           Bindings overlay;
-          bindings_overlay(&overlay, &frame.bindings);
+          bindings_overlay(&overlay, &exc_frame.bindings);
           NodeStack node_stack;
-          NodeStack_clone(&node_stack, &frame.node_stack);
+          NodeStack_clone(&node_stack, &exc_frame.node_stack);
           ExecutionFrame frame = {
+              .function_id = exc_frame.function_id,
               .pc = next_pc,
               .node = branch,
               .bindings = overlay,
               .node_stack = node_stack,
           };
-          ExecutionStack_append(&engine->stack, frame);
+          ExecutionStack_append(exc_stack, frame);
         }
 
         frame_done = true;
@@ -155,9 +195,10 @@ bool engine_next_match(Engine *engine, Match *match) {
           NodeExpression left = predicate.data.typeeq.node_expression;
           TSSymbol right = predicate.data.typeeq.symbol;
 
-          assert(left.node_expression_type == NODEEXPR_SELF && "Only self supported");
+          assert(left.node_expression_type == NODEEXPR_SELF &&
+                 "Only self supported");
 
-          frame_done = ts_node_symbol(frame.node) != right;
+          frame_done = ts_node_symbol(exc_frame.node) != right;
           break;
         }
         case PREDICATE_TEXTEQ: {
@@ -165,10 +206,11 @@ bool engine_next_match(Engine *engine, Match *match) {
           // FIXME: This is dangerous...
           const char *right = predicate.data.texteq.text;
 
-          assert(left.node_expression_type == NODEEXPR_SELF && "Only self supported");
+          assert(left.node_expression_type == NODEEXPR_SELF &&
+                 "Only self supported");
 
-          uint32_t start_byte = ts_node_start_byte(frame.node);
-          uint32_t end_byte = ts_node_end_byte(frame.node);
+          uint32_t start_byte = ts_node_start_byte(exc_frame.node);
+          uint32_t end_byte = ts_node_end_byte(exc_frame.node);
           uint32_t buf_len = end_byte - start_byte;
           char buf[buf_len + 1];
 
@@ -183,27 +225,46 @@ bool engine_next_match(Engine *engine, Match *match) {
         }
         }
 
-        frame.pc++;
+        exc_frame.pc++;
         break;
       }
       case OP_BIND: {
-        bindings_insert(&frame.bindings, op.data.var_id, frame.node);
-        frame.pc++;
+        bindings_insert(&exc_frame.bindings, op.data.var_id, exc_frame.node);
+        exc_frame.pc++;
         break;
       }
       case OP_CALL: {
+        exc_frame.pc++;
+        CallFrame next_call_frame = {
+            .call_mode = op.data.call_parameters.mode,
+            .has_continuation = true,
+            .continuation = exc_frame,
+        };
+
+        ExecutionFrame next_exc_frame = {
+            .function_id = op.data.call_parameters.function_id,
+            .pc = 0,
+            .node = exc_frame.node};
+        bindings_init(&next_exc_frame.bindings);
+        NodeStack_init(&next_exc_frame.node_stack);
+
+        ExecutionStack_init(&next_call_frame.exc_stack);
+        ExecutionStack_append(&next_call_frame.exc_stack, next_exc_frame);
+        CallStack_append(&engine->call_stack, next_call_frame);
+
+        // NodeStack_free(&exc_frame.node_stack);
+        return EXC_CONTINUE;
+      }
+      case OP_RETURN: {
+        frame_done = true;
         break;
       }
       case OP_YIELD: {
-        Bindings overlay;
-        bindings_overlay(&overlay, &frame.bindings);
-        *match = (Match){
-            .node = frame.node,
-            .bindings = overlay,
-        };
-        match_found = true;
-        frame_done = true;
-        break;
+        match->node = exc_frame.node;
+        bindings_overlay(&match->bindings, &exc_frame.bindings);
+        NodeStack_free(&exc_frame.node_stack);
+
+        return EXC_MATCH;
       }
       default:
         assert(false && "Unknown opcode");
@@ -212,18 +273,68 @@ bool engine_next_match(Engine *engine, Match *match) {
 
     // The overlays may be referenced in other stackframes though...
     // Possibly use a ref count for memory management?
-    NodeStack_free(&frame.node_stack);
-    if (match_found) {
-      return true;
+    // Ideally, a node stack wouldn't be stored in here as well...
+    NodeStack_free(&exc_frame.node_stack);
+  }
+
+  return EXC_FAIL;
+}
+
+bool engine_next_match(Engine *engine, Match *match) {
+  CallFrame *call_frame = NULL;
+  ExecutionResultType result;
+  while (engine->call_stack.len > 0) {
+    call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
+    result = engine_step(engine, &call_frame->exc_stack, match);
+    switch (result) {
+    case EXC_FAIL: {
+      switch (call_frame->call_mode) {
+        // This call mode tolerates getting no results from the execution stack.
+      case CALLMODE_JOIN: {
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
+        continue;
+      }
+      case CALLMODE_EXISTS: {
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
+        continue;
+      }
+      case CALLMODE_NOTEXISTS:
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
+        if (call_frame->has_continuation && engine->call_stack.len > 0) {
+          CallFrame *prev_call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
+          ExecutionStack_append(&prev_call_frame->exc_stack,
+                                call_frame->continuation);
+        }
+        continue;
+      }
+    }
+    case EXC_MATCH: {
+      switch (call_frame->call_mode) {
+      case CALLMODE_JOIN:
+        return true;
+      case CALLMODE_EXISTS: {
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
+        if (call_frame->has_continuation && engine->call_stack.len > 0) {
+          call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
+          ExecutionStack_append(&call_frame->exc_stack,
+                                call_frame->continuation);
+        }
+        continue;
+      }
+      case CALLMODE_NOTEXISTS:
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
+        continue;
+      }
+    }
+    case EXC_CONTINUE:
+      continue;
     }
   }
 
   return false;
-}
-
-void engine_free(Engine *engine) {
-  engine->ast = NULL;
-  engine->source = NULL;
-  FunctionTable_free(&engine->function_table);
-  ExecutionStack_free(&engine->stack);
 }
