@@ -239,6 +239,8 @@ int main(int argc, char **argv) {
 
   Match match;
   TQLValue *bound_value;
+  TSPoint start_point;
+  TSPoint end_point;
   char buf[4096];
 
   while (engine_next_match(&engine, &match)) {
@@ -246,8 +248,8 @@ int main(int argc, char **argv) {
     bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
-      TSPoint start_point = ts_node_start_point(*bound_value);
-      TSPoint end_point = ts_node_end_point(*bound_value);
+      start_point = ts_node_start_point(*bound_value);
+      end_point = ts_node_end_point(*bound_value);
       printf("class name: %s (row %u, column %u – row %u, column %u)\n", buf,
              start_point.row, start_point.column, end_point.row,
              end_point.column);
@@ -256,15 +258,19 @@ int main(int argc, char **argv) {
     bound_value = bindings_get(&match.bindings, METHOD_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
-      TSPoint start_point = ts_node_start_point(*bound_value);
-      TSPoint end_point = ts_node_end_point(*bound_value);
+      start_point = ts_node_start_point(*bound_value);
+      end_point = ts_node_end_point(*bound_value);
       printf("method name: %s (row %u, column %u – row %u, column %u)\n", buf,
              start_point.row, start_point.column, end_point.row,
              end_point.column);
     }
 
     get_ts_node_text(source_code, match.node, buf);
-    printf("full match:\n%s\n", buf);
+    start_point = ts_node_start_point(match.node);
+    end_point = ts_node_end_point(match.node);
+    printf("full match: (row %u, column %u – row %u, column %u)\n%s\n",
+           start_point.row, start_point.column, end_point.row, end_point.column,
+           buf);
     printf("=================\n");
   }
 

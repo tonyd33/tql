@@ -12,7 +12,7 @@ typedef enum {
   /* There may or may not be a match in this execution stack. We must continue
    * evaluating a new execution stack to determine. */
   EXC_CONTINUE,
-} ExecutionResultType;
+} ExecutionResult;
 
 void engine_init(Engine *engine) {
   engine->ast = NULL;
@@ -80,8 +80,9 @@ static bool engine_find_main(Engine *engine, Function *out) {
  * results.
  * - EXC_CONTINUE: We must continue in a separate execution frame.
  */
-static ExecutionResultType
-engine_step(Engine *engine, ExecutionStack *exc_stack, Match *match) {
+static ExecutionResult engine_step_execution_frame(Engine *engine,
+                                                   ExecutionStack *exc_stack,
+                                                   Match *match) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   while (exc_stack->len > 0) {
     ExecutionFrame exc_frame = exc_stack->data[--exc_stack->len];
@@ -282,48 +283,49 @@ engine_step(Engine *engine, ExecutionStack *exc_stack, Match *match) {
 
 bool engine_next_match(Engine *engine, Match *match) {
   CallFrame *call_frame = NULL;
-  ExecutionResultType result;
+  CallFrame *prev_call_frame = NULL;
+  ExecutionResult result;
   while (engine->call_stack.len > 0) {
     call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
-    result = engine_step(engine, &call_frame->exc_stack, match);
+    prev_call_frame = engine->call_stack.len > 1
+                          ? &engine->call_stack.data[engine->call_stack.len - 2]
+                          : NULL;
+    result = engine_step_execution_frame(engine, &call_frame->exc_stack, match);
     switch (result) {
     case EXC_FAIL: {
       switch (call_frame->call_mode) {
-      case CALLMODE_JOIN: {
-        // FIXME: deinitialize the call frame before going next
-        // TODO: Are we supposed to append the continuation frame here? I think
-        // so...
-        engine->call_stack.len--;
-        continue;
-      }
+      case CALLMODE_JOIN:
       case CALLMODE_EXISTS: {
         // FIXME: deinitialize the call frame before going next
         engine->call_stack.len--;
         continue;
       }
       case CALLMODE_NOTEXISTS:
+        if (call_frame->has_continuation && prev_call_frame != NULL) {
+          ExecutionStack_append(&prev_call_frame->exc_stack,
+                                call_frame->continuation);
+        }
         // FIXME: deinitialize the call frame before going next
         engine->call_stack.len--;
-        if (call_frame->has_continuation && engine->call_stack.len > 0) {
-          ExecutionStack_append(
-              &engine->call_stack.data[engine->call_stack.len - 1].exc_stack,
-              call_frame->continuation);
-        }
         continue;
       }
     }
     case EXC_MATCH: {
       switch (call_frame->call_mode) {
-      case CALLMODE_JOIN:
-        return true;
-      case CALLMODE_EXISTS: {
-        // FIXME: deinitialize the call frame before going next
-        engine->call_stack.len--;
-        if (call_frame->has_continuation && engine->call_stack.len > 0) {
-          call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
-          ExecutionStack_append(&call_frame->exc_stack,
+      case CALLMODE_JOIN: {
+        if (call_frame->has_continuation && prev_call_frame != NULL) {
+          ExecutionStack_append(&prev_call_frame->exc_stack,
                                 call_frame->continuation);
         }
+        return true;
+      }
+      case CALLMODE_EXISTS: {
+        if (call_frame->has_continuation && prev_call_frame != NULL) {
+          ExecutionStack_append(&prev_call_frame->exc_stack,
+                                call_frame->continuation);
+        }
+        // FIXME: deinitialize the call frame before going next
+        engine->call_stack.len--;
         continue;
       }
       case CALLMODE_NOTEXISTS:

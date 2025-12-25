@@ -7,12 +7,12 @@ void bindings_overlay(Bindings *dest, Bindings *src) {
 }
 
 TQLValue *bindings_get(Bindings *bindings, VarId variable) {
-    for (size_t i = 0; i < bindings->len; i++) {
-        if (variable == bindings->data[i].variable) {
-            return &bindings->data[i].value;
-        }
+  for (size_t i = 0; i < bindings->len; i++) {
+    if (variable == bindings->data[i].variable) {
+      return &bindings->data[i].value;
     }
-    return NULL;
+  }
+  return NULL;
 }
 void bindings_insert(Bindings *bindings, VarId variable, TQLValue value) {
   Binding binding = {
@@ -21,4 +21,3 @@ void bindings_insert(Bindings *bindings, VarId variable, TQLValue value) {
   };
   _Bindings_append(bindings, binding);
 }
-
