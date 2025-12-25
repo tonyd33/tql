@@ -74,8 +74,8 @@ static bool engine_find_main(Engine *engine, Function *out) {
 
 /*
  * Termination of this function means either:
- * - EXC_MATCH: We found a result. The current execution stack may be resumed to
- * find more results.
+ * - EXC_MATCH: We found a result, and it has been stored in match. The current
+ * execution stack may be resumed to find more results.
  * - EXC_FAIL: All execution frames in the stack were exhausted without any
  * results.
  * - EXC_CONTINUE: We must continue in a separate execution frame.
@@ -289,9 +289,10 @@ bool engine_next_match(Engine *engine, Match *match) {
     switch (result) {
     case EXC_FAIL: {
       switch (call_frame->call_mode) {
-        // This call mode tolerates getting no results from the execution stack.
       case CALLMODE_JOIN: {
         // FIXME: deinitialize the call frame before going next
+        // TODO: Are we supposed to append the continuation frame here? I think
+        // so...
         engine->call_stack.len--;
         continue;
       }
@@ -304,9 +305,9 @@ bool engine_next_match(Engine *engine, Match *match) {
         // FIXME: deinitialize the call frame before going next
         engine->call_stack.len--;
         if (call_frame->has_continuation && engine->call_stack.len > 0) {
-          CallFrame *prev_call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
-          ExecutionStack_append(&prev_call_frame->exc_stack,
-                                call_frame->continuation);
+          ExecutionStack_append(
+              &engine->call_stack.data[engine->call_stack.len - 1].exc_stack,
+              call_frame->continuation);
         }
         continue;
       }

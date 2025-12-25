@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
   const TSSymbol METHOD_DEFINITION_TYPE_SYMBOL = ts_language_symbol_for_name(
       tree_sitter_typescript(), "method_definition", 17, true);
 
-  const VarId DECORATOR_NAME_VAR_ID = 1;
-  const VarId CLASS_NAME_VAR_ID = 2;
+  const VarId CLASS_NAME_VAR_ID = 1;
+  const VarId METHOD_NAME_VAR_ID = 2;
 
   Ops prog_has_return_type;
   Ops_init(&prog_has_return_type);
@@ -138,10 +138,6 @@ int main(int argc, char **argv) {
                      },
              });
   Ops_append(&prog_main, (Op){
-                             .opcode = OP_BIND,
-                             .data = {.var_id = DECORATOR_NAME_VAR_ID},
-                         });
-  Ops_append(&prog_main, (Op){
                              .opcode = OP_POPNODE,
                          });
   Ops_append(&prog_main, (Op){
@@ -191,6 +187,24 @@ int main(int argc, char **argv) {
                                },
                        }},
       });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_PUSHNODE,
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BRANCH,
+                             .data = {.axis =
+                                          {
+                                              .axis_type = AXIS_FIELD,
+                                              .data = {.field = NAME_FIELD_ID},
+                                          }},
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_BIND,
+                             .data = {.var_id = METHOD_NAME_VAR_ID},
+                         });
+  Ops_append(&prog_main, (Op){
+                             .opcode = OP_POPNODE,
+                         });
   Ops_append(&prog_main, (Op){.opcode = OP_CALL,
                               .data = {.call_parameters = {
                                            .mode = CALLMODE_NOTEXISTS,
@@ -229,16 +243,24 @@ int main(int argc, char **argv) {
 
   while (engine_next_match(&engine, &match)) {
     printf("=================\n");
-    bound_value = bindings_get(&match.bindings, DECORATOR_NAME_VAR_ID);
-    if (bound_value != NULL) {
-      get_ts_node_text(source_code, *bound_value, buf);
-      printf("decorator name: %s\n", buf);
-    }
-
     bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
-      printf("class name: %s\n", buf);
+      TSPoint start_point = ts_node_start_point(*bound_value);
+      TSPoint end_point = ts_node_end_point(*bound_value);
+      printf("class name: %s (row %u, column %u – row %u, column %u)\n", buf,
+             start_point.row, start_point.column, end_point.row,
+             end_point.column);
+    }
+
+    bound_value = bindings_get(&match.bindings, METHOD_NAME_VAR_ID);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
+      TSPoint start_point = ts_node_start_point(*bound_value);
+      TSPoint end_point = ts_node_end_point(*bound_value);
+      printf("method name: %s (row %u, column %u – row %u, column %u)\n", buf,
+             start_point.row, start_point.column, end_point.row,
+             end_point.column);
     }
 
     get_ts_node_text(source_code, match.node, buf);
