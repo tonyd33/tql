@@ -1,3 +1,4 @@
-*.o
-tql
+build
+tql-cli
 tql.*/**
+libtql.*

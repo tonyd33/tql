@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
   }
   char source_code[4096] = {0};
   int bytes_read = fread(source_code, sizeof(source_code), 1, source_fp);
+  printf("Read %d bytes\n", bytes_read);
 
   const TSFieldId DECORATOR_FIELD_ID =
       ts_language_field_id_for_name(tree_sitter_typescript(), "decorator", 9);

@@ -68,10 +68,6 @@ static bool engine_find_function(Engine *engine, FunctionId id, Function *out) {
   return false;
 }
 
-static bool engine_find_main(Engine *engine, Function *out) {
-  return engine_find_function(engine, MAIN_ID, out);
-}
-
 /*
  * Termination of this function means either:
  * - EXC_MATCH: We found a result, and it has been stored in match. The current

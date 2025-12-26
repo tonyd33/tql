@@ -32,18 +32,18 @@
     {
       overlays.default = final: prev: rec {
         nodejs = prev.nodejs;
-        rustToolchain =
-          with inputs.fenix.packages.${prev.stdenv.hostPlatform.system};
-          combine (
-            with stable;
-            [
-              clippy
-              rustc
-              cargo
-              rustfmt
-              rust-src
-            ]
-          );
+        # rustToolchain =
+          # with inputs.fenix.packages.${prev.stdenv.hostPlatform.system};
+          # combine (
+            # with stable;
+            # [
+              # clippy
+              # rustc
+              # cargo
+              # rustfmt
+              # rust-src
+            # ]
+          # );
       };
 
       devShells = forEachSupportedSystem (
@@ -64,20 +64,10 @@
               node2nix
               nodejs
               nodePackages.pnpm
-              rustToolchain
               openssl
               pkg-config
-              cargo-deny
-              cargo-edit
-              cargo-watch
-              rust-analyzer
-              c3c
-              c3-lsp
             ];
-            env = {
-              # Required by rust-analyzer
-              RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
-            }
+            env = { }
             // treeSitterGrammar "json"
             // treeSitterGrammar "typescript"
             ;

@@ -7,7 +7,7 @@
 
 typedef uint64_t FunctionId;
 
-DA_DEFINE(TSNode, TSNodes);
+DA_DEFINE(TSNode, TSNodes)
 
 typedef struct {
   TSNode node;
@@ -95,9 +95,9 @@ typedef struct {
   } data;
 } Op;
 
-DA_DEFINE(Op, Ops);
-DA_DEFINE(Match, Matches);
-DA_DEFINE(TSNode, NodeStack);
+DA_DEFINE(Op, Ops)
+DA_DEFINE(Match, Matches)
+DA_DEFINE(TSNode, NodeStack)
 
 typedef Ops FunctionBody;
 
@@ -106,7 +106,7 @@ typedef struct {
   FunctionId id;
   FunctionBody function;
 } Function;
-DA_DEFINE(Function, FunctionTable);
+DA_DEFINE(Function, FunctionTable)
 
 typedef struct {
   // FIXME: The memory layout should be such that the execution frame doesn't
@@ -117,7 +117,7 @@ typedef struct {
   Bindings bindings;
   NodeStack node_stack;
 } ExecutionFrame;
-DA_DEFINE(ExecutionFrame, ExecutionStack);
+DA_DEFINE(ExecutionFrame, ExecutionStack)
 
 typedef struct {
   CallMode call_mode;
@@ -125,7 +125,7 @@ typedef struct {
   bool has_continuation;
   ExecutionFrame continuation;
 } CallFrame;
-DA_DEFINE(CallFrame, CallStack);
+DA_DEFINE(CallFrame, CallStack)
 
 typedef struct {
   TSTree *ast;

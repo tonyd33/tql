@@ -1,36 +1,43 @@
-CC := clang
-CFLAGS := -Wall -Werror -Wno-unused-function -Wno-unused-variable -Wno-int-to-void-pointer-cast -Wno-void-pointer-to-int-cast -g
-LDFLAGS := -ltree-sitter
+CC ?= clang
+# TODO: Expose the API and use the API instead of using from lib directly
+CFLAGS += -std=c11 -Wall -Werror -Wpedantic -fPIC -g -Ilib
+LDFLAGS += -ltree-sitter
+ARFLAGS := rcs
 
-TS_JSON_FLAGS := $(TREE_SITTER_JSON)/parser.c
+LIB_DIR := lib
+BUILD_DIR := build
+GRAMMAR_DIR := $(BUILD_DIR)/grammars
+HEADERS := $(wildcard src/*.h)
 
-tql: src/main.c src/dyn_array.h build/engine.o build/binding.o grammars/typescript/parser.o grammars/typescript/scanner.o
-	$(CC) $(CFLAGS) $(LDFLAGS) \
-		grammars/typescript/parser.o \
-		grammars/typescript/scanner.o \
-		build/engine.o \
-		build/binding.o \
-		src/main.c \
-		-o tql
+SOEXT := so
 
-build/engine.o: src/engine.c src/engine.h src/dyn_array.h
-	$(CC) $(CFLAGS) \
-		-c src/engine.c \
-		-o build/engine.o
+TQL_OBJS := $(patsubst $(LIB_DIR)/%.c,$(BUILD_DIR)/%.o,$(wildcard $(LIB_DIR)/*.c))
+TS_TYPESCRIPT_OBJS := $(patsubst $(TREE_SITTER_TYPESCRIPT)/typescript/src/%.c,$(GRAMMAR_DIR)/typescript/%.o,$(wildcard $(TREE_SITTER_TYPESCRIPT)/typescript/src/*.c))
+OBJS := $(TQL_OBJS) $(TS_TYPESCRIPT_OBJS)
 
-build/binding.o: src/binding.c src/binding.h src/dyn_array.h
-	$(CC) $(CFLAGS) \
-		-c src/binding.c \
-		-o build/binding.o
+all: tql-cli libtql.a libtql.$(SOEXT)
 
-grammars/typescript/parser.o:
-	$(CC) $(CFLAGS) \
-		$(TREE_SITTER_TYPESCRIPT)/typescript/src/parser.c \
-		-I$(TREE_SITTER_TYPESCRIPT)/typescript/src \
-		-c -o grammars/typescript/parser.o
+libtql.a: $(OBJS)
+	$(AR) $(ARFLAGS) $@ $^
 
-grammars/typescript/scanner.o:
-	$(CC) $(CFLAGS) \
-		$(TREE_SITTER_TYPESCRIPT)/typescript/src/scanner.c \
-		-I$(TREE_SITTER_TYPESCRIPT)/typescript/src \
-		-c -o grammars/typescript/scanner.o
+libtql.$(SOEXT): $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -shared $^ $(LDLIBS) -o $@
+
+tql-cli: $(OBJS) src/cli.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+
+$(TQL_OBJS): $(HEADERS)
+
+$(BUILD_DIR)/%.o: $(LIB_DIR)/%.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(GRAMMAR_DIR)/typescript/%.o: $(TREE_SITTER_TYPESCRIPT)/typescript/src/%.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(TREE_SITTER_TYPESCRIPT)/typescript/src -c $< -o $@
+
+
+clean:
+	$(RM) -r build
+
+.PHONY: all clean

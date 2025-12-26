@@ -15,7 +15,7 @@ typedef struct {
   TQLValue value;
 } Binding;
 
-DA_DEFINE(Binding, _Bindings);
+DA_DEFINE(Binding, _Bindings)
 
 typedef _Bindings Bindings;
 
