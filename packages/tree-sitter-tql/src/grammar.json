@@ -142,7 +142,7 @@
           "name": "selector",
           "content": {
             "type": "SYMBOL",
-            "name": "_selector"
+            "name": "selector"
           }
         },
         {
@@ -230,8 +230,8 @@
         }
       ]
     },
-    "_selector": {
-      "type": "PREC_RIGHT",
+    "selector": {
+      "type": "PREC_LEFT",
       "value": 0,
       "content": {
         "type": "SEQ",
@@ -303,10 +303,10 @@
             "members": [
               {
                 "type": "FIELD",
-                "name": "parent_field",
+                "name": "parent",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_selector"
+                  "name": "selector"
                 }
               },
               {
@@ -319,13 +319,17 @@
             "value": "."
           },
           {
-            "type": "ALIAS",
+            "type": "FIELD",
+            "name": "field",
             "content": {
-              "type": "SYMBOL",
-              "name": "identifier"
-            },
-            "named": true,
-            "value": "field_name"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "identifier"
+              },
+              "named": true,
+              "value": "field_name"
+            }
           }
         ]
       }
@@ -344,7 +348,7 @@
                 "name": "parent",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_selector"
+                  "name": "selector"
                 }
               },
               {
@@ -361,7 +365,7 @@
             "name": "child",
             "content": {
               "type": "SYMBOL",
-              "name": "_selector"
+              "name": "selector"
             }
           }
         ]
@@ -378,7 +382,7 @@
             "name": "parent",
             "content": {
               "type": "SYMBOL",
-              "name": "_selector"
+              "name": "selector"
             }
           },
           {
@@ -390,7 +394,7 @@
             "name": "descendant",
             "content": {
               "type": "SYMBOL",
-              "name": "_selector"
+              "name": "selector"
             }
           }
         ]
@@ -443,7 +447,7 @@
         "members": [
           {
             "type": "SYMBOL",
-            "name": "_selector"
+            "name": "selector"
           }
         ]
       }

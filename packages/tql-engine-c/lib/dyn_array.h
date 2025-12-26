@@ -3,6 +3,10 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <assert.h>
 
 static inline size_t dyn_array_next_cap(size_t cap) {
   return cap ? cap * 2 : 1;

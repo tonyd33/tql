@@ -13,14 +13,17 @@ class_declaration {
 
 (source_file
   (query
-    (node_type_selector
-      (node_type))
-    (query
+    (selector
       (node_type_selector
-        (node_type))
-      (query
+        (node_type)))
+    (query
+      (selector
         (node_type_selector
-          (node_type))))))
+          (node_type)))
+      (query
+        (selector
+          (node_type_selector
+            (node_type)))))))
 
 ========================================
 field_name
@@ -38,21 +41,27 @@ class_declaration {
 
 (source_file
   (query
-    (node_type_selector
-      (node_type))
+    (selector
+      (node_type_selector
+        (node_type)))
     (query
-      (field_name_selector
-        (field_name))))
-  (query
-    (node_type_selector
-      (node_type))
-    (query
-      (field_name_selector
+      (selector
         (field_name_selector
-          (field_name_selector
-            (field_name))
-          (field_name))
-        (field_name)))))
+          (field_name)))))
+  (query
+    (selector
+      (node_type_selector
+        (node_type)))
+    (query
+      (selector
+        (field_name_selector
+          (selector
+            (field_name_selector
+              (selector
+                (field_name_selector
+                  (field_name)))
+              (field_name)))
+          (field_name))))))
 
 ========================================
 child
@@ -66,16 +75,21 @@ class_declaration {
 
 (source_file
   (query
-    (node_type_selector
-      (node_type))
+    (selector
+      (node_type_selector
+        (node_type)))
     (query
-      (field_name_selector
-        (child_selector
-          (field_name_selector
-            (field_name))
-          (node_type_selector
-            (node_type)))
-        (field_name)))))
+      (selector
+        (field_name_selector
+          (selector
+            (child_selector
+              (selector
+                (field_name_selector
+                  (field_name)))
+              (selector
+                (node_type_selector
+                  (node_type)))))
+          (field_name))))))
 
 ========================================
 descendant
@@ -89,28 +103,41 @@ class_declaration .decorator > call_expression.identifier {}
 
 (source_file
   (query
-    (descendant_selector
-      (child_selector
-        (descendant_selector
-          (node_type_selector
-            (node_type))
+    (selector
+      (descendant_selector
+        (selector
+          (child_selector
+            (selector
+              (descendant_selector
+                (selector
+                  (node_type_selector
+                    (node_type)))
+                (selector
+                  (field_name_selector
+                    (field_name)))))
+            (selector
+              (node_type_selector
+                (node_type)))))
+        (selector
           (field_name_selector
-            (field_name)))
-        (node_type_selector
-          (node_type)))
-      (field_name_selector
-        (field_name))))
+            (field_name))))))
   (query
-    (field_name_selector
-      (child_selector
-        (descendant_selector
-          (node_type_selector
-            (node_type))
-          (field_name_selector
-            (field_name)))
-        (node_type_selector
-          (node_type)))
-      (field_name))))
+    (selector
+      (field_name_selector
+        (selector
+          (child_selector
+            (selector
+              (descendant_selector
+                (selector
+                  (node_type_selector
+                    (node_type)))
+                (selector
+                  (field_name_selector
+                    (field_name)))))
+            (selector
+              (node_type_selector
+                (node_type)))))
+        (field_name)))))
 
 ========================================
 node_capture
@@ -125,31 +152,38 @@ class_declaration[@class_node]
 
 (source_file
   (query
-    (node_type_selector
-      (node_type))
-    (inline_node_operation
-      (inline_node_assignment
-        (identifier))))
+    (selector
+      (node_type_selector
+        (node_type))
+      (inline_node_operation
+        (inline_node_assignment
+          (identifier)))))
   (query
-    (field_name_selector
-      (child_selector
-        (descendant_selector
-          (node_type_selector
-            (node_type))
-          (inline_node_operation
-            (inline_node_assignment
-              (identifier)))
-          (field_name_selector
-            (field_name))
+    (selector
+      (field_name_selector
+        (selector
+          (child_selector
+            (selector
+              (descendant_selector
+                (selector
+                  (node_type_selector
+                    (node_type))
+                  (inline_node_operation
+                    (inline_node_assignment
+                      (identifier))))
+                (selector
+                  (field_name_selector
+                    (field_name))))
+              (inline_node_operation
+                (inline_node_assignment
+                  (identifier))))
+            (selector
+              (node_type_selector
+                (node_type))))
           (inline_node_operation
             (inline_node_assignment
               (identifier))))
-        (node_type_selector
-          (node_type))
-        (inline_node_operation
-          (inline_node_assignment
-            (identifier))))
-      (field_name))
-    (inline_node_operation
-      (inline_node_assignment
-        (identifier)))))
+        (field_name))
+      (inline_node_operation
+        (inline_node_assignment
+          (identifier))))))

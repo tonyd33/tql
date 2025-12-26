@@ -10,10 +10,12 @@ class_declaration {
 
 (source_file
   (query
-    (node_type_selector
-      (node_type))
+    (selector
+      (node_type_selector
+        (node_type)))
     (assignment
       (variable_identifier
         (identifier))
-      (field_name_selector
-        (field_name)))))
+      (selector
+        (field_name_selector
+          (field_name))))))

@@ -55,7 +55,7 @@ module.exports = grammar({
 
     query: $ =>
       seq(
-        field("selector", $._selector),
+        field("selector", $.selector),
         braces_enclosed(repeat(field("statement", $._statement))),
       ),
     variable_identifier: $ => seq("@", $.identifier),
@@ -72,8 +72,8 @@ module.exports = grammar({
         $.descendant_selector,
         $.variable_identifier,
       ),
-    _selector: $ =>
-      prec.right(
+    selector: $ =>
+      prec.left(
         seq(
           field("pure_selector", $._pure_selector),
           field(
@@ -87,25 +87,25 @@ module.exports = grammar({
     field_name_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent_field", $._selector)),
+          optional(field("parent", $.selector)),
           ".",
-          alias($.identifier, $.field_name),
+          field("field", alias($.identifier, $.field_name)),
         ),
       ),
     child_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent", $._selector)),
+          optional(field("parent", $.selector)),
           ">",
-          field("child", $._selector),
+          field("child", $.selector),
         ),
       ),
     descendant_selector: $ =>
       prec.left(
         seq(
-          field("parent", $._selector),
+          field("parent", $.selector),
           $._descendant_operator,
-          field("descendant", $._selector),
+          field("descendant", $.selector),
         ),
       ),
 
@@ -115,7 +115,7 @@ module.exports = grammar({
     assignment: $ => seq($.variable_identifier, "<-", $._expression),
 
     // expressions
-    _expression: $ => prec.left(1, choice($._selector)),
+    _expression: $ => prec.left(1, choice($.selector)),
 
     // conditions
     condition: $ =>
