@@ -9,13 +9,15 @@ class_declaration {
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (assignment
-      (variable_identifier
-        (identifier))
-      (selector
-        (field_name_selector
-          (field_name))))))
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
+        (assignment
+          (variable_identifier
+            (identifier))
+          (selector
+            (field_name_selector
+              (field_name))))))))

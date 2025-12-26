@@ -9,17 +9,19 @@ class_declaration {
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (condition
-      (text_eq_condition
-        (selector
-          (variable_identifier
-            (identifier)))
-        (string_literal
-          (string_fragment))))))
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
+        (condition
+          (text_eq_condition
+            (selector
+              (variable_identifier
+                (identifier)))
+            (string_literal
+              (string_fragment))))))))
 
 ========================================
 selector
@@ -32,25 +34,27 @@ class_declaration {
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (condition
-      (text_eq_condition
-        (selector
-          (field_name_selector
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
+        (condition
+          (text_eq_condition
             (selector
-              (child_selector
+              (field_name_selector
                 (selector
-                  (field_name_selector
-                    (field_name)))
-                (selector
-                  (node_type_selector
-                    (node_type)))))
-            (field_name)))
-        (string_literal
-          (string_fragment))))))
+                  (child_selector
+                    (selector
+                      (field_name_selector
+                        (field_name)))
+                    (selector
+                      (node_type_selector
+                        (node_type)))))
+                (field_name)))
+            (string_literal
+              (string_fragment))))))))
 
 ========================================
 empty
@@ -63,15 +67,17 @@ class_declaration {
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (condition
-      (empty_condition
-        (selector
-          (variable_identifier
-            (identifier)))))))
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
+        (condition
+          (empty_condition
+            (selector
+              (variable_identifier
+                (identifier)))))))))
 
 ========================================
 compound
@@ -84,79 +90,84 @@ class_declaration {
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (condition
-      (and_condition
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
         (condition
-          (empty_condition
-            (selector
-              (variable_identifier
-                (identifier)))))
-        (condition
-          (text_eq_condition
-            (selector
-              (variable_identifier
-                (identifier)))
-            (string_literal
-              (string_fragment))))))))
+          (and_condition
+            (condition
+              (empty_condition
+                (selector
+                  (variable_identifier
+                    (identifier)))))
+            (condition
+              (text_eq_condition
+                (selector
+                  (variable_identifier
+                    (identifier)))
+                (string_literal
+                  (string_fragment))))))))))
 
 ========================================
 parentheses
 ========================================
 
 class_declaration {
-  (!@class_name && !@class_name) || !@class_name
+  (!@class_name && !@class_name) || !@class_name;
 
-  !@class_name && (!@class_name || !@class_name)
+  !@class_name && (!@class_name || !@class_name);
 }
 
 ---
 
 (source_file
-  (query
-    (selector
-      (node_type_selector
-        (node_type)))
-    (condition
-      (or_condition
+  (selector
+    (node_type_selector
+      (node_type)))
+  (selector
+    (block_selector
+      (statement
         (condition
-          (condition
-            (and_condition
+          (or_condition
+            (condition
               (condition
-                (empty_condition
-                  (selector
-                    (variable_identifier
-                      (identifier)))))
-              (condition
-                (empty_condition
-                  (selector
-                    (variable_identifier
-                      (identifier))))))))
+                (and_condition
+                  (condition
+                    (empty_condition
+                      (selector
+                        (variable_identifier
+                          (identifier)))))
+                  (condition
+                    (empty_condition
+                      (selector
+                        (variable_identifier
+                          (identifier))))))))
+            (condition
+              (empty_condition
+                (selector
+                  (variable_identifier
+                    (identifier))))))))
+      (statement
         (condition
-          (empty_condition
-            (selector
-              (variable_identifier
-                (identifier)))))))
-    (condition
-      (and_condition
-        (condition
-          (empty_condition
-            (selector
-              (variable_identifier
-                (identifier)))))
-        (condition
-          (condition
-            (or_condition
+          (and_condition
+            (condition
+              (empty_condition
+                (selector
+                  (variable_identifier
+                    (identifier)))))
+            (condition
               (condition
-                (empty_condition
-                  (selector
-                    (variable_identifier
-                      (identifier)))))
-              (condition
-                (empty_condition
-                  (selector
-                    (variable_identifier
-                      (identifier))))))))))))
+                (or_condition
+                  (condition
+                    (empty_condition
+                      (selector
+                        (variable_identifier
+                          (identifier)))))
+                  (condition
+                    (empty_condition
+                      (selector
+                        (variable_identifier
+                          (identifier))))))))))))))
