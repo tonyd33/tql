@@ -1,0 +1,143 @@
+========================================
+simple
+========================================
+
+class_declaration {
+  @class_name = 'Hello'
+}
+
+---
+
+(source_file
+  (query
+    (node_type_selector
+      (node_type))
+    (condition
+      (text_eq_condition
+        (variable_identifier
+          (identifier))
+        (string_literal
+          (string_fragment))))))
+
+========================================
+selector
+========================================
+
+class_declaration {
+  .decorator > call_expression.identifier = 'Hello'
+}
+
+---
+
+(source_file
+  (query
+    (node_type_selector
+      (node_type))
+    (condition
+      (text_eq_condition
+        (field_name_selector
+          (child_selector
+            (field_name_selector
+              (field_name))
+            (node_type_selector
+              (node_type)))
+          (field_name))
+        (string_literal
+          (string_fragment))))))
+
+========================================
+empty
+========================================
+
+class_declaration {
+  !@class_name
+}
+
+---
+
+(source_file
+  (query
+    (node_type_selector
+      (node_type))
+    (condition
+      (empty_condition
+        (variable_identifier
+          (identifier))))))
+
+========================================
+compound
+========================================
+
+class_declaration {
+  !@class_name && @class_name = 'not empty'
+}
+
+---
+
+(source_file
+  (query
+    (node_type_selector
+      (node_type))
+    (condition
+      (and_condition
+        (condition
+          (empty_condition
+            (variable_identifier
+              (identifier))))
+        (condition
+          (text_eq_condition
+            (variable_identifier
+              (identifier))
+            (string_literal
+              (string_fragment))))))))
+
+========================================
+parentheses
+========================================
+
+class_declaration {
+  (!@class_name && !@class_name) || !@class_name
+
+  !@class_name && (!@class_name || !@class_name)
+}
+
+---
+
+(source_file
+  (query
+    (node_type_selector
+      (node_type))
+    (condition
+      (or_condition
+        (condition
+          (condition
+            (and_condition
+              (condition
+                (empty_condition
+                  (variable_identifier
+                    (identifier))))
+              (condition
+                (empty_condition
+                  (variable_identifier
+                    (identifier)))))))
+        (condition
+          (empty_condition
+            (variable_identifier
+              (identifier))))))
+    (condition
+      (and_condition
+        (condition
+          (empty_condition
+            (variable_identifier
+              (identifier))))
+        (condition
+          (condition
+            (or_condition
+              (condition
+                (empty_condition
+                  (variable_identifier
+                    (identifier))))
+              (condition
+                (empty_condition
+                  (variable_identifier
+                    (identifier)))))))))))
