@@ -19,15 +19,11 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
         {
-          "type": "selector",
-          "named": true
-        },
-        {
-          "type": "variable_identifier",
+          "type": "explicit_assignment",
           "named": true
         }
       ]
@@ -162,6 +158,25 @@
     }
   },
   {
+    "type": "explicit_assignment",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "selector",
+          "named": true
+        },
+        {
+          "type": "variable_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "field_name_selector",
     "named": true,
     "fields": {
@@ -247,6 +262,10 @@
         },
         {
           "type": "selector",
+          "named": true
+        },
+        {
+          "type": "self_selector",
           "named": true
         },
         {
@@ -416,6 +435,10 @@
   },
   {
     "type": "node_type",
+    "named": true
+  },
+  {
+    "type": "self_selector",
     "named": true
   },
   {

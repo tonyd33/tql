@@ -61,6 +61,7 @@ module.exports = grammar({
     selector: $ =>
       choice(
         $._parenthesized_selector,
+        $.self_selector,
         $.universal_selector,
         $.node_type_selector,
         $.field_name_selector,
@@ -70,6 +71,7 @@ module.exports = grammar({
         $.variable_identifier,
       ),
     _parenthesized_selector: $ => prec(100, seq("(", $.selector, ")")),
+    self_selector: _ => "%",
     universal_selector: _ => "*",
     node_type_selector: $ => alias($.identifier, $.node_type),
     field_name_selector: $ =>
@@ -100,11 +102,15 @@ module.exports = grammar({
       prec.left(
         seq(
           optional(field("parent", $.selector)),
-          braces_enclosed(field("statements", seq(sep_by(";", $.statement), optional(";")))),
+          braces_enclosed(
+            field("statements", seq(sep_by(";", $.statement), optional(";"))),
+          ),
         ),
       ),
 
-    assignment: $ => seq($.variable_identifier, "<-", $._expression),
+    // assignments
+    assignment: $ => choice($.explicit_assignment),
+    explicit_assignment: $ => seq($.variable_identifier, "<-", $._expression),
 
     // expressions
     _expression: $ => choice($.selector),

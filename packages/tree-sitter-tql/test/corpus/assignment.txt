@@ -1,10 +1,8 @@
 ========================================
-simple
+explicit
 ========================================
 
-class_declaration {
-  @class_name <- .name
-}
+class_declaration { @class <- % }
 
 ---
 
@@ -16,8 +14,8 @@ class_declaration {
     (block_selector
       (statement
         (assignment
-          (variable_identifier
-            (identifier))
-          (selector
-            (field_name_selector
-              (field_name))))))))
+          (explicit_assignment
+            (variable_identifier
+              (identifier))
+            (selector
+              (self_selector))))))))
