@@ -4,19 +4,16 @@
 static const FunctionId MAIN_ID = 0;
 
 typedef enum {
-  /* An execution stack has been exhausted and nothing was found. */
   EXC_FAIL,
-  /* A match was found while executing an execution stack.
-   * There may be more matches. */
   EXC_MATCH,
-  /* There may or may not be a match in this execution stack. We must continue
-   * evaluating a new execution stack to determine. */
   EXC_CONTINUE,
+  EXC_RET,
 } ExecutionResult;
 
 void engine_init(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
+  engine->step_count = 0;
   FunctionTable_init(&engine->function_table);
   CallStack_init(&engine->call_stack);
 }
@@ -41,7 +38,7 @@ void engine_load_function(Engine *engine, Function *function) {
 
 void engine_exec(Engine *engine) {
   CallFrame root_call_frame = {
-      .call_mode = CALLMODE_JOIN,
+      .call_mode = CALLMODE_PASSTHROUGH,
       .has_continuation = false,
   };
 
@@ -51,7 +48,6 @@ void engine_exec(Engine *engine) {
       .node = ts_tree_root_node(engine->ast),
   };
   bindings_init(&root_exc_frame.bindings);
-  NodeStack_init(&root_exc_frame.node_stack);
 
   ExecutionStack_init(&root_call_frame.exc_stack);
   ExecutionStack_append(&root_call_frame.exc_stack, root_exc_frame);
@@ -68,17 +64,22 @@ static bool engine_find_function(Engine *engine, FunctionId id, Function *out) {
   return false;
 }
 
+uint32_t step_count = 0;
+
 /*
  * Termination of this function means either:
  * - EXC_MATCH: We found a result, and it has been stored in match. The current
- * execution stack may be resumed to find more results.
+ *   execution stack may be resumed to find more results.
  * - EXC_FAIL: All execution frames in the stack were exhausted without any
- * results.
+ *   results.
  * - EXC_CONTINUE: We must continue in a separate execution frame.
+ * - EXC_RET: An execution has been finished via a return.
+ * FIXME: This is so bad!!!
  */
 static ExecutionResult engine_step_execution_frame(Engine *engine,
                                                    ExecutionStack *exc_stack,
-                                                   Match *match) {
+                                                   Match *match,
+                                                   ExecutionFrame *out) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   while (exc_stack->len > 0) {
     ExecutionFrame exc_frame = exc_stack->data[--exc_stack->len];
@@ -94,20 +95,13 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
         break;
       }
 
+      engine->step_count++;
+
       Op op = curr_function.function.data[exc_frame.pc];
-      // printf("function id %llu, opcode %d\n", curr_function.id, op.opcode);
+      // printf("function id %llu, opcode %d, num bindings: %zu\n",
+      //        curr_function.id, op.opcode, exc_frame.bindings.len);
       switch (op.opcode) {
       case OP_NOOP: {
-        exc_frame.pc++;
-        break;
-      }
-      case OP_PUSHNODE: {
-        NodeStack_append(&exc_frame.node_stack, exc_frame.node);
-        exc_frame.pc++;
-        break;
-      }
-      case OP_POPNODE: {
-        exc_frame.node = exc_frame.node_stack.data[--exc_frame.node_stack.len];
         exc_frame.pc++;
         break;
       }
@@ -119,8 +113,8 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
 
         switch (axis.axis_type) {
         case AXIS_CHILD: {
-          for (uint32_t i = 0; i < ts_node_named_child_count(exc_frame.node);
-               i++) {
+          for (int i = ts_node_named_child_count(exc_frame.node) - 1; i >= 0;
+               i--) {
             TSNodes_append(&branches, ts_node_named_child(exc_frame.node, i));
           }
           break;
@@ -133,7 +127,7 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
           TSNode child;
           while (desc_stack.len > 0) {
             curr = desc_stack.data[--desc_stack.len];
-            for (uint32_t i = 0; i < ts_node_named_child_count(curr); i++) {
+            for (int i = 0; i < ts_node_named_child_count(curr); i++) {
               child = ts_node_named_child(curr, i);
               TSNodes_append(&desc_stack, child);
               TSNodes_append(&branches, child);
@@ -147,8 +141,8 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
           TSFieldId field_id = axis.data.field;
           const char *field_name =
               ts_language_field_name_for_id(language, field_id);
-          for (uint32_t i = 0; i < ts_node_named_child_count(exc_frame.node);
-               i++) {
+          for (int i = ts_node_named_child_count(exc_frame.node) - 1; i >= 0;
+               i--) {
             const char *field_name_for_named_child =
                 ts_node_field_name_for_named_child(exc_frame.node, i);
             if (field_name_for_named_child == NULL ||
@@ -169,14 +163,11 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
 
           Bindings overlay;
           bindings_overlay(&overlay, &exc_frame.bindings);
-          NodeStack node_stack;
-          NodeStack_clone(&node_stack, &exc_frame.node_stack);
           ExecutionFrame frame = {
               .function_id = exc_frame.function_id,
               .pc = next_pc,
               .node = branch,
               .bindings = overlay,
-              .node_stack = node_stack,
           };
           ExecutionStack_append(exc_stack, frame);
         }
@@ -245,35 +236,27 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
             .pc = 0,
             .node = exc_frame.node};
         bindings_init(&next_exc_frame.bindings);
-        NodeStack_init(&next_exc_frame.node_stack);
 
         ExecutionStack_init(&next_call_frame.exc_stack);
         ExecutionStack_append(&next_call_frame.exc_stack, next_exc_frame);
         CallStack_append(&engine->call_stack, next_call_frame);
 
-        // NodeStack_free(&exc_frame.node_stack);
         return EXC_CONTINUE;
       }
       case OP_RETURN: {
-        frame_done = true;
-        break;
+        exc_frame.pc++;
+
+        *out = exc_frame;
+        return EXC_RET;
       }
       case OP_YIELD: {
-        match->node = exc_frame.node;
         bindings_overlay(&match->bindings, &exc_frame.bindings);
-        NodeStack_free(&exc_frame.node_stack);
 
+        match->node = exc_frame.node;
         return EXC_MATCH;
       }
-      default:
-        assert(false && "Unknown opcode");
       }
     } while (!frame_done);
-
-    // The overlays may be referenced in other stackframes though...
-    // Possibly use a ref count for memory management?
-    // Ideally, a node stack wouldn't be stored in here as well...
-    NodeStack_free(&exc_frame.node_stack);
   }
 
   return EXC_FAIL;
@@ -285,18 +268,22 @@ bool engine_next_match(Engine *engine, Match *match) {
   ExecutionResult result;
 
   while (engine->call_stack.len > 0) {
-    restore_continuation = false, pop_call_frame = false, match_found = false;
+    ExecutionFrame out;
+    restore_continuation = false;
+    pop_call_frame = false;
+    match_found = false;
 
     call_frame = &engine->call_stack.data[engine->call_stack.len - 1];
     prev_call_frame = engine->call_stack.len > 1
                           ? &engine->call_stack.data[engine->call_stack.len - 2]
                           : NULL;
 
-    result = engine_step_execution_frame(engine, &call_frame->exc_stack, match);
+    result = engine_step_execution_frame(engine, &call_frame->exc_stack, match,
+                                         &out);
     switch (result) {
     case EXC_FAIL: {
       switch (call_frame->call_mode) {
-      case CALLMODE_JOIN:
+      case CALLMODE_PASSTHROUGH:
       case CALLMODE_EXISTS:
         pop_call_frame = true;
         break;
@@ -305,23 +292,36 @@ bool engine_next_match(Engine *engine, Match *match) {
         pop_call_frame = true;
         break;
       }
-    }
+    } break;
     case EXC_MATCH: {
       switch (call_frame->call_mode) {
-      case CALLMODE_JOIN:
+      case CALLMODE_PASSTHROUGH:
+        assert(!ts_node_is_null(match->node));
         restore_continuation = true;
         match_found = true;
         break;
-      case CALLMODE_EXISTS: {
+      case CALLMODE_EXISTS:
         restore_continuation = true;
         pop_call_frame = true;
         break;
-      }
       case CALLMODE_NOTEXISTS:
         pop_call_frame = true;
         break;
       }
-    }
+    } break;
+    case EXC_RET: {
+      if (prev_call_frame != NULL && call_frame->has_continuation) {
+        // TODO: Please clean this up.
+        out.function_id = call_frame->continuation.function_id;
+        out.pc = call_frame->continuation.pc;
+        out.node = call_frame->continuation.node;
+        for (int i = 0; i < call_frame->continuation.bindings.len; i++) {
+          Binding binding = call_frame->continuation.bindings.data[i];
+          bindings_insert(&out.bindings, binding.variable, binding.value);
+        }
+        ExecutionStack_append(&prev_call_frame->exc_stack, out);
+      }
+    } break;
     case EXC_CONTINUE:
       break;
     }
@@ -337,9 +337,55 @@ bool engine_next_match(Engine *engine, Match *match) {
     }
 
     if (match_found) {
+      assert(!ts_node_is_null(match->node));
       return true;
     }
   }
 
   return false;
 }
+
+Axis axis_field(TSFieldId field_id) {
+  return (Axis){.axis_type = AXIS_FIELD, .data = {.field = field_id}};
+}
+Axis axis_child() { return (Axis){.axis_type = AXIS_CHILD}; }
+Axis axis_descendant() { return (Axis){.axis_type = AXIS_DESCENDANT}; }
+
+Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol) {
+  return (Predicate){.predicate_type = PREDICATE_TYPEEQ,
+                     .negate = false,
+                     .data = {
+                         .typeeq = {.node_expression = ne, .symbol = symbol},
+                     }};
+}
+Predicate predicate_texteq(NodeExpression ne, const char *string) {
+  return (Predicate){.predicate_type = PREDICATE_TEXTEQ,
+                     .negate = false,
+                     .data = {
+                         .texteq = {.node_expression = ne, .text = string},
+                     }};
+}
+Predicate predicate_negate(Predicate predicate) {
+  predicate.negate = !predicate.negate;
+  return predicate;
+}
+
+NodeExpression node_expression_self() {
+  return (NodeExpression){.node_expression_type = NODEEXPR_SELF};
+}
+
+Op op_noop() { return (Op){.opcode = OP_NOOP}; }
+Op op_branch(Axis axis) {
+  return (Op){.opcode = OP_BRANCH, .data = {.axis = axis}};
+}
+Op op_bind(VarId var_id) {
+  return (Op){.opcode = OP_BIND, .data = {.var_id = var_id}};
+}
+Op op_if(Predicate predicate) {
+  return (Op){.opcode = OP_IF, .data = {.predicate = predicate}};
+}
+Op op_call(CallParameters parameters) {
+  return (Op){.opcode = OP_CALL, .data = {.call_parameters = parameters}};
+}
+Op op_return() { return (Op){.opcode = OP_RETURN}; }
+Op op_yield() { return (Op){.opcode = OP_YIELD}; }

@@ -1,6 +1,7 @@
 CC ?= clang
 # TODO: Expose the API and use the API instead of using from lib directly
-CFLAGS += -std=c11 -Wall -Wpedantic -Wno-strict-prototypes -Werror -Ilib -fPIC -g -fsanitize=address
+CFLAGS += -std=c11 -Wall -Wpedantic -Wimplicit-fallthrough -Wno-strict-prototypes -Werror -Ilib -fPIC -g
+# CFLAGS += -fsanitize=address
 LDFLAGS += -ltree-sitter
 ARFLAGS := rcs
 

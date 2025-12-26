@@ -2,7 +2,7 @@
 #define _AST_H_
 
 #include "arena.h"
-#include "dyn_array.h"
+#include "ds.h"
 
 // FIXME: This is so horribly storage-inefficient... each AST node is ~16-24
 // bytes!

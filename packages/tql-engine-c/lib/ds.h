@@ -1,5 +1,5 @@
-#ifndef _ARRAY_H_
-#define _ARRAY_H_
+#ifndef _DS_H_
+#define _DS_H_
 
 #include <stddef.h>
 #include <string.h>
@@ -69,4 +69,4 @@ static inline size_t dyn_array_next_cap(size_t cap) {
     return &a->data[i];                                                        \
   }
 
-#endif /* _ARRAY_H_ */
+#endif /* _DS_H_ */

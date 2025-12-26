@@ -1,7 +1,7 @@
 #ifndef _BINDING_H_
 #define _BINDING_H_
 
-#include "dyn_array.h"
+#include "ds.h"
 #include <assert.h>
 #include <stdint.h>
 #include <tree_sitter/api.h>

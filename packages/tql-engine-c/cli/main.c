@@ -1,4 +1,3 @@
-#include "dyn_array.h"
 #include "engine.h"
 #include "parser.h"
 #include <assert.h>
@@ -10,10 +9,6 @@
 const TSLanguage *tree_sitter_typescript(void);
 const TSLanguage *tree_sitter_tql(void);
 
-static const NodeExpression NODE_EXPRESSION_SELF = {
-    .node_expression_type = NODEEXPR_SELF,
-};
-
 void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
   uint32_t start_byte = ts_node_start_byte(node);
   uint32_t end_byte = ts_node_end_byte(node);
@@ -24,7 +19,7 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
 }
 
 int run_demo(char *filename) {
-  FILE *source_fp = fopen(filename, "rb");
+  FILE *source_fp = fopen(filename, "r");
   if (source_fp == NULL) {
     perror("fopen");
     return EXIT_FAILURE;
@@ -51,6 +46,8 @@ int run_demo(char *filename) {
   const VarId CLASS_NAME_VAR_ID = 1;
   const VarId METHOD_NAME_VAR_ID = 2;
 
+  FunctionId function_id = 1;
+
   Ops prog_has_return_type;
   Ops_init(&prog_has_return_type);
   Ops_append(&prog_has_return_type,
@@ -66,170 +63,85 @@ int run_demo(char *filename) {
                                         .opcode = OP_RETURN,
                                     });
   Function function_has_return_type = {
-      .id = 1,
+      .id = function_id++,
       .function = prog_has_return_type,
+  };
+
+  Ops prog_find_controller_decorator;
+  Ops_init(&prog_find_controller_decorator);
+  Ops_append(&prog_find_controller_decorator,
+             op_branch(axis_field(DECORATOR_FIELD_ID)));
+  Ops_append(&prog_find_controller_decorator, op_branch(axis_child()));
+  Ops_append(&prog_find_controller_decorator,
+             op_branch(axis_field(FUNCTION_FIELD_ID)));
+  Ops_append(&prog_find_controller_decorator,
+             op_if(predicate_texteq(node_expression_self(), "Controller")));
+  Ops_append(&prog_find_controller_decorator, op_return());
+  Function function_find_controller_decorator = {
+      .id = function_id++,
+      .function = prog_find_controller_decorator,
+  };
+
+  Ops prog_bind_class_name;
+  Ops_init(&prog_bind_class_name);
+  Ops_append(&prog_bind_class_name, op_branch(axis_field(NAME_FIELD_ID)));
+  Ops_append(&prog_bind_class_name, op_bind(CLASS_NAME_VAR_ID));
+  Ops_append(&prog_bind_class_name, op_return());
+  Function function_bind_class_name = {
+      .id = function_id++,
+      .function = prog_bind_class_name,
+  };
+
+  Ops prog_bind_method_name;
+  Ops_init(&prog_bind_method_name);
+  Ops_append(&prog_bind_method_name, op_branch(axis_field(NAME_FIELD_ID)));
+  Ops_append(&prog_bind_method_name, op_bind(METHOD_NAME_VAR_ID));
+  Ops_append(&prog_bind_method_name, op_return());
+  Function function_bind_method_name = {
+      .id = function_id++,
+      .function = prog_bind_method_name,
+  };
+
+  Ops prog_find_method_no_return;
+  Ops_init(&prog_find_method_no_return);
+  Ops_append(&prog_find_method_no_return, op_branch(axis_field(BODY_FIELD_ID)));
+  Ops_append(&prog_find_method_no_return, op_branch(axis_child()));
+  Ops_append(&prog_find_method_no_return,
+             op_if(predicate_typeeq(node_expression_self(),
+                                    METHOD_DEFINITION_TYPE_SYMBOL)));
+  Ops_append(&prog_find_method_no_return,
+             op_call((CallParameters){
+                 .mode = CALLMODE_NOTEXISTS,
+                 .function_id = function_has_return_type.id,
+             }));
+  Ops_append(&prog_find_method_no_return,
+             op_call((CallParameters){
+                 .mode = CALLMODE_PASSTHROUGH,
+                 .function_id = function_bind_method_name.id,
+             }));
+  Ops_append(&prog_find_method_no_return, op_return());
+  Function function_find_method_no_return = {
+      .id = function_id++,
+      .function = prog_find_method_no_return,
   };
 
   Ops prog_main;
   Ops_init(&prog_main);
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BRANCH,
-                             .data = {.axis =
-                                          {
-                                              .axis_type = AXIS_DESCENDANT,
-                                          }},
-                         });
-  Ops_append(
-      &prog_main,
-      (Op){
-          .opcode = OP_IF,
-          .data = {.predicate =
-                       {
-                           .predicate_type = PREDICATE_TYPEEQ,
-                           .negate = false,
-                           .data =
-                               {
-                                   {.node_expression = NODE_EXPRESSION_SELF,
-                                    .symbol = CLASS_DECLARATION_TYPE_SYMBOL},
-                               },
-                       }},
-      });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_PUSHNODE,
-                         });
+  Ops_append(&prog_main, op_branch(axis_descendant()));
   Ops_append(&prog_main,
-             (Op){.opcode = OP_BRANCH,
-                  .data = {.axis = {
-                               .axis_type = AXIS_FIELD,
-                               .data = {.field = DECORATOR_FIELD_ID},
-
-                           }}});
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BRANCH,
-                             .data = {.axis =
-                                          {
-                                              .axis_type = AXIS_CHILD,
-                                          }},
-                         });
+             op_if(predicate_typeeq(node_expression_self(),
+                                    CLASS_DECLARATION_TYPE_SYMBOL)));
   Ops_append(&prog_main,
-             (Op){
-                 .opcode = OP_BRANCH,
-                 .data = {.axis =
-                              {
-                                  .axis_type = AXIS_FIELD,
-                                  .data = {.field = FUNCTION_FIELD_ID},
-                              }},
-             });
-  Ops_append(&prog_main,
-             (Op){
-                 .opcode = OP_IF,
-                 .data =
-                     {
-                         .predicate =
-                             {
-                                 .predicate_type = PREDICATE_TEXTEQ,
-                                 .negate = false,
-                                 .data = {.texteq = {.node_expression =
-                                                         NODE_EXPRESSION_SELF,
-                                                     .text = "Controller"}},
-                             },
-                     },
-             });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_POPNODE,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_PUSHNODE,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BRANCH,
-                             .data = {.axis =
-                                          {
-                                              .axis_type = AXIS_FIELD,
-                                              .data = {.field = NAME_FIELD_ID},
-                                          }},
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BIND,
-                             .data = {.var_id = CLASS_NAME_VAR_ID},
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_POPNODE,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_PUSHNODE,
-                         });
-  Ops_append(&prog_main, (Op){.opcode = OP_BRANCH,
-                              .data = {.axis = {
-                                           .axis_type = AXIS_FIELD,
-                                           .data = {.field = BODY_FIELD_ID},
-                                       }}});
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BRANCH,
-                             .data = {.axis =
-                                          {
-                                              .axis_type = AXIS_CHILD,
-                                          }},
-                         });
-  Ops_append(
-      &prog_main,
-      (Op){
-          .opcode = OP_IF,
-          .data = {.predicate =
-                       {
-                           .predicate_type = PREDICATE_TYPEEQ,
-                           .negate = false,
-                           .data =
-                               {
-                                   {.node_expression = NODE_EXPRESSION_SELF,
-                                    .symbol = METHOD_DEFINITION_TYPE_SYMBOL},
-                               },
-                       }},
-      });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_PUSHNODE,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BRANCH,
-                             .data = {.axis =
-                                          {
-                                              .axis_type = AXIS_FIELD,
-                                              .data = {.field = NAME_FIELD_ID},
-                                          }},
-                         });
-  Ops_append(&prog_main,
-             (Op){
-                 .opcode = OP_IF,
-                 .data =
-                     {
-                         .predicate =
-                             {
-                                 .predicate_type = PREDICATE_TEXTEQ,
-                                 .negate = true,
-                                 .data = {.texteq = {.node_expression =
-                                                         NODE_EXPRESSION_SELF,
-                                                     .text = "constructor"}},
-                             },
-                     },
-             });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_BIND,
-                             .data = {.var_id = METHOD_NAME_VAR_ID},
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_POPNODE,
-                         });
-  Ops_append(&prog_main, (Op){.opcode = OP_CALL,
-                              .data = {.call_parameters = {
-                                           .mode = CALLMODE_NOTEXISTS,
-                                           .function_id = 1,
-                                       }}});
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_POPNODE,
-                         });
-  Ops_append(&prog_main, (Op){
-                             .opcode = OP_YIELD,
-                         });
+             op_call((CallParameters){.function_id =
+                                          function_find_controller_decorator.id,
+                                      .mode = CALLMODE_PASSTHROUGH}));
+  Ops_append(&prog_main, op_call((CallParameters){
+                             .function_id = function_bind_class_name.id,
+                             .mode = CALLMODE_PASSTHROUGH}));
+  Ops_append(&prog_main, op_call((CallParameters){
+                             .function_id = function_find_method_no_return.id,
+                             .mode = CALLMODE_PASSTHROUGH}));
+  Ops_append(&prog_main, op_yield());
   Function function_main = {
       .id = 0,
       .function = prog_main,
@@ -248,6 +160,10 @@ int run_demo(char *filename) {
   engine_load_source(&engine, source_code);
   engine_load_ast(&engine, tree);
   engine_load_function(&engine, &function_has_return_type);
+  engine_load_function(&engine, &function_find_controller_decorator);
+  engine_load_function(&engine, &function_bind_class_name);
+  engine_load_function(&engine, &function_bind_method_name);
+  engine_load_function(&engine, &function_find_method_no_return);
   engine_load_function(&engine, &function_main);
   engine_exec(&engine);
 
@@ -259,6 +175,7 @@ int run_demo(char *filename) {
 
   while (engine_next_match(&engine, &match)) {
     printf("=================\n");
+
     bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
@@ -279,6 +196,7 @@ int run_demo(char *filename) {
              end_point.column);
     }
 
+    assert(!ts_node_is_null(match.node));
     get_ts_node_text(source_code, match.node, buf);
     start_point = ts_node_start_point(match.node);
     end_point = ts_node_end_point(match.node);
@@ -287,6 +205,7 @@ int run_demo(char *filename) {
            buf);
     printf("=================\n");
   }
+  printf("Step count: %u\n", engine.step_count);
 
   fclose(source_fp);
   // Free all of the heap-allocated memory.
@@ -323,6 +242,6 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  return parse_tql(argv[1]);
-  /* return run_demo(argv[1]); */
+  // return parse_tql(argv[1]);
+  return run_demo(argv[1]);
 }

@@ -2,7 +2,7 @@
 #define _ENGINE_H_
 
 #include "binding.h"
-#include "dyn_array.h"
+#include "ds.h"
 #include <tree_sitter/api.h>
 
 typedef uint64_t FunctionId;
@@ -63,7 +63,7 @@ typedef struct {
 } Predicate;
 
 typedef enum {
-  CALLMODE_JOIN,
+  CALLMODE_PASSTHROUGH,
   CALLMODE_EXISTS,
   CALLMODE_NOTEXISTS,
 } CallMode;
@@ -75,8 +75,6 @@ typedef struct {
 
 typedef enum {
   OP_NOOP,
-  OP_PUSHNODE,
-  OP_POPNODE,
   OP_BRANCH,
   OP_BIND,
   OP_IF,
@@ -115,16 +113,17 @@ typedef struct {
   uint64_t pc;
   TSNode node;
   Bindings bindings;
-  NodeStack node_stack;
 } ExecutionFrame;
 DA_DEFINE(ExecutionFrame, ExecutionStack)
 
-typedef struct {
+typedef struct CallFrame CallFrame;
+
+struct CallFrame {
   CallMode call_mode;
   ExecutionStack exc_stack;
   bool has_continuation;
   ExecutionFrame continuation;
-} CallFrame;
+};
 DA_DEFINE(CallFrame, CallStack)
 
 typedef struct {
@@ -132,6 +131,7 @@ typedef struct {
   FunctionTable function_table;
   CallStack call_stack;
   const char *source;
+  uint32_t step_count;
 } Engine;
 
 void engine_init(Engine *engine);
@@ -148,5 +148,23 @@ void engine_exec(Engine *engine);
 bool engine_next_match(Engine *engine, Match *match);
 
 void engine_free(Engine *engine);
+
+Axis axis_field(TSFieldId field_id);
+Axis axis_child();
+Axis axis_descendant();
+
+Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol);
+Predicate predicate_texteq(NodeExpression ne, const char *string);
+Predicate predicate_negate(Predicate predicate);
+
+NodeExpression node_expression_self();
+
+Op op_noop();
+Op op_branch(Axis axis);
+Op op_bind(VarId var_id);
+Op op_if(Predicate predicate);
+Op op_call(CallParameters parameters);
+Op op_return();
+Op op_yield();
 
 #endif /* _ENGINE_H_ */

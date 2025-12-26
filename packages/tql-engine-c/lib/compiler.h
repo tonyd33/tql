@@ -6,9 +6,10 @@
 
 typedef struct {
   Ops ops;
+  TSLanguage *language;
 } Compiler;
 
-void compiler_init(Compiler *compiler);
+void compiler_init(Compiler *compiler, TSLanguage *language);
 void compiler_compile(Compiler *compiler, TQLAst *ast, Ops *out);
 void compiler_free(Compiler *compiler);
 
