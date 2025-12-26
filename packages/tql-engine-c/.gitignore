@@ -1,4 +1,4 @@
 build
 tql-cli
-tql.*/**
+*.dSYM
 libtql.*

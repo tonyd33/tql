@@ -17,65 +17,46 @@
   {
     "type": "assignment",
     "named": true,
-    "fields": {
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
       "multiple": false,
       "required": true,
       "types": [
         {
-          "type": "variable_identifier",
+          "type": "explicit_assignment",
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "block_selector",
+    "named": true,
+    "fields": {
+      "parent": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "selector",
+            "named": true
+          }
+        ]
+      },
+      "statements": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ";",
+            "named": false
+          },
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -83,133 +64,21 @@
     "named": true,
     "fields": {
       "child": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
+            "type": "selector",
             "named": true
           }
         ]
       },
       "parent": {
-        "multiple": true,
+        "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
+            "type": "selector",
             "named": true
           }
         ]
@@ -252,133 +121,21 @@
     "named": true,
     "fields": {
       "descendant": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
+            "type": "selector",
             "named": true
           }
         ]
       },
       "parent": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
+            "type": "selector",
             "named": true
           }
         ]
@@ -388,191 +145,61 @@
   {
     "type": "empty_condition",
     "named": true,
-    "fields": {
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      }
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "selector",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "explicit_assignment",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "selector",
+          "named": true
+        },
+        {
+          "type": "variable_identifier",
+          "named": true
+        }
+      ]
     }
   },
   {
     "type": "field_name_selector",
     "named": true,
     "fields": {
-      "node_operation": {
-        "multiple": true,
-        "required": false,
+      "field": {
+        "multiple": false,
+        "required": true,
         "types": [
           {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
+            "type": "field_name",
             "named": true
           }
         ]
       },
-      "parent_field": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
+      "parent": {
         "multiple": false,
         "required": false,
         "types": [
           {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
+            "type": "selector",
             "named": true
           }
         ]
       }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "field_name",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "inline_node_assignment",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "identifier",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "inline_node_operation",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "inline_node_assignment",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -606,117 +233,50 @@
     }
   },
   {
-    "type": "query",
+    "type": "selector",
     "named": true,
-    "fields": {
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "selector": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      },
-      "statement": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "assignment",
-            "named": true
-          },
-          {
-            "type": "condition",
-            "named": true
-          },
-          {
-            "type": "query",
-            "named": true
-          }
-        ]
-      }
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "block_selector",
+          "named": true
+        },
+        {
+          "type": "child_selector",
+          "named": true
+        },
+        {
+          "type": "descendant_selector",
+          "named": true
+        },
+        {
+          "type": "field_name_selector",
+          "named": true
+        },
+        {
+          "type": "node_type_selector",
+          "named": true
+        },
+        {
+          "type": "selector",
+          "named": true
+        },
+        {
+          "type": "self_selector",
+          "named": true
+        },
+        {
+          "type": "universal_selector",
+          "named": true
+        },
+        {
+          "type": "variable_identifier",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -729,7 +289,30 @@
       "required": false,
       "types": [
         {
-          "type": "query",
+          "type": "selector",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "statement",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "assignment",
+          "named": true
+        },
+        {
+          "type": "condition",
+          "named": true
+        },
+        {
+          "type": "selector",
           "named": true
         }
       ]
@@ -758,60 +341,15 @@
   {
     "type": "text_eq_condition",
     "named": true,
-    "fields": {
-      "node_operation": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "[",
-            "named": false
-          },
-          {
-            "type": "]",
-            "named": false
-          },
-          {
-            "type": "inline_node_operation",
-            "named": true
-          }
-        ]
-      },
-      "pure_selector": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "child_selector",
-            "named": true
-          },
-          {
-            "type": "descendant_selector",
-            "named": true
-          },
-          {
-            "type": "field_name_selector",
-            "named": true
-          },
-          {
-            "type": "node_type_selector",
-            "named": true
-          },
-          {
-            "type": "universal_selector",
-            "named": true
-          },
-          {
-            "type": "variable_identifier",
-            "named": true
-          }
-        ]
-      }
-    },
+    "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "selector",
+          "named": true
+        },
         {
           "type": "string_literal",
           "named": true
@@ -859,6 +397,10 @@
     "named": false
   },
   {
+    "type": ";",
+    "named": false
+  },
+  {
     "type": "<-",
     "named": false
   },
@@ -872,14 +414,6 @@
   },
   {
     "type": "@",
-    "named": false
-  },
-  {
-    "type": "[",
-    "named": false
-  },
-  {
-    "type": "]",
     "named": false
   },
   {
@@ -901,6 +435,10 @@
   },
   {
     "type": "node_type",
+    "named": true
+  },
+  {
+    "type": "self_selector",
     "named": true
   },
   {

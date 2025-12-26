@@ -1,5 +1,6 @@
 #include "dyn_array.h"
 #include "engine.h"
+#include "parser.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,7 @@
 #include <tree_sitter/api.h>
 
 const TSLanguage *tree_sitter_typescript(void);
+const TSLanguage *tree_sitter_tql(void);
 
 static const NodeExpression NODE_EXPRESSION_SELF = {
     .node_expression_type = NODEEXPR_SELF,
@@ -21,13 +23,8 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
   buf[buf_len] = '\0';
 }
 
-int main(int argc, char **argv) {
-  if (argc != 2) {
-    fprintf(stderr, "Expected 1 argument\n");
-    return EXIT_FAILURE;
-  }
-
-  FILE *source_fp = fopen(argv[1], "rb");
+int run_demo(char *filename) {
+  FILE *source_fp = fopen(filename, "rb");
   if (source_fp == NULL) {
     perror("fopen");
     return EXIT_FAILURE;
@@ -297,4 +294,32 @@ int main(int argc, char **argv) {
   ts_tree_delete(tree);
   ts_parser_delete(parser);
   return EXIT_SUCCESS;
+}
+
+int parse_tql(char *filename) {
+  FILE *fp = fopen(filename, "rb");
+  char buf[4096] = {0};
+  int bytes_read = fread(buf, sizeof(buf), 1, fp);
+  printf("Read %d bytes\n", bytes_read);
+
+  TQLParser parser;
+  tql_parser_init(&parser);
+
+  TQLAst *ast = tql_parser_parse_string(&parser, buf, strlen(buf));
+  printf("stored %u strings\n", ast->string_pool->string_count);
+  printf("used %zu bytes\n", ast->arena->offset);
+  tql_ast_free(ast);
+  tql_parser_free(&parser);
+  fclose(fp);
+  return EXIT_SUCCESS;
+}
+
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    fprintf(stderr, "Expected 1 argument\n");
+    return EXIT_FAILURE;
+  }
+
+  return parse_tql(argv[1]);
+  /* return run_demo(argv[1]); */
 }

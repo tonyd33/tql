@@ -18,7 +18,7 @@ module.exports = grammar({
     global: _ => [],
   },
   rules: {
-    source_file: $ => repeat($.query),
+    source_file: $ => repeat(prec.left($.selector)),
     comment: _ => token(seq("--", /[^\r\n\u2028\u2029]*/)),
     identifier: _ => token(seq(alpha, repeat(alphanumeric))),
 
@@ -53,69 +53,67 @@ module.exports = grammar({
         ),
       ),
 
-    query: $ =>
-      seq(
-        field("selector", $._selector),
-        braces_enclosed(repeat(field("statement", $._statement))),
-      ),
     variable_identifier: $ => seq("@", $.identifier),
 
-    _statement: $ => choice($.query, $.assignment, $.condition),
+    statement: $ => choice($.selector, $.assignment, $.condition),
 
     // selectors
-    _pure_selector: $ =>
+    selector: $ =>
       choice(
+        $._parenthesized_selector,
+        $.self_selector,
         $.universal_selector,
         $.node_type_selector,
         $.field_name_selector,
         $.child_selector,
         $.descendant_selector,
+        $.block_selector,
         $.variable_identifier,
       ),
-    _selector: $ =>
-      prec.right(
-        seq(
-          field("pure_selector", $._pure_selector),
-          field(
-            "node_operation",
-            optional(seq("[", repeat($.inline_node_operation), "]")),
-          ),
-        ),
-      ),
+    _parenthesized_selector: $ => prec(100, seq("(", $.selector, ")")),
+    self_selector: _ => "%",
     universal_selector: _ => "*",
     node_type_selector: $ => alias($.identifier, $.node_type),
     field_name_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent_field", $._selector)),
+          optional(field("parent", $.selector)),
           ".",
-          alias($.identifier, $.field_name),
+          field("field", alias($.identifier, $.field_name)),
         ),
       ),
     child_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent", $._selector)),
+          optional(field("parent", $.selector)),
           ">",
-          field("child", $._selector),
+          field("child", $.selector),
         ),
       ),
     descendant_selector: $ =>
       prec.left(
         seq(
-          field("parent", $._selector),
+          field("parent", $.selector),
           $._descendant_operator,
-          field("descendant", $._selector),
+          field("descendant", $.selector),
+        ),
+      ),
+    block_selector: $ =>
+      prec.left(
+        seq(
+          optional(field("parent", $.selector)),
+          braces_enclosed(
+            field("statements", seq(sep_by(";", $.statement), optional(";"))),
+          ),
         ),
       ),
 
-    inline_node_operation: $ => choice($.inline_node_assignment),
-    inline_node_assignment: $ => seq("@", $.identifier),
-
-    assignment: $ => seq($.variable_identifier, "<-", $._expression),
+    // assignments
+    assignment: $ => choice($.explicit_assignment),
+    explicit_assignment: $ => seq($.variable_identifier, "<-", $._expression),
 
     // expressions
-    _expression: $ => prec.left(1, choice($._selector)),
+    _expression: $ => choice($.selector),
 
     // conditions
     condition: $ =>
