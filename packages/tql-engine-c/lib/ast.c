@@ -1,6 +1,6 @@
 #include "ast.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #define AST_ARENA_SIZE 32768
 #define STRING_POOL_CAPACITY 8192
@@ -11,15 +11,18 @@ StringPool *string_pool_new() {
   string_pool->string_capacity = 256;
   string_pool->pool_capacity = STRING_POOL_CAPACITY;
   string_pool->strings = malloc(STRING_POOL_CAPACITY);
-  string_pool->offsets = malloc(sizeof(uint32_t) * string_pool->string_capacity);
+  string_pool->offsets =
+      malloc(sizeof(uint32_t) * string_pool->string_capacity);
   return string_pool;
 }
 
-char *string_pool_alloc(StringPool *string_pool, const char *string, uint32_t length) {
+char *string_pool_alloc(StringPool *string_pool, const char *string,
+                        uint32_t length) {
   uint32_t offset = 0;
   uint32_t string_count = 0;
   char *pooled_string = NULL;
-  for (string_count = 0; string_count < string_pool->string_count; string_count++) {
+  for (string_count = 0; string_count < string_pool->string_count;
+       string_count++) {
     offset = string_pool->offsets[string_count];
     pooled_string = &string_pool->strings[offset];
     if (strncmp(pooled_string, string, length) == 0) {
@@ -32,7 +35,7 @@ char *string_pool_alloc(StringPool *string_pool, const char *string, uint32_t le
     return NULL;
   } else {
     uint32_t next_offset =
-      pooled_string == NULL ? 0 : offset + strlen(pooled_string) + 2;
+        pooled_string == NULL ? 0 : offset + strlen(pooled_string) + 2;
     strncpy(&string_pool->strings[next_offset], string, length);
     string_pool->strings[next_offset + length] = '\0';
     string_pool->offsets[string_pool->string_count++] = next_offset;
@@ -59,142 +62,171 @@ TQLString *tql_string_new(TQLAst *ast, const char *string, size_t length) {
   return tql_string;
 }
 
-TQLInlineNodeOperation *tql_inline_node_operation_assignment_new(TQLAst *ast, TQLVariableIdentifier *identifier) {
-  TQLInlineNodeOperation *inline_node_operation = arena_alloc(ast->arena, sizeof(TQLInlineNodeOperation));
-  *inline_node_operation = (TQLInlineNodeOperation){
-    .type = TQLINLINENODEOP_ASSIGNMENT,
-    .data = {
-      .identifier = identifier,
-    },
-  };
-  return inline_node_operation;
-}
-
-TQLStatement *tql_statement_query_new(TQLAst *ast, TQLQuery *query) {
+TQLStatement *tql_statement_selector_new(TQLAst *ast, TQLSelector *selector) {
   TQLStatement *statement = arena_alloc(ast->arena, sizeof(TQLStatement));
   *statement = (TQLStatement){
-    .data = {.query = query},
+      .type = TQLSTATEMENT_SELECTOR,
+      .data = {.selector = selector},
   };
   return statement;
 }
-TQLStatement *tql_statement_assignment_new(TQLAst *ast, TQLAssignment *assignment) {
+TQLStatement *tql_statement_assignment_new(TQLAst *ast,
+                                           TQLAssignment *assignment) {
   TQLStatement *statement = arena_alloc(ast->arena, sizeof(TQLStatement));
   *statement = (TQLStatement){
-    .data = {.assignment = assignment},
-  };
-  return statement;
-}
-TQLStatement *tql_statement_condition_new(TQLAst *ast, TQLCondition *condition) {
-  TQLStatement *statement = arena_alloc(ast->arena, sizeof(TQLStatement));
-  *statement = (TQLStatement){
-    .data = {.condition = condition},
+      .type = TQLSTATEMENT_ASSIGNMENT,
+      .data = {.assignment = assignment},
   };
   return statement;
 }
 
-TQLPureSelector *tql_pure_selector_universal_new(TQLAst *ast) {
-  TQLPureSelector *pure_selector = arena_alloc(ast->arena, sizeof(TQLPureSelector));
-  *pure_selector = (TQLPureSelector){
-    .type = TQLSELECTOR_UNIVERSAL,
+TQLAssignment *tql_assignment_new(TQLAst *ast,
+                                  TQLVariableIdentifier *variable_identifier,
+                                  TQLExpression *expression) {
+  TQLAssignment *assignment = arena_alloc(ast->arena, sizeof(TQLAssignment));
+  *assignment = (TQLAssignment){
+      .variable_identifier = variable_identifier,
+      .expression = expression,
   };
-  return pure_selector;
+  return assignment;
 }
 
-TQLPureSelector *tql_pure_selector_nodetype_new(TQLAst *ast, TQLVariableIdentifier *node_type) {
-  TQLPureSelector *pure_selector = arena_alloc(ast->arena, sizeof(TQLPureSelector));
-  *pure_selector = (TQLPureSelector){
-    .type = TQLSELECTOR_NODETYPE,
-    .data = {
-      .node_type_selector = node_type,
-    },
-  };
-  return pure_selector;
+TQLExpression *tql_expression_new(TQLAst *ast, TQLSelector *selector) {
+  TQLExpression *expression = arena_alloc(ast->arena, sizeof(TQLExpression));
+  *expression = (TQLExpression){.type = TQLEXPRESSION_SELECTOR,
+                                .data = {.selector = selector}};
+  return expression;
 }
 
-TQLPureSelector *tql_pure_selector_fieldname_new(TQLAst *ast, TQLSelector *parent, TQLString *field) {
-  TQLPureSelector *pure_selector = arena_alloc(ast->arena, sizeof(TQLPureSelector));
-  *pure_selector = (TQLPureSelector){
-    .type = TQLSELECTOR_FIELDNAME,
-    .data = {
-      .field_name_selector = {
-          .parent = parent,
-          .field = field,
-      },
-    },
+TQLStatement *tql_statement_condition_new(TQLAst *ast,
+                                          TQLCondition *condition) {
+  TQLStatement *statement = arena_alloc(ast->arena, sizeof(TQLStatement));
+  *statement = (TQLStatement){
+      .type = TQLSTATEMENT_CONDITION,
+      .data = {.condition = condition},
   };
-  return pure_selector;
+  return statement;
 }
 
-TQLPureSelector *tql_pure_selector_child_new(TQLAst *ast, TQLSelector *parent, TQLSelector *child) {
-  TQLPureSelector *pure_selector = arena_alloc(ast->arena, sizeof(TQLPureSelector));
-  *pure_selector = (TQLPureSelector){
-    .type = TQLSELECTOR_CHILD,
-    .data = {
-      .child_selector = {
-          .parent = parent,
-          .child = child,
-      },
-    },
-  };
-  return pure_selector;
-}
-
-TQLPureSelector *tql_pure_selector_descendant_new(TQLAst *ast, TQLSelector *parent, TQLSelector *child) {
-  TQLPureSelector *pure_selector = arena_alloc(ast->arena, sizeof(TQLPureSelector));
-  *pure_selector = (TQLPureSelector){
-    .type = TQLSELECTOR_DESCENDANT,
-    .data = {
-      .descendant_selector = {
-          .parent = parent,
-          .child = child,
-      },
-    },
-  };
-  return pure_selector;
-}
-
-TQLSelector *tql_selector_new(TQLAst *ast, TQLPureSelector *pure_selector, TQLInlineNodeOperation **node_operations, size_t node_operation_count) {
+TQLSelector *tql_selector_universal_new(TQLAst *ast) {
   TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
-  selector->pure_selector = pure_selector;
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_UNIVERSAL,
+  };
+  return selector;
+}
 
-  if (node_operation_count > 0) {
-    TQLInlineNodeOperation **node_operations_copy = arena_alloc(ast->arena, sizeof(TQLInlineNodeOperation*) * node_operation_count);
-    memcpy(node_operations_copy, node_operations, sizeof(TQLInlineNodeOperation*) * node_operation_count);
-    selector->node_operations = node_operations_copy;
-    selector->node_operation_count = node_operation_count;
+TQLSelector *tql_selector_self_new(TQLAst *ast) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_SELF,
+  };
+  return selector;
+}
+
+TQLSelector *tql_selector_nodetype_new(TQLAst *ast,
+                                       TQLVariableIdentifier *node_type) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_NODETYPE,
+      .data =
+          {
+              .node_type_selector = node_type,
+          },
+  };
+  return selector;
+}
+
+TQLSelector *tql_selector_fieldname_new(TQLAst *ast, TQLSelector *parent,
+                                        TQLString *field) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_FIELDNAME,
+      .data =
+          {
+              .field_name_selector =
+                  {
+                      .parent = parent,
+                      .field = field,
+                  },
+          },
+  };
+  return selector;
+}
+
+TQLSelector *tql_selector_child_new(TQLAst *ast, TQLSelector *parent,
+                                    TQLSelector *child) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_CHILD,
+      .data =
+          {
+              .child_selector =
+                  {
+                      .parent = parent,
+                      .child = child,
+                  },
+          },
+  };
+  return selector;
+}
+
+TQLSelector *tql_selector_descendant_new(TQLAst *ast, TQLSelector *parent,
+                                         TQLSelector *child) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_DESCENDANT,
+      .data =
+          {
+              .descendant_selector =
+                  {
+                      .parent = parent,
+                      .child = child,
+                  },
+          },
+  };
+  return selector;
+}
+TQLSelector *tql_selector_block_new(TQLAst *ast, TQLSelector *parent,
+                                    TQLStatement **statements,
+                                    uint32_t statement_count) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  selector->type = TQLSELECTOR_BLOCK;
+  selector->data.block_selector.parent = parent;
+  if (statement_count > 0) {
+    selector->data.block_selector.statements =
+        arena_alloc(ast->arena, sizeof(TQLStatement *) * statement_count);
+    memcpy(selector->data.block_selector.statements, statements,
+           sizeof(TQLStatement *) * statement_count);
+    selector->data.block_selector.statement_count = statement_count;
   } else {
-    selector->node_operations = NULL;
-    selector->node_operation_count = 0;
+    selector->data.block_selector.statements = NULL;
+    selector->data.block_selector.statement_count = 0;
   }
   return selector;
 }
 
-TQLQuery *tql_query_new(TQLAst *ast, TQLSelector *selector, TQLStatement **statements, size_t statement_count) {
-  TQLQuery *query = arena_alloc(ast->arena, sizeof(TQLQuery));
-  query->selector = selector;
-
-  if (statement_count > 0) {
-    TQLStatement **statements_copy = arena_alloc(ast->arena, sizeof(TQLStatement*) * statement_count);
-    memcpy(statements_copy, statements, sizeof(TQLStatement*) * statement_count);
-    query->statements = statements_copy;
-    query->statement_count = statement_count;
-  } else {
-    query->statements = NULL;
-    query->statement_count = 0;
-  }
-  return query;
+TQLSelector *tql_selector_varid_new(TQLAst *ast,
+                                    TQLVariableIdentifier *identifier) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector =
+      (TQLSelector){.type = TQLSELECTOR_VARID,
+                    .data = {.variable_identifier_selector = identifier}};
+  return selector;
 }
 
-TQLTree *tql_tree_new(TQLAst *ast, TQLQuery **queries, size_t query_count) {
+TQLTree *tql_tree_new(TQLAst *ast, TQLSelector **selectors,
+                      uint32_t selector_count) {
   TQLTree *tql_tree = arena_alloc(ast->arena, sizeof(TQLTree));
-  if (query_count > 0) {
-    TQLQuery **queries_copy = arena_alloc(ast->arena, sizeof(TQLQuery*) * query_count);
-    memcpy(queries_copy, queries, sizeof(TQLQuery*) * query_count);
-    tql_tree->queries = queries_copy;
-    tql_tree->query_count = query_count;
+  if (selector_count > 0) {
+    tql_tree->selectors =
+        arena_alloc(ast->arena, sizeof(TQLSelector *) * selector_count);
+    memcpy(tql_tree->selectors, selectors,
+           sizeof(TQLSelector *) * selector_count);
+    tql_tree->selector_count = selector_count;
   } else {
-    tql_tree->queries = NULL;
-    tql_tree->query_count = 0;
+    tql_tree->selectors = NULL;
+    tql_tree->selector_count = 0;
   }
   return tql_tree;
 }
@@ -230,4 +262,12 @@ void tql_ast_free(TQLAst *ast) {
     ast->arena = NULL;
   }
   free(ast);
+}
+
+TQLCondition *tql_condition_empty_new(TQLAst *ast, TQLExpression *expression) {
+  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
+  *condition =
+      (TQLCondition){.type = TQLCONDITION_EMPTY,
+                     .data = {.empty_condition = {.expression = expression}}};
+  return condition;
 }

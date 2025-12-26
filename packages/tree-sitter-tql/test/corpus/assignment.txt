@@ -7,15 +7,11 @@ class_declaration { @class <- % }
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (block_selector
-      (statement
-        (assignment
-          (explicit_assignment
-            (variable_identifier
-              (identifier))
-            (selector
-              (self_selector))))))))
+  (node_type_selector
+    (node_type))
+  (block_selector
+    (assignment
+      (explicit_assignment
+        (variable_identifier
+          (identifier))
+        (self_selector)))))

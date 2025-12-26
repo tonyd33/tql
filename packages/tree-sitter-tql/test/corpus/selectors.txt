@@ -12,23 +12,17 @@ class_declaration {
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (block_selector
-      (statement
+  (node_type_selector
+    (node_type))
+  (block_selector
+    (selector
+      (block_selector
+        (node_type_selector
+          (node_type))
         (selector
           (block_selector
-            (selector
-              (node_type_selector
-                (node_type)))
-            (statement
-              (selector
-                (block_selector
-                  (selector
-                    (node_type_selector
-                      (node_type))))))))))))
+            (node_type_selector
+              (node_type))))))))
 
 ========================================
 block chain
@@ -39,17 +33,13 @@ class_declaration { } { class_body }
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (block_selector))
-  (selector
-    (block_selector
-      (statement
-        (selector
-          (node_type_selector
-            (node_type)))))))
+  (node_type_selector
+    (node_type))
+  (block_selector)
+  (block_selector
+    (selector
+      (node_type_selector
+        (node_type)))))
 
 ========================================
 field_name
@@ -66,36 +56,25 @@ class_declaration {
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (descendant_selector
+  (node_type_selector
+    (node_type))
+  (descendant_selector
+    (block_selector
       (selector
         (block_selector
-          (statement
-            (selector
-              (block_selector
-                (selector
-                  (field_name_selector
-                    (field_name))))))))
-      (selector
-        (node_type_selector
-          (node_type)))))
-  (selector
-    (block_selector
-      (statement
-        (selector
-          (block_selector
-            (selector
-              (field_name_selector
-                (selector
-                  (field_name_selector
-                    (selector
-                      (field_name_selector
-                        (field_name)))
-                    (field_name)))
-                (field_name)))))))))
+          (field_name_selector
+            (field_name)))))
+    (node_type_selector
+      (node_type)))
+  (block_selector
+    (selector
+      (block_selector
+        (field_name_selector
+          (field_name_selector
+            (field_name_selector
+              (field_name))
+            (field_name))
+          (field_name))))))
 
 ========================================
 child
@@ -108,25 +87,18 @@ class_declaration {
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (block_selector
-      (statement
-        (selector
-          (block_selector
-            (selector
-              (field_name_selector
-                (selector
-                  (child_selector
-                    (selector
-                      (field_name_selector
-                        (field_name)))
-                    (selector
-                      (node_type_selector
-                        (node_type)))))
-                (field_name)))))))))
+  (node_type_selector
+    (node_type))
+  (block_selector
+    (selector
+      (block_selector
+        (field_name_selector
+          (child_selector
+            (field_name_selector
+              (field_name))
+            (node_type_selector
+              (node_type)))
+          (field_name))))))
 
 ========================================
 descendant
@@ -139,46 +111,30 @@ class_declaration .decorator > call_expression.identifier {}
 ---
 
 (source_file
-  (selector
-    (descendant_selector
-      (selector
-        (node_type_selector
-          (node_type)))
-      (selector
-        (field_name_selector
-          (field_name)))))
-  (selector
-    (descendant_selector
-      (selector
-        (child_selector
-          (selector
-            (node_type_selector
-              (node_type)))))
-      (selector
-        (field_name_selector
-          (field_name)))))
-  (selector
-    (descendant_selector
-      (selector
-        (descendant_selector
-          (selector
-            (block_selector))
-          (selector
-            (node_type_selector
-              (node_type)))))
-      (selector
-        (field_name_selector
-          (field_name)))))
-  (selector
-    (child_selector
-      (selector
-        (node_type_selector
-          (node_type)))))
-  (selector
+  (descendant_selector
+    (node_type_selector
+      (node_type))
     (field_name_selector
       (field_name)))
-  (selector
-    (block_selector)))
+  (descendant_selector
+    (child_selector
+      (node_type_selector
+        (node_type)))
+    (field_name_selector
+      (field_name)))
+  (descendant_selector
+    (descendant_selector
+      (block_selector)
+      (node_type_selector
+        (node_type)))
+    (field_name_selector
+      (field_name)))
+  (child_selector
+    (node_type_selector
+      (node_type)))
+  (field_name_selector
+    (field_name))
+  (block_selector))
 
 ========================================
 full example
@@ -195,54 +151,38 @@ class_declaration {
 ---
 
 (source_file
-  (selector
-    (node_type_selector
-      (node_type)))
-  (selector
-    (block_selector
-      (statement
-        (assignment
-          (explicit_assignment
-            (variable_identifier
-              (identifier))
-            (selector
-              (field_name_selector
-                (field_name))))))
-      (statement
-        (assignment
-          (explicit_assignment
-            (variable_identifier
-              (identifier))
-            (selector
-              (field_name_selector
-                (selector
-                  (child_selector
-                    (selector
-                      (field_name_selector
-                        (field_name)))
-                    (selector
-                      (node_type_selector
-                        (node_type)))))
-                (field_name))))))
-      (statement
-        (assignment
-          (explicit_assignment
-            (variable_identifier
-              (identifier))
-            (selector
-              (child_selector
-                (selector
-                  (field_name_selector
-                    (field_name)))
-                (selector
-                  (node_type_selector
-                    (node_type))))))))
-      (statement
-        (condition
-          (empty_condition
-            (selector
-              (field_name_selector
-                (selector
-                  (variable_identifier
-                    (identifier)))
-                (field_name)))))))))
+  (node_type_selector
+    (node_type))
+  (block_selector
+    (assignment
+      (explicit_assignment
+        (variable_identifier
+          (identifier))
+        (field_name_selector
+          (field_name))))
+    (assignment
+      (explicit_assignment
+        (variable_identifier
+          (identifier))
+        (field_name_selector
+          (child_selector
+            (field_name_selector
+              (field_name))
+            (node_type_selector
+              (node_type)))
+          (field_name))))
+    (assignment
+      (explicit_assignment
+        (variable_identifier
+          (identifier))
+        (child_selector
+          (field_name_selector
+            (field_name))
+          (node_type_selector
+            (node_type)))))
+    (condition
+      (empty_condition
+        (field_name_selector
+          (variable_identifier
+            (identifier))
+          (field_name))))))

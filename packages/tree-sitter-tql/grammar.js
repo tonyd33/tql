@@ -18,7 +18,8 @@ module.exports = grammar({
     global: _ => [],
   },
   rules: {
-    source_file: $ => repeat(prec.left($.selector)),
+    // FIXME: This just treats everything as one big selector... prolly want statements.
+    source_file: $ => repeat(prec.left($._selector)),
     comment: _ => token(seq("--", /[^\r\n\u2028\u2029]*/)),
     identifier: _ => token(seq(alpha, repeat(alphanumeric))),
 
@@ -55,10 +56,15 @@ module.exports = grammar({
 
     variable_identifier: $ => seq("@", $.identifier),
 
-    statement: $ => choice($.selector, $.assignment, $.condition),
+    _statement: $ =>
+      choice(
+        alias($._selector, $.selector),
+        alias($._assignment, $.assignment),
+        alias($._condition, $.condition),
+      ),
 
     // selectors
-    selector: $ =>
+    _selector: $ =>
       choice(
         $._parenthesized_selector,
         $.self_selector,
@@ -70,14 +76,14 @@ module.exports = grammar({
         $.block_selector,
         $.variable_identifier,
       ),
-    _parenthesized_selector: $ => prec(100, seq("(", $.selector, ")")),
+    _parenthesized_selector: $ => prec(100, seq("(", $._selector, ")")),
     self_selector: _ => "%",
     universal_selector: _ => "*",
     node_type_selector: $ => alias($.identifier, $.node_type),
     field_name_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent", $.selector)),
+          optional(field("parent", $._selector)),
           ".",
           field("field", alias($.identifier, $.field_name)),
         ),
@@ -85,38 +91,44 @@ module.exports = grammar({
     child_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent", $.selector)),
+          optional(field("parent", $._selector)),
           ">",
-          field("child", $.selector),
+          field("child", $._selector),
         ),
       ),
     descendant_selector: $ =>
       prec.left(
         seq(
-          field("parent", $.selector),
+          field("parent", $._selector),
           $._descendant_operator,
-          field("descendant", $.selector),
+          field("descendant", $._selector),
         ),
       ),
     block_selector: $ =>
       prec.left(
         seq(
-          optional(field("parent", $.selector)),
+          optional(field("parent", $._selector)),
           braces_enclosed(
-            field("statements", seq(sep_by(";", $.statement), optional(";"))),
+            seq(sep_by(";", field("statement", $._statement)), optional(";")),
           ),
         ),
       ),
 
     // assignments
-    assignment: $ => choice($.explicit_assignment),
-    explicit_assignment: $ => seq($.variable_identifier, "<-", $._expression),
+    _assignment: $ => choice($.explicit_assignment),
+    explicit_assignment: $ =>
+      seq(
+        field("identifier", $.variable_identifier),
+        "<-",
+        field("expression", $._expression),
+      ),
 
     // expressions
-    _expression: $ => choice($.selector),
+    _expression: $ => choice(alias($._selector, $.selector)),
+    expression: $ => $._expression,
 
     // conditions
-    condition: $ =>
+    _condition: $ =>
       choice(
         $._parenthesized_condition,
         $.empty_condition,
@@ -124,11 +136,11 @@ module.exports = grammar({
         $.or_condition,
         $.and_condition,
       ),
-    _parenthesized_condition: $ => prec(100, seq("(", $.condition, ")")),
+    _parenthesized_condition: $ => prec(100, seq("(", $._condition, ")")),
     empty_condition: $ => seq("!", $._expression),
     text_eq_condition: $ => seq($._expression, "=", $.string_literal),
-    or_condition: $ => prec.left(seq($.condition, "||", $.condition)),
-    and_condition: $ => prec.left(seq($.condition, "&&", $.condition)),
+    or_condition: $ => prec.left(seq($._condition, "||", $._condition)),
+    and_condition: $ => prec.left(seq($._condition, "&&", $._condition)),
   },
 });
 

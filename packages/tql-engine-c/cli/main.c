@@ -298,7 +298,7 @@ int run_demo(char *filename) {
 
 int parse_tql(char *filename) {
   FILE *fp = fopen(filename, "rb");
-  char buf[4096] = {0};
+  char buf[8192] = {0};
   int bytes_read = fread(buf, sizeof(buf), 1, fp);
   printf("Read %d bytes\n", bytes_read);
 
@@ -307,7 +307,10 @@ int parse_tql(char *filename) {
 
   TQLAst *ast = tql_parser_parse_string(&parser, buf, strlen(buf));
   printf("stored %u strings\n", ast->string_pool->string_count);
-  printf("used %zu bytes\n", ast->arena->offset);
+  // FIXME: This is wrong
+  printf("used %u bytes for strings\n",
+         ast->string_pool->offsets[ast->string_pool->string_count - 1]);
+  printf("used %zu bytes for ast\n", ast->arena->offset);
   tql_ast_free(ast);
   tql_parser_free(&parser);
   fclose(fp);
