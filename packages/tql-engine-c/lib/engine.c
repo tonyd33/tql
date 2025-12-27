@@ -1,7 +1,33 @@
 #include "engine.h"
 #include <stdio.h>
 
-static const FunctionId MAIN_ID = 0;
+#define ENGINE_HEAP_CAPACITY 32768
+
+struct NodeStack {
+  NodeStack *prev;
+  TSNode node;
+  // Possibly don't need this
+  uint16_t ref_count;
+};
+
+NodeStack *node_stack_push(Engine *engine, NodeStack *stack, TSNode node) {
+  NodeStack *new_stack = arena_alloc(engine->arena, sizeof(NodeStack));
+  new_stack->prev = stack;
+  new_stack->node = node;
+  new_stack->ref_count = 1;
+  if (stack != NULL) {
+    stack->ref_count++;
+  }
+  return new_stack;
+}
+
+TSNode node_stack_pop(Engine *engine, NodeStack **stack) {
+  assert(*stack != NULL);
+  TSNode node = (*stack)->node;
+  (*stack)->ref_count--;
+  *stack = (*stack)->prev;
+  return node;
+}
 
 typedef enum {
   EXC_FAIL,
@@ -14,13 +40,15 @@ void engine_init(Engine *engine) {
   engine->ast = NULL;
   engine->source = NULL;
   engine->step_count = 0;
-  FunctionTable_init(&engine->function_table);
+  Ops_init(&engine->ops);
   CallStack_init(&engine->call_stack);
+  engine->arena = arena_new(ENGINE_HEAP_CAPACITY);
 }
 
 void engine_free(Engine *engine) {
+  arena_free(engine->arena);
   CallStack_free(&engine->call_stack);
-  FunctionTable_free(&engine->function_table);
+  Ops_free(&engine->ops);
   engine->source = NULL;
   engine->ast = NULL;
 }
@@ -31,9 +59,10 @@ void engine_load_source(Engine *engine, const char *source) {
   engine->source = source;
 }
 
-void engine_load_function(Engine *engine, Function *function) {
-  // FIXME: We need to copy over the Ops so it's owned by the engine.
-  FunctionTable_append(&engine->function_table, *function);
+void engine_load_program(Engine *engine, Op *ops, uint32_t op_count) {
+  Ops_reserve(&engine->ops, op_count);
+  engine->ops.len = op_count;
+  memcpy(engine->ops.data, ops, sizeof(Op) * op_count);
 }
 
 void engine_exec(Engine *engine) {
@@ -43,9 +72,9 @@ void engine_exec(Engine *engine) {
   };
 
   ExecutionFrame root_exc_frame = {
-      .function_id = MAIN_ID,
       .pc = 0,
       .node = ts_tree_root_node(engine->ast),
+      .node_stack = NULL,
   };
   bindings_init(&root_exc_frame.bindings);
 
@@ -53,18 +82,6 @@ void engine_exec(Engine *engine) {
   ExecutionStack_append(&root_call_frame.exc_stack, root_exc_frame);
   CallStack_append(&engine->call_stack, root_call_frame);
 }
-
-static bool engine_find_function(Engine *engine, FunctionId id, Function *out) {
-  for (uint64_t i = 0; i < engine->function_table.len; i++) {
-    if (engine->function_table.data[i].id == id) {
-      *out = engine->function_table.data[i];
-      return true;
-    }
-  }
-  return false;
-}
-
-uint32_t step_count = 0;
 
 /*
  * Termination of this function means either:
@@ -83,23 +100,18 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
   const TSLanguage *language = ts_tree_language(engine->ast);
   while (exc_stack->len > 0) {
     ExecutionFrame exc_frame = exc_stack->data[--exc_stack->len];
-    Function curr_function;
-    assert(
-        engine_find_function(engine, exc_frame.function_id, &curr_function) &&
-        "Could not find function");
     bool frame_done = false;
 
     do {
-      if (exc_frame.pc >= curr_function.function.len) {
+      if (exc_frame.pc >= engine->ops.len) {
         frame_done = true;
         break;
       }
 
       engine->step_count++;
 
-      Op op = curr_function.function.data[exc_frame.pc];
-      // printf("function id %llu, opcode %d, num bindings: %zu\n",
-      //        curr_function.id, op.opcode, exc_frame.bindings.len);
+      Op op = engine->ops.data[exc_frame.pc];
+      // printf("opcode %d, pc %llu\n", op.opcode, exc_frame.pc);
       switch (op.opcode) {
       case OP_NOOP: {
         exc_frame.pc++;
@@ -164,10 +176,10 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
           Bindings overlay;
           bindings_overlay(&overlay, &exc_frame.bindings);
           ExecutionFrame frame = {
-              .function_id = exc_frame.function_id,
               .pc = next_pc,
               .node = branch,
               .bindings = overlay,
+              .node_stack = exc_frame.node_stack,
           };
           ExecutionStack_append(exc_stack, frame);
         }
@@ -232,9 +244,11 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
         };
 
         ExecutionFrame next_exc_frame = {
-            .function_id = op.data.call_parameters.function_id,
-            .pc = 0,
-            .node = exc_frame.node};
+            .pc = op.data.call_parameters.relative
+                      ? exc_frame.pc + op.data.call_parameters.pc - 1
+                      : op.data.call_parameters.pc,
+            .node = exc_frame.node,
+            .node_stack = NULL};
         bindings_init(&next_exc_frame.bindings);
 
         ExecutionStack_init(&next_call_frame.exc_stack);
@@ -255,6 +269,16 @@ static ExecutionResult engine_step_execution_frame(Engine *engine,
         match->node = exc_frame.node;
         return EXC_MATCH;
       }
+      case OP_PUSHNODE: {
+        exc_frame.pc++;
+        exc_frame.node_stack =
+            node_stack_push(engine, exc_frame.node_stack, exc_frame.node);
+        // printf("%p\n", (void*)exc_frame.node_stack);
+      } break;
+      case OP_POPNODE: {
+        exc_frame.pc++;
+        exc_frame.node = node_stack_pop(engine, &exc_frame.node_stack);
+      } break;
       }
     } while (!frame_done);
   }
@@ -312,11 +336,11 @@ bool engine_next_match(Engine *engine, Match *match) {
     case EXC_RET: {
       if (prev_call_frame != NULL && call_frame->has_continuation) {
         // TODO: Please clean this up.
-        out.function_id = call_frame->continuation.function_id;
         out.pc = call_frame->continuation.pc;
         out.node = call_frame->continuation.node;
-        for (int i = 0; i < call_frame->continuation.bindings.len; i++) {
-          Binding binding = call_frame->continuation.bindings.data[i];
+        for (int i = 0; i < call_frame->continuation.bindings.storage.len;
+             i++) {
+          Binding binding = call_frame->continuation.bindings.storage.data[i];
           bindings_insert(&out.bindings, binding.variable, binding.value);
         }
         ExecutionStack_append(&prev_call_frame->exc_stack, out);
@@ -389,3 +413,5 @@ Op op_call(CallParameters parameters) {
 }
 Op op_return() { return (Op){.opcode = OP_RETURN}; }
 Op op_yield() { return (Op){.opcode = OP_YIELD}; }
+Op op_pushnode() { return (Op){.opcode = OP_PUSHNODE}; }
+Op op_popnode() { return (Op){.opcode = OP_POPNODE}; }

@@ -24,9 +24,15 @@ void compiler_free(Compiler *compiler) { Ops_free(&compiler->ops); }
 //   case TQLSELECTOR_DESCENDANT:
 //   case TQLSELECTOR_BLOCK:
 //   case TQLSELECTOR_VARID:
+//     assert(false && "Not implemented");
 //     break;
 //   }
 // }
+//
+// static void compile_tql_assignment(Compiler *compiler, TQLAssignment *assignment) {
+//
+// }
+
 // static void compile_tql_tree(Compiler *compiler, TQLTree *tree) {}
 
 void compiler_compile(Compiler *compiler, TQLAst *ast, Ops *out) {}

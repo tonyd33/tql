@@ -1,6 +1,7 @@
 #ifndef _ENGINE_H_
 #define _ENGINE_H_
 
+#include "arena.h"
 #include "binding.h"
 #include "ds.h"
 #include <tree_sitter/api.h>
@@ -70,7 +71,8 @@ typedef enum {
 
 typedef struct {
   CallMode mode;
-  FunctionId function_id;
+  bool relative;
+  int32_t pc;
 } CallParameters;
 
 typedef enum {
@@ -81,6 +83,8 @@ typedef enum {
   OP_CALL,
   OP_RETURN,
   OP_YIELD,
+  OP_PUSHNODE,
+  OP_POPNODE,
 } Opcode;
 
 typedef struct {
@@ -95,24 +99,15 @@ typedef struct {
 
 DA_DEFINE(Op, Ops)
 DA_DEFINE(Match, Matches)
-DA_DEFINE(TSNode, NodeStack)
 
-typedef Ops FunctionBody;
-
-// TODO: use a generic symbol table instead
-typedef struct {
-  FunctionId id;
-  FunctionBody function;
-} Function;
-DA_DEFINE(Function, FunctionTable)
+struct NodeStack;
+typedef struct NodeStack NodeStack;
 
 typedef struct {
-  // FIXME: The memory layout should be such that the execution frame doesn't
-  // need access to a function id
-  FunctionId function_id;
   uint64_t pc;
   TSNode node;
   Bindings bindings;
+  NodeStack *node_stack;
 } ExecutionFrame;
 DA_DEFINE(ExecutionFrame, ExecutionStack)
 
@@ -127,11 +122,12 @@ struct CallFrame {
 DA_DEFINE(CallFrame, CallStack)
 
 typedef struct {
+  Arena *arena;
   TSTree *ast;
-  FunctionTable function_table;
   CallStack call_stack;
   const char *source;
   uint32_t step_count;
+  Ops ops;
 } Engine;
 
 void engine_init(Engine *engine);
@@ -142,7 +138,7 @@ void engine_init(Engine *engine);
  */
 void engine_load_ast(Engine *engine, TSTree *ast);
 void engine_load_source(Engine *engine, const char *source);
-void engine_load_function(Engine *engine, Function *function);
+void engine_load_program(Engine *engine, Op *ops, uint32_t op_count);
 
 void engine_exec(Engine *engine);
 bool engine_next_match(Engine *engine, Match *match);
@@ -166,5 +162,7 @@ Op op_if(Predicate predicate);
 Op op_call(CallParameters parameters);
 Op op_return();
 Op op_yield();
+Op op_pushnode();
+Op op_popnode();
 
 #endif /* _ENGINE_H_ */

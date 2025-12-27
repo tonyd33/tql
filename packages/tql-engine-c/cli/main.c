@@ -46,105 +46,45 @@ int run_demo(char *filename) {
   const VarId CLASS_NAME_VAR_ID = 1;
   const VarId METHOD_NAME_VAR_ID = 2;
 
-  FunctionId function_id = 1;
+  Op ops[] = {
+      /* main */
+      op_branch(axis_descendant()),
+      op_if(predicate_typeeq(node_expression_self(),
+                             CLASS_DECLARATION_TYPE_SYMBOL)),
+      /* find controller decorator */
+      op_pushnode(),
+      op_branch(axis_field(DECORATOR_FIELD_ID)),
+      op_branch(axis_child()),
+      op_branch(axis_field(FUNCTION_FIELD_ID)),
+      op_if(predicate_texteq(node_expression_self(), "Controller")),
+      op_popnode(),
 
-  Ops prog_has_return_type;
-  Ops_init(&prog_has_return_type);
-  Ops_append(&prog_has_return_type,
-             (Op){.opcode = OP_BRANCH,
-                  .data = {.axis = {
-                               .axis_type = AXIS_FIELD,
-                               .data = {.field = RETURN_TYPE_FIELD_ID},
-                           }}});
-  Ops_append(&prog_has_return_type, (Op){
-                                        .opcode = OP_YIELD,
-                                    });
-  Ops_append(&prog_has_return_type, (Op){
-                                        .opcode = OP_RETURN,
-                                    });
-  Function function_has_return_type = {
-      .id = function_id++,
-      .function = prog_has_return_type,
-  };
+      /* bind class name */
+      op_pushnode(),
+      op_branch(axis_field(NAME_FIELD_ID)),
+      op_bind(CLASS_NAME_VAR_ID),
+      op_popnode(),
 
-  Ops prog_find_controller_decorator;
-  Ops_init(&prog_find_controller_decorator);
-  Ops_append(&prog_find_controller_decorator,
-             op_branch(axis_field(DECORATOR_FIELD_ID)));
-  Ops_append(&prog_find_controller_decorator, op_branch(axis_child()));
-  Ops_append(&prog_find_controller_decorator,
-             op_branch(axis_field(FUNCTION_FIELD_ID)));
-  Ops_append(&prog_find_controller_decorator,
-             op_if(predicate_texteq(node_expression_self(), "Controller")));
-  Ops_append(&prog_find_controller_decorator, op_return());
-  Function function_find_controller_decorator = {
-      .id = function_id++,
-      .function = prog_find_controller_decorator,
-  };
+      /* find method without return type and bind */
+      op_pushnode(),
+      op_branch(axis_field(BODY_FIELD_ID)),
+      op_branch(axis_child()),
+      op_if(predicate_typeeq(node_expression_self(),
+                             METHOD_DEFINITION_TYPE_SYMBOL)),
+      op_call((CallParameters){
+          .mode = CALLMODE_NOTEXISTS,
+          .relative = true,
+          .pc = 5,
+      }),
+      op_branch(axis_field(NAME_FIELD_ID)),
+      op_bind(METHOD_NAME_VAR_ID),
+      op_popnode(),
+      op_yield(),
 
-  Ops prog_bind_class_name;
-  Ops_init(&prog_bind_class_name);
-  Ops_append(&prog_bind_class_name, op_branch(axis_field(NAME_FIELD_ID)));
-  Ops_append(&prog_bind_class_name, op_bind(CLASS_NAME_VAR_ID));
-  Ops_append(&prog_bind_class_name, op_return());
-  Function function_bind_class_name = {
-      .id = function_id++,
-      .function = prog_bind_class_name,
-  };
-
-  Ops prog_bind_method_name;
-  Ops_init(&prog_bind_method_name);
-  Ops_append(&prog_bind_method_name, op_branch(axis_field(NAME_FIELD_ID)));
-  Ops_append(&prog_bind_method_name, op_bind(METHOD_NAME_VAR_ID));
-  Ops_append(&prog_bind_method_name, op_return());
-  Function function_bind_method_name = {
-      .id = function_id++,
-      .function = prog_bind_method_name,
-  };
-
-  Ops prog_find_method_no_return;
-  Ops_init(&prog_find_method_no_return);
-  Ops_append(&prog_find_method_no_return, op_branch(axis_field(BODY_FIELD_ID)));
-  Ops_append(&prog_find_method_no_return, op_branch(axis_child()));
-  Ops_append(&prog_find_method_no_return,
-             op_if(predicate_typeeq(node_expression_self(),
-                                    METHOD_DEFINITION_TYPE_SYMBOL)));
-  Ops_append(&prog_find_method_no_return,
-             op_call((CallParameters){
-                 .mode = CALLMODE_NOTEXISTS,
-                 .function_id = function_has_return_type.id,
-             }));
-  Ops_append(&prog_find_method_no_return,
-             op_call((CallParameters){
-                 .mode = CALLMODE_PASSTHROUGH,
-                 .function_id = function_bind_method_name.id,
-             }));
-  Ops_append(&prog_find_method_no_return, op_return());
-  Function function_find_method_no_return = {
-      .id = function_id++,
-      .function = prog_find_method_no_return,
-  };
-
-  Ops prog_main;
-  Ops_init(&prog_main);
-  Ops_append(&prog_main, op_branch(axis_descendant()));
-  Ops_append(&prog_main,
-             op_if(predicate_typeeq(node_expression_self(),
-                                    CLASS_DECLARATION_TYPE_SYMBOL)));
-  Ops_append(&prog_main,
-             op_call((CallParameters){.function_id =
-                                          function_find_controller_decorator.id,
-                                      .mode = CALLMODE_PASSTHROUGH}));
-  Ops_append(&prog_main, op_call((CallParameters){
-                             .function_id = function_bind_class_name.id,
-                             .mode = CALLMODE_PASSTHROUGH}));
-  Ops_append(&prog_main, op_call((CallParameters){
-                             .function_id = function_find_method_no_return.id,
-                             .mode = CALLMODE_PASSTHROUGH}));
-  Ops_append(&prog_main, op_yield());
-  Function function_main = {
-      .id = 0,
-      .function = prog_main,
+      /* has return type */
+      op_branch(axis_field(RETURN_TYPE_FIELD_ID)),
+      op_yield(),
+      op_return(),
   };
 
   // Create a parser.
@@ -159,12 +99,7 @@ int run_demo(char *filename) {
   engine_init(&engine);
   engine_load_source(&engine, source_code);
   engine_load_ast(&engine, tree);
-  engine_load_function(&engine, &function_has_return_type);
-  engine_load_function(&engine, &function_find_controller_decorator);
-  engine_load_function(&engine, &function_bind_class_name);
-  engine_load_function(&engine, &function_bind_method_name);
-  engine_load_function(&engine, &function_find_method_no_return);
-  engine_load_function(&engine, &function_main);
+  engine_load_program(&engine, ops, sizeof(ops) / sizeof(ops[0]));
   engine_exec(&engine);
 
   Match match;

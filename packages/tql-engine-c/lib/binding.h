@@ -10,14 +10,20 @@ typedef uint64_t VarId;
 
 typedef TSNode TQLValue;
 
-typedef struct {
+typedef struct Binding Binding;
+typedef struct Bindings Bindings;
+
+struct Binding {
   VarId variable;
   TQLValue value;
-} Binding;
+};
+DA_DEFINE(Binding, BindingsArray)
 
-DA_DEFINE(Binding, _Bindings)
-
-typedef _Bindings Bindings;
+struct Bindings {
+  Bindings *parent;
+  uint16_t ref_count;
+  BindingsArray storage;
+};
 
 /*
  * The idea is that, to be more memory-efficient in the future, overlay

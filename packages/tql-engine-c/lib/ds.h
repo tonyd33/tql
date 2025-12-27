@@ -1,12 +1,12 @@
 #ifndef _DS_H_
 #define _DS_H_
 
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 static inline size_t dyn_array_next_cap(size_t cap) {
   return cap ? cap * 2 : 1;
@@ -67,6 +67,29 @@ static inline size_t dyn_array_next_cap(size_t cap) {
   static inline const T *Name##_get(const Name *a, size_t i) {                 \
     assert(i < a->len);                                                        \
     return &a->data[i];                                                        \
+  }
+
+#define LL_DEFINE(T, Name)                                                     \
+  typedef struct Name Name;                                                    \
+  struct Name {                                                                \
+    Name *next;                                                                \
+    T data;                                                                    \
+  };                                                                           \
+                                                                               \
+  static inline Name *Name##_new(T data) {                                     \
+    Name *a = (Name *)malloc(sizeof(Name));                                    \
+    a->next = NULL;                                                            \
+    a->data = data;                                                            \
+    return a;                                                                  \
+  }                                                                            \
+                                                                               \
+  static inline void Name##_free(Name *a) {                                    \
+    Name *prev;                                                                \
+    while (a != NULL) {                                                        \
+      prev = a;                                                                \
+      a = a->next;                                                             \
+      free(a);                                                                 \
+    }                                                                          \
   }
 
 #endif /* _DS_H_ */
