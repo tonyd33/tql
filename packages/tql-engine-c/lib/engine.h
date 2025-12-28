@@ -6,77 +6,54 @@
 #include "ds.h"
 #include <tree_sitter/api.h>
 
-typedef uint64_t FunctionId;
+struct NodeStack;
+struct Match;
+struct Axis;
+struct NodeExpression;
+struct Predicate;
+struct Jump;
+struct Probe;
+struct Op;
+struct NodeStack;
+struct DelimitedExecution;
+struct LookaheadBoundary;
+struct EngineStats;
+struct Engine;
 
-DA_DEFINE(TSNode, TSNodes)
+typedef struct NodeStack NodeStack;
+typedef struct Match Match;
+typedef struct Axis Axis;
+typedef struct NodeExpression NodeExpression;
+typedef struct Predicate Predicate;
+typedef struct Jump Jump;
+typedef struct Probe Probe;
+typedef struct Op Op;
+typedef struct NodeStack NodeStack;
+typedef struct DelimitedExecution DelimitedExecution;
+typedef struct LookaheadBoundary LookaheadBoundary;
+typedef struct EngineStats EngineStats;
+typedef struct Engine Engine;
 
-typedef struct {
-  TSNode node;
-  Bindings bindings;
-} Match;
-
-typedef enum {
+typedef enum AxisType {
   AXIS_CHILD,
   AXIS_DESCENDANT,
   AXIS_FIELD,
 } AxisType;
 
-typedef struct {
-  AxisType axis_type;
-  union {
-    TSFieldId field;
-  } data;
-} Axis;
-
-typedef enum {
+typedef enum PredicateType {
   PREDICATE_TEXTEQ,
   PREDICATE_TYPEEQ,
 } PredicateType;
 
-typedef enum {
+typedef enum NodeExpressionType {
   NODEEXPR_SELF,
   NODEEXPR_VAR,
 } NodeExpressionType;
 
-typedef struct {
-  NodeExpressionType node_expression_type;
-  union {
-    VarId var_id;
-  } operand;
-} NodeExpression;
-
-typedef struct {
-  PredicateType predicate_type;
-  bool negate;
-  union {
-    struct {
-      NodeExpression node_expression;
-      TSSymbol symbol;
-    } typeeq;
-    struct {
-      NodeExpression node_expression;
-      // TODO: Create a symbol lookup table and use a reference to the symbol
-      // id here. This is currently dangerous, since the string is not owned by
-      // the engine.
-      const char *text;
-    } texteq;
-  } data;
-} Predicate;
-
-typedef enum {
+typedef enum ProbeMode {
   PROBE_EXISTS,
   PROBE_NOTEXISTS,
 } ProbeMode;
-
-typedef struct {
-  bool relative;
-  int32_t pc;
-} Jump;
-
-typedef struct {
-  ProbeMode mode;
-  Jump jump;
-} Probe;
 
 typedef enum {
   /* Does nothing. */
@@ -103,7 +80,54 @@ typedef enum {
   OP_POPNODE,
 } Opcode;
 
-typedef struct {
+struct Match {
+  TSNode node;
+  Bindings bindings;
+};
+
+struct Axis {
+  AxisType axis_type;
+  union {
+    TSFieldId field;
+  } data;
+};
+
+struct NodeExpression {
+  NodeExpressionType node_expression_type;
+  union {
+    VarId var_id;
+  } operand;
+};
+
+struct Predicate {
+  PredicateType predicate_type;
+  bool negate;
+  union {
+    struct {
+      NodeExpression node_expression;
+      TSSymbol symbol;
+    } typeeq;
+    struct {
+      NodeExpression node_expression;
+      // TODO: Create a symbol lookup table and use a reference to the symbol
+      // id here. This is currently dangerous, since the string is not owned by
+      // the engine.
+      const char *text;
+    } texteq;
+  } data;
+};
+
+struct Jump {
+  bool relative;
+  int32_t pc;
+};
+
+struct Probe {
+  ProbeMode mode;
+  Jump jump;
+};
+
+struct Op {
   Opcode opcode;
   union {
     Axis axis;
@@ -112,13 +136,7 @@ typedef struct {
     Jump jump;
     Probe probe;
   } data;
-} Op;
-
-DA_DEFINE(Op, Ops)
-DA_DEFINE(Match, Matches)
-
-struct NodeStack;
-typedef struct NodeStack NodeStack;
+};
 
 typedef struct {
   uint32_t pc;
@@ -127,22 +145,22 @@ typedef struct {
   NodeStack *node_stk;
 } Continuation;
 
-typedef struct DelimitedExecution {
-  Continuation *exc_stk;
+struct DelimitedExecution {
+  Continuation *cnt_stk;
   Continuation *sp;
-} DelimitedExecution;
+};
 
-typedef struct LookaheadBoundary LookaheadBoundary;
 struct LookaheadBoundary {
   ProbeMode call_mode;
   DelimitedExecution del_exc;
   Continuation continuation;
 };
-typedef struct {
-  uint32_t step_count;
-} EngineStats;
 
-typedef struct {
+struct EngineStats {
+  uint32_t step_count;
+};
+
+struct Engine {
   TSTree *ast;
   const char *source;
 
@@ -150,10 +168,10 @@ typedef struct {
   uint32_t op_count;
   Arena *arena;
   uint32_t stk_cap;
-  DelimitedExecution exc_ctx;
+  DelimitedExecution del_exc;
 
   EngineStats stats;
-} Engine;
+};
 
 void engine_init(Engine *engine, TSTree *ast, const char *source);
 void engine_load_program(Engine *engine, Op *ops, uint32_t op_count);
