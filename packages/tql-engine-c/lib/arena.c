@@ -1,6 +1,7 @@
 #include "arena.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 
 Arena *arena_new(size_t capacity) {
   Arena *arena = malloc(sizeof(Arena));
@@ -12,6 +13,8 @@ Arena *arena_new(size_t capacity) {
 
 void *arena_alloc(Arena *arena, size_t size) {
   if (arena->offset + size > arena->capacity) {
+    // TODO: Possibly allow allocating more
+    assert(0);
     return NULL;
   }
   uintptr_t memory = (uintptr_t)(arena->memory) + arena->offset;

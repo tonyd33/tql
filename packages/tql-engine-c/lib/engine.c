@@ -1,21 +1,35 @@
 #include "engine.h"
 #include <stdio.h>
 
-#define ENGINE_HEAP_CAPACITY 32768
+#define ENGINE_HEAP_CAPACITY 65536
 #define ENGINE_STACK_CAPACITY 1024
 
 #define assert_bindings_sane(BINDINGS)                                         \
   (assert((BINDINGS == NULL) || (BINDINGS) != (BINDINGS)->parent))
 
+struct Binding;
 struct NodeStack;
 struct BoundaryResult;
 struct ContinuationResult;
 
+typedef struct Binding Binding;
 typedef struct NodeStack NodeStack;
 typedef struct BoundaryResult BoundaryResult;
 typedef struct ContinuationResult ContinuationResult;
 
 DA_DEFINE(TSNode, TSNodes)
+
+struct Binding {
+  VarId variable;
+  TQLValue value;
+};
+
+struct Bindings {
+  Bindings *parent;
+  Binding binding;
+  // Don't need this if we're arena-allocating this anyway...
+  uint16_t ref_count;
+};
 
 struct NodeStack {
   NodeStack *prev;
@@ -53,6 +67,34 @@ struct ContinuationResult {
     } boundary;
   } data;
 };
+
+TQLValue *bindings_get(Bindings *bindings, VarId variable) {
+  while (bindings != NULL) {
+    if (bindings->binding.variable == variable) {
+      return &bindings->binding.value;
+    }
+    bindings = bindings->parent;
+  }
+  return NULL;
+}
+
+// FIXME: Allocating in the arena is just an excuse for bad memory management...
+Bindings *bindings_insert(const Engine *engine, Bindings *bindings, VarId variable, TQLValue value) {
+  Bindings *overlay = arena_alloc(engine->arena, sizeof(Bindings));
+  overlay->ref_count = 1;
+  overlay->parent = bindings;
+
+  overlay->binding = (Binding){
+      .variable = variable,
+      .value = value,
+  };
+  if (bindings != NULL) {
+    bindings->ref_count++;
+  }
+  return overlay;
+}
+
+void bindings_free(const Engine *engine, Bindings *bindings) {}
 
 NodeStack *node_stack_push(const Engine *engine, NodeStack *stack,
                            TSNode node) {
@@ -92,7 +134,10 @@ void engine_init(Engine *engine, TSTree *ast, const char *source) {
 }
 
 void engine_free(Engine *engine) {
-  engine->stats.step_count = 0;
+  for (Continuation *cnt = engine->del_exc.cnt_stk; cnt <= engine->del_exc.sp; cnt++) {
+    bindings_free(engine, cnt->bindings);
+    cnt->bindings = NULL;
+  }
 
   engine->del_exc.sp = NULL;
   free(engine->del_exc.cnt_stk);
@@ -129,7 +174,7 @@ void engine_exec(Engine *engine) {
 }
 
 static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
-  return jump.relative ? curr_pc + jump.pc - 1 : jump.pc;
+  return jump.relative ? curr_pc + jump.pc : jump.pc;
 }
 
 static ContinuationResult engine_step_continuation(const Engine *engine,
@@ -217,7 +262,7 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
       };
     } break;
     case OP_BIND: {
-      cnt->bindings = bindings_insert(cnt->bindings, op.data.var_id, cnt->node);
+      cnt->bindings = bindings_insert(engine, cnt->bindings, op.data.var_id, cnt->node);
       assert_bindings_sane(cnt->bindings);
     } break;
     case OP_IF: {
@@ -261,13 +306,11 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
     } break;
     case OP_PROBE: {
       Continuation next_cnt = {
-          .pc = get_jump_pc(cnt->pc, op.data.probe.jump),
+          .pc = get_jump_pc(cnt->pc - 1, op.data.probe.jump),
           .node = cnt->node,
           .node_stk = cnt->node_stk,
           .bindings = cnt->bindings,
       };
-      assert_bindings_sane(next_cnt.bindings);
-      assert_bindings_sane(cnt->bindings);
 
       return (ContinuationResult){
           .type = EXC_BOUNDARY,
@@ -298,7 +341,7 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
       }
     } break;
     case OP_JMP: {
-      cnt->pc = get_jump_pc(cnt->pc, op.data.jump);
+      cnt->pc = get_jump_pc(cnt->pc - 1, op.data.jump);
     } break;
     }
   }
@@ -307,7 +350,12 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
 
 static BoundaryResult engine_step_exc_stack(const Engine *engine,
                                             DelimitedExecution *del_exc) {
+  EngineStats *stats = engine_stats_mut(engine);
   while (del_exc->sp >= del_exc->cnt_stk) {
+    stats->max_stack_size =
+      (del_exc->sp - engine->del_exc.cnt_stk) + 1 > stats->max_stack_size ?
+      (del_exc->sp - engine->del_exc.cnt_stk) + 1:
+      stats->max_stack_size;
     Continuation *cnt = del_exc->sp--;
     assert_bindings_sane(cnt->bindings);
     ContinuationResult result = engine_step_continuation(engine, del_exc, cnt);
@@ -315,14 +363,13 @@ static BoundaryResult engine_step_exc_stack(const Engine *engine,
     switch (result.type) {
     case EXC_DROP:
     case EXC_BRANCH:
-      bindings_free(cnt->bindings);
+      bindings_free(engine, cnt->bindings);
+      cnt->bindings = NULL;
       continue;
     case EXC_MATCH:
       return (BoundaryResult){.type = BOUNDARY_MATCH,
                               .data = {.match = result.data.match}};
     case EXC_BOUNDARY: {
-      assert_bindings_sane(result.data.boundary.next.bindings);
-      assert_bindings_sane(result.data.boundary.continuation.bindings);
       *++del_exc->sp = result.data.boundary.next;
       LookaheadBoundary next_call_frame = {
           .call_mode = result.data.boundary.mode,
@@ -374,11 +421,18 @@ bool engine_next_match(Engine *engine, Match *match) {
       return true;
     } break;
     case BOUNDARY_NEW: {
-      // FIXME: Have to free continuations
       engine->stats.boundaries_encountered++;
+
       if (engine_step_boundary(engine, &result.data.boundary)) {
         *engine->del_exc.sp = result.data.boundary.continuation;
       } else {
+        Continuation *cnt = engine->del_exc.sp;
+        bindings_free(engine, cnt->bindings);
+        cnt->bindings = NULL;
+
+        bindings_free(engine, result.data.boundary.continuation.bindings);
+        result.data.boundary.continuation.bindings = NULL;
+
         engine->del_exc.sp--;
       }
     } break;

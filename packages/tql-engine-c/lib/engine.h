@@ -2,11 +2,13 @@
 #define _ENGINE_H_
 
 #include "arena.h"
-#include "binding.h"
 #include "ds.h"
 #include "program.h"
 #include <tree_sitter/api.h>
 
+typedef TSNode TQLValue;
+
+struct Bindings;
 struct NodeStack;
 struct Match;
 struct NodeStack;
@@ -15,7 +17,7 @@ struct LookaheadBoundary;
 struct EngineStats;
 struct Engine;
 
-typedef struct NodeStack NodeStack;
+typedef struct Bindings Bindings;
 typedef struct NodeStack NodeStack;
 typedef struct DelimitedExecution DelimitedExecution;
 typedef struct LookaheadBoundary LookaheadBoundary;
@@ -50,6 +52,7 @@ struct EngineStats {
   uint32_t boundaries_encountered;
   uint32_t total_branching;
   uint32_t max_branching_factor;
+  uint32_t max_stack_size;
 };
 
 struct Engine {
@@ -65,6 +68,8 @@ struct Engine {
 
   EngineStats stats;
 };
+
+TQLValue *bindings_get(Bindings *bindings, VarId variable);
 
 void engine_init(Engine *engine, TSTree *ast, const char *source);
 void engine_load_program(Engine *engine, Op *ops, uint32_t op_count);

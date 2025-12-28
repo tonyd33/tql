@@ -1,8 +1,9 @@
 #ifndef _PROGRAM_H_
 #define _PROGRAM_H_
 
-#include "binding.h"
 #include <tree_sitter/api.h>
+
+typedef uint64_t VarId;
 
 struct Axis;
 struct NodeExpression;

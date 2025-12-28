@@ -81,8 +81,3 @@ const inline Probe probe_exists(Jump jump) {
 const inline Probe probe_not_exists(Jump jump) {
   return (Probe){.mode = PROBE_NOTEXISTS, .jump = jump};
 }
-
-const inline AssemblerOp asmop_of(Op op);
-const inline AssemblerOp asmop_jump(FunctionId id);
-const inline AssemblerOp asmop_probe(FunctionId id, ProbeMode mode);
-const inline AssemblerOp asmop_end();
