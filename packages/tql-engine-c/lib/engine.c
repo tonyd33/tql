@@ -45,11 +45,11 @@ void engine_init(Engine *engine) {
   engine->arena = arena_new(ENGINE_HEAP_CAPACITY);
   engine->stack_cap = ENGINE_STACK_CAPACITY;
   engine->exc_stack = malloc(engine->stack_cap * sizeof(ExecutionStack));
-  engine->sp = 0;
+  engine->sp = engine->exc_stack;
 }
 
 void engine_free(Engine *engine) {
-  engine->sp = 0;
+  engine->sp = NULL;
   free(engine->exc_stack);
   engine->exc_stack = NULL;
   engine->stack_cap = 0;
@@ -79,9 +79,7 @@ void engine_exec(Engine *engine) {
   };
   bindings_init(&root_exc_frame.bindings);
 
-  // FIXME: This is weird
-  engine->sp = 1;
-  engine->exc_stack[engine->sp] = root_exc_frame;
+  *engine->sp = root_exc_frame;
 }
 
 static uint32_t exc_id = 0;
@@ -94,7 +92,7 @@ typedef struct {
   } type;
   union {
     Match match;
-    CallFrame boundary;
+    CallBoundary boundary;
   } data;
 } BoundaryResult;
 
@@ -283,11 +281,12 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
   return (ExecutionResult){.type = EXC_DROP};
 }
 
-static BoundaryResult engine_step_exc_stack(Engine *engine, int32_t boundary) {
+static BoundaryResult engine_step_exc_stack(Engine *engine,
+                                            ExecutionFrame *boundary) {
   ExecutionStack stack;
   ExecutionStack_init(&stack);
   while (engine->sp > boundary) {
-    ExecutionFrame exc_frame = engine->exc_stack[engine->sp--];
+    ExecutionFrame exc_frame = *engine->sp--;
     ExecutionResult result = engine_step_exc_frame(engine, exc_frame, &stack);
 
     switch (result.type) {
@@ -299,17 +298,17 @@ static BoundaryResult engine_step_exc_stack(Engine *engine, int32_t boundary) {
                               .data = {.match = result.data.match}};
     case EXC_BRANCH: {
       for (int i = 0; i < stack.len; i++) {
-        engine->exc_stack[++engine->sp] = stack.data[i];
+        *++engine->sp = stack.data[i];
       }
       stack.len = 0;
     } break;
     case EXC_BOUNDARY: {
-      CallFrame next_call_frame = {
+      CallBoundary next_call_frame = {
           .call_mode = result.data.boundary.mode,
           .continuation = result.data.boundary.continuation,
           .boundary = engine->sp,
       };
-      engine->exc_stack[++engine->sp] = result.data.boundary.next;
+      *++engine->sp = result.data.boundary.next;
 
       ExecutionStack_free(&stack);
       return (BoundaryResult){.type = BOUNDARY_NEW,
@@ -321,7 +320,7 @@ static BoundaryResult engine_step_exc_stack(Engine *engine, int32_t boundary) {
   return (BoundaryResult){.type = BOUNDARY_FAIL};
 }
 
-static bool engine_step_boundary(Engine *engine, CallFrame *boundary) {
+static bool engine_step_boundary(Engine *engine, CallBoundary *boundary) {
   while (true) {
     BoundaryResult result = engine_step_exc_stack(engine, boundary->boundary);
     switch (result.type) {
@@ -335,7 +334,7 @@ static bool engine_step_boundary(Engine *engine, CallFrame *boundary) {
       bool ok = engine_step_boundary(engine, &result.data.boundary);
       if (ok) {
         engine->sp = result.data.boundary.boundary;
-        engine->exc_stack[++engine->sp] = result.data.boundary.continuation;
+        *++engine->sp = result.data.boundary.continuation;
       }
     } break;
     }
@@ -344,7 +343,7 @@ static bool engine_step_boundary(Engine *engine, CallFrame *boundary) {
 
 bool engine_next_match(Engine *engine, Match *match) {
   while (true) {
-    BoundaryResult result = engine_step_exc_stack(engine, 0);
+    BoundaryResult result = engine_step_exc_stack(engine, engine->exc_stack - 1);
     switch (result.type) {
     case BOUNDARY_FAIL: {
       return false;
@@ -357,7 +356,7 @@ bool engine_next_match(Engine *engine, Match *match) {
       bool ok = engine_step_boundary(engine, &result.data.boundary);
       if (ok) {
         engine->sp = result.data.boundary.boundary;
-        engine->exc_stack[++engine->sp] = result.data.boundary.continuation;
+        *++engine->sp = result.data.boundary.continuation;
       }
     } break;
     }

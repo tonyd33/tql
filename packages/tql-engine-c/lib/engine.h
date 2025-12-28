@@ -111,11 +111,15 @@ typedef struct {
 } ExecutionFrame;
 DA_DEFINE(ExecutionFrame, ExecutionStack)
 
-typedef struct CallBoundary CallFrame;
+typedef struct ExecutionContext {
+  ExecutionFrame *exc_stack;
+  ExecutionFrame *sp;
+} ExecutionContext;
 
+typedef struct CallBoundary CallBoundary;
 struct CallBoundary {
   CallMode call_mode;
-  uint32_t boundary;
+  ExecutionFrame *boundary;
   ExecutionFrame continuation;
 };
 
@@ -127,9 +131,8 @@ typedef struct {
 
   Ops ops;
   ExecutionFrame *exc_stack;
+  ExecutionFrame *sp;
   uint32_t stack_cap;
-  // FIXME: should be uint32_t
-  int32_t sp;
 
   uint32_t step_count;
 } Engine;
