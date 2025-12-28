@@ -130,8 +130,7 @@ typedef struct {
   Arena *arena;
 
   Ops ops;
-  ExecutionFrame *exc_stack;
-  ExecutionFrame *sp;
+  ExecutionContext exc_ctx;
   uint32_t stack_cap;
 
   uint32_t step_count;

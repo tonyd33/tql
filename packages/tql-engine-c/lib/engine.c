@@ -44,14 +44,15 @@ void engine_init(Engine *engine) {
   Ops_init(&engine->ops);
   engine->arena = arena_new(ENGINE_HEAP_CAPACITY);
   engine->stack_cap = ENGINE_STACK_CAPACITY;
-  engine->exc_stack = malloc(engine->stack_cap * sizeof(ExecutionStack));
-  engine->sp = engine->exc_stack;
+  engine->exc_ctx.exc_stack =
+      malloc(engine->stack_cap * sizeof(ExecutionStack));
+  engine->exc_ctx.sp = engine->exc_ctx.exc_stack;
 }
 
 void engine_free(Engine *engine) {
-  engine->sp = NULL;
-  free(engine->exc_stack);
-  engine->exc_stack = NULL;
+  engine->exc_ctx.sp = NULL;
+  free(engine->exc_ctx.exc_stack);
+  engine->exc_ctx.exc_stack = NULL;
   engine->stack_cap = 0;
   arena_free(engine->arena);
   Ops_free(&engine->ops);
@@ -79,7 +80,7 @@ void engine_exec(Engine *engine) {
   };
   bindings_init(&root_exc_frame.bindings);
 
-  *engine->sp = root_exc_frame;
+  *engine->exc_ctx.sp = root_exc_frame;
 }
 
 static uint32_t exc_id = 0;
@@ -120,14 +121,12 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
                                              ExecutionStack *exc_stack) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   assert(!ts_node_is_null(exc_frame.node));
-
   while (exc_frame.pc < engine->ops.len) {
     engine->step_count++;
 
-    Op op = engine->ops.data[exc_frame.pc];
-    // printf("id %u, pc %llu, opcode %d\n", exc_frame.id, exc_frame.pc,
+    Op op = engine->ops.data[exc_frame.pc++];
+    // printf("id %u, pc %llu, opcode %d\n", exc_frame.id, exc_frame.pc - 1,
     //        op.opcode);
-    exc_frame.pc++;
     switch (op.opcode) {
     case OP_NOOP:
       break;
@@ -285,8 +284,8 @@ static BoundaryResult engine_step_exc_stack(Engine *engine,
                                             ExecutionFrame *boundary) {
   ExecutionStack stack;
   ExecutionStack_init(&stack);
-  while (engine->sp > boundary) {
-    ExecutionFrame exc_frame = *engine->sp--;
+  while (engine->exc_ctx.sp >= boundary) {
+    ExecutionFrame exc_frame = *engine->exc_ctx.sp--;
     ExecutionResult result = engine_step_exc_frame(engine, exc_frame, &stack);
 
     switch (result.type) {
@@ -298,17 +297,17 @@ static BoundaryResult engine_step_exc_stack(Engine *engine,
                               .data = {.match = result.data.match}};
     case EXC_BRANCH: {
       for (int i = 0; i < stack.len; i++) {
-        *++engine->sp = stack.data[i];
+        *++engine->exc_ctx.sp = stack.data[i];
       }
       stack.len = 0;
     } break;
     case EXC_BOUNDARY: {
+      *++engine->exc_ctx.sp = result.data.boundary.next;
       CallBoundary next_call_frame = {
           .call_mode = result.data.boundary.mode,
           .continuation = result.data.boundary.continuation,
-          .boundary = engine->sp,
+          .boundary = engine->exc_ctx.sp,
       };
-      *++engine->sp = result.data.boundary.next;
 
       ExecutionStack_free(&stack);
       return (BoundaryResult){.type = BOUNDARY_NEW,
@@ -333,8 +332,8 @@ static bool engine_step_boundary(Engine *engine, CallBoundary *boundary) {
     case BOUNDARY_NEW: {
       bool ok = engine_step_boundary(engine, &result.data.boundary);
       if (ok) {
-        engine->sp = result.data.boundary.boundary;
-        *++engine->sp = result.data.boundary.continuation;
+        engine->exc_ctx.sp = result.data.boundary.boundary - 1;
+        *++engine->exc_ctx.sp = result.data.boundary.continuation;
       }
     } break;
     }
@@ -342,8 +341,13 @@ static bool engine_step_boundary(Engine *engine, CallBoundary *boundary) {
 }
 
 bool engine_next_match(Engine *engine, Match *match) {
+  CallBoundary cb_stack[1024];
+  uint32_t cb_count = 0;
+
   while (true) {
-    BoundaryResult result = engine_step_exc_stack(engine, engine->exc_stack - 1);
+    BoundaryResult result =
+        engine_step_exc_stack(engine, engine->exc_ctx.exc_stack);
+
     switch (result.type) {
     case BOUNDARY_FAIL: {
       return false;
@@ -355,8 +359,8 @@ bool engine_next_match(Engine *engine, Match *match) {
     case BOUNDARY_NEW: {
       bool ok = engine_step_boundary(engine, &result.data.boundary);
       if (ok) {
-        engine->sp = result.data.boundary.boundary;
-        *++engine->sp = result.data.boundary.continuation;
+        engine->exc_ctx.sp = result.data.boundary.boundary - 1;
+        *++engine->exc_ctx.sp = result.data.boundary.continuation;
       }
     } break;
     }
