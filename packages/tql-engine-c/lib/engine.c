@@ -122,9 +122,9 @@ static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
   return jump.relative ? curr_pc + jump.pc - 1 : jump.pc;
 }
 
-static ContinuationResult engine_step_continuation(Engine *engine,
-                                                   DelimitedExecution *del_exc,
-                                                   Continuation cnt) {
+static ContinuationResult
+engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
+                         Continuation cnt) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   assert(!ts_node_is_null(cnt.node));
   while (cnt.pc < engine->op_count) {
@@ -282,7 +282,7 @@ static ContinuationResult engine_step_continuation(Engine *engine,
 }
 
 static BoundaryResult engine_step_exc_stack(Engine *engine,
-                                            DelimitedExecution *del_exc) {
+                                                  DelimitedExecution *del_exc) {
   while (del_exc->sp >= del_exc->cnt_stk) {
     Continuation cnt = *del_exc->sp--;
     ContinuationResult result = engine_step_continuation(engine, del_exc, cnt);
@@ -352,62 +352,4 @@ bool engine_next_match(Engine *engine, Match *match) {
     } break;
     }
   }
-}
-
-Axis axis_field(TSFieldId field_id) {
-  return (Axis){.axis_type = AXIS_FIELD, .data = {.field = field_id}};
-}
-Axis axis_child() { return (Axis){.axis_type = AXIS_CHILD}; }
-Axis axis_descendant() { return (Axis){.axis_type = AXIS_DESCENDANT}; }
-
-Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol) {
-  return (Predicate){.predicate_type = PREDICATE_TYPEEQ,
-                     .negate = false,
-                     .data = {
-                         .typeeq = {.node_expression = ne, .symbol = symbol},
-                     }};
-}
-Predicate predicate_texteq(NodeExpression ne, const char *string) {
-  return (Predicate){.predicate_type = PREDICATE_TEXTEQ,
-                     .negate = false,
-                     .data = {
-                         .texteq = {.node_expression = ne, .text = string},
-                     }};
-}
-Predicate predicate_negate(Predicate predicate) {
-  predicate.negate = !predicate.negate;
-  return predicate;
-}
-
-NodeExpression node_expression_self() {
-  return (NodeExpression){.node_expression_type = NODEEXPR_SELF};
-}
-
-Op op_noop() { return (Op){.opcode = OP_NOOP}; }
-Op op_branch(Axis axis) {
-  return (Op){.opcode = OP_BRANCH, .data = {.axis = axis}};
-}
-Op op_bind(VarId var_id) {
-  return (Op){.opcode = OP_BIND, .data = {.var_id = var_id}};
-}
-Op op_if(Predicate predicate) {
-  return (Op){.opcode = OP_IF, .data = {.predicate = predicate}};
-}
-Op op_probe(Probe probe) {
-  return (Op){.opcode = OP_PROBE, .data = {.probe = probe}};
-}
-Op op_halt() { return (Op){.opcode = OP_HALT}; }
-Op op_yield() { return (Op){.opcode = OP_YIELD}; }
-Op op_pushnode() { return (Op){.opcode = OP_PUSHNODE}; }
-Op op_popnode() { return (Op){.opcode = OP_POPNODE}; }
-Op op_jump(Jump jump) { return (Op){.opcode = OP_JMP, .data = {.jump = jump}}; }
-
-Jump jump_relative(int32_t pc) { return (Jump){.relative = true, .pc = pc}; }
-Jump jump_absolute(int32_t pc) { return (Jump){.relative = false, .pc = pc}; }
-
-Probe probe_exists(Jump jump) {
-  return (Probe){.mode = PROBE_EXISTS, .jump = jump};
-}
-Probe probe_not_exists(Jump jump) {
-  return (Probe){.mode = PROBE_NOTEXISTS, .jump = jump};
 }

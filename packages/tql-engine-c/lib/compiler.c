@@ -1,10 +1,10 @@
 #include "compiler.h"
 
-void compiler_init(Compiler *compiler, TSLanguage *language) {
-  Ops_init(&compiler->ops);
-  compiler->language = language;
-}
-void compiler_free(Compiler *compiler) { Ops_free(&compiler->ops); }
+// void compiler_init(Compiler *compiler, TSLanguage *language) {
+//   Ops_init(&compiler->ops);
+//   compiler->language = language;
+// }
+// void compiler_free(Compiler *compiler) { Ops_free(&compiler->ops); }
 
 // static void compile_tql_selector(Compiler *compiler, TQLSelector *selector) {
 //   switch (selector->type) {
@@ -35,4 +35,4 @@ void compiler_free(Compiler *compiler) { Ops_free(&compiler->ops); }
 
 // static void compile_tql_tree(Compiler *compiler, TQLTree *tree) {}
 
-void compiler_compile(Compiler *compiler, TQLAst *ast, Ops *out) {}
+// void compiler_compile(Compiler *compiler, TQLAst *ast, Ops *out) {}
