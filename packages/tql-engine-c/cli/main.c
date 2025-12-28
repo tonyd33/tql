@@ -59,24 +59,24 @@ int run_demo(char *filename) {
       op_if(predicate_texteq(node_expression_self(), "Controller")),
       op_popnode(),
 
+      /* bind class name */
+      op_pushnode(),
+      op_branch(axis_field(NAME_FIELD_ID)),
+      op_bind(CLASS_NAME_VAR_ID),
+      op_popnode(),
+
       /* find method without return type and bind */
       op_pushnode(),
       op_branch(axis_field(BODY_FIELD_ID)),
       op_branch(axis_child()),
       op_if(predicate_typeeq(node_expression_self(),
                              METHOD_DEFINITION_TYPE_SYMBOL)),
-      op_probe(probe_not_exists(jump_relative(9))),
+      op_probe(probe_not_exists(jump_relative(6))),
       op_branch(axis_field(NAME_FIELD_ID)),
       op_bind(METHOD_NAME_VAR_ID),
       op_popnode(),
       op_yield(),
       op_halt(),
-
-      /* bind class name */
-      op_pushnode(),
-      op_branch(axis_field(NAME_FIELD_ID)),
-      op_bind(CLASS_NAME_VAR_ID),
-      op_popnode(),
 
       /* has return type */
       op_branch(axis_field(RETURN_TYPE_FIELD_ID)),

@@ -4,9 +4,6 @@
 #define ENGINE_HEAP_CAPACITY 65536
 #define ENGINE_STACK_CAPACITY 4096
 
-#define assert_bindings_sane(BINDINGS)                                         \
-  (assert((BINDINGS == NULL) || (BINDINGS) != (BINDINGS)->parent))
-
 struct Binding;
 struct NodeStack;
 struct BoundaryResult;
@@ -79,11 +76,11 @@ TQLValue *bindings_get(Bindings *bindings, VarId variable) {
 }
 
 // FIXME: Allocating in the arena is just an excuse for bad memory management...
-Bindings *bindings_insert(const Engine *engine, Bindings *bindings, VarId variable, TQLValue value) {
+Bindings *bindings_insert(const Engine *engine, Bindings *bindings,
+                          VarId variable, TQLValue value) {
   Bindings *overlay = arena_alloc(engine->arena, sizeof(Bindings));
   overlay->ref_count = 1;
   overlay->parent = bindings;
-
   overlay->binding = (Binding){
       .variable = variable,
       .value = value,
@@ -134,7 +131,8 @@ void engine_init(Engine *engine, TSTree *ast, const char *source) {
 }
 
 void engine_free(Engine *engine) {
-  for (Continuation *cnt = engine->del_exc.cnt_stk; cnt <= engine->del_exc.sp; cnt++) {
+  for (Continuation *cnt = engine->del_exc.cnt_stk; cnt <= engine->del_exc.sp;
+       cnt++) {
     bindings_free(engine, cnt->bindings);
     cnt->bindings = NULL;
   }
@@ -182,7 +180,6 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
                                                    Continuation *cnt) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   assert(!ts_node_is_null(cnt->node));
-  assert_bindings_sane(cnt->bindings);
   EngineStats *stats = engine_stats_mut(engine);
 
   while (cnt->pc < engine->op_count) {
@@ -239,7 +236,6 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
       }
       }
 
-      assert_bindings_sane(cnt->bindings);
       for (uint32_t i = 0; i < branches.len; i++) {
         TSNode branch = branches.data[i];
         Continuation new_cnt = {
@@ -248,8 +244,6 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
             .node_stk = cnt->node_stk,
             .bindings = cnt->bindings,
         };
-        assert_bindings_sane(new_cnt.bindings);
-        assert_bindings_sane(cnt->bindings);
         *++del_exc->sp = new_cnt;
       }
       stats->max_branching_factor = branches.len > stats->max_branching_factor
@@ -262,8 +256,8 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
       };
     } break;
     case OP_BIND: {
-      cnt->bindings = bindings_insert(engine, cnt->bindings, op.data.var_id, cnt->node);
-      assert_bindings_sane(cnt->bindings);
+      cnt->bindings =
+          bindings_insert(engine, cnt->bindings, op.data.var_id, cnt->node);
     } break;
     case OP_IF: {
       Predicate predicate = op.data.predicate;
@@ -324,7 +318,6 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
       };
     } break;
     case OP_YIELD: {
-      assert_bindings_sane(cnt->bindings);
       return (ContinuationResult){.type = EXC_MATCH,
                                   .data = {.match = {
                                                .node = cnt->node,
@@ -353,18 +346,16 @@ static BoundaryResult engine_step_exc_stack(const Engine *engine,
   EngineStats *stats = engine_stats_mut(engine);
   while (del_exc->sp >= del_exc->cnt_stk) {
     stats->max_stack_size =
-      (del_exc->sp - engine->del_exc.cnt_stk) + 1 > stats->max_stack_size ?
-      (del_exc->sp - engine->del_exc.cnt_stk) + 1:
-      stats->max_stack_size;
+        (del_exc->sp - engine->del_exc.cnt_stk) + 1 > stats->max_stack_size
+            ? (del_exc->sp - engine->del_exc.cnt_stk) + 1
+            : stats->max_stack_size;
     Continuation *cnt = del_exc->sp--;
-    assert_bindings_sane(cnt->bindings);
     ContinuationResult result = engine_step_continuation(engine, del_exc, cnt);
 
     switch (result.type) {
     case EXC_DROP:
     case EXC_BRANCH:
-      bindings_free(engine, cnt->bindings);
-      cnt->bindings = NULL;
+      // FIXME: Need to deinit the continuation, which is tricky...
       continue;
     case EXC_MATCH:
       return (BoundaryResult){.type = BOUNDARY_MATCH,
