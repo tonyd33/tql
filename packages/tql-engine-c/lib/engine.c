@@ -4,6 +4,9 @@
 #define ENGINE_HEAP_CAPACITY 32768
 #define ENGINE_STACK_CAPACITY 1024
 
+#define assert_bindings_sane(BINDINGS)                                         \
+  (assert((BINDINGS == NULL) || (BINDINGS) != (BINDINGS)->parent))
+
 struct NodeStack;
 struct BoundaryResult;
 struct ContinuationResult;
@@ -51,7 +54,8 @@ struct ContinuationResult {
   } data;
 };
 
-NodeStack *node_stack_push(Engine *engine, NodeStack *stack, TSNode node) {
+NodeStack *node_stack_push(const Engine *engine, NodeStack *stack,
+                           TSNode node) {
   NodeStack *new_stack = arena_alloc(engine->arena, sizeof(NodeStack));
   new_stack->prev = stack;
   new_stack->node = node;
@@ -62,7 +66,7 @@ NodeStack *node_stack_push(Engine *engine, NodeStack *stack, TSNode node) {
   return new_stack;
 }
 
-bool node_stack_pop(Engine *engine, NodeStack **stack, TSNode *node) {
+bool node_stack_pop(const Engine *engine, NodeStack **stack, TSNode *node) {
   if (*stack == NULL) {
     return false;
   }
@@ -71,6 +75,8 @@ bool node_stack_pop(Engine *engine, NodeStack **stack, TSNode *node) {
   *stack = (*stack)->prev;
   return true;
 }
+
+void node_stack_free(const Engine *engine, NodeStack *stack) {}
 
 void engine_init(Engine *engine, TSTree *ast, const char *source) {
   engine->ast = ast;
@@ -82,7 +88,7 @@ void engine_init(Engine *engine, TSTree *ast, const char *source) {
   engine->del_exc.cnt_stk = malloc(engine->stk_cap * sizeof(Continuation));
   engine->del_exc.sp = engine->del_exc.cnt_stk;
 
-  engine->stats.step_count = 0;
+  engine->stats = (EngineStats){.step_count = 0, .boundaries_encountered = 0};
 }
 
 void engine_free(Engine *engine) {
@@ -107,13 +113,17 @@ void engine_load_program(Engine *engine, Op *ops, uint32_t op_count) {
   memcpy(engine->ops, ops, sizeof(Op) * op_count);
 }
 
+static inline EngineStats *engine_stats_mut(const Engine *engine) {
+  return (EngineStats *)&(engine->stats); // HACK
+}
+
 void engine_exec(Engine *engine) {
   Continuation root_continuation = {
       .pc = 0,
       .node = ts_tree_root_node(engine->ast),
       .node_stk = NULL,
+      .bindings = NULL,
   };
-  bindings_init(&root_continuation.bindings);
 
   *engine->del_exc.sp = root_continuation;
 }
@@ -122,15 +132,18 @@ static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
   return jump.relative ? curr_pc + jump.pc - 1 : jump.pc;
 }
 
-static ContinuationResult
-engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
-                         Continuation cnt) {
+static ContinuationResult engine_step_continuation(const Engine *engine,
+                                                   DelimitedExecution *del_exc,
+                                                   Continuation *cnt) {
   const TSLanguage *language = ts_tree_language(engine->ast);
-  assert(!ts_node_is_null(cnt.node));
-  while (cnt.pc < engine->op_count) {
-    engine->stats.step_count++;
+  assert(!ts_node_is_null(cnt->node));
+  assert_bindings_sane(cnt->bindings);
+  EngineStats *stats = engine_stats_mut(engine);
 
-    Op op = engine->ops[cnt.pc++];
+  while (cnt->pc < engine->op_count) {
+    stats->step_count++;
+
+    Op op = engine->ops[cnt->pc++];
     // printf("pc %u, opcode %d\n", cnt.pc - 1, op.opcode);
     switch (op.opcode) {
     case OP_NOOP:
@@ -141,15 +154,15 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
       TSNodes_init(&branches);
       switch (axis.axis_type) {
       case AXIS_CHILD: {
-        for (int i = ts_node_named_child_count(cnt.node) - 1; i >= 0; i--) {
-          TSNodes_append(&branches, ts_node_named_child(cnt.node, i));
+        for (int i = ts_node_named_child_count(cnt->node) - 1; i >= 0; i--) {
+          TSNodes_append(&branches, ts_node_named_child(cnt->node, i));
         }
         break;
       }
       case AXIS_DESCENDANT: {
         TSNodes desc_stack;
         TSNodes_init(&desc_stack);
-        TSNodes_append(&desc_stack, cnt.node);
+        TSNodes_append(&desc_stack, cnt->node);
         TSNode curr;
         TSNode child;
         while (desc_stack.len > 0) {
@@ -168,36 +181,44 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
         TSFieldId field_id = axis.data.field;
         const char *field_name =
             ts_language_field_name_for_id(language, field_id);
-        for (int i = ts_node_named_child_count(cnt.node) - 1; i >= 0; i--) {
+        for (int i = ts_node_named_child_count(cnt->node) - 1; i >= 0; i--) {
           const char *field_name_for_named_child =
-              ts_node_field_name_for_named_child(cnt.node, i);
+              ts_node_field_name_for_named_child(cnt->node, i);
           if (field_name_for_named_child == NULL ||
               strcmp(field_name_for_named_child, field_name) != 0) {
             continue;
           }
-          TSNodes_append(&branches, ts_node_named_child(cnt.node, i));
+          TSNodes_append(&branches, ts_node_named_child(cnt->node, i));
         }
         break;
       }
       }
 
-      for (int i = branches.len - 1; i >= 0; i--) {
+      assert_bindings_sane(cnt->bindings);
+      for (uint32_t i = 0; i < branches.len; i++) {
         TSNode branch = branches.data[i];
         Continuation new_cnt = {
-            .pc = cnt.pc,
+            .pc = cnt->pc,
             .node = branch,
-            .node_stk = cnt.node_stk,
+            .node_stk = cnt->node_stk,
+            .bindings = cnt->bindings,
         };
-        bindings_overlay(&new_cnt.bindings, &cnt.bindings);
+        assert_bindings_sane(new_cnt.bindings);
+        assert_bindings_sane(cnt->bindings);
         *++del_exc->sp = new_cnt;
       }
+      stats->max_branching_factor = branches.len > stats->max_branching_factor
+                                        ? branches.len
+                                        : stats->max_branching_factor;
+      stats->total_branching += branches.len;
       TSNodes_free(&branches);
       return (ContinuationResult){
           .type = EXC_BRANCH,
       };
     } break;
     case OP_BIND: {
-      bindings_insert(&cnt.bindings, op.data.var_id, cnt.node);
+      cnt->bindings = bindings_insert(cnt->bindings, op.data.var_id, cnt->node);
+      assert_bindings_sane(cnt->bindings);
     } break;
     case OP_IF: {
       Predicate predicate = op.data.predicate;
@@ -209,7 +230,7 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
         assert(left.node_expression_type == NODEEXPR_SELF &&
                "Only self supported");
 
-        bool frame_done = ts_node_symbol(cnt.node) != right;
+        bool frame_done = ts_node_symbol(cnt->node) != right;
         frame_done = predicate.negate ? !frame_done : frame_done;
         if (frame_done) {
           return (ContinuationResult){.type = EXC_DROP};
@@ -223,8 +244,8 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
         assert(left.node_expression_type == NODEEXPR_SELF &&
                "Only self supported");
 
-        uint32_t start_byte = ts_node_start_byte(cnt.node);
-        uint32_t end_byte = ts_node_end_byte(cnt.node);
+        uint32_t start_byte = ts_node_start_byte(cnt->node);
+        uint32_t end_byte = ts_node_end_byte(cnt->node);
         uint32_t buf_len = end_byte - start_byte;
         char buf[buf_len + 1];
 
@@ -240,16 +261,18 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
     } break;
     case OP_PROBE: {
       Continuation next_cnt = {
-          .pc = get_jump_pc(cnt.pc, op.data.probe.jump),
-          .node = cnt.node,
-          .node_stk = cnt.node_stk,
+          .pc = get_jump_pc(cnt->pc, op.data.probe.jump),
+          .node = cnt->node,
+          .node_stk = cnt->node_stk,
+          .bindings = cnt->bindings,
       };
-      bindings_overlay(&next_cnt.bindings, &cnt.bindings);
+      assert_bindings_sane(next_cnt.bindings);
+      assert_bindings_sane(cnt->bindings);
 
       return (ContinuationResult){
           .type = EXC_BOUNDARY,
           .data = {.boundary = {.mode = op.data.probe.mode,
-                                .continuation = cnt,
+                                .continuation = *cnt,
                                 .next = next_cnt}}};
     } break;
     case OP_HALT: {
@@ -258,44 +281,48 @@ engine_step_continuation(Engine *engine, DelimitedExecution *del_exc,
       };
     } break;
     case OP_YIELD: {
+      assert_bindings_sane(cnt->bindings);
       return (ContinuationResult){.type = EXC_MATCH,
                                   .data = {.match = {
-                                               .node = cnt.node,
-                                               .bindings = cnt.bindings,
+                                               .node = cnt->node,
+                                               .bindings = cnt->bindings,
                                            }}};
     } break;
     case OP_PUSHNODE: {
-      cnt.node_stk = node_stack_push(engine, cnt.node_stk, cnt.node);
+      cnt->node_stk = node_stack_push(engine, cnt->node_stk, cnt->node);
       break;
     }
     case OP_POPNODE: {
-      if (!node_stack_pop(engine, &cnt.node_stk, &cnt.node)) {
+      if (!node_stack_pop(engine, &cnt->node_stk, &cnt->node)) {
         return (ContinuationResult){.type = EXC_ERR};
       }
     } break;
     case OP_JMP: {
-      cnt.pc = get_jump_pc(cnt.pc, op.data.jump);
+      cnt->pc = get_jump_pc(cnt->pc, op.data.jump);
     } break;
     }
   }
   return (ContinuationResult){.type = EXC_ERR};
 }
 
-static BoundaryResult engine_step_exc_stack(Engine *engine,
-                                                  DelimitedExecution *del_exc) {
+static BoundaryResult engine_step_exc_stack(const Engine *engine,
+                                            DelimitedExecution *del_exc) {
   while (del_exc->sp >= del_exc->cnt_stk) {
-    Continuation cnt = *del_exc->sp--;
+    Continuation *cnt = del_exc->sp--;
+    assert_bindings_sane(cnt->bindings);
     ContinuationResult result = engine_step_continuation(engine, del_exc, cnt);
 
     switch (result.type) {
     case EXC_DROP:
-      continue;
     case EXC_BRANCH:
+      bindings_free(cnt->bindings);
       continue;
     case EXC_MATCH:
       return (BoundaryResult){.type = BOUNDARY_MATCH,
                               .data = {.match = result.data.match}};
     case EXC_BOUNDARY: {
+      assert_bindings_sane(result.data.boundary.next.bindings);
+      assert_bindings_sane(result.data.boundary.continuation.bindings);
       *++del_exc->sp = result.data.boundary.next;
       LookaheadBoundary next_call_frame = {
           .call_mode = result.data.boundary.mode,
@@ -314,7 +341,9 @@ static BoundaryResult engine_step_exc_stack(Engine *engine,
   return (BoundaryResult){.type = BOUNDARY_FAIL};
 }
 
-static bool engine_step_boundary(Engine *engine, LookaheadBoundary *boundary) {
+static bool engine_step_boundary(const Engine *engine,
+                                 LookaheadBoundary *boundary) {
+  EngineStats *stats = engine_stats_mut(engine);
   while (true) {
     BoundaryResult result = engine_step_exc_stack(engine, &boundary->del_exc);
     switch (result.type) {
@@ -326,6 +355,7 @@ static bool engine_step_boundary(Engine *engine, LookaheadBoundary *boundary) {
     } break;
     case BOUNDARY_NEW: {
       assert(false && "Dont get here yet");
+      stats->boundaries_encountered++;
     } break;
     }
   }
@@ -344,6 +374,8 @@ bool engine_next_match(Engine *engine, Match *match) {
       return true;
     } break;
     case BOUNDARY_NEW: {
+      // FIXME: Have to free continuations
+      engine->stats.boundaries_encountered++;
       if (engine_step_boundary(engine, &result.data.boundary)) {
         *engine->del_exc.sp = result.data.boundary.continuation;
       } else {

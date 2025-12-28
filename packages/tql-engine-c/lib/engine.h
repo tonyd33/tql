@@ -24,13 +24,13 @@ typedef struct Engine Engine;
 
 struct Match {
   TSNode node;
-  Bindings bindings;
+  Bindings *bindings;
 };
 
 typedef struct {
   uint32_t pc;
   TSNode node;
-  Bindings bindings;
+  Bindings *bindings;
   NodeStack *node_stk;
 } Continuation;
 
@@ -47,6 +47,9 @@ struct LookaheadBoundary {
 
 struct EngineStats {
   uint32_t step_count;
+  uint32_t boundaries_encountered;
+  uint32_t total_branching;
+  uint32_t max_branching_factor;
 };
 
 struct Engine {
@@ -57,6 +60,7 @@ struct Engine {
   uint32_t op_count;
   Arena *arena;
   uint32_t stk_cap;
+
   DelimitedExecution del_exc;
 
   EngineStats stats;

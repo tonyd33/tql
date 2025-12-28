@@ -48,7 +48,7 @@ int run_demo(char *filename) {
 
   Op ops[] = {
       /* main */
-      op_branch(axis_descendant()),
+      op_branch(axis_child()),
       op_if(predicate_typeeq(node_expression_self(),
                              CLASS_DECLARATION_TYPE_SYMBOL)),
       /* find controller decorator */
@@ -104,37 +104,29 @@ int run_demo(char *filename) {
   char buf[4096];
 
   while (engine_next_match(&engine, &match)) {
-    printf("=================\n");
-
-    bound_value = bindings_get(&match.bindings, CLASS_NAME_VAR_ID);
+    bound_value = bindings_get(match.bindings, CLASS_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
-      start_point = ts_node_start_point(*bound_value);
-      end_point = ts_node_end_point(*bound_value);
-      printf("class name: %s (row %u, column %u – row %u, column %u)\n", buf,
-             start_point.row, start_point.column, end_point.row,
-             end_point.column);
+      printf("class name: %s \n", buf);
     }
 
-    bound_value = bindings_get(&match.bindings, METHOD_NAME_VAR_ID);
+    bound_value = bindings_get(match.bindings, METHOD_NAME_VAR_ID);
     if (bound_value != NULL) {
       get_ts_node_text(source_code, *bound_value, buf);
-      start_point = ts_node_start_point(*bound_value);
-      end_point = ts_node_end_point(*bound_value);
-      printf("method name: %s (row %u, column %u – row %u, column %u)\n", buf,
-             start_point.row, start_point.column, end_point.row,
-             end_point.column);
+      printf("method name: %s \n", buf);
     }
 
-    assert(!ts_node_is_null(match.node));
-    get_ts_node_text(source_code, match.node, buf);
-    start_point = ts_node_start_point(match.node);
-    end_point = ts_node_end_point(match.node);
-    printf("full match: (row %u, column %u – row %u, column %u)\n%s\n",
-           start_point.row, start_point.column, end_point.row, end_point.column,
-           buf);
-    printf("=================\n");
+    // assert(!ts_node_is_null(match.node));
+    // get_ts_node_text(source_code, match.node, buf);
+    // start_point = ts_node_start_point(match.node);
+    // end_point = ts_node_end_point(match.node);
+    // printf("full match: \n%s\n", buf);
+    printf("\n");
   }
+  printf("Arena allocation: %zu\n", engine.arena->offset);
+  printf("Boundaries encountered: %u\n", engine.stats.boundaries_encountered);
+  printf("Total branching: %u\n", engine.stats.total_branching);
+  printf("Max branching factor: %u\n", engine.stats.max_branching_factor);
   printf("Step count: %u\n", engine.stats.step_count);
 
   fclose(source_fp);
