@@ -7,9 +7,39 @@
 struct NodeStack {
   NodeStack *prev;
   TSNode node;
-  // Possibly don't need this
+  // Don't need this if we're arena-allocating this anyway...
   uint16_t ref_count;
 };
+
+typedef struct {
+  enum {
+    BOUNDARY_FAIL,
+    BOUNDARY_MATCH,
+    BOUNDARY_NEW,
+  } type;
+  union {
+    Match match;
+    LookaheadBoundary boundary;
+  } data;
+} BoundaryResult;
+
+typedef struct {
+  enum {
+    EXC_ERR,
+    EXC_DROP,
+    EXC_MATCH,
+    EXC_BRANCH,
+    EXC_BOUNDARY,
+  } type;
+  union {
+    Match match;
+    struct {
+      ProbeMode mode;
+      Continuation continuation;
+      Continuation next;
+    } boundary;
+  } data;
+} ExecutionResult;
 
 NodeStack *node_stack_push(Engine *engine, NodeStack *stack, TSNode node) {
   NodeStack *new_stack = arena_alloc(engine->arena, sizeof(NodeStack));
@@ -22,109 +52,75 @@ NodeStack *node_stack_push(Engine *engine, NodeStack *stack, TSNode node) {
   return new_stack;
 }
 
-TSNode node_stack_pop(Engine *engine, NodeStack **stack) {
-  assert(*stack != NULL);
-  TSNode node = (*stack)->node;
+bool node_stack_pop(Engine *engine, NodeStack **stack, TSNode *node) {
+  if (*stack == NULL) {
+    return false;
+  }
+  *node = (*stack)->node;
   (*stack)->ref_count--;
   *stack = (*stack)->prev;
-  return node;
+  return true;
 }
 
-typedef enum {
-  EXC_FAIL2,
-  EXC_MATCH2,
-  EXC_CONTINUE2,
-  EXC_RET2,
-} ExecutionResult2;
+void engine_init(Engine *engine, TSTree *ast, const char *source) {
+  engine->ast = ast;
+  engine->source = source;
 
-void engine_init(Engine *engine) {
-  engine->ast = NULL;
-  engine->source = NULL;
-  engine->step_count = 0;
-  Ops_init(&engine->ops);
+  engine->ops = NULL;
   engine->arena = arena_new(ENGINE_HEAP_CAPACITY);
-  engine->stack_cap = ENGINE_STACK_CAPACITY;
-  engine->exc_ctx.exc_stack =
-      malloc(engine->stack_cap * sizeof(ExecutionStack));
-  engine->exc_ctx.sp = engine->exc_ctx.exc_stack;
+  engine->stk_cap = ENGINE_STACK_CAPACITY;
+  engine->exc_ctx.exc_stk = malloc(engine->stk_cap * sizeof(Continuation));
+  engine->exc_ctx.sp = engine->exc_ctx.exc_stk;
+
+  engine->stats.step_count = 0;
 }
 
 void engine_free(Engine *engine) {
+  engine->stats.step_count = 0;
+
   engine->exc_ctx.sp = NULL;
-  free(engine->exc_ctx.exc_stack);
-  engine->exc_ctx.exc_stack = NULL;
-  engine->stack_cap = 0;
+  free(engine->exc_ctx.exc_stk);
+  engine->exc_ctx.exc_stk = NULL;
+  engine->stk_cap = 0;
+
   arena_free(engine->arena);
-  Ops_free(&engine->ops);
+  engine->arena = NULL;
+  free(engine->ops);
+  engine->ops = NULL;
   engine->source = NULL;
   engine->ast = NULL;
 }
 
-void engine_load_ast(Engine *engine, TSTree *ast) { engine->ast = ast; }
-
-void engine_load_source(Engine *engine, const char *source) {
-  engine->source = source;
-}
-
 void engine_load_program(Engine *engine, Op *ops, uint32_t op_count) {
-  Ops_reserve(&engine->ops, op_count);
-  engine->ops.len = op_count;
-  memcpy(engine->ops.data, ops, sizeof(Op) * op_count);
+  engine->op_count = op_count;
+  engine->ops = malloc(sizeof(Op) * op_count);
+  memcpy(engine->ops, ops, sizeof(Op) * op_count);
 }
 
 void engine_exec(Engine *engine) {
-  ExecutionFrame root_exc_frame = {
+  Continuation root_continuation = {
       .pc = 0,
       .node = ts_tree_root_node(engine->ast),
-      .node_stack = NULL,
+      .node_stk = NULL,
   };
-  bindings_init(&root_exc_frame.bindings);
+  bindings_init(&root_continuation.bindings);
 
-  *engine->exc_ctx.sp = root_exc_frame;
+  *engine->exc_ctx.sp = root_continuation;
 }
 
-static uint32_t exc_id = 0;
+static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
+  return jump.relative ? curr_pc + jump.pc - 1 : jump.pc;
+}
 
-typedef struct {
-  enum {
-    BOUNDARY_FAIL,
-    BOUNDARY_MATCH,
-    BOUNDARY_NEW,
-  } type;
-  union {
-    Match match;
-    CallBoundary boundary;
-  } data;
-} BoundaryResult;
-
-typedef struct {
-  enum {
-    EXC_DROP,
-    EXC_MATCH,
-    EXC_BRANCH,
-    EXC_BOUNDARY,
-  } type;
-  union {
-    Match match;
-    struct {
-      CallMode mode;
-      ExecutionFrame continuation;
-      ExecutionFrame next;
-    } boundary;
-  } data;
-} ExecutionResult;
-
-// FIXME: Ugh, passing in the frames like this is kinda cursed.
-// Consider allowing this to just append to an execution stack directly.
 static ExecutionResult engine_step_exc_frame(Engine *engine,
-                                             ExecutionFrame exc_frame,
-                                             ExecutionStack *exc_stack) {
+                                             DelimitedExecution *del_exc,
+                                             Continuation exc_frame) {
   const TSLanguage *language = ts_tree_language(engine->ast);
   assert(!ts_node_is_null(exc_frame.node));
-  while (exc_frame.pc < engine->ops.len) {
-    engine->step_count++;
+  while (exc_frame.pc < engine->op_count) {
+    engine->stats.step_count++;
 
-    Op op = engine->ops.data[exc_frame.pc++];
+    Op op = engine->ops[exc_frame.pc++];
     // printf("id %u, pc %llu, opcode %d\n", exc_frame.id, exc_frame.pc - 1,
     //        op.opcode);
     switch (op.opcode) {
@@ -180,14 +176,13 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
 
       for (int i = branches.len - 1; i >= 0; i--) {
         TSNode branch = branches.data[i];
-        ExecutionFrame frame = {
-            .id = exc_id++,
+        Continuation frame = {
             .pc = exc_frame.pc,
             .node = branch,
-            .node_stack = exc_frame.node_stack,
+            .node_stk = exc_frame.node_stk,
         };
         bindings_overlay(&frame.bindings, &exc_frame.bindings);
-        ExecutionStack_append(exc_stack, frame);
+        *++del_exc->sp = frame;
       }
       TSNodes_free(&branches);
       return (ExecutionResult){
@@ -198,7 +193,6 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
       bindings_insert(&exc_frame.bindings, op.data.var_id, exc_frame.node);
     } break;
     case OP_IF: {
-
       Predicate predicate = op.data.predicate;
       switch (predicate.predicate_type) {
       case PREDICATE_TYPEEQ: {
@@ -237,27 +231,24 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
       } break;
       }
     } break;
-    case OP_CALL: {
-      ExecutionFrame next_exc_frame = {
-          .id = exc_id++,
-          .pc = op.data.call_parameters.relative
-                    ? exc_frame.pc + op.data.call_parameters.pc - 1
-                    : op.data.call_parameters.pc,
+    case OP_PROBE: {
+      Continuation next_exc_frame = {
+          .pc = get_jump_pc(exc_frame.pc, op.data.probe.jump),
           .node = exc_frame.node,
-          .node_stack = NULL};
+          .node_stk = exc_frame.node_stk,
+      };
       bindings_overlay(&next_exc_frame.bindings, &exc_frame.bindings);
 
-      return (ExecutionResult){
-          .type = EXC_BOUNDARY,
-          .data = {.boundary = {.mode = op.data.call_parameters.mode,
-                                .continuation = exc_frame,
-                                .next = next_exc_frame}}};
+      return (ExecutionResult){.type = EXC_BOUNDARY,
+                               .data = {.boundary = {.mode = op.data.probe.mode,
+                                                     .continuation = exc_frame,
+                                                     .next = next_exc_frame}}};
     } break;
-    case OP_RETURN: {
+    case OP_HALT: {
       return (ExecutionResult){
           .type = EXC_DROP,
       };
-    }
+    } break;
     case OP_YIELD: {
       return (ExecutionResult){.type = EXC_MATCH,
                                .data = {.match = {
@@ -266,87 +257,76 @@ static ExecutionResult engine_step_exc_frame(Engine *engine,
                                         }}};
     } break;
     case OP_PUSHNODE: {
-      exc_frame.node_stack =
-          node_stack_push(engine, exc_frame.node_stack, exc_frame.node);
+      exc_frame.node_stk =
+          node_stack_push(engine, exc_frame.node_stk, exc_frame.node);
       break;
     }
     case OP_POPNODE: {
-      exc_frame.node = node_stack_pop(engine, &exc_frame.node_stack);
-      break;
-    }
+      if (!node_stack_pop(engine, &exc_frame.node_stk, &exc_frame.node)) {
+        return (ExecutionResult){.type = EXC_ERR};
+      }
+    } break;
+    case OP_JMP: {
+      exc_frame.pc = get_jump_pc(exc_frame.pc, op.data.jump);
+    } break;
     }
   }
-  // FIXME: Make this error
-  return (ExecutionResult){.type = EXC_DROP};
+  return (ExecutionResult){.type = EXC_ERR};
 }
 
 static BoundaryResult engine_step_exc_stack(Engine *engine,
-                                            ExecutionFrame *boundary) {
-  ExecutionStack stack;
-  ExecutionStack_init(&stack);
-  while (engine->exc_ctx.sp >= boundary) {
-    ExecutionFrame exc_frame = *engine->exc_ctx.sp--;
-    ExecutionResult result = engine_step_exc_frame(engine, exc_frame, &stack);
+                                            DelimitedExecution *del_exc) {
+  while (del_exc->sp >= del_exc->exc_stk) {
+    Continuation exc_frame = *del_exc->sp--;
+    ExecutionResult result = engine_step_exc_frame(engine, del_exc, exc_frame);
 
     switch (result.type) {
     case EXC_DROP:
       continue;
+    case EXC_BRANCH:
+      continue;
     case EXC_MATCH:
-      ExecutionStack_free(&stack);
       return (BoundaryResult){.type = BOUNDARY_MATCH,
                               .data = {.match = result.data.match}};
-    case EXC_BRANCH: {
-      for (int i = 0; i < stack.len; i++) {
-        *++engine->exc_ctx.sp = stack.data[i];
-      }
-      stack.len = 0;
-    } break;
     case EXC_BOUNDARY: {
-      *++engine->exc_ctx.sp = result.data.boundary.next;
-      CallBoundary next_call_frame = {
+      *++del_exc->sp = result.data.boundary.next;
+      LookaheadBoundary next_call_frame = {
           .call_mode = result.data.boundary.mode,
           .continuation = result.data.boundary.continuation,
-          .boundary = engine->exc_ctx.sp,
+          .del_exc = {.exc_stk = del_exc->sp, .sp = del_exc->sp},
       };
 
-      ExecutionStack_free(&stack);
       return (BoundaryResult){.type = BOUNDARY_NEW,
                               .data = {.boundary = next_call_frame}};
     }
+    case EXC_ERR:
+      assert(false && "Bad program");
     }
+    break;
   }
-  ExecutionStack_free(&stack);
   return (BoundaryResult){.type = BOUNDARY_FAIL};
 }
 
-static bool engine_step_boundary(Engine *engine, CallBoundary *boundary) {
+static bool engine_step_boundary(Engine *engine, LookaheadBoundary *boundary) {
   while (true) {
-    BoundaryResult result = engine_step_exc_stack(engine, boundary->boundary);
+    BoundaryResult result = engine_step_exc_stack(engine, &boundary->del_exc);
     switch (result.type) {
     case BOUNDARY_FAIL: {
-      return boundary->call_mode == CALLMODE_NOTEXISTS;
+      return boundary->call_mode == PROBE_NOTEXISTS;
     } break;
     case BOUNDARY_MATCH: {
-      return boundary->call_mode == CALLMODE_EXISTS;
+      return boundary->call_mode == PROBE_EXISTS;
     } break;
     case BOUNDARY_NEW: {
-      bool ok = engine_step_boundary(engine, &result.data.boundary);
-      if (ok) {
-        engine->exc_ctx.sp = result.data.boundary.boundary - 1;
-        *++engine->exc_ctx.sp = result.data.boundary.continuation;
-      }
+      assert(false && "Dont get here yet");
     } break;
     }
   }
 }
 
 bool engine_next_match(Engine *engine, Match *match) {
-  CallBoundary cb_stack[1024];
-  uint32_t cb_count = 0;
-
   while (true) {
-    BoundaryResult result =
-        engine_step_exc_stack(engine, engine->exc_ctx.exc_stack);
+    BoundaryResult result = engine_step_exc_stack(engine, &engine->exc_ctx);
 
     switch (result.type) {
     case BOUNDARY_FAIL: {
@@ -357,10 +337,10 @@ bool engine_next_match(Engine *engine, Match *match) {
       return true;
     } break;
     case BOUNDARY_NEW: {
-      bool ok = engine_step_boundary(engine, &result.data.boundary);
-      if (ok) {
-        engine->exc_ctx.sp = result.data.boundary.boundary - 1;
-        *++engine->exc_ctx.sp = result.data.boundary.continuation;
+      if (engine_step_boundary(engine, &result.data.boundary)) {
+        *engine->exc_ctx.sp = result.data.boundary.continuation;
+      } else {
+        engine->exc_ctx.sp--;
       }
     } break;
     }
@@ -406,10 +386,21 @@ Op op_bind(VarId var_id) {
 Op op_if(Predicate predicate) {
   return (Op){.opcode = OP_IF, .data = {.predicate = predicate}};
 }
-Op op_call(CallParameters parameters) {
-  return (Op){.opcode = OP_CALL, .data = {.call_parameters = parameters}};
+Op op_probe(Probe probe) {
+  return (Op){.opcode = OP_PROBE, .data = {.probe = probe}};
 }
-Op op_return() { return (Op){.opcode = OP_RETURN}; }
+Op op_halt() { return (Op){.opcode = OP_HALT}; }
 Op op_yield() { return (Op){.opcode = OP_YIELD}; }
 Op op_pushnode() { return (Op){.opcode = OP_PUSHNODE}; }
 Op op_popnode() { return (Op){.opcode = OP_POPNODE}; }
+Op op_jump(Jump jump) { return (Op){.opcode = OP_JMP, .data = {.jump = jump}}; }
+
+Jump jump_relative(int32_t pc) { return (Jump){.relative = true, .pc = pc}; }
+Jump jump_absolute(int32_t pc) { return (Jump){.relative = false, .pc = pc}; }
+
+Probe probe_exists(Jump jump) {
+  return (Probe){.mode = PROBE_EXISTS, .jump = jump};
+}
+Probe probe_not_exists(Jump jump) {
+  return (Probe){.mode = PROBE_NOTEXISTS, .jump = jump};
+}

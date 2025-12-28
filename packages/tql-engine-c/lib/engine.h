@@ -64,25 +64,42 @@ typedef struct {
 } Predicate;
 
 typedef enum {
-  CALLMODE_EXISTS,
-  CALLMODE_NOTEXISTS,
-} CallMode;
+  PROBE_EXISTS,
+  PROBE_NOTEXISTS,
+} ProbeMode;
 
 typedef struct {
-  CallMode mode;
   bool relative;
   int32_t pc;
-} CallParameters;
+} Jump;
+
+typedef struct {
+  ProbeMode mode;
+  Jump jump;
+} Probe;
 
 typedef enum {
+  /* Does nothing. */
   OP_NOOP,
+  /* The current continuation stops. */
+  OP_HALT,
+  /* Creates continuations along an axis. */
   OP_BRANCH,
+  /* Binds the current node into a variable. */
   OP_BIND,
+  /* Does nothing if the predicate passes, otherwise halts the program. */
   OP_IF,
-  OP_CALL,
-  OP_RETURN,
+  /* Yield the current node and bindings. */
   OP_YIELD,
+  /* Jump to another instruction. */
+  OP_JMP,
+  /* Save the continuation, jump, and execute the rest of the program. Yielding
+     or failure to yield will either restore the continuation or drop it, based
+     on the probe mode. */
+  OP_PROBE,
+  /* Push the current node onto the continuation's local stack. */
   OP_PUSHNODE,
+  /* Pop the node from the continuation's local stack. */
   OP_POPNODE,
 } Opcode;
 
@@ -92,7 +109,8 @@ typedef struct {
     Axis axis;
     Predicate predicate;
     VarId var_id;
-    CallParameters call_parameters;
+    Jump jump;
+    Probe probe;
   } data;
 } Op;
 
@@ -103,47 +121,41 @@ struct NodeStack;
 typedef struct NodeStack NodeStack;
 
 typedef struct {
-  uint32_t id;
-  uint64_t pc;
+  uint32_t pc;
   TSNode node;
   Bindings bindings;
-  NodeStack *node_stack;
-} ExecutionFrame;
-DA_DEFINE(ExecutionFrame, ExecutionStack)
+  NodeStack *node_stk;
+} Continuation;
 
-typedef struct ExecutionContext {
-  ExecutionFrame *exc_stack;
-  ExecutionFrame *sp;
-} ExecutionContext;
+typedef struct DelimitedExecution {
+  Continuation *exc_stk;
+  Continuation *sp;
+} DelimitedExecution;
 
-typedef struct CallBoundary CallBoundary;
-struct CallBoundary {
-  CallMode call_mode;
-  ExecutionFrame *boundary;
-  ExecutionFrame continuation;
+typedef struct LookaheadBoundary LookaheadBoundary;
+struct LookaheadBoundary {
+  ProbeMode call_mode;
+  DelimitedExecution del_exc;
+  Continuation continuation;
 };
+typedef struct {
+  uint32_t step_count;
+} EngineStats;
 
 typedef struct {
   TSTree *ast;
   const char *source;
 
+  Op *ops;
+  uint32_t op_count;
   Arena *arena;
+  uint32_t stk_cap;
+  DelimitedExecution exc_ctx;
 
-  Ops ops;
-  ExecutionContext exc_ctx;
-  uint32_t stack_cap;
-
-  uint32_t step_count;
+  EngineStats stats;
 } Engine;
 
-void engine_init(Engine *engine);
-
-/*
- * In this step, I imagine the engine to take note of the source language and
- * AST and determine what optimizations it can make.
- */
-void engine_load_ast(Engine *engine, TSTree *ast);
-void engine_load_source(Engine *engine, const char *source);
+void engine_init(Engine *engine, TSTree *ast, const char *source);
 void engine_load_program(Engine *engine, Op *ops, uint32_t op_count);
 
 void engine_exec(Engine *engine);
@@ -161,14 +173,21 @@ Predicate predicate_negate(Predicate predicate);
 
 NodeExpression node_expression_self();
 
+Jump jump_relative(int32_t pc);
+Jump jump_absolute(int32_t pc);
+
+Probe probe_exists(Jump jump);
+Probe probe_not_exists(Jump jump);
+
 Op op_noop();
 Op op_branch(Axis axis);
 Op op_bind(VarId var_id);
 Op op_if(Predicate predicate);
-Op op_call(CallParameters parameters);
-Op op_return();
+Op op_probe(Probe probe);
+Op op_halt();
 Op op_yield();
 Op op_pushnode();
 Op op_popnode();
+Op op_jump(Jump jump);
 
 #endif /* _ENGINE_H_ */

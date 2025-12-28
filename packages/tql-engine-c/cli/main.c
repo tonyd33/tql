@@ -71,21 +71,17 @@ int run_demo(char *filename) {
       op_branch(axis_child()),
       op_if(predicate_typeeq(node_expression_self(),
                              METHOD_DEFINITION_TYPE_SYMBOL)),
-      op_call((CallParameters){
-          .mode = CALLMODE_NOTEXISTS,
-          .relative = true,
-          .pc = 6,
-      }),
+      op_probe(probe_not_exists(jump_relative(6))),
       op_branch(axis_field(NAME_FIELD_ID)),
       op_bind(METHOD_NAME_VAR_ID),
       op_popnode(),
       op_yield(),
-      op_return(),
+      op_halt(),
 
       /* has return type */
       op_branch(axis_field(RETURN_TYPE_FIELD_ID)),
       op_yield(),
-      op_return(),
+      op_halt(),
   };
 
   // Create a parser.
@@ -97,9 +93,7 @@ int run_demo(char *filename) {
       ts_parser_parse_string(parser, NULL, source_code, strlen(source_code));
 
   Engine engine;
-  engine_init(&engine);
-  engine_load_source(&engine, source_code);
-  engine_load_ast(&engine, tree);
+  engine_init(&engine, tree, source_code);
   engine_load_program(&engine, ops, sizeof(ops) / sizeof(ops[0]));
   engine_exec(&engine);
 
@@ -141,7 +135,7 @@ int run_demo(char *filename) {
            buf);
     printf("=================\n");
   }
-  printf("Step count: %u\n", engine.step_count);
+  printf("Step count: %u\n", engine.stats.step_count);
 
   fclose(source_fp);
   // Free all of the heap-allocated memory.
