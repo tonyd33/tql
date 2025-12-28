@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #define ENGINE_HEAP_CAPACITY 65536
-#define ENGINE_STACK_CAPACITY 1024
+#define ENGINE_STACK_CAPACITY 4096
 
 #define assert_bindings_sane(BINDINGS)                                         \
   (assert((BINDINGS == NULL) || (BINDINGS) != (BINDINGS)->parent))

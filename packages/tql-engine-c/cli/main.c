@@ -116,11 +116,9 @@ int run_demo(char *filename) {
       printf("method name: %s \n", buf);
     }
 
-    // assert(!ts_node_is_null(match.node));
-    // get_ts_node_text(source_code, match.node, buf);
-    // start_point = ts_node_start_point(match.node);
-    // end_point = ts_node_end_point(match.node);
-    // printf("full match: \n%s\n", buf);
+    assert(!ts_node_is_null(match.node));
+    get_ts_node_text(source_code, match.node, buf);
+    printf("full match: \n%s\n", buf);
     printf("\n");
   }
   printf("Arena allocation: %zu\n", engine.arena->offset);
