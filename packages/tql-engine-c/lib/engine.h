@@ -64,7 +64,6 @@ typedef struct {
 } Predicate;
 
 typedef enum {
-  CALLMODE_PASSTHROUGH,
   CALLMODE_EXISTS,
   CALLMODE_NOTEXISTS,
 } CallMode;
@@ -104,6 +103,7 @@ struct NodeStack;
 typedef struct NodeStack NodeStack;
 
 typedef struct {
+  uint32_t id;
   uint64_t pc;
   TSNode node;
   Bindings bindings;
@@ -111,23 +111,27 @@ typedef struct {
 } ExecutionFrame;
 DA_DEFINE(ExecutionFrame, ExecutionStack)
 
-typedef struct CallFrame CallFrame;
+typedef struct CallBoundary CallFrame;
 
-struct CallFrame {
+struct CallBoundary {
   CallMode call_mode;
-  ExecutionStack exc_stack;
-  bool has_continuation;
+  uint32_t boundary;
   ExecutionFrame continuation;
 };
-DA_DEFINE(CallFrame, CallStack)
 
 typedef struct {
-  Arena *arena;
   TSTree *ast;
-  CallStack call_stack;
   const char *source;
-  uint32_t step_count;
+
+  Arena *arena;
+
   Ops ops;
+  ExecutionFrame *exc_stack;
+  uint32_t stack_cap;
+  // FIXME: should be uint32_t
+  int32_t sp;
+
+  uint32_t step_count;
 } Engine;
 
 void engine_init(Engine *engine);

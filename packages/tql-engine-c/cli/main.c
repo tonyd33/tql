@@ -74,12 +74,13 @@ int run_demo(char *filename) {
       op_call((CallParameters){
           .mode = CALLMODE_NOTEXISTS,
           .relative = true,
-          .pc = 5,
+          .pc = 6,
       }),
       op_branch(axis_field(NAME_FIELD_ID)),
       op_bind(METHOD_NAME_VAR_ID),
       op_popnode(),
       op_yield(),
+      op_return(),
 
       /* has return type */
       op_branch(axis_field(RETURN_TYPE_FIELD_ID)),
