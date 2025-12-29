@@ -26,6 +26,16 @@ static TQLVariableIdentifier *parse_variable_identifier(TQLAst *ast,
   return tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
 }
 
+static TQLString *parse_string_literal(TQLAst *ast, TSNode node) {
+  TSNode content_node =
+      ts_node_child_by_field_name(node, "content", strlen("content"));
+  assert(!ts_node_is_null(content_node));
+
+  uint32_t start_byte = ts_node_start_byte(content_node);
+  uint32_t end_byte = ts_node_end_byte(content_node);
+  return tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
+}
+
 static TQLExpression *parse_expression(TQLAst *ast, TSNode node) {
   const char *node_type = ts_node_type(node);
   if (strcmp(node_type, "selector") == 0) {
@@ -64,6 +74,23 @@ static TQLCondition *parse_condition(TQLAst *ast, TSNode node) {
     TSNode inner_node = ts_node_named_child(node, 0);
     assert(!ts_node_is_null(inner_node));
     return tql_condition_empty_new(ast, parse_expression(ast, inner_node));
+  } else if (strcmp(node_type, "text_eq_condition") == 0) {
+    TSNode expression_node = ts_node_named_child(node, 0);
+    TSNode string_node = ts_node_named_child(node, 1);
+    assert(!ts_node_is_null(expression_node));
+    assert(!ts_node_is_null(string_node));
+
+    return tql_condition_texteq_new(ast, parse_expression(ast, expression_node),
+                                    parse_string_literal(ast, string_node));
+    return NULL;
+  } else if (strcmp(node_type, "and_condition") == 0) {
+    TSNode c1_node = ts_node_named_child(node, 0);
+    TSNode c2_node = ts_node_named_child(node, 1);
+    assert(!ts_node_is_null(c1_node));
+    assert(!ts_node_is_null(c2_node));
+
+    return tql_condition_and_new(ast, parse_condition(ast, c1_node),
+                                 parse_condition(ast, c2_node));
   } else {
     fprintf(stderr, "Got node type %s\n", node_type);
     assert(false && "Unknown condition");

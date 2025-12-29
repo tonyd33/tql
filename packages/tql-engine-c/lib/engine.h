@@ -10,6 +10,7 @@ typedef TSNode TQLValue;
 
 struct Bindings;
 struct NodeStack;
+struct PCStack;
 struct Match;
 struct NodeStack;
 struct DelimitedExecution;
@@ -19,6 +20,7 @@ struct Engine;
 
 typedef struct Bindings Bindings;
 typedef struct NodeStack NodeStack;
+typedef struct PCStack PCStack;
 typedef struct DelimitedExecution DelimitedExecution;
 typedef struct LookaheadBoundary LookaheadBoundary;
 typedef struct EngineStats EngineStats;
@@ -34,6 +36,7 @@ typedef struct {
   TSNode node;
   Bindings *bindings;
   NodeStack *node_stk;
+  PCStack *pc_stk;
 } Continuation;
 
 struct DelimitedExecution {

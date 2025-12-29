@@ -271,3 +271,23 @@ TQLCondition *tql_condition_empty_new(TQLAst *ast, TQLExpression *expression) {
                      .data = {.empty_condition = {.expression = expression}}};
   return condition;
 }
+
+TQLCondition *tql_condition_texteq_new(TQLAst *ast, TQLExpression *expression,
+                                       TQLString *string) {
+  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
+  *condition =
+      (TQLCondition){.type = TQLCONDITION_TEXTEQ,
+                     .data = {.text_eq_condition = {.expression = expression,
+                                                    .string = string}}};
+  return condition;
+}
+
+TQLCondition *tql_condition_and_new(TQLAst *ast, TQLCondition *condition_1,
+                                    TQLCondition *condition_2) {
+  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
+  *condition = (TQLCondition){
+      .type = TQLCONDITION_AND,
+      .data = {.binary_condition = {.condition_1 = condition_1,
+                                    .condition_2 = condition_2}}};
+  return condition;
+}

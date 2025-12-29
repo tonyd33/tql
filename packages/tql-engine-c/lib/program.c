@@ -1,20 +1,5 @@
 #include "program.h"
-#include "ds.h"
-
-struct Function;
-
-typedef struct Function Function;
-
-struct Function {
-  uint64_t id;
-  Op *ops;
-  uint32_t op_count;
-};
-DA_DEFINE(Function, Functions)
-
-struct ProgramBuilder {
-  Functions functions;
-};
+#include <stdio.h>
 
 const inline Axis axis_field(TSFieldId field_id) {
   return (Axis){.axis_type = AXIS_FIELD, .data = {.field = field_id}};
@@ -62,8 +47,18 @@ const inline Op op_probe(Probe probe) {
 }
 const inline Op op_halt() { return (Op){.opcode = OP_HALT}; }
 const inline Op op_yield() { return (Op){.opcode = OP_YIELD}; }
-const inline Op op_pushnode() { return (Op){.opcode = OP_PUSHNODE}; }
-const inline Op op_popnode() { return (Op){.opcode = OP_POPNODE}; }
+const inline Op op_pushnode() {
+  return (Op){.opcode = OP_PUSH, .data = {.push_target = PUSH_NODE}};
+}
+const inline Op op_popnode() {
+  return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_NODE}};
+}
+const inline Op op_pushpc() {
+  return (Op){.opcode = OP_PUSH, .data = {.push_target = PUSH_PC}};
+}
+const inline Op op_poppc() {
+  return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_PC}};
+}
 const inline Op op_jump(Jump jump) {
   return (Op){.opcode = OP_JMP, .data = {.jump = jump}};
 }
@@ -81,3 +76,4 @@ const inline Probe probe_exists(Jump jump) {
 const inline Probe probe_not_exists(Jump jump) {
   return (Probe){.mode = PROBE_NOTEXISTS, .jump = jump};
 }
+

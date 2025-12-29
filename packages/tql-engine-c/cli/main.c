@@ -1,3 +1,4 @@
+#include "compiler.h"
 #include "engine.h"
 #include "parser.h"
 #include <assert.h>
@@ -25,7 +26,7 @@ int run_demo(char *filename) {
     return EXIT_FAILURE;
   }
   char source_code[4096] = {0};
-  int bytes_read = fread(source_code, sizeof(source_code), 1, source_fp);
+  int bytes_read = fread(source_code, 1, sizeof(source_code), source_fp);
   printf("Read %d bytes\n", bytes_read);
 
   const TSFieldId DECORATOR_FIELD_ID =
@@ -136,16 +137,79 @@ int run_demo(char *filename) {
   return EXIT_SUCCESS;
 }
 
-int parse_tql(char *filename) {
-  FILE *fp = fopen(filename, "rb");
+int parse_tql(const char *query_filename, const char *source_filename) {
+  FILE *fp = fopen(query_filename, "rb");
   char buf[8192] = {0};
-  int bytes_read = fread(buf, sizeof(buf), 1, fp);
+  int bytes_read = fread(buf, 1, sizeof(buf), fp);
   printf("Read %d bytes\n", bytes_read);
 
   TQLParser parser;
   tql_parser_init(&parser);
 
+  Compiler compiler;
+  compiler_init(&compiler, tree_sitter_typescript());
+
   TQLAst *ast = tql_parser_parse_string(&parser, buf, strlen(buf));
+
+  uint32_t op_count;
+  Op *ops = compile_tql_tree(&compiler, ast->tree, &op_count);
+
+
+  FILE *source_fp = fopen(source_filename, "r");
+  if (source_fp == NULL) {
+    perror("fopen");
+    return EXIT_FAILURE;
+  }
+  char source_code[4096] = {0};
+  bytes_read = fread(source_code, 1, sizeof(source_code), source_fp);
+  printf("Read %d bytes\n", bytes_read);
+
+
+  // Create a parser.
+  TSParser *typescript_parser = ts_parser_new();
+
+  ts_parser_set_language(typescript_parser, tree_sitter_typescript());
+
+  TSTree *tree =
+      ts_parser_parse_string(typescript_parser, NULL, source_code, strlen(source_code));
+
+  Engine engine;
+  engine_init(&engine, tree, source_code);
+  engine_load_program(&engine, ops, op_count);
+  engine_exec(&engine);
+
+  Match match;
+  TQLValue *bound_value;
+  TSPoint start_point;
+  TSPoint end_point;
+  char buf2[4096];
+
+  while (engine_next_match(&engine, &match)) {
+    bound_value = bindings_get(match.bindings, 1);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
+      printf("class name: %s \n", buf);
+    }
+
+    bound_value = bindings_get(match.bindings, 4);
+    if (bound_value != NULL) {
+      get_ts_node_text(source_code, *bound_value, buf);
+      printf("method name: %s \n", buf);
+    }
+    assert(!ts_node_is_null(match.node));
+    get_ts_node_text(source_code, match.node, buf2);
+    printf("full match: \n%s\n", buf2);
+    printf("\n");
+  }
+  printf("Arena allocation: %zu\n", engine.arena->offset);
+  printf("Boundaries encountered: %u\n", engine.stats.boundaries_encountered);
+  printf("Total branching: %u\n", engine.stats.total_branching);
+  printf("Max branching factor: %u\n", engine.stats.max_branching_factor);
+  printf("Max stack size: %u\n", engine.stats.max_stack_size);
+  printf("Step count: %u\n", engine.stats.step_count);
+
+  fclose(source_fp);
+
   printf("stored %u strings\n", ast->string_pool->string_count);
   // FIXME: This is wrong
   printf("used %u bytes for strings\n",
@@ -158,11 +222,11 @@ int parse_tql(char *filename) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
+  if (argc < 2) {
     fprintf(stderr, "Expected 1 argument\n");
     return EXIT_FAILURE;
   }
 
-  // return parse_tql(argv[1]);
-  return run_demo(argv[1]);
+  return parse_tql(argv[1], argv[2]);
+  // return run_demo(argv[1]);
 }

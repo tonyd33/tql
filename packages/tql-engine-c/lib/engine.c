@@ -6,11 +6,13 @@
 
 struct Binding;
 struct NodeStack;
+struct PCStack;
 struct BoundaryResult;
 struct ContinuationResult;
 
 typedef struct Binding Binding;
 typedef struct NodeStack NodeStack;
+typedef struct PCStack PCStack;
 typedef struct BoundaryResult BoundaryResult;
 typedef struct ContinuationResult ContinuationResult;
 
@@ -31,6 +33,13 @@ struct Bindings {
 struct NodeStack {
   NodeStack *prev;
   TSNode node;
+  // Don't need this if we're arena-allocating this anyway...
+  uint16_t ref_count;
+};
+
+struct PCStack {
+  PCStack *prev;
+  uint32_t pc;
   // Don't need this if we're arena-allocating this anyway...
   uint16_t ref_count;
 };
@@ -117,6 +126,29 @@ bool node_stack_pop(const Engine *engine, NodeStack **stack, TSNode *node) {
 
 void node_stack_free(const Engine *engine, NodeStack *stack) {}
 
+PCStack *pc_stack_push(const Engine *engine, PCStack *stack, uint32_t pc) {
+  PCStack *new_stack = arena_alloc(engine->arena, sizeof(PCStack));
+  new_stack->prev = stack;
+  new_stack->pc = pc;
+  new_stack->ref_count = 1;
+  if (stack != NULL) {
+    stack->ref_count++;
+  }
+  return new_stack;
+}
+
+bool pc_stack_pop(const Engine *engine, PCStack **stack, uint32_t *pc) {
+  if (*stack == NULL) {
+    return false;
+  }
+  *pc = (*stack)->pc;
+  (*stack)->ref_count--;
+  *stack = (*stack)->prev;
+  return true;
+}
+
+void pc_stack_free(const Engine *engine, PCStack *stack) {}
+
 void engine_init(Engine *engine, TSTree *ast, const char *source) {
   engine->ast = ast;
   engine->source = source;
@@ -186,11 +218,20 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
     stats->step_count++;
 
     Op op = engine->ops[cnt->pc++];
-    // printf("pc %u, opcode %d\n", cnt.pc - 1, op.opcode);
+    // char buf[1024];
+    // uint32_t start_byte = ts_node_start_byte(cnt->node);
+    // uint32_t end_byte = ts_node_end_byte(cnt->node);
+    // uint32_t buf_len = end_byte - start_byte;
+    //
+    // strncpy(buf, engine->source + start_byte, buf_len);
+    // buf[buf_len] = '\0';
+    // printf("pc %u, opcode %d, on node %s\n", cnt->pc - 1, op.opcode, buf);
     switch (op.opcode) {
     case OP_NOOP:
       break;
     case OP_BRANCH: {
+      // TODO: Allow the continuation to store the info on the axis so that it
+      // can be continued during axis enumeration
       Axis axis = op.data.axis;
       TSNodes branches;
       TSNodes_init(&branches);
@@ -234,6 +275,13 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
         }
         break;
       }
+      case AXIS_VAR: {
+        TSNode *node = bindings_get(cnt->bindings, axis.data.variable);
+        if (node == NULL) {
+          return (ContinuationResult){.type = EXC_ERR};
+        }
+        TSNodes_append(&branches, *node);
+      } break;
       }
 
       for (uint32_t i = 0; i < branches.len; i++) {
@@ -324,13 +372,28 @@ static ContinuationResult engine_step_continuation(const Engine *engine,
                                                .bindings = cnt->bindings,
                                            }}};
     } break;
-    case OP_PUSHNODE: {
-      cnt->node_stk = node_stack_push(engine, cnt->node_stk, cnt->node);
-      break;
-    }
-    case OP_POPNODE: {
-      if (!node_stack_pop(engine, &cnt->node_stk, &cnt->node)) {
-        return (ContinuationResult){.type = EXC_ERR};
+    case OP_PUSH: {
+      switch (op.data.push_target) {
+      case PUSH_NODE:
+        cnt->node_stk = node_stack_push(engine, cnt->node_stk, cnt->node);
+        break;
+      case PUSH_PC:
+        cnt->pc_stk = pc_stack_push(engine, cnt->pc_stk, cnt->pc);
+        break;
+      }
+    } break;
+    case OP_POP: {
+      switch (op.data.push_target) {
+      case PUSH_NODE:
+        if (!node_stack_pop(engine, &cnt->node_stk, &cnt->node)) {
+          return (ContinuationResult){.type = EXC_ERR};
+        }
+        break;
+      case PUSH_PC:
+        if (!pc_stack_pop(engine, &cnt->pc_stk, &cnt->pc)) {
+          return (ContinuationResult){.type = EXC_ERR};
+        }
+        break;
       }
     } break;
     case OP_JMP: {
@@ -372,6 +435,7 @@ static BoundaryResult engine_step_exc_stack(const Engine *engine,
                               .data = {.boundary = next_call_frame}};
     }
     case EXC_ERR:
+      fprintf(stderr, "Program failed on pc %u\n", cnt->pc);
       assert(false && "Bad program");
     }
     break;

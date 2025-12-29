@@ -34,9 +34,7 @@ typedef struct TQLAssignment TQLAssignment;
 struct TQLCondition;
 typedef struct TQLCondition TQLCondition;
 
-typedef enum TQLExpressionType {
-  TQLEXPRESSION_SELECTOR
-} TQLExpressionType;
+typedef enum TQLExpressionType { TQLEXPRESSION_SELECTOR } TQLExpressionType;
 
 typedef struct TQLExpression {
   TQLExpressionType type;
@@ -53,13 +51,9 @@ typedef struct TQLAssignment {
 typedef enum TQLConditionType {
   TQLCONDITION_TEXTEQ,
   TQLCONDITION_EMPTY,
-  TQLCONDITION_BINARY,
+  TQLCONDITION_AND,
+  TQLCONDITION_OR,
 } TQLConditionType;
-
-typedef enum TQLBinaryConditionType {
-  TQLBINARYCONDITION_OR,
-  TQLBINARYCONDITION_AND,
-} TQLBinaryConditionType;
 
 typedef struct TQLCondition {
   TQLConditionType type;
@@ -74,7 +68,6 @@ typedef struct TQLCondition {
     } empty_condition;
 
     struct {
-      TQLBinaryConditionType combinator;
       TQLCondition *condition_1;
       TQLCondition *condition_2;
     } binary_condition;
@@ -161,7 +154,8 @@ typedef struct TQLAst {
 TQLAst *tql_ast_new(const char *string, size_t length);
 void tql_ast_free(TQLAst *ast);
 
-TQLTree *tql_tree_new(TQLAst *ast, TQLSelector **selectors, uint32_t selector_count);
+TQLTree *tql_tree_new(TQLAst *ast, TQLSelector **selectors,
+                      uint32_t selector_count);
 
 TQLSelector *tql_selector_universal_new(TQLAst *ast);
 TQLSelector *tql_selector_self_new(TQLAst *ast);
@@ -176,7 +170,8 @@ TQLSelector *tql_selector_descendant_new(TQLAst *ast, TQLSelector *parent,
 TQLSelector *tql_selector_block_new(TQLAst *ast, TQLSelector *parent,
                                     TQLStatement **statements,
                                     uint32_t statement_count);
-TQLSelector *tql_selector_varid_new(TQLAst *ast, TQLVariableIdentifier *identifier);
+TQLSelector *tql_selector_varid_new(TQLAst *ast,
+                                    TQLVariableIdentifier *identifier);
 
 TQLStatement *tql_statement_selector_new(TQLAst *ast, TQLSelector *selector);
 TQLStatement *tql_statement_assignment_new(TQLAst *ast,
@@ -186,9 +181,10 @@ TQLStatement *tql_statement_condition_new(TQLAst *ast, TQLCondition *condition);
 TQLCondition *tql_condition_texteq_new(TQLAst *ast, TQLExpression *expression,
                                        TQLString *string);
 TQLCondition *tql_condition_empty_new(TQLAst *ast, TQLExpression *expression);
-TQLCondition *tql_condition_binary_new(TQLAst *ast, TQLCondition *condition_1,
-                                       TQLBinaryConditionType binop,
-                                       TQLCondition *condition_2);
+TQLCondition *tql_condition_and_new(TQLAst *ast, TQLCondition *condition_1,
+                                    TQLCondition *condition_2);
+TQLCondition *tql_condition_or_new(TQLAst *ast, TQLCondition *condition_1,
+                                   TQLCondition *condition_2);
 
 TQLAssignment *tql_assignment_new(TQLAst *ast,
                                   TQLVariableIdentifier *variable_identifier,

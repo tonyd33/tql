@@ -1,6 +1,7 @@
 #ifndef _PROGRAM_H_
 #define _PROGRAM_H_
 
+#include "ds.h"
 #include <tree_sitter/api.h>
 
 typedef uint64_t VarId;
@@ -10,41 +11,17 @@ struct NodeExpression;
 struct Predicate;
 struct Jump;
 struct Probe;
+struct Push;
 struct Op;
-struct AssemblerOp;
-struct ProgramBuilder;
 
-typedef uint64_t FunctionId;
 typedef struct Match Match;
 typedef struct Axis Axis;
 typedef struct NodeExpression NodeExpression;
 typedef struct Predicate Predicate;
 typedef struct Jump Jump;
 typedef struct Probe Probe;
+typedef struct Push Push;
 typedef struct Op Op;
-typedef struct AssemblerOp AssemblerOp;
-typedef struct ProgramBuilder ProgramBuilder;
-
-typedef enum AxisType {
-  AXIS_CHILD,
-  AXIS_DESCENDANT,
-  AXIS_FIELD,
-} AxisType;
-
-typedef enum PredicateType {
-  PREDICATE_TEXTEQ,
-  PREDICATE_TYPEEQ,
-} PredicateType;
-
-typedef enum NodeExpressionType {
-  NODEEXPR_SELF,
-  NODEEXPR_VAR,
-} NodeExpressionType;
-
-typedef enum ProbeMode {
-  PROBE_EXISTS,
-  PROBE_NOTEXISTS,
-} ProbeMode;
 
 typedef enum {
   /* Does nothing. */
@@ -65,16 +42,41 @@ typedef enum {
      or failure to yield will either restore the continuation or drop it, based
      on the probe mode. */
   OP_PROBE,
-  /* Push the current node onto the continuation's local stack. */
-  OP_PUSHNODE,
-  /* Pop the node from the continuation's local stack. */
-  OP_POPNODE,
+  /* Push onto continuation's local stack. */
+  OP_PUSH,
+  /* Pop from continuation's local stack. */
+  OP_POP,
 } Opcode;
+
+typedef enum {
+  NODEEXPR_SELF,
+  NODEEXPR_VAR,
+} NodeExpressionType;
+
+typedef enum {
+  PREDICATE_TEXTEQ,
+  PREDICATE_TYPEEQ,
+} PredicateType;
+
+typedef enum {
+  PROBE_EXISTS,
+  PROBE_NOTEXISTS,
+} ProbeMode;
+
+typedef enum {
+  AXIS_CHILD,
+  AXIS_DESCENDANT,
+  AXIS_FIELD,
+  AXIS_VAR,
+} AxisType;
+
+typedef enum { PUSH_NODE, PUSH_PC } PushTarget;
 
 struct Axis {
   AxisType axis_type;
   union {
     TSFieldId field;
+    VarId variable;
   } data;
 };
 
@@ -121,8 +123,10 @@ struct Op {
     VarId var_id;
     Jump jump;
     Probe probe;
+    PushTarget push_target;
   } data;
 };
+
 
 const Axis axis_field(TSFieldId field_id);
 const Axis axis_child();
@@ -149,19 +153,8 @@ const Op op_halt();
 const Op op_yield();
 const Op op_pushnode();
 const Op op_popnode();
+const Op op_pushpc();
+const Op op_poppc();
 const Op op_jump(Jump jump);
-
-const AssemblerOp asmop_of(Op op);
-const AssemblerOp asmop_jump(FunctionId id);
-const AssemblerOp asmop_probe(FunctionId id, ProbeMode mode);
-const AssemblerOp asmop_end();
-
-void assembler_init(ProgramBuilder *pb);
-void assembler_free(ProgramBuilder *pb);
-
-void assembler_define_function(ProgramBuilder *pb, FunctionId id,
-                               const AssemblerOp *ops);
-
-Op *program_builder_serialize(ProgramBuilder *pb);
 
 #endif /* _PROGRAM_H_ */
