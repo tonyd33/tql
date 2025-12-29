@@ -91,29 +91,11 @@ TQLAssignment *tql_assignment_new(TQLAst *ast,
   return assignment;
 }
 
-TQLExpression *tql_expression_new(TQLAst *ast, TQLSelector *selector) {
+TQLExpression *tql_expression_selector_new(TQLAst *ast, TQLSelector *selector) {
   TQLExpression *expression = arena_alloc(ast->arena, sizeof(TQLExpression));
   *expression = (TQLExpression){.type = TQLEXPRESSION_SELECTOR,
                                 .data = {.selector = selector}};
   return expression;
-}
-
-TQLStatement *tql_statement_condition_new(TQLAst *ast,
-                                          TQLCondition *condition) {
-  TQLStatement *statement = arena_alloc(ast->arena, sizeof(TQLStatement));
-  *statement = (TQLStatement){
-      .type = TQLSTATEMENT_CONDITION,
-      .data = {.condition = condition},
-  };
-  return statement;
-}
-
-TQLSelector *tql_selector_universal_new(TQLAst *ast) {
-  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
-  *selector = (TQLSelector){
-      .type = TQLSELECTOR_UNIVERSAL,
-  };
-  return selector;
 }
 
 TQLSelector *tql_selector_self_new(TQLAst *ast) {
@@ -215,18 +197,30 @@ TQLSelector *tql_selector_varid_new(TQLAst *ast,
   return selector;
 }
 
-TQLTree *tql_tree_new(TQLAst *ast, TQLSelector **selectors,
-                      uint32_t selector_count) {
+TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,
+                      uint16_t function_count, TQLDirective **directives,
+                      uint16_t directive_count) {
   TQLTree *tql_tree = arena_alloc(ast->arena, sizeof(TQLTree));
-  if (selector_count > 0) {
-    tql_tree->selectors =
-        arena_alloc(ast->arena, sizeof(TQLSelector *) * selector_count);
-    memcpy(tql_tree->selectors, selectors,
-           sizeof(TQLSelector *) * selector_count);
-    tql_tree->selector_count = selector_count;
+  if (function_count > 0) {
+    tql_tree->functions =
+        arena_alloc(ast->arena, sizeof(TQLFunction *) * function_count);
+    memcpy(tql_tree->functions, functions,
+           sizeof(TQLFunction *) * function_count);
+    tql_tree->function_count = function_count;
   } else {
-    tql_tree->selectors = NULL;
-    tql_tree->selector_count = 0;
+    tql_tree->functions = NULL;
+    tql_tree->function_count = 0;
+  }
+
+  if (directive_count > 0) {
+    tql_tree->directives =
+        arena_alloc(ast->arena, sizeof(TQLDirective *) * directive_count);
+    memcpy(tql_tree->directives, directives,
+           sizeof(TQLDirective *) * directive_count);
+    tql_tree->directive_count = directive_count;
+  } else {
+    tql_tree->directives = NULL;
+    tql_tree->directive_count = 0;
   }
   return tql_tree;
 }
@@ -262,32 +256,4 @@ void tql_ast_free(TQLAst *ast) {
     ast->arena = NULL;
   }
   free(ast);
-}
-
-TQLCondition *tql_condition_empty_new(TQLAst *ast, TQLExpression *expression) {
-  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
-  *condition =
-      (TQLCondition){.type = TQLCONDITION_EMPTY,
-                     .data = {.empty_condition = {.expression = expression}}};
-  return condition;
-}
-
-TQLCondition *tql_condition_texteq_new(TQLAst *ast, TQLExpression *expression,
-                                       TQLString *string) {
-  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
-  *condition =
-      (TQLCondition){.type = TQLCONDITION_TEXTEQ,
-                     .data = {.text_eq_condition = {.expression = expression,
-                                                    .string = string}}};
-  return condition;
-}
-
-TQLCondition *tql_condition_and_new(TQLAst *ast, TQLCondition *condition_1,
-                                    TQLCondition *condition_2) {
-  TQLCondition *condition = arena_alloc(ast->arena, sizeof(TQLCondition));
-  *condition = (TQLCondition){
-      .type = TQLCONDITION_AND,
-      .data = {.binary_condition = {.condition_1 = condition_1,
-                                    .condition_2 = condition_2}}};
-  return condition;
 }

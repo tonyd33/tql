@@ -1,29 +1,124 @@
 [
   {
-    "type": "and_condition",
+    "type": "and_selector",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "and_condition",
-          "named": true
-        },
-        {
-          "type": "empty_condition",
-          "named": true
-        },
-        {
-          "type": "or_condition",
-          "named": true
-        },
-        {
-          "type": "text_eq_condition",
-          "named": true
-        }
-      ]
+    "fields": {
+      "left": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "(",
+            "named": false
+          },
+          {
+            "type": ")",
+            "named": false
+          },
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "(",
+            "named": false
+          },
+          {
+            "type": ")",
+            "named": false
+          },
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -58,6 +153,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -74,15 +173,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -97,10 +204,6 @@
         "types": [
           {
             "type": "assignment",
-            "named": true
-          },
-          {
-            "type": "condition",
             "named": true
           },
           {
@@ -128,6 +231,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -144,15 +251,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -174,6 +289,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -190,15 +309,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -207,33 +334,6 @@
           }
         ]
       }
-    }
-  },
-  {
-    "type": "condition",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "and_condition",
-          "named": true
-        },
-        {
-          "type": "empty_condition",
-          "named": true
-        },
-        {
-          "type": "or_condition",
-          "named": true
-        },
-        {
-          "type": "text_eq_condition",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -253,6 +353,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -269,15 +373,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -299,6 +411,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -315,15 +431,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -335,7 +459,7 @@
     }
   },
   {
-    "type": "empty_condition",
+    "type": "directive",
     "named": true,
     "fields": {},
     "children": {
@@ -343,7 +467,11 @@
       "required": true,
       "types": [
         {
-          "type": "selector",
+          "type": "include_directive",
+          "named": true
+        },
+        {
+          "type": "target_lang_directive",
           "named": true
         }
       ]
@@ -359,6 +487,10 @@
         "types": [
           {
             "type": "selector",
+            "named": true
+          },
+          {
+            "type": "string_literal",
             "named": true
           }
         ]
@@ -402,6 +534,10 @@
             "named": false
           },
           {
+            "type": "and_selector",
+            "named": true
+          },
+          {
             "type": "block_selector",
             "named": true
           },
@@ -418,15 +554,23 @@
             "named": true
           },
           {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
             "type": "node_type_selector",
             "named": true
           },
           {
-            "type": "self_selector",
+            "type": "or_selector",
             "named": true
           },
           {
-            "type": "universal_selector",
+            "type": "self_selector",
             "named": true
           },
           {
@@ -435,6 +579,146 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "function_definition",
+    "named": true,
+    "fields": {
+      "identifier": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameters": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      },
+      "statement": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "assignment",
+            "named": true
+          },
+          {
+            "type": "selector",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "function_invocation",
+    "named": true,
+    "fields": {
+      "identifier": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameters": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "selector",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "include_directive",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "negate_selector",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "and_selector",
+          "named": true
+        },
+        {
+          "type": "block_selector",
+          "named": true
+        },
+        {
+          "type": "child_selector",
+          "named": true
+        },
+        {
+          "type": "descendant_selector",
+          "named": true
+        },
+        {
+          "type": "field_name_selector",
+          "named": true
+        },
+        {
+          "type": "function_invocation",
+          "named": true
+        },
+        {
+          "type": "negate_selector",
+          "named": true
+        },
+        {
+          "type": "node_type_selector",
+          "named": true
+        },
+        {
+          "type": "or_selector",
+          "named": true
+        },
+        {
+          "type": "self_selector",
+          "named": true
+        },
+        {
+          "type": "variable_identifier",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -453,30 +737,125 @@
     }
   },
   {
-    "type": "or_condition",
+    "type": "or_selector",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "and_condition",
-          "named": true
-        },
-        {
-          "type": "empty_condition",
-          "named": true
-        },
-        {
-          "type": "or_condition",
-          "named": true
-        },
-        {
-          "type": "text_eq_condition",
-          "named": true
-        }
-      ]
+    "fields": {
+      "left": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "(",
+            "named": false
+          },
+          {
+            "type": ")",
+            "named": false
+          },
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "(",
+            "named": false
+          },
+          {
+            "type": ")",
+            "named": false
+          },
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -487,6 +866,10 @@
       "multiple": false,
       "required": true,
       "types": [
+        {
+          "type": "and_selector",
+          "named": true
+        },
         {
           "type": "block_selector",
           "named": true
@@ -504,15 +887,23 @@
           "named": true
         },
         {
+          "type": "function_invocation",
+          "named": true
+        },
+        {
+          "type": "negate_selector",
+          "named": true
+        },
+        {
           "type": "node_type_selector",
           "named": true
         },
         {
-          "type": "self_selector",
+          "type": "or_selector",
           "named": true
         },
         {
-          "type": "universal_selector",
+          "type": "self_selector",
           "named": true
         },
         {
@@ -532,35 +923,11 @@
       "required": false,
       "types": [
         {
-          "type": "block_selector",
+          "type": "directive",
           "named": true
         },
         {
-          "type": "child_selector",
-          "named": true
-        },
-        {
-          "type": "descendant_selector",
-          "named": true
-        },
-        {
-          "type": "field_name_selector",
-          "named": true
-        },
-        {
-          "type": "node_type_selector",
-          "named": true
-        },
-        {
-          "type": "self_selector",
-          "named": true
-        },
-        {
-          "type": "universal_selector",
-          "named": true
-        },
-        {
-          "type": "variable_identifier",
+          "type": "function_definition",
           "named": true
         }
       ]
@@ -587,17 +954,13 @@
     }
   },
   {
-    "type": "text_eq_condition",
+    "type": "target_lang_directive",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
-        {
-          "type": "selector",
-          "named": true
-        },
         {
           "type": "string_literal",
           "named": true
@@ -625,6 +988,10 @@
     "named": false
   },
   {
+    "type": "#",
+    "named": false
+  },
+  {
     "type": "&&",
     "named": false
   },
@@ -641,6 +1008,10 @@
     "named": false
   },
   {
+    "type": ",",
+    "named": false
+  },
+  {
     "type": ".",
     "named": false
   },
@@ -650,10 +1021,6 @@
   },
   {
     "type": "<-",
-    "named": false
-  },
-  {
-    "type": "=",
     "named": false
   },
   {
@@ -678,8 +1045,20 @@
     "named": true
   },
   {
+    "type": "fn",
+    "named": false
+  },
+  {
     "type": "identifier",
     "named": true
+  },
+  {
+    "type": "import",
+    "named": false
+  },
+  {
+    "type": "language",
+    "named": false
   },
   {
     "type": "node_type",
@@ -691,10 +1070,6 @@
   },
   {
     "type": "string_fragment",
-    "named": true
-  },
-  {
-    "type": "universal_selector",
     "named": true
   },
   {

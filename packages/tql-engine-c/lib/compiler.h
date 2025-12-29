@@ -13,6 +13,7 @@ typedef struct SymbolEntry SymbolEntry;
 
 typedef enum SymbolType {
   SYMBOL_VARIABLE,
+  SYMBOL_FUNCTION,
 } SymbolType;
 
 struct SymbolEntry {

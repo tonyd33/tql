@@ -2,16 +2,22 @@
 explicit
 ========================================
 
-class_declaration { @class <- % }
+fn main() {
+  class_declaration { @class <- * }
+}
 
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (block_selector
-    (assignment
-      (explicit_assignment
-        (variable_identifier
-          (identifier))
-        (self_selector)))))
+  (function_definition
+    (identifier)
+    (selector
+      (block_selector
+        (node_type_selector
+          (node_type))
+        (assignment
+          (explicit_assignment
+            (variable_identifier
+              (identifier))
+            (selector
+              (self_selector))))))))

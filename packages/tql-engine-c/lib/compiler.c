@@ -10,8 +10,6 @@ static inline void compile_tql_statement(Compiler *compiler,
                                          TQLStatement *statement, AsmOps *out);
 static inline void compile_tql_expression(Compiler *compiler,
                                           TQLExpression *expr, AsmOps *out);
-static inline void compile_tql_condition(Compiler *compiler,
-                                         TQLCondition *condition, AsmOps *out);
 
 static inline SymbolId compiler_request_symbol(Compiler *compiler) {
   return compiler->next_symbol_id++;
@@ -34,6 +32,23 @@ static inline SymbolId compiler_symbol_for_variable(Compiler *compiler,
   return new_symbol;
 }
 
+static inline SymbolId compiler_symbol_for_function(Compiler *compiler,
+                                                    const char *string) {
+  for (int i = 0; i < compiler->symbol_table.len; i++) {
+    SymbolEntry entry = compiler->symbol_table.data[i];
+    if (entry.type == SYMBOL_FUNCTION &&
+        strcmp(string, entry.data.string) == 0) {
+      return entry.id;
+    }
+  }
+
+  SymbolId new_symbol = compiler_request_symbol(compiler);
+  SymbolEntry new_entry = {
+      .id = new_symbol, .type = SYMBOL_FUNCTION, .data = {.string = string}};
+  SymbolTable_append(&compiler->symbol_table, new_entry);
+  return new_symbol;
+}
+
 void compiler_init(Compiler *compiler, const TSLanguage *language) {
   assembler_init(&compiler->asmb, language);
   SymbolTable_init(&compiler->symbol_table);
@@ -50,55 +65,64 @@ static inline void compile_tql_expression(Compiler *compiler,
   case TQLEXPRESSION_SELECTOR:
     compile_tql_selector(compiler, expr->data.selector, out);
     break;
-  }
-}
-
-static inline void compile_tql_condition(Compiler *compiler,
-                                         TQLCondition *condition, AsmOps *out) {
-  switch (condition->type) {
-  case TQLCONDITION_TEXTEQ: {
-    AsmOps_append(out, asmop_pushnode(&compiler->asmb));
-    compile_tql_expression(compiler, condition->data.empty_condition.expression,
-                           out);
-    AsmOps_append(
-        out,
-        asmop_if(
-            &compiler->asmb,
-            (AsmPredicate){
-                .predicate_type = PREDICATE_TEXTEQ,
-                .data = {.texteq = {.node_expression = node_expression_self(),
-                                    .text = condition->data.text_eq_condition
-                                                .string->string}}}));
-    AsmOps_append(out, asmop_popnode(&compiler->asmb));
-
-  } break;
-  case TQLCONDITION_EMPTY: {
-    SymbolId fid = compiler_request_symbol(compiler);
-
-    AsmOps inner;
-    AsmOps_init(&inner);
-    compile_tql_expression(compiler, condition->data.empty_condition.expression,
-                           &inner);
-    AsmOps_append(&inner, asmop_yield(&compiler->asmb));
-    AsmOps_append(&inner, asmop_halt(&compiler->asmb));
-    assembler_register_function(&compiler->asmb, fid, inner.data, inner.len);
-    AsmOps_free(&inner);
-
-    AsmOps_append(out, asmop_probe(&compiler->asmb, (AsmProbe){
-                                                        .mode = PROBE_NOTEXISTS,
-                                                        .jump = {.symbol = fid},
-                                                    }));
-  } break;
-  case TQLCONDITION_AND: {
-    compile_tql_condition(compiler,
-                          condition->data.binary_condition.condition_1, out);
-    compile_tql_condition(compiler,
-                          condition->data.binary_condition.condition_2, out);
-  } break;
-  case TQLCONDITION_OR:
+  case TQLEXPRESSION_STRING:
+    assert(false && "Not implemented");
     break;
   }
 }
+
+// static inline void compile_tql_condition(Compiler *compiler,
+//                                          TQLCondition *condition, AsmOps
+//                                          *out) {
+//   switch (condition->type) {
+//   case TQLCONDITION_TEXTEQ: {
+//     AsmOps_append(out, asmop_pushnode(&compiler->asmb));
+//     compile_tql_expression(compiler,
+//     condition->data.empty_condition.expression,
+//                            out);
+//     AsmOps_append(
+//         out,
+//         asmop_if(
+//             &compiler->asmb,
+//             (AsmPredicate){
+//                 .predicate_type = PREDICATE_TEXTEQ,
+//                 .data = {.texteq = {.node_expression =
+//                 node_expression_self(),
+//                                     .text = condition->data.text_eq_condition
+//                                                 .string->string}}}));
+//     AsmOps_append(out, asmop_popnode(&compiler->asmb));
+//
+//   } break;
+//   case TQLCONDITION_EMPTY: {
+//     SymbolId fid = compiler_request_symbol(compiler);
+//
+//     AsmOps inner;
+//     AsmOps_init(&inner);
+//     compile_tql_expression(compiler,
+//     condition->data.empty_condition.expression,
+//                            &inner);
+//     AsmOps_append(&inner, asmop_yield(&compiler->asmb));
+//     AsmOps_append(&inner, asmop_halt(&compiler->asmb));
+//     assembler_register_function(&compiler->asmb, fid, inner.data, inner.len);
+//     AsmOps_free(&inner);
+//
+//     AsmOps_append(out, asmop_probe(&compiler->asmb, (AsmProbe){
+//                                                         .mode =
+//                                                         PROBE_NOTEXISTS,
+//                                                         .jump = {.symbol =
+//                                                         fid},
+//                                                     }));
+//   } break;
+//   case TQLCONDITION_AND: {
+//     compile_tql_condition(compiler,
+//                           condition->data.binary_condition.condition_1, out);
+//     compile_tql_condition(compiler,
+//                           condition->data.binary_condition.condition_2, out);
+//   } break;
+//   case TQLCONDITION_OR:
+//     break;
+//   }
+// }
 
 static inline void compile_tql_statement(Compiler *compiler,
                                          TQLStatement *statement, AsmOps *out) {
@@ -117,9 +141,6 @@ static inline void compile_tql_statement(Compiler *compiler,
     AsmOps_append(out, asmop_bind(&compiler->asmb, aid));
     AsmOps_append(out, asmop_popnode(&compiler->asmb));
   } break;
-  case TQLSTATEMENT_CONDITION: {
-    compile_tql_condition(compiler, statement->data.condition, out);
-  } break;
   }
 }
 
@@ -127,9 +148,6 @@ static inline void compile_tql_selector(Compiler *compiler,
                                         TQLSelector *selector, AsmOps *out) {
   switch (selector->type) {
   case TQLSELECTOR_SELF:
-    break;
-  case TQLSELECTOR_UNIVERSAL:
-    assert(false && "Not implemented");
     break;
   case TQLSELECTOR_NODETYPE:
     AsmOps_append(
@@ -198,6 +216,12 @@ static inline void compile_tql_selector(Compiler *compiler,
                                                 .data = {.variable = sid}}));
     break;
   }
+  case TQLSELECTOR_FUNINV:
+  case TQLSELECTOR_NEGATE:
+  case TQLSELECTOR_AND:
+  case TQLSELECTOR_OR:
+    assert(false && "Not implemented");
+    break;
   }
 }
 
@@ -281,18 +305,28 @@ static inline void op_name(const Compiler *compiler, Op op) {
   }
 }
 
-Op *compile_tql_tree(Compiler *compiler, const TQLTree *tree,
-                     uint32_t *op_count) {
+void compile_tql_function(Compiler *compiler, TQLFunction *function) {
   AsmOps ops;
   AsmOps_init(&ops);
-  SymbolId main_id = compiler_request_symbol(compiler);
-
-  for (int i = 0; i < tree->selector_count; i++) {
-    compile_tql_selector(compiler, tree->selectors[i], &ops);
+  for (int i = 0; i < function->statement_count; i++) {
+    compile_tql_statement(compiler, function->statements[i], &ops);
   }
   AsmOps_append(&ops, asmop_yield(&compiler->asmb));
   AsmOps_append(&ops, asmop_halt(&compiler->asmb));
-  assembler_register_function(&compiler->asmb, main_id, ops.data, ops.len);
+
+  assembler_register_function(
+      &compiler->asmb,
+      compiler_symbol_for_function(compiler, function->identifier->string),
+      ops.data, ops.len);
+  AsmOps_free(&ops);
+}
+
+Op *compile_tql_tree(Compiler *compiler, const TQLTree *tree,
+                     uint32_t *op_count) {
+  for (int i = 0; i < tree->function_count; i++) {
+    compile_tql_function(compiler, tree->functions[i]);
+  }
+  SymbolId main_id = compiler_symbol_for_function(compiler, "main");
 
   Op *out = assembler_serialize(&compiler->asmb, main_id, op_count);
   for (int i = 0; i < *op_count; i++) {
@@ -301,7 +335,6 @@ Op *compile_tql_tree(Compiler *compiler, const TQLTree *tree,
     printf("\n");
   }
 
-  AsmOps_free(&ops);
   return out;
 }
 
