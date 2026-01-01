@@ -7,8 +7,7 @@
 
 TQLString *tql_string_new(TQLAst *ast, const char *string, uint32_t length) {
   TQLString *tql_string = arena_alloc(ast->arena, sizeof(TQLString));
-  tql_string->string = string_intern(ast->string_interner, string, length);
-  assert(tql_string->string != NULL);
+  *tql_string = string_intern(ast->string_interner, string, length);
   tql_string->length = length;
   return tql_string;
 }
@@ -283,7 +282,8 @@ void tql_ast_free(TQLAst *ast) {
 TQLFunction *tql_lookup_function(TQLAst *ast, const char *string,
                                  uint32_t length) {
   for (int i = 0; i < ast->tree->function_count; i++) {
-    if (strcmp(ast->tree->functions[i]->identifier->string, string) == 0) {
+    if (string_slice_eq(*ast->tree->functions[i]->identifier,
+                        (StringSlice){string, length})) {
       return ast->tree->functions[i];
     }
   }

@@ -101,10 +101,14 @@ static inline size_t dyn_array_next_cap(size_t cap) {
 
 DA_DEFINE(char, String, string)
 typedef struct {
-  uint32_t length;
   const char *buf;
+  uint32_t length;
 } StringSlice;
 DA_DEFINE(StringSlice, StringSlices, string_slices)
+
+static inline bool string_slice_eq(StringSlice a, StringSlice b) {
+  return a.length == b.length && strncmp(a.buf, b.buf, a.length) == 0;
+}
 
 typedef struct {
   StringSlices slices;
@@ -122,25 +126,27 @@ static inline StringInterner *string_interner_new(uint32_t cap) {
   return string_interner;
 }
 
-static inline char *string_intern(StringInterner *string_pool,
-                                  const char *string, uint32_t length) {
-  char *s = string_pool->pool;
-  for (int i = 0; i < string_pool->slices.len; i++) {
-    StringSlice slice = string_pool->slices.data[i];
+static inline StringSlice string_intern(StringInterner *string_interner,
+                                        const char *string, uint32_t length) {
+  char *s = string_interner->pool;
+  for (int i = 0; i < string_interner->slices.len; i++) {
+    StringSlice slice = string_interner->slices.data[i];
     if (slice.length == length && strncmp(s, string, length) == 0) {
-      return s;
+      return slice;
     }
     s += slice.length + 1;
+    assert(s - string_interner->pool < string_interner->pool_capacity);
   }
 
   strncpy(s, string, length);
   s[length] = '\0';
 
-  string_slices_append(&string_pool->slices, (StringSlice){
-                                                 .length = length,
-                                                 .buf = s,
-                                             });
-  return s;
+  StringSlice slice = {
+      .buf = s,
+      .length = length,
+  };
+  string_slices_append(&string_interner->slices, slice);
+  return slice;
 }
 
 static inline void string_interner_free(StringInterner *string_interner) {

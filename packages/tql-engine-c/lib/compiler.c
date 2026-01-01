@@ -5,47 +5,6 @@
 
 DA_DEFINE(Op, Ops, ops)
 
-// tree sitter languages {{{
-const TSLanguage *tree_sitter_bash(void);
-const TSLanguage *tree_sitter_c(void);
-const TSLanguage *tree_sitter_cpp(void);
-const TSLanguage *tree_sitter_haskell(void);
-const TSLanguage *tree_sitter_python(void);
-const TSLanguage *tree_sitter_typescript(void);
-
-typedef struct {
-  const char *name;
-  const TSLanguage *(*get)(void);
-} LanguageEntry;
-
-static LanguageEntry LANGUAGE_ENTRIES[] = {
-    {
-        "bash",
-        tree_sitter_bash,
-    },
-    {
-        "c",
-        tree_sitter_c,
-    },
-    {
-        "cpp",
-        tree_sitter_cpp,
-    },
-    {
-        "haskell",
-        tree_sitter_haskell,
-    },
-    {
-        "python",
-        tree_sitter_python,
-    },
-    {
-        "typescript",
-        tree_sitter_typescript,
-    },
-};
-// }}}
-
 // asm ops {{{
 typedef uint64_t Symbol;
 
@@ -270,8 +229,8 @@ static inline const TSLanguage *get_ast_target(TQLAst *ast) {
   for (int i = 0; i < ast->tree->directive_count; i++) {
     TQLDirective directive = *ast->tree->directives[i];
     if (directive.type == TQLDIRECTIVE_TARGET) {
-      return ts_language_for_name(directive.data.target->string,
-                                  strlen(directive.data.target->string));
+      return ts_language_for_name(directive.data.target->buf,
+                                  directive.data.target->length);
       assert(false && "Unknown language");
     }
   }
@@ -329,7 +288,7 @@ static inline void compile_tql_statement(Compiler *compiler,
   } break;
   case TQLSTATEMENT_ASSIGNMENT: {
     Symbol aid = compiler_symbol_for_variable(
-        compiler, statement->data.assignment->variable_identifier->string);
+        compiler, statement->data.assignment->variable_identifier->buf);
     compile_tql_expression(compiler, statement->data.assignment->expression,
                            out);
     ir_instrs_append(out, ir_bind(aid));
@@ -340,7 +299,7 @@ static inline void compile_tql_statement(Compiler *compiler,
 static inline void compile_tql_function_invocation(
     Compiler *compiler, TQLFunctionIdentifier *identifier,
     TQLExpression **exprs, uint16_t expr_count, IrInstrs *out) {
-  if (strcmp(identifier->string, "exists") == 0) {
+  if (strcmp(identifier->buf, "exists") == 0) {
     assert(expr_count == 1);
     assert(exprs[0]->type == TQLEXPRESSION_SELECTOR);
 
@@ -353,7 +312,7 @@ static inline void compile_tql_function_invocation(
     ir_instrs_deinit(&inner);
 
     ir_instrs_append(out, ir_probe(ir_probe_exists(sid)));
-  } else if (strcmp(identifier->string, "text_eq") == 0) {
+  } else if (strcmp(identifier->buf, "text_eq") == 0) {
     assert(expr_count == 2);
     assert(exprs[0]->type == TQLEXPRESSION_SELECTOR);
     assert(exprs[1]->type == TQLEXPRESSION_STRING);
@@ -365,20 +324,20 @@ static inline void compile_tql_function_invocation(
                          .predicate_type = PREDICATE_TEXTEQ,
                          .data = {.texteq = {
                                       .node_expression = node_expression_self(),
-                                      .text = exprs[1]->data.string->string,
+                                      .text = exprs[1]->data.string->buf,
                                   }}}));
     ir_instrs_append(out, ir_popnode());
   } else {
     // FIXME: We need to make the argument lazy!
     // FIXME: And we have to NOT pollute the outer binding scope!
     // FIXME: And we have to bind strings correctly
-    TQLFunction *function = tql_lookup_function(
-        compiler->ast, identifier->string, identifier->length);
+    TQLFunction *function =
+        tql_lookup_function(compiler->ast, identifier->buf, identifier->length);
     assert(function != NULL);
     assert(function->parameter_count == expr_count);
     for (int i = 0; i < expr_count; i++) {
-      Symbol aid = compiler_symbol_for_variable(
-          compiler, function->parameters[i]->string);
+      Symbol aid =
+          compiler_symbol_for_variable(compiler, function->parameters[i]->buf);
       ir_instrs_append(out, ir_pushnode());
       compile_tql_expression(compiler, exprs[i], out);
       ir_instrs_append(out, ir_bind(aid));
@@ -386,7 +345,7 @@ static inline void compile_tql_function_invocation(
     }
 
     ir_instrs_append(out, ir_call(compiler_symbol_for_function(
-                              compiler, function->identifier->string)));
+                              compiler, function->identifier->buf)));
   }
 }
 
@@ -398,16 +357,15 @@ static inline void compile_tql_selector(Compiler *compiler,
   case TQLSELECTOR_NODETYPE:
     ir_instrs_append(out, ir_if(ir_predicate_typeeq(
                               node_expression_self(),
-                              selector->data.node_type_selector->string)));
+                              selector->data.node_type_selector->buf)));
     break;
   case TQLSELECTOR_FIELDNAME:
     if (selector->data.field_name_selector.parent != NULL) {
       compile_tql_selector(compiler, selector->data.field_name_selector.parent,
                            out);
     }
-    ir_instrs_append(out,
-                     ir_branch(ir_axis_field(
-                         selector->data.field_name_selector.field->string)));
+    ir_instrs_append(out, ir_branch(ir_axis_field(
+                              selector->data.field_name_selector.field->buf)));
     break;
   case TQLSELECTOR_CHILD:
     if (selector->data.child_selector.parent != NULL) {
@@ -439,7 +397,7 @@ static inline void compile_tql_selector(Compiler *compiler,
   case TQLSELECTOR_VARID: {
     ir_instrs_append(out,
                      ir_branch(ir_axis_var(
-                         selector->data.variable_identifier_selector->string)));
+                         selector->data.variable_identifier_selector->buf)));
     break;
   }
   case TQLSELECTOR_FUNINV:
@@ -582,8 +540,7 @@ void compile_tql_function(Compiler *compiler, TQLFunction *function) {
 
   compiler_section_insert(
       compiler,
-      compiler_symbol_for_function(compiler, function->identifier->string),
-      &ops);
+      compiler_symbol_for_function(compiler, function->identifier->buf), &ops);
   ir_instrs_deinit(&ops);
 }
 

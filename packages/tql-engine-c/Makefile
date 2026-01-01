@@ -1,6 +1,6 @@
 CC ?= clang
 # TODO: Expose the API and use the API instead of using from lib directly
-CFLAGS += -std=c11 -Wall -Wpedantic -Wimplicit-fallthrough -Werror -Ilib -fPIC -g
+CFLAGS += -std=c11 -Wall -Wpedantic -Wimplicit-fallthrough -Werror -fPIC -g
 CFLAGS += -Wno-unused-variable -Wno-unused-function -Wno-strict-prototypes
 CFLAGS += -fsanitize=address
 LDFLAGS += -ltree-sitter
@@ -53,7 +53,7 @@ libtql.$(SOEXT): $(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -shared $^ $(LDLIBS) -o $@
 
 tql-cli: $(OBJS) cli/main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) -Ilib $(LDFLAGS) $^ -o $@
 
 $(TQL_OBJS): $(HEADERS)
 

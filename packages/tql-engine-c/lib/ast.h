@@ -4,13 +4,11 @@
 #include "arena.h"
 #include "ds.h"
 
-// FIXME: This is so horribly storage-inefficient... each AST node is ~16-24
-// bytes!
+typedef StringSlice TQLString;
 
 struct TQLAst;
 struct TQLTree;
 struct TQLFunction;
-struct TQLString;
 struct TQLSelector;
 struct TQLPureSelector;
 struct TQLExpression;
@@ -24,7 +22,6 @@ struct TQLFunctionInvocation;
 typedef struct TQLAst TQLAst;
 typedef struct TQLTree TQLTree;
 typedef struct TQLFunction TQLFunction;
-typedef struct TQLString TQLString;
 typedef struct TQLSelector TQLSelector;
 typedef struct TQLPureSelector TQLPureSelector;
 typedef struct TQLExpression TQLExpression;
@@ -61,11 +58,6 @@ typedef enum TQLSelectorType {
   TQLSELECTOR_AND,
   TQLSELECTOR_OR,
 } TQLSelectorType;
-
-struct TQLString {
-  const char *string;
-  size_t length;
-};
 
 struct TQLExpression {
   TQLExpressionType type;
