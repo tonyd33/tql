@@ -7,100 +7,88 @@
 // FIXME: This is so horribly storage-inefficient... each AST node is ~16-24
 // bytes!
 
-typedef struct TQLString {
-  const char *string;
-  size_t length;
-} TQLString;
-typedef TQLString TQLVariableIdentifier;
-
-struct StringPool;
-typedef struct StringPool StringPool;
-
+struct TQLAst;
+struct TQLTree;
+struct TQLFunction;
+struct TQLString;
 struct TQLSelector;
-typedef struct TQLSelector TQLSelector;
-
 struct TQLPureSelector;
-typedef struct TQLPureSelector TQLPureSelector;
-
 struct TQLExpression;
-typedef struct TQLExpression TQLExpression;
-
 struct TQLQuery;
-typedef struct TQLQuery TQLQuery;
-
 struct TQLAssignment;
+struct TQLStatement;
+struct TQLDirective;
+struct TQLParameter;
+struct TQLFunctionInvocation;
+
+typedef struct TQLAst TQLAst;
+typedef struct TQLTree TQLTree;
+typedef struct TQLFunction TQLFunction;
+typedef struct TQLString TQLString;
+typedef struct TQLSelector TQLSelector;
+typedef struct TQLPureSelector TQLPureSelector;
+typedef struct TQLExpression TQLExpression;
+typedef struct TQLQuery TQLQuery;
 typedef struct TQLAssignment TQLAssignment;
+typedef struct TQLStatement TQLStatement;
+typedef struct TQLDirective TQLDirective;
+typedef struct TQLParameter TQLParameter;
+typedef struct TQLFunctionInvocation TQLFunctionInvocation;
 
-struct TQLCondition;
-typedef struct TQLCondition TQLCondition;
+typedef TQLString TQLVariableIdentifier;
+typedef TQLString TQLFunctionIdentifier;
 
-typedef enum TQLExpressionType { TQLEXPRESSION_SELECTOR } TQLExpressionType;
-
-typedef struct TQLExpression {
-  TQLExpressionType type;
-  union {
-    TQLSelector *selector;
-  } data;
-} TQLExpression;
-
-typedef struct TQLAssignment {
-  TQLVariableIdentifier *variable_identifier;
-  TQLExpression *expression;
-} TQLAssignment;
-
-typedef enum TQLConditionType {
-  TQLCONDITION_TEXTEQ,
-  TQLCONDITION_EMPTY,
-  TQLCONDITION_AND,
-  TQLCONDITION_OR,
-} TQLConditionType;
-
-typedef struct TQLCondition {
-  TQLConditionType type;
-  union {
-    struct {
-      TQLExpression *expression;
-      TQLString *string;
-    } text_eq_condition;
-
-    struct {
-      TQLExpression *expression;
-    } empty_condition;
-
-    struct {
-      TQLCondition *condition_1;
-      TQLCondition *condition_2;
-    } binary_condition;
-  } data;
-} TQLCondition;
+typedef enum TQLExpressionType {
+  TQLEXPRESSION_SELECTOR,
+  TQLEXPRESSION_STRING
+} TQLExpressionType;
 
 typedef enum TQLStatementType {
   TQLSTATEMENT_SELECTOR,
   TQLSTATEMENT_ASSIGNMENT,
-  TQLSTATEMENT_CONDITION,
 } TQLStatementType;
-
-typedef struct TQLStatement {
-  TQLStatementType type;
-  union {
-    TQLSelector *selector;
-    TQLAssignment *assignment;
-    TQLCondition *condition;
-  } data;
-} TQLStatement;
 
 typedef enum TQLSelectorType {
   TQLSELECTOR_SELF,
-  TQLSELECTOR_UNIVERSAL,
   TQLSELECTOR_NODETYPE,
   TQLSELECTOR_FIELDNAME,
   TQLSELECTOR_CHILD,
   TQLSELECTOR_DESCENDANT,
   TQLSELECTOR_BLOCK,
   TQLSELECTOR_VARID,
+  TQLSELECTOR_FUNINV,
+  TQLSELECTOR_NEGATE,
+  TQLSELECTOR_AND,
+  TQLSELECTOR_OR,
 } TQLSelectorType;
 
-typedef struct TQLSelector {
+struct TQLString {
+  const char *string;
+  size_t length;
+};
+
+struct TQLExpression {
+  TQLExpressionType type;
+  union {
+    TQLSelector *selector;
+    TQLString *string;
+  } data;
+};
+
+struct TQLAssignment {
+  TQLVariableIdentifier *variable_identifier;
+  TQLExpression *expression;
+};
+
+struct TQLStatement {
+  TQLStatementType type;
+  union {
+    TQLSelector *selector;
+    TQLAssignment *assignment;
+  } data;
+};
+
+struct TQLSelector {
   TQLSelectorType type;
   union {
     TQLVariableIdentifier *node_type_selector;
@@ -123,41 +111,80 @@ typedef struct TQLSelector {
     struct {
       TQLSelector *parent;
       TQLStatement **statements;
-      uint32_t statement_count;
+      uint16_t statement_count;
     } block_selector;
 
     TQLVariableIdentifier *variable_identifier_selector;
+
+    struct {
+      TQLFunctionIdentifier *identifier;
+      TQLExpression **exprs;
+      uint16_t expr_count;
+    } function_invocation_selector;
+
+    TQLSelector *negate_selector;
+
+    struct {
+      TQLSelector *left;
+      TQLSelector *right;
+    } or_selector;
+
+    struct {
+      TQLSelector *left;
+      TQLSelector *right;
+    } and_selector;
   } data;
-} TQLSelector;
+};
 
-typedef struct TQLTree {
-  TQLSelector **selectors;
-  uint16_t selector_count;
-} TQLTree;
+struct TQLDirective {
+  enum {
+    TQLDIRECTIVE_TARGET,
+    TQLDIRECTIVE_INCLUDE,
+  } type;
+  union {
+    TQLString *target;
+    TQLString *import;
+  } data;
+};
 
-typedef struct StringPool {
-  uint32_t string_count;
-  uint32_t string_capacity;
-  uint32_t pool_capacity;
-  uint32_t *offsets;
-  char *strings;
-} StringPool;
+struct TQLTree {
+  TQLFunction **functions;
+  uint16_t function_count;
+  TQLDirective **directives;
+  uint16_t directive_count;
+};
 
-typedef struct TQLAst {
+struct TQLAst {
   Arena *arena;
-  StringPool *string_pool;
+  StringInterner *string_interner;
   TQLTree *tree;
   char *source;
   size_t source_length;
-} TQLAst;
+};
+
+struct TQLFunction {
+  TQLFunctionIdentifier *identifier;
+  TQLVariableIdentifier **parameters;
+  uint16_t parameter_count;
+  TQLStatement **statements;
+  uint16_t statement_count;
+};
 
 TQLAst *tql_ast_new(const char *string, size_t length);
 void tql_ast_free(TQLAst *ast);
 
-TQLTree *tql_tree_new(TQLAst *ast, TQLSelector **selectors,
-                      uint32_t selector_count);
+TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,
+                      uint16_t function_count, TQLDirective **directives,
+                      uint16_t directive_count);
 
-TQLSelector *tql_selector_universal_new(TQLAst *ast);
+TQLDirective *tql_directive_target(TQLAst *ast, TQLString *target);
+
+TQLFunction *tql_function_new(TQLAst *ast, TQLFunctionIdentifier *identifier,
+                              TQLVariableIdentifier **parameters,
+                              uint16_t parameter_count,
+                              TQLStatement **statements,
+                              uint16_t statement_count);
+
 TQLSelector *tql_selector_self_new(TQLAst *ast);
 TQLSelector *tql_selector_nodetype_new(TQLAst *ast,
                                        TQLVariableIdentifier *node_type);
@@ -172,26 +199,29 @@ TQLSelector *tql_selector_block_new(TQLAst *ast, TQLSelector *parent,
                                     uint32_t statement_count);
 TQLSelector *tql_selector_varid_new(TQLAst *ast,
                                     TQLVariableIdentifier *identifier);
+TQLSelector *tql_selector_function_invocation_new(
+    TQLAst *ast, TQLFunctionIdentifier *identifier, TQLExpression **exprs,
+    uint16_t expr_count);
+TQLSelector *tql_selector_negate(TQLAst *ast, TQLSelector *selector);
+TQLSelector *tql_selector_or(TQLAst *ast, TQLSelector *left,
+                             TQLSelector *right);
+TQLSelector *tql_selector_and(TQLAst *ast, TQLSelector *left,
+                              TQLSelector *right);
 
 TQLStatement *tql_statement_selector_new(TQLAst *ast, TQLSelector *selector);
 TQLStatement *tql_statement_assignment_new(TQLAst *ast,
                                            TQLAssignment *assignment);
-TQLStatement *tql_statement_condition_new(TQLAst *ast, TQLCondition *condition);
-
-TQLCondition *tql_condition_texteq_new(TQLAst *ast, TQLExpression *expression,
-                                       TQLString *string);
-TQLCondition *tql_condition_empty_new(TQLAst *ast, TQLExpression *expression);
-TQLCondition *tql_condition_and_new(TQLAst *ast, TQLCondition *condition_1,
-                                    TQLCondition *condition_2);
-TQLCondition *tql_condition_or_new(TQLAst *ast, TQLCondition *condition_1,
-                                   TQLCondition *condition_2);
 
 TQLAssignment *tql_assignment_new(TQLAst *ast,
                                   TQLVariableIdentifier *variable_identifier,
                                   TQLExpression *expression);
 
-TQLExpression *tql_expression_new(TQLAst *ast, TQLSelector *selector);
+TQLExpression *tql_expression_selector_new(TQLAst *ast, TQLSelector *selector);
+TQLExpression *tql_expression_string_new(TQLAst *ast, TQLString *string);
 
-TQLString *tql_string_new(TQLAst *ast, const char *string, size_t length);
+TQLString *tql_string_new(TQLAst *ast, const char *string, uint32_t length);
+
+TQLFunction *tql_lookup_function(TQLAst *ast, const char *string,
+                                 uint32_t length);
 
 #endif /* _AST_H_ */

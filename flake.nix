@@ -52,7 +52,7 @@
         treeSitterGrammar =
           grammar:
           {
-            "TREE_SITTER_${pkgs.lib.toUpper grammar}" = pkgs.tree-sitter-grammars."tree-sitter-${grammar}".src;
+            "TS_${pkgs.lib.toUpper grammar}" = pkgs.tree-sitter-grammars."tree-sitter-${grammar}".src;
           };
         in
         {
@@ -70,6 +70,9 @@
             env = { }
             // treeSitterGrammar "json"
             // treeSitterGrammar "typescript"
+            // treeSitterGrammar "c"
+            // treeSitterGrammar "python"
+            // treeSitterGrammar "haskell"
             ;
           };
         }

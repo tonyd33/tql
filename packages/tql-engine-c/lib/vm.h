@@ -1,27 +1,38 @@
-#ifndef _PROGRAM_H_
-#define _PROGRAM_H_
+#ifndef _VM_H_
+#define _VM_H_
 
 #include "ds.h"
 #include <tree_sitter/api.h>
 
 typedef uint64_t VarId;
 
+struct Vm;
+struct VmSymbol;
+struct VmStats;
+struct Op;
 struct Axis;
 struct NodeExpression;
 struct Predicate;
 struct Jump;
 struct Probe;
 struct Push;
-struct Op;
+struct Match;
+struct Bindings;
+struct Program;
 
-typedef struct Match Match;
+typedef struct Vm Vm;
+typedef struct VmSymbol VmSymbol;
+typedef struct VmStats VmStats;
+typedef struct Op Op;
 typedef struct Axis Axis;
 typedef struct NodeExpression NodeExpression;
 typedef struct Predicate Predicate;
 typedef struct Jump Jump;
 typedef struct Probe Probe;
 typedef struct Push Push;
-typedef struct Op Op;
+typedef struct Match Match;
+typedef struct Bindings Bindings;
+typedef struct Program Program;
 
 typedef enum {
   /* Does nothing. */
@@ -46,6 +57,10 @@ typedef enum {
   OP_PUSH,
   /* Pop from continuation's local stack. */
   OP_POP,
+  /* Call a function. */
+  OP_CALL,
+  /* Return from a function. */
+  OP_RET,
 } Opcode;
 
 typedef enum {
@@ -99,7 +114,7 @@ struct Predicate {
       NodeExpression node_expression;
       // TODO: Create a symbol lookup table and use a reference to the symbol
       // id here. This is currently dangerous, since the string is not owned by
-      // the engine.
+      // the vm.
       const char *text;
     } texteq;
   } data;
@@ -127,6 +142,38 @@ struct Op {
   } data;
 };
 
+struct VmStats {
+  uint32_t step_count;
+  uint32_t boundaries_encountered;
+  uint32_t total_branching;
+  uint32_t max_branching_factor;
+  uint32_t max_stack_size;
+};
+
+struct Match {
+  TSNode node;
+  Bindings *bindings;
+};
+
+struct Program {
+  uint32_t version;
+  // FIXME: This doesn't belong
+  const TSLanguage *target_language;
+  uint32_t statics;
+  uint32_t symbol_table;
+  uint32_t entrypoint;
+  uint32_t endpoint;
+  char *data;
+};
+
+Vm *vm_new(TSTree *ast, const char *source);
+void vm_load(Vm *vm, Program program);
+void vm_free(Vm *vm);
+
+void vm_exec(Vm *vm);
+bool vm_next_match(Vm *vm, Match *match);
+
+const VmStats *vm_stats(const Vm *vm);
 
 const Axis axis_field(TSFieldId field_id);
 const Axis axis_child();
@@ -156,5 +203,7 @@ const Op op_popnode();
 const Op op_pushpc();
 const Op op_poppc();
 const Op op_jump(Jump jump);
+const Op op_call(Jump jump);
+const Op op_ret();
 
-#endif /* _PROGRAM_H_ */
+#endif /* _VM_H_ */

@@ -1,29 +1,41 @@
 #include "parser.h"
+#include "ast.h"
+#include "tree_sitter/api.h"
 #include <stdio.h>
 
 #define assert_node_type(node, node_type)                                      \
   assert(ts_node_symbol((node)) ==                                             \
          ts_language_symbol_for_name(tree_sitter_tql(), (node_type),           \
                                      strlen((node_type)), true))
+struct TQLParser {
+  TSParser *ts_parser;
+};
 
 /* TODO: Use symbol ids/field ids */
 
 const TSLanguage *tree_sitter_tql(void);
 
-static TQLSelector *parse_selector(TQLAst *ast, TSNode node);
-static TQLStatement *parse_statement(TQLAst *ast, TSNode node);
-static TQLCondition *parse_condition(TQLAst *ast, TSNode node);
+static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node);
+static inline TQLStatement *parse_statement(TQLAst *ast, TSNode node);
+static inline TQLFunction *parse_function(TQLAst *ast, TSNode node);
 
-void tql_parser_init(TQLParser *parser) {
+TQLParser *tql_parser_new() {
+  TQLParser *parser = malloc(sizeof(TQLParser));
   parser->ts_parser = ts_parser_new();
   ts_parser_set_language(parser->ts_parser, tree_sitter_tql());
+  return parser;
+}
+
+static TQLString *parse_identifier(TQLAst *ast, TSNode node) {
+  assert(!ts_node_is_null(node));
+  uint32_t start_byte = ts_node_start_byte(node);
+  uint32_t end_byte = ts_node_end_byte(node);
+  return tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
 }
 
 static TQLVariableIdentifier *parse_variable_identifier(TQLAst *ast,
                                                         TSNode node) {
-  uint32_t start_byte = ts_node_start_byte(node);
-  uint32_t end_byte = ts_node_end_byte(node);
-  return tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
+  return parse_identifier(ast, node);
 }
 
 static TQLString *parse_string_literal(TQLAst *ast, TSNode node) {
@@ -41,7 +53,9 @@ static TQLExpression *parse_expression(TQLAst *ast, TSNode node) {
   if (strcmp(node_type, "selector") == 0) {
     TSNode inner_node = ts_node_named_child(node, 0);
     assert(!ts_node_is_null(inner_node));
-    return tql_expression_new(ast, parse_selector(ast, inner_node));
+    return tql_expression_selector_new(ast, parse_selector(ast, inner_node));
+  } else if (strcmp(node_type, "string_literal") == 0) {
+    return tql_expression_string_new(ast, parse_string_literal(ast, node));
   } else {
     fprintf(stderr, "Got node type %s\n", node_type);
     assert(false && "Unknown expression");
@@ -68,37 +82,7 @@ static TQLAssignment *parse_tql_assignment(TQLAst *ast, TSNode node) {
   }
 }
 
-static TQLCondition *parse_condition(TQLAst *ast, TSNode node) {
-  const char *node_type = ts_node_type(node);
-  if (strcmp(node_type, "empty_condition") == 0) {
-    TSNode inner_node = ts_node_named_child(node, 0);
-    assert(!ts_node_is_null(inner_node));
-    return tql_condition_empty_new(ast, parse_expression(ast, inner_node));
-  } else if (strcmp(node_type, "text_eq_condition") == 0) {
-    TSNode expression_node = ts_node_named_child(node, 0);
-    TSNode string_node = ts_node_named_child(node, 1);
-    assert(!ts_node_is_null(expression_node));
-    assert(!ts_node_is_null(string_node));
-
-    return tql_condition_texteq_new(ast, parse_expression(ast, expression_node),
-                                    parse_string_literal(ast, string_node));
-    return NULL;
-  } else if (strcmp(node_type, "and_condition") == 0) {
-    TSNode c1_node = ts_node_named_child(node, 0);
-    TSNode c2_node = ts_node_named_child(node, 1);
-    assert(!ts_node_is_null(c1_node));
-    assert(!ts_node_is_null(c2_node));
-
-    return tql_condition_and_new(ast, parse_condition(ast, c1_node),
-                                 parse_condition(ast, c2_node));
-  } else {
-    fprintf(stderr, "Got node type %s\n", node_type);
-    assert(false && "Unknown condition");
-    return NULL;
-  }
-}
-
-static TQLStatement *parse_statement(TQLAst *ast, TSNode node) {
+static inline TQLStatement *parse_statement(TQLAst *ast, TSNode node) {
   const char *node_type = ts_node_type(node);
   if (strcmp(node_type, "selector") == 0) {
     TSNode inner_node = ts_node_named_child(node, 0);
@@ -109,10 +93,6 @@ static TQLStatement *parse_statement(TQLAst *ast, TSNode node) {
     assert(!ts_node_is_null(inner_node));
     return tql_statement_assignment_new(ast,
                                         parse_tql_assignment(ast, inner_node));
-  } else if (strcmp(node_type, "condition") == 0) {
-    TSNode inner_node = ts_node_named_child(node, 0);
-    assert(!ts_node_is_null(inner_node));
-    return tql_statement_condition_new(ast, parse_condition(ast, inner_node));
   } else {
     fprintf(stderr, "Got node type %s\n", node_type);
     assert(false && "Unknown statement");
@@ -120,33 +100,48 @@ static TQLStatement *parse_statement(TQLAst *ast, TSNode node) {
   }
 }
 
-static TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
+static inline TQLFunction *parse_function(TQLAst *ast, TSNode node) {
+  TSNode identifier_node =
+      ts_node_child_by_field_name(node, "identifier", strlen("identifier"));
+  assert(!ts_node_is_null(identifier_node));
+  uint32_t named_child_count = ts_node_named_child_count(node);
+  uint32_t parameter_count = 0;
+  uint32_t statement_count = 0;
+
+  TQLVariableIdentifier *parameters[named_child_count];
+  TQLStatement *statements[named_child_count];
+  for (int i = 0; i < ts_node_named_child_count(node); i++) {
+    TSNode child_node = ts_node_named_child(node, i);
+    const char *field_name = ts_node_field_name_for_named_child(node, i);
+    if (strcmp(field_name, "parameters") == 0) {
+      parameters[parameter_count++] = parse_identifier(ast, child_node);
+    } else if (strcmp(field_name, "statement") == 0) {
+      statements[statement_count++] = parse_statement(ast, child_node);
+    }
+  }
+
+  return tql_function_new(ast, parse_identifier(ast, identifier_node),
+                          parameters, parameter_count, statements,
+                          statement_count);
+}
+
+static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
   const char *node_type = ts_node_type(node);
-  if (strcmp(node_type, "universal_selector") == 0) {
-    return tql_selector_universal_new(ast);
-  } else if (strcmp(node_type, "self_selector") == 0) {
+  if (strcmp(node_type, "self_selector") == 0) {
     return tql_selector_self_new(ast);
   } else if (strcmp(node_type, "node_type_selector") == 0) {
-    uint32_t start_byte = ts_node_start_byte(node);
-    uint32_t end_byte = ts_node_end_byte(node);
-    TQLVariableIdentifier *node_type =
-        tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
-    return tql_selector_nodetype_new(ast, node_type);
+    return tql_selector_nodetype_new(ast, parse_identifier(ast, node));
   } else if (strcmp(node_type, "field_name_selector") == 0) {
     TSNode parent_node =
         ts_node_child_by_field_name(node, "parent", strlen("parent"));
-    TQLSelector *parent_selector =
-        ts_node_is_null(parent_node) ? NULL : parse_selector(ast, parent_node);
     TSNode field_node =
         ts_node_child_by_field_name(node, "field", strlen("field"));
     assert(!ts_node_is_null(field_node));
 
-    uint32_t start_byte = ts_node_start_byte(field_node);
-    uint32_t end_byte = ts_node_end_byte(field_node);
-    TQLVariableIdentifier *field =
-        tql_string_new(ast, ast->source + start_byte, end_byte - start_byte);
-
-    return tql_selector_fieldname_new(ast, parent_selector, field);
+    return tql_selector_fieldname_new(
+        ast,
+        ts_node_is_null(parent_node) ? NULL : parse_selector(ast, parent_node),
+        parse_identifier(ast, field_node));
   } else if (strcmp(node_type, "child_selector") == 0) {
     TSNode parent_node =
         ts_node_child_by_field_name(node, "parent", strlen("parent"));
@@ -163,7 +158,7 @@ static TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
     TSNode parent_node =
         ts_node_child_by_field_name(node, "parent", strlen("parent"));
     TSNode child_node =
-        ts_node_child_by_field_name(node, "child", strlen("child"));
+        ts_node_child_by_field_name(node, "descendant", strlen("descendant"));
     assert(!ts_node_is_null(child_node));
 
     return tql_selector_descendant_new(
@@ -177,7 +172,7 @@ static TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
     uint32_t named_child_count = ts_node_named_child_count(node);
     uint32_t statement_count = 0;
     TQLStatement *statements[named_child_count];
-    for (int i = 0; i < ts_node_named_child_count(node); i++) {
+    for (int i = 0; i < named_child_count; i++) {
       TSNode statement_node = ts_node_named_child(node, i);
       if (strcmp(ts_node_field_name_for_named_child(node, i), "statement") ==
           0) {
@@ -190,9 +185,44 @@ static TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
         statements, statement_count);
   } else if (strcmp(node_type, "variable_identifier") == 0) {
     return tql_selector_varid_new(ast, parse_variable_identifier(ast, node));
+  } else if (strcmp(node_type, "function_invocation") == 0) {
+    TSNode identifier_node =
+        ts_node_child_by_field_name(node, "identifier", strlen("identifier"));
+    uint32_t named_child_count = ts_node_named_child_count(node);
+    uint32_t expr_count = 0;
+    TQLExpression *exprs[named_child_count];
+    for (int i = 0; i < named_child_count; i++) {
+      TSNode expr_node = ts_node_named_child(node, i);
+      if (strcmp(ts_node_field_name_for_named_child(node, i), "parameters") ==
+          0) {
+        TQLExpression *expr = parse_expression(ast, expr_node);
+        exprs[expr_count++] = expr;
+      }
+    }
+    return tql_selector_function_invocation_new(
+        ast, parse_identifier(ast, identifier_node), exprs, expr_count);
+  } else if (strcmp(node_type, "negate_selector") == 0) {
+    TSNode selector_node = ts_node_named_child(node, 0);
+    assert(!ts_node_is_null(selector_node));
+    return tql_selector_negate(ast, parse_selector(ast, selector_node));
   } else {
     fprintf(stderr, "Got node type %s\n", node_type);
     assert(false && "Unknown selector");
+    return NULL;
+  }
+}
+
+static inline TQLDirective *parse_directive(TQLAst *ast, TSNode node) {
+  node = ts_node_named_child(node, 0);
+  assert(!ts_node_is_null(node));
+  const char *node_type = ts_node_type(node);
+  if (strcmp(node_type, "target_lang_directive") == 0) {
+    TSNode language_node = ts_node_named_child(node, 0);
+    assert(!ts_node_is_null(language_node));
+    return tql_directive_target(ast, parse_string_literal(ast, language_node));
+  } else {
+    fprintf(stderr, "Got node type %s\n", node_type);
+    assert(false && "Not implemented");
     return NULL;
   }
 }
@@ -205,14 +235,24 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
 
   TSNode root_node = ts_tree_root_node(ts_tree);
   uint32_t named_child_count = ts_node_named_child_count(root_node);
-  uint32_t selector_count = 0;
-  TQLSelector *selectors[named_child_count];
+  uint32_t function_count = 0;
+  uint32_t directive_count = 0;
+  TQLFunction *functions[named_child_count];
+  TQLDirective *directives[named_child_count];
   for (int i = 0; i < ts_node_named_child_count(root_node); i++) {
-    TSNode selector_node = ts_node_named_child(root_node, i);
-    selectors[selector_count++] = parse_selector(ast, selector_node);
+    TSNode toplevel_node = ts_node_named_child(root_node, i);
+    assert(!ts_node_is_null(toplevel_node));
+    // TODO: Parse directives
+    if (strcmp(ts_node_type(toplevel_node), "function_definition") == 0) {
+      functions[function_count++] = parse_function(ast, toplevel_node);
+    } else if (strcmp(ts_node_type(toplevel_node), "directive") == 0) {
+      directives[directive_count++] = parse_directive(ast, toplevel_node);
+    } else {
+      assert(false && "Unknown toplevel");
+    }
   }
 
-  ast->tree = tql_tree_new(ast, selectors, selector_count);
+  ast->tree = tql_tree_new(ast, functions, function_count, directives, directive_count);
   ts_tree_delete(ts_tree);
   return ast;
 }
@@ -220,4 +260,5 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
 void tql_parser_free(TQLParser *parser) {
   ts_parser_delete(parser->ts_parser);
   parser->ts_parser = NULL;
+  free(parser);
 }

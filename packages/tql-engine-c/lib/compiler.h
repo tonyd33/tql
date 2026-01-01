@@ -1,39 +1,18 @@
 #ifndef _COMPILER_H_
 #define _COMPILER_H_
 
-#include "assembler.h"
 #include "ast.h"
-#include "program.h"
+#include "vm.h"
+#include <tree_sitter/api.h>
 
 struct Compiler;
-struct SymbolEntry;
 
 typedef struct Compiler Compiler;
-typedef struct SymbolEntry SymbolEntry;
 
-typedef enum SymbolType {
-  SYMBOL_VARIABLE,
-} SymbolType;
-
-struct SymbolEntry {
-  SymbolId id;
-  SymbolType type;
-  union {
-    const char *string;
-  } data;
-};
-DA_DEFINE(SymbolEntry, SymbolTable)
-
-struct Compiler {
-  Assembler asmb;
-  SymbolId next_symbol_id;
-  SymbolTable symbol_table;
-};
-
-void compiler_init(Compiler *compiler, const TSLanguage *language);
-void compiler_compile(Compiler *compiler, TQLAst *ast);
+Compiler *compiler_new(TQLAst *ast);
 void compiler_free(Compiler *compiler);
-Op *compile_tql_tree(Compiler *compiler, const TQLTree *tree,
-                     uint32_t *op_count);
+Program tql_compiler_compile(Compiler *compiler);
+// FIXME: Do not expose this
+const TSLanguage *tql_compiler_target(Compiler *compiler);
 
 #endif /* _COMPILER_H_ */

@@ -1,0 +1,38 @@
+========================================
+definition
+========================================
+
+fn foo() {
+
+}
+
+
+---
+
+(source_file
+  (function_definition
+    (identifier)))
+
+========================================
+call
+========================================
+
+fn main() {
+  foo();
+  foo(@bar);
+}
+
+---
+
+(source_file
+  (function_definition
+    (identifier)
+    (selector
+      (function_invocation
+        (identifier)))
+    (selector
+      (function_invocation
+        (identifier)
+        (selector
+          (variable_identifier
+            (identifier)))))))

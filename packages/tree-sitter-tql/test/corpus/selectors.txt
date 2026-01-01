@@ -2,9 +2,11 @@
 block
 ========================================
 
-class_declaration {
-  class_body {
-    method_definition {
+fn main() {
+  class_declaration {
+    class_body {
+      method_definition {
+      }
     }
   }
 }
@@ -12,9 +14,8 @@ class_declaration {
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (block_selector
+  (function_definition
+    (identifier)
     (selector
       (block_selector
         (node_type_selector
@@ -22,167 +23,240 @@ class_declaration {
         (selector
           (block_selector
             (node_type_selector
-              (node_type))))))))
+              (node_type))
+            (selector
+              (block_selector
+                (node_type_selector
+                  (node_type))))))))))
 
 ========================================
 block chain
 ========================================
 
-class_declaration { } { class_body }
+fn main() {
+  class_declaration { } { class_body }
+}
 
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (block_selector)
-  (block_selector
+  (function_definition
+    (identifier)
     (selector
-      (node_type_selector
-        (node_type)))))
+      (block_selector
+        (block_selector
+          (node_type_selector
+            (node_type)))
+        (selector
+          (node_type_selector
+            (node_type)))))))
 
 ========================================
 field_name
 ========================================
 
-class_declaration {
-  .decorator { }
-}
+fn main() {
+  class_declaration {
+    .decorator { }
+  }
 
-class_declaration {
-  .decorator.foo.bar { }
+  class_declaration {
+    .decorator.foo.bar { }
+  }
 }
 
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (descendant_selector
-    (block_selector
-      (selector
-        (block_selector
-          (field_name_selector
-            (field_name)))))
-    (node_type_selector
-      (node_type)))
-  (block_selector
+  (function_definition
+    (identifier)
     (selector
       (block_selector
-        (field_name_selector
-          (field_name_selector
+        (descendant_selector
+          (block_selector
+            (node_type_selector
+              (node_type))
+            (selector
+              (block_selector
+                (field_name_selector
+                  (field_name)))))
+          (node_type_selector
+            (node_type)))
+        (selector
+          (block_selector
             (field_name_selector
-              (field_name))
-            (field_name))
-          (field_name))))))
+              (field_name_selector
+                (field_name_selector
+                  (field_name))
+                (field_name))
+              (field_name))))))))
 
 ========================================
 child
 ========================================
 
-class_declaration {
-  .decorator > call_expression.identifier { }
+fn main() {
+  class_declaration {
+    .decorator > call_expression.identifier { }
+  }
 }
 
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (block_selector
+  (function_definition
+    (identifier)
     (selector
       (block_selector
-        (field_name_selector
-          (child_selector
+        (node_type_selector
+          (node_type))
+        (selector
+          (block_selector
             (field_name_selector
-              (field_name))
-            (node_type_selector
-              (node_type)))
-          (field_name))))))
+              (child_selector
+                (field_name_selector
+                  (field_name))
+                (node_type_selector
+                  (node_type)))
+              (field_name))))))))
 
 ========================================
 descendant
 ========================================
 
-class_declaration .decorator > call_expression .identifier {}
-
-class_declaration .decorator > call_expression.identifier {}
-
----
-
-(source_file
-  (descendant_selector
-    (node_type_selector
-      (node_type))
-    (field_name_selector
-      (field_name)))
-  (descendant_selector
-    (child_selector
-      (node_type_selector
-        (node_type)))
-    (field_name_selector
-      (field_name)))
-  (descendant_selector
-    (descendant_selector
-      (block_selector)
-      (node_type_selector
-        (node_type)))
-    (field_name_selector
-      (field_name)))
-  (child_selector
-    (node_type_selector
-      (node_type)))
-  (field_name_selector
-    (field_name))
-  (block_selector))
-
-========================================
-full example
-========================================
-
-class_declaration {
-  @class_name <- .name;
-  @decorator_name <- .decorator > call_expression.function;
-  @method <- .body > method_definition;
-
-  !@method.return_type;
+fn main() {
+  class_declaration .decorator > call_expression .identifier {}
 }
 
 ---
 
 (source_file
-  (node_type_selector
-    (node_type))
-  (block_selector
-    (assignment
-      (explicit_assignment
-        (variable_identifier
-          (identifier))
-        (field_name_selector
-          (field_name))))
-    (assignment
-      (explicit_assignment
-        (variable_identifier
-          (identifier))
-        (field_name_selector
+  (function_definition
+    (identifier)
+    (selector
+      (block_selector
+        (descendant_selector
           (child_selector
-            (field_name_selector
-              (field_name))
+            (descendant_selector
+              (node_type_selector
+                (node_type))
+              (field_name_selector
+                (field_name)))
             (node_type_selector
               (node_type)))
-          (field_name))))
-    (assignment
-      (explicit_assignment
-        (variable_identifier
+          (field_name_selector
+            (field_name)))))))
+
+========================================
+function chain
+========================================
+
+fn main() {
+  foo() bar();
+  foo() > bar();
+  foo().name;
+  .decorator > foo() bar();
+}
+
+---
+
+(source_file
+  (function_definition
+    (identifier)
+    (selector
+      (descendant_selector
+        (function_invocation
           (identifier))
+        (function_invocation
+          (identifier))))
+    (selector
+      (child_selector
+        (function_invocation
+          (identifier))
+        (function_invocation
+          (identifier))))
+    (selector
+      (field_name_selector
+        (function_invocation
+          (identifier))
+        (field_name)))
+    (selector
+      (descendant_selector
         (child_selector
           (field_name_selector
             (field_name))
-          (node_type_selector
-            (node_type)))))
-    (condition
-      (empty_condition
-        (field_name_selector
-          (variable_identifier
-            (identifier))
-          (field_name))))))
+          (function_invocation
+            (identifier)))
+        (function_invocation
+          (identifier))))))
+
+========================================
+full example
+========================================
+
+fn main() {
+  class_declaration {
+    @class_name <- .name;
+    @decorator_name <- .decorator > call_expression.function;
+    @method <- .body > method_definition;
+
+    text_eq(@decorator_name, 'Controller');
+    !exists(@method.return_type);
+  }
+}
+
+---
+
+(source_file
+  (function_definition
+    (identifier)
+    (selector
+      (block_selector
+        (node_type_selector
+          (node_type))
+        (assignment
+          (explicit_assignment
+            (variable_identifier
+              (identifier))
+            (selector
+              (field_name_selector
+                (field_name)))))
+        (assignment
+          (explicit_assignment
+            (variable_identifier
+              (identifier))
+            (selector
+              (field_name_selector
+                (child_selector
+                  (field_name_selector
+                    (field_name))
+                  (node_type_selector
+                    (node_type)))
+                (field_name)))))
+        (assignment
+          (explicit_assignment
+            (variable_identifier
+              (identifier))
+            (selector
+              (child_selector
+                (field_name_selector
+                  (field_name))
+                (node_type_selector
+                  (node_type))))))
+        (selector
+          (function_invocation
+            (identifier)
+            (selector
+              (variable_identifier
+                (identifier)))
+            (string_literal
+              (string_fragment))))
+        (selector
+          (negate_selector
+            (function_invocation
+              (identifier)
+              (selector
+                (field_name_selector
+                  (variable_identifier
+                    (identifier))
+                  (field_name))))))))))

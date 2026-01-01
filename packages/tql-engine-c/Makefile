@@ -13,12 +13,16 @@ HEADERS := $(wildcard src/*.h)
 
 SOEXT := so
 
-TREE_SITTER_TQL := ../tree-sitter-tql
+TS_TQL := ../tree-sitter-tql
+
+TS_TQL_OBJS := $(patsubst $(TS_TQL)/src/%.c,$(GRAMMAR_DIR)/tql/%.o,$(wildcard $(TS_TQL)/src/*.c))
+TS_TYPESCRIPT_OBJS := $(patsubst $(TS_TYPESCRIPT)/typescript/src/%.c,$(GRAMMAR_DIR)/typescript/%.o,$(wildcard $(TS_TYPESCRIPT)/typescript/src/*.c))
+TS_C_OBJS := $(patsubst $(TS_C)/src/%.c,$(GRAMMAR_DIR)/c/%.o,$(wildcard $(TS_C)/src/*.c))
+TS_PYTHON_OBJS := $(patsubst $(TS_PYTHON)/src/%.c,$(GRAMMAR_DIR)/python/%.o,$(wildcard $(TS_PYTHON)/src/*.c))
+TS_HASKELL_OBJS := $(patsubst $(TS_HASKELL)/src/%.c,$(GRAMMAR_DIR)/haskell/%.o,$(wildcard $(TS_HASKELL)/src/*.c))
 
 TQL_OBJS := $(patsubst $(LIB_DIR)/%.c,$(BUILD_DIR)/%.o,$(wildcard $(LIB_DIR)/*.c))
-TS_TQL_OBJS := $(patsubst $(TREE_SITTER_TQL)/src/%.c,$(GRAMMAR_DIR)/tql/%.o,$(wildcard $(TREE_SITTER_TQL)/src/*.c))
-TS_TYPESCRIPT_OBJS := $(patsubst $(TREE_SITTER_TYPESCRIPT)/typescript/src/%.c,$(GRAMMAR_DIR)/typescript/%.o,$(wildcard $(TREE_SITTER_TYPESCRIPT)/typescript/src/*.c))
-OBJS := $(TQL_OBJS) $(TS_TQL_OBJS) $(TS_TYPESCRIPT_OBJS)
+OBJS := $(TQL_OBJS) $(TS_TQL_OBJS) $(TS_TYPESCRIPT_OBJS) $(TS_C_OBJS) $(TS_PYTHON_OBJS) $(TS_HASKELL_OBJS)
 
 all: tql-cli libtql.a libtql.$(SOEXT)
 
@@ -37,13 +41,25 @@ $(BUILD_DIR)/%.o: $(LIB_DIR)/%.c
 	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(GRAMMAR_DIR)/typescript/%.o: $(TREE_SITTER_TYPESCRIPT)/typescript/src/%.c
+$(GRAMMAR_DIR)/typescript/%.o: $(TS_TYPESCRIPT)/typescript/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TREE_SITTER_TYPESCRIPT)/typescript/src -c $< -o $@
+	$(CC) $(CFLAGS) -I$(TS_TYPESCRIPT)/typescript/src -c $< -o $@
 
-$(GRAMMAR_DIR)/tql/%.o: $(TREE_SITTER_TQL)/src/%.c
+$(GRAMMAR_DIR)/c/%.o: $(TS_C)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TREE_SITTER_TQL)/src -c $< -o $@
+	$(CC) $(CFLAGS) -I$(TS_C)/src -c $< -o $@
+
+$(GRAMMAR_DIR)/python/%.o: $(TS_PYTHON)/src/%.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(TS_PYTHON)/src -c $< -o $@
+
+$(GRAMMAR_DIR)/haskell/%.o: $(TS_HASKELL)/src/%.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -Wno-implicit-fallthrough -I$(TS_HASKELL)/src -c $< -o $@
+
+$(GRAMMAR_DIR)/tql/%.o: $(TS_TQL)/src/%.c
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(TS_TQL)/src -c $< -o $@
 
 clean:
 	$(RM) -r build
