@@ -68,11 +68,24 @@
               pkg-config
             ];
             env = { }
-            // treeSitterGrammar "json"
-            // treeSitterGrammar "typescript"
+            // treeSitterGrammar "bash"
             // treeSitterGrammar "c"
-            // treeSitterGrammar "python"
+            // treeSitterGrammar "c-sharp"
+            // treeSitterGrammar "cpp"
+            // treeSitterGrammar "css"
+            // treeSitterGrammar "go"
             // treeSitterGrammar "haskell"
+            // treeSitterGrammar "java"
+            // treeSitterGrammar "javascript"
+            // treeSitterGrammar "json"
+            // treeSitterGrammar "ocaml"
+            // treeSitterGrammar "python"
+            // treeSitterGrammar "ql"
+            // treeSitterGrammar "ruby"
+            // treeSitterGrammar "rust"
+            // treeSitterGrammar "scala"
+            // treeSitterGrammar "toml"
+            // treeSitterGrammar "typescript"
             ;
           };
         }

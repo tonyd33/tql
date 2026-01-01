@@ -5,10 +5,44 @@
 DA_DEFINE(Op, Ops, ops)
 
 // tree sitter languages {{{
-const TSLanguage *tree_sitter_typescript(void);
+const TSLanguage *tree_sitter_bash(void);
 const TSLanguage *tree_sitter_c(void);
-const TSLanguage *tree_sitter_python(void);
+const TSLanguage *tree_sitter_cpp(void);
 const TSLanguage *tree_sitter_haskell(void);
+const TSLanguage *tree_sitter_python(void);
+const TSLanguage *tree_sitter_typescript(void);
+
+typedef struct {
+  const char *name;
+  const TSLanguage *(*get)(void);
+} LanguageEntry;
+
+static LanguageEntry LANGUAGE_ENTRIES[] = {
+    {
+        "bash",
+        tree_sitter_bash,
+    },
+    {
+        "c",
+        tree_sitter_c,
+    },
+    {
+        "cpp",
+        tree_sitter_cpp,
+    },
+    {
+        "haskell",
+        tree_sitter_haskell,
+    },
+    {
+        "python",
+        tree_sitter_python,
+    },
+    {
+        "typescript",
+        tree_sitter_typescript,
+    },
+};
 // }}}
 
 // asm ops {{{
@@ -229,15 +263,14 @@ static inline const TSLanguage *get_ast_target(TQLAst *ast) {
   for (int i = 0; i < ast->tree->directive_count; i++) {
     TQLDirective directive = *ast->tree->directives[i];
     if (directive.type == TQLDIRECTIVE_TARGET) {
-      if (strcmp(directive.data.target->string, "typescript") == 0) {
-        return tree_sitter_typescript();
-      } else if (strcmp(directive.data.target->string, "c") == 0) {
-        return tree_sitter_c();
-      } else if (strcmp(directive.data.target->string, "python") == 0) {
-        return tree_sitter_python();
-      } else if (strcmp(directive.data.target->string, "haskell") == 0) {
-        return tree_sitter_haskell();
+      for (int j = 0; j < sizeof(LANGUAGE_ENTRIES) / sizeof(LanguageEntry);
+           j++) {
+        if (strcmp(directive.data.target->string, LANGUAGE_ENTRIES[j].name) ==
+            0) {
+          return LANGUAGE_ENTRIES[j].get();
+        }
       }
+      assert(false && "Unknown language");
     }
   }
 
@@ -805,4 +838,6 @@ Program tql_compiler_compile(Compiler *compiler) {
   };
 }
 
-const TSLanguage *tql_compiler_target(Compiler *compiler) { return compiler->target; }
+const TSLanguage *tql_compiler_target(Compiler *compiler) {
+  return compiler->target;
+}
