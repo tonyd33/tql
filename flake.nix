@@ -70,7 +70,6 @@
             env = { }
             // treeSitterGrammar "bash"
             // treeSitterGrammar "c"
-            // treeSitterGrammar "c-sharp"
             // treeSitterGrammar "cpp"
             // treeSitterGrammar "css"
             // treeSitterGrammar "go"
@@ -78,13 +77,8 @@
             // treeSitterGrammar "java"
             // treeSitterGrammar "javascript"
             // treeSitterGrammar "json"
-            // treeSitterGrammar "ocaml"
             // treeSitterGrammar "python"
-            // treeSitterGrammar "ql"
-            // treeSitterGrammar "ruby"
             // treeSitterGrammar "rust"
-            // treeSitterGrammar "scala"
-            // treeSitterGrammar "toml"
             // treeSitterGrammar "typescript"
             ;
           };

@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "ast.h"
+#include "languages.h"
 #include <stdio.h>
 
 DA_DEFINE(Op, Ops, ops)
@@ -120,16 +121,18 @@ static const inline IrPredicate ir_predicate_texteq(NodeExpression ne,
 static const inline IrAxis ir_axis_field(const char *field) {
   return (IrAxis){.axis_type = AXIS_FIELD, .data = {.field = field}};
 }
-static const inline IrAxis ir_axis_child() {
+static const inline IrAxis ir_axis_child(void) {
   return (IrAxis){.axis_type = AXIS_CHILD};
 }
-static const inline IrAxis ir_axis_descendant() {
+static const inline IrAxis ir_axis_descendant(void) {
   return (IrAxis){.axis_type = AXIS_DESCENDANT};
 }
 static const inline IrAxis ir_axis_var(const char *variable) {
   return (IrAxis){.axis_type = AXIS_VAR, .data = {.variable = variable}};
 }
-static const inline IrInstr ir_noop() { return (IrInstr){.opcode = OP_NOOP}; }
+static const inline IrInstr ir_noop(void) {
+  return (IrInstr){.opcode = OP_NOOP};
+}
 static const inline IrInstr ir_branch(IrAxis axis) {
   return (IrInstr){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
@@ -142,12 +145,16 @@ static const inline IrInstr ir_if(IrPredicate predicate) {
 static const inline IrInstr ir_probe(IrProbe probe) {
   return (IrInstr){.opcode = OP_PROBE, .data = {.probe = probe}};
 }
-static const inline IrInstr ir_halt() { return (IrInstr){.opcode = OP_HALT}; }
-static const inline IrInstr ir_yield() { return (IrInstr){.opcode = OP_YIELD}; }
-static const inline IrInstr ir_pushnode() {
+static const inline IrInstr ir_halt(void) {
+  return (IrInstr){.opcode = OP_HALT};
+}
+static const inline IrInstr ir_yield(void) {
+  return (IrInstr){.opcode = OP_YIELD};
+}
+static const inline IrInstr ir_pushnode(void) {
   return (IrInstr){.opcode = OP_PUSH, .data = {.push_target = PUSH_NODE}};
 }
-static const inline IrInstr ir_popnode() {
+static const inline IrInstr ir_popnode(void) {
   return (IrInstr){.opcode = OP_POP, .data = {.push_target = PUSH_NODE}};
 }
 static const inline IrInstr ir_jump(Symbol id) {
@@ -156,7 +163,7 @@ static const inline IrInstr ir_jump(Symbol id) {
 static const inline IrInstr ir_call(Symbol id) {
   return (IrInstr){.opcode = OP_CALL, .data = {.jump = id}};
 }
-static const inline IrInstr ir_ret() { return (IrInstr){.opcode = OP_RET}; }
+static const inline IrInstr ir_ret(void) { return (IrInstr){.opcode = OP_RET}; }
 // }}}
 
 // compiler {{{
@@ -263,13 +270,8 @@ static inline const TSLanguage *get_ast_target(TQLAst *ast) {
   for (int i = 0; i < ast->tree->directive_count; i++) {
     TQLDirective directive = *ast->tree->directives[i];
     if (directive.type == TQLDIRECTIVE_TARGET) {
-      for (int j = 0; j < sizeof(LANGUAGE_ENTRIES) / sizeof(LanguageEntry);
-           j++) {
-        if (strcmp(directive.data.target->string, LANGUAGE_ENTRIES[j].name) ==
-            0) {
-          return LANGUAGE_ENTRIES[j].get();
-        }
-      }
+      return ts_language_for_name(directive.data.target->string,
+                                  strlen(directive.data.target->string));
       assert(false && "Unknown language");
     }
   }
@@ -691,55 +693,6 @@ static inline const Op assemble_op(Compiler *compiler, const IrInstr *ir) {
   case OP_RET:
     return op_ret();
   }
-}
-
-void compile_flat(Compiler *compiler, Ops *out) {
-  uint32_t total_count = 0;
-
-  for (uint32_t i = 0; i < compiler->section_table.len; i++) {
-    Section section = compiler->section_table.data[i];
-    total_count += section.ops.len;
-  }
-  ops_reserve(out, total_count);
-
-  for (uint32_t i = 0; i < compiler->section_table.len; i++) {
-    Section section = compiler->section_table.data[i];
-    for (uint32_t j = 0; j < section.ops.len; j++) {
-      ops_append(out, assemble_op(compiler, &section.ops.data[j]));
-    }
-  }
-}
-
-uint32_t compile_tql_tree(Compiler *compiler, Op **out_ops) {
-  Symbol tramp_symbol = compiler_request_symbol(compiler);
-  Symbol main_symbol = compiler_symbol_for_function(compiler, "main");
-  IrInstrs tramp_ops;
-  ir_instrs_init(&tramp_ops);
-  ir_instrs_append(&tramp_ops, ir_call(main_symbol));
-  ir_instrs_append(&tramp_ops, ir_yield());
-  ir_instrs_append(&tramp_ops, ir_halt());
-  compiler_section_insert(compiler, tramp_symbol, &tramp_ops);
-  ir_instrs_deinit(&tramp_ops);
-
-  for (int i = 0; i < compiler->ast->tree->function_count; i++) {
-    compile_tql_function(compiler, compiler->ast->tree->functions[i]);
-  }
-
-  Ops ops;
-  ops_init(&ops);
-  // setup_tramp(compiler, tramp_symbol);
-  compile_flat(compiler, &ops);
-  uint32_t op_count = ops.len;
-  for (int i = 0; i < ops.len; i++) {
-    printf("%04d: op ", i);
-    print_op(compiler, ops.data[i]);
-    printf("\n");
-  }
-  *out_ops = malloc(sizeof(Op) * ops.len);
-  memcpy(*out_ops, ops.data, sizeof(Op) * ops.len);
-  ops_deinit(&ops);
-
-  return op_count;
 }
 
 Program tql_compiler_compile(Compiler *compiler) {

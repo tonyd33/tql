@@ -16,7 +16,7 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
   buf[buf_len] = '\0';
 }
 
-int parse_tql(const char *query_filename, const char *source_filename) {
+int run(const char *query_filename, const char *source_filename) {
   char tql_buf[4096] = {0};
   char source_code[4096] = {0};
 
@@ -65,8 +65,6 @@ int parse_tql(const char *query_filename, const char *source_filename) {
   vm_exec(vm);
 
   Match match;
-  TSPoint start_point;
-  TSPoint end_point;
   char buf[4096];
 
   while (vm_next_match(vm, &match)) {
@@ -97,5 +95,5 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  return parse_tql(argv[1], argv[2]);
+  return run(argv[1], argv[2]);
 }

@@ -26,7 +26,7 @@ static inline size_t dyn_array_next_cap(size_t cap) {
     a->cap = 0;                                                                \
   }                                                                            \
                                                                                \
-  static inline Name *Prefix##_new() {                                         \
+  static inline Name *Prefix##_new(void) {                                     \
     Name *a = (Name *)malloc(sizeof(Name));                                    \
     Prefix##_init(a);                                                          \
     return a;                                                                  \
@@ -125,7 +125,6 @@ static inline StringInterner *string_interner_new(uint32_t cap) {
 static inline char *string_intern(StringInterner *string_pool,
                                   const char *string, uint32_t length) {
   char *s = string_pool->pool;
-  uint32_t string_count = 0;
   for (int i = 0; i < string_pool->slices.len; i++) {
     StringSlice slice = string_pool->slices.data[i];
     if (slice.length == length && strncmp(s, string, length) == 0) {
