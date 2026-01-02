@@ -258,6 +258,16 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
 
   ast->tree = tql_tree_new(ast, functions, function_count, directives, directive_count);
   ts_tree_delete(ts_tree);
+
+  {
+    uint32_t string_interner_usage = 0;
+    printf("AST used %lu bytes\n", ast->arena->offset);
+    printf("String interner stored %lu strings\n", ast->string_interner->slices.len);
+    for (int i = 0; i < ast->string_interner->slices.len; i++) {
+      string_interner_usage += ast->string_interner->slices.data[i].length;
+    }
+    printf("String interner used %u bytes\n", string_interner_usage);
+  }
   return ast;
 }
 

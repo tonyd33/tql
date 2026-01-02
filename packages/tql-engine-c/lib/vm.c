@@ -372,6 +372,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       branches->len = 0;
       switch (axis.axis_type) {
       case AXIS_CHILD: {
+        ts_nodes_reserve(branches, ts_node_named_child_count(cnt->node));
         for (int i = ts_node_named_child_count(cnt->node) - 1; i >= 0; i--) {
           ts_nodes_append(branches, ts_node_named_child(cnt->node, i));
         }
@@ -379,6 +380,8 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       }
       case AXIS_DESCENDANT: {
         TSNodes *desc_stack = &vm->branch_buffer[1];
+        ts_nodes_reserve(branches, ts_node_descendant_count(cnt->node));
+        ts_nodes_reserve(desc_stack, ts_node_descendant_count(cnt->node));
         ts_nodes_append(desc_stack, cnt->node);
         TSNode curr;
         TSNode child;
@@ -394,6 +397,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       }
       case AXIS_FIELD: {
         TSFieldId field_id = axis.data.field;
+        ts_nodes_reserve(branches, ts_node_named_child_count(cnt->node));
         const char *field_name =
             ts_language_field_name_for_id(language, field_id);
         for (int i = ts_node_named_child_count(cnt->node) - 1; i >= 0; i--) {

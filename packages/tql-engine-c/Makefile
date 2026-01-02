@@ -56,6 +56,10 @@ libtql.$(SOEXT): $(OBJS)
 tql-cli: $(OBJS) cli/main.c
 	$(CC) $(CFLAGS) -Ilib $(LDFLAGS) $^ -o $@
 
+test: $(OBJS)
+	$(CC) $(CFLAGS) -I. $(LDFLAGS) $(OBJS) tests/test.c -o $@
+	./test
+
 $(TQL_OBJS): $(HEADERS)
 
 $(BUILD_DIR)/%.o: $(LIB_DIR)/%.c
@@ -117,4 +121,4 @@ $(GRAMMAR_DIR)/tql/%.o: $(TS_TQL)/src/%.c
 clean:
 	$(RM) -r $(BUILD_DIR)
 
-.PHONY: all clean
+.PHONY: all clean test
