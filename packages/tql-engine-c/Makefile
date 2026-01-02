@@ -58,7 +58,7 @@ TS_OBJS := $(TS_BASH_OBJS)\
 	   $(TS_TYPESCRIPT_OBJS)
 OBJS := $(TQL_OBJS) $(TS_TQL_OBJS) $(TS_OBJS)
 
-all: tql-cli libtql.a libtql.$(SOEXT)
+all: test tql-cli libtql.a libtql.$(SOEXT)
 
 libtql.a: $(OBJS)
 	$(AR) $(ARFLAGS) $@ $^
