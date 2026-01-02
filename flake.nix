@@ -51,8 +51,13 @@
         let
         treeSitterGrammar =
           grammar:
+          let src = pkgs.tree-sitter-grammars."tree-sitter-${grammar}".src;
+          in
           {
-            "TS_${pkgs.lib.toUpper grammar}" = pkgs.tree-sitter-grammars."tree-sitter-${grammar}".src;
+            "TS_${pkgs.lib.toUpper grammar}" =
+              if grammar == "typescript" then "${src}/typescript"
+              else if grammar == "tsx" then "${src}/tsx"
+              else src;
           };
         in
         {
@@ -79,6 +84,7 @@
             // treeSitterGrammar "json"
             // treeSitterGrammar "python"
             // treeSitterGrammar "rust"
+            // treeSitterGrammar "tsx"
             // treeSitterGrammar "typescript"
             ;
           };

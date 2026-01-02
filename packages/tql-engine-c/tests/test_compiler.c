@@ -6,11 +6,10 @@
 #include "lib/vm.h"
 #include <string.h>
 
-const TSLanguage *tree_sitter_c(void);
-const TSLanguage *tree_sitter_typescript(void);
+const TSLanguage *tree_sitter_tql(void);
 
 bool test_compiler_detect_language() {
-  const char *source = "#language 'c' fn main() { translation_unit }";
+  const char *source = "#language 'tql' fn main() { translation_unit }";
   StringInterner *interner = string_interner_new(16384);
   SymbolTable *symtab = symbol_table_new();
   TQLParser *parser = tql_parser_new(interner);
@@ -18,7 +17,7 @@ bool test_compiler_detect_language() {
   TQLCompiler *compiler = tql_compiler_new(ast, symtab);
 
   Program prog = tql_compiler_compile(compiler);
-  expect(prog.target_language == tree_sitter_c());
+  expect(prog.target_language == tree_sitter_tql());
 
   symbol_table_free(symtab);
   tql_compiler_free(compiler);
