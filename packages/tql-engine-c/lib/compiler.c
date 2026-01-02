@@ -57,107 +57,87 @@ struct IrOp {
 };
 DA_DEFINE(IrInstr, IrInstrs, ir_instrs)
 
-static const inline IrProbe ir_probe_exists(Symbol symbol) {
+static inline IrProbe ir_probe_exists(Symbol symbol) {
   return (IrProbe){.mode = PROBE_EXISTS, .jump = symbol};
 }
-static const inline IrProbe ir_probe_not_exists(Symbol symbol) {
+static inline IrProbe ir_probe_not_exists(Symbol symbol) {
   return (IrProbe){.mode = PROBE_NOTEXISTS, .jump = symbol};
 }
-static const inline IrPredicate ir_predicate_typeeq(NodeExpression ne,
+static inline IrPredicate ir_predicate_typeeq(NodeExpression ne,
                                                     const char *type) {
   return (IrPredicate){
       .predicate_type = PREDICATE_TYPEEQ,
       .negate = false,
       .data = {.typeeq = {.node_expression = ne, .type = type}}};
 }
-static const inline IrPredicate ir_predicate_texteq(NodeExpression ne,
+static inline IrPredicate ir_predicate_texteq(NodeExpression ne,
                                                     const char *text) {
   return (IrPredicate){
       .predicate_type = PREDICATE_TEXTEQ,
       .negate = false,
       .data = {.texteq = {.node_expression = ne, .text = text}}};
 }
-static const inline IrAxis ir_axis_field(Symbol field) {
+static inline IrAxis ir_axis_field(Symbol field) {
   return (IrAxis){.axis_type = AXIS_FIELD, .data = {.field = field}};
 }
-static const inline IrAxis ir_axis_child(void) {
+static inline IrAxis ir_axis_child(void) {
   return (IrAxis){.axis_type = AXIS_CHILD};
 }
-static const inline IrAxis ir_axis_descendant(void) {
+static inline IrAxis ir_axis_descendant(void) {
   return (IrAxis){.axis_type = AXIS_DESCENDANT};
 }
-static const inline IrAxis ir_axis_var(Symbol variable) {
+static inline IrAxis ir_axis_var(Symbol variable) {
   return (IrAxis){.axis_type = AXIS_VAR, .data = {.variable = variable}};
 }
-static const inline IrInstr ir_noop(void) {
+static inline IrInstr ir_noop(void) {
   return (IrInstr){.opcode = OP_NOOP};
 }
-static const inline IrInstr ir_branch(IrAxis axis) {
+static inline IrInstr ir_branch(IrAxis axis) {
   return (IrInstr){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
-static const inline IrInstr ir_bind(Symbol symbol) {
+static inline IrInstr ir_bind(Symbol symbol) {
   return (IrInstr){.opcode = OP_BIND, .data = {.variable = symbol}};
 }
-static const inline IrInstr ir_if(IrPredicate predicate) {
+static inline IrInstr ir_if(IrPredicate predicate) {
   return (IrInstr){.opcode = OP_IF, .data = {.predicate = predicate}};
 }
-static const inline IrInstr ir_probe(IrProbe probe) {
+static inline IrInstr ir_probe(IrProbe probe) {
   return (IrInstr){.opcode = OP_PROBE, .data = {.probe = probe}};
 }
-static const inline IrInstr ir_halt(void) {
+static inline IrInstr ir_halt(void) {
   return (IrInstr){.opcode = OP_HALT};
 }
-static const inline IrInstr ir_yield(void) {
+static inline IrInstr ir_yield(void) {
   return (IrInstr){.opcode = OP_YIELD};
 }
-static const inline IrInstr ir_pushnode(void) {
+static inline IrInstr ir_pushnode(void) {
   return (IrInstr){.opcode = OP_PUSH, .data = {.push_target = PUSH_NODE}};
 }
-static const inline IrInstr ir_popnode(void) {
+static inline IrInstr ir_popnode(void) {
   return (IrInstr){.opcode = OP_POP, .data = {.push_target = PUSH_NODE}};
 }
-static const inline IrInstr ir_jump(Symbol id) {
+static inline IrInstr ir_jump(Symbol id) {
   return (IrInstr){.opcode = OP_JMP, .data = {.jump = id}};
 }
-static const inline IrInstr ir_call(Symbol id) {
+static inline IrInstr ir_call(Symbol id) {
   return (IrInstr){.opcode = OP_CALL, .data = {.jump = id}};
 }
-static const inline IrInstr ir_ret(void) { return (IrInstr){.opcode = OP_RET}; }
+static inline IrInstr ir_ret(void) { return (IrInstr){.opcode = OP_RET}; }
 // }}}
 
 // compiler {{{
-typedef uint64_t Symbol;
 
-struct SymbolEntry;
-struct Section;
-
-typedef struct SymbolEntry SymbolEntry;
-typedef struct Section Section;
-
-typedef enum SymbolType {
-  SYMBOL_VARIABLE,
-  SYMBOL_FIELD,
-  SYMBOL_FUNCTION,
-} SymbolType;
-
-struct SymbolEntry {
-  Symbol id;
-  SymbolType type;
-  StringSlice slice;
-  char *placement;
-};
-DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
 struct Section {
   Symbol symbol;
   IrInstrs ops;
-  char *placement;
+  uint32_t placement;
 };
 DA_DEFINE(Section, SectionTable, section_table)
 
 struct TQLCompiler {
   TQLAst *ast;
   Symbol next_symbol_id;
-  SymbolTable symbol_table;
+  SymbolTable *symbol_table;
   SectionTable section_table;
   const TSLanguage *target;
 };
@@ -167,7 +147,7 @@ static inline void compiler_section_insert(TQLCompiler *compiler, Symbol symbol,
                                            IrInstrs *ops) {
   Section section;
   section.symbol = symbol;
-  section.placement = NULL;
+  section.placement = 0;
   ir_instrs_clone(&section.ops, ops);
   section_table_append(&compiler->section_table, section);
 }
@@ -189,8 +169,8 @@ static inline Symbol compiler_request_symbol(TQLCompiler *compiler) {
 static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
                                                      SymbolType symbol_type,
                                                      StringSlice slice) {
-  for (int i = 0; i < compiler->symbol_table.len; i++) {
-    SymbolEntry entry = compiler->symbol_table.data[i];
+  for (size_t i = 0; i < compiler->symbol_table->len; i++) {
+    SymbolEntry entry = compiler->symbol_table->data[i];
     if (entry.type == symbol_type && string_slice_eq(entry.slice, slice)) {
       return entry.id;
     }
@@ -198,8 +178,8 @@ static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
 
   Symbol new_symbol = compiler_request_symbol(compiler);
   SymbolEntry new_entry = {
-      .id = new_symbol, .type = symbol_type, .slice = slice, .placement = NULL};
-  symbol_table_append(&compiler->symbol_table, new_entry);
+      .id = new_symbol, .type = symbol_type, .slice = slice, .placement = 0};
+  symbol_table_append(compiler->symbol_table, new_entry);
   return new_symbol;
 }
 
@@ -231,28 +211,28 @@ static inline const TSLanguage *get_ast_target(TQLAst *ast) {
   return NULL;
 }
 
-void compiler_init(TQLCompiler *compiler, TQLAst *ast) {
+void compiler_init(TQLCompiler *compiler, TQLAst *ast, SymbolTable *symtab) {
   compiler->ast = ast;
   compiler->target = get_ast_target(ast);
   assert(compiler->target != NULL);
 
   compiler->next_symbol_id = 0;
-  symbol_table_init(&compiler->symbol_table);
+  compiler->symbol_table = symtab;
   section_table_init(&compiler->section_table);
 }
 
-TQLCompiler *tql_compiler_new(TQLAst *ast) {
+TQLCompiler *tql_compiler_new(TQLAst *ast, SymbolTable *symtab) {
   TQLCompiler *compiler = malloc(sizeof(TQLCompiler));
-  compiler_init(compiler, ast);
+  compiler_init(compiler, ast, symtab);
   return compiler;
 }
 
 void compiler_deinit(TQLCompiler *compiler) {
-  for (int i = 0; i < compiler->section_table.len; i++) {
+  for (size_t i = 0; i < compiler->section_table.len; i++) {
     ir_instrs_deinit(&compiler->section_table.data[i].ops);
   }
   section_table_deinit(&compiler->section_table);
-  symbol_table_deinit(&compiler->symbol_table);
+  compiler->symbol_table = NULL;
   compiler->next_symbol_id = 0;
   compiler->target = NULL;
   compiler->ast = NULL;
@@ -423,9 +403,9 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
 
 static inline const SymbolEntry *
 compiler_lookup_symbol(const TQLCompiler *compiler, Symbol symbol) {
-  for (int i = 0; i < compiler->symbol_table.len; i++) {
-    if (compiler->symbol_table.data[i].id == symbol) {
-      return &compiler->symbol_table.data[i];
+  for (size_t i = 0; i < compiler->symbol_table->len; i++) {
+    if (compiler->symbol_table->data[i].id == symbol) {
+      return &compiler->symbol_table->data[i];
     }
   }
   return NULL;
@@ -544,7 +524,7 @@ void compile_tql_function(TQLCompiler *compiler, TQLFunction *function) {
 
 const Section *compiler_lookup_section(const TQLCompiler *compiler,
                                        Symbol symbol) {
-  for (int i = 0; i < compiler->section_table.len; i++) {
+  for (size_t i = 0; i < compiler->section_table.len; i++) {
     if (compiler->section_table.data[i].symbol == symbol) {
       return &compiler->section_table.data[i];
     }
@@ -556,7 +536,7 @@ const Section *compiler_lookup_section(const TQLCompiler *compiler,
 size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
                                          Symbol symbol) {
   size_t placement = 0;
-  for (int i = 0; i < compiler->section_table.len; i++) {
+  for (size_t i = 0; i < compiler->section_table.len; i++) {
     if (compiler->section_table.data[i].symbol == symbol) {
       return placement;
     } else {
@@ -566,7 +546,7 @@ size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
   assert(false && "Should not get here");
 }
 
-static inline const Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
+static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
   switch (ir->opcode) {
   case OP_NOOP:
     return op_noop();
@@ -640,7 +620,8 @@ static inline const Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
       return op_popnode();
     case PUSH_PC:
       return op_poppc();
-    } break;
+    }
+    break;
   case OP_CALL: {
     Jump jump = jump_absolute(
         compiler_lookup_section_placement(compiler, ir->data.jump));
@@ -680,13 +661,13 @@ Program tql_compiler_compile(TQLCompiler *compiler) {
     uint32_t offset = 0;
 
     symbol_start = offset;
-    for (int i = 0; i < compiler->symbol_table.len; i++) {
+    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
       // FIXME: Further evidence we should be storing string sizes here...
-      offset += compiler->symbol_table.data[i].slice.length + 1;
+      offset += compiler->symbol_table->data[i].slice.length + 1;
     }
 
     instr_start = offset;
-    for (int i = 0; i < compiler->section_table.len; i++) {
+    for (size_t i = 0; i < compiler->section_table.len; i++) {
       Section section = compiler->section_table.data[i];
       offset += section.ops.len * sizeof(Op);
     }
@@ -697,46 +678,42 @@ Program tql_compiler_compile(TQLCompiler *compiler) {
   // Relocation phase
   char *buf = malloc(sz);
   {
-    char *placement = buf;
-    for (int i = 0; i < compiler->symbol_table.len; i++) {
-      SymbolEntry *entry = &compiler->symbol_table.data[i];
-      entry->placement = placement;
-      placement += entry->slice.length + 1;
+    uint32_t offset = 0;
+    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
+      SymbolEntry *entry = &compiler->symbol_table->data[i];
+      entry->placement = offset;
+      offset += entry->slice.length + 1;
     }
 
-    for (int i = 0; i < compiler->section_table.len; i++) {
+    for (size_t i = 0; i < compiler->section_table.len; i++) {
       Section *section = &compiler->section_table.data[i];
-      section->placement = placement;
-      placement += section->ops.len * sizeof(Op);
+      section->placement = offset;
+      offset += section->ops.len * sizeof(Op);
     }
   }
 
   // Patch phase
   {
     // Patch in symbols
-    for (int i = 0; i < compiler->symbol_table.len; i++) {
-      SymbolEntry *entry = &compiler->symbol_table.data[i];
-      strncpy(entry->placement, entry->slice.buf, entry->slice.length);
-      entry->placement[entry->slice.length] = '\0';
+    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
+      SymbolEntry *entry = &compiler->symbol_table->data[i];
+      strncpy(buf + entry->placement, entry->slice.buf, entry->slice.length);
+      *(buf + entry->placement + entry->slice.length) = '\0';
     }
 
     // Patch in IR -> Ops
-    uint32_t pc = 0;
-    for (int i = 0; i < compiler->section_table.len; i++) {
+    for (size_t i = 0; i < compiler->section_table.len; i++) {
       Section *section = &compiler->section_table.data[i];
-      Op *placement = (Op *)section->placement;
-      for (int j = 0; j < section->ops.len; j++) {
+      Op *placement = (Op *)(buf + section->placement);
+      for (size_t j = 0; j < section->ops.len; j++) {
         Op op = assemble_op(compiler, &section->ops.data[j]);
-        printf("%u: ", pc++);
-        print_op(compiler, op);
-        printf("\n");
         *placement++ = op;
       }
     }
   }
 
   return (Program){
-      .version = 1,
+      .version = 0x00000001,
       .target_language = compiler->target,
       // TODO: Use statics
       .statics = 0,

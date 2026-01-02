@@ -6,19 +6,6 @@
 
 typedef StringSlice TQLString;
 
-struct TQLAst;
-struct TQLTree;
-struct TQLFunction;
-struct TQLSelector;
-struct TQLPureSelector;
-struct TQLExpression;
-struct TQLQuery;
-struct TQLAssignment;
-struct TQLStatement;
-struct TQLDirective;
-struct TQLParameter;
-struct TQLFunctionInvocation;
-
 typedef struct TQLAst TQLAst;
 typedef struct TQLTree TQLTree;
 typedef struct TQLFunction TQLFunction;
@@ -31,6 +18,7 @@ typedef struct TQLStatement TQLStatement;
 typedef struct TQLDirective TQLDirective;
 typedef struct TQLParameter TQLParameter;
 typedef struct TQLFunctionInvocation TQLFunctionInvocation;
+typedef struct TQLAstStats TQLAstStats;
 
 typedef TQLString TQLVariableIdentifier;
 typedef TQLString TQLFunctionIdentifier;
@@ -162,8 +150,13 @@ struct TQLFunction {
   uint16_t statement_count;
 };
 
+struct TQLAstStats {
+  uint32_t arena_alloc;
+};
+
 TQLAst *tql_ast_new(const char *string, size_t length, StringInterner *interner);
 void tql_ast_free(TQLAst *ast);
+TQLAstStats tql_ast_stats(const TQLAst *ast);
 
 TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,
                       uint16_t function_count, TQLDirective **directives,

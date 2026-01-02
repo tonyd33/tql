@@ -7,20 +7,6 @@
 
 DA_DEFINE(TSNode, TSNodes, ts_nodes)
 
-typedef TSNode TQLValue;
-
-struct Binding;
-struct Bindings;
-struct Continuation;
-struct DelimitedExecution;
-struct LookaheadBoundary;
-struct Vm;
-struct VmStats;
-struct NodeStack;
-struct PCStack;
-
-typedef struct Binding Binding;
-typedef struct Bindings Bindings;
 typedef struct Match Match;
 typedef struct Continuation Continuation;
 typedef struct DelimitedExecution DelimitedExecution;
@@ -31,18 +17,7 @@ typedef struct NodeStack NodeStack;
 typedef struct PCStack PCStack;
 typedef struct BoundaryResult BoundaryResult;
 typedef struct ContinuationResult ContinuationResult;
-
-struct Binding {
-  VarId variable;
-  TQLValue value;
-};
-
-struct Bindings {
-  Bindings *parent;
-  Binding binding;
-  // Don't need this if we're arena-allocating this anyway...
-  uint16_t ref_count;
-};
+typedef struct BindingsStack BindingsStack;
 
 struct NodeStack {
   NodeStack *prev;
@@ -58,12 +33,20 @@ struct PCStack {
   uint16_t ref_count;
 };
 
+struct BindingsStack {
+  BindingsStack *prev;
+  Bindings *bindings;
+  // Don't need this if we're arena-allocating this anyway...
+  uint16_t ref_count;
+};
+
 struct Continuation {
   uint32_t pc;
   TSNode node;
   Bindings *bindings;
   NodeStack *node_stk;
   PCStack *pc_stk;
+  BindingsStack *bindings_stk;
 };
 
 struct DelimitedExecution {
@@ -121,83 +104,81 @@ struct Vm {
 };
 
 // op helpers {{{
-const inline Axis axis_field(TSFieldId field_id) {
+inline Axis axis_field(TSFieldId field_id) {
   return (Axis){.axis_type = AXIS_FIELD, .data = {.field = field_id}};
 }
-const inline Axis axis_child() { return (Axis){.axis_type = AXIS_CHILD}; }
-const inline Axis axis_descendant() {
-  return (Axis){.axis_type = AXIS_DESCENDANT};
-}
+inline Axis axis_child() { return (Axis){.axis_type = AXIS_CHILD}; }
+inline Axis axis_descendant() { return (Axis){.axis_type = AXIS_DESCENDANT}; }
 
-const inline Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol) {
+inline Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol) {
   return (Predicate){.predicate_type = PREDICATE_TYPEEQ,
                      .negate = false,
                      .data = {
                          .typeeq = {.node_expression = ne, .symbol = symbol},
                      }};
 }
-const inline Predicate predicate_texteq(NodeExpression ne, const char *string) {
+inline Predicate predicate_texteq(NodeExpression ne, const char *string) {
   return (Predicate){.predicate_type = PREDICATE_TEXTEQ,
                      .negate = false,
                      .data = {
                          .texteq = {.node_expression = ne, .text = string},
                      }};
 }
-const inline Predicate predicate_negate(Predicate predicate) {
+inline Predicate predicate_negate(Predicate predicate) {
   predicate.negate = !predicate.negate;
   return predicate;
 }
 
-const inline NodeExpression node_expression_self() {
+inline NodeExpression node_expression_self() {
   return (NodeExpression){.node_expression_type = NODEEXPR_SELF};
 }
 
-const inline Op op_noop() { return (Op){.opcode = OP_NOOP}; }
-const inline Op op_branch(Axis axis) {
+inline Op op_noop() { return (Op){.opcode = OP_NOOP}; }
+inline Op op_branch(Axis axis) {
   return (Op){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
-const inline Op op_bind(VarId var_id) {
+inline Op op_bind(VarId var_id) {
   return (Op){.opcode = OP_BIND, .data = {.var_id = var_id}};
 }
-const inline Op op_if(Predicate predicate) {
+inline Op op_if(Predicate predicate) {
   return (Op){.opcode = OP_IF, .data = {.predicate = predicate}};
 }
-const inline Op op_probe(Probe probe) {
+inline Op op_probe(Probe probe) {
   return (Op){.opcode = OP_PROBE, .data = {.probe = probe}};
 }
-const inline Op op_halt() { return (Op){.opcode = OP_HALT}; }
-const inline Op op_yield() { return (Op){.opcode = OP_YIELD}; }
-const inline Op op_pushnode() {
+inline Op op_halt() { return (Op){.opcode = OP_HALT}; }
+inline Op op_yield() { return (Op){.opcode = OP_YIELD}; }
+inline Op op_pushnode() {
   return (Op){.opcode = OP_PUSH, .data = {.push_target = PUSH_NODE}};
 }
-const inline Op op_popnode() {
+inline Op op_popnode() {
   return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_NODE}};
 }
-const inline Op op_pushpc() {
+inline Op op_pushpc() {
   return (Op){.opcode = OP_PUSH, .data = {.push_target = PUSH_PC}};
 }
-const inline Op op_poppc() {
+inline Op op_poppc() {
   return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_PC}};
 }
-const inline Op op_jump(Jump jump) {
+inline Op op_jump(Jump jump) {
   return (Op){.opcode = OP_JMP, .data = {.jump = jump}};
 }
-const inline Op op_call(Jump jump) {
+inline Op op_call(Jump jump) {
   return (Op){.opcode = OP_CALL, .data = {.jump = jump}};
 }
-const inline Op op_ret() { return (Op){.opcode = OP_RET}; }
+inline Op op_ret() { return (Op){.opcode = OP_RET}; }
 
-const inline Jump jump_relative(int32_t pc) {
+inline Jump jump_relative(int32_t pc) {
   return (Jump){.relative = true, .pc = pc};
 }
-const inline Jump jump_absolute(int32_t pc) {
+inline Jump jump_absolute(int32_t pc) {
   return (Jump){.relative = false, .pc = pc};
 }
 
-const inline Probe probe_exists(Jump jump) {
+inline Probe probe_exists(Jump jump) {
   return (Probe){.mode = PROBE_EXISTS, .jump = jump};
 }
-const inline Probe probe_not_exists(Jump jump) {
+inline Probe probe_not_exists(Jump jump) {
   return (Probe){.mode = PROBE_NOTEXISTS, .jump = jump};
 }
 // }}}
@@ -276,6 +257,35 @@ bool pc_stack_pop(const Vm *vm, PCStack **stack, uint32_t *pc) {
 
 void pc_stack_free(const Vm *vm, PCStack *stack) {}
 
+BindingsStack *bindings_stack_push(const Vm *vm, BindingsStack *stack,
+                                   Bindings *bindings) {
+  BindingsStack *new_stack = arena_alloc(vm->arena, sizeof(BindingsStack));
+  new_stack->prev = stack;
+  new_stack->bindings = bindings;
+  new_stack->ref_count = 1;
+  if (stack != NULL) {
+    stack->ref_count++;
+  }
+  return new_stack;
+}
+
+bool bindings_stack_pop(const Vm *vm, BindingsStack **stack,
+                        Bindings **bindings) {
+  if (*stack == NULL) {
+    return false;
+  }
+  *bindings = (*stack)->bindings;
+  (*stack)->ref_count--;
+  *stack = (*stack)->prev;
+  return true;
+}
+
+void bindings_stack_free(const Vm *vm, BindingsStack *stack) {
+  // Ignore unused
+  assert(vm != NULL);
+  assert(stack == NULL || stack != NULL);
+}
+
 Vm *vm_new(TSTree *ast, const char *source) {
   Vm *vm = malloc(sizeof(Vm));
   vm->ast = ast;
@@ -323,7 +333,7 @@ static inline VmStats *vm_stats_mut(const Vm *vm) {
   return (VmStats *)&(vm->stats); // HACK
 }
 
-const VmStats *vm_stats(const Vm *vm) { return &(vm->stats); }
+VmStats vm_stats(const Vm *vm) { return vm->stats; }
 
 void vm_exec(Vm *vm) {
   Continuation root_continuation = {
@@ -387,7 +397,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
         TSNode child;
         while (desc_stack->len > 0) {
           curr = desc_stack->data[--desc_stack->len];
-          for (int i = 0; i < ts_node_named_child_count(curr); i++) {
+          for (uint32_t i = 0; i < ts_node_named_child_count(curr); i++) {
             child = ts_node_named_child(curr, i);
             ts_nodes_append(desc_stack, child);
             ts_nodes_append(branches, child);
@@ -538,12 +548,12 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       cnt->pc = get_jump_pc(cnt->pc - 1, op.data.jump);
     } break;
     case OP_CALL:
-      // TODO: We should push bindings
+      // TODO: We should push bindings (maybe)
       cnt->pc_stk = pc_stack_push(vm, cnt->pc_stk, cnt->pc);
       cnt->pc = get_jump_pc(cnt->pc - 1, op.data.jump);
       break;
     case OP_RET:
-      // TODO: We should pop bindings
+      // TODO: We should pop bindings (maybe)
       if (!pc_stack_pop(vm, &cnt->pc_stk, &cnt->pc)) {
         return (ContinuationResult){.type = EXC_ERR};
       }

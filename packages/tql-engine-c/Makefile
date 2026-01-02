@@ -1,9 +1,22 @@
-CC ?= clang
+CC := cc
+BUILD ?= release
+
 # TODO: Expose the API and use the API instead of using from lib directly
-CFLAGS += -std=c11 -Wall -Wpedantic -Wimplicit-fallthrough -Werror -fPIC -g
-CFLAGS += -Wno-unused-variable -Wno-unused-function -Wno-strict-prototypes
-# CFLAGS += -fsanitize=address
-TS_CFLAGS = -std=c11 -O3 -fPIC
+CFLAGS_ALL += -std=c11 -Wall -Wextra -Wpedantic -Wno-unused-parameter -fPIC
+CFLAGS_DEBUG += -Wimplicit-fallthrough -Wno-unused-variable -Wno-unused-function -Wno-strict-prototypes -Werror -O0 -DDEBUG -g -fsanitize=address
+CFLAGS_RELEASE += -O3
+
+CFLAGS += $(CFLAGS_ALL)
+TS_CFLAGS += $(CFLAGS_ALL)
+ifeq ($(BUILD),debug)
+	CFLAGS += $(CFLAGS_DEBUG)
+else ifeq ($(BUILD),release)
+	CFLAGS += $(CFLAGS_RELEASE)
+	TS_CFLAGS += $(CFLAGS_RELEASE)
+else
+	$(error Unknown BUILD type: $(BUILD))
+endif
+
 LDFLAGS += -ltree-sitter
 ARFLAGS := rcs
 
@@ -92,7 +105,7 @@ $(GRAMMAR_DIR)/go/%.o: $(TS_GO)/src/%.c
 
 $(GRAMMAR_DIR)/haskell/%.o: $(TS_HASKELL)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(TS_CFLAGS) -Wno-implicit-fallthrough -I$(TS_HASKELL)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_HASKELL)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/java/%.o: $(TS_JAVA)/src/%.c
 	mkdir -p $(@D)
@@ -112,7 +125,7 @@ $(GRAMMAR_DIR)/python/%.o: $(TS_PYTHON)/src/%.c
 
 $(GRAMMAR_DIR)/rust/%.o: $(TS_RUST)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(TS_CFLAGS) -Wno-extra-semi -I$(TS_RUST)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_RUST)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/tql/%.o: $(TS_TQL)/src/%.c
 	mkdir -p $(@D)

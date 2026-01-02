@@ -15,19 +15,47 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
   buf[buf_len] = '\0';
 }
 
+static inline SymbolEntry *find_se(Engine *engine, Symbol symbol) {
+  for (size_t i = 0; i < engine->symtab.len; i++) {
+    SymbolEntry *se = &engine->symtab.data[i];
+    if (se->id == symbol) {
+      return se;
+    }
+  }
+  return NULL;
+}
+
+void print_bindings(Engine *engine, const char *source_code,
+                    Bindings *bindings) {
+  char buf[8192];
+  while (bindings != NULL) {
+    TSNode node = bindings->binding.value;
+    SymbolEntry *se = find_se(engine, bindings->binding.variable);
+    get_ts_node_text(source_code, node, buf);
+    printf("%s: %s\n", se != NULL ? se->slice.buf : "unknown",
+           strlen(buf) > 20 ? "(too long)" : buf);
+    bindings = bindings->parent;
+  }
+}
+
 int run(const char *query_filename, const char *source_filename) {
-  char tql_buf[4096] = {0};
+  char *tql_buf = NULL;
   uint32_t tql_length = 0;
-  char source_code[4096] = {0};
+  char *source_code = NULL;
   uint32_t source_length = 0;
 
   {
-    FILE *fp = fopen(query_filename, "rb");
+    FILE *fp = fopen(query_filename, "r");
     if (fp == NULL) {
       perror("fopen");
       return EXIT_FAILURE;
     }
-    tql_length = fread(tql_buf, 1, sizeof(tql_buf), fp);
+    fseek(fp, 0, SEEK_END);
+    tql_length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    tql_buf = malloc(tql_length);
+    assert(fread(tql_buf, 1, tql_length, fp) == tql_length);
     fclose(fp);
   }
   {
@@ -36,7 +64,12 @@ int run(const char *query_filename, const char *source_filename) {
       perror("fopen");
       return EXIT_FAILURE;
     }
-    source_length = fread(source_code, 1, sizeof(source_code), fp);
+    fseek(fp, 0, SEEK_END);
+    source_length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    source_code = malloc(source_length);
+    assert(fread(source_code, 1, source_length, fp) == source_length);
     fclose(fp);
   }
   Engine *engine = engine_new();
@@ -49,21 +82,29 @@ int run(const char *query_filename, const char *source_filename) {
 
   while (engine_next_match(engine, &match)) {
     assert(!ts_node_is_null(match.node));
+    print_bindings(engine, source_code, match.bindings);
     get_ts_node_text(source_code, match.node, buf);
     printf("Full match: \n%s\n", buf);
     printf("\n");
   }
-  const VmStats *stats = engine_get_vm_stats(engine);
-  printf("=== VM Stats ===\n");
-  // printf("Arena allocation: %zu\n", engine->arena->offset);
-  printf("Boundaries encountered: %u\n", stats->boundaries_encountered);
-  printf("Total branching: %u\n", stats->total_branching);
-  printf("Max branching factor: %u\n", stats->max_branching_factor);
-  printf("Max stack size: %u\n", stats->max_stack_size);
-  printf("Step count: %u\n", stats->step_count);
-  printf("================\n");
+  EngineStats stats = engine_stats(engine);
+  printf("================================ Engine Stats "
+         "==================================\n");
+  printf("SI  String count: %u\n", stats.string_count);
+  printf("SI  String allocation: %u\n", stats.string_alloc);
+  printf("AST Arena allocation: %u\n", stats.ast_stats.arena_alloc);
+  printf("VM  Boundaries encountered: %u\n",
+         stats.vm_stats.boundaries_encountered);
+  printf("VM  Total branching: %u\n", stats.vm_stats.total_branching);
+  printf("VM  Max branching factor: %u\n", stats.vm_stats.max_branching_factor);
+  printf("VM  Max stack size: %u\n", stats.vm_stats.max_stack_size);
+  printf("VM  Step count: %u\n", stats.vm_stats.step_count);
+  printf("====================================================================="
+         "===========\n");
 
   engine_free(engine);
+  free(source_code);
+  free(tql_buf);
 
   return EXIT_SUCCESS;
 }

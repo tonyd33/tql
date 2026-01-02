@@ -112,7 +112,7 @@ static inline TQLFunction *parse_function(TQLAst *ast, TSNode node) {
 
   TQLVariableIdentifier *parameters[named_child_count];
   TQLStatement *statements[named_child_count];
-  for (int i = 0; i < ts_node_named_child_count(node); i++) {
+  for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
     TSNode child_node = ts_node_named_child(node, i);
     const char *field_name = ts_node_field_name_for_named_child(node, i);
     if (strcmp(field_name, "parameters") == 0) {
@@ -174,7 +174,7 @@ static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
     uint32_t named_child_count = ts_node_named_child_count(node);
     uint32_t statement_count = 0;
     TQLStatement *statements[named_child_count];
-    for (int i = 0; i < named_child_count; i++) {
+    for (uint32_t i = 0; i < named_child_count; i++) {
       TSNode statement_node = ts_node_named_child(node, i);
       if (strcmp(ts_node_field_name_for_named_child(node, i), "statement") ==
           0) {
@@ -193,7 +193,7 @@ static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
     uint32_t named_child_count = ts_node_named_child_count(node);
     uint32_t expr_count = 0;
     TQLExpression *exprs[named_child_count];
-    for (int i = 0; i < named_child_count; i++) {
+    for (uint32_t i = 0; i < named_child_count; i++) {
       TSNode expr_node = ts_node_named_child(node, i);
       if (strcmp(ts_node_field_name_for_named_child(node, i), "parameters") ==
           0) {
@@ -241,7 +241,7 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
   uint32_t directive_count = 0;
   TQLFunction *functions[named_child_count];
   TQLDirective *directives[named_child_count];
-  for (int i = 0; i < ts_node_named_child_count(root_node); i++) {
+  for (uint32_t i = 0; i < ts_node_named_child_count(root_node); i++) {
     TSNode toplevel_node = ts_node_named_child(root_node, i);
     const char *node_type = ts_node_type(toplevel_node);
     assert(!ts_node_is_null(toplevel_node));
@@ -256,20 +256,13 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
     }
   }
 
-  ast->tree = tql_tree_new(ast, functions, function_count, directives, directive_count);
+  ast->tree =
+      tql_tree_new(ast, functions, function_count, directives, directive_count);
   ts_tree_delete(ts_tree);
 
-  {
-    uint32_t string_interner_usage = 0;
-    printf("AST used %lu bytes\n", ast->arena->offset);
-    printf("String interner stored %lu strings\n", ast->string_interner->slices.len);
-    for (int i = 0; i < ast->string_interner->slices.len; i++) {
-      string_interner_usage += ast->string_interner->slices.data[i].length;
-    }
-    printf("String interner used %u bytes\n", string_interner_usage);
-  }
   return ast;
 }
+
 
 void tql_parser_free(TQLParser *parser) {
   parser->string_interner = NULL;

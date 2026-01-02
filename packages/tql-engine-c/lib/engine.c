@@ -3,16 +3,7 @@
 #include "compiler.h"
 #include "parser.h"
 
-struct Engine {
-  TQLAst *ast;
-  Vm *vm;
-  StringInterner *string_interner;
-  Program program;
-  StringSlice target_source;
-  TSTree *target_ast;
-};
-
-Engine *engine_new() {
+Engine *engine_new(void) {
   Engine *engine = malloc(sizeof(Engine));
   engine->ast = NULL;
   engine->vm = NULL;
@@ -21,10 +12,12 @@ Engine *engine_new() {
   engine->target_source.length = 0;
 
   engine->string_interner = string_interner_new(32768);
+  symbol_table_init(&engine->symtab);
   return engine;
 }
 
 void engine_free(Engine *engine) {
+  symbol_table_deinit(&engine->symtab);
   string_interner_free(engine->string_interner);
   engine->string_interner = NULL;
 
@@ -44,7 +37,7 @@ void engine_free(Engine *engine) {
     free(engine->program.data);
   }
   if (engine->target_source.buf != NULL) {
-    char *buf = *((char**)(&engine->target_source.buf));
+    char *buf = *((char **)(&engine->target_source.buf));
     free(buf);
     engine->target_source.buf = NULL;
     engine->target_source.length = 0;
@@ -56,9 +49,10 @@ void engine_free(Engine *engine) {
 void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
   TQLParser *parser = tql_parser_new(engine->string_interner);
   engine->ast = tql_parser_parse_string(parser, buf, length);
+  engine->stats.ast_stats = tql_ast_stats(engine->ast);
   tql_parser_free(parser);
 
-  TQLCompiler *compiler = tql_compiler_new(engine->ast);
+  TQLCompiler *compiler = tql_compiler_new(engine->ast, &engine->symtab);
   engine->program = tql_compiler_compile(compiler);
   tql_compiler_free(compiler);
 }
@@ -95,7 +89,14 @@ bool engine_next_match(Engine *engine, Match *match) {
   return vm_next_match(engine->vm, match);
 }
 
-const VmStats *engine_get_vm_stats(const Engine *engine) {
+EngineStats engine_stats(Engine *engine) {
   assert(engine->vm != NULL);
-  return vm_stats(engine->vm);
+  uint32_t string_interner_usage = 0;
+  for (size_t i = 0; i < engine->string_interner->slices.len; i++) {
+    string_interner_usage += engine->string_interner->slices.data[i].length;
+  }
+  engine->stats.string_count = engine->string_interner->slices.len;
+  engine->stats.string_alloc = string_interner_usage;
+  engine->stats.vm_stats = vm_stats(engine->vm);
+  return engine->stats;
 }

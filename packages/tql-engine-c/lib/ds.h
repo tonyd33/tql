@@ -144,7 +144,7 @@ static inline void string_interner_free(StringInterner *string_interner) {
 static inline StringSlice string_intern(StringInterner *string_interner,
                                         const char *string, uint32_t length) {
   char *s = string_interner->pool;
-  for (int i = 0; i < string_interner->slices.len; i++) {
+  for (size_t i = 0; i < string_interner->slices.len; i++) {
     StringSlice slice = string_interner->slices.data[i];
     if (slice.length == length && strncmp(s, string, length) == 0) {
       return slice;

@@ -67,7 +67,7 @@ static LanguageEntry LANGUAGE_ENTRIES[] = {
 };
 
 const TSLanguage *ts_language_for_name(const char *language, size_t length) {
-  for (int j = 0; j < sizeof(LANGUAGE_ENTRIES) / sizeof(LanguageEntry); j++) {
+  for (unsigned long j = 0; j < sizeof(LANGUAGE_ENTRIES) / sizeof(LanguageEntry); j++) {
     if (strncmp(language, LANGUAGE_ENTRIES[j].name, length) == 0) {
       return LANGUAGE_ENTRIES[j].get();
     }

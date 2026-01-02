@@ -3,7 +3,6 @@
 #include <string.h>
 
 #define AST_ARENA_SIZE 32768
-#define STRING_POOL_CAPACITY 8192
 
 TQLString *tql_string_new(TQLAst *ast, const char *string, uint32_t length) {
   TQLString *tql_string = arena_alloc(ast->arena, sizeof(TQLString));
@@ -294,4 +293,10 @@ TQLDirective *tql_directive_target(TQLAst *ast, TQLString *target) {
       .data = {.target = target},
   };
   return directive;
+}
+
+TQLAstStats tql_ast_stats(const TQLAst *ast) {
+  return (TQLAstStats){
+      .arena_alloc = ast->arena->offset,
+  };
 }

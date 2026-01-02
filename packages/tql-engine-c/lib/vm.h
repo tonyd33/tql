@@ -5,6 +5,7 @@
 #include <tree_sitter/api.h>
 
 typedef uint64_t VarId;
+typedef TSNode TQLValue;
 
 struct Vm;
 struct VmSymbol;
@@ -33,6 +34,7 @@ typedef struct Push Push;
 typedef struct Match Match;
 typedef struct Bindings Bindings;
 typedef struct Program Program;
+typedef struct Binding Binding;
 
 typedef enum {
   /* Does nothing. */
@@ -142,6 +144,18 @@ struct Op {
   } data;
 };
 
+struct Binding {
+  VarId variable;
+  TQLValue value;
+};
+
+struct Bindings {
+  Bindings *parent;
+  Binding binding;
+  // Don't need this if we're arena-allocating this anyway...
+  uint16_t ref_count;
+};
+
 struct VmStats {
   uint32_t step_count;
   uint32_t boundaries_encountered;
@@ -156,7 +170,7 @@ struct Match {
 };
 
 struct Program {
-  uint32_t version;
+  uint64_t version;
   // FIXME: This doesn't belong
   const TSLanguage *target_language;
   uint32_t statics;
@@ -173,37 +187,37 @@ void vm_free(Vm *vm);
 void vm_exec(Vm *vm);
 bool vm_next_match(Vm *vm, Match *match);
 
-const VmStats *vm_stats(const Vm *vm);
+VmStats vm_stats(const Vm *vm);
 
-const Axis axis_field(TSFieldId field_id);
-const Axis axis_child(void);
-const Axis axis_descendant(void);
+Axis axis_field(TSFieldId field_id);
+Axis axis_child(void);
+Axis axis_descendant(void);
 
-const Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol);
-const Predicate predicate_texteq(NodeExpression ne, const char *string);
-const Predicate predicate_negate(Predicate predicate);
+Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol);
+Predicate predicate_texteq(NodeExpression ne, const char *string);
+Predicate predicate_negate(Predicate predicate);
 
-const NodeExpression node_expression_self(void);
+NodeExpression node_expression_self(void);
 
-const Jump jump_relative(int32_t pc);
-const Jump jump_absolute(int32_t pc);
+Jump jump_relative(int32_t pc);
+Jump jump_absolute(int32_t pc);
 
-const Probe probe_exists(Jump jump);
-const Probe probe_not_exists(Jump jump);
+Probe probe_exists(Jump jump);
+Probe probe_not_exists(Jump jump);
 
-const Op op_noop(void);
-const Op op_branch(Axis axis);
-const Op op_bind(VarId var_id);
-const Op op_if(Predicate predicate);
-const Op op_probe(Probe probe);
-const Op op_halt(void);
-const Op op_yield(void);
-const Op op_pushnode(void);
-const Op op_popnode(void);
-const Op op_pushpc(void);
-const Op op_poppc(void);
-const Op op_jump(Jump jump);
-const Op op_call(Jump jump);
-const Op op_ret(void);
+Op op_noop(void);
+Op op_branch(Axis axis);
+Op op_bind(VarId var_id);
+Op op_if(Predicate predicate);
+Op op_probe(Probe probe);
+Op op_halt(void);
+Op op_yield(void);
+Op op_pushnode(void);
+Op op_popnode(void);
+Op op_pushpc(void);
+Op op_poppc(void);
+Op op_jump(Jump jump);
+Op op_call(Jump jump);
+Op op_ret(void);
 
 #endif /* _VM_H_ */
