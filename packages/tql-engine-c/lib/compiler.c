@@ -248,6 +248,9 @@ TQLCompiler *tql_compiler_new(TQLAst *ast) {
 }
 
 void compiler_deinit(TQLCompiler *compiler) {
+  for (int i = 0; i < compiler->section_table.len; i++) {
+    ir_instrs_deinit(&compiler->section_table.data[i].ops);
+  }
   section_table_deinit(&compiler->section_table);
   symbol_table_deinit(&compiler->symbol_table);
   compiler->next_symbol_id = 0;
@@ -637,7 +640,7 @@ static inline const Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
       return op_popnode();
     case PUSH_PC:
       return op_poppc();
-    }
+    } break;
   case OP_CALL: {
     Jump jump = jump_absolute(
         compiler_lookup_section_placement(compiler, ir->data.jump));
@@ -646,6 +649,7 @@ static inline const Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
   case OP_RET:
     return op_ret();
   }
+  assert(false);
 }
 
 Program tql_compiler_compile(TQLCompiler *compiler) {

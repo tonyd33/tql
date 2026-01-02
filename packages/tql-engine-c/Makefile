@@ -2,7 +2,8 @@ CC ?= clang
 # TODO: Expose the API and use the API instead of using from lib directly
 CFLAGS += -std=c11 -Wall -Wpedantic -Wimplicit-fallthrough -Werror -fPIC -g
 CFLAGS += -Wno-unused-variable -Wno-unused-function -Wno-strict-prototypes
-CFLAGS += -fsanitize=address
+# CFLAGS += -fsanitize=address
+TS_CFLAGS = -std=c11 -O3 -fPIC
 LDFLAGS += -ltree-sitter
 ARFLAGS := rcs
 
@@ -63,55 +64,55 @@ $(BUILD_DIR)/%.o: $(LIB_DIR)/%.c
 
 $(GRAMMAR_DIR)/bash/%.o: $(TS_BASH)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_BASH)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_BASH)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/typescript/%.o: $(TS_TYPESCRIPT)/typescript/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_TYPESCRIPT)/typescript/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_TYPESCRIPT)/typescript/src -c $< -o $@
 
 $(GRAMMAR_DIR)/c/%.o: $(TS_C)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_C)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_C)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/cpp/%.o: $(TS_CPP)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_CPP)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_CPP)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/css/%.o: $(TS_CSS)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_CSS)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_CSS)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/go/%.o: $(TS_GO)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_GO)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_GO)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/haskell/%.o: $(TS_HASKELL)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -Wno-implicit-fallthrough -I$(TS_HASKELL)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -Wno-implicit-fallthrough -I$(TS_HASKELL)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/java/%.o: $(TS_JAVA)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_JAVA)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_JAVA)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/javascript/%.o: $(TS_JAVASCRIPT)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_JAVASCRIPT)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_JAVASCRIPT)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/json/%.o: $(TS_JSON)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_JSON)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_JSON)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/python/%.o: $(TS_PYTHON)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_PYTHON)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_PYTHON)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/rust/%.o: $(TS_RUST)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -Wno-extra-semi -I$(TS_RUST)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -Wno-extra-semi -I$(TS_RUST)/src -c $< -o $@
 
 $(GRAMMAR_DIR)/tql/%.o: $(TS_TQL)/src/%.c
 	mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(TS_TQL)/src -c $< -o $@
+	$(CC) $(TS_CFLAGS) -I$(TS_TQL)/src -c $< -o $@
 
 clean:
 	$(RM) -r $(BUILD_DIR)

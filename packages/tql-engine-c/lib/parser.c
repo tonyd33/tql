@@ -243,13 +243,15 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
   TQLDirective *directives[named_child_count];
   for (int i = 0; i < ts_node_named_child_count(root_node); i++) {
     TSNode toplevel_node = ts_node_named_child(root_node, i);
+    const char *node_type = ts_node_type(toplevel_node);
     assert(!ts_node_is_null(toplevel_node));
     // TODO: Parse directives
-    if (strcmp(ts_node_type(toplevel_node), "function_definition") == 0) {
+    if (strcmp(node_type, "function_definition") == 0) {
       functions[function_count++] = parse_function(ast, toplevel_node);
-    } else if (strcmp(ts_node_type(toplevel_node), "directive") == 0) {
+    } else if (strcmp(node_type, "directive") == 0) {
       directives[directive_count++] = parse_directive(ast, toplevel_node);
     } else {
+      fprintf(stderr, "Got node type %s\n", node_type);
       assert(false && "Unknown toplevel");
     }
   }

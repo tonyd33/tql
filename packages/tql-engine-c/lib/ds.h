@@ -110,7 +110,7 @@ static inline bool string_slice_eq(StringSlice a, StringSlice b) {
   return a.length == b.length && strncmp(a.buf, b.buf, a.length) == 0;
 }
 
-static inline StringSlice string_slice_from(const char *string) {
+static inline StringSlice string_slice_from(char *string) {
   return (StringSlice){
       .buf = string,
       .length = (uint32_t)strlen(string),
@@ -131,6 +131,14 @@ static inline StringInterner *string_interner_new(uint32_t cap) {
   string_interner->pool_capacity = cap;
   string_interner->pool = (char *)malloc(cap);
   return string_interner;
+}
+
+static inline void string_interner_free(StringInterner *string_interner) {
+  string_slices_deinit(&string_interner->slices);
+  free(string_interner->pool);
+  string_interner->pool = NULL;
+  string_interner->pool_capacity = 0;
+  free(string_interner);
 }
 
 static inline StringSlice string_intern(StringInterner *string_interner,
@@ -157,12 +165,5 @@ static inline StringSlice string_intern(StringInterner *string_interner,
   };
   string_slices_append(&string_interner->slices, slice);
   return slice;
-}
-
-static inline void string_interner_free(StringInterner *string_interner) {
-  string_slices_deinit(&string_interner->slices);
-  free(string_interner->pool);
-  string_interner->pool = NULL;
-  string_interner->pool_capacity = 0;
 }
 #endif /* _DS_H_ */

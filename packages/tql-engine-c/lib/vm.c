@@ -113,8 +113,8 @@ struct Vm {
 
   Arena *arena;
   uint32_t stk_cap;
-
   DelimitedExecution del_exc;
+  TSNodes branch_buffer[2];
 
   VmStats stats;
   Program program;
@@ -288,10 +288,15 @@ Vm *vm_new(TSTree *ast, const char *source) {
 
   vm->stats = (VmStats){.step_count = 0, .boundaries_encountered = 0};
 
+  ts_nodes_init(&vm->branch_buffer[0]);
+  ts_nodes_init(&vm->branch_buffer[1]);
+
   return vm;
 }
 
 void vm_free(Vm *vm) {
+  ts_nodes_deinit(&vm->branch_buffer[1]);
+  ts_nodes_deinit(&vm->branch_buffer[0]);
   for (Continuation *cnt = vm->del_exc.cnt_stk; cnt <= vm->del_exc.sp; cnt++) {
     bindings_free(vm, cnt->bindings);
     cnt->bindings = NULL;
@@ -336,7 +341,7 @@ static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
   return jump.relative ? curr_pc + jump.pc : jump.pc;
 }
 
-static ContinuationResult vm_step_continuation(const Vm *vm,
+static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
                                                DelimitedExecution *del_exc,
                                                Continuation *cnt) {
   const TSLanguage *language = ts_tree_language(vm->ast);
@@ -363,31 +368,28 @@ static ContinuationResult vm_step_continuation(const Vm *vm,
       // TODO: Allow the continuation to store the info on the axis so that it
       // can be continued during axis enumeration
       Axis axis = op.data.axis;
-      TSNodes branches;
-      ts_nodes_init(&branches);
+      TSNodes *branches = &vm->branch_buffer[0];
+      branches->len = 0;
       switch (axis.axis_type) {
       case AXIS_CHILD: {
         for (int i = ts_node_named_child_count(cnt->node) - 1; i >= 0; i--) {
-          ts_nodes_append(&branches, ts_node_named_child(cnt->node, i));
+          ts_nodes_append(branches, ts_node_named_child(cnt->node, i));
         }
         break;
       }
       case AXIS_DESCENDANT: {
-        TSNodes desc_stack;
-        ts_nodes_init(&desc_stack);
-        ts_nodes_append(&desc_stack, cnt->node);
+        TSNodes *desc_stack = &vm->branch_buffer[1];
+        ts_nodes_append(desc_stack, cnt->node);
         TSNode curr;
         TSNode child;
-        while (desc_stack.len > 0) {
-          curr = desc_stack.data[--desc_stack.len];
+        while (desc_stack->len > 0) {
+          curr = desc_stack->data[--desc_stack->len];
           for (int i = 0; i < ts_node_named_child_count(curr); i++) {
             child = ts_node_named_child(curr, i);
-            ts_nodes_append(&desc_stack, child);
-            ts_nodes_append(&branches, child);
+            ts_nodes_append(desc_stack, child);
+            ts_nodes_append(branches, child);
           }
         }
-
-        ts_nodes_deinit(&desc_stack);
         break;
       }
       case AXIS_FIELD: {
@@ -401,7 +403,7 @@ static ContinuationResult vm_step_continuation(const Vm *vm,
               strcmp(field_name_for_named_child, field_name) != 0) {
             continue;
           }
-          ts_nodes_append(&branches, ts_node_named_child(cnt->node, i));
+          ts_nodes_append(branches, ts_node_named_child(cnt->node, i));
         }
         break;
       }
@@ -410,12 +412,12 @@ static ContinuationResult vm_step_continuation(const Vm *vm,
         if (node == NULL) {
           return (ContinuationResult){.type = EXC_ERR};
         }
-        ts_nodes_append(&branches, *node);
+        ts_nodes_append(branches, *node);
       } break;
       }
 
-      for (uint32_t i = 0; i < branches.len; i++) {
-        TSNode branch = branches.data[i];
+      for (uint32_t i = 0; i < branches->len; i++) {
+        TSNode branch = branches->data[i];
         Continuation new_cnt = {
             .pc = cnt->pc,
             .node = branch,
@@ -425,11 +427,11 @@ static ContinuationResult vm_step_continuation(const Vm *vm,
         };
         *++del_exc->sp = new_cnt;
       }
-      stats->max_branching_factor = branches.len > stats->max_branching_factor
-                                        ? branches.len
+      stats->max_branching_factor = branches->len > stats->max_branching_factor
+                                        ? branches->len
                                         : stats->max_branching_factor;
-      stats->total_branching += branches.len;
-      ts_nodes_deinit(&branches);
+      stats->total_branching += branches->len;
+      branches->len = 0;
       return (ContinuationResult){
           .type = EXC_BRANCH,
       };
@@ -547,7 +549,7 @@ static ContinuationResult vm_step_continuation(const Vm *vm,
   return (ContinuationResult){.type = EXC_ERR};
 }
 
-static BoundaryResult vm_step_exc_stack(const Vm *vm,
+static BoundaryResult vm_step_exc_stack(/* const */ Vm *vm,
                                         DelimitedExecution *del_exc) {
   VmStats *stats = vm_stats_mut(vm);
   while (del_exc->sp >= del_exc->cnt_stk) {
@@ -586,7 +588,7 @@ static BoundaryResult vm_step_exc_stack(const Vm *vm,
   return (BoundaryResult){.type = BOUNDARY_FAIL};
 }
 
-static bool vm_step_boundary(const Vm *vm, LookaheadBoundary *boundary) {
+static bool vm_step_boundary(/* const */ Vm *vm, LookaheadBoundary *boundary) {
   VmStats *stats = vm_stats_mut(vm);
   while (true) {
     BoundaryResult result = vm_step_exc_stack(vm, &boundary->del_exc);

@@ -17,7 +17,9 @@ void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
 
 int run(const char *query_filename, const char *source_filename) {
   char tql_buf[4096] = {0};
+  uint32_t tql_length = 0;
   char source_code[4096] = {0};
+  uint32_t source_length = 0;
 
   {
     FILE *fp = fopen(query_filename, "rb");
@@ -25,7 +27,7 @@ int run(const char *query_filename, const char *source_filename) {
       perror("fopen");
       return EXIT_FAILURE;
     }
-    fread(tql_buf, 1, sizeof(tql_buf), fp);
+    tql_length = fread(tql_buf, 1, sizeof(tql_buf), fp);
     fclose(fp);
   }
   {
@@ -34,12 +36,12 @@ int run(const char *query_filename, const char *source_filename) {
       perror("fopen");
       return EXIT_FAILURE;
     }
-    fread(source_code, 1, sizeof(source_code), fp);
+    source_length = fread(source_code, 1, sizeof(source_code), fp);
     fclose(fp);
   }
   Engine *engine = engine_new();
-  engine_compile_query(engine, tql_buf, strlen(tql_buf));
-  engine_load_target_string(engine, source_code, strlen(source_code));
+  engine_compile_query(engine, tql_buf, tql_length);
+  engine_load_target_string(engine, source_code, source_length);
   engine_exec(engine);
 
   Match match;

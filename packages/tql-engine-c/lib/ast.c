@@ -288,7 +288,7 @@ TQLFunction *tql_lookup_function(TQLAst *ast, const char *string,
 }
 
 TQLDirective *tql_directive_target(TQLAst *ast, TQLString *target) {
-  TQLDirective *directive = malloc(sizeof(TQLDirective));
+  TQLDirective *directive = arena_alloc(ast->arena, sizeof(TQLDirective));
   *directive = (TQLDirective){
       .type = TQLDIRECTIVE_TARGET,
       .data = {.target = target},

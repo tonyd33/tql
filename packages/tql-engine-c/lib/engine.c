@@ -17,6 +17,8 @@ Engine *engine_new() {
   engine->ast = NULL;
   engine->vm = NULL;
   engine->target_ast = NULL;
+  engine->target_source.buf = NULL;
+  engine->target_source.length = 0;
 
   engine->string_interner = string_interner_new(32768);
   return engine;
@@ -38,10 +40,17 @@ void engine_free(Engine *engine) {
     ts_tree_delete(engine->target_ast);
     engine->target_ast = NULL;
   }
-
   if (engine->program.data != NULL) {
     free(engine->program.data);
   }
+  if (engine->target_source.buf != NULL) {
+    char *buf = *((char**)(&engine->target_source.buf));
+    free(buf);
+    engine->target_source.buf = NULL;
+    engine->target_source.length = 0;
+  }
+
+  free(engine);
 }
 
 void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
