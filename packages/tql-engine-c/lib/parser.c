@@ -9,6 +9,7 @@
                                      strlen((node_type)), true))
 struct TQLParser {
   TSParser *ts_parser;
+  StringInterner *string_interner;
 };
 
 /* TODO: Use symbol ids/field ids */
@@ -19,10 +20,11 @@ static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node);
 static inline TQLStatement *parse_statement(TQLAst *ast, TSNode node);
 static inline TQLFunction *parse_function(TQLAst *ast, TSNode node);
 
-TQLParser *tql_parser_new() {
+TQLParser *tql_parser_new(StringInterner *interner) {
   TQLParser *parser = malloc(sizeof(TQLParser));
   parser->ts_parser = ts_parser_new();
   ts_parser_set_language(parser->ts_parser, tree_sitter_tql());
+  parser->string_interner = interner;
   return parser;
 }
 
@@ -231,7 +233,7 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
                                 uint32_t length) {
   TSTree *ts_tree =
       ts_parser_parse_string(parser->ts_parser, NULL, string, length);
-  TQLAst *ast = tql_ast_new(string, length);
+  TQLAst *ast = tql_ast_new(string, length, parser->string_interner);
 
   TSNode root_node = ts_tree_root_node(ts_tree);
   uint32_t named_child_count = ts_node_named_child_count(root_node);
@@ -258,6 +260,7 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
 }
 
 void tql_parser_free(TQLParser *parser) {
+  parser->string_interner = NULL;
   ts_parser_delete(parser->ts_parser);
   parser->ts_parser = NULL;
   free(parser);

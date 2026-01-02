@@ -5,14 +5,14 @@
 #include "vm.h"
 #include <tree_sitter/api.h>
 
-struct Compiler;
+struct TQLCompiler;
 
-typedef struct Compiler Compiler;
+typedef struct TQLCompiler TQLCompiler;
 
-Compiler *compiler_new(TQLAst *ast);
-void compiler_free(Compiler *compiler);
-Program tql_compiler_compile(Compiler *compiler);
+TQLCompiler *tql_compiler_new(TQLAst *ast);
+void tql_compiler_free(TQLCompiler *compiler);
+Program tql_compiler_compile(TQLCompiler *compiler);
 // FIXME: Do not expose this
-const TSLanguage *tql_compiler_target(Compiler *compiler);
+const TSLanguage *tql_compiler_target(TQLCompiler *compiler);
 
 #endif /* _COMPILER_H_ */

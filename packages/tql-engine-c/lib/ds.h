@@ -110,6 +110,13 @@ static inline bool string_slice_eq(StringSlice a, StringSlice b) {
   return a.length == b.length && strncmp(a.buf, b.buf, a.length) == 0;
 }
 
+static inline StringSlice string_slice_from(const char *string) {
+  return (StringSlice){
+      .buf = string,
+      .length = (uint32_t)strlen(string),
+  };
+}
+
 typedef struct {
   StringSlices slices;
   uint32_t pool_capacity;
@@ -135,10 +142,13 @@ static inline StringSlice string_intern(StringInterner *string_interner,
       return slice;
     }
     s += slice.length + 1;
+    // FIXME: We can allocate more fixed memory regions
     assert(s - string_interner->pool < string_interner->pool_capacity);
   }
 
   strncpy(s, string, length);
+  // not necessary to terminate slices since lengths are well-known, but it's
+  // relatively cheap and useful if we don't have access to slice data anymore.
   s[length] = '\0';
 
   StringSlice slice = {

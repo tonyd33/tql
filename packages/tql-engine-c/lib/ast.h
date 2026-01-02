@@ -162,7 +162,7 @@ struct TQLFunction {
   uint16_t statement_count;
 };
 
-TQLAst *tql_ast_new(const char *string, size_t length);
+TQLAst *tql_ast_new(const char *string, size_t length, StringInterner *interner);
 void tql_ast_free(TQLAst *ast);
 
 TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,

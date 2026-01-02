@@ -8,7 +8,7 @@ struct TQLParser;
 
 typedef struct TQLParser TQLParser;
 
-TQLParser *tql_parser_new();
+TQLParser *tql_parser_new(StringInterner *interner);
 TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
                                 uint32_t length);
 void tql_parser_free(TQLParser *parser);

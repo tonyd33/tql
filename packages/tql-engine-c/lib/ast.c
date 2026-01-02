@@ -246,12 +246,12 @@ TQLFunction *tql_function_new(TQLAst *ast, TQLFunctionIdentifier *identifier,
   return fn;
 }
 
-TQLAst *tql_ast_new(const char *src, size_t length) {
+TQLAst *tql_ast_new(const char *src, size_t length, StringInterner *interner) {
   TQLAst *ast = malloc(sizeof(TQLAst));
 
   ast->arena = arena_new(AST_ARENA_SIZE);
 
-  ast->string_interner = string_interner_new(STRING_POOL_CAPACITY);
+  ast->string_interner = interner;
 
   ast->source_length = length;
   ast->source = malloc(sizeof(char) * length);
@@ -267,10 +267,7 @@ void tql_ast_free(TQLAst *ast) {
   }
   ast->source_length = 0;
 
-  if (ast->string_interner != NULL) {
-    string_interner_free(ast->string_interner);
-    ast->string_interner = NULL;
-  }
+  ast->string_interner = NULL;
 
   if (ast->arena != NULL) {
     arena_free(ast->arena);

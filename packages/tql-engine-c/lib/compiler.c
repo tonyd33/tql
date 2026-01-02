@@ -19,8 +19,8 @@ typedef struct IrOp IrInstr;
 typedef struct IrAxis {
   AxisType axis_type;
   union {
-    const char *field;
-    const char *variable;
+    Symbol field;
+    Symbol variable;
   } data;
 } IrAxis;
 
@@ -77,7 +77,7 @@ static const inline IrPredicate ir_predicate_texteq(NodeExpression ne,
       .negate = false,
       .data = {.texteq = {.node_expression = ne, .text = text}}};
 }
-static const inline IrAxis ir_axis_field(const char *field) {
+static const inline IrAxis ir_axis_field(Symbol field) {
   return (IrAxis){.axis_type = AXIS_FIELD, .data = {.field = field}};
 }
 static const inline IrAxis ir_axis_child(void) {
@@ -86,7 +86,7 @@ static const inline IrAxis ir_axis_child(void) {
 static const inline IrAxis ir_axis_descendant(void) {
   return (IrAxis){.axis_type = AXIS_DESCENDANT};
 }
-static const inline IrAxis ir_axis_var(const char *variable) {
+static const inline IrAxis ir_axis_var(Symbol variable) {
   return (IrAxis){.axis_type = AXIS_VAR, .data = {.variable = variable}};
 }
 static const inline IrInstr ir_noop(void) {
@@ -136,15 +136,14 @@ typedef struct Section Section;
 
 typedef enum SymbolType {
   SYMBOL_VARIABLE,
+  SYMBOL_FIELD,
   SYMBOL_FUNCTION,
 } SymbolType;
 
 struct SymbolEntry {
   Symbol id;
   SymbolType type;
-  union {
-    const char *string;
-  } data;
+  StringSlice slice;
   char *placement;
 };
 DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
@@ -155,7 +154,7 @@ struct Section {
 };
 DA_DEFINE(Section, SectionTable, section_table)
 
-struct Compiler {
+struct TQLCompiler {
   TQLAst *ast;
   Symbol next_symbol_id;
   SymbolTable symbol_table;
@@ -164,7 +163,7 @@ struct Compiler {
 };
 // }}}
 
-static inline void compiler_section_insert(Compiler *compiler, Symbol symbol,
+static inline void compiler_section_insert(TQLCompiler *compiler, Symbol symbol,
                                            IrInstrs *ops) {
   Section section;
   section.symbol = symbol;
@@ -173,56 +172,50 @@ static inline void compiler_section_insert(Compiler *compiler, Symbol symbol,
   section_table_append(&compiler->section_table, section);
 }
 
-static inline void compile_tql_selector(Compiler *compiler,
+static inline void compile_tql_selector(TQLCompiler *compiler,
                                         TQLSelector *selector, IrInstrs *out);
-static inline void compile_tql_statement(Compiler *compiler,
+static inline void compile_tql_statement(TQLCompiler *compiler,
                                          TQLStatement *statement,
                                          IrInstrs *out);
-static inline void compile_tql_expression(Compiler *compiler,
+static inline void compile_tql_expression(TQLCompiler *compiler,
                                           TQLExpression *expr, IrInstrs *out);
-size_t compiler_lookup_section_placement(const Compiler *compiler,
+size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
                                          Symbol symbol);
 
-static inline Symbol compiler_request_symbol(Compiler *compiler) {
+static inline Symbol compiler_request_symbol(TQLCompiler *compiler) {
   return compiler->next_symbol_id++;
 }
 
-static inline Symbol compiler_symbol_for_variable(Compiler *compiler,
-                                                  const char *string) {
+static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
+                                                     SymbolType symbol_type,
+                                                     StringSlice slice) {
   for (int i = 0; i < compiler->symbol_table.len; i++) {
     SymbolEntry entry = compiler->symbol_table.data[i];
-    if (entry.type == SYMBOL_VARIABLE &&
-        strcmp(string, entry.data.string) == 0) {
+    if (entry.type == symbol_type && string_slice_eq(entry.slice, slice)) {
       return entry.id;
     }
   }
 
   Symbol new_symbol = compiler_request_symbol(compiler);
-  SymbolEntry new_entry = {.id = new_symbol,
-                           .type = SYMBOL_VARIABLE,
-                           .data = {.string = string},
-                           .placement = NULL};
+  SymbolEntry new_entry = {
+      .id = new_symbol, .type = symbol_type, .slice = slice, .placement = NULL};
   symbol_table_append(&compiler->symbol_table, new_entry);
   return new_symbol;
 }
 
-static inline Symbol compiler_symbol_for_function(Compiler *compiler,
-                                                  const char *string) {
-  for (int i = 0; i < compiler->symbol_table.len; i++) {
-    SymbolEntry entry = compiler->symbol_table.data[i];
-    if (entry.type == SYMBOL_FUNCTION &&
-        strcmp(string, entry.data.string) == 0) {
-      return entry.id;
-    }
-  }
+static inline Symbol compiler_symbol_for_field(TQLCompiler *compiler,
+                                               StringSlice slice) {
+  return compiler_symbol_for_symbol_type(compiler, SYMBOL_FIELD, slice);
+}
 
-  Symbol new_symbol = compiler_request_symbol(compiler);
-  SymbolEntry new_entry = {.id = new_symbol,
-                           .type = SYMBOL_FUNCTION,
-                           .data = {.string = string},
-                           .placement = NULL};
-  symbol_table_append(&compiler->symbol_table, new_entry);
-  return new_symbol;
+static inline Symbol compiler_symbol_for_variable(TQLCompiler *compiler,
+                                                  StringSlice slice) {
+  return compiler_symbol_for_symbol_type(compiler, SYMBOL_VARIABLE, slice);
+}
+
+static inline Symbol compiler_symbol_for_function(TQLCompiler *compiler,
+                                                  StringSlice slice) {
+  return compiler_symbol_for_symbol_type(compiler, SYMBOL_FUNCTION, slice);
 }
 
 static inline const TSLanguage *get_ast_target(TQLAst *ast) {
@@ -238,7 +231,7 @@ static inline const TSLanguage *get_ast_target(TQLAst *ast) {
   return NULL;
 }
 
-void compiler_init(Compiler *compiler, TQLAst *ast) {
+void compiler_init(TQLCompiler *compiler, TQLAst *ast) {
   compiler->ast = ast;
   compiler->target = get_ast_target(ast);
   assert(compiler->target != NULL);
@@ -248,13 +241,13 @@ void compiler_init(Compiler *compiler, TQLAst *ast) {
   section_table_init(&compiler->section_table);
 }
 
-Compiler *compiler_new(TQLAst *ast) {
-  Compiler *compiler = malloc(sizeof(Compiler));
+TQLCompiler *tql_compiler_new(TQLAst *ast) {
+  TQLCompiler *compiler = malloc(sizeof(TQLCompiler));
   compiler_init(compiler, ast);
   return compiler;
 }
 
-void compiler_deinit(Compiler *compiler) {
+void compiler_deinit(TQLCompiler *compiler) {
   section_table_deinit(&compiler->section_table);
   symbol_table_deinit(&compiler->symbol_table);
   compiler->next_symbol_id = 0;
@@ -262,12 +255,12 @@ void compiler_deinit(Compiler *compiler) {
   compiler->ast = NULL;
 }
 
-void compiler_free(Compiler *compiler) {
+void tql_compiler_free(TQLCompiler *compiler) {
   compiler_deinit(compiler);
   free(compiler);
 }
 
-static inline void compile_tql_expression(Compiler *compiler,
+static inline void compile_tql_expression(TQLCompiler *compiler,
                                           TQLExpression *expr, IrInstrs *out) {
   switch (expr->type) {
   case TQLEXPRESSION_SELECTOR:
@@ -279,7 +272,7 @@ static inline void compile_tql_expression(Compiler *compiler,
   }
 }
 
-static inline void compile_tql_statement(Compiler *compiler,
+static inline void compile_tql_statement(TQLCompiler *compiler,
                                          TQLStatement *statement,
                                          IrInstrs *out) {
   switch (statement->type) {
@@ -287,17 +280,17 @@ static inline void compile_tql_statement(Compiler *compiler,
     compile_tql_selector(compiler, statement->data.selector, out);
   } break;
   case TQLSTATEMENT_ASSIGNMENT: {
-    Symbol aid = compiler_symbol_for_variable(
-        compiler, statement->data.assignment->variable_identifier->buf);
+    Symbol symbol = compiler_symbol_for_variable(
+        compiler, *statement->data.assignment->variable_identifier);
     compile_tql_expression(compiler, statement->data.assignment->expression,
                            out);
-    ir_instrs_append(out, ir_bind(aid));
+    ir_instrs_append(out, ir_bind(symbol));
   } break;
   }
 }
 
 static inline void compile_tql_function_invocation(
-    Compiler *compiler, TQLFunctionIdentifier *identifier,
+    TQLCompiler *compiler, TQLFunctionIdentifier *identifier,
     TQLExpression **exprs, uint16_t expr_count, IrInstrs *out) {
   if (strcmp(identifier->buf, "exists") == 0) {
     assert(expr_count == 1);
@@ -337,7 +330,7 @@ static inline void compile_tql_function_invocation(
     assert(function->parameter_count == expr_count);
     for (int i = 0; i < expr_count; i++) {
       Symbol aid =
-          compiler_symbol_for_variable(compiler, function->parameters[i]->buf);
+          compiler_symbol_for_variable(compiler, *function->parameters[i]);
       ir_instrs_append(out, ir_pushnode());
       compile_tql_expression(compiler, exprs[i], out);
       ir_instrs_append(out, ir_bind(aid));
@@ -345,11 +338,11 @@ static inline void compile_tql_function_invocation(
     }
 
     ir_instrs_append(out, ir_call(compiler_symbol_for_function(
-                              compiler, function->identifier->buf)));
+                              compiler, *function->identifier)));
   }
 }
 
-static inline void compile_tql_selector(Compiler *compiler,
+static inline void compile_tql_selector(TQLCompiler *compiler,
                                         TQLSelector *selector, IrInstrs *out) {
   switch (selector->type) {
   case TQLSELECTOR_SELF:
@@ -364,8 +357,9 @@ static inline void compile_tql_selector(Compiler *compiler,
       compile_tql_selector(compiler, selector->data.field_name_selector.parent,
                            out);
     }
-    ir_instrs_append(out, ir_branch(ir_axis_field(
-                              selector->data.field_name_selector.field->buf)));
+    ir_instrs_append(
+        out, ir_branch(ir_axis_field(compiler_symbol_for_field(
+                 compiler, *selector->data.field_name_selector.field))));
     break;
   case TQLSELECTOR_CHILD:
     if (selector->data.child_selector.parent != NULL) {
@@ -395,9 +389,9 @@ static inline void compile_tql_selector(Compiler *compiler,
     }
   } break;
   case TQLSELECTOR_VARID: {
-    ir_instrs_append(out,
-                     ir_branch(ir_axis_var(
-                         selector->data.variable_identifier_selector->buf)));
+    ir_instrs_append(
+        out, ir_branch(ir_axis_var(compiler_symbol_for_variable(
+                 compiler, *selector->data.variable_identifier_selector))));
     break;
   }
   case TQLSELECTOR_FUNINV:
@@ -424,17 +418,17 @@ static inline void compile_tql_selector(Compiler *compiler,
   }
 }
 
-static inline const char *
-compiler_lookup_variable_symbol(const Compiler *compiler, Symbol symbol) {
+static inline const SymbolEntry *
+compiler_lookup_symbol(const TQLCompiler *compiler, Symbol symbol) {
   for (int i = 0; i < compiler->symbol_table.len; i++) {
     if (compiler->symbol_table.data[i].id == symbol) {
-      return compiler->symbol_table.data[i].data.string;
+      return &compiler->symbol_table.data[i];
     }
   }
   return NULL;
 }
 
-static inline void print_op(const Compiler *compiler, Op op) {
+static inline void print_op(const TQLCompiler *compiler, Op op) {
   switch (op.opcode) {
   case OP_NOOP:
     printf("noop");
@@ -456,8 +450,9 @@ static inline void print_op(const Compiler *compiler, Op op) {
                                            op.data.axis.data.field));
       break;
     case AXIS_VAR: {
-      const char *variable =
-          compiler_lookup_variable_symbol(compiler, op.data.axis.data.variable);
+      const SymbolEntry *se =
+          compiler_lookup_symbol(compiler, op.data.axis.data.variable);
+      const char *variable = se->slice.buf;
       if (variable == NULL) {
         variable = "anonymous_variable";
       }
@@ -466,8 +461,8 @@ static inline void print_op(const Compiler *compiler, Op op) {
     }
     break;
   case OP_BIND: {
-    const char *variable =
-        compiler_lookup_variable_symbol(compiler, op.data.var_id);
+    const SymbolEntry *se = compiler_lookup_symbol(compiler, op.data.var_id);
+    const char *variable = se->slice.buf;
     if (variable == NULL) {
       variable = "anonymous_variable";
     }
@@ -530,7 +525,7 @@ static inline void print_op(const Compiler *compiler, Op op) {
   }
 }
 
-void compile_tql_function(Compiler *compiler, TQLFunction *function) {
+void compile_tql_function(TQLCompiler *compiler, TQLFunction *function) {
   IrInstrs ops;
   ir_instrs_init(&ops);
   for (int i = 0; i < function->statement_count; i++) {
@@ -539,12 +534,12 @@ void compile_tql_function(Compiler *compiler, TQLFunction *function) {
   ir_instrs_append(&ops, ir_ret());
 
   compiler_section_insert(
-      compiler,
-      compiler_symbol_for_function(compiler, function->identifier->buf), &ops);
+      compiler, compiler_symbol_for_function(compiler, *function->identifier),
+      &ops);
   ir_instrs_deinit(&ops);
 }
 
-const Section *compiler_lookup_section(const Compiler *compiler,
+const Section *compiler_lookup_section(const TQLCompiler *compiler,
                                        Symbol symbol) {
   for (int i = 0; i < compiler->section_table.len; i++) {
     if (compiler->section_table.data[i].symbol == symbol) {
@@ -554,7 +549,8 @@ const Section *compiler_lookup_section(const Compiler *compiler,
   return NULL;
 }
 
-size_t compiler_lookup_section_placement(const Compiler *compiler,
+// FIXME: Please use the real placement instead...
+size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
                                          Symbol symbol) {
   size_t placement = 0;
   for (int i = 0; i < compiler->section_table.len; i++) {
@@ -567,7 +563,7 @@ size_t compiler_lookup_section_placement(const Compiler *compiler,
   assert(false && "Should not get here");
 }
 
-static inline const Op assemble_op(Compiler *compiler, const IrInstr *ir) {
+static inline const Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
   switch (ir->opcode) {
   case OP_NOOP:
     return op_noop();
@@ -582,15 +578,15 @@ static inline const Op assemble_op(Compiler *compiler, const IrInstr *ir) {
     case AXIS_DESCENDANT:
       axis = axis_descendant();
       break;
-    case AXIS_FIELD:
+    case AXIS_FIELD: {
+      const SymbolEntry *se =
+          compiler_lookup_symbol(compiler, ir->data.axis.data.field);
       axis = axis_field(ts_language_field_id_for_name(
-          compiler->target, ir->data.axis.data.field,
-          strlen(ir->data.axis.data.field)));
-      break;
+          compiler->target, se->slice.buf, se->slice.length));
+    } break;
     case AXIS_VAR:
       axis = (Axis){.axis_type = AXIS_VAR,
-                    .data = {.variable = compiler_symbol_for_variable(
-                                 compiler, ir->data.axis.data.variable)}};
+                    .data = {.variable = ir->data.axis.data.variable}};
       break;
     }
     return op_branch(axis);
@@ -652,11 +648,12 @@ static inline const Op assemble_op(Compiler *compiler, const IrInstr *ir) {
   }
 }
 
-Program tql_compiler_compile(Compiler *compiler) {
+Program tql_compiler_compile(TQLCompiler *compiler) {
   // IR emission phase
   {
     Symbol tramp_symbol = compiler_request_symbol(compiler);
-    Symbol main_symbol = compiler_symbol_for_function(compiler, "main");
+    Symbol main_symbol =
+        compiler_symbol_for_function(compiler, string_slice_from("main"));
     IrInstrs tramp_ops;
     ir_instrs_init(&tramp_ops);
     ir_instrs_append(&tramp_ops, ir_call(main_symbol));
@@ -681,7 +678,7 @@ Program tql_compiler_compile(Compiler *compiler) {
     symbol_start = offset;
     for (int i = 0; i < compiler->symbol_table.len; i++) {
       // FIXME: Further evidence we should be storing string sizes here...
-      offset += strlen(compiler->symbol_table.data[i].data.string) + 1;
+      offset += compiler->symbol_table.data[i].slice.length + 1;
     }
 
     instr_start = offset;
@@ -700,8 +697,7 @@ Program tql_compiler_compile(Compiler *compiler) {
     for (int i = 0; i < compiler->symbol_table.len; i++) {
       SymbolEntry *entry = &compiler->symbol_table.data[i];
       entry->placement = placement;
-      // FIXME: Further evidence we should be storing string sizes here...
-      placement += strlen(entry->data.string) + 1;
+      placement += entry->slice.length + 1;
     }
 
     for (int i = 0; i < compiler->section_table.len; i++) {
@@ -716,9 +712,8 @@ Program tql_compiler_compile(Compiler *compiler) {
     // Patch in symbols
     for (int i = 0; i < compiler->symbol_table.len; i++) {
       SymbolEntry *entry = &compiler->symbol_table.data[i];
-      uint32_t slen = strlen(entry->data.string);
-      strncpy(entry->placement, entry->data.string, slen);
-      entry->placement[slen] = '\0';
+      strncpy(entry->placement, entry->slice.buf, entry->slice.length);
+      entry->placement[entry->slice.length] = '\0';
     }
 
     // Patch in IR -> Ops
@@ -748,6 +743,6 @@ Program tql_compiler_compile(Compiler *compiler) {
   };
 }
 
-const TSLanguage *tql_compiler_target(Compiler *compiler) {
+const TSLanguage *tql_compiler_target(TQLCompiler *compiler) {
   return compiler->target;
 }
