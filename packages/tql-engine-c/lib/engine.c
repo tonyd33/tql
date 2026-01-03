@@ -33,8 +33,8 @@ void engine_free(Engine *engine) {
     ts_tree_delete(engine->target_ast);
     engine->target_ast = NULL;
   }
-  if (engine->program.data != NULL) {
-    free(engine->program.data);
+  if (engine->program.instrs != NULL) {
+    ops_free(engine->program.instrs);
   }
   if (engine->target_source.buf != NULL) {
     char *buf = *((char **)(&engine->target_source.buf));
@@ -78,7 +78,7 @@ void engine_load_target_string(Engine *engine, const char *buf,
 void engine_exec(Engine *engine) {
   assert(engine->target_ast != NULL);
   assert(engine->target_source.buf != NULL);
-  assert(engine->program.data != NULL);
+  assert(engine->program.instrs != NULL);
   engine->vm = vm_new(engine->target_ast, engine->target_source.buf);
   vm_load(engine->vm, engine->program);
   vm_exec(engine->vm);

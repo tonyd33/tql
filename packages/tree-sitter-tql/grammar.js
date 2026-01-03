@@ -86,7 +86,7 @@ module.exports = grammar({
     // selectors
     _selector: $ =>
       choice(
-        $._parenthesized_selector,
+        $.parenthesized_selector,
         $.self_selector,
         $.node_type_selector,
         $.field_name_selector,
@@ -100,7 +100,7 @@ module.exports = grammar({
         $.or_selector,
       ),
     selector: $ => $._selector,
-    _parenthesized_selector: $ => prec(100, parentheses_enclosed($._selector)),
+    parenthesized_selector: $ => prec(100, parentheses_enclosed($._selector)),
     self_selector: _ => "*",
     node_type_selector: $ => alias($.identifier, $.node_type),
     field_name_selector: $ =>

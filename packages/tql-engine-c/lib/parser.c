@@ -207,6 +207,27 @@ static inline TQLSelector *parse_selector(TQLAst *ast, TSNode node) {
     TSNode selector_node = ts_node_named_child(node, 0);
     assert(!ts_node_is_null(selector_node));
     return tql_selector_negate(ast, parse_selector(ast, selector_node));
+  } else if (strcmp(node_type, "and_selector") == 0) {
+    TSNode left_node =
+        ts_node_child_by_field_name(node, "left", strlen("left"));
+    TSNode right_node =
+        ts_node_child_by_field_name(node, "right", strlen("right"));
+    assert(!ts_node_is_null(left_node));
+    assert(!ts_node_is_null(right_node));
+    return tql_selector_and(ast, parse_selector(ast, left_node),
+                            parse_selector(ast, right_node));
+  } else if (strcmp(node_type, "or_selector") == 0) {
+    TSNode left_node =
+        ts_node_child_by_field_name(node, "left", strlen("left"));
+    TSNode right_node =
+        ts_node_child_by_field_name(node, "right", strlen("right"));
+    assert(!ts_node_is_null(left_node));
+    assert(!ts_node_is_null(right_node));
+    return tql_selector_or(ast, parse_selector(ast, left_node),
+                           parse_selector(ast, right_node));
+  } else if (strcmp(node_type, "parenthesized_selector") == 0) {
+    TSNode child_node = ts_node_named_child(node, 0);
+    return parse_selector(ast, child_node);
   } else {
     fprintf(stderr, "Got node type %s\n", node_type);
     assert(false && "Unknown selector");
@@ -262,7 +283,6 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
 
   return ast;
 }
-
 
 void tql_parser_free(TQLParser *parser) {
   parser->string_interner = NULL;

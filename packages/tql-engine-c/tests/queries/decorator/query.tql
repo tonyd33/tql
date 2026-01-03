@@ -4,18 +4,17 @@ fn decorator_name(@class_declaration) {
   @class_declaration.decorator > call_expression.function
 }
 
-fn method_without_return_type(@class_declaration) {
-  @class_declaration.body > method_definition { !exists(*.return_type) }
-}
-
 fn main() {
   > class_declaration {
     @decorator_name <- decorator_name(*);
-    @method <- method_without_return_type(*);
+    @method_definition <- @class_declaration.body > method_definition;
 
-    text_eq(@decorator_name, 'Controller');
-    @method_name <- @method.name;
+    @method_name <- @method_definition.name;
     @class_name <- .name;
+    @method_definition { !exists(*.return_type) } && (
+      text_eq(@decorator_name, 'Controller') ||
+      text_eq(@class_name, 'SpecificClassName')
+    );
   }
 }
 

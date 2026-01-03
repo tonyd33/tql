@@ -137,6 +137,9 @@ inline Op op_noop() { return (Op){.opcode = OP_NOOP}; }
 inline Op op_branch(Axis axis) {
   return (Op){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
+inline Op op_dup(Jump jump) {
+  return (Op){.opcode = OP_DUP, .data = {.jump = jump}};
+}
 inline Op op_bind(VarId var_id) {
   return (Op){.opcode = OP_BIND, .data = {.var_id = var_id}};
 }
@@ -326,7 +329,8 @@ void vm_free(Vm *vm) {
 }
 
 static inline Op vm_get_op(const Vm *vm, uint32_t pc) {
-  return *((Op *)(vm->program.data + vm->program.entrypoint) + pc);
+  assert(pc < vm->program.instrs->len);
+  return vm->program.instrs->data[pc];
 }
 
 static inline VmStats *vm_stats_mut(const Vm *vm) {
@@ -358,10 +362,9 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
   assert(!ts_node_is_null(cnt->node));
   VmStats *stats = vm_stats_mut(vm);
 
-  while (cnt->pc < (vm->program.endpoint - vm->program.entrypoint)) {
+  while (cnt->pc < vm->program.instrs->len) {
     stats->step_count++;
 
-    // Op op = vm->ops[cnt->pc++];
     Op op = vm_get_op(vm, cnt->pc++);
     // char buf[1024];
     // uint32_t start_byte = ts_node_start_byte(cnt->node);
@@ -446,6 +449,25 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
                                         : stats->max_branching_factor;
       stats->total_branching += branches->len;
       branches->len = 0;
+      return (ContinuationResult){
+          .type = EXC_BRANCH,
+      };
+    } break;
+    case OP_DUP: {
+      *++del_exc->sp = (Continuation){
+          .pc = cnt->pc,
+          .node = cnt->node,
+          .node_stk = cnt->node_stk,
+          .pc_stk = cnt->pc_stk,
+          .bindings = cnt->bindings,
+      };
+      *++del_exc->sp = (Continuation){
+          .pc = get_jump_pc(cnt->pc - 1, op.data.jump),
+          .node = cnt->node,
+          .node_stk = cnt->node_stk,
+          .pc_stk = cnt->pc_stk,
+          .bindings = cnt->bindings,
+      };
       return (ContinuationResult){
           .type = EXC_BRANCH,
       };

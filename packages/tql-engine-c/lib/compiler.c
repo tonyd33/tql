@@ -3,8 +3,6 @@
 #include "languages.h"
 #include <stdio.h>
 
-DA_DEFINE(Op, Ops, ops)
-
 // asm ops {{{
 typedef uint64_t Symbol;
 
@@ -93,6 +91,9 @@ static inline IrInstr ir_noop(void) { return (IrInstr){.opcode = OP_NOOP}; }
 static inline IrInstr ir_branch(IrAxis axis) {
   return (IrInstr){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
+static inline IrInstr ir_dup(Symbol id) {
+  return (IrInstr){.opcode = OP_DUP, .data = {.jump = id}};
+}
 static inline IrInstr ir_bind(Symbol symbol) {
   return (IrInstr){.opcode = OP_BIND, .data = {.variable = symbol}};
 }
@@ -159,7 +160,7 @@ static inline Symbol compiler_request_symbol(TQLCompiler *compiler) {
 }
 
 static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
-                                                     SymbolType symbol_type,
+                                                     TQLSymbolType symbol_type,
                                                      StringSlice slice) {
   for (size_t i = 0; i < compiler->symbol_table->len; i++) {
     SymbolEntry entry = compiler->symbol_table->data[i];
@@ -190,13 +191,14 @@ static inline Symbol compiler_symbol_for_function(TQLCompiler *compiler,
   return compiler_symbol_for_symbol_type(compiler, SYMBOL_FUNCTION, slice);
 }
 
-static inline const TSLanguage *get_ast_target(TQLAst *ast) {
+static const TSLanguage *get_ast_target(TQLAst *ast) {
   for (int i = 0; i < ast->tree->directive_count; i++) {
     TQLDirective directive = *ast->tree->directives[i];
     if (directive.type == TQLDIRECTIVE_TARGET) {
-      return ts_language_for_name(directive.data.target->buf,
-                                  directive.data.target->length);
-      assert(false && "Unknown language");
+      const TSLanguage *language = ts_language_for_name(
+          directive.data.target->buf, directive.data.target->length);
+      assert(language != NULL);
+      return language;
     }
   }
 
@@ -388,10 +390,71 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
 
     ir_instrs_append(out, ir_probe(ir_probe_not_exists(sid)));
   } break;
-  case TQLSELECTOR_AND:
-  case TQLSELECTOR_OR:
-    assert(false && "Not implemented");
-    break;
+  case TQLSELECTOR_AND: {
+    compile_tql_selector(compiler, selector->data.and_selector.left, out);
+    compile_tql_selector(compiler, selector->data.and_selector.right, out);
+  } break;
+  case TQLSELECTOR_OR: {
+    /*
+     * FIXME: This is essentially a hack because the compiler is not smart
+     * enough to label instructions.
+     *
+     * ...prev instrs
+     * CALL or_begin
+     * ...next instrs
+     *
+     * or_begin:
+     * DUP right
+     * JMP left
+     *
+     * left:
+     * ...
+     * JMP JOIN
+     *
+     * right:
+     * ...
+     * JMP join
+     *
+     * join:
+     * RET
+     */
+    Symbol or_begin_sym = compiler_request_symbol(compiler);
+    Symbol left_sym = compiler_request_symbol(compiler);
+    Symbol right_sym = compiler_request_symbol(compiler);
+    Symbol join_sym = compiler_request_symbol(compiler);
+    {
+      IrInstrs or_begin;
+      ir_instrs_init(&or_begin);
+      ir_instrs_append(&or_begin, ir_dup(right_sym));
+      ir_instrs_append(&or_begin, ir_jump(left_sym));
+      compiler_section_insert(compiler, or_begin_sym, &or_begin);
+      ir_instrs_deinit(&or_begin);
+    }
+    {
+      IrInstrs left;
+      ir_instrs_init(&left);
+      compile_tql_selector(compiler, selector->data.or_selector.left, &left);
+      ir_instrs_append(&left, ir_jump(join_sym));
+      compiler_section_insert(compiler, left_sym, &left);
+      ir_instrs_deinit(&left);
+    }
+    {
+      IrInstrs right;
+      ir_instrs_init(&right);
+      compile_tql_selector(compiler, selector->data.or_selector.right, &right);
+      ir_instrs_append(&right, ir_jump(join_sym));
+      compiler_section_insert(compiler, right_sym, &right);
+      ir_instrs_deinit(&right);
+    }
+    {
+      IrInstrs join;
+      ir_instrs_init(&join);
+      ir_instrs_append(&join, ir_ret());
+      compiler_section_insert(compiler, join_sym, &join);
+      ir_instrs_deinit(&join);
+    }
+    ir_instrs_append(out, ir_call(or_begin_sym));
+  } break;
   }
 }
 
@@ -437,6 +500,9 @@ static inline void print_op(const TQLCompiler *compiler, Op op) {
     } break;
     }
     break;
+  case OP_DUP: {
+    printf("dup (%d)", op.data.jump.pc);
+  } break;
   case OP_BIND: {
     const SymbolEntry *se = compiler_lookup_symbol(compiler, op.data.var_id);
     const char *variable = se->slice.buf;
@@ -568,6 +634,9 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
     }
     return op_branch(axis);
   }
+  case OP_DUP:
+    return op_dup(jump_absolute(
+        compiler_lookup_section_placement(compiler, ir->data.jump)));
   case OP_BIND:
     return op_bind(ir->data.variable);
   case OP_IF: {
@@ -648,73 +717,30 @@ Program tql_compiler_compile(TQLCompiler *compiler) {
 
   // Layout phase
   uint32_t sz = 0;
-  uint32_t symbol_start = 0;
-  uint32_t instr_start = 0;
-  {
-    // Calculate the necessary buffer size
-    uint32_t offset = 0;
-
-    symbol_start = offset;
-    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
-      // FIXME: Further evidence we should be storing string sizes here...
-      offset += compiler->symbol_table->data[i].slice.length + 1;
-    }
-
-    instr_start = offset;
-    for (size_t i = 0; i < compiler->section_table.len; i++) {
-      Section section = compiler->section_table.data[i];
-      offset += section.ops.len * sizeof(Op);
-    }
-
-    sz = offset;
+  for (size_t i = 0; i < compiler->section_table.len; i++) {
+    Section section = compiler->section_table.data[i];
+    sz += section.ops.len;
   }
 
-  // Relocation phase
-  char *buf = malloc(sz);
-  {
-    uint32_t offset = 0;
-    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
-      SymbolEntry *entry = &compiler->symbol_table->data[i];
-      entry->placement = offset;
-      offset += entry->slice.length + 1;
-    }
-
-    for (size_t i = 0; i < compiler->section_table.len; i++) {
-      Section *section = &compiler->section_table.data[i];
-      section->placement = offset;
-      offset += section->ops.len * sizeof(Op);
-    }
-  }
-
-  // Patch phase
-  {
-    // Patch in symbols
-    for (size_t i = 0; i < compiler->symbol_table->len; i++) {
-      SymbolEntry *entry = &compiler->symbol_table->data[i];
-      strncpy(buf + entry->placement, entry->slice.buf, entry->slice.length);
-      *(buf + entry->placement + entry->slice.length) = '\0';
-    }
-
-    // Patch in IR -> Ops
-    for (size_t i = 0; i < compiler->section_table.len; i++) {
-      Section *section = &compiler->section_table.data[i];
-      Op *placement = (Op *)(buf + section->placement);
-      for (size_t j = 0; j < section->ops.len; j++) {
-        Op op = assemble_op(compiler, &section->ops.data[j]);
-        *placement++ = op;
-      }
+  Ops *ops = ops_new();
+  ops_reserve(ops, sz);
+  // Patch in IR -> Ops
+  for (size_t i = 0; i < compiler->section_table.len; i++) {
+    Section *section = &compiler->section_table.data[i];
+    for (size_t j = 0; j < section->ops.len; j++) {
+      Op op = assemble_op(compiler, &section->ops.data[j]);
+      // printf("%4zu: ", ops->len);
+      // print_op(compiler, op);
+      // printf("\n");
+      ops_append(ops, op);
     }
   }
 
   return (Program){
       .version = 0x00000001,
       .target_language = compiler->target,
-      // TODO: Use statics
-      .statics = 0,
-      .symbol_table = symbol_start,
-      .entrypoint = instr_start,
-      .endpoint = sz,
-      .data = buf,
+      .symtab = compiler->symbol_table,
+      .instrs = ops,
   };
 }
 

@@ -184,6 +184,38 @@ TQLSelector *tql_selector_negate(TQLAst *ast, TQLSelector *child) {
   };
   return selector;
 }
+TQLSelector *tql_selector_and(TQLAst *ast, TQLSelector *left,
+                              TQLSelector *right) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_AND,
+      .data =
+          {
+              .and_selector =
+                  {
+                      .left = left,
+                      .right = right,
+                  },
+          },
+  };
+  return selector;
+}
+TQLSelector *tql_selector_or(TQLAst *ast, TQLSelector *left,
+                             TQLSelector *right) {
+  TQLSelector *selector = arena_alloc(ast->arena, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_OR,
+      .data =
+          {
+              .or_selector =
+                  {
+                      .left = left,
+                      .right = right,
+                  },
+          },
+  };
+  return selector;
+}
 
 TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,
                       uint16_t function_count, TQLDirective **directives,

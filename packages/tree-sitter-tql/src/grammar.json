@@ -441,7 +441,7 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "_parenthesized_selector"
+          "name": "parenthesized_selector"
         },
         {
           "type": "SYMBOL",
@@ -493,7 +493,7 @@
       "type": "SYMBOL",
       "name": "_selector"
     },
-    "_parenthesized_selector": {
+    "parenthesized_selector": {
       "type": "PREC",
       "value": 100,
       "content": {

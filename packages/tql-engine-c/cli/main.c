@@ -3,78 +3,47 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <tree_sitter/api.h>
 
-void get_ts_node_text(const char *source_code, TSNode node, char *buf) {
+static inline String *read_file(const char *filename) {
+  String *s = string_new();
+  FILE *fp = fopen(filename, "r");
+  if (fp == NULL) {
+    perror("fopen");
+    assert(false);
+  }
+
+  fseek(fp, 0, SEEK_END);
+  uint32_t length = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  string_reserve(s, length);
+  s->len = length;
+  assert(fread(s->data, 1, length, fp) == length);
+  fclose(fp);
+  return s;
+}
+
+static inline String get_ts_node_text(const String source, TSNode node) {
+  String s;
+  string_init(&s);
   uint32_t start_byte = ts_node_start_byte(node);
   uint32_t end_byte = ts_node_end_byte(node);
   uint32_t buf_len = end_byte - start_byte;
 
-  strncpy(buf, source_code + start_byte, buf_len);
-  buf[buf_len] = '\0';
-}
-
-static inline SymbolEntry *find_se(Engine *engine, Symbol symbol) {
-  for (size_t i = 0; i < engine->symtab.len; i++) {
-    SymbolEntry *se = &engine->symtab.data[i];
-    if (se->id == symbol) {
-      return se;
-    }
-  }
-  return NULL;
-}
-
-void print_bindings(Engine *engine, const char *source_code,
-                    Bindings *bindings) {
-  char buf[8192];
-  while (bindings != NULL) {
-    TSNode node = bindings->binding.value;
-    SymbolEntry *se = find_se(engine, bindings->binding.variable);
-    get_ts_node_text(source_code, node, buf);
-    printf("%s: %s\n", se != NULL ? se->slice.buf : "unknown",
-           strlen(buf) > 20 ? "(too long)" : buf);
-    bindings = bindings->parent;
-  }
+  string_reserve(&s, buf_len);
+  s.len = buf_len;
+  strncpy(s.data, source.data + start_byte, buf_len);
+  return s;
 }
 
 int run(const char *query_filename, const char *source_filename) {
-  char *tql_buf = NULL;
-  uint32_t tql_length = 0;
-  char *source_code = NULL;
-  uint32_t source_length = 0;
+  String *query = read_file(query_filename);
+  String *source = read_file(source_filename);
 
-  {
-    FILE *fp = fopen(query_filename, "r");
-    if (fp == NULL) {
-      perror("fopen");
-      return EXIT_FAILURE;
-    }
-    fseek(fp, 0, SEEK_END);
-    tql_length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    tql_buf = malloc(tql_length);
-    assert(fread(tql_buf, 1, tql_length, fp) == tql_length);
-    fclose(fp);
-  }
-  {
-    FILE *fp = fopen(source_filename, "r");
-    if (fp == NULL) {
-      perror("fopen");
-      return EXIT_FAILURE;
-    }
-    fseek(fp, 0, SEEK_END);
-    source_length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    source_code = malloc(source_length);
-    assert(fread(source_code, 1, source_length, fp) == source_length);
-    fclose(fp);
-  }
   Engine *engine = engine_new();
-  engine_compile_query(engine, tql_buf, tql_length);
-  engine_load_target_string(engine, source_code, source_length);
+  engine_compile_query(engine, query->data, query->len);
+  engine_load_target_string(engine, source->data, source->len);
   engine_exec(engine);
 
   Match match;
@@ -82,10 +51,13 @@ int run(const char *query_filename, const char *source_filename) {
 
   while (engine_next_match(engine, &match)) {
     assert(!ts_node_is_null(match.node));
-    print_bindings(engine, source_code, match.bindings);
-    get_ts_node_text(source_code, match.node, buf);
-    printf("Full match: \n%s\n", buf);
-    printf("\n");
+    String text = get_ts_node_text(*source, match.node);
+    printf("==================================== MATCH "
+           "=====================================\n");
+    printf("%.*s\n", (int)text.len, text.data);
+    printf("==========================================="
+           "=====================================\n");
+    string_deinit(&text);
   }
   EngineStats stats = engine_stats(engine);
   printf("================================ Engine Stats "
@@ -103,8 +75,8 @@ int run(const char *query_filename, const char *source_filename) {
          "===========\n");
 
   engine_free(engine);
-  free(source_code);
-  free(tql_buf);
+  string_free(query);
+  string_free(source);
 
   return EXIT_SUCCESS;
 }

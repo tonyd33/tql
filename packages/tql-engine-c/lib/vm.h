@@ -5,21 +5,7 @@
 #include <tree_sitter/api.h>
 
 typedef uint64_t VarId;
-typedef TSNode TQLValue;
-
-struct Vm;
-struct VmSymbol;
-struct VmStats;
-struct Op;
-struct Axis;
-struct NodeExpression;
-struct Predicate;
-struct Jump;
-struct Probe;
-struct Push;
-struct Match;
-struct Bindings;
-struct Program;
+typedef uint64_t Symbol;
 
 typedef struct Vm Vm;
 typedef struct VmSymbol VmSymbol;
@@ -43,6 +29,8 @@ typedef enum {
   OP_HALT,
   /* Creates continuations along an axis. */
   OP_BRANCH,
+  /* Duplicates the current continuation at an instruction. */
+  OP_DUP,
   /* Binds the current node into a variable. */
   OP_BIND,
   /* Does nothing if the predicate passes, otherwise halts the program. */
@@ -88,6 +76,8 @@ typedef enum {
 } AxisType;
 
 typedef enum { PUSH_NODE, PUSH_PC } PushTarget;
+
+typedef TSNode TQLValue;
 
 struct Axis {
   AxisType axis_type;
@@ -143,6 +133,7 @@ struct Op {
     PushTarget push_target;
   } data;
 };
+DA_DEFINE(Op, Ops, ops)
 
 struct Binding {
   VarId variable;
@@ -166,18 +157,29 @@ struct VmStats {
 
 struct Match {
   TSNode node;
-  Bindings *bindings;
+  const Bindings *bindings;
 };
+
+typedef enum TQLSymbolType {
+  SYMBOL_VARIABLE,
+  SYMBOL_FIELD,
+  SYMBOL_FUNCTION,
+} TQLSymbolType;
+
+typedef struct {
+  Symbol id;
+  TQLSymbolType type;
+  StringSlice slice;
+  // FIXME: This doesn't belong
+  uint32_t placement;
+} SymbolEntry;
+DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
 
 struct Program {
   uint64_t version;
-  // FIXME: This doesn't belong
   const TSLanguage *target_language;
-  uint32_t statics;
-  uint32_t symbol_table;
-  uint32_t entrypoint;
-  uint32_t endpoint;
-  char *data;
+  const SymbolTable *symtab;
+  Ops *instrs;
 };
 
 Vm *vm_new(TSTree *ast, const char *source);
@@ -207,6 +209,7 @@ Probe probe_not_exists(Jump jump);
 
 Op op_noop(void);
 Op op_branch(Axis axis);
+Op op_dup(Jump jump);
 Op op_bind(VarId var_id);
 Op op_if(Predicate predicate);
 Op op_probe(Probe probe);
