@@ -64,14 +64,14 @@ static inline IrProbe ir_probe_not_exists(Symbol symbol) {
   return (IrProbe){.mode = PROBE_NOTEXISTS, .jump = symbol};
 }
 static inline IrPredicate ir_predicate_typeeq(NodeExpression ne,
-                                                    const char *type) {
+                                              const char *type) {
   return (IrPredicate){
       .predicate_type = PREDICATE_TYPEEQ,
       .negate = false,
       .data = {.typeeq = {.node_expression = ne, .type = type}}};
 }
 static inline IrPredicate ir_predicate_texteq(NodeExpression ne,
-                                                    const char *text) {
+                                              const char *text) {
   return (IrPredicate){
       .predicate_type = PREDICATE_TEXTEQ,
       .negate = false,
@@ -89,9 +89,7 @@ static inline IrAxis ir_axis_descendant(void) {
 static inline IrAxis ir_axis_var(Symbol variable) {
   return (IrAxis){.axis_type = AXIS_VAR, .data = {.variable = variable}};
 }
-static inline IrInstr ir_noop(void) {
-  return (IrInstr){.opcode = OP_NOOP};
-}
+static inline IrInstr ir_noop(void) { return (IrInstr){.opcode = OP_NOOP}; }
 static inline IrInstr ir_branch(IrAxis axis) {
   return (IrInstr){.opcode = OP_BRANCH, .data = {.axis = axis}};
 }
@@ -104,12 +102,8 @@ static inline IrInstr ir_if(IrPredicate predicate) {
 static inline IrInstr ir_probe(IrProbe probe) {
   return (IrInstr){.opcode = OP_PROBE, .data = {.probe = probe}};
 }
-static inline IrInstr ir_halt(void) {
-  return (IrInstr){.opcode = OP_HALT};
-}
-static inline IrInstr ir_yield(void) {
-  return (IrInstr){.opcode = OP_YIELD};
-}
+static inline IrInstr ir_halt(void) { return (IrInstr){.opcode = OP_HALT}; }
+static inline IrInstr ir_yield(void) { return (IrInstr){.opcode = OP_YIELD}; }
 static inline IrInstr ir_pushnode(void) {
   return (IrInstr){.opcode = OP_PUSH, .data = {.push_target = PUSH_NODE}};
 }
@@ -157,8 +151,6 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
 static inline void compile_tql_statement(TQLCompiler *compiler,
                                          TQLStatement *statement,
                                          IrInstrs *out);
-static inline void compile_tql_expression(TQLCompiler *compiler,
-                                          TQLExpression *expr, IrInstrs *out);
 size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
                                          Symbol symbol);
 
@@ -243,18 +235,6 @@ void tql_compiler_free(TQLCompiler *compiler) {
   free(compiler);
 }
 
-static inline void compile_tql_expression(TQLCompiler *compiler,
-                                          TQLExpression *expr, IrInstrs *out) {
-  switch (expr->type) {
-  case TQLEXPRESSION_SELECTOR:
-    compile_tql_selector(compiler, expr->data.selector, out);
-    break;
-  case TQLEXPRESSION_STRING:
-    assert(false && "Not implemented");
-    break;
-  }
-}
-
 static inline void compile_tql_statement(TQLCompiler *compiler,
                                          TQLStatement *statement,
                                          IrInstrs *out) {
@@ -265,8 +245,15 @@ static inline void compile_tql_statement(TQLCompiler *compiler,
   case TQLSTATEMENT_ASSIGNMENT: {
     Symbol symbol = compiler_symbol_for_variable(
         compiler, *statement->data.assignment->variable_identifier);
-    compile_tql_expression(compiler, statement->data.assignment->expression,
-                           out);
+    switch (statement->data.assignment->expression->type) {
+    case TQLEXPRESSION_SELECTOR:
+      compile_tql_selector(
+          compiler, statement->data.assignment->expression->data.selector, out);
+      break;
+    case TQLEXPRESSION_STRING:
+      assert(false && "Not implemented");
+      break;
+    }
     ir_instrs_append(out, ir_bind(symbol));
   } break;
   }
@@ -315,7 +302,14 @@ static inline void compile_tql_function_invocation(
       Symbol aid =
           compiler_symbol_for_variable(compiler, *function->parameters[i]);
       ir_instrs_append(out, ir_pushnode());
-      compile_tql_expression(compiler, exprs[i], out);
+      switch (exprs[i]->type) {
+      case TQLEXPRESSION_SELECTOR:
+        compile_tql_selector(compiler, exprs[i]->data.selector, out);
+        break;
+      case TQLEXPRESSION_STRING:
+        assert(false && "Not implemented");
+        break;
+      }
       ir_instrs_append(out, ir_bind(aid));
       ir_instrs_append(out, ir_popnode());
     }

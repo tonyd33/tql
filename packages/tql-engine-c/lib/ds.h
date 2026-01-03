@@ -100,6 +100,18 @@ static inline size_t dyn_array_next_cap(size_t cap) {
   }
 
 DA_DEFINE(char, String, string)
+static inline void string_concat(String *a, String b) {
+  string_reserve(a, a->len + b.len);
+  strncpy(a->data + a->len, b.data, b.len);
+  a->len += b.len;
+}
+static inline String string_from(char *string) {
+  return (String){
+      .len = (uint32_t)strlen(string),
+      .cap = 0,
+      .data = string,
+  };
+}
 typedef struct {
   const char *buf;
   uint32_t length;
