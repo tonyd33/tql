@@ -10,6 +10,6 @@ typedef struct Section Section;
 
 TQLCompiler *tql_compiler_new(TQLAst *ast, SymbolTable *symtab);
 void tql_compiler_free(TQLCompiler *compiler);
-Program tql_compiler_compile(TQLCompiler *compiler);
+Program *tql_compiler_compile(TQLCompiler *compiler);
 
 #endif /* _COMPILER_H_ */

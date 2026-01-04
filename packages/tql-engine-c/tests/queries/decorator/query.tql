@@ -7,7 +7,7 @@ fn decorator_name(@class_declaration) {
 fn main() {
   > class_declaration {
     @decorator_name <- decorator_name(*);
-    @method_definition <- @class_declaration.body > method_definition;
+    @method_definition <- .body > method_definition;
 
     @method_name <- @method_definition.name;
     @class_name <- .name;

@@ -206,7 +206,7 @@ TQLExpression *tql_expression_string_new(TQLAst *ast, TQLString *string);
 
 TQLString *tql_string_new(TQLAst *ast, const char *string, uint32_t length);
 
-TQLFunction *tql_lookup_function(TQLAst *ast, const char *string,
+TQLFunction *tql_lookup_function(const TQLAst *ast, const char *string,
                                  uint32_t length);
 
 #endif /* _AST_H_ */

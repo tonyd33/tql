@@ -100,7 +100,7 @@ struct Vm {
   TSNodes branch_buffer[2];
 
   VmStats stats;
-  Program program;
+  const Program *program;
 };
 
 // op helpers {{{
@@ -162,6 +162,12 @@ inline Op op_pushpc() {
 }
 inline Op op_poppc() {
   return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_PC}};
+}
+inline Op op_pushbnd() {
+  return (Op){.opcode = OP_PUSH, .data = {.push_target = PUSH_BND}};
+}
+inline Op op_popbnd() {
+  return (Op){.opcode = OP_POP, .data = {.push_target = PUSH_BND}};
 }
 inline Op op_jump(Jump jump) {
   return (Op){.opcode = OP_JMP, .data = {.jump = jump}};
@@ -329,8 +335,8 @@ void vm_free(Vm *vm) {
 }
 
 static inline Op vm_get_op(const Vm *vm, uint32_t pc) {
-  assert(pc < vm->program.instrs->len);
-  return vm->program.instrs->data[pc];
+  assert(pc < vm->program->instrs->len);
+  return vm->program->instrs->data[pc];
 }
 
 static inline VmStats *vm_stats_mut(const Vm *vm) {
@@ -345,6 +351,7 @@ void vm_exec(Vm *vm) {
       .node = ts_tree_root_node(vm->ast),
       .node_stk = NULL,
       .pc_stk = NULL,
+      .bindings_stk = NULL,
       .bindings = NULL,
   };
 
@@ -352,7 +359,7 @@ void vm_exec(Vm *vm) {
 }
 
 static inline uint32_t get_jump_pc(uint32_t curr_pc, Jump jump) {
-  return jump.relative ? curr_pc + jump.pc : jump.pc;
+  return jump.relative ? curr_pc + jump.pc : (uint32_t)jump.pc;
 }
 
 static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
@@ -362,7 +369,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
   assert(!ts_node_is_null(cnt->node));
   VmStats *stats = vm_stats_mut(vm);
 
-  while (cnt->pc < vm->program.instrs->len) {
+  while (cnt->pc < vm->program->instrs->len) {
     stats->step_count++;
 
     Op op = vm_get_op(vm, cnt->pc++);
@@ -439,6 +446,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
             .pc = cnt->pc,
             .node = branch,
             .node_stk = cnt->node_stk,
+            .bindings_stk = cnt->bindings_stk,
             .pc_stk = cnt->pc_stk,
             .bindings = cnt->bindings,
         };
@@ -458,6 +466,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
           .pc = cnt->pc,
           .node = cnt->node,
           .node_stk = cnt->node_stk,
+          .bindings_stk = cnt->bindings_stk,
           .pc_stk = cnt->pc_stk,
           .bindings = cnt->bindings,
       };
@@ -465,6 +474,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
           .pc = get_jump_pc(cnt->pc - 1, op.data.jump),
           .node = cnt->node,
           .node_stk = cnt->node_stk,
+          .bindings_stk = cnt->bindings_stk,
           .pc_stk = cnt->pc_stk,
           .bindings = cnt->bindings,
       };
@@ -520,6 +530,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
           .pc = get_jump_pc(cnt->pc - 1, op.data.probe.jump),
           .node = cnt->node,
           .node_stk = cnt->node_stk,
+          .bindings_stk = cnt->bindings_stk,
           .pc_stk = cnt->pc_stk,
           .bindings = cnt->bindings,
       };
@@ -550,6 +561,10 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       case PUSH_PC:
         cnt->pc_stk = pc_stack_push(vm, cnt->pc_stk, cnt->pc);
         break;
+      case PUSH_BND:
+        cnt->bindings_stk =
+            bindings_stack_push(vm, cnt->bindings_stk, cnt->bindings);
+        break;
       }
     } break;
     case OP_POP: {
@@ -564,18 +579,21 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
           return (ContinuationResult){.type = EXC_ERR};
         }
         break;
+      case PUSH_BND:
+        if (!bindings_stack_pop(vm, &cnt->bindings_stk, &cnt->bindings)) {
+          return (ContinuationResult){.type = EXC_ERR};
+        }
+        break;
       }
     } break;
     case OP_JMP: {
       cnt->pc = get_jump_pc(cnt->pc - 1, op.data.jump);
     } break;
     case OP_CALL:
-      // TODO: We should push bindings (maybe)
       cnt->pc_stk = pc_stack_push(vm, cnt->pc_stk, cnt->pc);
       cnt->pc = get_jump_pc(cnt->pc - 1, op.data.jump);
       break;
     case OP_RET:
-      // TODO: We should pop bindings (maybe)
       if (!pc_stack_pop(vm, &cnt->pc_stk, &cnt->pc)) {
         return (ContinuationResult){.type = EXC_ERR};
       }
@@ -616,7 +634,7 @@ static BoundaryResult vm_step_exc_stack(/* const */ Vm *vm,
                               .data = {.boundary = next_call_frame}};
     }
     case EXC_ERR:
-      fprintf(stderr, "Program failed on pc %u\n", cnt->pc);
+      fprintf(stderr, "Program failed on pc %u\n", cnt->pc - 1);
       assert(false && "Bad program");
     }
     break;
@@ -687,4 +705,28 @@ bool vm_next_match(Vm *vm, Match *match) {
   }
 }
 
-void vm_load(Vm *vm, Program program) { vm->program = program; }
+void vm_load(Vm *vm, const Program *program) { vm->program = program; }
+
+Program *program_new(uint32_t version, const TSLanguage *target_language,
+                     const SymbolTable *symtab, const Ops *instrs) {
+  Program *program = malloc(sizeof(Program));
+  program->version = version;
+  program->target_language = target_language;
+  program->symtab = symbol_table_new();
+  symbol_table_clone(program->symtab, symtab);
+  program->instrs = ops_new();
+  ops_clone(program->instrs, instrs);
+  return program;
+}
+
+void program_free(Program *program) {
+  symbol_table_free(program->symtab);
+  program->symtab = NULL;
+
+  ops_free(program->instrs);
+  program->instrs = NULL;
+
+  program->target_language = NULL;
+
+  free(program);
+}

@@ -2,7 +2,17 @@ CC := cc
 BUILD ?= release
 
 CFLAGS_ALL += -std=c11 -Wall -Wextra -Wpedantic -Wno-unused-parameter -fPIC
-CFLAGS_DEBUG += -Wshadow -Wimplicit-fallthrough -Wno-unused-variable -Wno-unused-function -Wno-strict-prototypes -Werror -O0 -DDEBUG -g -fsanitize=address
+CFLAGS_DEBUG += -Wshadow \
+		-Wswitch \
+		-Wimplicit-fallthrough \
+		-Wno-unused-variable \
+		-Wno-unused-function \
+		-Wno-strict-prototypes \
+		-Wno-stringop-truncation \
+		-Werror \
+		-DDEBUG \
+		-g \
+		-fsanitize=address
 CFLAGS_RELEASE += -O3
 
 TS_LANGS ?= bash \

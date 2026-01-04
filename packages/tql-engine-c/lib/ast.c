@@ -307,7 +307,7 @@ void tql_ast_free(TQLAst *ast) {
   free(ast);
 }
 
-TQLFunction *tql_lookup_function(TQLAst *ast, const char *string,
+TQLFunction *tql_lookup_function(const TQLAst *ast, const char *string,
                                  uint32_t length) {
   for (int i = 0; i < ast->tree->function_count; i++) {
     if (string_slice_eq(*ast->tree->functions[i]->identifier,

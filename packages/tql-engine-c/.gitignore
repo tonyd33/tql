@@ -2,3 +2,4 @@ build
 tql-cli
 *.dSYM
 libtql.*
+test

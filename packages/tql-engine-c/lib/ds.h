@@ -68,7 +68,7 @@ static inline size_t dyn_array_next_cap(size_t cap) {
     return true;                                                               \
   }                                                                            \
                                                                                \
-  static inline void Prefix##_clone(Name *dest, Name *src) {                   \
+  static inline void Prefix##_clone(Name *dest, const Name *src) {             \
     Prefix##_init(dest);                                                       \
     dest->len = src->len;                                                      \
     dest->cap = src->cap;                                                      \

@@ -111,6 +111,12 @@ static inline IrInstr ir_pushnode(void) {
 static inline IrInstr ir_popnode(void) {
   return (IrInstr){.opcode = OP_POP, .data = {.push_target = PUSH_NODE}};
 }
+static inline IrInstr ir_pushbnd(void) {
+  return (IrInstr){.opcode = OP_PUSH, .data = {.push_target = PUSH_BND}};
+}
+static inline IrInstr ir_popbnd(void) {
+  return (IrInstr){.opcode = OP_POP, .data = {.push_target = PUSH_BND}};
+}
 static inline IrInstr ir_jump(Symbol id) {
   return (IrInstr){.opcode = OP_JMP, .data = {.jump = id}};
 }
@@ -130,7 +136,7 @@ struct Section {
 DA_DEFINE(Section, SectionTable, section_table)
 
 struct TQLCompiler {
-  TQLAst *ast;
+  const TQLAst *ast;
   Symbol next_symbol_id;
   SymbolTable *symbol_table;
   SectionTable section_table;
@@ -294,12 +300,12 @@ static inline void compile_tql_function_invocation(
     ir_instrs_append(out, ir_popnode());
   } else {
     // FIXME: We need to make the argument lazy!
-    // FIXME: And we have to NOT pollute the outer binding scope!
     // FIXME: And we have to bind strings correctly
     TQLFunction *function =
         tql_lookup_function(compiler->ast, identifier->buf, identifier->length);
     assert(function != NULL);
     assert(function->parameter_count == expr_count);
+    ir_instrs_append(out, ir_pushbnd());
     for (int i = 0; i < expr_count; i++) {
       Symbol aid =
           compiler_symbol_for_variable(compiler, *function->parameters[i]);
@@ -318,6 +324,7 @@ static inline void compile_tql_function_invocation(
 
     ir_instrs_append(out, ir_call(compiler_symbol_for_function(
                               compiler, *function->identifier)));
+    ir_instrs_append(out, ir_popbnd());
   }
 }
 
@@ -547,6 +554,9 @@ static inline void print_op(const TQLCompiler *compiler, Op op) {
     case PUSH_PC:
       printf("push (pc)");
       break;
+    case PUSH_BND:
+      printf("push (bnd)");
+      break;
     }
     break;
   case OP_POP:
@@ -556,6 +566,9 @@ static inline void print_op(const TQLCompiler *compiler, Op op) {
       break;
     case PUSH_PC:
       printf("pop (pc)");
+      break;
+    case PUSH_BND:
+      printf("pop (bnd)");
       break;
     }
     break;
@@ -675,6 +688,8 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
       return op_pushnode();
     case PUSH_PC:
       return op_pushpc();
+    case PUSH_BND:
+      return op_pushbnd();
     }
     return op_pushnode();
   case OP_POP:
@@ -683,6 +698,9 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
       return op_popnode();
     case PUSH_PC:
       return op_poppc();
+    case PUSH_BND:
+      return op_popbnd();
+      break;
     }
     break;
   case OP_CALL: {
@@ -696,7 +714,7 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
   assert(false);
 }
 
-Program tql_compiler_compile(TQLCompiler *compiler) {
+Program *tql_compiler_compile(TQLCompiler *compiler) {
   // IR emission phase
   {
     Symbol tramp_symbol = compiler_request_symbol(compiler);
@@ -736,12 +754,11 @@ Program tql_compiler_compile(TQLCompiler *compiler) {
     }
   }
 
-  return (Program){
-      .version = 0x00000001,
-      .target_language = compiler->target,
-      .symtab = compiler->symbol_table,
-      .instrs = ops,
-  };
+  Program *program =
+      program_new(0x00000001, compiler->target, compiler->symbol_table, ops);
+  ops_free(ops);
+
+  return program;
 }
 
 const TSLanguage *tql_compiler_target(TQLCompiler *compiler) {

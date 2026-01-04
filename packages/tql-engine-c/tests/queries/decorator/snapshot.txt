@@ -1,44 +1,104 @@
 ==================================== MATCH =====================================
+NODE
+
 @Controller()
 class Class2 {
   meth1() {}
 }
+
+BINDINGS
+
+@class_name: Class2
+@method_name: meth1
+@method_definition: meth1() {}
+@decorator_name: Controller
+
 ================================================================================
 ==================================== MATCH =====================================
+NODE
+
 @Controller()
 class Class3 {
   meth1(): Type1 {}
   meth2() {}
 }
+
+BINDINGS
+
+@class_name: Class3
+@method_name: meth2
+@method_definition: meth2() {}
+@decorator_name: Controller
+
 ================================================================================
 ==================================== MATCH =====================================
+NODE
+
 @Controller()
 class Class4 {
   meth1(): Type1 {}
   meth2(): Type2 {}
   meth3() {}
 }
+
+BINDINGS
+
+@class_name: Class4
+@method_name: meth3
+@method_definition: meth3() {}
+@decorator_name: Controller
+
 ================================================================================
 ==================================== MATCH =====================================
+NODE
+
 @Controller()
 class Class5 {
   meth1(): Type1 {}
   meth2() {}
   meth3() {}
 }
+
+BINDINGS
+
+@class_name: Class5
+@method_name: meth2
+@method_definition: meth2() {}
+@decorator_name: Controller
+
 ================================================================================
 ==================================== MATCH =====================================
+NODE
+
 @Controller()
 class Class5 {
   meth1(): Type1 {}
   meth2() {}
   meth3() {}
 }
+
+BINDINGS
+
+@class_name: Class5
+@method_name: meth3
+@method_definition: meth3() {}
+@decorator_name: Controller
+
 ================================================================================
 ==================================== MATCH =====================================
+NODE
+
 @Foo()
 class SpecificClassName {
   meth1(): Type1 {}
   meth2() {}
 }
+
+BINDINGS
+
+@class_name: SpecificClassName
+@method_name: meth2
+@method_definition: meth2() {}
+@decorator_name: Foo
+
 ================================================================================

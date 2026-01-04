@@ -33,8 +33,8 @@ void engine_free(Engine *engine) {
     ts_tree_delete(engine->target_ast);
     engine->target_ast = NULL;
   }
-  if (engine->program.instrs != NULL) {
-    ops_free(engine->program.instrs);
+  if (engine->program != NULL) {
+    program_free(engine->program);
   }
   if (engine->target_source.buf != NULL) {
     char *buf = *((char **)(&engine->target_source.buf));
@@ -59,6 +59,8 @@ void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
 
 void engine_load_target_string(Engine *engine, const char *buf,
                                uint32_t length) {
+  assert(engine->program != NULL);
+
   StringSlice target;
   char *dest = malloc(length);
   strncpy(dest, buf, length);
@@ -68,7 +70,7 @@ void engine_load_target_string(Engine *engine, const char *buf,
 
   engine->target_source = target;
   TSParser *target_parser = ts_parser_new();
-  ts_parser_set_language(target_parser, engine->program.target_language);
+  ts_parser_set_language(target_parser, engine->program->target_language);
   engine->target_ast =
       ts_parser_parse_string(target_parser, NULL, engine->target_source.buf,
                              engine->target_source.length);
@@ -78,7 +80,7 @@ void engine_load_target_string(Engine *engine, const char *buf,
 void engine_exec(Engine *engine) {
   assert(engine->target_ast != NULL);
   assert(engine->target_source.buf != NULL);
-  assert(engine->program.instrs != NULL);
+  assert(engine->program != NULL);
   engine->vm = vm_new(engine->target_ast, engine->target_source.buf);
   vm_load(engine->vm, engine->program);
   vm_exec(engine->vm);

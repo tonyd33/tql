@@ -75,7 +75,7 @@ typedef enum {
   AXIS_VAR,
 } AxisType;
 
-typedef enum { PUSH_NODE, PUSH_PC } PushTarget;
+typedef enum { PUSH_NODE, PUSH_PC, PUSH_BND } PushTarget;
 
 typedef TSNode TQLValue;
 
@@ -178,12 +178,15 @@ DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
 struct Program {
   uint64_t version;
   const TSLanguage *target_language;
-  const SymbolTable *symtab;
+  SymbolTable *symtab;
   Ops *instrs;
 };
+Program *program_new(uint32_t version, const TSLanguage *target_language,
+                     const SymbolTable *symtab, const Ops *instrs);
+void program_free(Program *program);
 
 Vm *vm_new(TSTree *ast, const char *source);
-void vm_load(Vm *vm, Program program);
+void vm_load(Vm *vm, const Program *program);
 void vm_free(Vm *vm);
 
 void vm_exec(Vm *vm);
@@ -219,6 +222,8 @@ Op op_pushnode(void);
 Op op_popnode(void);
 Op op_pushpc(void);
 Op op_poppc(void);
+Op op_pushbnd(void);
+Op op_popbnd(void);
 Op op_jump(Jump jump);
 Op op_call(Jump jump);
 Op op_ret(void);
