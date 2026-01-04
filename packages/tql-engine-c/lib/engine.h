@@ -19,7 +19,7 @@ typedef struct EngineStats {
 typedef struct Engine {
   TQLAst *ast;
   Vm *vm;
-  StringInterner *string_interner;
+  TQLContext *ctx;
   Program *program;
   StringSlice target_source;
   TSTree *target_ast;

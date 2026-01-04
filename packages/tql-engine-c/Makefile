@@ -8,7 +8,6 @@ CFLAGS_DEBUG += -Wshadow \
 		-Wno-unused-variable \
 		-Wno-unused-function \
 		-Wno-strict-prototypes \
-		-Wno-stringop-truncation \
 		-Werror \
 		-DDEBUG \
 		-g \

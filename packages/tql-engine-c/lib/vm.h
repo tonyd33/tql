@@ -155,8 +155,6 @@ typedef struct {
   Symbol id;
   TQLSymbolType type;
   StringSlice slice;
-  // FIXME: This doesn't belong
-  uint32_t placement;
 } SymbolEntry;
 DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
 

@@ -1,6 +1,5 @@
 #include "lib/ast.h"
 #include "lib/compiler.h"
-#include "lib/ds.h"
 #include "lib/parser.h"
 #include "lib/vm.h"
 #include "util.h"
@@ -10,21 +9,19 @@ const TSLanguage *tree_sitter_tql(void);
 
 static bool test_compiler_detect_language() {
   const char *source = "#language 'tql' fn main() { translation_unit }";
-  StringInterner *interner = string_interner_new(16384);
-  SymbolTable *symtab = symbol_table_new();
-  TQLParser *parser = tql_parser_new(interner);
+  TQLContext *ctx = tql_context_new();
+  TQLParser *parser = tql_parser_new(ctx);
   TQLAst *ast = tql_parser_parse_string(parser, source, strlen(source));
-  TQLCompiler *compiler = tql_compiler_new(ast, symtab);
+  TQLCompiler *compiler = tql_compiler_new(ast);
 
   Program *prog = tql_compiler_compile(compiler);
   expect(prog->target_language == tree_sitter_tql());
 
-  tql_parser_free(parser);
-  symbol_table_free(symtab);
-  tql_compiler_free(compiler);
-  string_interner_free(interner);
-  tql_ast_free(ast);
   program_free(prog);
+  tql_ast_free(ast);
+  tql_compiler_free(compiler);
+  tql_parser_free(parser);
+  tql_context_free(ctx);
 
   return true;
 }
@@ -36,20 +33,19 @@ static bool test_compile_function() {
                        "translation_unit;"
                        "@baz <- translation_unit;"
                        "}";
-  StringInterner *interner = string_interner_new(16384);
-  SymbolTable *symtab = symbol_table_new();
-  TQLParser *parser = tql_parser_new(interner);
+  TQLContext *ctx = tql_context_new();
+  TQLParser *parser = tql_parser_new(ctx);
   TQLAst *ast = tql_parser_parse_string(parser, source, strlen(source));
-  TQLCompiler *compiler = tql_compiler_new(ast, symtab);
+  TQLCompiler *compiler = tql_compiler_new(ast);
 
   Program *prog = tql_compiler_compile(compiler);
   expect(prog->target_language == tree_sitter_tql());
 
-  symbol_table_free(symtab);
-  tql_compiler_free(compiler);
-  string_interner_free(interner);
-  tql_ast_free(ast);
   program_free(prog);
+  tql_ast_free(ast);
+  tql_compiler_free(compiler);
+  tql_parser_free(parser);
+  tql_context_free(ctx);
 
   return true;
 }

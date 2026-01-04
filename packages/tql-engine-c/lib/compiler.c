@@ -171,7 +171,7 @@ static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
 
   Symbol new_symbol = compiler_request_symbol(compiler);
   SymbolEntry new_entry = {
-      .id = new_symbol, .type = symbol_type, .slice = slice, .placement = 0};
+      .id = new_symbol, .type = symbol_type, .slice = slice};
   symbol_table_append(compiler->symbol_table, new_entry);
   return new_symbol;
 }
@@ -205,19 +205,19 @@ static const TSLanguage *get_ast_target(TQLAst *ast) {
   return NULL;
 }
 
-void compiler_init(TQLCompiler *compiler, TQLAst *ast, SymbolTable *symtab) {
+void compiler_init(TQLCompiler *compiler, TQLAst *ast) {
   compiler->ast = ast;
   compiler->target = get_ast_target(ast);
   assert(compiler->target != NULL);
 
   compiler->next_symbol_id = 0;
-  compiler->symbol_table = symtab;
+  compiler->symbol_table = symbol_table_new();
   section_table_init(&compiler->section_table);
 }
 
-TQLCompiler *tql_compiler_new(TQLAst *ast, SymbolTable *symtab) {
+TQLCompiler *tql_compiler_new(TQLAst *ast) {
   TQLCompiler *compiler = malloc(sizeof(TQLCompiler));
-  compiler_init(compiler, ast, symtab);
+  compiler_init(compiler, ast);
   return compiler;
 }
 
@@ -226,6 +226,7 @@ void compiler_deinit(TQLCompiler *compiler) {
     ir_instrs_deinit(&compiler->section_table.data[i].ops);
   }
   section_table_deinit(&compiler->section_table);
+  symbol_table_free(compiler->symbol_table);
   compiler->symbol_table = NULL;
   compiler->next_symbol_id = 0;
   compiler->target = NULL;

@@ -6,8 +6,8 @@ static bool test_parse_include() {
   const char *src1 = "#language 'c'";
   const char *src2 = "#language 'phony'";
   TQLAst *ast;
-  StringInterner *interner = string_interner_new(16384);
-  TQLParser *parser = tql_parser_new(interner);
+  TQLContext *ctx = tql_context_new();
+  TQLParser *parser = tql_parser_new(ctx);
 
   ast = tql_parser_parse_string(parser, src1, strlen(src1));
   expect(ast->tree->directive_count == 1);
@@ -24,15 +24,16 @@ static bool test_parse_include() {
   tql_ast_free(ast);
 
   tql_parser_free(parser);
-  string_interner_free(interner);
+  tql_context_free(ctx);
   return true;
 }
 
 static bool test_parse_function() {
-  const char *src1 = "fn my_function(@foo, @bar) { a > b; @baz <- c > d; @qux <- 'Hi'; }";
+  const char *src1 =
+      "fn my_function(@foo, @bar) { a > b; @baz <- c > d; @qux <- 'Hi'; }";
   TQLAst *ast;
-  StringInterner *interner = string_interner_new(16384);
-  TQLParser *parser = tql_parser_new(interner);
+  TQLContext *ctx = tql_context_new();
+  TQLParser *parser = tql_parser_new(ctx);
 
   ast = tql_parser_parse_string(parser, src1, strlen(src1));
   expect(ast->tree->function_count == 1);
@@ -89,7 +90,7 @@ static bool test_parse_function() {
   tql_ast_free(ast);
 
   tql_parser_free(parser);
-  string_interner_free(interner);
+  tql_context_free(ctx);
   return true;
 }
 

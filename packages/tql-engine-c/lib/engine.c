@@ -11,15 +11,15 @@ Engine *engine_new(void) {
   engine->target_source.buf = NULL;
   engine->target_source.length = 0;
 
-  engine->string_interner = string_interner_new(32768);
+  engine->ctx = tql_context_new();
   symbol_table_init(&engine->symtab);
   return engine;
 }
 
 void engine_free(Engine *engine) {
   symbol_table_deinit(&engine->symtab);
-  string_interner_free(engine->string_interner);
-  engine->string_interner = NULL;
+  tql_context_free(engine->ctx);
+  engine->ctx = NULL;
 
   if (engine->ast != NULL) {
     tql_ast_free(engine->ast);
@@ -47,12 +47,11 @@ void engine_free(Engine *engine) {
 }
 
 void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
-  TQLParser *parser = tql_parser_new(engine->string_interner);
+  TQLParser *parser = tql_parser_new(engine->ctx);
   engine->ast = tql_parser_parse_string(parser, buf, length);
-  engine->stats.ast_stats = tql_ast_stats(engine->ast);
   tql_parser_free(parser);
 
-  TQLCompiler *compiler = tql_compiler_new(engine->ast, &engine->symtab);
+  TQLCompiler *compiler = tql_compiler_new(engine->ast);
   engine->program = tql_compiler_compile(compiler);
   tql_compiler_free(compiler);
 }
@@ -94,10 +93,11 @@ bool engine_next_match(Engine *engine, Match *match) {
 EngineStats engine_stats(Engine *engine) {
   assert(engine->vm != NULL);
   uint32_t string_interner_usage = 0;
-  for (size_t i = 0; i < engine->string_interner->slices.len; i++) {
-    string_interner_usage += engine->string_interner->slices.data[i].length;
+  for (size_t i = 0; i < engine->ctx->string_interner->slices.len; i++) {
+    string_interner_usage +=
+        engine->ctx->string_interner->slices.data[i].length;
   }
-  engine->stats.string_count = engine->string_interner->slices.len;
+  engine->stats.string_count = engine->ctx->string_interner->slices.len;
   engine->stats.string_alloc = string_interner_usage;
   engine->stats.vm_stats = vm_stats(engine->vm);
   return engine->stats;

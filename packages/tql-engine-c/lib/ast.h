@@ -2,6 +2,7 @@
 #define _AST_H_
 
 #include "arena.h"
+#include "context.h"
 #include "ds.h"
 
 typedef StringSlice TQLString;
@@ -135,11 +136,8 @@ struct TQLTree {
 };
 
 struct TQLAst {
-  Arena *arena;
-  StringInterner *string_interner;
   TQLTree *tree;
-  char *source;
-  size_t source_length;
+  TQLContext *ctx;
 };
 
 struct TQLFunction {
@@ -154,57 +152,53 @@ struct TQLAstStats {
   uint32_t arena_alloc;
 };
 
-TQLAst *tql_ast_new(const char *string, size_t length, StringInterner *interner);
+TQLAst *tql_ast_new(TQLContext *ctx);
 void tql_ast_free(TQLAst *ast);
-TQLAstStats tql_ast_stats(const TQLAst *ast);
 
-TQLTree *tql_tree_new(TQLAst *ast, TQLFunction **functions,
-                      uint16_t function_count, TQLDirective **directives,
-                      uint16_t directive_count);
+TQLTree *tql_tree(TQLAst *ast, TQLFunction **functions, uint16_t function_count,
+                  TQLDirective **directives, uint16_t directive_count);
 
 TQLDirective *tql_directive_target(TQLAst *ast, TQLString *target);
 
-TQLFunction *tql_function_new(TQLAst *ast, TQLFunctionIdentifier *identifier,
-                              TQLVariableIdentifier **parameters,
-                              uint16_t parameter_count,
-                              TQLStatement **statements,
-                              uint16_t statement_count);
+TQLFunction *tql_function(TQLAst *ast, TQLFunctionIdentifier *identifier,
+                          TQLVariableIdentifier **parameters,
+                          uint16_t parameter_count, TQLStatement **statements,
+                          uint16_t statement_count);
 
-TQLSelector *tql_selector_self_new(TQLAst *ast);
-TQLSelector *tql_selector_nodetype_new(TQLAst *ast,
-                                       TQLVariableIdentifier *node_type);
-TQLSelector *tql_selector_fieldname_new(TQLAst *ast, TQLSelector *parent,
-                                        TQLString *field);
-TQLSelector *tql_selector_child_new(TQLAst *ast, TQLSelector *parent,
-                                    TQLSelector *child);
-TQLSelector *tql_selector_descendant_new(TQLAst *ast, TQLSelector *parent,
-                                         TQLSelector *child);
-TQLSelector *tql_selector_block_new(TQLAst *ast, TQLSelector *parent,
-                                    TQLStatement **statements,
-                                    uint32_t statement_count);
-TQLSelector *tql_selector_varid_new(TQLAst *ast,
-                                    TQLVariableIdentifier *identifier);
-TQLSelector *tql_selector_function_invocation_new(
-    TQLAst *ast, TQLFunctionIdentifier *identifier, TQLExpression **exprs,
-    uint16_t expr_count);
+TQLSelector *tql_selector_self(TQLAst *ast);
+TQLSelector *tql_selector_nodetype(TQLAst *ast,
+                                   TQLVariableIdentifier *node_type);
+TQLSelector *tql_selector_fieldname(TQLAst *ast, TQLSelector *parent,
+                                    TQLString *field);
+TQLSelector *tql_selector_child(TQLAst *ast, TQLSelector *parent,
+                                TQLSelector *child);
+TQLSelector *tql_selector_descendant(TQLAst *ast, TQLSelector *parent,
+                                     TQLSelector *child);
+TQLSelector *tql_selector_block(TQLAst *ast, TQLSelector *parent,
+                                TQLStatement **statements,
+                                uint32_t statement_count);
+TQLSelector *tql_selector_varid(TQLAst *ast, TQLVariableIdentifier *identifier);
+TQLSelector *tql_selector_function_invocation(TQLAst *ast,
+                                              TQLFunctionIdentifier *identifier,
+                                              TQLExpression **exprs,
+                                              uint16_t expr_count);
 TQLSelector *tql_selector_negate(TQLAst *ast, TQLSelector *selector);
 TQLSelector *tql_selector_or(TQLAst *ast, TQLSelector *left,
                              TQLSelector *right);
 TQLSelector *tql_selector_and(TQLAst *ast, TQLSelector *left,
                               TQLSelector *right);
 
-TQLStatement *tql_statement_selector_new(TQLAst *ast, TQLSelector *selector);
-TQLStatement *tql_statement_assignment_new(TQLAst *ast,
-                                           TQLAssignment *assignment);
+TQLStatement *tql_statement_selector(TQLAst *ast, TQLSelector *selector);
+TQLStatement *tql_statement_assignment(TQLAst *ast, TQLAssignment *assignment);
 
-TQLAssignment *tql_assignment_new(TQLAst *ast,
-                                  TQLVariableIdentifier *variable_identifier,
-                                  TQLExpression *expression);
+TQLAssignment *tql_assignment(TQLAst *ast,
+                              TQLVariableIdentifier *variable_identifier,
+                              TQLExpression *expression);
 
-TQLExpression *tql_expression_selector_new(TQLAst *ast, TQLSelector *selector);
-TQLExpression *tql_expression_string_new(TQLAst *ast, TQLString *string);
+TQLExpression *tql_expression_selector(TQLAst *ast, TQLSelector *selector);
+TQLExpression *tql_expression_string(TQLAst *ast, TQLString *string);
 
-TQLString *tql_string_new(TQLAst *ast, const char *string, uint32_t length);
+TQLString *tql_string(TQLAst *ast, const char *string, uint32_t length);
 
 TQLFunction *tql_lookup_function(const TQLAst *ast, const char *string,
                                  uint32_t length);

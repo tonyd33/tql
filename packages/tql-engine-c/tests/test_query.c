@@ -60,7 +60,7 @@ static bool test_query_decorator() {
     string_concat(&actual, match_text);
     string_concat(&actual, string_from("\n\n"));
     string_concat(&actual, string_from("BINDINGS\n\n"));
-    concat_binds(&actual, source_file, match.bindings, &engine->symtab);
+    concat_binds(&actual, source_file, match.bindings, engine->program->symtab);
     string_append(&actual, '\n');
     string_concat(&actual,
                   string_from("==========================================="
