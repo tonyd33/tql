@@ -110,7 +110,7 @@ static LanguageEntry LANGUAGE_ENTRIES[] = {
         tree_sitter_rust,
     },
 #endif
-#ifdef TQL_BUILD_TS_TYPESCRIPT
+#ifdef TQL_BUILD_TS_TSX
     {
         "tsx",
         tree_sitter_tsx,

@@ -12,7 +12,6 @@ typedef struct VmSymbol VmSymbol;
 typedef struct VmStats VmStats;
 typedef struct Op Op;
 typedef struct Axis Axis;
-typedef struct NodeExpression NodeExpression;
 typedef struct Predicate Predicate;
 typedef struct Jump Jump;
 typedef struct Probe Probe;
@@ -54,11 +53,6 @@ typedef enum {
 } Opcode;
 
 typedef enum {
-  NODEEXPR_SELF,
-  NODEEXPR_VAR,
-} NodeExpressionType;
-
-typedef enum {
   PREDICATE_TEXTEQ,
   PREDICATE_TYPEEQ,
 } PredicateType;
@@ -87,23 +81,14 @@ struct Axis {
   } data;
 };
 
-struct NodeExpression {
-  NodeExpressionType node_expression_type;
-  union {
-    VarId var_id;
-  } operand;
-};
-
 struct Predicate {
   PredicateType predicate_type;
   bool negate;
   union {
     struct {
-      NodeExpression node_expression;
       TSSymbol symbol;
     } typeeq;
     struct {
-      NodeExpression node_expression;
       // TODO: Create a symbol lookup table and use a reference to the symbol
       // id here. This is currently dangerous, since the string is not owned by
       // the vm.
@@ -198,11 +183,9 @@ Axis axis_field(TSFieldId field_id);
 Axis axis_child(void);
 Axis axis_descendant(void);
 
-Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol);
-Predicate predicate_texteq(NodeExpression ne, const char *string);
+Predicate predicate_typeeq(TSSymbol symbol);
+Predicate predicate_texteq(const char *string);
 Predicate predicate_negate(Predicate predicate);
-
-NodeExpression node_expression_self(void);
 
 Jump jump_relative(int32_t pc);
 Jump jump_absolute(int32_t pc);

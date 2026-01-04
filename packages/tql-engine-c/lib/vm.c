@@ -110,27 +110,23 @@ inline Axis axis_field(TSFieldId field_id) {
 inline Axis axis_child() { return (Axis){.axis_type = AXIS_CHILD}; }
 inline Axis axis_descendant() { return (Axis){.axis_type = AXIS_DESCENDANT}; }
 
-inline Predicate predicate_typeeq(NodeExpression ne, TSSymbol symbol) {
+inline Predicate predicate_typeeq(TSSymbol symbol) {
   return (Predicate){.predicate_type = PREDICATE_TYPEEQ,
                      .negate = false,
                      .data = {
-                         .typeeq = {.node_expression = ne, .symbol = symbol},
+                         .typeeq = {.symbol = symbol},
                      }};
 }
-inline Predicate predicate_texteq(NodeExpression ne, const char *string) {
+inline Predicate predicate_texteq(const char *string) {
   return (Predicate){.predicate_type = PREDICATE_TEXTEQ,
                      .negate = false,
                      .data = {
-                         .texteq = {.node_expression = ne, .text = string},
+                         .texteq = {.text = string},
                      }};
 }
 inline Predicate predicate_negate(Predicate predicate) {
   predicate.negate = !predicate.negate;
   return predicate;
-}
-
-inline NodeExpression node_expression_self() {
-  return (NodeExpression){.node_expression_type = NODEEXPR_SELF};
 }
 
 inline Op op_noop() { return (Op){.opcode = OP_NOOP}; }
@@ -490,11 +486,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       Predicate predicate = op.data.predicate;
       switch (predicate.predicate_type) {
       case PREDICATE_TYPEEQ: {
-        NodeExpression left = predicate.data.typeeq.node_expression;
         TSSymbol right = predicate.data.typeeq.symbol;
-
-        assert(left.node_expression_type == NODEEXPR_SELF &&
-               "Only self supported");
 
         bool frame_done = ts_node_symbol(cnt->node) != right;
         frame_done = predicate.negate ? !frame_done : frame_done;
@@ -503,12 +495,8 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
         }
       } break;
       case PREDICATE_TEXTEQ: {
-        NodeExpression left = predicate.data.texteq.node_expression;
         // FIXME: This is dangerous...
         const char *right = predicate.data.texteq.text;
-
-        assert(left.node_expression_type == NODEEXPR_SELF &&
-               "Only self supported");
 
         uint32_t start_byte = ts_node_start_byte(cnt->node);
         uint32_t end_byte = ts_node_end_byte(cnt->node);

@@ -27,11 +27,9 @@ typedef struct {
   bool negate;
   union {
     struct {
-      NodeExpression node_expression;
       const char *type;
     } typeeq;
     struct {
-      NodeExpression node_expression;
       const char *text;
     } texteq;
   } data;
@@ -61,19 +59,15 @@ static inline IrProbe ir_probe_exists(Symbol symbol) {
 static inline IrProbe ir_probe_not_exists(Symbol symbol) {
   return (IrProbe){.mode = PROBE_NOTEXISTS, .jump = symbol};
 }
-static inline IrPredicate ir_predicate_typeeq(NodeExpression ne,
-                                              const char *type) {
-  return (IrPredicate){
-      .predicate_type = PREDICATE_TYPEEQ,
-      .negate = false,
-      .data = {.typeeq = {.node_expression = ne, .type = type}}};
+static inline IrPredicate ir_predicate_typeeq(const char *type) {
+  return (IrPredicate){.predicate_type = PREDICATE_TYPEEQ,
+                       .negate = false,
+                       .data = {.typeeq = {.type = type}}};
 }
-static inline IrPredicate ir_predicate_texteq(NodeExpression ne,
-                                              const char *text) {
-  return (IrPredicate){
-      .predicate_type = PREDICATE_TEXTEQ,
-      .negate = false,
-      .data = {.texteq = {.node_expression = ne, .text = text}}};
+static inline IrPredicate ir_predicate_texteq(const char *text) {
+  return (IrPredicate){.predicate_type = PREDICATE_TEXTEQ,
+                       .negate = false,
+                       .data = {.texteq = {.text = text}}};
 }
 static inline IrAxis ir_axis_field(Symbol field) {
   return (IrAxis){.axis_type = AXIS_FIELD, .data = {.field = field}};
@@ -290,13 +284,11 @@ static inline void compile_tql_function_invocation(
 
     ir_instrs_append(out, ir_pushnode());
     compile_tql_selector(compiler, exprs[0]->data.selector, out);
-    ir_instrs_append(out,
-                     ir_if((IrPredicate){
-                         .predicate_type = PREDICATE_TEXTEQ,
-                         .data = {.texteq = {
-                                      .node_expression = node_expression_self(),
-                                      .text = exprs[1]->data.string->buf,
-                                  }}}));
+    ir_instrs_append(out, ir_if((IrPredicate){
+                              .predicate_type = PREDICATE_TEXTEQ,
+                              .data = {.texteq = {
+                                           .text = exprs[1]->data.string->buf,
+                                       }}}));
     ir_instrs_append(out, ir_popnode());
   } else {
     // FIXME: We need to make the argument lazy!
@@ -335,7 +327,6 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
     break;
   case TQLSELECTOR_NODETYPE:
     ir_instrs_append(out, ir_if(ir_predicate_typeeq(
-                              node_expression_self(),
                               selector->data.node_type_selector->buf)));
     break;
   case TQLSELECTOR_FIELDNAME:
@@ -656,15 +647,12 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
     Predicate pred;
     switch (ir->data.predicate.predicate_type) {
     case PREDICATE_TEXTEQ:
-      pred = predicate_texteq(ir->data.predicate.data.texteq.node_expression,
-                              ir->data.predicate.data.texteq.text);
+      pred = predicate_texteq(ir->data.predicate.data.texteq.text);
       break;
     case PREDICATE_TYPEEQ:
-      pred = predicate_typeeq(
-          ir->data.predicate.data.typeeq.node_expression,
-          ts_language_symbol_for_name(
-              compiler->target, ir->data.predicate.data.typeeq.type,
-              strlen(ir->data.predicate.data.typeeq.type), true));
+      pred = predicate_typeeq(ts_language_symbol_for_name(
+          compiler->target, ir->data.predicate.data.typeeq.type,
+          strlen(ir->data.predicate.data.typeeq.type), true));
       break;
     }
     pred = ir->data.predicate.negate ? predicate_negate(pred) : pred;
