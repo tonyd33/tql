@@ -1,9 +1,11 @@
+#define PCRE2_CODE_UNIT_WIDTH 8
 #include "engine.h"
 #include "vm.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tree_sitter/api.h>
+#include <pcre2.h>
 
 static inline String *read_file(const char *filename) {
   String *s = string_new();

@@ -3,6 +3,7 @@ BUILD ?= release
 
 CFLAGS_ALL += -std=c11 -Wall -Wextra -Wpedantic -Wno-unused-parameter -fPIC
 CFLAGS_DEBUG += -Wshadow \
+		-Wno-sign-compare \
 		-Wswitch \
 		-Wimplicit-fallthrough \
 		-Wno-unused-variable \
@@ -40,7 +41,8 @@ else
 	$(error Unknown BUILD type: $(BUILD))
 endif
 
-LDFLAGS += -ltree-sitter
+CFLAGS += $(shell pkg-config --cflags tree-sitter libpcre2-8)
+LDFLAGS += $(shell pkg-config --libs tree-sitter libpcre2-8)
 ARFLAGS := rcs
 
 LIB_DIR := lib

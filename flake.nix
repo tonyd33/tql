@@ -64,6 +64,7 @@
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
               tree-sitter
+              pcre2
             ];
             packages = with pkgs; [
               node2nix
