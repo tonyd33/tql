@@ -7,7 +7,6 @@
 
 DA_DEFINE(TSNode, TSNodes, ts_nodes)
 
-typedef struct Match Match;
 typedef struct Continuation Continuation;
 typedef struct DelimitedExecution DelimitedExecution;
 typedef struct LookaheadBoundary LookaheadBoundary;
@@ -100,7 +99,7 @@ struct Vm {
   TSNodes branch_buffer[2];
 
   VmStats stats;
-  const Program *program;
+  const TQLProgram *program;
 };
 
 // op helpers {{{
@@ -369,14 +368,6 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
     stats->step_count++;
 
     Op op = vm_get_op(vm, cnt->pc++);
-    // char buf[1024];
-    // uint32_t start_byte = ts_node_start_byte(cnt->node);
-    // uint32_t end_byte = ts_node_end_byte(cnt->node);
-    // uint32_t buf_len = end_byte - start_byte;
-    //
-    // strncpy(buf, engine->source + start_byte, buf_len);
-    // buf[buf_len] = '\0';
-    // printf("pc %u, opcode %d, on node %s\n", cnt->pc - 1, op.opcode, buf);
     switch (op.opcode) {
     case OP_NOOP:
       break;
@@ -693,11 +684,11 @@ bool vm_next_match(Vm *vm, Match *match) {
   }
 }
 
-void vm_load(Vm *vm, const Program *program) { vm->program = program; }
+void vm_load(Vm *vm, const TQLProgram *program) { vm->program = program; }
 
-Program *program_new(uint32_t version, const TSLanguage *target_language,
+TQLProgram *tql_program_new(uint32_t version, const TSLanguage *target_language,
                      const SymbolTable *symtab, const Ops *instrs) {
-  Program *program = malloc(sizeof(Program));
+  TQLProgram *program = malloc(sizeof(TQLProgram));
   program->version = version;
   program->target_language = target_language;
   program->symtab = symbol_table_new();
@@ -707,7 +698,7 @@ Program *program_new(uint32_t version, const TSLanguage *target_language,
   return program;
 }
 
-void program_free(Program *program) {
+void tql_program_free(TQLProgram *program) {
   symbol_table_free(program->symtab);
   program->symtab = NULL;
 

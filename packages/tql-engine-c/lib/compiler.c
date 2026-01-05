@@ -703,7 +703,7 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
   assert(false);
 }
 
-Program *tql_compiler_compile(TQLCompiler *compiler) {
+TQLProgram *tql_compiler_compile(TQLCompiler *compiler) {
   // IR emission phase
   {
     Symbol tramp_symbol = compiler_request_symbol(compiler);
@@ -743,8 +743,8 @@ Program *tql_compiler_compile(TQLCompiler *compiler) {
     }
   }
 
-  Program *program =
-      program_new(0x00000001, compiler->target, compiler->symbol_table, ops);
+  TQLProgram *program = tql_program_new(0x00000001, compiler->target,
+                                        compiler->symbol_table, ops);
   ops_free(ops);
 
   return program;

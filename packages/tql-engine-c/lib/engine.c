@@ -3,8 +3,8 @@
 #include "compiler.h"
 #include "parser.h"
 
-Engine *engine_new(void) {
-  Engine *engine = malloc(sizeof(Engine));
+TQLEngine *tql_engine_new(void) {
+  TQLEngine *engine = malloc(sizeof(TQLEngine));
   engine->ast = NULL;
   engine->vm = NULL;
   engine->target_ast = NULL;
@@ -12,12 +12,10 @@ Engine *engine_new(void) {
   engine->target_source.length = 0;
 
   engine->ctx = tql_context_new();
-  symbol_table_init(&engine->symtab);
   return engine;
 }
 
-void engine_free(Engine *engine) {
-  symbol_table_deinit(&engine->symtab);
+void tql_engine_free(TQLEngine *engine) {
   tql_context_free(engine->ctx);
   engine->ctx = NULL;
 
@@ -34,7 +32,7 @@ void engine_free(Engine *engine) {
     engine->target_ast = NULL;
   }
   if (engine->program != NULL) {
-    program_free(engine->program);
+    tql_program_free(engine->program);
   }
   if (engine->target_source.buf != NULL) {
     char *buf = *((char **)(&engine->target_source.buf));
@@ -46,7 +44,7 @@ void engine_free(Engine *engine) {
   free(engine);
 }
 
-void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
+void tql_engine_compile_query(TQLEngine *engine, const char *buf, uint32_t length) {
   TQLParser *parser = tql_parser_new(engine->ctx);
   engine->ast = tql_parser_parse_string(parser, buf, length);
   tql_parser_free(parser);
@@ -56,7 +54,7 @@ void engine_compile_query(Engine *engine, const char *buf, uint32_t length) {
   tql_compiler_free(compiler);
 }
 
-void engine_load_target_string(Engine *engine, const char *buf,
+void tql_engine_load_target_string(TQLEngine *engine, const char *buf,
                                uint32_t length) {
   assert(engine->program != NULL);
 
@@ -76,7 +74,7 @@ void engine_load_target_string(Engine *engine, const char *buf,
   ts_parser_delete(target_parser);
 }
 
-void engine_exec(Engine *engine) {
+void tql_engine_exec(TQLEngine *engine) {
   assert(engine->target_ast != NULL);
   assert(engine->target_source.buf != NULL);
   assert(engine->program != NULL);
@@ -85,18 +83,59 @@ void engine_exec(Engine *engine) {
   vm_exec(engine->vm);
 }
 
-bool engine_next_match(Engine *engine, Match *match) {
-  assert(engine->vm != NULL);
-  return vm_next_match(engine->vm, match);
+char *lookup_symbol_name(const SymbolTable *symtab, Symbol symbol) {
+  String s;
+  string_init(&s);
+  for (size_t i = 0; i < symtab->len; i++) {
+    SymbolEntry entry = symtab->data[i];
+    if (entry.type == SYMBOL_VARIABLE && entry.id == symbol) {
+      // FIXME
+      return (char *)entry.slice.buf;
+    }
+  }
+  assert(false);
 }
 
-EngineStats engine_stats(Engine *engine) {
+bool tql_engine_next_match(TQLEngine *engine, EngineMatch *engine_match) {
+  assert(engine->vm != NULL);
+  Match match;
+  if (vm_next_match(engine->vm, &match)) {
+    uint32_t bindings_count = 0;
+    Bindings *bindings = match.bindings;
+    while (bindings != NULL) {
+      bindings_count++;
+      bindings = bindings->parent;
+    }
+    // FIXME: This is so stupid
+    TQLCapture *captures =
+        tql_context_alloc(engine->ctx, sizeof(TQLCapture) * bindings_count);
+
+    bindings_count = 0;
+    bindings = match.bindings;
+    while (bindings != NULL) {
+      captures[bindings_count++] =
+          (TQLCapture){.name = lookup_symbol_name(engine->program->symtab,
+                                               bindings->binding.variable),
+                    .node = bindings->binding.value};
+      bindings = bindings->parent;
+    }
+    engine_match->node = match.node;
+    engine_match->captures = captures;
+    engine_match->capture_count = bindings_count;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+TQLEngineStats tql_engine_stats(TQLEngine *engine) {
   assert(engine->vm != NULL);
   uint32_t string_interner_usage = 0;
   for (size_t i = 0; i < engine->ctx->string_interner->slices.len; i++) {
     string_interner_usage +=
         engine->ctx->string_interner->slices.data[i].length;
   }
+  engine->stats.arena_alloc = engine->ctx->arena->offset;
   engine->stats.string_count = engine->ctx->string_interner->slices.len;
   engine->stats.string_alloc = string_interner_usage;
   engine->stats.vm_stats = vm_stats(engine->vm);

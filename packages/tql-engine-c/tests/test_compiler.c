@@ -14,10 +14,10 @@ static bool test_compiler_detect_language() {
   TQLAst *ast = tql_parser_parse_string(parser, source, strlen(source));
   TQLCompiler *compiler = tql_compiler_new(ast);
 
-  Program *prog = tql_compiler_compile(compiler);
+  TQLProgram *prog = tql_compiler_compile(compiler);
   expect(prog->target_language == tree_sitter_tql());
 
-  program_free(prog);
+  tql_program_free(prog);
   tql_ast_free(ast);
   tql_compiler_free(compiler);
   tql_parser_free(parser);
@@ -38,10 +38,10 @@ static bool test_compile_function() {
   TQLAst *ast = tql_parser_parse_string(parser, source, strlen(source));
   TQLCompiler *compiler = tql_compiler_new(ast);
 
-  Program *prog = tql_compiler_compile(compiler);
+  TQLProgram *prog = tql_compiler_compile(compiler);
   expect(prog->target_language == tree_sitter_tql());
 
-  program_free(prog);
+  tql_program_free(prog);
   tql_ast_free(ast);
   tql_compiler_free(compiler);
   tql_parser_free(parser);

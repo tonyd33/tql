@@ -9,33 +9,44 @@
 
 #include <tree_sitter/api.h>
 
-typedef struct EngineStats {
+typedef struct {
   VmStats vm_stats;
-  TQLAstStats ast_stats;
+  uint32_t arena_alloc;
   uint32_t string_count;
   uint32_t string_alloc;
-} EngineStats;
+} TQLEngineStats;
 
-typedef struct Engine {
+typedef struct {
+  TQLContext *ctx;
   TQLAst *ast;
   Vm *vm;
-  TQLContext *ctx;
-  Program *program;
+  TQLProgram *program;
   StringSlice target_source;
   TSTree *target_ast;
   SymbolTable symtab;
-  EngineStats stats;
-} Engine;
+  TQLEngineStats stats;
+} TQLEngine;
 
-Engine *engine_new(void);
-void engine_free(Engine *engine);
+typedef struct {
+  char *name;
+  TSNode node;
+} TQLCapture;
 
-void engine_compile_query(Engine *engine, const char *buf, uint32_t length);
-void engine_load_target_string(Engine *engine, const char *buf,
+typedef struct EngineMatch {
+  TSNode node;
+  TQLCapture *captures;
+  uint32_t capture_count;
+} EngineMatch;
+
+TQLEngine *tql_engine_new(void);
+void tql_engine_free(TQLEngine *engine);
+
+void tql_engine_compile_query(TQLEngine *engine, const char *buf, uint32_t length);
+void tql_engine_load_target_string(TQLEngine *engine, const char *buf,
                                uint32_t length);
-void engine_exec(Engine *engine);
-bool engine_next_match(Engine *engine, Match *match);
+void tql_engine_exec(TQLEngine *engine);
+bool tql_engine_next_match(TQLEngine *engine, EngineMatch *match);
 
-EngineStats engine_stats(Engine *engine);
+TQLEngineStats tql_engine_stats(TQLEngine *engine);
 
 #endif /* _ENGINE_H_ */

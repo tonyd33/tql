@@ -18,7 +18,7 @@ typedef struct Probe Probe;
 typedef struct Push Push;
 typedef struct Match Match;
 typedef struct Bindings Bindings;
-typedef struct Program Program;
+typedef struct TQLProgram TQLProgram;
 typedef struct Binding Binding;
 
 typedef enum {
@@ -142,7 +142,7 @@ struct VmStats {
 
 struct Match {
   TSNode node;
-  const Bindings *bindings;
+  Bindings *bindings;
 };
 
 typedef enum TQLSymbolType {
@@ -158,18 +158,18 @@ typedef struct {
 } SymbolEntry;
 DA_DEFINE(SymbolEntry, SymbolTable, symbol_table)
 
-struct Program {
+struct TQLProgram {
   uint64_t version;
   const TSLanguage *target_language;
   SymbolTable *symtab;
   Ops *instrs;
 };
-Program *program_new(uint32_t version, const TSLanguage *target_language,
+TQLProgram *tql_program_new(uint32_t version, const TSLanguage *target_language,
                      const SymbolTable *symtab, const Ops *instrs);
-void program_free(Program *program);
+void tql_program_free(TQLProgram *program);
 
 Vm *vm_new(TSTree *ast, const char *source);
-void vm_load(Vm *vm, const Program *program);
+void vm_load(Vm *vm, const TQLProgram *program);
 void vm_free(Vm *vm);
 
 void vm_exec(Vm *vm);

@@ -41,40 +41,50 @@ int run(const char *query_filename, const char *source_filename) {
   String *query = read_file(query_filename);
   String *source = read_file(source_filename);
 
-  Engine *engine = engine_new();
-  engine_compile_query(engine, query->data, query->len);
-  engine_load_target_string(engine, source->data, source->len);
-  engine_exec(engine);
+  TQLEngine *engine = tql_engine_new();
+  tql_engine_compile_query(engine, query->data, query->len);
+  tql_engine_load_target_string(engine, source->data, source->len);
+  tql_engine_exec(engine);
 
-  Match match;
-  char buf[4096];
+  EngineMatch match;
 
-  while (engine_next_match(engine, &match)) {
+  while (tql_engine_next_match(engine, &match)) {
     assert(!ts_node_is_null(match.node));
     String text = get_ts_node_text(*source, match.node);
     printf("==================================== MATCH "
            "=====================================\n");
-    printf("%.*s\n", (int)text.len, text.data);
+    printf("NODE\n\n");
+    printf("%.*s\n\n", (int)text.len, text.data);
+    string_deinit(&text);
+
+    printf("BINDINGS\n\n");
+    for (uint32_t i = 0; i < match.capture_count; i++) {
+      TQLCapture capture = match.captures[i];
+      printf("%s: ", capture.name);
+      String capture_text = get_ts_node_text(*source, capture.node);
+      printf("%.*s\n", (int)capture_text.len, capture_text.data);
+      string_deinit(&capture_text);
+    }
+    printf("\n");
     printf("==========================================="
            "=====================================\n");
-    string_deinit(&text);
   }
-  EngineStats stats = engine_stats(engine);
+  TQLEngineStats stats = tql_engine_stats(engine);
   printf("================================ Engine Stats "
          "==================================\n");
-  printf("SI  String count: %u\n", stats.string_count);
-  printf("SI  String allocation: %u\n", stats.string_alloc);
-  printf("AST Arena allocation: %u\n", stats.ast_stats.arena_alloc);
-  printf("VM  Boundaries encountered: %u\n",
+  printf("AR Arena allocation: %u\n", stats.arena_alloc);
+  printf("SI String count: %u\n", stats.string_count);
+  printf("SI String allocation: %u\n", stats.string_alloc);
+  printf("VM Boundaries encountered: %u\n",
          stats.vm_stats.boundaries_encountered);
-  printf("VM  Total branching: %u\n", stats.vm_stats.total_branching);
-  printf("VM  Max branching factor: %u\n", stats.vm_stats.max_branching_factor);
-  printf("VM  Max stack size: %u\n", stats.vm_stats.max_stack_size);
-  printf("VM  Step count: %u\n", stats.vm_stats.step_count);
+  printf("VM Total branching: %u\n", stats.vm_stats.total_branching);
+  printf("VM Max branching factor: %u\n", stats.vm_stats.max_branching_factor);
+  printf("VM Max stack size: %u\n", stats.vm_stats.max_stack_size);
+  printf("VM Step count: %u\n", stats.vm_stats.step_count);
   printf("====================================================================="
          "===========\n");
 
-  engine_free(engine);
+  tql_engine_free(engine);
   string_free(query);
   string_free(source);
 
