@@ -20,6 +20,10 @@
             "named": true
           },
           {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
             "type": "descendant_selector",
             "named": true
           },
@@ -71,6 +75,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
             "named": true
           },
           {
@@ -149,6 +157,10 @@
             "named": true
           },
           {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
             "type": "descendant_selector",
             "named": true
           },
@@ -223,6 +235,10 @@
             "named": true
           },
           {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
             "type": "descendant_selector",
             "named": true
           },
@@ -274,6 +290,103 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "parenthesized_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "condition",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        },
+        {
+          "type": "relation",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "condition_selector",
+    "named": true,
+    "fields": {
+      "condition": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "condition",
+            "named": true
+          }
+        ]
+      },
+      "parent": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
             "named": true
           },
           {
@@ -337,6 +450,10 @@
             "named": true
           },
           {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
             "type": "descendant_selector",
             "named": true
           },
@@ -388,6 +505,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
             "named": true
           },
           {
@@ -480,6 +601,25 @@
     }
   },
   {
+    "type": "expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "selector",
+          "named": true
+        },
+        {
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "field_name_selector",
     "named": true,
     "fields": {
@@ -507,6 +647,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
             "named": true
           },
           {
@@ -655,6 +799,10 @@
           "named": true
         },
         {
+          "type": "condition_selector",
+          "named": true
+        },
+        {
           "type": "descendant_selector",
           "named": true
         },
@@ -729,6 +877,10 @@
             "named": true
           },
           {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
             "type": "descendant_selector",
             "named": true
           },
@@ -780,6 +932,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
             "named": true
           },
           {
@@ -843,6 +999,10 @@
           "named": true
         },
         {
+          "type": "condition_selector",
+          "named": true
+        },
+        {
           "type": "descendant_selector",
           "named": true
         },
@@ -882,6 +1042,11 @@
     }
   },
   {
+    "type": "relation",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "selector",
     "named": true,
     "fields": {},
@@ -899,6 +1064,10 @@
         },
         {
           "type": "child_selector",
+          "named": true
+        },
+        {
+          "type": "condition_selector",
           "named": true
         },
         {
@@ -1043,6 +1212,10 @@
     "named": false
   },
   {
+    "type": "/=",
+    "named": false
+  },
+  {
     "type": ";",
     "named": false
   },
@@ -1051,11 +1224,23 @@
     "named": false
   },
   {
+    "type": "=",
+    "named": false
+  },
+  {
     "type": ">",
     "named": false
   },
   {
     "type": "@",
+    "named": false
+  },
+  {
+    "type": "[",
+    "named": false
+  },
+  {
+    "type": "]",
     "named": false
   },
   {
@@ -1109,6 +1294,10 @@
   },
   {
     "type": "}",
+    "named": false
+  },
+  {
+    "type": "~",
     "named": false
   }
 ]

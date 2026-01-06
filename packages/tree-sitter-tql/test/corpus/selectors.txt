@@ -200,7 +200,7 @@ fn main() {
     @decorator_name <- .decorator > call_expression.function;
     @method <- .body > method_definition;
 
-    text_eq(@decorator_name, 'Controller');
+    [text(@decorator_name) = 'Controller'] &&
     !exists(@method.return_type);
   }
 }
@@ -244,19 +244,25 @@ fn main() {
                 (node_type_selector
                   (node_type))))))
         (selector
-          (function_invocation
-            (identifier)
-            (selector
-              (variable_identifier
-                (identifier)))
-            (string_literal
-              (string_fragment))))
-        (selector
-          (negate_selector
-            (function_invocation
-              (identifier)
-              (selector
-                (field_name_selector
-                  (variable_identifier
-                    (identifier))
-                  (field_name))))))))))
+          (and_selector
+            (condition_selector
+              (condition
+                (expression
+                  (selector
+                    (function_invocation
+                      (identifier)
+                      (selector
+                        (variable_identifier
+                          (identifier))))))
+                (relation)
+                (expression
+                  (string_literal
+                    (string_fragment)))))
+            (negate_selector
+              (function_invocation
+                (identifier)
+                (selector
+                  (field_name_selector
+                    (variable_identifier
+                      (identifier))
+                    (field_name)))))))))))

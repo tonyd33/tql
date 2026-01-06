@@ -98,6 +98,7 @@ module.exports = grammar({
         $.negate_selector,
         $.and_selector,
         $.or_selector,
+        $.condition_selector,
       ),
     selector: $ => $._selector,
     parenthesized_selector: $ => prec(100, parentheses_enclosed($._selector)),
@@ -145,6 +146,16 @@ module.exports = grammar({
       prec.left(
         seq(field("left", $._selector), "||", field("right", $._selector)),
       ),
+    condition_selector: $ =>
+      prec.left(
+        seq(
+          optional(field("parent", $._selector)),
+          enclosed_by("[", "]", field("condition", $.condition)),
+        ),
+      ),
+
+    relation: _ => choice("=", "~", "/="),
+    condition: $ => seq($.expression, $.relation, $.expression),
 
     // assignments
     _assignment: $ => choice($.explicit_assignment),
