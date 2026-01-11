@@ -6,7 +6,7 @@
 TQLString *tql_string(TQLAst *ast, const char *string, uint32_t length) {
   TQLString *tql_string = tql_context_alloc(ast->ctx, sizeof(TQLString));
   *tql_string = tql_context_intern_string(ast->ctx, string, length);
-  tql_string->length = length;
+  tql_string->len = length;
   return tql_string;
 }
 

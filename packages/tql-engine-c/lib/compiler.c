@@ -3,6 +3,8 @@
 #include "languages.h"
 #include <stdio.h>
 
+typedef StringSlice Scope;
+
 // asm ops {{{
 typedef uint64_t Symbol;
 
@@ -49,6 +51,7 @@ struct IrOp {
     IrProbe probe;
     Symbol jump;
     PushTarget push_target;
+    TQLOpAssign asn;
   } data;
 };
 DA_DEFINE(IrInstr, IrInstrs, ir_instrs)
@@ -82,14 +85,22 @@ static inline IrAxis ir_axis_var(Symbol variable) {
   return (IrAxis){.axis_type = AXIS_VAR, .data = {.variable = variable}};
 }
 static inline IrInstr ir_noop(void) { return (IrInstr){.opcode = OP_NOOP}; }
-static inline IrInstr ir_branch(IrAxis axis) {
-  return (IrInstr){.opcode = OP_BRANCH, .data = {.axis = axis}};
+static inline IrInstr ir_traverse(IrAxis axis) {
+  return (IrInstr){.opcode = OP_TRAVERSE, .data = {.axis = axis}};
 }
-static inline IrInstr ir_dup(Symbol id) {
-  return (IrInstr){.opcode = OP_DUP, .data = {.jump = id}};
+static inline IrInstr ir_fork(Symbol id) {
+  return (IrInstr){.opcode = OP_FORK, .data = {.jump = id}};
 }
-static inline IrInstr ir_bind(Symbol symbol) {
-  return (IrInstr){.opcode = OP_BIND, .data = {.variable = symbol}};
+static inline IrInstr ir_asn_currnode(Symbol variable) {
+  return (IrInstr){
+      .opcode = OP_ASN,
+      .data = {.asn = {.source = TQL_OP_ASN_CURRNODE, .variable = variable}}};
+}
+static inline IrInstr ir_asn_symbol(Symbol variable, Symbol symbol) {
+  return (IrInstr){.opcode = OP_ASN,
+                   .data = {.asn = {.source = TQL_OP_ASN_SYMBOL,
+                                    .variable = variable,
+                                    .data = {.symbol = symbol}}}};
 }
 static inline IrInstr ir_if(IrPredicate predicate) {
   return (IrInstr){.opcode = OP_IF, .data = {.predicate = predicate}};
@@ -130,12 +141,19 @@ struct Section {
 DA_DEFINE(Section, SectionTable, section_table)
 
 struct TQLCompiler {
-  const TQLAst *ast;
+  TQLContext *ctx;
+  /* const */ TQLAst *ast;
   Symbol next_symbol_id;
   SymbolTable *symbol_table;
   SectionTable section_table;
   const TSLanguage *target;
 };
+// }}}
+
+// Thunk IR {{{
+typedef struct {
+  Symbol symbol;
+} ThunkIRFunction;
 // }}}
 
 static inline void compiler_section_insert(TQLCompiler *compiler, Symbol symbol,
@@ -147,13 +165,15 @@ static inline void compiler_section_insert(TQLCompiler *compiler, Symbol symbol,
   section_table_append(&compiler->section_table, section);
 }
 
-static inline void compile_tql_selector(TQLCompiler *compiler,
+static inline void compile_tql_selector(TQLCompiler *compiler, Scope *scope,
                                         TQLSelector *selector, IrInstrs *out);
-static inline void compile_tql_statement(TQLCompiler *compiler,
+static inline void compile_tql_statement(TQLCompiler *compiler, Scope *scope,
                                          TQLStatement *statement,
                                          IrInstrs *out);
 size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
                                          Symbol symbol);
+static Scope join_scope(TQLCompiler *compiler, const Scope *a, const Scope *b);
+DA_DEFINE(TQLAssignment, TQLAssignments, tql_assignments)
 
 static inline Symbol compiler_request_symbol(TQLCompiler *compiler) {
   return compiler->next_symbol_id++;
@@ -173,6 +193,8 @@ static inline Symbol compiler_symbol_for_symbol_type(TQLCompiler *compiler,
   SymbolEntry new_entry = {
       .id = new_symbol, .type = symbol_type, .slice = slice};
   symbol_table_append(compiler->symbol_table, new_entry);
+  printf("allocated symbol %llu = %.*s of type %d\n", new_symbol, slice.len,
+         slice.data, symbol_type);
   return new_symbol;
 }
 
@@ -191,12 +213,17 @@ static inline Symbol compiler_symbol_for_function(TQLCompiler *compiler,
   return compiler_symbol_for_symbol_type(compiler, SYMBOL_FUNCTION, slice);
 }
 
+static inline Symbol compiler_symbol_for_string(TQLCompiler *compiler,
+                                                StringSlice slice) {
+  return compiler_symbol_for_symbol_type(compiler, SYMBOL_STRING, slice);
+}
+
 static const TSLanguage *get_ast_target(TQLAst *ast) {
   for (int i = 0; i < ast->tree->directive_count; i++) {
     TQLDirective directive = *ast->tree->directives[i];
     if (directive.type == TQLDIRECTIVE_TARGET) {
       const TSLanguage *language = ts_language_for_name(
-          directive.data.target->buf, directive.data.target->length);
+          directive.data.target->data, directive.data.target->len);
       assert(language != NULL);
       return language;
     }
@@ -205,7 +232,8 @@ static const TSLanguage *get_ast_target(TQLAst *ast) {
   return NULL;
 }
 
-void compiler_init(TQLCompiler *compiler, TQLAst *ast) {
+void compiler_init(TQLCompiler *compiler, TQLContext *ctx, TQLAst *ast) {
+  compiler->ctx = ctx;
   compiler->ast = ast;
   compiler->target = get_ast_target(ast);
   assert(compiler->target != NULL);
@@ -215,9 +243,9 @@ void compiler_init(TQLCompiler *compiler, TQLAst *ast) {
   section_table_init(&compiler->section_table);
 }
 
-TQLCompiler *tql_compiler_new(TQLAst *ast) {
+TQLCompiler *tql_compiler_new(TQLContext *ctx, TQLAst *ast) {
   TQLCompiler *compiler = malloc(sizeof(TQLCompiler));
-  compiler_init(compiler, ast);
+  compiler_init(compiler, ctx, ast);
   return compiler;
 }
 
@@ -231,6 +259,7 @@ void compiler_deinit(TQLCompiler *compiler) {
   compiler->next_symbol_id = 0;
   compiler->target = NULL;
   compiler->ast = NULL;
+  compiler->ctx = NULL;
 }
 
 void tql_compiler_free(TQLCompiler *compiler) {
@@ -238,80 +267,120 @@ void tql_compiler_free(TQLCompiler *compiler) {
   free(compiler);
 }
 
-static inline void compile_tql_statement(TQLCompiler *compiler,
+static inline void compile_tql_statement(TQLCompiler *compiler, Scope *scope,
                                          TQLStatement *statement,
                                          IrInstrs *out) {
   switch (statement->type) {
   case TQLSTATEMENT_SELECTOR: {
-    compile_tql_selector(compiler, statement->data.selector, out);
+    compile_tql_selector(compiler, scope, statement->data.selector, out);
   } break;
   case TQLSTATEMENT_ASSIGNMENT: {
     Symbol symbol = compiler_symbol_for_variable(
-        compiler, *statement->data.assignment->variable_identifier);
+        compiler, join_scope(compiler, scope,
+                             statement->data.assignment->variable_identifier));
     switch (statement->data.assignment->expression->type) {
-    case TQLEXPRESSION_SELECTOR:
+    case TQLEXPRESSION_SELECTOR: {
+      IrInstrs inner;
+      ir_instrs_init(&inner);
       compile_tql_selector(
-          compiler, statement->data.assignment->expression->data.selector, out);
-      break;
+          compiler, scope,
+          statement->data.assignment->expression->data.selector, &inner);
+      ir_instrs_append(&inner, ir_asn_currnode(symbol));
+      ir_instrs_append(&inner, ir_ret());
+      compiler_section_insert(compiler, symbol, &inner);
+      ir_instrs_deinit(&inner);
+    } break;
     case TQLEXPRESSION_STRING:
-      assert(false && "Not implemented");
+      ir_instrs_append(
+          out, ir_asn_symbol(
+                   symbol,
+                   compiler_symbol_for_string(
+                       compiler,
+                       *statement->data.assignment->expression->data.string)));
       break;
     }
-    ir_instrs_append(out, ir_bind(symbol));
   } break;
   }
 }
 
+static Scope join_scope(TQLCompiler *compiler, const Scope *a, const Scope *b) {
+  assert(b != NULL);
+  String scoped_string;
+  if (a != NULL) {
+    scoped_string = string_from_slice(a);
+    string_extend(&scoped_string, string_from("::"));
+  } else {
+    string_init(&scoped_string);
+  }
+
+  String sb = string_from_slice(b);
+  string_extend(&scoped_string, sb);
+
+  StringSlice scoped_string_slice = tql_context_intern_string(
+      compiler->ctx, scoped_string.data, scoped_string.len);
+
+  string_deinit(&sb);
+  string_deinit(&scoped_string);
+  return scoped_string_slice;
+}
+
 static inline void compile_tql_function_invocation(
-    TQLCompiler *compiler, TQLFunctionIdentifier *identifier,
+    TQLCompiler *compiler, Scope *scope, TQLFunctionIdentifier *identifier,
     TQLExpression **exprs, uint16_t expr_count, IrInstrs *out) {
-  if (strcmp(identifier->buf, "exists") == 0) {
+  if (strcmp(identifier->data, "exists") == 0) {
     assert(expr_count == 1);
     assert(exprs[0]->type == TQLEXPRESSION_SELECTOR);
 
     Symbol sid = compiler_request_symbol(compiler);
     IrInstrs inner;
     ir_instrs_init(&inner);
-    compile_tql_selector(compiler, exprs[0]->data.selector, &inner);
+    compile_tql_selector(compiler, scope, exprs[0]->data.selector, &inner);
     ir_instrs_append(&inner, ir_yield());
     compiler_section_insert(compiler, sid, &inner);
     ir_instrs_deinit(&inner);
 
     ir_instrs_append(out, ir_probe(ir_probe_exists(sid)));
-  } else if (strcmp(identifier->buf, "text_eq") == 0) {
+  } else if (strcmp(identifier->data, "text_eq") == 0) {
     assert(expr_count == 2);
     assert(exprs[0]->type == TQLEXPRESSION_SELECTOR);
     assert(exprs[1]->type == TQLEXPRESSION_STRING);
 
     ir_instrs_append(out, ir_pushnode());
-    compile_tql_selector(compiler, exprs[0]->data.selector, out);
+    compile_tql_selector(compiler, scope, exprs[0]->data.selector, out);
     ir_instrs_append(out, ir_if((IrPredicate){
                               .predicate_type = PREDICATE_TEXTEQ,
                               .data = {.texteq = {
-                                           .text = exprs[1]->data.string->buf,
+                                           .text = exprs[1]->data.string->data,
                                        }}}));
     ir_instrs_append(out, ir_popnode());
   } else {
-    // FIXME: We need to make the argument lazy!
-    // FIXME: And we have to bind strings correctly
     TQLFunction *function =
-        tql_lookup_function(compiler->ast, identifier->buf, identifier->length);
+        tql_lookup_function(compiler->ast, identifier->data, identifier->len);
     assert(function != NULL);
     assert(function->parameter_count == expr_count);
     ir_instrs_append(out, ir_pushbnd());
     for (int i = 0; i < expr_count; i++) {
-      Symbol aid =
-          compiler_symbol_for_variable(compiler, *function->parameters[i]);
+      Symbol arg_symbol = compiler_symbol_for_variable(
+          compiler, join_scope(compiler, identifier, function->parameters[i]));
       ir_instrs_append(out, ir_pushnode());
       switch (exprs[i]->type) {
-      case TQLEXPRESSION_SELECTOR:
-        compile_tql_selector(compiler, exprs[i]->data.selector, out);
-        break;
+      case TQLEXPRESSION_SELECTOR: {
+        IrInstrs inner;
+        ir_instrs_init(&inner);
+        compile_tql_selector(compiler, identifier, exprs[i]->data.selector,
+                             &inner);
+        ir_instrs_append(&inner, ir_asn_currnode(arg_symbol));
+        ir_instrs_append(&inner, ir_ret());
+        compiler_section_insert(compiler, arg_symbol, &inner);
+        ir_instrs_deinit(&inner);
+      } break;
       case TQLEXPRESSION_STRING:
-        assert(false && "Not implemented");
+        ir_instrs_append(
+            out,
+            ir_asn_symbol(arg_symbol, compiler_symbol_for_string(
+                                          compiler, *exprs[i]->data.string)));
         break;
       }
-      ir_instrs_append(out, ir_bind(aid));
       ir_instrs_append(out, ir_popnode());
     }
 
@@ -321,60 +390,65 @@ static inline void compile_tql_function_invocation(
   }
 }
 
-static inline void compile_tql_selector(TQLCompiler *compiler,
+static inline void compile_tql_selector(TQLCompiler *compiler, Scope *scope,
                                         TQLSelector *selector, IrInstrs *out) {
   switch (selector->type) {
   case TQLSELECTOR_SELF:
     break;
   case TQLSELECTOR_NODETYPE:
     ir_instrs_append(out, ir_if(ir_predicate_typeeq(
-                              selector->data.node_type_selector->buf)));
+                              selector->data.node_type_selector->data)));
     break;
   case TQLSELECTOR_FIELDNAME:
     if (selector->data.field_name_selector.parent != NULL) {
-      compile_tql_selector(compiler, selector->data.field_name_selector.parent,
-                           out);
+      compile_tql_selector(compiler, scope,
+                           selector->data.field_name_selector.parent, out);
     }
     ir_instrs_append(
-        out, ir_branch(ir_axis_field(compiler_symbol_for_field(
+        out, ir_traverse(ir_axis_field(compiler_symbol_for_field(
                  compiler, *selector->data.field_name_selector.field))));
     break;
   case TQLSELECTOR_CHILD:
     if (selector->data.child_selector.parent != NULL) {
-      compile_tql_selector(compiler, selector->data.child_selector.parent, out);
+      compile_tql_selector(compiler, scope,
+                           selector->data.child_selector.parent, out);
     }
-    ir_instrs_append(out, ir_branch(ir_axis_child()));
-    compile_tql_selector(compiler, selector->data.child_selector.child, out);
+    ir_instrs_append(out, ir_traverse(ir_axis_child()));
+    compile_tql_selector(compiler, scope, selector->data.child_selector.child,
+                         out);
     break;
   case TQLSELECTOR_DESCENDANT:
     if (selector->data.descendant_selector.parent != NULL) {
-      compile_tql_selector(compiler, selector->data.descendant_selector.parent,
-                           out);
+      compile_tql_selector(compiler, scope,
+                           selector->data.descendant_selector.parent, out);
     }
-    ir_instrs_append(out, ir_branch(ir_axis_descendant()));
-    compile_tql_selector(compiler, selector->data.descendant_selector.child,
-                         out);
+    ir_instrs_append(out, ir_traverse(ir_axis_descendant()));
+    compile_tql_selector(compiler, scope,
+                         selector->data.descendant_selector.child, out);
     break;
   case TQLSELECTOR_BLOCK: {
     if (selector->data.block_selector.parent != NULL) {
-      compile_tql_selector(compiler, selector->data.block_selector.parent, out);
+      compile_tql_selector(compiler, scope,
+                           selector->data.block_selector.parent, out);
     }
     for (int i = 0; i < selector->data.block_selector.statement_count; i++) {
       ir_instrs_append(out, ir_pushnode());
-      compile_tql_statement(compiler,
+      compile_tql_statement(compiler, scope,
                             selector->data.block_selector.statements[i], out);
       ir_instrs_append(out, ir_popnode());
     }
   } break;
   case TQLSELECTOR_VARID: {
     ir_instrs_append(
-        out, ir_branch(ir_axis_var(compiler_symbol_for_variable(
-                 compiler, *selector->data.variable_identifier_selector))));
+        out, ir_call(compiler_symbol_for_variable(
+                 compiler,
+                 join_scope(compiler, scope,
+                            selector->data.variable_identifier_selector))));
     break;
   }
   case TQLSELECTOR_FUNINV:
     compile_tql_function_invocation(
-        compiler, selector->data.function_invocation_selector.identifier,
+        compiler, scope, selector->data.function_invocation_selector.identifier,
         selector->data.function_invocation_selector.exprs,
         selector->data.function_invocation_selector.expr_count, out);
     break;
@@ -382,7 +456,8 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
     Symbol sid = compiler_request_symbol(compiler);
     IrInstrs inner;
     ir_instrs_init(&inner);
-    compile_tql_selector(compiler, selector->data.negate_selector, &inner);
+    compile_tql_selector(compiler, scope, selector->data.negate_selector,
+                         &inner);
     ir_instrs_append(&inner, ir_yield());
     compiler_section_insert(compiler, sid, &inner);
     ir_instrs_deinit(&inner);
@@ -390,69 +465,53 @@ static inline void compile_tql_selector(TQLCompiler *compiler,
     ir_instrs_append(out, ir_probe(ir_probe_not_exists(sid)));
   } break;
   case TQLSELECTOR_AND: {
-    compile_tql_selector(compiler, selector->data.and_selector.left, out);
-    compile_tql_selector(compiler, selector->data.and_selector.right, out);
+    ir_instrs_append(out, ir_pushnode());
+    compile_tql_selector(compiler, scope, selector->data.and_selector.left,
+                         out);
+    ir_instrs_append(out, ir_popnode());
+    ir_instrs_append(out, ir_pushnode());
+    compile_tql_selector(compiler, scope, selector->data.and_selector.right,
+                         out);
+    ir_instrs_append(out, ir_popnode());
   } break;
   case TQLSELECTOR_OR: {
     /*
-     * FIXME: This is essentially a hack because the compiler is not smart
-     * enough to label instructions.
-     *
-     * ...prev instrs
-     * CALL or_begin
-     * ...next instrs
+     * FIXME: The bindings may need to make it out of the lookahead probe.
+     * ... (prev instrs)
+     * PROBE EXISTS or_begin
+     * ... (next instrs)
      *
      * or_begin:
      * DUP right
-     * JMP left
-     *
-     * left:
-     * ...
-     * JMP JOIN
+     * ... (left selector)
+     * YIELD
      *
      * right:
-     * ...
-     * JMP join
-     *
-     * join:
-     * RET
+     * ... (right selector)
+     * YIELD
      */
     Symbol or_begin_sym = compiler_request_symbol(compiler);
-    Symbol left_sym = compiler_request_symbol(compiler);
     Symbol right_sym = compiler_request_symbol(compiler);
-    Symbol join_sym = compiler_request_symbol(compiler);
+    ir_instrs_append(out, ir_probe(ir_probe_exists(or_begin_sym)));
     {
       IrInstrs or_begin;
       ir_instrs_init(&or_begin);
-      ir_instrs_append(&or_begin, ir_dup(right_sym));
-      ir_instrs_append(&or_begin, ir_jump(left_sym));
+      ir_instrs_append(&or_begin, ir_fork(right_sym));
+      compile_tql_selector(compiler, scope, selector->data.or_selector.left,
+                           &or_begin);
+      ir_instrs_append(&or_begin, ir_yield());
       compiler_section_insert(compiler, or_begin_sym, &or_begin);
       ir_instrs_deinit(&or_begin);
     }
     {
-      IrInstrs left;
-      ir_instrs_init(&left);
-      compile_tql_selector(compiler, selector->data.or_selector.left, &left);
-      ir_instrs_append(&left, ir_jump(join_sym));
-      compiler_section_insert(compiler, left_sym, &left);
-      ir_instrs_deinit(&left);
-    }
-    {
       IrInstrs right;
       ir_instrs_init(&right);
-      compile_tql_selector(compiler, selector->data.or_selector.right, &right);
-      ir_instrs_append(&right, ir_jump(join_sym));
+      compile_tql_selector(compiler, scope, selector->data.or_selector.right,
+                           &right);
+      ir_instrs_append(&right, ir_yield());
       compiler_section_insert(compiler, right_sym, &right);
       ir_instrs_deinit(&right);
     }
-    {
-      IrInstrs join;
-      ir_instrs_init(&join);
-      ir_instrs_append(&join, ir_ret());
-      compiler_section_insert(compiler, join_sym, &join);
-      ir_instrs_deinit(&join);
-    }
-    ir_instrs_append(out, ir_call(or_begin_sym));
   } break;
   }
 }
@@ -475,40 +534,62 @@ static inline void print_op(const TQLCompiler *compiler, Op op) {
   case OP_HALT:
     printf("halt");
     break;
-  case OP_BRANCH:
+  case OP_TRAVERSE:
     switch (op.data.axis.axis_type) {
     case AXIS_CHILD:
-      printf("branch (child)");
+      printf("traverse (child)");
       break;
     case AXIS_DESCENDANT:
-      printf("branch (descendant)");
+      printf("traverse (descendant)");
       break;
     case AXIS_FIELD:
-      printf("branch (field \"%s\")",
+      printf("traverse (field \"%s\")",
              ts_language_field_name_for_id(compiler->target,
                                            op.data.axis.data.field));
       break;
     case AXIS_VAR: {
       const SymbolEntry *se =
           compiler_lookup_symbol(compiler, op.data.axis.data.variable);
-      const char *variable = se->slice.buf;
+      const char *variable = se->slice.data;
       if (variable == NULL) {
         variable = "anonymous_variable";
       }
-      printf("branch (var %s)", variable);
+      printf("traverse (var %s)", variable);
     } break;
     }
     break;
-  case OP_DUP: {
-    printf("dup (%d)", op.data.jump.pc);
+  case OP_FORK: {
+    printf("fork %d", op.data.jump.pc);
   } break;
   case OP_BIND: {
     const SymbolEntry *se = compiler_lookup_symbol(compiler, op.data.var_id);
-    const char *variable = se->slice.buf;
+    const char *variable = se->slice.data;
     if (variable == NULL) {
       variable = "anonymous_variable";
     }
     printf("bind %s", variable);
+  } break;
+  case OP_ASN: {
+    const SymbolEntry *se =
+        compiler_lookup_symbol(compiler, op.data.asn.variable);
+    const char *variable = se->slice.data;
+    if (variable == NULL) {
+      variable = "anonymous_variable";
+    }
+    switch (op.data.asn.source) {
+    case TQL_OP_ASN_CURRNODE:
+      printf("asn %s currnode", variable);
+      break;
+    case TQL_OP_ASN_SYMBOL: {
+      const SymbolEntry *sea =
+          compiler_lookup_symbol(compiler, op.data.asn.data.symbol);
+      const char *variablea = sea->slice.data;
+      if (variablea == NULL) {
+        variablea = "anonymous_variable";
+      }
+      printf("asn %s %s", variable, variablea);
+    } break;
+    }
   } break;
   case OP_IF:
     switch (op.data.predicate.predicate_type) {
@@ -573,11 +654,13 @@ static inline void print_op(const TQLCompiler *compiler, Op op) {
   }
 }
 
-void compile_tql_function(TQLCompiler *compiler, TQLFunction *function) {
+void compile_tql_function(TQLCompiler *compiler, Scope *scope,
+                          TQLFunction *function) {
   IrInstrs ops;
   ir_instrs_init(&ops);
   for (int i = 0; i < function->statement_count; i++) {
-    compile_tql_statement(compiler, function->statements[i], &ops);
+    compile_tql_statement(compiler, function->identifier,
+                          function->statements[i], &ops);
   }
   ir_instrs_append(&ops, ir_ret());
 
@@ -608,6 +691,7 @@ size_t compiler_lookup_section_placement(const TQLCompiler *compiler,
       placement += compiler->section_table.data[i].ops.len;
     }
   }
+  fprintf(stderr, "failed looking up symbol %llu\n", symbol);
   assert(false && "Should not get here");
 }
 
@@ -617,7 +701,7 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
     return op_noop();
   case OP_HALT:
     return op_halt();
-  case OP_BRANCH: {
+  case OP_TRAVERSE: {
     Axis axis;
     switch (ir->data.axis.axis_type) {
     case AXIS_CHILD:
@@ -630,20 +714,29 @@ static inline Op assemble_op(TQLCompiler *compiler, const IrInstr *ir) {
       const SymbolEntry *se =
           compiler_lookup_symbol(compiler, ir->data.axis.data.field);
       axis = axis_field(ts_language_field_id_for_name(
-          compiler->target, se->slice.buf, se->slice.length));
+          compiler->target, se->slice.data, se->slice.len));
     } break;
     case AXIS_VAR:
       axis = (Axis){.axis_type = AXIS_VAR,
                     .data = {.variable = ir->data.axis.data.variable}};
       break;
     }
-    return op_branch(axis);
+    return op_traverse(axis);
   }
-  case OP_DUP:
-    return op_dup(jump_absolute(
+  case OP_FORK:
+    return op_fork(jump_absolute(
         compiler_lookup_section_placement(compiler, ir->data.jump)));
   case OP_BIND:
     return op_bind(ir->data.variable);
+  case OP_ASN:
+    switch (ir->data.asn.source) {
+    case TQL_OP_ASN_CURRNODE:
+      return op_asn_currnode(ir->data.asn.variable);
+    case TQL_OP_ASN_SYMBOL:
+      return op_asn_symbol(ir->data.asn.variable, ir->data.asn.data.symbol);
+      break;
+    }
+    break;
   case OP_IF: {
     Predicate pred;
     switch (ir->data.predicate.predicate_type) {
@@ -718,7 +811,7 @@ TQLProgram *tql_compiler_compile(TQLCompiler *compiler) {
     ir_instrs_deinit(&tramp_ops);
 
     for (int i = 0; i < compiler->ast->tree->function_count; i++) {
-      compile_tql_function(compiler, compiler->ast->tree->functions[i]);
+      compile_tql_function(compiler, NULL, compiler->ast->tree->functions[i]);
     }
   }
 
@@ -736,9 +829,9 @@ TQLProgram *tql_compiler_compile(TQLCompiler *compiler) {
     Section *section = &compiler->section_table.data[i];
     for (size_t j = 0; j < section->ops.len; j++) {
       Op op = assemble_op(compiler, &section->ops.data[j]);
-      // printf("%4zu: ", ops->len);
-      // print_op(compiler, op);
-      // printf("\n");
+      printf("%4zu: ", ops->len);
+      print_op(compiler, op);
+      printf("\n");
       ops_append(ops, op);
     }
   }

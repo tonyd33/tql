@@ -100,7 +100,13 @@ static inline size_t dyn_array_next_cap(size_t cap) {
   }
 
 DA_DEFINE(char, String, string)
-static inline void string_concat(String *a, String b) {
+typedef struct StringSlice {
+  const char *data;
+  uint32_t len;
+} StringSlice;
+DA_DEFINE(StringSlice, StringSlices, string_slices)
+
+static inline void string_extend(String *a, String b) {
   string_reserve(a, a->len + b.len);
   strncpy(a->data + a->len, b.data, b.len);
   a->len += b.len;
@@ -112,20 +118,23 @@ static inline String string_from(char *string) {
       .data = string,
   };
 }
-typedef struct {
-  const char *buf;
-  uint32_t length;
-} StringSlice;
-DA_DEFINE(StringSlice, StringSlices, string_slices)
+static inline String string_from_slice(const StringSlice *slice) {
+  String string;
+  string_init(&string);
+  string_reserve(&string, slice->len);
+  strncpy(string.data, slice->data, slice->len);
+  string.len = slice->len;
+  return string;
+}
 
 static inline bool string_slice_eq(StringSlice a, StringSlice b) {
-  return a.length == b.length && strncmp(a.buf, b.buf, a.length) == 0;
+  return a.len == b.len && strncmp(a.data, b.data, a.len) == 0;
 }
 
 static inline StringSlice string_slice_from(char *string) {
   return (StringSlice){
-      .buf = string,
-      .length = (uint32_t)strlen(string),
+      .data = string,
+      .len = (uint32_t)strlen(string),
   };
 }
 

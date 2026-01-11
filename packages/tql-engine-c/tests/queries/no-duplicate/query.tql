@@ -1,15 +1,16 @@
 #language 'typescript'
 
+-- Ensure that we don't repeatedly yield the query if multiple clauses match.
 fn main() {
   > class_declaration {
     @decorator_name <- *.decorator > call_expression.function;
-    @_method_definition <- *.body > method_definition;
-
-    @method_name <- @_method_definition.name;
     @class_name <- .name;
-    @_method_definition { !exists(*.return_type) } && (
+
+    (
       text_eq(@decorator_name, 'Controller') ||
-      text_eq(@class_name, 'SpecificClassName')
+      text_eq(@class_name, 'Class1') ||
+      text_eq(@decorator_name, 'Controller') ||
+      text_eq(@class_name, 'Class1')
     );
   }
 }

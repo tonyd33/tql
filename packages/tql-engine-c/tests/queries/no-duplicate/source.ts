@@ -1,0 +1,3 @@
+@Controller()
+class Class1 {
+}

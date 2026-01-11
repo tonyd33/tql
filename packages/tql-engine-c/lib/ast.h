@@ -24,32 +24,8 @@ typedef struct TQLAstStats TQLAstStats;
 typedef TQLString TQLVariableIdentifier;
 typedef TQLString TQLFunctionIdentifier;
 
-typedef enum TQLExpressionType {
-  TQLEXPRESSION_SELECTOR,
-  TQLEXPRESSION_STRING
-} TQLExpressionType;
-
-typedef enum TQLStatementType {
-  TQLSTATEMENT_SELECTOR,
-  TQLSTATEMENT_ASSIGNMENT,
-} TQLStatementType;
-
-typedef enum TQLSelectorType {
-  TQLSELECTOR_SELF,
-  TQLSELECTOR_NODETYPE,
-  TQLSELECTOR_FIELDNAME,
-  TQLSELECTOR_CHILD,
-  TQLSELECTOR_DESCENDANT,
-  TQLSELECTOR_BLOCK,
-  TQLSELECTOR_VARID,
-  TQLSELECTOR_FUNINV,
-  TQLSELECTOR_NEGATE,
-  TQLSELECTOR_AND,
-  TQLSELECTOR_OR,
-} TQLSelectorType;
-
 struct TQLExpression {
-  TQLExpressionType type;
+  enum { TQLEXPRESSION_SELECTOR, TQLEXPRESSION_STRING } type;
   union {
     TQLSelector *selector;
     TQLString *string;
@@ -62,7 +38,10 @@ struct TQLAssignment {
 };
 
 struct TQLStatement {
-  TQLStatementType type;
+  enum {
+    TQLSTATEMENT_SELECTOR,
+    TQLSTATEMENT_ASSIGNMENT,
+  } type;
   union {
     TQLSelector *selector;
     TQLAssignment *assignment;
@@ -70,7 +49,19 @@ struct TQLStatement {
 };
 
 struct TQLSelector {
-  TQLSelectorType type;
+  enum {
+    TQLSELECTOR_SELF,
+    TQLSELECTOR_NODETYPE,
+    TQLSELECTOR_FIELDNAME,
+    TQLSELECTOR_CHILD,
+    TQLSELECTOR_DESCENDANT,
+    TQLSELECTOR_BLOCK,
+    TQLSELECTOR_VARID,
+    TQLSELECTOR_FUNINV,
+    TQLSELECTOR_NEGATE,
+    TQLSELECTOR_AND,
+    TQLSELECTOR_OR,
+  } type;
   union {
     TQLVariableIdentifier *node_type_selector;
 

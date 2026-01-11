@@ -41,9 +41,9 @@ static bool test_parse_function() {
                          string_slice_from("my_function")));
   expect(ast->tree->functions[0]->parameter_count == 2);
   expect(string_slice_eq(*ast->tree->functions[0]->parameters[0],
-                         string_slice_from("@foo")));
+                         string_slice_from("foo")));
   expect(string_slice_eq(*ast->tree->functions[0]->parameters[1],
-                         string_slice_from("@bar")));
+                         string_slice_from("bar")));
   expect(ast->tree->functions[0]->statement_count == 3);
   expect(ast->tree->functions[0]->statements[0]->type == TQLSTATEMENT_SELECTOR);
   expect(ast->tree->functions[0]->statements[0]->data.selector->type ==
@@ -72,7 +72,7 @@ static bool test_parse_function() {
   expect(string_slice_eq(*ast->tree->functions[0]
                               ->statements[1]
                               ->data.assignment->variable_identifier,
-                         string_slice_from("@baz")));
+                         string_slice_from("baz")));
   expect(ast->tree->functions[0]
              ->statements[1]
              ->data.assignment->expression->type == TQLEXPRESSION_SELECTOR);
@@ -82,7 +82,7 @@ static bool test_parse_function() {
   expect(string_slice_eq(*ast->tree->functions[0]
                               ->statements[2]
                               ->data.assignment->variable_identifier,
-                         string_slice_from("@qux")));
+                         string_slice_from("qux")));
   expect(ast->tree->functions[0]
              ->statements[2]
              ->data.assignment->expression->type == TQLEXPRESSION_STRING);

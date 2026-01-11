@@ -40,6 +40,8 @@ static TQLString *parse_identifier(TQLParser *parser, TQLAst *ast,
 
 static TQLVariableIdentifier *
 parse_variable_identifier(TQLParser *parser, TQLAst *ast, TSNode node) {
+  node = ts_node_named_child(node, 0);
+  assert(!ts_node_is_null(node));
   return parse_identifier(parser, ast, node);
 }
 
@@ -125,7 +127,8 @@ static inline TQLFunction *parse_function(TQLParser *parser, TQLAst *ast,
     TSNode child_node = ts_node_named_child(node, i);
     const char *field_name = ts_node_field_name_for_named_child(node, i);
     if (strcmp(field_name, "parameters") == 0) {
-      parameters[parameter_count++] = parse_identifier(parser, ast, child_node);
+      parameters[parameter_count++] =
+          parse_variable_identifier(parser, ast, child_node);
     } else if (strcmp(field_name, "statement") == 0) {
       statements[statement_count++] = parse_statement(parser, ast, child_node);
     }
@@ -292,6 +295,8 @@ TQLAst *tql_parser_parse_string(TQLParser *parser, const char *string,
     } else if (strcmp(node_type, "directive") == 0) {
       directives[directive_count++] =
           parse_directive(parser, ast, toplevel_node);
+    } else if (strcmp(node_type, "comment") == 0) {
+      continue;
     } else {
       fprintf(stderr, "Got node type %s\n", node_type);
       assert(false && "Unknown toplevel");

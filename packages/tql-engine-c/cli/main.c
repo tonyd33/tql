@@ -2,10 +2,10 @@
 #include "engine.h"
 #include "vm.h"
 #include <assert.h>
+#include <pcre2.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tree_sitter/api.h>
-#include <pcre2.h>
 
 static inline String *read_file(const char *filename) {
   String *s = string_new();
@@ -63,7 +63,17 @@ int run(const char *query_filename, const char *source_filename) {
     for (uint32_t i = 0; i < match.capture_count; i++) {
       TQLCapture capture = match.captures[i];
       printf("%s: ", capture.name);
-      String capture_text = get_ts_node_text(*source, capture.node);
+      String capture_text;
+      switch (capture.value->type) {
+      case TQL_VALUE_NODE:
+        capture_text = get_ts_node_text(*source, capture.value->data.node);
+        break;
+      case TQL_VALUE_SYMBOL: {
+        String s = string_from("a string (not implemented)");
+        string_init(&capture_text);
+        string_extend(&capture_text, string_from("a string (not implemented)"));
+      } break;
+      }
       printf("%.*s\n", (int)capture_text.len, capture_text.data);
       string_deinit(&capture_text);
     }

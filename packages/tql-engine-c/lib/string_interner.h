@@ -33,10 +33,10 @@ string_interner_intern(StringInterner *string_interner, const char *string,
   char *s = string_interner->pool;
   for (size_t i = 0; i < string_interner->slices.len; i++) {
     StringSlice slice = string_interner->slices.data[i];
-    if (slice.length == length && strncmp(s, string, length) == 0) {
+    if (slice.len == length && strncmp(s, string, length) == 0) {
       return slice;
     }
-    s += slice.length + 1;
+    s += slice.len + 1;
     // FIXME: We can allocate more fixed memory regions
     assert(s - string_interner->pool < string_interner->pool_capacity);
   }
@@ -47,8 +47,8 @@ string_interner_intern(StringInterner *string_interner, const char *string,
   s[length] = '\0';
 
   StringSlice slice = {
-      .buf = s,
-      .length = length,
+      .data = s,
+      .len = length,
   };
   string_slices_append(&string_interner->slices, slice);
   return slice;

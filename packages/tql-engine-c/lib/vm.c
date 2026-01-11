@@ -66,7 +66,10 @@ struct BoundaryResult {
     BOUNDARY_NEW,
   } type;
   union {
-    Match match;
+    struct {
+      Match match;
+      Continuation cnt;
+    } match;
     LookaheadBoundary boundary;
   } data;
 };
@@ -129,14 +132,25 @@ inline Predicate predicate_negate(Predicate predicate) {
 }
 
 inline Op op_noop() { return (Op){.opcode = OP_NOOP}; }
-inline Op op_branch(Axis axis) {
-  return (Op){.opcode = OP_BRANCH, .data = {.axis = axis}};
+inline Op op_traverse(Axis axis) {
+  return (Op){.opcode = OP_TRAVERSE, .data = {.axis = axis}};
 }
-inline Op op_dup(Jump jump) {
-  return (Op){.opcode = OP_DUP, .data = {.jump = jump}};
+inline Op op_fork(Jump jump) {
+  return (Op){.opcode = OP_FORK, .data = {.jump = jump}};
 }
-inline Op op_bind(VarId var_id) {
+inline Op op_bind(Symbol var_id) {
   return (Op){.opcode = OP_BIND, .data = {.var_id = var_id}};
+}
+inline Op op_asn_currnode(Symbol var_id) {
+  return (Op){
+      .opcode = OP_ASN,
+      .data = {.asn = {.source = TQL_OP_ASN_CURRNODE, .variable = var_id}}};
+}
+inline Op op_asn_symbol(Symbol var_id, Symbol symbol) {
+  return (Op){.opcode = OP_ASN,
+              .data = {.asn = {.source = TQL_OP_ASN_SYMBOL,
+                               .variable = var_id,
+                               .data = {.symbol = symbol}}}};
 }
 inline Op op_if(Predicate predicate) {
   return (Op){.opcode = OP_IF, .data = {.predicate = predicate}};
@@ -187,7 +201,7 @@ inline Probe probe_not_exists(Jump jump) {
 }
 // }}}
 
-TQLValue *bindings_get(Bindings *bindings, VarId variable) {
+TQLValue *bindings_get(Bindings *bindings, Symbol variable) {
   while (bindings != NULL) {
     if (bindings->binding.variable == variable) {
       return &bindings->binding.value;
@@ -198,8 +212,15 @@ TQLValue *bindings_get(Bindings *bindings, VarId variable) {
 }
 
 // FIXME: Allocating in the arena is just an excuse for bad memory management...
-Bindings *bindings_insert(const Vm *vm, Bindings *bindings, VarId variable,
+Bindings *bindings_insert(const Vm *vm, Bindings *bindings, Symbol variable,
                           TQLValue value) {
+  // (minor optimization) If the current binding is the variable itself, we can
+  // split at the first parent that isn't equal.
+  // IMPROVE: We should really rethink this because it doesn't help in the case
+  // where different bindings are interleaved.
+  while (bindings != NULL && bindings->binding.variable == variable) {
+    bindings = bindings->parent;
+  }
   Bindings *overlay = arena_alloc(vm->arena, sizeof(Bindings));
   overlay->ref_count = 1;
   overlay->parent = bindings;
@@ -371,9 +392,25 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
     switch (op.opcode) {
     case OP_NOOP:
       break;
-    case OP_BRANCH: {
-      // TODO: Allow the continuation to store the info on the axis so that it
-      // can be continued during axis enumeration
+    case OP_TRAVERSE: {
+      /* IMPROVE: Allow the continuation to store the info on the axis so that
+       * it can be continued during axis enumeration.
+       *
+       * What this would likely look like is we store the following into
+       * continuations:
+       * (is_traversing, axis_type, axis_index)
+       *
+       * And then each time we hit a continuation that's traversing,
+       * check to see if it has any more nodes to traverse.
+       *
+       * If so, push itself back to the continuation stack and also push
+       * the next node. Handling this would look similar to OP_FORK in terms of
+       * how it affects the stack.
+       *
+       * This will give a huge improvement to memory, making memory complexity
+       * scale O(depth) instead of O(branching factor * depth) when paired with
+       * proper initialization/deinitialization of continuations.
+       */
       Axis axis = op.data.axis;
       TSNodes *branches = &vm->branch_buffer[0];
       branches->len = 0;
@@ -419,11 +456,14 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
         break;
       }
       case AXIS_VAR: {
-        TSNode *node = bindings_get(cnt->bindings, axis.data.variable);
-        if (node == NULL) {
+        TQLValue *value = bindings_get(cnt->bindings, axis.data.variable);
+        if (value == NULL) {
           return (ContinuationResult){.type = EXC_ERR};
         }
-        ts_nodes_append(branches, *node);
+        if (value->type != TQL_VALUE_NODE) {
+          return (ContinuationResult){.type = EXC_ERR};
+        }
+        ts_nodes_append(branches, value->data.node);
       } break;
       }
 
@@ -448,7 +488,7 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
           .type = EXC_BRANCH,
       };
     } break;
-    case OP_DUP: {
+    case OP_FORK: {
       *++del_exc->sp = (Continuation){
           .pc = cnt->pc,
           .node = cnt->node,
@@ -470,8 +510,24 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
       };
     } break;
     case OP_BIND: {
-      cnt->bindings =
-          bindings_insert(vm, cnt->bindings, op.data.var_id, cnt->node);
+      cnt->bindings = bindings_insert(
+          vm, cnt->bindings, op.data.var_id,
+          (TQLValue){.type = TQL_VALUE_NODE, .data = {.node = cnt->node}});
+    } break;
+    case OP_ASN: {
+      switch (op.data.asn.source) {
+      case TQL_OP_ASN_CURRNODE:
+        cnt->bindings = bindings_insert(
+            vm, cnt->bindings, op.data.asn.variable,
+            (TQLValue){.type = TQL_VALUE_NODE, .data = {.node = cnt->node}});
+        break;
+      case TQL_OP_ASN_SYMBOL:
+        cnt->bindings = bindings_insert(
+            vm, cnt->bindings, op.data.asn.variable,
+            (TQLValue){.type = TQL_VALUE_SYMBOL,
+                       .data = {.symbol = op.data.asn.data.symbol}});
+        break;
+      }
     } break;
     case OP_IF: {
       Predicate predicate = op.data.predicate;
@@ -486,7 +542,6 @@ static ContinuationResult vm_step_continuation(/* const */ Vm *vm,
         }
       } break;
       case PREDICATE_TEXTEQ: {
-        // FIXME: This is dangerous...
         const char *right = predicate.data.texteq.text;
 
         uint32_t start_byte = ts_node_start_byte(cnt->node);
@@ -599,8 +654,14 @@ static BoundaryResult vm_step_exc_stack(/* const */ Vm *vm,
       // FIXME: Need to deinit the continuation, which is tricky...
       continue;
     case EXC_MATCH:
-      return (BoundaryResult){.type = BOUNDARY_MATCH,
-                              .data = {.match = result.data.match}};
+      /* Here, we may need to also return the current continuation in order to
+       * allow restoring continuation-local values like bindings from a
+       * lookahead boundary.
+       * Design-wise, I'm not sure if this is the right choice though.
+       */
+      return (BoundaryResult){
+          .type = BOUNDARY_MATCH,
+          .data = {.match = {.match = result.data.match, .cnt = *cnt}}};
     case EXC_BOUNDARY: {
       *++del_exc->sp = result.data.boundary.next;
       LookaheadBoundary next_call_frame = {
@@ -630,11 +691,14 @@ static bool vm_step_boundary(/* const */ Vm *vm, LookaheadBoundary *boundary) {
       return boundary->call_mode == PROBE_NOTEXISTS;
     } break;
     case BOUNDARY_MATCH: {
+      // FIXME: Not sure if this makes sense... it does work though.
+      boundary->continuation.bindings = result.data.match.cnt.bindings;
       return boundary->call_mode == PROBE_EXISTS;
     } break;
     case BOUNDARY_NEW: {
       stats->boundaries_encountered++;
 
+      // FIXME: Do not recurse
       if (vm_step_boundary(vm, &result.data.boundary)) {
         *boundary->del_exc.sp = result.data.boundary.continuation;
       } else {
@@ -661,7 +725,7 @@ bool vm_next_match(Vm *vm, Match *match) {
       return false;
     } break;
     case BOUNDARY_MATCH: {
-      *match = result.data.match;
+      *match = result.data.match.match;
       return true;
     } break;
     case BOUNDARY_NEW: {
@@ -687,7 +751,7 @@ bool vm_next_match(Vm *vm, Match *match) {
 void vm_load(Vm *vm, const TQLProgram *program) { vm->program = program; }
 
 TQLProgram *tql_program_new(uint32_t version, const TSLanguage *target_language,
-                     const SymbolTable *symtab, const Ops *instrs) {
+                            const SymbolTable *symtab, const Ops *instrs) {
   TQLProgram *program = malloc(sizeof(TQLProgram));
   program->version = version;
   program->target_language = target_language;

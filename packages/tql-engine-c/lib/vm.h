@@ -4,7 +4,6 @@
 #include "ds.h"
 #include <tree_sitter/api.h>
 
-typedef uint64_t VarId;
 typedef uint64_t Symbol;
 
 typedef struct Vm Vm;
@@ -26,12 +25,15 @@ typedef enum {
   OP_NOOP,
   /* The current continuation stops. */
   OP_HALT,
-  /* Creates continuations along an axis. */
-  OP_BRANCH,
+  /* Traverse along an axis. */
+  OP_TRAVERSE,
   /* Duplicates the current continuation at an instruction. */
-  OP_DUP,
-  /* Binds the current node into a variable. */
+  OP_FORK,
+  /* Binds the current node into a variable.
+     DEPRECATED: Use OP_ASSIGN instead. */
   OP_BIND,
+  /* Assigns a value into a variable. */
+  OP_ASN,
   /* Does nothing if the predicate passes, otherwise halts the program. */
   OP_IF,
   /* Yield the current node and bindings. */
@@ -71,13 +73,22 @@ typedef enum {
 
 typedef enum { PUSH_NODE, PUSH_PC, PUSH_BND } PushTarget;
 
-typedef TSNode TQLValue;
+typedef struct TQLValue {
+  enum {
+    TQL_VALUE_NODE,
+    TQL_VALUE_SYMBOL,
+  } type;
+  union {
+    Symbol symbol;
+    TSNode node;
+  } data;
+} TQLValue;
 
 struct Axis {
   AxisType axis_type;
   union {
     TSFieldId field;
-    VarId variable;
+    Symbol variable;
   } data;
 };
 
@@ -107,21 +118,33 @@ struct Probe {
   Jump jump;
 };
 
+typedef struct TQLOpAssign {
+  enum {
+    TQL_OP_ASN_CURRNODE,
+    TQL_OP_ASN_SYMBOL,
+  } source;
+  Symbol variable;
+  union {
+    Symbol symbol;
+  } data;
+} TQLOpAssign;
+
 struct Op {
   Opcode opcode;
   union {
     Axis axis;
     Predicate predicate;
-    VarId var_id;
+    Symbol var_id;
     Jump jump;
     Probe probe;
     PushTarget push_target;
+    TQLOpAssign asn;
   } data;
 };
 DA_DEFINE(Op, Ops, ops)
 
 struct Binding {
-  VarId variable;
+  Symbol variable;
   TQLValue value;
 };
 
@@ -149,6 +172,7 @@ typedef enum TQLSymbolType {
   SYMBOL_VARIABLE,
   SYMBOL_FIELD,
   SYMBOL_FUNCTION,
+  SYMBOL_STRING,
 } TQLSymbolType;
 
 typedef struct {
@@ -165,7 +189,7 @@ struct TQLProgram {
   Ops *instrs;
 };
 TQLProgram *tql_program_new(uint32_t version, const TSLanguage *target_language,
-                     const SymbolTable *symtab, const Ops *instrs);
+                            const SymbolTable *symtab, const Ops *instrs);
 void tql_program_free(TQLProgram *program);
 
 Vm *vm_new(TSTree *ast, const char *source);
@@ -192,9 +216,11 @@ Probe probe_exists(Jump jump);
 Probe probe_not_exists(Jump jump);
 
 Op op_noop(void);
-Op op_branch(Axis axis);
-Op op_dup(Jump jump);
-Op op_bind(VarId var_id);
+Op op_traverse(Axis axis);
+Op op_fork(Jump jump);
+Op op_bind(Symbol var_id);
+Op op_asn_currnode(Symbol var_id);
+Op op_asn_symbol(Symbol var_id, Symbol symbol);
 Op op_if(Predicate predicate);
 Op op_probe(Probe probe);
 Op op_halt(void);

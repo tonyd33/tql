@@ -8,8 +8,8 @@ TQLEngine *tql_engine_new(void) {
   engine->ast = NULL;
   engine->vm = NULL;
   engine->target_ast = NULL;
-  engine->target_source.buf = NULL;
-  engine->target_source.length = 0;
+  engine->target_source.data = NULL;
+  engine->target_source.len = 0;
 
   engine->ctx = tql_context_new();
   return engine;
@@ -34,51 +34,52 @@ void tql_engine_free(TQLEngine *engine) {
   if (engine->program != NULL) {
     tql_program_free(engine->program);
   }
-  if (engine->target_source.buf != NULL) {
-    char *buf = *((char **)(&engine->target_source.buf));
+  if (engine->target_source.data != NULL) {
+    char *buf = *((char **)(&engine->target_source.data));
     free(buf);
-    engine->target_source.buf = NULL;
-    engine->target_source.length = 0;
+    engine->target_source.data = NULL;
+    engine->target_source.len = 0;
   }
 
   free(engine);
 }
 
-void tql_engine_compile_query(TQLEngine *engine, const char *buf, uint32_t length) {
+void tql_engine_compile_query(TQLEngine *engine, const char *buf,
+                              uint32_t length) {
   TQLParser *parser = tql_parser_new(engine->ctx);
   engine->ast = tql_parser_parse_string(parser, buf, length);
   tql_parser_free(parser);
 
-  TQLCompiler *compiler = tql_compiler_new(engine->ast);
+  TQLCompiler *compiler = tql_compiler_new(engine->ctx, engine->ast);
   engine->program = tql_compiler_compile(compiler);
   tql_compiler_free(compiler);
 }
 
 void tql_engine_load_target_string(TQLEngine *engine, const char *buf,
-                               uint32_t length) {
+                                   uint32_t length) {
   assert(engine->program != NULL);
 
   StringSlice target;
   char *dest = malloc(length);
   strncpy(dest, buf, length);
 
-  target.buf = dest;
-  target.length = length;
+  target.data = dest;
+  target.len = length;
 
   engine->target_source = target;
   TSParser *target_parser = ts_parser_new();
   ts_parser_set_language(target_parser, engine->program->target_language);
   engine->target_ast =
-      ts_parser_parse_string(target_parser, NULL, engine->target_source.buf,
-                             engine->target_source.length);
+      ts_parser_parse_string(target_parser, NULL, engine->target_source.data,
+                             engine->target_source.len);
   ts_parser_delete(target_parser);
 }
 
 void tql_engine_exec(TQLEngine *engine) {
   assert(engine->target_ast != NULL);
-  assert(engine->target_source.buf != NULL);
+  assert(engine->target_source.data != NULL);
   assert(engine->program != NULL);
-  engine->vm = vm_new(engine->target_ast, engine->target_source.buf);
+  engine->vm = vm_new(engine->target_ast, engine->target_source.data);
   vm_load(engine->vm, engine->program);
   vm_exec(engine->vm);
 }
@@ -90,7 +91,7 @@ char *lookup_symbol_name(const SymbolTable *symtab, Symbol symbol) {
     SymbolEntry entry = symtab->data[i];
     if (entry.type == SYMBOL_VARIABLE && entry.id == symbol) {
       // FIXME
-      return (char *)entry.slice.buf;
+      return (char *)entry.slice.data;
     }
   }
   assert(false);
@@ -115,8 +116,8 @@ bool tql_engine_next_match(TQLEngine *engine, EngineMatch *engine_match) {
     while (bindings != NULL) {
       captures[bindings_count++] =
           (TQLCapture){.name = lookup_symbol_name(engine->program->symtab,
-                                               bindings->binding.variable),
-                    .node = bindings->binding.value};
+                                                  bindings->binding.variable),
+                       .value = &bindings->binding.value};
       bindings = bindings->parent;
     }
     engine_match->node = match.node;
@@ -133,7 +134,7 @@ TQLEngineStats tql_engine_stats(TQLEngine *engine) {
   uint32_t string_interner_usage = 0;
   for (size_t i = 0; i < engine->ctx->string_interner->slices.len; i++) {
     string_interner_usage +=
-        engine->ctx->string_interner->slices.data[i].length;
+        engine->ctx->string_interner->slices.data[i].len;
   }
   engine->stats.arena_alloc = engine->ctx->arena->offset;
   engine->stats.string_count = engine->ctx->string_interner->slices.len;

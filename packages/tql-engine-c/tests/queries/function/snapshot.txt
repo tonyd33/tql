@@ -9,7 +9,7 @@ class Class2 {
 BINDINGS
 
 main::decorator_name: Controller
-main::_method_definition: meth1() {}
+main::method: meth1() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -24,7 +24,7 @@ class Class3 {
 BINDINGS
 
 main::decorator_name: Controller
-main::_method_definition: meth2() {}
+main::method: meth2() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -40,7 +40,7 @@ class Class4 {
 BINDINGS
 
 main::decorator_name: Controller
-main::_method_definition: meth3() {}
+main::method: meth3() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -56,7 +56,7 @@ class Class5 {
 BINDINGS
 
 main::decorator_name: Controller
-main::_method_definition: meth2() {}
+main::method: meth2() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -72,7 +72,7 @@ class Class5 {
 BINDINGS
 
 main::decorator_name: Controller
-main::_method_definition: meth3() {}
+main::method: meth3() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -87,7 +87,7 @@ class SpecificClassName {
 BINDINGS
 
 main::class_name: SpecificClassName
-main::_method_definition: meth2() {}
+main::method: meth2() {}
 
 ================================================================================
 ==================================== MATCH =====================================
@@ -101,6 +101,6 @@ class SpecificClassName {
 BINDINGS
 
 main::class_name: SpecificClassName
-main::_method_definition: meth2() {}
+main::method: meth2() {}
 
 ================================================================================

@@ -8,7 +8,7 @@
 typedef struct TQLCompiler TQLCompiler;
 typedef struct Section Section;
 
-TQLCompiler *tql_compiler_new(TQLAst *ast);
+TQLCompiler *tql_compiler_new(TQLContext *ctx, TQLAst *ast);
 void tql_compiler_free(TQLCompiler *compiler);
 TQLProgram *tql_compiler_compile(TQLCompiler *compiler);
 

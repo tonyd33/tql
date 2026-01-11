@@ -1,0 +1,12 @@
+#language 'typescript'
+
+fn main() {
+  > class_declaration {
+    @class_name <- .name;
+
+    (
+      text_eq(@class_name, 'Class1') ||
+      text_eq(@class_name, 'Class2')
+    );
+  }
+}

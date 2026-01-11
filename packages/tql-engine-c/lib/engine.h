@@ -29,7 +29,7 @@ typedef struct {
 
 typedef struct {
   char *name;
-  TSNode node;
+  TQLValue *value;
 } TQLCapture;
 
 typedef struct EngineMatch {
