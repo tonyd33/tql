@@ -218,6 +218,22 @@ TQLSelector *tql_selector_or(TQLAst *ast, TQLSelector *left,
   };
   return selector;
 }
+TQLSelector *tql_selector_concat(TQLAst *ast, TQLSelector *left,
+                             TQLSelector *right) {
+  TQLSelector *selector = tql_context_alloc(ast->ctx, sizeof(TQLSelector));
+  *selector = (TQLSelector){
+      .type = TQLSELECTOR_CONCAT,
+      .data =
+          {
+              .concat_selector =
+                  {
+                      .left = left,
+                      .right = right,
+                  },
+          },
+  };
+  return selector;
+}
 
 TQLTree *tql_tree(TQLAst *ast, TQLFunction **functions, uint16_t function_count,
                   TQLDirective **directives, uint16_t directive_count) {

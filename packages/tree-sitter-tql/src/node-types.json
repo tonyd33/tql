@@ -20,6 +20,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -75,6 +79,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
             "named": true
           },
           {
@@ -157,6 +165,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -235,6 +247,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -290,6 +306,140 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "parenthesized_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "concat_selector",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
+            "type": "condition_selector",
+            "named": true
+          },
+          {
+            "type": "descendant_selector",
+            "named": true
+          },
+          {
+            "type": "field_name_selector",
+            "named": true
+          },
+          {
+            "type": "function_invocation",
+            "named": true
+          },
+          {
+            "type": "negate_selector",
+            "named": true
+          },
+          {
+            "type": "node_type_selector",
+            "named": true
+          },
+          {
+            "type": "or_selector",
+            "named": true
+          },
+          {
+            "type": "parenthesized_selector",
+            "named": true
+          },
+          {
+            "type": "self_selector",
+            "named": true
+          },
+          {
+            "type": "variable_identifier",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "and_selector",
+            "named": true
+          },
+          {
+            "type": "block_selector",
+            "named": true
+          },
+          {
+            "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
             "named": true
           },
           {
@@ -386,6 +536,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -450,6 +604,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -505,6 +663,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
             "named": true
           },
           {
@@ -647,6 +809,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
             "named": true
           },
           {
@@ -799,6 +965,10 @@
           "named": true
         },
         {
+          "type": "concat_selector",
+          "named": true
+        },
+        {
           "type": "condition_selector",
           "named": true
         },
@@ -877,6 +1047,10 @@
             "named": true
           },
           {
+            "type": "concat_selector",
+            "named": true
+          },
+          {
             "type": "condition_selector",
             "named": true
           },
@@ -932,6 +1106,10 @@
           },
           {
             "type": "child_selector",
+            "named": true
+          },
+          {
+            "type": "concat_selector",
             "named": true
           },
           {
@@ -996,6 +1174,10 @@
         },
         {
           "type": "child_selector",
+          "named": true
+        },
+        {
+          "type": "concat_selector",
           "named": true
         },
         {
@@ -1064,6 +1246,10 @@
         },
         {
           "type": "child_selector",
+          "named": true
+        },
+        {
+          "type": "concat_selector",
           "named": true
         },
         {
@@ -1201,6 +1387,10 @@
   },
   {
     "type": ")",
+    "named": false
+  },
+  {
+    "type": "++",
     "named": false
   },
   {

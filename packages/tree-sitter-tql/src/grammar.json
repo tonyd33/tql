@@ -489,6 +489,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "concat_selector"
+        },
+        {
+          "type": "SYMBOL",
           "name": "condition_selector"
         }
       ]
@@ -798,6 +802,35 @@
           {
             "type": "STRING",
             "value": "||"
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_selector"
+            }
+          }
+        ]
+      }
+    },
+    "concat_selector": {
+      "type": "PREC_LEFT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_selector"
+            }
+          },
+          {
+            "type": "STRING",
+            "value": "++"
           },
           {
             "type": "FIELD",

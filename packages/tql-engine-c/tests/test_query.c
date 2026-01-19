@@ -77,5 +77,6 @@ bool test_query() {
   expect(test_query_suite("no-duplicate"));
   expect(test_query_suite("or"));
   expect(test_query_suite("decorator"));
+  expect(test_query_suite("concat"));
   return true;
 }

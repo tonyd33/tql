@@ -98,6 +98,7 @@ module.exports = grammar({
         $.negate_selector,
         $.and_selector,
         $.or_selector,
+        $.concat_selector,
         $.condition_selector,
       ),
     selector: $ => $._selector,
@@ -145,6 +146,10 @@ module.exports = grammar({
     or_selector: $ =>
       prec.left(
         seq(field("left", $._selector), "||", field("right", $._selector)),
+      ),
+    concat_selector: $ =>
+      prec.left(
+        seq(field("left", $._selector), "++", field("right", $._selector)),
       ),
     condition_selector: $ =>
       prec.left(

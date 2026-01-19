@@ -61,6 +61,7 @@ struct TQLSelector {
     TQLSELECTOR_NEGATE,
     TQLSELECTOR_AND,
     TQLSELECTOR_OR,
+    TQLSELECTOR_CONCAT,
   } type;
   union {
     TQLVariableIdentifier *node_type_selector;
@@ -105,6 +106,11 @@ struct TQLSelector {
       TQLSelector *left;
       TQLSelector *right;
     } and_selector;
+
+    struct {
+      TQLSelector *left;
+      TQLSelector *right;
+    } concat_selector;
   } data;
 };
 
@@ -177,6 +183,8 @@ TQLSelector *tql_selector_negate(TQLAst *ast, TQLSelector *selector);
 TQLSelector *tql_selector_or(TQLAst *ast, TQLSelector *left,
                              TQLSelector *right);
 TQLSelector *tql_selector_and(TQLAst *ast, TQLSelector *left,
+                              TQLSelector *right);
+TQLSelector *tql_selector_concat(TQLAst *ast, TQLSelector *left,
                               TQLSelector *right);
 
 TQLStatement *tql_statement_selector(TQLAst *ast, TQLSelector *selector);

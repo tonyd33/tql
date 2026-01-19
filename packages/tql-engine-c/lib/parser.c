@@ -114,6 +114,8 @@ static inline TQLStatement *parse_statement(TQLParser *parser, TQLAst *ast,
 
 static inline TQLFunction *parse_function(TQLParser *parser, TQLAst *ast,
                                           TSNode node) {
+
+  assert(!ts_node_is_null(node));
   TSNode identifier_node =
       ts_node_child_by_field_name(node, "identifier", strlen("identifier"));
   assert(!ts_node_is_null(identifier_node));
@@ -125,6 +127,7 @@ static inline TQLFunction *parse_function(TQLParser *parser, TQLAst *ast,
   TQLStatement *statements[named_child_count];
   for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
     TSNode child_node = ts_node_named_child(node, i);
+    assert(!ts_node_is_null(child_node));
     const char *field_name = ts_node_field_name_for_named_child(node, i);
     if (strcmp(field_name, "parameters") == 0) {
       parameters[parameter_count++] =
@@ -243,6 +246,15 @@ static inline TQLSelector *parse_selector(TQLParser *parser, TQLAst *ast,
     assert(!ts_node_is_null(right_node));
     return tql_selector_or(ast, parse_selector(parser, ast, left_node),
                            parse_selector(parser, ast, right_node));
+  } else if (strcmp(node_type, "concat_selector") == 0) {
+    TSNode left_node =
+        ts_node_child_by_field_name(node, "left", strlen("left"));
+    TSNode right_node =
+        ts_node_child_by_field_name(node, "right", strlen("right"));
+    assert(!ts_node_is_null(left_node));
+    assert(!ts_node_is_null(right_node));
+    return tql_selector_concat(ast, parse_selector(parser, ast, left_node),
+                               parse_selector(parser, ast, right_node));
   } else if (strcmp(node_type, "parenthesized_selector") == 0) {
     TSNode child_node = ts_node_named_child(node, 0);
     return parse_selector(parser, ast, child_node);

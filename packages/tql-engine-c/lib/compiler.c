@@ -360,6 +360,12 @@ static inline void compile_tql_function_invocation(
     assert(function->parameter_count == expr_count);
     ir_instrs_append(out, ir_pushbnd());
     for (int i = 0; i < expr_count; i++) {
+      // FIXME: This is wrong. We need to set it up so that when the function
+      // body calls the symbol, it resolves to this selector.
+      // But right now, we're essentially hardcoding it so that every function
+      // invocation will resolve to the same selector.
+      // At the same time, we need to make this lazy. We might need some runtime
+      // construct to support resolving this while being lazy.
       Symbol arg_symbol = compiler_symbol_for_variable(
           compiler, join_scope(compiler, identifier, function->parameters[i]));
       ir_instrs_append(out, ir_pushnode());
@@ -476,7 +482,6 @@ static inline void compile_tql_selector(TQLCompiler *compiler, Scope *scope,
   } break;
   case TQLSELECTOR_OR: {
     /*
-     * FIXME: The bindings may need to make it out of the lookahead probe.
      * ... (prev instrs)
      * PROBE EXISTS or_begin
      * ... (next instrs)
@@ -509,6 +514,44 @@ static inline void compile_tql_selector(TQLCompiler *compiler, Scope *scope,
       compile_tql_selector(compiler, scope, selector->data.or_selector.right,
                            &right);
       ir_instrs_append(&right, ir_yield());
+      compiler_section_insert(compiler, right_sym, &right);
+      ir_instrs_deinit(&right);
+    }
+  } break;
+  case TQLSELECTOR_CONCAT: {
+    /*
+     * ... (prev instrs)
+     * CALL concat_begin
+     * ... (next instrs)
+     *
+     * concat_begin:
+     * DUP right
+     * ... (left selector)
+     * RET
+     *
+     * right:
+     * ... (right selector)
+     * RET
+     */
+    Symbol concat_begin_sym = compiler_request_symbol(compiler);
+    Symbol right_sym = compiler_request_symbol(compiler);
+    ir_instrs_append(out, ir_call(concat_begin_sym));
+    {
+      IrInstrs concat_begin;
+      ir_instrs_init(&concat_begin);
+      ir_instrs_append(&concat_begin, ir_fork(right_sym));
+      compile_tql_selector(compiler, scope, selector->data.or_selector.left,
+                           &concat_begin);
+      ir_instrs_append(&concat_begin, ir_ret());
+      compiler_section_insert(compiler, concat_begin_sym, &concat_begin);
+      ir_instrs_deinit(&concat_begin);
+    }
+    {
+      IrInstrs right;
+      ir_instrs_init(&right);
+      compile_tql_selector(compiler, scope, selector->data.or_selector.right,
+                           &right);
+      ir_instrs_append(&right, ir_ret());
       compiler_section_insert(compiler, right_sym, &right);
       ir_instrs_deinit(&right);
     }
