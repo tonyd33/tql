@@ -1,0 +1,284 @@
+========================================
+simple query
+========================================
+
+query main() {
+  from class_declaration as @class
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query with from and where
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name = 'Controller'
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (comparison
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (string_literal
+                (string_fragment))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query with parameters
+========================================
+
+query find_methods(@class: class_declaration) {
+  from @class.body > method_definition as @method
+  select @method
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters
+      (parameter
+        (variable
+          (identifier))
+        (type
+          (identifier))))
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query with return type
+========================================
+
+query controller_classes(): Array<class_declaration> {
+  from class_declaration as @class
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (return_type_annotation
+      (type
+        (array_type
+          (type
+            (identifier)))))
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query with optional binding
+========================================
+
+query main() {
+  from method_definition as @method,
+       @method.return_type as @return_type?
+  where not @return_type
+  select @method
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (logical_not
+            (predicate
+              (variable
+                (identifier))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query with multiple bindings
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @class_name,
+       @class.decorator as @decorator,
+       @decorator > call_expression as @call,
+       @call.identifier as @decorator_name
+  select @decorator_name
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query without from clause
+========================================
+
+query main() {
+  select @result
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))

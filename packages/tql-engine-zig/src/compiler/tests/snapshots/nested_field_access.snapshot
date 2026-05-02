@@ -1,0 +1,13 @@
+0: asn 0 (node this)
+1: trv variable_id 0
+2: trv descendant false
+3: rel equals (node kind) (literal kind_id 221)
+4: halt not_relates
+5: asn 1 (node this)
+6: trv variable_id 1
+7: trv field 5
+8: trv field 25
+9: asn 2 (node this)
+10: trv variable_id 2
+11: yield
+12: halt always

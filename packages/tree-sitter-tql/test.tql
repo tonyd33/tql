@@ -1,0 +1,80 @@
+-- Test file for TQL Option B grammar
+
+#language 'typescript'
+
+-- Simple query
+query main() {
+  from class_declaration as @class,
+       @class.name as @class_name
+  select @class_name
+}
+
+-- Query with where clause
+query controller_classes(): Array<class_declaration> {
+  from class_declaration as @class,
+       @class.decorator > call_expression.identifier as @decorator
+  where @decorator = 'Controller'
+  select @class
+}
+
+-- Complex query with optional fields
+query methods_without_return_type(
+  @class: class_declaration
+): Array<method_definition> {
+  from @class.body > method_definition as @method,
+       @method.return_type as @return_type?
+  where not @return_type
+  select @method
+}
+
+-- Query with quantifiers
+query all_methods_have_return_types() {
+  from class_declaration as @class,
+       @class.body > method_definition as @method,
+       @method.return_type as @return_type?
+  where forall @method: @return_type
+  select @class
+}
+
+-- Query with object literal in select
+query class_info() {
+  from class_declaration as @class,
+       @class.name as @class_name,
+       @class.decorator as @decorator?
+  select {
+    @class_name,
+    has_decorator: @decorator,
+    method_count: count(@class.body > method_definition)
+  }
+}
+
+-- Query with subquery
+query classes_with_methods() {
+  from class_declaration as @class,
+       @class.name as @class_name
+  select {
+    class: @class_name,
+    methods: (
+      from @class.body > method_definition as @method,
+           @method.name as @method_name
+      select @method_name
+    )
+  }
+}
+
+-- Query with descendant navigation
+query find_hooks() {
+  from call_expression as @component,
+       @component >> call_expression as @hook,
+       @hook.function.identifier as @hook_name
+  where @hook_name in ('useState', 'useEffect')
+  select @hook
+}
+
+-- Query with regex
+query service_classes() {
+  from class_declaration as @class,
+       @class.name as @class_name
+  where @class_name ~ /.*Service$/
+  select @class
+}

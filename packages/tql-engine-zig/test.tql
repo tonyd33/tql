@@ -1,0 +1,4 @@
+query main() {
+  from class_declaration as @class
+  select @class
+}

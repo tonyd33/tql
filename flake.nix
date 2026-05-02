@@ -72,6 +72,11 @@
               nodePackages.pnpm
               openssl
               pkg-config
+              cabal-install
+              ghc
+              haskell-language-server
+              zig
+              zls
             ];
             env = { }
             // treeSitterGrammar "bash"
