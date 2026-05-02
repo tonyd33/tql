@@ -4,7 +4,7 @@
 3: rel equals (node kind) (literal kind_id 221)
 4: halt not_relates
 5: trv descendant false
-6: rel equals (node kind) (literal kind_id 1)
+6: rel equals (node kind) (literal kind_id 377)
 7: halt not_relates
 8: asn 1 (node this)
 9: trv variable_id 1

@@ -51,7 +51,7 @@ test "asn: node" {
     const function_definition_kind_id = language.idForNodeKind("function_definition", true);
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .asn = .{
             .variable_id = 1,
             .source = ValueSource{ .node = NodeValueSource.text },

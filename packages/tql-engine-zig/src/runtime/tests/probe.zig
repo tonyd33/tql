@@ -69,7 +69,7 @@ test "probe: exists with traversal that succeeds" {
     // 5: halt
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
         Instruction{ .yield = {} },
@@ -95,7 +95,7 @@ test "probe: exists with traversal that fails" {
     // 5: halt
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -170,7 +170,7 @@ test "probe: nexists with traversal that succeeds" {
     // 4: panic                         // Landmine
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -194,7 +194,7 @@ test "probe: nexists with traversal that fails" {
     // 4: halt
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 3 } },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
@@ -423,7 +423,7 @@ test "probe: trv fails inside call inside exists probe" {
         Instruction{ .call = 4 },
         Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .panic = {} },
     };
@@ -454,7 +454,7 @@ test "probe: trv fails inside call inside nexists probe" {
         Instruction{ .panic = {} },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
     };
 

@@ -28,8 +28,8 @@ fn formatInstruction(writer: anytype, inst: runtime.Instruction) !void {
         .trv => |t| {
             try writer.writeAll("trv ");
             switch (t) {
-                .child => |c| try writer.print("child {}", .{c.allow_anonymous}),
-                .descendant => |d| try writer.print("descendant {}", .{d.allow_anonymous}),
+                .child => try writer.print("child", .{}),
+                .descendant => try writer.print("descendant", .{}),
                 .field => |f| try writer.print("field {}", .{f}),
                 .variable_id => |v| try writer.print("variable_id {}", .{v}),
             }

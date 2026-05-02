@@ -229,10 +229,8 @@ pub const Runtime = struct {
                         const var_id = axis.variable_id;
                         const maybe_value = frame.state.environment.get(var_id);
                         if (maybe_value) |value| {
-                            // The variable must contain a node value
                             switch (value) {
                                 .node => |node| {
-                                    // Simply update the current state's node and continue
                                     frame.state.node = node;
                                     continue;
                                 },
@@ -240,18 +238,19 @@ pub const Runtime = struct {
                             }
                         }
 
-                        // Variable not found, no matches for this path
+                        // I guess there is a question of whether this should error though.
+                        // What semantically correct TQL query would even allow for this?
                         self.deinitFrame();
                         continue;
                     }
 
                     const maybe_iterator: ?SplitIterator = switch (axis) {
-                        .child => |child_axis| blk: {
-                            const iter = ChildIterator.init(frame.state.node, child_axis.allow_anonymous);
+                        .child => blk: {
+                            const iter = ChildIterator.init(frame.state.node);
                             break :blk if (iter) |i| SplitIterator{ .child = i } else null;
                         },
-                        .descendant => |descendant_axis| blk: {
-                            const iter = DescendantIterator.init(frame.state.node, descendant_axis.allow_anonymous);
+                        .descendant => blk: {
+                            const iter = DescendantIterator.init(frame.state.node);
                             break :blk if (iter) |i| SplitIterator{ .descendant = i } else null;
                         },
                         .field => |field_id| blk: {
@@ -262,7 +261,7 @@ pub const Runtime = struct {
                     };
 
                     if (maybe_iterator) |iterator| {
-                        // Set the split iterator on the current frame and save resume PC
+                        // THe next loop iteration is supposed to handle this.
                         frame.split = .{
                             .iterator = iterator,
                             .resume_pc = frame.state.pc,

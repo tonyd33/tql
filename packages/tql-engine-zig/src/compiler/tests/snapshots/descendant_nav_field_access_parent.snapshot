@@ -7,7 +7,7 @@
 6: trv variable_id 1
 7: trv field 5
 8: trv descendant false
-9: rel equals (node kind) (literal kind_id 1)
+9: rel equals (node kind) (literal kind_id 377)
 10: halt not_relates
 11: asn 2 (node this)
 12: trv variable_id 2

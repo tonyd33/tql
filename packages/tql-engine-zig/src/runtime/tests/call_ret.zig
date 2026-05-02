@@ -53,7 +53,7 @@ test "call/ret: yields inside called function" {
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = {} },
         Instruction{ .ret = {} },
     };

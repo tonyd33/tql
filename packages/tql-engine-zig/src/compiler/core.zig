@@ -442,7 +442,7 @@ pub const Compiler = struct {
         const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
 
         // FIXME: This can't be right
-        try builder.emit(.{ .trv = .{ .descendant = .{ .allow_anonymous = false } } });
+        try builder.emit(.{ .trv = .{ .descendant = {} } });
         try builder.emit(.{ .rel = .{
             .relation = .equals,
             .a = .{ .node = .kind },

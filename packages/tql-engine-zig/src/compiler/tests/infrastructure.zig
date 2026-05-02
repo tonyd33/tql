@@ -199,7 +199,7 @@ test "InstructionBuilder: complex control flow with multiple labels" {
     const end = builder.createLabel();
 
     try builder.markLabel(loop_start);
-    try builder.emit(.{ .trv = .{ .descendant = .{ .allow_anonymous = false } } });
+    try builder.emit(.{ .trv = .{ .descendant = {} } });
     try builder.emitJump(success, .relates);
     try builder.emitJump(loop_start, .always);
     try builder.markLabel(success);

@@ -6,8 +6,11 @@
 5: asn 1 (node this)
 6: trv variable_id 1
 7: trv field 5
-8: trv field 25
-9: asn 2 (node this)
-10: trv variable_id 2
-11: yield
-12: halt always
+8: trv child false
+9: rel equals (node kind) (literal kind_id 261)
+10: halt not_relates
+11: trv field 25
+12: asn 2 (node this)
+13: trv variable_id 2
+14: yield
+15: halt always

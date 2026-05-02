@@ -18,7 +18,7 @@ test "trv: children depth 1" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
     };
@@ -36,8 +36,8 @@ test "trv: children depth 2" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
     };
@@ -48,24 +48,6 @@ test "trv: children depth 2" {
     try ctx.expectMatchKinds(&[_][]const u8{ "primitive_type", "identifier", "primitive_type", "identifier" });
 }
 
-test "trv: children anonymous" {
-    const source =
-        \\ int a;
-    ;
-
-    const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
-        Instruction{ .trv = Axis{ .child = .{ .allow_anonymous = true } } },
-        Instruction{ .yield = {} },
-        Instruction{ .halt = .{} },
-    };
-
-    var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
-    defer ctx.deinit();
-
-    try ctx.expectMatchKinds(&[_][]const u8{ "primitive_type", "identifier", ";" });
-}
-
 test "trv: descendants" {
     const source =
         \\ void foo() {
@@ -74,7 +56,7 @@ test "trv: descendants" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .descendant = .{} } },
+        Instruction{ .trv = Axis{ .descendant = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
     };
@@ -102,8 +84,8 @@ test "trv: descendants with child" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
-        Instruction{ .trv = Axis{ .descendant = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
+        Instruction{ .trv = Axis{ .descendant = {} } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
     };
@@ -135,7 +117,7 @@ test "trv: field" {
     const declarator_field_id = language.fieldIdForName("declarator");
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } }, // Get function_definition
+        Instruction{ .trv = Axis{ .child = {} } }, // Get function_definition
         Instruction{ .trv = Axis{ .field = declarator_field_id } }, // Get declarator field
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
@@ -157,7 +139,7 @@ test "trv: field with multiple declarations" {
     const declarator_field_id = language.fieldIdForName("declarator");
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .field = declarator_field_id } },
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
@@ -178,14 +160,14 @@ test "trv: variable_id with node" {
     // First, trv to a child and save the current node to a variable
     // Then trv to a descendant, then trv back to the saved node and yield
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } }, // Get function_definition
+        Instruction{ .trv = Axis{ .child = {} } }, // Get function_definition
         Instruction{
             .asn = .{
                 .variable_id = 1,
                 .source = ValueSource{ .node = NodeValueSource.this }, // Save current node
             },
         },
-        Instruction{ .trv = Axis{ .descendant = .{} } }, // Navigate away to descendants
+        Instruction{ .trv = Axis{ .descendant = {} } }, // Navigate away to descendants
         Instruction{ .trv = Axis{ .variable_id = 1 } }, // trv back to the stored node
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
@@ -228,7 +210,7 @@ test "trv: empty node has no children" {
     const source = ""; // Empty source
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } }, // Try to get children (none exist)
+        Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .yield = {} },
         Instruction{ .halt = .{} },
     };
@@ -244,7 +226,7 @@ test "trv: empty traversal then yield" {
     const source = ""; // Empty source
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } }, // Try to get children (none exist)
+        Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .yield = {} }, // This should not execute
         Instruction{ .halt = .{} },
     };
@@ -260,7 +242,7 @@ test "trv: empty traversal with halt after" {
     const source = ""; // Empty source
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .child = .{} } }, // Try to get children (none exist)
+        Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .halt = .{} }, // This should not execute
         Instruction{ .yield = {} },
     };

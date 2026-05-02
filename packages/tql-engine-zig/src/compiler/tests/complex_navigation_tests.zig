@@ -10,7 +10,7 @@ test "nested field access" {
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
-        \\       @c.body.name as @nested_name
+        \\       (@c.body > method_definition).name as @nested_name
         \\  select @nested_name
         \\}
         ,
@@ -21,7 +21,7 @@ test "nested field access" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/nested_field_access.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 0, // TODO: Fix test - class_body doesn't have a name field
+        .expected_match_count = 1,
     }).run();
 }
 
@@ -71,7 +71,7 @@ test "child navigation on node selector" {
         .allocator = testing.allocator,
         .tql =
         \\query main() {
-        \\  from class_declaration > method_definition as @method
+        \\  from class_declaration.body > method_definition as @method
         \\  select @method
         \\}
         ,
@@ -86,7 +86,7 @@ test "child navigation on node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/child_nav_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 0, // TODO: class_declaration doesn't have direct method_definition children
+        .expected_match_count = 3,
     }).run();
 }
 
@@ -96,7 +96,7 @@ test "descendant navigation with field access parent" {
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
-        \\       @c.body >> identifier as @id
+        \\       @c.body >> property_identifier as @id
         \\  select @id
         \\}
         ,
@@ -108,7 +108,7 @@ test "descendant navigation with field access parent" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/descendant_nav_field_access_parent.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 0, // TODO: Fix - not matching as expected
+        .expected_match_count = 2,
     }).run();
 }
 
@@ -117,7 +117,7 @@ test "descendant navigation on node selector" {
         .allocator = testing.allocator,
         .tql =
         \\query main() {
-        \\  from class_declaration >> identifier as @id
+        \\  from class_declaration >> property_identifier as @id
         \\  select @id
         \\}
         ,
@@ -131,7 +131,7 @@ test "descendant navigation on node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/descendant_nav_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 0, // TODO: Fix - not matching as expected
+        .expected_match_count = 2, // TODO: Fix - not matching as expected
     }).run();
 }
 

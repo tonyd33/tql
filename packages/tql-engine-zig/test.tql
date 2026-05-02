@@ -1,4 +1,5 @@
 query main() {
-  from class_declaration as @class
-  select @class
+  from class_declaration.name as @class_name
+  where @class_name ~ /Foo.*/
+  select @class_name
 }

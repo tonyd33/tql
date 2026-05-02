@@ -115,10 +115,9 @@ pub const RuntimeError = error{
 
 pub const ChildIterator = struct {
     cursor: ts.TreeCursor,
-    allow_anonymous: bool,
     started: bool,
 
-    pub fn init(parent_node: ts.Node, allow_anonymous: bool) ?ChildIterator {
+    pub fn init(parent_node: ts.Node) ?ChildIterator {
         var cursor = parent_node.walk();
         const has_children = cursor.gotoFirstChild();
         if (!has_children) {
@@ -128,11 +127,10 @@ pub const ChildIterator = struct {
 
         var iter = ChildIterator{
             .cursor = cursor,
-            .allow_anonymous = allow_anonymous,
             .started = false,
         };
 
-        if (!allow_anonymous and !cursor.node().isNamed()) {
+        if (!cursor.node().isNamed()) {
             if (!iter.advance()) {
                 cursor.destroy();
                 return null;
@@ -156,7 +154,7 @@ pub const ChildIterator = struct {
 
     fn advance(self: *ChildIterator) bool {
         while (self.cursor.gotoNextSibling()) {
-            if (self.allow_anonymous or self.cursor.node().isNamed()) {
+            if (self.cursor.node().isNamed()) {
                 return true;
             }
         }
@@ -226,11 +224,10 @@ pub const FieldIterator = struct {
 
 pub const DescendantIterator = struct {
     cursor: ts.TreeCursor,
-    allow_anonymous: bool,
     current_index: u32,
     descendant_count: u32,
 
-    pub fn init(parent_node: ts.Node, allow_anonymous: bool) ?DescendantIterator {
+    pub fn init(parent_node: ts.Node) ?DescendantIterator {
         const descendant_count = parent_node.descendantCount();
         if (descendant_count == 0) {
             return null;
@@ -240,12 +237,11 @@ pub const DescendantIterator = struct {
 
         var iter = DescendantIterator{
             .cursor = cursor,
-            .allow_anonymous = allow_anonymous,
             .current_index = 0,
             .descendant_count = descendant_count,
         };
 
-        if (!allow_anonymous and !cursor.node().isNamed()) {
+        if (!cursor.node().isNamed()) {
             if (!iter.advance()) {
                 cursor.destroy();
                 return null;
@@ -268,7 +264,7 @@ pub const DescendantIterator = struct {
             self.current_index += 1;
             self.cursor.gotoDescendant(self.current_index);
 
-            if (self.allow_anonymous or self.cursor.node().isNamed()) {
+            if (self.cursor.node().isNamed()) {
                 return true;
             }
         }
@@ -311,8 +307,8 @@ pub const SplitIterator = union(enum) {
 };
 
 pub const Axis = union(enum) {
-    child: struct { allow_anonymous: bool = false },
-    descendant: struct { allow_anonymous: bool = false },
+    child,
+    descendant,
     // NOTE: Consider removing this since it's accomplishable with cmp on child
     // and likely not much more efficient
     field: FieldId,
