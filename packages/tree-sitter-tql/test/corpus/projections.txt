@@ -1,0 +1,388 @@
+========================================
+select variable
+========================================
+
+query main() {
+  from class_declaration as @class
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+select object literal
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  select {
+    class: @class,
+    name: @name
+  }
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (object_literal
+            (object_field
+              (identifier)
+              (expression
+                (variable
+                  (identifier))))
+            (object_field
+              (identifier)
+              (expression
+                (variable
+                  (identifier))))))))))
+
+========================================
+select object with shorthand
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  select {
+    @class,
+    @name
+  }
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (object_literal
+            (object_field
+              (variable
+                (identifier)))
+            (object_field
+              (variable
+                (identifier)))))))))
+
+========================================
+select array
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  select [@class, @name]
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (array_literal
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (variable
+                (identifier)))))))))
+
+========================================
+select tuple
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  select (@class, @name)
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (tuple_literal
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (variable
+                (identifier)))))))))
+
+========================================
+select with function call
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.body > method_definition as @method
+  select {
+    class: @class,
+    method_count: count(@method)
+  }
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (object_literal
+            (object_field
+              (identifier)
+              (expression
+                (variable
+                  (identifier))))
+            (object_field
+              (identifier)
+              (expression
+                (function_call
+                  (identifier)
+                  (expression
+                    (variable
+                      (identifier))))))))))))
+
+========================================
+select with subquery
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @class_name
+  select {
+    class: @class_name,
+    methods: (
+      from @class.body > method_definition as @method,
+           @method.name as @method_name
+      select @method_name
+    )
+  }
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (object_literal
+            (object_field
+              (identifier)
+              (expression
+                (variable
+                  (identifier))))
+            (object_field
+              (identifier)
+              (expression
+                (subquery
+                  (query_body
+                    (from_clause
+                      (binding
+                        (navigation_expression
+                          (child_navigation
+                            (navigation_expression
+                              (field_access
+                                (navigation_expression
+                                  (variable
+                                    (identifier)))
+                                (identifier)))
+                            (navigation_expression
+                              (node_selector
+                                (identifier)))))
+                        (variable
+                          (identifier)))
+                      (binding
+                        (navigation_expression
+                          (field_access
+                            (navigation_expression
+                              (variable
+                                (identifier)))
+                            (identifier)))
+                        (variable
+                          (identifier))))
+                    (select_clause
+                      (projection
+                        (variable
+                          (identifier))))))))))))))
+
+========================================
+select string literal
+========================================
+
+query main() {
+  select 'hello'
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (string_literal
+            (string_fragment)))))))
+
+========================================
+select number
+========================================
+
+query main() {
+  select 42
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (number_literal))))))

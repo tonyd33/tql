@@ -1,0 +1,32 @@
+0: asn 0 (node this)
+1: trv variable_id 0
+2: trv descendant false
+3: rel equals (node kind) (literal kind_id 221)
+4: halt not_relates
+5: asn 1 (node this)
+6: trv variable_id 1
+7: trv field 25
+8: asn 2 (node this)
+9: trv variable_id 2
+10: rel equals (node text) (literal string "Service")
+11: jmp relates 13
+12: jmp always 28
+13: trv variable_id 1
+14: trv field 5
+15: asn 3 (node this)
+16: trv variable_id 3
+17: trv child false
+18: rel equals (node kind) (literal kind_id 261)
+19: halt not_relates
+20: asn 4 (node this)
+21: trv variable_id 4
+22: trv field 25
+23: asn 5 (node this)
+24: trv variable_id 5
+25: rel equals (node text) (literal string "foo")
+26: jmp relates 29
+27: jmp always 28
+28: halt always
+29: trv variable_id 1
+30: yield
+31: halt always

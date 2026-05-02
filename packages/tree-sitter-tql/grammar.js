@@ -1,5 +1,5 @@
 /**
- * @file tree query language
+ * @file TQL (Tree Query Language) - Option B Grammar
  * @author Tony Du
  * @license MIT
  */
@@ -7,201 +7,368 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const alpha = /[a-zA-Z_]+/;
-const alphanumeric = /[a-zA-Z0-9_]/;
+const PREC = {
+  field: 20,
+  child: 19,
+  descendant: 18,
+
+  not: 10,
+  and: 9,
+  or: 8,
+
+  comparison: 7,
+};
 
 module.exports = grammar({
   name: "tql",
-  externals: $ => [$._descendant_operator],
-  extras: $ => [/\s/, $.comment],
-  reserved: {
-    global: _ => [],
-  },
+
+  extras: $ => [
+    /\s/,
+    $.comment,
+  ],
+
   rules: {
-    source_file: $ => repeat(choice($.directive, $.function_definition)),
-    comment: _ => token(seq("--", /[^\r\n\u2028\u2029]*/)),
-    identifier: _ => token(seq(alpha, repeat(alphanumeric))),
+    source_file: $ => repeat(choice(
+      $.directive,
+      $.query_definition,
+      $.query_body,
+    )),
 
-    string_literal: $ =>
-      seq(
-        "'",
-        field(
-          "content",
-          repeat(
-            choice(
-              alias($.unescaped_single_string_fragment, $.string_fragment),
-              $.escape_sequence,
-            ),
-          ),
-        ),
-        "'",
-      ),
-    unescaped_single_string_fragment: _ =>
-      token.immediate(prec(1, /[^'\\\r\n]+/)),
-    escape_sequence: _ =>
-      token.immediate(
-        seq(
-          "\\",
-          choice(
-            /[^xu0-7]/,
-            /[0-7]{1,3}/,
-            /x[0-9a-fA-F]{2}/,
-            /u[0-9a-fA-F]{4}/,
-            /u\{[0-9a-fA-F]+\}/,
-            /[\r?][\n\u2028\u2029]/,
-          ),
-        ),
-      ),
+    comment: _ => token(seq('--', /.*/)),
 
-    variable_identifier: $ => seq("@", $.identifier),
-
-    directive: $ =>
-      seq("#", choice($.include_directive, $.target_lang_directive)),
-    target_lang_directive: $ => seq("language", $.string_literal),
-    include_directive: $ => seq("import", $.string_literal),
-
-    function_definition: $ =>
-      seq(
-        "fn",
-        field("identifier", $.identifier),
-        parentheses_enclosed(
-          comma_sep(field("parameters", $.variable_identifier)),
-        ),
-        braces_enclosed(
-          seq(sep_by(";", field("statement", $._statement)), optional(";")),
-        ),
-      ),
-    function_invocation: $ =>
-      seq(
-        field("identifier", $.identifier),
-        parentheses_enclosed(comma_sep(field("parameters", $._expression))),
-      ),
-
-    _statement: $ =>
+    // Directives
+    directive: $ => seq(
+      '#',
       choice(
-        alias($._selector, $.selector),
-        alias($._assignment, $.assignment),
+        $.language_directive,
+        $.import_directive,
       ),
+    ),
 
-    // selectors
-    _selector: $ =>
-      choice(
-        $.parenthesized_selector,
-        $.self_selector,
-        $.node_type_selector,
-        $.field_name_selector,
-        $.child_selector,
-        $.descendant_selector,
-        $.block_selector,
-        $.variable_identifier,
-        $.function_invocation,
-        $.negate_selector,
-        $.and_selector,
-        $.or_selector,
-        $.concat_selector,
-        $.condition_selector,
-      ),
-    selector: $ => $._selector,
-    parenthesized_selector: $ => prec(100, parentheses_enclosed($._selector)),
-    self_selector: _ => "*",
-    node_type_selector: $ => alias($.identifier, $.node_type),
-    field_name_selector: $ =>
-      prec.left(
-        seq(
-          optional(field("parent", $._selector)),
-          ".",
-          field("field", alias($.identifier, $.field_name)),
-        ),
-      ),
-    child_selector: $ =>
-      prec.left(
-        seq(
-          optional(field("parent", $._selector)),
-          ">",
-          field("child", $._selector),
-        ),
-      ),
-    descendant_selector: $ =>
-      prec.left(
-        seq(
-          field("parent", $._selector),
-          $._descendant_operator,
-          field("descendant", $._selector),
-        ),
-      ),
-    block_selector: $ =>
-      prec.left(
-        seq(
-          optional(field("parent", $._selector)),
-          braces_enclosed(
-            seq(sep_by(";", field("statement", $._statement)), optional(";")),
-          ),
-        ),
-      ),
-    negate_selector: $ => prec.left(seq("!", $._selector)),
-    and_selector: $ =>
-      prec.left(
-        seq(field("left", $._selector), "&&", field("right", $._selector)),
-      ),
-    or_selector: $ =>
-      prec.left(
-        seq(field("left", $._selector), "||", field("right", $._selector)),
-      ),
-    concat_selector: $ =>
-      prec.left(
-        seq(field("left", $._selector), "++", field("right", $._selector)),
-      ),
-    condition_selector: $ =>
-      prec.left(
-        seq(
-          optional(field("parent", $._selector)),
-          enclosed_by("[", "]", field("condition", $.condition)),
-        ),
-      ),
+    language_directive: $ => seq(
+      'language',
+      field('language', $.string_literal),
+    ),
 
-    relation: _ => choice("=", "~", "/="),
-    condition: $ => seq($.expression, $.relation, $.expression),
+    import_directive: $ => seq(
+      'import',
+      field('path', $.string_literal),
+    ),
 
-    // assignments
-    _assignment: $ => choice($.explicit_assignment),
-    assignment: $ => $.assignment,
-    explicit_assignment: $ =>
+    // Query definitions
+    query_definition: $ => seq(
+      'query',
+      field('name', $.identifier),
+      optional($.parameters),
+      optional($.return_type_annotation),
+      '{',
+      field('body', $.query_body),
+      '}',
+    ),
+
+    parameters: $ => seq(
+      '(',
+      optional(comma_sep1($.parameter)),
+      ')',
+    ),
+
+    parameter: $ => seq(
+      field('name', $.variable),
+      optional(seq(':', field('type', $.type))),
+    ),
+
+    return_type_annotation: $ => seq(
+      ':',
+      field('type', $.type),
+    ),
+
+    query_body: $ => seq(
+      optional(field('from_clause', $.from_clause)),
+      optional(field('where_clause', $.where_clause)),
+      field('select_clause', $.select_clause),
+    ),
+
+    from_clause: $ => seq(
+      'from',
+      comma_sep1($.binding),
+    ),
+
+    binding: $ => seq(
+      field('expression', $.navigation_expression),
+      'as',
+      field('variable', $.variable),
+      optional(field('optional', '?')),
+    ),
+
+    // TODO: Implement a haskell-like $ combinator
+    navigation_expression: $ => choice(
+      $.node_selector,
+      $.variable,
+      $.field_access,
+      $.child_navigation,
+      $.descendant_navigation,
+      $.query_call,
+      $.parenthesized_navigation,
+    ),
+
+    node_selector: $ => $.identifier,
+
+    field_access: $ => prec.left(PREC.field, seq(
+      field('base', $.navigation_expression),
+      '.',
+      field('field', $.identifier),
+    )),
+
+    child_navigation: $ => prec.left(PREC.child, seq(
+      field('parent', $.navigation_expression),
+      '>',
+      field('child', $.navigation_expression),
+    )),
+
+    descendant_navigation: $ => prec.left(PREC.descendant, seq(
+      field('parent', $.navigation_expression),
+      choice('descendant::', '>>'),
+      field('descendant', $.navigation_expression),
+    )),
+
+    query_call: $ => seq(
+      field('name', $.identifier),
+      '(',
+      optional(comma_sep1(field('argument', $.expression))),
+      ')',
+    ),
+
+    parenthesized_navigation: $ => seq(
+      '(',
+      $.navigation_expression,
+      ')',
+    ),
+
+    where_clause: $ => seq(
+      'where',
+      field('predicate', $.predicate),
+    ),
+
+    predicate: $ => choice(
+      $.comparison,
+      $.logical_and,
+      $.logical_or,
+      $.logical_not,
+      $.quantified_expression,
+      $.variable,  // truthy test for optional bindings
+      $.parenthesized_predicate,
+    ),
+
+    comparison: $ => prec.left(PREC.comparison, seq(
+      field('left', $.expression),
+      field('operator', choice('=', '!=', '~', '!~', '>', '<', '>=', '<=')),
+      field('right', $.expression),
+    )),
+
+    logical_and: $ => prec.left(PREC.and, seq(
+      field('left', $.predicate),
+      'and',
+      field('right', $.predicate),
+    )),
+
+    logical_or: $ => prec.left(PREC.or, seq(
+      field('left', $.predicate),
+      'or',
+      field('right', $.predicate),
+    )),
+
+    logical_not: $ => prec.right(PREC.not, seq(
+      'not',
+      field('predicate', $.predicate),
+    )),
+
+    quantified_expression: $ => seq(
+      field('quantifier', choice('forall', 'exists')),
+      field('variable', $.variable),
+      ':',
+      field('predicate', $.predicate),
+    ),
+
+    parenthesized_predicate: $ => seq(
+      '(',
+      $.predicate,
+      ')',
+    ),
+
+    select_clause: $ => seq(
+      'select',
+      field('projection', $.projection),
+    ),
+
+    projection: $ => choice(
+      $.variable,
+      $.string_literal,
+      $.regex_literal,
+      $.number_literal,
+      $.function_call,
+      $.field_access_expression,
+      $.object_literal,
+      $.array_literal,
+      $.tuple_literal,
+      $.subquery,
+    ),
+
+    object_literal: $ => seq(
+      '{',
+      optional(comma_sep1($.object_field)),
+      '}',
+    ),
+
+    object_field: $ => choice(
+      // Shorthand: @variable
+      $.variable,
+      // Full form: field: expression
       seq(
-        field("identifier", $.variable_identifier),
-        "<-",
-        field("expression", $._expression),
+        field('key', $.identifier),
+        ':',
+        field('value', $.expression),
       ),
+    ),
 
-    // expressions
-    _expression: $ => choice($.selector, $.string_literal),
-    expression: $ => $._expression,
+    array_literal: $ => seq(
+      '[',
+      optional(comma_sep1($.expression)),
+      ']',
+    ),
+
+    tuple_literal: $ => seq(
+      '(',
+      $.expression,
+      ',',
+      comma_sep1($.expression),
+      ')',
+    ),
+
+    subquery: $ => seq(
+      '(',
+      $.query_body,
+      ')',
+    ),
+
+    // Expressions
+    expression: $ => choice(
+      $.variable,
+      $.string_literal,
+      $.regex_literal,
+      $.number_literal,
+      $.function_call,
+      $.field_access_expression,
+      $.subquery,
+    ),
+
+    function_call: $ => seq(
+      field('name', $.identifier),
+      '(',
+      optional(comma_sep1(field('argument', $.expression))),
+      ')',
+    ),
+
+    field_access_expression: $ => prec.left(PREC.field, seq(
+      field('base', $.expression),
+      '.',
+      field('field', $.identifier),
+    )),
+
+    // Types
+    type: $ => choice(
+      $.identifier,
+      $.builtin_type,
+      $.array_type,
+      $.object_type,
+      $.tuple_type,
+      $.optional_type,
+    ),
+
+    builtin_type: _ => choice(
+      'string',
+      'number',
+      'boolean',
+      'regex',
+    ),
+
+    array_type: $ => seq(
+      'Array',
+      '<',
+      field('element_type', $.type),
+      '>',
+    ),
+
+    object_type: $ => seq(
+      'Object',
+      '<',
+      field('value_type', $.type),
+      '>',
+    ),
+
+    tuple_type: $ => seq(
+      'Tuple',
+      '<',
+      comma_sep1(field('element_type', $.type)),
+      '>',
+    ),
+
+    optional_type: $ => seq(
+      field('base_type', $.type),
+      '?',
+    ),
+
+    // Literals
+    string_literal: $ => seq(
+      "'",
+      field('content', optional(repeat(choice(
+        $.string_fragment,
+        $.escape_sequence,
+      )))),
+      "'",
+    ),
+
+    string_fragment: _ => token.immediate(prec(1, /[^'\\]+/)),
+
+    escape_sequence: _ => token.immediate(seq(
+      '\\',
+      choice(
+        /[^xu0-7]/,
+        /[0-7]{1,3}/,
+        /x[0-9a-fA-F]{2}/,
+        /u[0-9a-fA-F]{4}/,
+        /u\{[0-9a-fA-F]+\}/,
+      ),
+    )),
+
+    regex_literal: $ => seq(
+      '/',
+      field('pattern', optional(repeat(choice(
+        $.regex_fragment,
+        $.regex_escape_sequence,
+      )))),
+      '/',
+    ),
+
+    regex_fragment: _ => token.immediate(prec(1, /[^/\\]+/)),
+
+    regex_escape_sequence: _ => token.immediate(seq(
+      '\\',
+      /./,
+    )),
+
+    number_literal: _ => /\d+(\.\d+)?/,
+
+    // Identifiers
+    variable: $ => seq('@', $.identifier),
+
+    identifier: _ => /[a-zA-Z_][a-zA-Z0-9_]*/,
   },
 });
 
-function sep_by_1(s, rule) {
-  return seq(rule, repeat(seq(s, rule)));
-}
-
-function sep_by(s, rule) {
-  return optional(sep_by_1(s, rule));
-}
-
-function comma_sep_1(rule) {
-  return sep_by_1(",", rule);
+function comma_sep1(rule) {
+  return seq(rule, repeat(seq(',', rule)));
 }
 
 function comma_sep(rule) {
-  return optional(comma_sep_1(rule));
-}
-
-function enclosed_by(l, r, rule) {
-  return seq(l, rule, r);
-}
-
-function parentheses_enclosed(rule) {
-  return enclosed_by("(", ")", rule);
-}
-
-function braces_enclosed(rule) {
-  return enclosed_by("{", "}", rule);
+  return optional(comma_sep1(rule));
 }

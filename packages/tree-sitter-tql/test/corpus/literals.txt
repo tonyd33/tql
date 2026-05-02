@@ -1,0 +1,125 @@
+========================================
+string literal
+========================================
+
+query main() {
+  select 'hello world'
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (string_literal
+            (string_fragment)))))))
+
+========================================
+string with escape sequences
+========================================
+
+query main() {
+  select 'hello\nworld\t\''
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (string_literal
+            (string_fragment)
+            (escape_sequence)
+            (string_fragment)
+            (escape_sequence)
+            (escape_sequence)))))))
+
+========================================
+regex literal
+========================================
+
+query main() {
+  select /[a-z]+/
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (regex_literal
+            (regex_fragment)))))))
+
+========================================
+regex with escapes
+========================================
+
+query main() {
+  select /\d+\.\d+/
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (regex_literal
+            (regex_escape_sequence)
+            (regex_fragment)
+            (regex_escape_sequence)
+            (regex_escape_sequence)
+            (regex_fragment)))))))
+
+========================================
+number literal
+========================================
+
+query main() {
+  select 42
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (number_literal))))))
+
+========================================
+decimal number
+========================================
+
+query main() {
+  select 3.14
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (select_clause
+        (projection
+          (number_literal))))))

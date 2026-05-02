@@ -1,0 +1,25 @@
+0: asn 0 (node this)
+1: trv variable_id 0
+2: trv descendant false
+3: rel equals (node kind) (literal kind_id 221)
+4: halt not_relates
+5: asn 1 (node this)
+6: trv variable_id 1
+7: trv field 11
+8: asn 3 (node this)
+9: trv variable_id 3
+10: trv child false
+11: rel equals (node kind) (literal kind_id 231)
+12: halt not_relates
+13: asn 4 (node this)
+14: trv variable_id 4
+15: trv field 14
+16: asn 5 (node this)
+17: trv variable_id 5
+18: rel equals (node text) (literal string "Controller")
+19: jmp relates 22
+20: jmp always 21
+21: halt always
+22: trv variable_id 5
+23: yield
+24: halt always

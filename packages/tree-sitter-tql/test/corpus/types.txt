@@ -1,0 +1,164 @@
+========================================
+identifier type
+========================================
+
+query main(@class: class_declaration) {
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters
+      (parameter
+        (variable
+          (identifier))
+        (type
+          (identifier))))
+    (query_body
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+builtin type
+========================================
+
+query main(@str: string) {
+  select @str
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters
+      (parameter
+        (variable
+          (identifier))
+        (type
+          (builtin_type))))
+    (query_body
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+array type
+========================================
+
+query main(): Array<class_declaration> {
+  from class_declaration as @class
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (return_type_annotation
+      (type
+        (array_type
+          (type
+            (identifier)))))
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+object type
+========================================
+
+query main(): Object<string> {
+  select {}
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (return_type_annotation
+      (type
+        (object_type
+          (type
+            (builtin_type)))))
+    (query_body
+      (select_clause
+        (projection
+          (object_literal))))))
+
+========================================
+tuple type
+========================================
+
+query main(): Tuple<string, number> {
+  select ('hello', 42)
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (return_type_annotation
+      (type
+        (tuple_type
+          (type
+            (builtin_type))
+          (type
+            (builtin_type)))))
+    (query_body
+      (select_clause
+        (projection
+          (tuple_literal
+            (expression
+              (string_literal
+                (string_fragment)))
+            (expression
+              (number_literal))))))))
+
+========================================
+optional type
+========================================
+
+query main(@class: class_declaration?) {
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters
+      (parameter
+        (variable
+          (identifier))
+        (type
+          (optional_type
+            (type
+              (identifier))))))
+    (query_body
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))

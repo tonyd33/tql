@@ -1,0 +1,46 @@
+========================================
+language directive
+========================================
+
+#language 'typescript'
+
+---
+
+(source_file
+  (directive
+    (language_directive
+      (string_literal
+        (string_fragment)))))
+
+========================================
+import directive
+========================================
+
+#import 'common.tql'
+
+---
+
+(source_file
+  (directive
+    (import_directive
+      (string_literal
+        (string_fragment)))))
+
+========================================
+multiple directives
+========================================
+
+#language 'typescript'
+#import 'helpers.tql'
+
+---
+
+(source_file
+  (directive
+    (language_directive
+      (string_literal
+        (string_fragment))))
+  (directive
+    (import_directive
+      (string_literal
+        (string_fragment)))))

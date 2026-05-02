@@ -1,0 +1,310 @@
+========================================
+field access
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  select @name
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+chained field access
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.decorator.identifier as @name
+  select @name
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+child navigation
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class > method_definition as @method
+  select @method
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+descendant navigation with ::
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class descendant::call_expression as @call
+  select @call
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (descendant_navigation
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+descendant navigation with >>
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class >> call_expression as @call
+  select @call
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (descendant_navigation
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+complex navigation
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.decorator > call_expression.identifier as @name
+  select @name
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (node_selector
+                      (identifier)))
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+query call in navigation
+========================================
+
+query helper(@x: class_declaration) {
+  from @x.name as @name
+  select @name
+}
+
+query main() {
+  from class_declaration as @class,
+       helper(@class) as @result
+  select @result
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters
+      (parameter
+        (variable
+          (identifier))
+        (type
+          (identifier))))
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier))))))
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (query_call
+              (identifier)
+              (expression
+                (variable
+                  (identifier)))))
+          (variable
+            (identifier))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))

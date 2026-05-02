@@ -1,0 +1,555 @@
+========================================
+simple comparison
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name = 'Controller'
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (comparison
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (string_literal
+                (string_fragment))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+regex comparison
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name ~ /.*Service$/
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (comparison
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (regex_literal
+                (regex_fragment))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+not equal comparison
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name != 'Base'
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (comparison
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (string_literal
+                (string_fragment))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+logical and
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name = 'Foo' and @name != 'Bar'
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (logical_and
+            (predicate
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (string_literal
+                    (string_fragment)))))
+            (predicate
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (string_literal
+                    (string_fragment))))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+logical or
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where @name = 'Foo' or @name = 'Bar'
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (logical_or
+            (predicate
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (string_literal
+                    (string_fragment)))))
+            (predicate
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (string_literal
+                    (string_fragment))))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+logical not
+========================================
+
+query main() {
+  from method_definition as @method,
+       @method.return_type as @return_type?
+  where not @return_type
+  select @method
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (logical_not
+            (predicate
+              (variable
+                (identifier))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+complex logical expression
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name,
+       @class.decorator as @decorator?
+  where (@name = 'Foo' or @name = 'Bar') and not @decorator
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (logical_and
+            (predicate
+              (parenthesized_predicate
+                (predicate
+                  (logical_or
+                    (predicate
+                      (comparison
+                        (expression
+                          (variable
+                            (identifier)))
+                        (expression
+                          (string_literal
+                            (string_fragment)))))
+                    (predicate
+                      (comparison
+                        (expression
+                          (variable
+                            (identifier)))
+                        (expression
+                          (string_literal
+                            (string_fragment)))))))))
+            (predicate
+              (logical_not
+                (predicate
+                  (variable
+                    (identifier))))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+existential quantifier
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.body > method_definition as @method,
+       @method.decorator as @decorator?
+  where exists @method: @decorator
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (quantified_expression
+            (variable
+              (identifier))
+            (predicate
+              (variable
+                (identifier))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+universal quantifier
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.body > method_definition as @method,
+       @method.return_type as @return_type?
+  where forall @method: @return_type
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (child_navigation
+              (navigation_expression
+                (field_access
+                  (navigation_expression
+                    (variable
+                      (identifier)))
+                  (identifier)))
+              (navigation_expression
+                (node_selector
+                  (identifier)))))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (quantified_expression
+            (variable
+              (identifier))
+            (predicate
+              (variable
+                (identifier))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+parenthesized predicate
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.name as @name
+  where (@name = 'Foo')
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (parenthesized_predicate
+            (predicate
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (string_literal
+                    (string_fragment))))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))

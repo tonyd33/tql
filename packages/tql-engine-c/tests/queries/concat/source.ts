@@ -1,3 +1,0 @@
-@Foo()
-class SpecificClassName {
-}
