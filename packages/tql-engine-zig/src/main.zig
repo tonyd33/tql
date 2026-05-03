@@ -549,8 +549,8 @@ fn formatInstruction(writer: *std.io.Writer, inst: tql.Runtime.Instruction) !voi
         .trv => |t| {
             try writer.print("trv ", .{});
             switch (t) {
-                .child => |c| try writer.print("child {}", .{c.allow_anonymous}),
-                .descendant => |d| try writer.print("descendant {}", .{d.allow_anonymous}),
+                .child => try writer.print("child", .{}),
+                .descendant => try writer.print("descendant", .{}),
                 .field => |f| try writer.print("field {}", .{f}),
                 .variable_id => |v| try writer.print("variable_id {}", .{v}),
             }

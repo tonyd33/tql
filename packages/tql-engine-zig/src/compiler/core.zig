@@ -393,7 +393,7 @@ pub const Compiler = struct {
 
     fn compileChildNavigation(self: *Compiler, builder: *InstructionBuilder, child_nav: *ast.ChildNavigation) anyerror!void {
         try self.compileNavigationExpression(builder, child_nav.parent);
-        try builder.emit(.{ .trv = .{ .child = .{ .allow_anonymous = false } } });
+        try builder.emit(.{ .trv = .{ .child = {} } });
 
         // FIXME: Why can't I do self.compileNavigationExpression(builder, child_nav.child)?
         switch (child_nav.child) {
@@ -413,7 +413,7 @@ pub const Compiler = struct {
     fn compileDescendantNavigation(self: *Compiler, builder: *InstructionBuilder, desc_nav: *ast.DescendantNavigation) anyerror!void {
         try self.compileNavigationExpression(builder, desc_nav.parent);
 
-        try builder.emit(.{ .trv = .{ .descendant = .{ .allow_anonymous = false } } });
+        try builder.emit(.{ .trv = .{ .descendant = {} } });
 
         // FIXME: Why can't I do self.compileNavigationExpression(builder, desc_nav.child)?
         switch (desc_nav.descendant) {
