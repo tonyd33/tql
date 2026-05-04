@@ -39,7 +39,6 @@ pub const Runtime = struct {
 
     instructions: []const Instruction,
     regexes: []const pcre2.Regex,
-    data: []const u8,
 
     stack: Stack,
 
@@ -48,7 +47,6 @@ pub const Runtime = struct {
         source: []const u8,
         instructions: []const Instruction,
         regexes: []const pcre2.Regex,
-        data: []const u8,
         allocator: std.mem.Allocator,
     }) Self {
         return Self{
@@ -56,7 +54,6 @@ pub const Runtime = struct {
             .source = x.source,
             .instructions = x.instructions,
             .regexes = x.regexes,
-            .data = x.data,
             .stack = Stack.empty,
             .allocator = x.allocator,
         };
@@ -66,6 +63,7 @@ pub const Runtime = struct {
         self.stack.deinit(self.allocator);
     }
 
+    // TODO: This can just be part of init probably
     pub fn exec(self: *Self) !void {
         const env = try Environment.create(self.allocator);
         self.stack.clearAndFree(self.allocator);

@@ -42,7 +42,6 @@ pub const TestContext = struct {
             .source = x.source,
             .instructions = x.instructions,
             .regexes = &[_]pcre2.Regex{},
-            .data = &[_]u8{},
             .allocator = allocator,
         });
 

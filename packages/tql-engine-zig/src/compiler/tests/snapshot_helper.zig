@@ -1,10 +1,10 @@
 const std = @import("std");
 const testing = std.testing;
 const ts = @import("tree-sitter");
-const core = @import("../core.zig");
+const Compiler = @import("../../compiler.zig").Compiler;
+const Parser = @import("../../parser.zig").Parser;
 const runtime = @import("../../runtime.zig");
 const ast = @import("../../ast.zig");
-const Parser = @import("../../parser.zig").Parser;
 
 pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const runtime.Instruction) ![]const u8 {
     var list = std.ArrayList(u8){};
@@ -170,10 +170,10 @@ pub const SnapshotTest = struct {
         defer source_file.deinit(self.allocator);
 
         // Compile the query
-        var compiler = core.Compiler.init(self.allocator, language);
+        var compiler = Compiler.init(self.allocator, language);
         defer compiler.deinit();
 
-        var program = try compiler.compile(source_file);
+        var program = try compiler.compile(self.allocator, source_file);
         defer program.deinit();
 
         // Test snapshot: verify instruction sequence
@@ -191,7 +191,6 @@ pub const SnapshotTest = struct {
             .source = self.source,
             .instructions = program.instructions,
             .regexes = program.regexes,
-            .data = &.{},
             .allocator = self.allocator,
         });
         defer rt.deinit();

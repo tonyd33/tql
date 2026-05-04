@@ -31,6 +31,8 @@ pub const Relation = types.Relation;
 pub const Condition = types.Condition;
 pub const Instruction = types.Instruction;
 
+pub const ProgramImage = @import("runtime/program_image.zig").ProgramImage;
+
 pub const Runtime = core.Runtime;
 
 test {
