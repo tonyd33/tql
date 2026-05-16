@@ -226,6 +226,7 @@ pub const Predicate = union(enum) {
             },
             .quantified => |q| {
                 allocator.free(q.variable.name);
+                q.source.deinit(allocator);
                 q.predicate.deinit(allocator);
                 allocator.destroy(q.predicate);
             },
@@ -271,12 +272,13 @@ pub const LogicalNot = struct {
 pub const QuantifiedExpression = struct {
     quantifier: Quantifier,
     variable: Variable,
+    source: NavigationExpression,
     predicate: *Predicate,
 };
 
 pub const Quantifier = enum {
-    forall,
-    exists,
+    any,
+    all,
 };
 
 pub const SelectClause = struct {

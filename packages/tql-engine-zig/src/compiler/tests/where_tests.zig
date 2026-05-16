@@ -68,46 +68,77 @@ test "WHERE with AND logic" {
     }).run();
 }
 
-test "WHERE with exists quantifier - matches" {
+test "WHERE with any quantifier - matches" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
-        \\       @c.body as @body,
-        \\       @body > method_definition as @m,
-        \\       @m.name as @method_name
-        \\  where exists @m: @method_name = 'foo'
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m != null
         \\  select @c
         \\}
         ,
         .source =
         \\class Service { foo() {}; bar() {}; }
-        \\class Controller { baz() {}; }
+        \\class Empty {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_exists_matches.snapshot",
+        .snapshot_path = "src/compiler/tests/snapshots/where_any_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
-test "WHERE with exists quantifier - no matches" {
+test "WHERE with any quantifier - no matches" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
-        \\       @c.body as @body,
-        \\       @body > method_definition as @m,
-        \\       @m.name as @method_name
-        \\  where exists @m: @method_name = 'nonexistent'
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m = null
         \\  select @c
         \\}
         ,
         .source =
         \\class Service { foo() {}; bar() {}; }
-        \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_exists_no_matches.snapshot",
+        .snapshot_path = "src/compiler/tests/snapshots/where_any_no_matches.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE with all quantifier" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where all @m in @c.body > method_definition: @m != null
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { foo() {}; bar() {}; }
+        \\class B {}
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_all.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE with nested any" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition:
+        \\          any @n in @c.body > method_definition: @n != null
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { foo() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_nested_any.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -154,24 +185,21 @@ test "WHERE optional binding is not null" {
     }).run();
 }
 
-test "WHERE exists with null inequality body" {
+test "WHERE any with not-null body" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
-        \\       @c.body as @body,
-        \\       @body > method_definition as @m,
-        \\       @m.return_type as @rt?
-        \\  where exists @m: @rt != null
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m != null
         \\  select @c
         \\}
         ,
         .source =
-        \\class Service { foo(): number { return 1; }; bar() {}; }
+        \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_exists_null_ne.snapshot",
+        .snapshot_path = "src/compiler/tests/snapshots/where_any_not_null.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

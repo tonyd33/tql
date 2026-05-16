@@ -389,10 +389,8 @@ existential quantifier
 ========================================
 
 query main() {
-  from class_declaration as @class,
-       @class.body > method_definition as @method,
-       @method.decorator as @decorator?
-  where exists @method: @decorator != null
+  from class_declaration as @class
+  where any @m in @class.body > method_definition: @m.decorator != null
   select @class
 }
 
@@ -409,39 +407,30 @@ query main() {
             (node_selector
               (identifier)))
           (variable
-            (identifier)))
-        (binding
-          (navigation_expression
-            (child_navigation
-              (navigation_expression
-                (field_access
-                  (navigation_expression
-                    (variable
-                      (identifier)))
-                  (identifier)))
-              (navigation_expression
-                (node_selector
-                  (identifier)))))
-          (variable
-            (identifier)))
-        (binding
-          (navigation_expression
-            (field_access
-              (navigation_expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
             (identifier))))
       (where_clause
         (predicate
           (quantified_expression
             (variable
               (identifier))
+            (navigation_expression
+              (child_navigation
+                (navigation_expression
+                  (field_access
+                    (navigation_expression
+                      (variable
+                        (identifier)))
+                    (identifier)))
+                (navigation_expression
+                  (node_selector
+                    (identifier)))))
             (predicate
               (comparison
                 (expression
-                  (variable
+                  (field_access_expression
+                    (expression
+                      (variable
+                        (identifier)))
                     (identifier)))
                 (expression
                   (null_literal)))))))
@@ -455,10 +444,8 @@ universal quantifier
 ========================================
 
 query main() {
-  from class_declaration as @class,
-       @class.body > method_definition as @method,
-       @method.return_type as @return_type?
-  where forall @method: @return_type != null
+  from class_declaration as @class
+  where all @m in @class.body > method_definition: @m.return_type != null
   select @class
 }
 
@@ -475,27 +462,61 @@ query main() {
             (node_selector
               (identifier)))
           (variable
-            (identifier)))
-        (binding
-          (navigation_expression
-            (child_navigation
-              (navigation_expression
-                (field_access
-                  (navigation_expression
-                    (variable
-                      (identifier)))
-                  (identifier)))
-              (navigation_expression
-                (node_selector
-                  (identifier)))))
+            (identifier))))
+      (where_clause
+        (predicate
+          (quantified_expression
+            (variable
+              (identifier))
+            (navigation_expression
+              (child_navigation
+                (navigation_expression
+                  (field_access
+                    (navigation_expression
+                      (variable
+                        (identifier)))
+                    (identifier)))
+                (navigation_expression
+                  (node_selector
+                    (identifier)))))
+            (predicate
+              (comparison
+                (expression
+                  (field_access_expression
+                    (expression
+                      (variable
+                        (identifier)))
+                    (identifier)))
+                (expression
+                  (null_literal)))))))
+      (select_clause
+        (projection
           (variable
-            (identifier)))
+            (identifier)))))))
+
+========================================
+nested any quantifier
+========================================
+
+query main() {
+  from class_declaration as @class
+  where any @d in @class.decorator:
+          any @m in @class.body > method_definition:
+            @d.name = @m.name
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
         (binding
           (navigation_expression
-            (field_access
-              (navigation_expression
-                (variable
-                  (identifier)))
+            (node_selector
               (identifier)))
           (variable
             (identifier))))
@@ -504,13 +525,41 @@ query main() {
           (quantified_expression
             (variable
               (identifier))
-            (predicate
-              (comparison
-                (expression
+            (navigation_expression
+              (field_access
+                (navigation_expression
                   (variable
                     (identifier)))
-                (expression
-                  (null_literal)))))))
+                (identifier)))
+            (predicate
+              (quantified_expression
+                (variable
+                  (identifier))
+                (navigation_expression
+                  (child_navigation
+                    (navigation_expression
+                      (field_access
+                        (navigation_expression
+                          (variable
+                            (identifier)))
+                        (identifier)))
+                    (navigation_expression
+                      (node_selector
+                        (identifier)))))
+                (predicate
+                  (comparison
+                    (expression
+                      (field_access_expression
+                        (expression
+                          (variable
+                            (identifier)))
+                        (identifier)))
+                    (expression
+                      (field_access_expression
+                        (expression
+                          (variable
+                            (identifier)))
+                        (identifier))))))))))
       (select_clause
         (projection
           (variable

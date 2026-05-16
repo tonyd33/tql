@@ -184,8 +184,10 @@ module.exports = grammar({
     )),
 
     quantified_expression: $ => seq(
-      field('quantifier', choice('forall', 'exists')),
+      field('quantifier', choice('any', 'all')),
       field('variable', $.variable),
+      'in',
+      field('source', $.navigation_expression),
       ':',
       field('predicate', $.predicate),
     ),

@@ -767,12 +767,22 @@
         "required": true,
         "types": [
           {
-            "type": "exists",
+            "type": "all",
             "named": false
           },
           {
-            "type": "forall",
+            "type": "any",
             "named": false
+          }
+        ]
+      },
+      "source": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "navigation_expression",
+            "named": true
           }
         ]
       },
@@ -1191,7 +1201,15 @@
     "named": false
   },
   {
+    "type": "all",
+    "named": false
+  },
+  {
     "type": "and",
+    "named": false
+  },
+  {
+    "type": "any",
     "named": false
   },
   {
@@ -1216,14 +1234,6 @@
     "named": true
   },
   {
-    "type": "exists",
-    "named": false
-  },
-  {
-    "type": "forall",
-    "named": false
-  },
-  {
     "type": "from",
     "named": false
   },
@@ -1233,6 +1243,10 @@
   },
   {
     "type": "import",
+    "named": false
+  },
+  {
+    "type": "in",
     "named": false
   },
   {

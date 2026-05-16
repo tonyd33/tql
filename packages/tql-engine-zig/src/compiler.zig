@@ -397,35 +397,48 @@ pub const Compiler = struct {
         outer_success_label: LabelId,
         negated: bool,
     ) CompilerError!void {
-        switch (quantified.quantifier) {
-            .exists => {
-                const probe_success_label = builder.createLabel();
+        const body_negated = quantified.quantifier == .all;
+        const probe_negated = negated != body_negated;
 
-                const var_id = self.variables.get(quantified.variable.name) orelse
-                    @panic("Quantified variable not found");
+        const probe_success_label = builder.createLabel();
 
-                try self.ensureVariableNavigated(builder, var_id);
+        const bindings_snapshot = self.bindings.items.len;
+        const var_id = try self.variables.getOrPut(quantified.variable.name);
 
-                const probe_mode: runtime.ProbeMode = if (negated) .nexists else .exists;
-                try builder.emitProbe(probe_mode, probe_success_label);
+        try self.ensureExpressionDependencies(builder, quantified.source);
+        try self.compileNavigationExpression(builder, quantified.source);
+        try builder.emit(.{ .asn = .{
+            .variable_id = var_id,
+            .source = .{ .node = .this },
+        } });
 
-                const inner_success_label = builder.createLabel();
-                const inner_failure_label = builder.createLabel();
-                try self.compilePredicate(builder, quantified.predicate.*, inner_success_label, inner_failure_label);
+        try self.bindings.append(self.allocator, .{
+            .variable_id = var_id,
+            .expression = quantified.source,
+            .emitted = true,
+        });
 
-                try builder.markLabel(inner_success_label);
-                try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
+        const probe_mode: runtime.ProbeMode = if (probe_negated) .nexists else .exists;
+        try builder.emitProbe(probe_mode, probe_success_label);
 
-                try builder.markLabel(inner_failure_label);
-                try builder.emit(.{ .halt = .{ .condition = .always } });
-
-                try builder.markLabel(probe_success_label);
-                try builder.emitJump(outer_success_label, .always);
-            },
-            .forall => {
-                @panic("forall quantifier not yet implemented");
-            },
+        const inner_success_label = builder.createLabel();
+        const inner_failure_label = builder.createLabel();
+        if (body_negated) {
+            try self.compilePredicate(builder, quantified.predicate.*, inner_failure_label, inner_success_label);
+        } else {
+            try self.compilePredicate(builder, quantified.predicate.*, inner_success_label, inner_failure_label);
         }
+
+        try builder.markLabel(inner_success_label);
+        try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
+
+        try builder.markLabel(inner_failure_label);
+        try builder.emit(.{ .halt = .{ .condition = .always } });
+
+        try builder.markLabel(probe_success_label);
+        try builder.emitJump(outer_success_label, .always);
+
+        self.bindings.shrinkRetainingCapacity(bindings_snapshot);
     }
 
     fn compileComparison(

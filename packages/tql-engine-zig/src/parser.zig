@@ -538,13 +538,16 @@ pub const Parser = struct {
     fn parseQuantifiedExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.QuantifiedExpression {
         const quantifier_node = try expectChildByFieldName(node, "quantifier");
         const quantifier_text = nodeText(quantifier_node, source);
-        const quantifier: ast.Quantifier = if (std.mem.eql(u8, quantifier_text, "forall"))
-            .forall
+        const quantifier: ast.Quantifier = if (std.mem.eql(u8, quantifier_text, "all"))
+            .all
         else
-            .exists;
+            .any;
 
         const var_node = try expectChildByFieldName(node, "variable");
         const variable = try self.parseVariable(var_node, source);
+
+        const source_node = try expectChildByFieldName(node, "source");
+        const nav_source = try self.parseNavigationExpression(source_node, source);
 
         const pred_node = try expectChildByFieldName(node, "predicate");
         const pred = try self.allocator.create(ast.Predicate);
@@ -553,6 +556,7 @@ pub const Parser = struct {
         return ast.QuantifiedExpression{
             .quantifier = quantifier,
             .variable = variable,
+            .source = nav_source,
             .predicate = pred,
         };
     }
@@ -1111,10 +1115,8 @@ test "parse quantified expression" {
 
     const source =
         \\query main() {
-        \\  from class_declaration as @class,
-        \\       @class.body > method_definition as @method,
-        \\       @method.decorator as @decorator
-        \\  where exists @method: @decorator != null
+        \\  from class_declaration as @class
+        \\  where any @m in @class.body > method_definition: @m != null
         \\  select @class
         \\}
     ;
@@ -1124,5 +1126,6 @@ test "parse quantified expression" {
 
     const query = source_file.items[0].query;
     try std.testing.expect(query.body.where_clause.?.predicate == .quantified);
-    try std.testing.expect(query.body.where_clause.?.predicate.quantified.quantifier == .exists);
+    try std.testing.expect(query.body.where_clause.?.predicate.quantified.quantifier == .any);
+    try std.testing.expect(query.body.where_clause.?.predicate.quantified.source == .child_navigation);
 }

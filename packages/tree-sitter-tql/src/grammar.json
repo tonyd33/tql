@@ -786,11 +786,11 @@
             "members": [
               {
                 "type": "STRING",
-                "value": "forall"
+                "value": "any"
               },
               {
                 "type": "STRING",
-                "value": "exists"
+                "value": "all"
               }
             ]
           }
@@ -801,6 +801,18 @@
           "content": {
             "type": "SYMBOL",
             "name": "variable"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "in"
+        },
+        {
+          "type": "FIELD",
+          "name": "source",
+          "content": {
+            "type": "SYMBOL",
+            "name": "navigation_expression"
           }
         },
         {
