@@ -382,6 +382,9 @@ pub const Expression = union(enum) {
     number_literal: f64,
     function_call: FunctionCall,
     field_access: *FieldAccessExpression,
+    object_literal: ObjectLiteral,
+    array_literal: ArrayLiteral,
+    tuple_literal: TupleLiteral,
     subquery: *QueryBody,
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
@@ -392,15 +395,25 @@ pub const Expression = union(enum) {
             .number_literal => {},
             .function_call => |fc| {
                 allocator.free(fc.name);
-                for (fc.arguments) |arg| {
-                    arg.deinit(allocator);
-                }
+                for (fc.arguments) |arg| arg.deinit(allocator);
                 allocator.free(fc.arguments);
             },
             .field_access => |fa| {
                 fa.base.deinit(allocator);
                 allocator.free(fa.field);
                 allocator.destroy(fa);
+            },
+            .object_literal => |ol| {
+                for (ol.fields) |field| field.deinit(allocator);
+                allocator.free(ol.fields);
+            },
+            .array_literal => |al| {
+                for (al.elements) |elem| elem.deinit(allocator);
+                allocator.free(al.elements);
+            },
+            .tuple_literal => |tl| {
+                for (tl.elements) |elem| elem.deinit(allocator);
+                allocator.free(tl.elements);
             },
             .subquery => |sq| {
                 sq.deinit(allocator);

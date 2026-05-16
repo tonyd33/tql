@@ -69,6 +69,17 @@ pub const Value = union(enum) {
             else => {},
         }
     }
+
+    pub fn jsonStringify(self: Value, jws: *std.json.Stringify) std.json.Stringify.Error!void {
+        switch (self) {
+            .nothing => try jws.write(null),
+            .string => |s| try jws.write(s),
+            .node => |n| try jws.write(n),
+            .range => |r| try jws.write(r),
+            .record => |r| try r.jsonStringify(jws),
+            .list => |l| try l.jsonStringify(jws),
+        }
+    }
 };
 
 pub const RecordEntry = struct {
@@ -100,6 +111,15 @@ pub const Record = struct {
         gpa.free(self.entries);
     }
 
+    pub fn jsonStringify(self: Record, jws: *std.json.Stringify) std.json.Stringify.Error!void {
+        try jws.beginObject();
+        for (self.entries) |e| {
+            try jws.objectField(e.key);
+            try e.value.jsonStringify(jws);
+        }
+        try jws.endObject();
+    }
+
     fn lessThanEntry(_: void, a: RecordEntry, b: RecordEntry) bool {
         return std.mem.order(u8, a.key, b.key) == .lt;
     }
@@ -118,6 +138,12 @@ pub const List = struct {
     pub fn deinit(self: *List, gpa: Allocator) void {
         for (self.items) |*v| v.deinit(gpa);
         gpa.free(self.items);
+    }
+
+    pub fn jsonStringify(self: List, jws: *std.json.Stringify) std.json.Stringify.Error!void {
+        try jws.beginArray();
+        for (self.items) |v| try v.jsonStringify(jws);
+        try jws.endArray();
     }
 };
 

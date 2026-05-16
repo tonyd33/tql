@@ -771,6 +771,12 @@ pub const Parser = struct {
             const field_access_expr = try self.allocator.create(ast.FieldAccessExpression);
             field_access_expr.* = try self.parseFieldAccessExpression(node, source);
             return .{ .field_access = field_access_expr };
+        } else if (std.mem.eql(u8, node_type, "object_literal")) {
+            return .{ .object_literal = try self.parseObjectLiteral(node, source) };
+        } else if (std.mem.eql(u8, node_type, "array_literal")) {
+            return .{ .array_literal = try self.parseArrayLiteral(node, source) };
+        } else if (std.mem.eql(u8, node_type, "tuple_literal")) {
+            return .{ .tuple_literal = try self.parseTupleLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "subquery")) {
             const query_body = try self.allocator.create(ast.QueryBody);
             query_body.* = try self.parseSubquery(node, source);

@@ -215,6 +215,10 @@
       "required": true,
       "types": [
         {
+          "type": "array_literal",
+          "named": true
+        },
+        {
           "type": "field_access_expression",
           "named": true
         },
@@ -227,6 +231,10 @@
           "named": true
         },
         {
+          "type": "object_literal",
+          "named": true
+        },
+        {
           "type": "regex_literal",
           "named": true
         },
@@ -236,6 +244,10 @@
         },
         {
           "type": "subquery",
+          "named": true
+        },
+        {
+          "type": "tuple_literal",
           "named": true
         },
         {

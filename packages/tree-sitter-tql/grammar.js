@@ -258,6 +258,9 @@ module.exports = grammar({
       $.number_literal,
       $.function_call,
       $.field_access_expression,
+      $.object_literal,
+      $.array_literal,
+      $.tuple_literal,
       $.subquery,
     ),
 

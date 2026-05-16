@@ -547,7 +547,7 @@ pub const Compiler = struct {
         try builder.emitJump(failure_label, .always);
     }
 
-    fn compileExpression(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) !runtime.ValueSource {
+    fn compileExpression(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!runtime.ValueSource {
         return switch (expr) {
             .variable => |variable| {
                 if (self.variables.get(variable.name)) |var_id| {
@@ -577,8 +577,63 @@ pub const Compiler = struct {
                 _ = field_access;
                 @panic("Field access in expressions not yet implemented");
             },
+            .object_literal => |obj| try self.compileRecordExpression(builder, obj),
+            .array_literal => |arr| try self.compileListExpression(builder, arr.elements),
+            .tuple_literal => |tup| try self.compileListExpression(builder, tup.elements),
             else => @panic("Expression type not yet implemented"),
         };
+    }
+
+    fn compileRecordExpression(self: *Compiler, builder: *InstructionBuilder, obj: ast.ObjectLiteral) CompilerError!runtime.ValueSource {
+        const FieldSource = struct { key: []const u8, source: runtime.ValueSource };
+        var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
+        defer self.allocator.free(sources);
+
+        for (obj.fields, 0..) |field, i| {
+            switch (field) {
+                .variable => |variable| {
+                    const var_id = self.variables.get(variable.name) orelse
+                        @panic("Variable not found in object literal");
+                    try self.ensureVariableNavigated(builder, var_id);
+                    sources[i] = .{
+                        .key = try self.addString(variable.name),
+                        .source = .{ .variable_id = var_id },
+                    };
+                },
+                .key_value => |kv| {
+                    const source = try self.compileExpression(builder, kv.value);
+                    sources[i] = .{
+                        .key = try self.addString(kv.key),
+                        .source = source,
+                    };
+                },
+            }
+        }
+
+        try builder.emit(.{ .begin_build = .record });
+        for (sources) |fs| {
+            try builder.emit(.{ .push_build = .{ .source = fs.source, .name = fs.key } });
+        }
+        const tmp = self.variables.allocateAnonymous();
+        try builder.emit(.{ .end_build = tmp });
+        return .{ .variable_id = tmp };
+    }
+
+    fn compileListExpression(self: *Compiler, builder: *InstructionBuilder, elements: []const ast.Expression) CompilerError!runtime.ValueSource {
+        const sources = try self.allocator.alloc(runtime.ValueSource, elements.len);
+        defer self.allocator.free(sources);
+
+        for (elements, 0..) |elem, i| {
+            sources[i] = try self.compileExpression(builder, elem);
+        }
+
+        try builder.emit(.{ .begin_build = .list });
+        for (sources) |s| {
+            try builder.emit(.{ .push_build = .{ .source = s, .name = null } });
+        }
+        const tmp = self.variables.allocateAnonymous();
+        try builder.emit(.{ .end_build = tmp });
+        return .{ .variable_id = tmp };
     }
 
     fn compileSelectClause(self: *Compiler, builder: *InstructionBuilder, select_clause: ast.SelectClause) !void {
@@ -602,48 +657,17 @@ pub const Compiler = struct {
                 });
             },
             .object_literal => |obj| {
-                // runtime limitation that we have to pre-traverse these before
-                // beginning to build the record... it's probably ok
-                const FieldSource = struct { key: []const u8, source: runtime.ValueSource };
-                var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
-                defer self.allocator.free(sources);
-
-                for (obj.fields, 0..) |field, i| {
-                    switch (field) {
-                        .variable => |variable| {
-                            const var_id = self.variables.get(variable.name) orelse
-                                @panic("Variable not found in object literal");
-                            try self.ensureVariableNavigated(builder, var_id);
-                            sources[i] = .{
-                                .key = try self.addString(variable.name),
-                                .source = .{ .variable_id = var_id },
-                            };
-                        },
-                        .key_value => |kv| {
-                            const source = try self.compileExpression(builder, kv.value);
-                            sources[i] = .{
-                                .key = try self.addString(kv.key),
-                                .source = source,
-                            };
-                        },
-                    }
-                }
-
-                try builder.emit(.{ .begin_build = .record });
-                for (sources) |fs| {
-                    try builder.emit(.{
-                        .push_build = .{
-                            .source = fs.source,
-                            .name = fs.key,
-                        },
-                    });
-                }
-                const tmp = self.variables.allocateAnonymous();
-                try builder.emit(.{ .end_build = tmp });
-                try builder.emit(.{ .yield = .{ .source = .{ .variable_id = tmp } } });
+                const source = try self.compileRecordExpression(builder, obj);
+                try builder.emit(.{ .yield = .{ .source = source } });
             },
-            .array_literal => |arr| try self.compileListLikeProjection(builder, arr.elements),
-            .tuple_literal => |tup| try self.compileListLikeProjection(builder, tup.elements),
+            .array_literal => |arr| {
+                const source = try self.compileListExpression(builder, arr.elements);
+                try builder.emit(.{ .yield = .{ .source = source } });
+            },
+            .tuple_literal => |tup| {
+                const source = try self.compileListExpression(builder, tup.elements);
+                try builder.emit(.{ .yield = .{ .source = source } });
+            },
             // .number_literal => |numbver| {
             //     const owned_str = try self.addString(str);
             //     try builder.emit(.{ .yield = .{ .source = .{ .literal = owned_str } } });
@@ -652,22 +676,6 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileListLikeProjection(self: *Compiler, builder: *InstructionBuilder, elements: []const ast.Expression) !void {
-        const sources = try self.allocator.alloc(runtime.ValueSource, elements.len);
-        defer self.allocator.free(sources);
-
-        for (elements, 0..) |elem, i| {
-            sources[i] = try self.compileExpression(builder, elem);
-        }
-
-        try builder.emit(.{ .begin_build = .list });
-        for (sources) |s| {
-            try builder.emit(.{ .push_build = .{ .source = s, .name = null } });
-        }
-        const tmp = self.variables.allocateAnonymous();
-        try builder.emit(.{ .end_build = tmp });
-        try builder.emit(.{ .yield = .{ .source = .{ .variable_id = tmp } } });
-    }
 };
 
 test {

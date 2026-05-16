@@ -1118,6 +1118,18 @@
         },
         {
           "type": "SYMBOL",
+          "name": "object_literal"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "array_literal"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "tuple_literal"
+        },
+        {
+          "type": "SYMBOL",
           "name": "subquery"
         }
       ]
