@@ -1,6 +1,0 @@
-class_declaration {
-  decorator > call_expression > identifier[.text = 'Controller'] {}
-  method_definition > property_identifier[.text = 'm1' || .text = 'm2'] {
-    let method_name = .text
-  }
-}

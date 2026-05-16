@@ -2,6 +2,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const ts = @import("tree-sitter");
+const ds = @import("../ds.zig");
+const Rc = ds.Rc;
 
 const pcre2 = @import("../pcre2.zig");
 
@@ -31,7 +33,6 @@ const Instruction = types.Instruction;
 const Vector = types.Vector;
 const Record = types.Record;
 const List = types.List;
-const Rc = @import("../rc.zig").Rc;
 
 pub const Runtime = struct {
     const Self = @This();
