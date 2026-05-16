@@ -121,7 +121,7 @@ test "InstructionBuilder: emit basic instructions" {
     var builder = InstructionBuilder.init(testing.allocator);
     defer builder.deinit();
 
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
     try builder.emit(.{ .halt = .{ .condition = .always } });
 
     const instructions = try builder.patch(testing.allocator);
@@ -142,7 +142,7 @@ test "InstructionBuilder: createLabel and markLabel" {
     try testing.expectEqual(@as(u32, 0), label1);
     try testing.expectEqual(@as(u32, 1), label2);
 
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
     try builder.markLabel(label1);
     try builder.emit(.{ .halt = .{ .condition = .always } });
     try builder.markLabel(label2);
@@ -163,7 +163,7 @@ test "InstructionBuilder: emitJump with forward reference" {
 
     // Emit jump before marking the label (forward reference)
     try builder.emitJump(target_label, .always);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.markLabel(target_label);
     try builder.emit(.{ .halt = .{ .condition = .always } });
 
@@ -185,7 +185,7 @@ test "InstructionBuilder: emitJump with backward reference" {
 
     // Emit jump after marking the label (backward reference)
     try builder.markLabel(target_label);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.emitJump(target_label, .relates);
 
     const instructions = try builder.patch(testing.allocator);
@@ -206,10 +206,10 @@ test "InstructionBuilder: emitProbe with forward reference" {
 
     // Emit probe before marking the success label
     try builder.emitProbe(.exists, success_label);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.emit(.{ .halt = .{ .condition = .always } });
     try builder.markLabel(success_label);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
 
     const instructions = try builder.patch(testing.allocator);
     defer testing.allocator.free(instructions);
@@ -228,9 +228,9 @@ test "InstructionBuilder: multiple jumps to same label" {
 
     // Multiple jumps to the same label
     try builder.emitJump(target_label, .always);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.emitJump(target_label, .relates);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.markLabel(target_label);
     try builder.emit(.{ .halt = .{ .condition = .always } });
 
@@ -251,7 +251,7 @@ test "InstructionBuilder: unresolved label returns error" {
 
     // Emit jump to label but never mark it
     try builder.emitJump(label, .always);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
 
     // build() should fail with UnresolvedLabel
     const result = builder.patch(testing.allocator);
@@ -271,7 +271,7 @@ test "InstructionBuilder: complex control flow with multiple labels" {
     try builder.emitJump(success, .relates);
     try builder.emitJump(loop_start, .always);
     try builder.markLabel(success);
-    try builder.emit(.yield);
+    try builder.emit(.{ .yield = .{} });
     try builder.emitJump(end, .always);
     try builder.markLabel(end);
     try builder.emit(.{ .halt = .{ .condition = .always } });

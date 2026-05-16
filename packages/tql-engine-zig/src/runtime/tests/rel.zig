@@ -34,7 +34,7 @@ test "rel: equals with matching strings" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .not_relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -64,7 +64,7 @@ test "rel: not equals with matching strings" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -94,7 +94,7 @@ test "rel: not equals with different strings" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -126,7 +126,7 @@ test "rel: like with regex matching" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .not_relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -159,7 +159,7 @@ test "rel: like with regex not matching" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .not_relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -192,7 +192,7 @@ test "rel: not like with regex matching" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -225,7 +225,7 @@ test "rel: not like with regex not matching" {
             .b = .{ .variable_id = 1 },
         } },
         Instruction{ .halt = .{ .condition = .relates } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -270,7 +270,7 @@ test "rel: relates halt inside nexists probe should succeed" {
         // 5: This should never be reached
         Instruction{ .panic = {} },
         // 6: Probe succeeded, yield result
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 

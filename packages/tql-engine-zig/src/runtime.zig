@@ -15,7 +15,6 @@ pub const Boundary = types.Boundary;
 pub const State = types.State;
 pub const Frame = types.Frame;
 pub const Stack = types.Stack;
-pub const Match = types.Match;
 pub const RuntimeError = types.RuntimeError;
 
 pub const ChildIterator = types.ChildIterator;

@@ -3,7 +3,7 @@ const tql = @import("tql_engine_zig");
 const clap = @import("clap");
 const Engine = tql.Engine;
 const Language = tql.Language;
-const Match = tql.Match;
+const Value = tql.Value;
 
 const VERSION = "0.1.0";
 
@@ -171,7 +171,7 @@ fn run(
     var query_result = try query.run(allocator, query_target);
     query.deinit();
 
-    try formatResult(stdout, allocator, query_result.matches);
+    try formatResult(stdout, query_result.values);
 
     allocator.free(query_target);
     query_result.deinit();
@@ -179,43 +179,12 @@ fn run(
     return 0;
 }
 
-fn formatResult(writer: *std.io.Writer, allocator: std.mem.Allocator, matches: []const Match) !void {
+fn formatResult(writer: *std.io.Writer, values: []Value) !void {
     var jws = std.json.Stringify{ .writer = writer };
 
     try jws.beginArray();
-    for (matches, 0..) |match, i| {
-        const capture_count = match.captures.count();
-        const keys = try allocator.alloc([]const u8, capture_count);
-        defer allocator.free(keys);
-        const values = try allocator.alloc(tql.Value, capture_count);
-        defer allocator.free(values);
-
-        var iter = match.captures.iterator();
-        var idx: usize = 0;
-        while (iter.next()) |entry| : (idx += 1) {
-            keys[idx] = entry.key_ptr.*;
-            values[idx] = entry.value_ptr.*;
-        }
-        var hmu = try std.StringArrayHashMapUnmanaged(tql.Value).init(
-            allocator,
-            keys,
-            values,
-        );
-        defer hmu.deinit(allocator);
-        const captures_map = std.json.ArrayHashMap(tql.Value){ .map = hmu };
-
-        try jws.beginObject();
-
-        try jws.objectField("index");
-        try jws.write(i);
-
-        try jws.objectField("node");
-        try jws.write(match.node);
-
-        try jws.objectField("captures");
-        try captures_map.jsonStringify(&jws);
-
-        try jws.endObject();
+    for (values) |value| {
+        try jws.write(value);
     }
     try jws.endArray();
 }

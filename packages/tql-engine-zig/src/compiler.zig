@@ -427,7 +427,7 @@ pub const Compiler = struct {
                 try self.compilePredicate(builder, quantified.predicate.*, inner_success_label, inner_failure_label);
 
                 try builder.markLabel(inner_success_label);
-                try builder.emit(.yield);
+                try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
 
                 try builder.markLabel(inner_failure_label);
                 try builder.emit(.{ .halt = .{ .condition = .always } });
@@ -586,7 +586,7 @@ pub const Compiler = struct {
                     try self.ensureVariableNavigated(builder, var_id);
                     try builder.emit(.{ .trv = .{ .variable_id = var_id } });
                 }
-                try builder.emit(.yield);
+                try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
             },
             else => @panic("Only variable projection supported for now"),
         }

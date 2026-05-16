@@ -104,11 +104,6 @@ pub const Frame = struct {
 
 pub const Stack = std.ArrayList(Frame);
 
-pub const Match = struct {
-    node: ts.Node,
-    environment: *const Environment,
-};
-
 pub const RuntimeError = error{
     ExecuteOutOfBounds,
 };
@@ -361,7 +356,9 @@ pub const Instruction = union(enum) {
         a: ValueSource,
         b: ValueSource,
     },
-    yield,
+    yield: struct {
+        source: ValueSource = .{ .node = .this },
+    },
     probe: struct {
         mode: ProbeMode,
         on_success: Address,

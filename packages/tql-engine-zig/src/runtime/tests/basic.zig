@@ -46,7 +46,7 @@ test "yield: basic" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 

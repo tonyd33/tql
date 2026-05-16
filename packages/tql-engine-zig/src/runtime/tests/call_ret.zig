@@ -21,7 +21,7 @@ test "call/ret: basic call and return" {
     // 4: ret         // Return from function
     const instructions = [_]Instruction{
         Instruction{ .call = 3 },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .noop = {} },
         Instruction{ .ret = {} },
@@ -50,11 +50,11 @@ test "call/ret: yields inside called function" {
     // 6: ret                // Return
     const instructions = [_]Instruction{
         Instruction{ .call = 4 },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
         Instruction{ .trv = Axis{ .child = {} } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .ret = {} },
     };
 
@@ -86,13 +86,13 @@ test "call/ret: nested calls" {
     // 8: ret            // Then return from inner
     const instructions = [_]Instruction{
         Instruction{ .call = 4 },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
         Instruction{ .call = 7 },
         Instruction{ .ret = {} },
         Instruction{ .panic = {} },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .ret = {} },
     };
 
@@ -111,21 +111,13 @@ test "call/ret: preserves environment correctly" {
         \\ void foo() {}
     ;
 
-    // Program that tests environment preservation:
-    // 0: asn 1 "original"  // asn x="original" before call
-    // 1: call 5            // Call function
-    // 2: asn 2 "after"     // asn y="after" after return
-    // 3: yield             // Yield with both x and y
-    // 4: halt
-    // 5: asn 1 "modified"  // Function: try to modify x
-    // 6: asn 3 "local"     // Function: asn z="local"
-    // 7: ret               // Return
-
     const instructions = [_]Instruction{
         Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "original" } } } },
-        Instruction{ .call = 5 },
+        Instruction{ .call = 7 },
         Instruction{ .asn = .{ .variable_id = 2, .source = .{ .literal = Value{ .string = "after" } } } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 2 } } },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 3 } } },
         Instruction{ .halt = .{} },
         Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "modified" } } } },
         Instruction{ .asn = .{ .variable_id = 3, .source = .{ .literal = Value{ .string = "local" } } } },
@@ -138,15 +130,15 @@ test "call/ret: preserves environment correctly" {
     try ctx.runtime.exec();
 
     // Should have exactly one match
-    var match_count: usize = 0;
-    while (try ctx.runtime.nextMatch()) |match| {
-        match_count += 1;
+    var value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqualStrings(value.?.string, "original");
 
-        // Verify environment: x should be "original" (not "modified"), y should be "after", z should not exist
-        try std.testing.expect(std.mem.eql(u8, match.environment.get(1).?.string, "original"));
-        try std.testing.expect(std.mem.eql(u8, match.environment.get(2).?.string, "after"));
-        try std.testing.expect(match.environment.get(3) == null); // z was only in function scope
-    }
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqualStrings(value.?.string, "after");
 
-    try std.testing.expectEqual(@as(usize, 1), match_count);
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value.?.nothing, {});
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value, null);
 }

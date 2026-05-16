@@ -19,7 +19,6 @@ const Boundary = types.Boundary;
 const State = types.State;
 const Frame = types.Frame;
 const Stack = types.Stack;
-const Match = types.Match;
 const RuntimeError = types.RuntimeError;
 const ChildIterator = types.ChildIterator;
 const FieldIterator = types.FieldIterator;
@@ -166,7 +165,7 @@ pub const Runtime = struct {
         return false;
     }
 
-    pub fn nextMatch(self: *Self) !?Match {
+    pub fn nextMatch(self: *Self) !?Value {
         outer: while (self.stack.items.len > 0) {
             const frame = &self.stack.items[self.stack.items.len - 1];
 
@@ -311,16 +310,12 @@ pub const Runtime = struct {
                     };
                     frame.state.flag = relates;
                 },
-                .yield => {
+                .yield => |source| {
                     if (self.handleProbeBoundary(true)) {
                         continue :outer;
                     }
-                    // No probe boundary found, this is a normal yield
                     frame.state.pc += 1;
-                    return Match{
-                        .node = frame.state.node,
-                        .environment = frame.state.environment,
-                    };
+                    return self.getSource(frame.state, source.source);
                 },
                 .probe => |probe_inst| {
                     frame.state.pc += 1;

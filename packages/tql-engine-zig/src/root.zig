@@ -14,7 +14,6 @@ pub const AST = ast;
 pub const Parser = parser.Parser;
 pub const Query = query.Query;
 pub const Value = query.Value;
-pub const Match = query.Match;
 pub const Compiler = compiler.Compiler;
 pub const Runtime = runtime;
 pub const Language = language.Language;

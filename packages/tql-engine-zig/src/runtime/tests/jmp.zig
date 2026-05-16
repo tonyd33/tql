@@ -47,7 +47,7 @@ test "jmp: conditional jump when relation succeeds" {
         // Should not reach here
         Instruction{ .panic = {} },
         // Should land here
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -80,7 +80,7 @@ test "jmp: conditional jump when relation fails" {
         // Should not reach here
         Instruction{ .panic = {} },
         // Should land here
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -111,7 +111,7 @@ test "jmp: conditional jump not taken when condition not met" {
         // Try to jump if flag is false (but it's true, so skip)
         Instruction{ .jmp = .{ .address = 6, .mode = .not_relates } },
         // Should continue here
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         // Should not reach here
         Instruction{ .panic = {} },

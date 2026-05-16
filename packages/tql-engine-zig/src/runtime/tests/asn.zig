@@ -8,6 +8,7 @@ const Axis = types.Axis;
 const ValueSource = types.ValueSource;
 const Value = types.Value;
 const NodeValueSource = types.NodeValueSource;
+const Range = types.Range;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -23,7 +24,7 @@ test "asn: literal" {
             .variable_id = 1,
             .source = ValueSource{ .literal = Value{ .string = "hi" } },
         } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
         Instruction{ .halt = .{} },
     };
 
@@ -32,13 +33,11 @@ test "asn: literal" {
 
     try ctx.runtime.exec();
 
-    while (try ctx.runtime.nextMatch()) |match| {
-        try expect(std.mem.eql(
-            u8,
-            match.environment.get(1).?.string,
-            "hi",
-        ));
-    }
+    var value = try ctx.runtime.nextMatch();
+    try std.testing.expect(std.mem.eql(u8, value.?.string, "hi"));
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value, null);
 }
 
 test "asn: node" {
@@ -64,7 +63,9 @@ test "asn: node" {
             .variable_id = 3,
             .source = ValueSource{ .node = NodeValueSource.range },
         } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 2 } } },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 3 } } },
         Instruction{ .halt = .{} },
     };
 
@@ -73,17 +74,22 @@ test "asn: node" {
 
     try ctx.runtime.exec();
 
-    while (try ctx.runtime.nextMatch()) |match| {
-        try expect(std.mem.eql(
-            u8,
-            match.environment.get(1).?.string,
-            "void foo_bar() {}",
-        ));
-        try expect(match.environment.get(2).?.kind_id == function_definition_kind_id);
-        const range = match.environment.get(3).?.range;
-        try expect(range.start_byte == 1);
-        try expect(range.end_byte == 18);
-    }
+    var value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqualStrings(value.?.string, "void foo_bar() {}");
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value.?.kind_id, function_definition_kind_id);
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value.?.range, Range{
+        .start_point = .{ .row = 0, .column = 1 },
+        .end_point = .{ .row = 0, .column = 18 },
+        .start_byte = 1,
+        .end_byte = 18,
+    });
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value, null);
 }
 
 test "asn: variable" {
@@ -104,7 +110,9 @@ test "asn: variable" {
             .variable_id = 3,
             .source = ValueSource{ .variable_id = 123 },
         } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 1 } } },
+        Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 2 } } },
+        Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 3 } } },
         Instruction{ .halt = .{} },
     };
 
@@ -113,17 +121,15 @@ test "asn: variable" {
 
     try ctx.runtime.exec();
 
-    while (try ctx.runtime.nextMatch()) |match| {
-        try expect(std.mem.eql(
-            u8,
-            match.environment.get(1).?.string,
-            "hi",
-        ));
-        try expect(std.mem.eql(
-            u8,
-            match.environment.get(2).?.string,
-            "hi",
-        ));
-        try expect(match.environment.get(3) == null);
-    }
+    var value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqualStrings(value.?.string, "hi");
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqualStrings(value.?.string, "hi");
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value.?.nothing, {});
+
+    value = try ctx.runtime.nextMatch();
+    try std.testing.expectEqual(value, null);
 }

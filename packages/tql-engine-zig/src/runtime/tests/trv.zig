@@ -19,7 +19,7 @@ test "trv: children depth 1" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -38,7 +38,7 @@ test "trv: children depth 2" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .child = {} } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -57,7 +57,7 @@ test "trv: descendants" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .descendant = {} } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -86,7 +86,7 @@ test "trv: descendants with child" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .descendant = {} } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -119,7 +119,7 @@ test "trv: field" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Get function_definition
         Instruction{ .trv = Axis{ .field = declarator_field_id } }, // Get declarator field
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -141,7 +141,7 @@ test "trv: field with multiple declarations" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .field = declarator_field_id } },
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -169,7 +169,7 @@ test "trv: variable_id with node" {
         },
         Instruction{ .trv = Axis{ .descendant = {} } }, // Navigate away to descendants
         Instruction{ .trv = Axis{ .variable_id = 1 } }, // trv back to the stored node
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -195,7 +195,7 @@ test "trv: variable_id with missing variable" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .variable_id = 999 } }, // Variable doesn't exist
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -211,7 +211,7 @@ test "trv: empty node has no children" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
     };
 
@@ -227,7 +227,7 @@ test "trv: empty traversal then yield" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
-        Instruction{ .yield = {} }, // This should not execute
+        Instruction{ .yield = .{} }, // This should not execute
         Instruction{ .halt = .{} },
     };
 
@@ -244,7 +244,7 @@ test "trv: empty traversal with halt after" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .halt = .{} }, // This should not execute
-        Instruction{ .yield = {} },
+        Instruction{ .yield = .{} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });

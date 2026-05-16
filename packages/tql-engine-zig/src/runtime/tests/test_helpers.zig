@@ -6,7 +6,7 @@ const pcre2 = @import("../../pcre2.zig");
 
 const types = @import("../types.zig");
 const Instruction = types.Instruction;
-const Match = types.Match;
+const Value = types.Value;
 
 const Runtime = @import("../core.zig").Runtime;
 
@@ -61,18 +61,18 @@ pub const TestContext = struct {
         self.language.destroy();
     }
 
-    pub fn collectMatches(self: *TestContext) !std.ArrayList(Match) {
+    pub fn collectMatches(self: *TestContext) !std.ArrayList(Value) {
         try self.runtime.exec();
 
-        var matches: std.ArrayList(Match) = .empty;
-        errdefer matches.deinit(self.allocator);
+        var values: std.ArrayList(Value) = .empty;
+        errdefer values.deinit(self.allocator);
 
         // FIXME: If we need to access the environment, we need to take a snapshot
-        while (try self.runtime.nextMatch()) |match| {
-            try matches.append(self.allocator, match);
+        while (try self.runtime.nextMatch()) |value| {
+            try values.append(self.allocator, value);
         }
 
-        return matches;
+        return values;
     }
 
     pub fn expectMatchKinds(self: *TestContext, expected_kinds: []const []const u8) !void {

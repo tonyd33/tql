@@ -59,34 +59,18 @@ pub const Value = union(enum) {
     }
 };
 
-pub const Match = struct {
-    node: Node,
-    captures: std.StringHashMap(Value),
-
-    pub fn deinit(self: *Match) void {
-        self.captures.deinit();
-    }
-
-    pub fn getCapture(self: *const Match, name: []const u8) ?Value {
-        return self.captures.get(name);
-    }
-};
-
 pub const QueryStats = struct {
     parse_time_us: u64 = 0,
     execute_time_us: u64 = 0,
 };
 
 pub const QueryResult = struct {
-    matches: []Match,
+    values: []Value,
     stats: QueryStats,
     allocator: std.mem.Allocator,
 
     pub fn deinit(self: *QueryResult) void {
-        for (self.matches) |*match| {
-            match.deinit();
-        }
-        self.allocator.free(self.matches);
+        self.allocator.free(self.values);
     }
 };
 
@@ -128,59 +112,23 @@ pub const Query = struct {
 
         try rt.exec();
 
-        var matches_list = std.ArrayList(Match){};
-        defer matches_list.deinit(allocator);
-        errdefer {
-            for (matches_list.items) |*m| m.deinit();
-        }
+        var values_list = std.ArrayList(Value){};
+        defer values_list.deinit(allocator);
 
-        while (try rt.nextMatch()) |runtime_match| {
+        while (try rt.nextMatch()) |runtime_value| {
             // NOTE: If we're able to defer this to the consumer, we can save
             // a ton of heap allocations
-            const enriched_match = try self.enrichMatch(gpa, runtime_match, source_code);
-            try matches_list.append(gpa, enriched_match);
+            const enriched_value = Value.fromRuntimeValue(runtime_value, source_code);
+            try values_list.append(gpa, enriched_value);
         }
 
-        const matches = try matches_list.toOwnedSlice(gpa);
+        const values = try values_list.toOwnedSlice(gpa);
         stats.execute_time_us = execute_timer.read() / 1000;
 
         return QueryResult{
-            .matches = matches,
+            .values = values,
             .stats = stats,
             .allocator = gpa,
-        };
-    }
-
-    fn enrichMatch(
-        self: *Query,
-        allocator: std.mem.Allocator,
-        runtime_match: runtime.Match,
-        source_code: []const u8,
-    ) !Match {
-        const enriched_node = Node.fromTsNode(runtime_match.node, source_code);
-
-        var captures = std.StringHashMap(Value).init(allocator);
-        errdefer captures.deinit();
-
-        var env_snapshot = try runtime_match.environment.snapshot(allocator);
-        defer env_snapshot.deinit();
-
-        var env_iter = env_snapshot.iterator();
-        while (env_iter.next()) |entry| {
-            const var_id = entry.key_ptr.*;
-            const runtime_value = entry.value_ptr.*;
-
-            if (self.program_image.variable_map.get(var_id)) |var_name| {
-                const enriched_value = Value.fromRuntimeValue(runtime_value, source_code);
-                try captures.put(var_name, enriched_value);
-            } else {
-                @panic("Variable missing in map");
-            }
-        }
-
-        return Match{
-            .node = enriched_node,
-            .captures = captures,
         };
     }
 

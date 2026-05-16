@@ -156,7 +156,7 @@ pub const SnapshotTest = struct {
     update_snapshots: bool = false,
 
     /// Optional validation function for integration test
-    validate_fn: ?*const fn (source: []const u8, allocator: std.mem.Allocator, matches: []runtime.Match) anyerror!void = null,
+    validate_fn: ?*const fn (source: []const u8, allocator: std.mem.Allocator, values: []runtime.Value) anyerror!void = null,
     expected_match_count: ?usize = null,
 
     pub fn run(self: SnapshotTest) !void {
@@ -198,21 +198,21 @@ pub const SnapshotTest = struct {
         try rt.exec();
 
         // Collect all matches
-        var matches = std.ArrayList(runtime.Match){};
-        defer matches.deinit(self.allocator);
+        var values = std.ArrayList(runtime.Value){};
+        defer values.deinit(self.allocator);
 
-        while (try rt.nextMatch()) |match| {
-            try matches.append(self.allocator, match);
+        while (try rt.nextMatch()) |value| {
+            try values.append(self.allocator, value);
         }
 
         // Validate match count if specified
         if (self.expected_match_count) |expected| {
-            try testing.expectEqual(expected, matches.items.len);
+            try testing.expectEqual(expected, values.items.len);
         }
 
         // Run custom validation if provided
         if (self.validate_fn) |validate| {
-            try validate(self.source, self.allocator, matches.items);
+            try validate(self.source, self.allocator, values.items);
         }
     }
 };
