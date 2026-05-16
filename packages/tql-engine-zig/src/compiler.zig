@@ -34,7 +34,6 @@ const CompilerError = error{
 };
 
 // FIXME: Please don't do this...
-// fuck it actually affects query results right now...
 const ROOT_NAME = &[_]u8{0};
 
 pub const Compiler = struct {
@@ -382,20 +381,6 @@ pub const Compiler = struct {
                     try self.compilePredicate(builder, logical_not.*.predicate, failure_label, success_label);
                 }
             },
-            .variable => |variable| {
-                if (self.variables.get(variable.name)) |var_id| {
-                    try self.ensureVariableNavigated(builder, var_id);
-
-                    try builder.emit(.{ .rel = .{
-                        .relation = .equals,
-                        .a = .{ .variable_id = var_id },
-                        .b = .{ .literal = .{ .nothing = {} } },
-                    } });
-                    try builder.emit(.{ .halt = .{ .condition = .relates } });
-                } else {
-                    @panic("Variable not found in predicate");
-                }
-            },
             .quantified => |quantified| {
                 try self.compileQuantified(builder, quantified, success_label, false);
             },
@@ -565,6 +550,9 @@ pub const Compiler = struct {
             },
             .number_literal => |_| {
                 @panic("Number literals not yet implemented");
+            },
+            .null_literal => runtime.ValueSource{
+                .literal = .{ .nothing = {} },
             },
             .regex_literal => |pattern| {
                 const regex = try pcre2.Regex.compile(pattern);

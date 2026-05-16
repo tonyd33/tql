@@ -259,13 +259,13 @@ query main() {
             (identifier)))))))
 
 ========================================
-logical not
+null equality
 ========================================
 
 query main() {
   from method_definition as @method,
        @method.return_type as @return_type?
-  where not @return_type
+  where @return_type = null
   select @method
 }
 
@@ -294,10 +294,12 @@ query main() {
             (identifier))))
       (where_clause
         (predicate
-          (logical_not
-            (predicate
+          (comparison
+            (expression
               (variable
-                (identifier))))))
+                (identifier)))
+            (expression
+              (null_literal)))))
       (select_clause
         (projection
           (variable
@@ -311,7 +313,7 @@ query main() {
   from class_declaration as @class,
        @class.name as @name,
        @class.decorator as @decorator?
-  where (@name = 'Foo' or @name = 'Bar') and not @decorator
+  where (@name = 'Foo' or @name = 'Bar') and @decorator = null
   select @class
 }
 
@@ -371,10 +373,12 @@ query main() {
                           (string_literal
                             (string_fragment)))))))))
             (predicate
-              (logical_not
-                (predicate
+              (comparison
+                (expression
                   (variable
-                    (identifier))))))))
+                    (identifier)))
+                (expression
+                  (null_literal)))))))
       (select_clause
         (projection
           (variable
@@ -388,7 +392,7 @@ query main() {
   from class_declaration as @class,
        @class.body > method_definition as @method,
        @method.decorator as @decorator?
-  where exists @method: @decorator
+  where exists @method: @decorator != null
   select @class
 }
 
@@ -435,8 +439,12 @@ query main() {
             (variable
               (identifier))
             (predicate
-              (variable
-                (identifier))))))
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (null_literal)))))))
       (select_clause
         (projection
           (variable
@@ -450,7 +458,7 @@ query main() {
   from class_declaration as @class,
        @class.body > method_definition as @method,
        @method.return_type as @return_type?
-  where forall @method: @return_type
+  where forall @method: @return_type != null
   select @class
 }
 
@@ -497,8 +505,12 @@ query main() {
             (variable
               (identifier))
             (predicate
-              (variable
-                (identifier))))))
+              (comparison
+                (expression
+                  (variable
+                    (identifier)))
+                (expression
+                  (null_literal)))))))
       (select_clause
         (projection
           (variable
@@ -549,6 +561,53 @@ query main() {
                 (expression
                   (string_literal
                     (string_fragment))))))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+null inequality
+========================================
+
+query main() {
+  from class_declaration as @class,
+       @class.decorator as @decorator?
+  where @decorator != null
+  select @class
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (navigation_expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier)))
+        (binding
+          (navigation_expression
+            (field_access
+              (navigation_expression
+                (variable
+                  (identifier)))
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (comparison
+            (expression
+              (variable
+                (identifier)))
+            (expression
+              (null_literal)))))
       (select_clause
         (projection
           (variable

@@ -446,8 +446,6 @@ pub const Parser = struct {
             return .{ .logical_not = logical_not };
         } else if (std.mem.eql(u8, node_type, "quantified_expression")) {
             return .{ .quantified = try self.parseQuantifiedExpression(node, source) };
-        } else if (std.mem.eql(u8, node_type, "variable")) {
-            return .{ .variable = try self.parseVariable(node, source) };
         } else if (std.mem.eql(u8, node_type, "parenthesized_predicate")) {
             var cursor = node.walk();
             defer cursor.destroy();
@@ -765,6 +763,8 @@ pub const Parser = struct {
             return .{ .regex_literal = try self.parseRegexLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "number_literal")) {
             return .{ .number_literal = try self.parseNumberLiteral(node, source) };
+        } else if (std.mem.eql(u8, node_type, "null_literal")) {
+            return .null_literal;
         } else if (std.mem.eql(u8, node_type, "function_call")) {
             return .{ .function_call = try self.parseFunctionCall(node, source) };
         } else if (std.mem.eql(u8, node_type, "field_access_expression")) {
@@ -1113,8 +1113,8 @@ test "parse quantified expression" {
         \\query main() {
         \\  from class_declaration as @class,
         \\       @class.body > method_definition as @method,
-        \\       @method.decorator as @decorator?
-        \\  where exists @method: @decorator
+        \\       @method.decorator as @decorator
+        \\  where exists @method: @decorator != null
         \\  select @class
         \\}
     ;

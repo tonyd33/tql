@@ -155,7 +155,7 @@ query with optional binding
 query main() {
   from method_definition as @method,
        @method.return_type as @return_type?
-  where not @return_type
+  where @return_type = null
   select @method
 }
 
@@ -184,10 +184,12 @@ query main() {
             (identifier))))
       (where_clause
         (predicate
-          (logical_not
-            (predicate
+          (comparison
+            (expression
               (variable
-                (identifier))))))
+                (identifier)))
+            (expression
+              (null_literal)))))
       (select_clause
         (projection
           (variable

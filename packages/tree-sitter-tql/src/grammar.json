@@ -626,10 +626,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "variable"
-        },
-        {
-          "type": "SYMBOL",
           "name": "parenthesized_predicate"
         }
       ]
@@ -1110,6 +1106,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "null_literal"
+        },
+        {
+          "type": "SYMBOL",
           "name": "function_call"
         },
         {
@@ -1552,6 +1552,10 @@
     "number_literal": {
       "type": "PATTERN",
       "value": "\\d+(\\.\\d+)?"
+    },
+    "null_literal": {
+      "type": "STRING",
+      "value": "null"
     },
     "variable": {
       "type": "SEQ",

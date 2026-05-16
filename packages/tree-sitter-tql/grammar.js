@@ -155,12 +155,13 @@ module.exports = grammar({
       $.logical_or,
       $.logical_not,
       $.quantified_expression,
-      $.variable,  // truthy test for optional bindings
       $.parenthesized_predicate,
     ),
 
     comparison: $ => prec.left(PREC.comparison, seq(
       field('left', $.expression),
+      // maybe these should have first class distinction to support syntax
+      // like 'foo' not like /regex/ or @bar is not null
       field('operator', choice('=', '!=', '~', '!~', '>', '<', '>=', '<=')),
       field('right', $.expression),
     )),
@@ -256,6 +257,7 @@ module.exports = grammar({
       $.string_literal,
       $.regex_literal,
       $.number_literal,
+      $.null_literal,
       $.function_call,
       $.field_access_expression,
       $.object_literal,
@@ -360,6 +362,8 @@ module.exports = grammar({
     )),
 
     number_literal: _ => /\d+(\.\d+)?/,
+
+    null_literal: _ => 'null',
 
     // Identifiers
     variable: $ => seq('@', $.identifier),

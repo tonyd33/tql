@@ -202,7 +202,6 @@ pub const Predicate = union(enum) {
     logical_or: *LogicalOr,
     logical_not: *LogicalNot,
     quantified: QuantifiedExpression,
-    variable: Variable,
     parenthesized: *Predicate,
 
     pub fn deinit(self: Predicate, allocator: std.mem.Allocator) void {
@@ -230,7 +229,6 @@ pub const Predicate = union(enum) {
                 q.predicate.deinit(allocator);
                 allocator.destroy(q.predicate);
             },
-            .variable => |v| allocator.free(v.name),
             .parenthesized => |p| {
                 p.deinit(allocator);
                 allocator.destroy(p);
@@ -380,6 +378,7 @@ pub const Expression = union(enum) {
     string_literal: []const u8,
     regex_literal: []const u8,
     number_literal: f64,
+    null_literal,
     function_call: FunctionCall,
     field_access: *FieldAccessExpression,
     object_literal: ObjectLiteral,
@@ -393,6 +392,7 @@ pub const Expression = union(enum) {
             .string_literal => |s| allocator.free(s),
             .regex_literal => |r| allocator.free(r),
             .number_literal => {},
+            .null_literal => {},
             .function_call => |fc| {
                 allocator.free(fc.name);
                 for (fc.arguments) |arg| arg.deinit(allocator);

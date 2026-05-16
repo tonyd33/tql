@@ -111,3 +111,67 @@ test "WHERE with exists quantifier - no matches" {
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
+
+test "WHERE optional binding is null" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from function_declaration as @f,
+        \\       @f.return_type as @rt?
+        \\  where @rt = null
+        \\  select @f
+        \\}
+        ,
+        .source =
+        \\function a(): number { return 1; }
+        \\function b() { return 2; }
+        \\function c(): string { return 'x'; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_null_eq.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE optional binding is not null" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from function_declaration as @f,
+        \\       @f.return_type as @rt?
+        \\  where @rt != null
+        \\  select @f
+        \\}
+        ,
+        .source =
+        \\function a(): number { return 1; }
+        \\function b() { return 2; }
+        \\function c(): string { return 'x'; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_null_ne.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE exists with null inequality body" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c,
+        \\       @c.body as @body,
+        \\       @body > method_definition as @m,
+        \\       @m.return_type as @rt?
+        \\  where exists @m: @rt != null
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service { foo(): number { return 1; }; bar() {}; }
+        \\class Controller { baz() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_exists_null_ne.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
