@@ -1,0 +1,16 @@
+=== bytecode ===
+0: asn 0 (node this)
+1: trv variable_id 0
+2: trv descendant
+3: rel equals (node kind) (literal kind_id 221)
+4: halt not_relates
+5: asn 1 (node this)
+6: begin_build record
+7: push_build class (variable_id 1)
+8: end_build 2
+9: yield
+10: halt always
+=== values ===
+{class: node class_declaration [0..10]}
+{class: node class_declaration [11..21]}
+{class: node class_declaration [22..32]}

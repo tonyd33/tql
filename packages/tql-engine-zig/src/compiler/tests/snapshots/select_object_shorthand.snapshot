@@ -5,9 +5,10 @@
 3: rel equals (node kind) (literal kind_id 221)
 4: halt not_relates
 5: asn 1 (node this)
-6: trv variable_id 1
-7: yield
-8: halt always
+6: begin_build record
+7: push_build class (variable_id 1)
+8: end_build 2
+9: yield
+10: halt always
 === values ===
-node class_declaration [0..16]
-node class_declaration [17..36]
+{class: node class_declaration [0..12]}

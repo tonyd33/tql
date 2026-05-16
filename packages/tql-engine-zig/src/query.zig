@@ -47,15 +47,77 @@ pub const Value = union(enum) {
     string: []const u8,
     node: Node,
     range: runtime.Range,
+    record: Record,
+    list: List,
 
-    pub fn fromRuntimeValue(val: runtime.Value, source: []const u8) Value {
+    pub fn fromRuntimeValue(gpa: Allocator, val: runtime.Value, source: []const u8) error{OutOfMemory}!Value {
         return switch (val) {
             .nothing => .{ .nothing = {} },
             .string => |s| .{ .string = s },
             .node => |n| .{ .node = Node.fromTsNode(n, source) },
             .range => |r| .{ .range = r },
+            .record => |rc| .{ .record = try Record.fromRuntime(gpa, &rc.value, source) },
+            .list => |rc| .{ .list = try List.fromRuntime(gpa, &rc.value, source) },
             else => .{ .nothing = {} },
         };
+    }
+
+    pub fn deinit(self: *Value, gpa: Allocator) void {
+        switch (self.*) {
+            .record => |*r| r.deinit(gpa),
+            .list => |*l| l.deinit(gpa),
+            else => {},
+        }
+    }
+};
+
+pub const RecordEntry = struct {
+    key: []const u8,
+    value: Value,
+};
+
+pub const Record = struct {
+    entries: []RecordEntry,
+
+    pub fn fromRuntime(gpa: Allocator, src: *const runtime.Record, source: []const u8) error{OutOfMemory}!Record {
+        const entries = try gpa.alloc(RecordEntry, src.map.count());
+        errdefer gpa.free(entries);
+
+        var it = src.map.iterator();
+        var i: usize = 0;
+        while (it.next()) |e| : (i += 1) {
+            entries[i] = .{
+                .key = e.key_ptr.*,
+                .value = try Value.fromRuntimeValue(gpa, e.value_ptr.*, source),
+            };
+        }
+        std.mem.sort(RecordEntry, entries, {}, lessThanEntry);
+        return .{ .entries = entries };
+    }
+
+    pub fn deinit(self: *Record, gpa: Allocator) void {
+        for (self.entries) |*e| e.value.deinit(gpa);
+        gpa.free(self.entries);
+    }
+
+    fn lessThanEntry(_: void, a: RecordEntry, b: RecordEntry) bool {
+        return std.mem.order(u8, a.key, b.key) == .lt;
+    }
+};
+
+pub const List = struct {
+    items: []Value,
+
+    pub fn fromRuntime(gpa: Allocator, src: *const runtime.List, source: []const u8) error{OutOfMemory}!List {
+        const items = try gpa.alloc(Value, src.items.items.len);
+        errdefer gpa.free(items);
+        for (src.items.items, 0..) |v, i| items[i] = try Value.fromRuntimeValue(gpa, v, source);
+        return .{ .items = items };
+    }
+
+    pub fn deinit(self: *List, gpa: Allocator) void {
+        for (self.items) |*v| v.deinit(gpa);
+        gpa.free(self.items);
     }
 };
 
@@ -70,6 +132,7 @@ pub const QueryResult = struct {
     allocator: std.mem.Allocator,
 
     pub fn deinit(self: *QueryResult) void {
+        for (self.values) |*v| v.deinit(self.allocator);
         self.allocator.free(self.values);
     }
 };
@@ -118,7 +181,7 @@ pub const Query = struct {
         while (try rt.nextMatch()) |runtime_value| {
             // NOTE: If we're able to defer this to the consumer, we can save
             // a ton of heap allocations
-            const enriched_value = Value.fromRuntimeValue(runtime_value, source_code);
+            const enriched_value = try Value.fromRuntimeValue(gpa, runtime_value, source_code);
             try values_list.append(gpa, enriched_value);
         }
 

@@ -1,3 +1,4 @@
+=== bytecode ===
 0: asn 0 (node this)
 1: trv variable_id 0
 2: trv descendant
@@ -13,3 +14,6 @@
 12: trv variable_id 2
 13: yield
 14: halt always
+=== values ===
+node property_identifier [18..21]
+node property_identifier [29..32]

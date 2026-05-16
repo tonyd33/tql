@@ -1,3 +1,4 @@
+=== bytecode ===
 0: asn 0 (node this)
 1: trv variable_id 0
 2: trv descendant
@@ -20,3 +21,6 @@
 19: trv variable_id 1
 20: yield
 21: halt always
+=== values ===
+node class_declaration [0..16]
+node class_declaration [17..36]

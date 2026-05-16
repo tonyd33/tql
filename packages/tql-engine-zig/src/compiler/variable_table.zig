@@ -39,6 +39,12 @@ pub const VariableTable = struct {
     pub fn get(self: *const VariableTable, name: []const u8) ?runtime.VariableId {
         return self.map.get(name);
     }
+
+    pub fn allocateAnonymous(self: *VariableTable) runtime.VariableId {
+        const id = self.next_id;
+        self.next_id += 1;
+        return id;
+    }
 };
 
 const testing = std.testing;

@@ -1,7 +1,10 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const OverlayMap = @import("../overlay_map.zig").OverlayMap;
+const Rc = @import("../rc.zig").Rc;
 const pcre2 = @import("../pcre2.zig");
+
+const Allocator = std.mem.Allocator;
 
 pub const FieldId = u16;
 pub const Address = u32;
@@ -23,11 +26,6 @@ pub const Range = struct {
 };
 
 pub const Value = union(enum) {
-    // NOTE: If we ever need non-stack-allocatable values, prefer to defer
-    // ownership and reference the value by pointer here, otherwise managing
-    // the lifetime of values in the environment will be a nightmare!
-    const Self = @This();
-
     nothing,
     string: []const u8,
     range: Range,
@@ -37,15 +35,37 @@ pub const Value = union(enum) {
     // NOTE: Do we want to reference the value directly or via e.g. a regex
     // pool in the runtime? Mostly a question of ownership I guess
     regex: pcre2.Regex,
+    record: *Rc(Record),
+    list: *Rc(List),
+
+    /// Bump refcounts on heap variants; no-op for inline ones. Producers
+    /// (asn, push_build, yield) call this before handing a Value to a new
+    /// owner.
+    pub fn clone(self: Value) Value {
+        return switch (self) {
+            .record => |r| .{ .record = r.reference() },
+            .list => |l| .{ .list = l.reference() },
+            else => self,
+        };
+    }
+
+    pub fn deinit(self: *Value, gpa: Allocator) void {
+        switch (self.*) {
+            .record => |r| r.dereference(gpa),
+            .list => |l| l.dereference(gpa),
+            else => {},
+        }
+    }
+
+    pub fn fmt(self: Value, gpa: Allocator) ValueFormatter {
+        return .{ .value = self, .gpa = gpa };
+    }
 
     pub fn eql(a: Value, b: Value) bool {
-        // Values must have the same tag to be equal
-        if (@intFromEnum(a) != @intFromEnum(b)) {
-            return false;
-        }
+        if (@intFromEnum(a) != @intFromEnum(b)) return false;
 
         return switch (a) {
-            .nothing => |a_nothing| a_nothing == b.nothing,
+            .nothing => true,
             .string => |a_str| std.mem.eql(u8, a_str, b.string),
             .range => |a_range| {
                 const b_range = b.range;
@@ -60,7 +80,92 @@ pub const Value = union(enum) {
             .field_id => |a_field| a_field == b.field_id,
             .node => |a_node| a_node.eql(b.node),
             .regex => |a_regex| a_regex.eql(b.regex),
+            .record => |a_r| a_r == b.record,
+            .list => |a_l| a_l == b.list,
         };
+    }
+};
+
+pub const ValueFormatter = struct {
+    value: Value,
+    gpa: Allocator,
+
+    pub fn format(self: ValueFormatter, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writeValue(writer, self.value, self.gpa);
+    }
+};
+
+fn writeValue(writer: *std.Io.Writer, value: Value, gpa: Allocator) std.Io.Writer.Error!void {
+    switch (value) {
+        .nothing => try writer.writeAll("nothing"),
+        .string => |s| try writer.print("string \"{s}\"", .{s}),
+        .kind_id => |k| try writer.print("kind_id {d}", .{k}),
+        .field_id => |f| try writer.print("field_id {d}", .{f}),
+        .range => |r| try writer.print("range [{d}..{d}]", .{ r.start_byte, r.end_byte }),
+        .node => |n| try writer.print("node {s} [{d}..{d}]", .{ n.kind(), n.startByte(), n.endByte() }),
+        .regex => try writer.writeAll("regex ..."),
+        .record => |rc| {
+            const map = &rc.value.map;
+            try writer.writeAll("{");
+            const keys = collectSortedKeys(gpa, map) catch return error.WriteFailed;
+            defer gpa.free(keys);
+            for (keys, 0..) |k, i| {
+                if (i > 0) try writer.writeAll(", ");
+                try writer.print("{s}: ", .{k});
+                try writeValue(writer, map.get(k).?, gpa);
+            }
+            try writer.writeAll("}");
+        },
+        .list => |rc| {
+            const items = rc.value.items.items;
+            try writer.writeAll("[");
+            for (items, 0..) |item, i| {
+                if (i > 0) try writer.writeAll(", ");
+                try writeValue(writer, item, gpa);
+            }
+            try writer.writeAll("]");
+        },
+    }
+}
+
+fn collectSortedKeys(gpa: Allocator, map: *const std.StringHashMap(Value)) ![][]const u8 {
+    var keys = try gpa.alloc([]const u8, map.count());
+    errdefer gpa.free(keys);
+    var it = map.keyIterator();
+    var i: usize = 0;
+    while (it.next()) |k| : (i += 1) keys[i] = k.*;
+    std.mem.sort([]const u8, keys, {}, lessThanStr);
+    return keys;
+}
+
+fn lessThanStr(_: void, a: []const u8, b: []const u8) bool {
+    return std.mem.order(u8, a, b) == .lt;
+}
+
+pub const Record = struct {
+    map: std.StringHashMap(Value),
+
+    pub fn init(gpa: Allocator) Record {
+        return .{ .map = std.StringHashMap(Value).init(gpa) };
+    }
+
+    pub fn deinit(self: *Record, gpa: Allocator) void {
+        var it = self.map.valueIterator();
+        while (it.next()) |v| v.deinit(gpa);
+        self.map.deinit();
+    }
+};
+
+pub const List = struct {
+    items: std.ArrayList(Value),
+
+    pub fn init() List {
+        return .{ .items = std.ArrayList(Value).empty };
+    }
+
+    pub fn deinit(self: *List, gpa: Allocator) void {
+        for (self.items.items) |*v| v.deinit(gpa);
+        self.items.deinit(gpa);
     }
 };
 
@@ -80,11 +185,20 @@ pub const Boundary = union(enum) {
     call,
 };
 
+pub const Vector = enum {
+    record,
+    list,
+};
+
 pub const State = struct {
     pc: u32,
     node: ts.Node,
-    environment: *Environment,
-    flag: bool = false,
+    environment: Environment.Cell,
+    negate_flag: bool = false,
+    build: ?union(Vector) {
+        record: *Rc(Record),
+        list: *Rc(List),
+    } = null,
 };
 
 /// Frame represents a single execution context on the stack.
@@ -369,5 +483,12 @@ pub const Instruction = union(enum) {
         address: Address,
         mode: Condition = .always,
     },
+    begin_build: Vector,
+    push_build: struct {
+        source: ValueSource,
+        // only applicable for records
+        name: ?[]const u8,
+    },
+    end_build: VariableId,
     panic, // debug, probably remove
 };

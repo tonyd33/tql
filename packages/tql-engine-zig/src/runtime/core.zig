@@ -28,6 +28,10 @@ const Axis = types.Axis;
 const NodeValueSource = types.NodeValueSource;
 const ValueSource = types.ValueSource;
 const Instruction = types.Instruction;
+const Vector = types.Vector;
+const Record = types.Record;
+const List = types.List;
+const Rc = @import("../rc.zig").Rc;
 
 pub const Runtime = struct {
     const Self = @This();
@@ -64,7 +68,7 @@ pub const Runtime = struct {
 
     // TODO: This can just be part of init probably
     pub fn exec(self: *Self) !void {
-        const env = try Environment.create(self.allocator);
+        const env = try Environment.Cell.create(self.allocator);
         self.stack.clearAndFree(self.allocator);
         try self.stack.append(
             self.allocator,
@@ -82,10 +86,17 @@ pub const Runtime = struct {
     fn deinitFrame(self: *Self) void {
         const frame = &self.stack.items[self.stack.items.len - 1];
 
-        frame.state.environment.destroy(self.allocator);
+        frame.state.environment.dereference(self.allocator);
 
         if (frame.split) |*split| {
             split.iterator.deinit();
+        }
+
+        if (frame.state.build) |build| {
+            switch (build) {
+                .record => |rc| rc.dereference(self.allocator),
+                .list => |rc| rc.dereference(self.allocator),
+            }
         }
 
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
@@ -172,9 +183,11 @@ pub const Runtime = struct {
             if (frame.split) |*split| {
                 const has_next = split.iterator.next();
                 if (has_next) {
-                    const env_copy_old_frame = try frame.state.environment.copy(self.allocator);
-                    const env_copy_new_frame = try frame.state.environment.copy(self.allocator);
+                    const old_env = frame.state.environment;
+                    const env_copy_old_frame = try old_env.copy(self.allocator);
+                    const env_copy_new_frame = try old_env.copy(self.allocator);
                     frame.state.environment = env_copy_old_frame;
+                    old_env.dereference(self.allocator);
 
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
@@ -195,6 +208,16 @@ pub const Runtime = struct {
                 return error.ExecuteOutOfBounds;
             }
 
+            if (frame.state.build != null) {
+                switch (self.instructions[frame.state.pc]) {
+                    .push_build, .end_build => {},
+                    // Maybe there are more we can allow. Also we should return error not panic
+                    else => {
+                        @panic("Invalid program");
+                    },
+                }
+            }
+
             switch (self.instructions[frame.state.pc]) {
                 .noop => {
                     frame.state.pc += 1;
@@ -202,8 +225,8 @@ pub const Runtime = struct {
                 .halt => |halt_inst| {
                     const should_halt = switch (halt_inst.condition) {
                         .always => true,
-                        .relates => frame.state.flag,
-                        .not_relates => !frame.state.flag,
+                        .relates => frame.state.negate_flag,
+                        .not_relates => !frame.state.negate_flag,
                     };
 
                     if (should_halt) {
@@ -281,12 +304,14 @@ pub const Runtime = struct {
                         // NOTE: Maybe we should panic here.
                         .nothing => {},
                         else => {
-                            const new_environment = try frame.state.environment.copyPut(
+                            const old_env = frame.state.environment;
+                            const new_environment = try old_env.copyPut(
                                 self.allocator,
                                 x.variable_id,
-                                value,
+                                value.clone(),
                             );
                             frame.state.environment = new_environment;
+                            old_env.dereference(self.allocator);
                         },
                     }
                 },
@@ -308,7 +333,7 @@ pub const Runtime = struct {
                             @panic("todo: lt/gt not implemented");
                         },
                     };
-                    frame.state.flag = relates;
+                    frame.state.negate_flag = relates;
                 },
                 .yield => |source| {
                     if (self.handleProbeBoundary(true)) {
@@ -320,9 +345,11 @@ pub const Runtime = struct {
                 .probe => |probe_inst| {
                     frame.state.pc += 1;
 
-                    const env_copy_old_frame = try frame.state.environment.copy(self.allocator);
-                    const env_copy_new_frame = try frame.state.environment.copy(self.allocator);
+                    const old_env = frame.state.environment;
+                    const env_copy_old_frame = try old_env.copy(self.allocator);
+                    const env_copy_new_frame = try old_env.copy(self.allocator);
                     frame.state.environment = env_copy_old_frame;
+                    old_env.dereference(self.allocator);
 
                     const boundary = switch (probe_inst.mode) {
                         .exists => Boundary{ .probe = .{ .exists = probe_inst.on_success } },
@@ -341,9 +368,11 @@ pub const Runtime = struct {
                 .call => |target_address| {
                     frame.state.pc += 1;
 
-                    const env_copy_old_frame = try frame.state.environment.copy(self.allocator);
-                    const env_copy_new_frame = try frame.state.environment.copy(self.allocator);
+                    const old_env = frame.state.environment;
+                    const env_copy_old_frame = try old_env.copy(self.allocator);
+                    const env_copy_new_frame = try old_env.copy(self.allocator);
                     frame.state.environment = env_copy_old_frame;
+                    old_env.dereference(self.allocator);
 
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
@@ -376,8 +405,8 @@ pub const Runtime = struct {
                 .jmp => |jmp_inst| {
                     const should_jump = switch (jmp_inst.mode) {
                         .always => true,
-                        .relates => frame.state.flag,
-                        .not_relates => !frame.state.flag,
+                        .relates => frame.state.negate_flag,
+                        .not_relates => !frame.state.negate_flag,
                     };
 
                     if (should_jump) {
@@ -385,6 +414,46 @@ pub const Runtime = struct {
                     } else {
                         frame.state.pc += 1;
                     }
+                },
+                .begin_build => |vector| {
+                    frame.state.pc += 1;
+                    switch (vector) {
+                        .record => {
+                            const rc = try Rc(Record).create(self.allocator, Record.init(self.allocator));
+                            frame.state.build = .{ .record = rc };
+                        },
+                        .list => {
+                            const rc = try Rc(List).create(self.allocator, List.init());
+                            frame.state.build = .{ .list = rc };
+                        },
+                    }
+                },
+                .push_build => |info| {
+                    frame.state.pc += 1;
+                    const build = if (frame.state.build) |b| b else @panic("Invalid program");
+                    const value = self.getSource(frame.state, info.source).clone();
+                    switch (build) {
+                        .record => |rc| {
+                            const name = info.name orelse @panic("Invalid program");
+                            try rc.value.map.put(name, value);
+                        },
+                        .list => |rc| {
+                            try rc.value.items.append(self.allocator, value);
+                        },
+                    }
+                },
+                .end_build => |variable_id| {
+                    frame.state.pc += 1;
+                    const build = if (frame.state.build) |b| b else @panic("Invalid program");
+                    frame.state.build = null;
+                    const value: Value = switch (build) {
+                        .record => |rc| .{ .record = rc },
+                        .list => |rc| .{ .list = rc },
+                    };
+                    const old_env = frame.state.environment;
+                    const new_env = try old_env.copyPut(self.allocator, variable_id, value);
+                    frame.state.environment = new_env;
+                    old_env.dereference(self.allocator);
                 },
                 .panic => {
                     @panic("panic instruction executed");

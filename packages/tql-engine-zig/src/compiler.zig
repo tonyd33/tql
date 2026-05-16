@@ -80,6 +80,7 @@ pub const Compiler = struct {
     }
 
     pub fn addString(self: *Compiler, str: []const u8) CompilerError![]const u8 {
+        // IMPROVE: consider interning the strings
         const owned = try self.allocator.dupe(u8, str);
         try self.strings.append(self.allocator, owned);
         return owned;
@@ -599,6 +600,47 @@ pub const Compiler = struct {
                         .string = owned_str,
                     } } },
                 });
+            },
+            .object_literal => |obj| {
+                // runtime limitation that we have to pre-traverse these before
+                // beginning to build the record... it's probably ok
+                const FieldSource = struct { key: []const u8, source: runtime.ValueSource };
+                var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
+                defer self.allocator.free(sources);
+
+                for (obj.fields, 0..) |field, i| {
+                    switch (field) {
+                        .variable => |variable| {
+                            const var_id = self.variables.get(variable.name) orelse
+                                @panic("Variable not found in object literal");
+                            try self.ensureVariableNavigated(builder, var_id);
+                            sources[i] = .{
+                                .key = try self.addString(variable.name),
+                                .source = .{ .variable_id = var_id },
+                            };
+                        },
+                        .key_value => |kv| {
+                            const source = try self.compileExpression(builder, kv.value);
+                            sources[i] = .{
+                                .key = try self.addString(kv.key),
+                                .source = source,
+                            };
+                        },
+                    }
+                }
+
+                try builder.emit(.{ .begin_build = .record });
+                for (sources) |fs| {
+                    try builder.emit(.{
+                        .push_build = .{
+                            .source = fs.source,
+                            .name = fs.key,
+                        },
+                    });
+                }
+                const tmp = self.variables.allocateAnonymous();
+                try builder.emit(.{ .end_build = tmp });
+                try builder.emit(.{ .yield = .{ .source = .{ .variable_id = tmp } } });
             },
             // .number_literal => |numbver| {
             //     const owned_str = try self.addString(str);

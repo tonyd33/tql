@@ -4,4 +4,9 @@ set -euo pipefail
 
 suite=$1
 
-zig build run -- tests/$suite/query.tql tests/$suite/source.ts
+if ! [ -d "tests/$suite" ]; then
+  echo suite does not exist
+  exit 1
+fi
+
+zig build run -- "tests/$suite/query.tql" "tests/$suite/source.ts"

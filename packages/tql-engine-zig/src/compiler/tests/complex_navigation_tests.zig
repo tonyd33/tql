@@ -21,7 +21,6 @@ test "nested field access" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/nested_field_access.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }
 
@@ -40,7 +39,6 @@ test "field access on node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/field_access_on_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -62,7 +60,6 @@ test "child navigation with field access parent" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/child_nav_field_access_parent.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -86,7 +83,6 @@ test "child navigation on node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/child_nav_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 3,
     }).run();
 }
 
@@ -108,7 +104,6 @@ test "descendant navigation with field access parent" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/descendant_nav_field_access_parent.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -131,7 +126,6 @@ test "descendant navigation on node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/descendant_nav_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2, // TODO: Fix - not matching as expected
     }).run();
 }
 
@@ -153,6 +147,5 @@ test "nested child navigation" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/nested_child_nav.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }

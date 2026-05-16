@@ -22,7 +22,6 @@ test "WHERE with regex match - simple pattern" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/regex_match_simple.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2, // Service and ServiceProvider
     }).run();
 }
 
@@ -44,7 +43,6 @@ test "WHERE with regex match - anchored pattern" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/regex_match_anchored.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1, // Only exact "Service"
     }).run();
 }
 
@@ -66,7 +64,6 @@ test "WHERE with regex not match" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/regex_not_match.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1, // Only Controller
     }).run();
 }
 
@@ -88,6 +85,5 @@ test "WHERE with regex match - character class" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/regex_match_char_class.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2, // Service and Controller, not foo
     }).run();
 }

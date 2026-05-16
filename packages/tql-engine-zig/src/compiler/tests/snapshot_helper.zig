@@ -50,6 +50,17 @@ fn formatInstruction(writer: anytype, inst: runtime.Instruction) !void {
         .call => |c| try writer.print("call {}", .{c}),
         .ret => try writer.writeAll("ret"),
         .jmp => |j| try writer.print("jmp {s} {}", .{ @tagName(j.mode), j.address }),
+        .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
+        .push_build => |i| {
+            if (i.name) |name| {
+                try writer.print("push_build {s} (", .{name});
+            } else {
+                try writer.writeAll("push_build (");
+            }
+            try formatValueSource(writer, i.source);
+            try writer.writeAll(")");
+        },
+        .end_build => |v| try writer.print("end_build {}", .{v}),
         .panic => try writer.writeAll("panic"),
     }
 }
@@ -66,6 +77,8 @@ fn formatValueSource(writer: anytype, source: runtime.ValueSource) !void {
                 .range => try writer.writeAll("range ..."),
                 .node => try writer.writeAll("node ..."),
                 .regex => try writer.writeAll("regex ..."),
+                .record => try writer.writeAll("record ..."),
+                .list => try writer.writeAll("list ..."),
             }
         },
         .node => |n| try writer.print("node {s}", .{@tagName(n)}),
@@ -147,7 +160,6 @@ pub fn parseTypeScript(source: []const u8) !*ts.Tree {
     return tree;
 }
 
-/// Unified test helper that tests both snapshot and integration
 pub const SnapshotTest = struct {
     allocator: std.mem.Allocator,
     tql: []const u8,
@@ -155,34 +167,21 @@ pub const SnapshotTest = struct {
     snapshot_path: []const u8,
     update_snapshots: bool = false,
 
-    /// Optional validation function for integration test
-    validate_fn: ?*const fn (source: []const u8, allocator: std.mem.Allocator, values: []runtime.Value) anyerror!void = null,
-    expected_match_count: ?usize = null,
-
     pub fn run(self: SnapshotTest) !void {
         const language = tree_sitter_typescript();
 
-        // Parse TQL source
         var parser = try Parser.init(self.allocator);
         defer parser.deinit();
 
         var source_file = try parser.parse(self.tql);
         defer source_file.deinit(self.allocator);
 
-        // Compile the query
         var compiler = Compiler.init(self.allocator, language);
         defer compiler.deinit();
 
         var program = try compiler.compile(self.allocator, source_file);
         defer program.deinit();
 
-        // Test snapshot: verify instruction sequence
-        const snapshot = try formatInstructions(self.allocator, program.instructions);
-        defer self.allocator.free(snapshot);
-
-        try expectMatchesSnapshot(self.allocator, self.snapshot_path, snapshot, self.update_snapshots);
-
-        // Test integration: verify runtime behavior
         const tree = try parseTypeScript(self.source);
         defer tree.destroy();
 
@@ -197,22 +196,43 @@ pub const SnapshotTest = struct {
 
         try rt.exec();
 
-        // Collect all matches
         var values = std.ArrayList(runtime.Value){};
-        defer values.deinit(self.allocator);
+        defer {
+            for (values.items) |*v| v.deinit(self.allocator);
+            values.deinit(self.allocator);
+        }
 
         while (try rt.nextMatch()) |value| {
-            try values.append(self.allocator, value);
+            try values.append(self.allocator, value.clone());
         }
 
-        // Validate match count if specified
-        if (self.expected_match_count) |expected| {
-            try testing.expectEqual(expected, values.items.len);
-        }
+        const actual = try renderSnapshot(self.allocator, program.instructions, values.items);
+        defer self.allocator.free(actual);
 
-        // Run custom validation if provided
-        if (self.validate_fn) |validate| {
-            try validate(self.source, self.allocator, values.items);
-        }
+        try expectMatchesSnapshot(self.allocator, self.snapshot_path, actual, self.update_snapshots);
     }
 };
+
+fn renderSnapshot(gpa: std.mem.Allocator, instructions: []const runtime.Instruction, values: []const runtime.Value) ![]const u8 {
+    var buf = std.ArrayList(u8){};
+    errdefer buf.deinit(gpa);
+    const writer = buf.writer(gpa);
+
+    try writer.writeAll("=== bytecode ===\n");
+    const bytecode = try formatInstructions(gpa, instructions);
+    defer gpa.free(bytecode);
+    try writer.writeAll(bytecode);
+
+    try writer.writeAll("=== values ===\n");
+    var tmp = std.ArrayList(u8){};
+    defer tmp.deinit(gpa);
+    for (values) |v| {
+        tmp.clearRetainingCapacity();
+        var w: std.Io.Writer.Allocating = .fromArrayList(gpa, &tmp);
+        try w.writer.print("{f}", .{v.fmt(gpa)});
+        tmp = w.toArrayList();
+        try writer.print("{s}\n", .{tmp.items});
+    }
+
+    return try buf.toOwnedSlice(gpa);
+}

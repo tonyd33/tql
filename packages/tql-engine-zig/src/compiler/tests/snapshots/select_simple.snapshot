@@ -1,3 +1,6 @@
+=== bytecode ===
 0: asn 0 (node this)
 1: yield
 2: halt always
+=== values ===
+node program [0..12]

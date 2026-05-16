@@ -8,13 +8,11 @@
 6: trv variable_id 1
 7: trv field 25
 8: asn 2 (node this)
-9: trv variable_id 2
-10: rel like (node text) (literal regex ...)
-11: jmp relates 13
-12: jmp always 14
-13: halt always
-14: trv variable_id 1
-15: yield
-16: halt always
+9: begin_build record
+10: push_build class (variable_id 1)
+11: push_build name (variable_id 2)
+12: end_build 3
+13: yield
+14: halt always
 === values ===
-node class_declaration [17..36]
+{class: node class_declaration [0..12], name: node type_identifier [6..9]}

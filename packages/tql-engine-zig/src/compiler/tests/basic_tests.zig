@@ -15,7 +15,6 @@ test "simple SELECT variable" {
         .source = "class Foo {}",
         .snapshot_path = "src/compiler/tests/snapshots/select_simple.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }
 
@@ -35,7 +34,6 @@ test "FROM with node selector" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/from_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -55,7 +53,6 @@ test "FROM with field access" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/from_field_access.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -77,7 +74,6 @@ test "FROM with child navigation" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/from_child_navigation.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -109,6 +105,5 @@ test "FROM with decorator and WHERE - matching test.tql pattern" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/from_decorator_with_where.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }

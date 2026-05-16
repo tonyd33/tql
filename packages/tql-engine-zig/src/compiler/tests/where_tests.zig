@@ -21,7 +21,6 @@ test "WHERE with simple comparison" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_simple_comparison.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }
 
@@ -43,7 +42,6 @@ test "WHERE with OR logic" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_or_logic.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 2,
     }).run();
 }
 
@@ -67,7 +65,6 @@ test "WHERE with AND logic" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_and_logic.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }
 
@@ -90,7 +87,6 @@ test "WHERE with exists quantifier - matches" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_exists_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 1,
     }).run();
 }
 
@@ -113,6 +109,5 @@ test "WHERE with exists quantifier - no matches" {
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_exists_no_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
-        .expected_match_count = 0,
     }).run();
 }
