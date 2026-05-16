@@ -5,4 +5,6 @@ test {
     refAllDecls(@import("regex_tests.zig"));
     refAllDecls(@import("complex_navigation_tests.zig"));
     refAllDecls(@import("object_literal_tests.zig"));
+    refAllDecls(@import("array_literal_tests.zig"));
+    refAllDecls(@import("tuple_literal_tests.zig"));
 }

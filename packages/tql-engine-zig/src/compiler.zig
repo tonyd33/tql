@@ -642,12 +642,31 @@ pub const Compiler = struct {
                 try builder.emit(.{ .end_build = tmp });
                 try builder.emit(.{ .yield = .{ .source = .{ .variable_id = tmp } } });
             },
+            .array_literal => |arr| try self.compileListLikeProjection(builder, arr.elements),
+            .tuple_literal => |tup| try self.compileListLikeProjection(builder, tup.elements),
             // .number_literal => |numbver| {
             //     const owned_str = try self.addString(str);
             //     try builder.emit(.{ .yield = .{ .source = .{ .literal = owned_str } } });
             // },
             else => @panic("Only variable projection supported for now"),
         }
+    }
+
+    fn compileListLikeProjection(self: *Compiler, builder: *InstructionBuilder, elements: []const ast.Expression) !void {
+        const sources = try self.allocator.alloc(runtime.ValueSource, elements.len);
+        defer self.allocator.free(sources);
+
+        for (elements, 0..) |elem, i| {
+            sources[i] = try self.compileExpression(builder, elem);
+        }
+
+        try builder.emit(.{ .begin_build = .list });
+        for (sources) |s| {
+            try builder.emit(.{ .push_build = .{ .source = s, .name = null } });
+        }
+        const tmp = self.variables.allocateAnonymous();
+        try builder.emit(.{ .end_build = tmp });
+        try builder.emit(.{ .yield = .{ .source = .{ .variable_id = tmp } } });
     }
 };
 
