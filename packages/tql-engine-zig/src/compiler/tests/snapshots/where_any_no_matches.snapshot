@@ -11,15 +11,19 @@
 9: rel equals (node kind) (literal kind_id 261)
 10: halt not_relates
 11: asn 2 (node this)
-12: probe exists 18
-13: rel equals (variable_id 2) (literal nothing)
-14: jmp relates 16
-15: jmp always 17
-16: yield
-17: halt always
-18: jmp always 20
-19: halt always
-20: trv variable_id 1
-21: yield
-22: halt always
+12: probe exists 22
+13: trv variable_id 2
+14: trv field 25
+15: asn 3 (node this)
+16: trv variable_id 3
+17: rel equals (node text) (literal string "nonexistent")
+18: jmp relates 20
+19: jmp always 21
+20: yield
+21: halt always
+22: jmp always 24
+23: halt always
+24: trv variable_id 1
+25: yield
+26: halt always
 === values ===

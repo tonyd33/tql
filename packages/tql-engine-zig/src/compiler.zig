@@ -44,6 +44,7 @@ pub const Compiler = struct {
 
     regexes: std.ArrayList(pcre2.Regex),
     strings: std.ArrayList([]const u8),
+    lifted_navs: std.ArrayList(*ast.FieldAccess),
 
     // FIXME: we're supposed to detect the language
     pub fn init(allocator: Allocator, language: *ts.Language) Compiler {
@@ -54,6 +55,7 @@ pub const Compiler = struct {
             .bindings = std.ArrayList(BindingMetadata){},
             .regexes = std.ArrayList(pcre2.Regex){},
             .strings = std.ArrayList([]const u8){},
+            .lifted_navs = std.ArrayList(*ast.FieldAccess){},
         };
     }
 
@@ -70,6 +72,11 @@ pub const Compiler = struct {
             self.allocator.free(str);
         }
         self.strings.deinit(self.allocator);
+
+        for (self.lifted_navs.items) |fa| {
+            self.allocator.destroy(fa);
+        }
+        self.lifted_navs.deinit(self.allocator);
     }
 
     pub fn addRegex(self: *Compiler, regex: pcre2.Regex) CompilerError!usize {
@@ -449,11 +456,8 @@ pub const Compiler = struct {
         success_label: LabelId,
         failure_label: LabelId,
     ) CompilerError!void {
-        if (comparison.left == .variable and comparison.right == .string_literal) {
-            const variable = comparison.left.variable;
-            if (self.variables.get(variable.name)) |var_id| {
-                try self.ensureVariableNavigated(builder, var_id);
-
+        if (comparison.right == .string_literal) {
+            if (try self.ensureExpressionAsVariable(builder, comparison.left)) |var_id| {
                 const owned_str = try self.addString(comparison.right.string_literal);
 
                 try builder.emit(.{ .trv = .{ .variable_id = var_id } });
@@ -466,16 +470,11 @@ pub const Compiler = struct {
                 try builder.emitJump(success_label, .relates);
                 try builder.emitJump(failure_label, .always);
                 return;
-            } else {
-                @panic("Variable not found in comparison");
             }
         }
 
-        if (comparison.left == .variable and comparison.right == .regex_literal) {
-            const variable = comparison.left.variable;
-            if (self.variables.get(variable.name)) |var_id| {
-                try self.ensureVariableNavigated(builder, var_id);
-
+        if (comparison.right == .regex_literal) {
+            if (try self.ensureExpressionAsVariable(builder, comparison.left)) |var_id| {
                 try builder.emit(.{ .trv = .{ .variable_id = var_id } });
 
                 const regex = try pcre2.Regex.compile(comparison.right.regex_literal);
@@ -499,8 +498,6 @@ pub const Compiler = struct {
                     else => unreachable,
                 }
                 return;
-            } else {
-                @panic("Variable not found in comparison");
             }
         }
 
@@ -545,6 +542,49 @@ pub const Compiler = struct {
         try builder.emitJump(failure_label, .always);
     }
 
+    // TODO: Unify expressions
+    fn expressionToNavigation(self: *Compiler, expr: ast.Expression) CompilerError!ast.NavigationExpression {
+        return switch (expr) {
+            .variable => |v| ast.NavigationExpression{ .variable = v },
+            .field_access => |fa| blk: {
+                const base_nav = try self.expressionToNavigation(fa.base);
+                const nav_fa = try self.allocator.create(ast.FieldAccess);
+                nav_fa.* = .{ .base = base_nav, .field = fa.field };
+                try self.lifted_navs.append(self.allocator, nav_fa);
+                break :blk ast.NavigationExpression{ .field_access = nav_fa };
+            },
+            else => @panic("non-navigation expression in field-access base"),
+        };
+    }
+
+    fn ensureExpressionAsVariable(
+        self: *Compiler,
+        builder: *InstructionBuilder,
+        expr: ast.Expression,
+    ) CompilerError!?VariableId {
+        return switch (expr) {
+            .variable => |v| blk: {
+                const var_id = self.variables.get(v.name) orelse @panic("Variable not found in comparison");
+                try self.ensureVariableNavigated(builder, var_id);
+                break :blk var_id;
+            },
+            .field_access => |fa| try self.liftFieldAccess(builder, fa),
+            else => null,
+        };
+    }
+
+    fn liftFieldAccess(self: *Compiler, builder: *InstructionBuilder, fa: *ast.FieldAccessExpression) CompilerError!VariableId {
+        const nav = try self.expressionToNavigation(.{ .field_access = fa });
+        const anon_id = self.variables.allocateAnonymous();
+        try self.bindings.append(self.allocator, .{
+            .variable_id = anon_id,
+            .expression = nav,
+            .emitted = false,
+        });
+        try self.ensureVariableNavigated(builder, anon_id);
+        return anon_id;
+    }
+
     fn compileExpression(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!runtime.ValueSource {
         return switch (expr) {
             .variable => |variable| {
@@ -575,8 +615,8 @@ pub const Compiler = struct {
                 };
             },
             .field_access => |field_access| {
-                _ = field_access;
-                @panic("Field access in expressions not yet implemented");
+                const anon_id = try self.liftFieldAccess(builder, field_access);
+                return runtime.ValueSource{ .variable_id = anon_id };
             },
             .object_literal => |obj| try self.compileRecordExpression(builder, obj),
             .array_literal => |arr| try self.compileListExpression(builder, arr.elements),
@@ -676,7 +716,6 @@ pub const Compiler = struct {
             else => @panic("Only variable projection supported for now"),
         }
     }
-
 };
 
 test {

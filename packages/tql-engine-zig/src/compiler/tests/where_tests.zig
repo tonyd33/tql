@@ -74,13 +74,13 @@ test "WHERE with any quantifier - matches" {
         .tql =
         \\query main() {
         \\  from class_declaration as @c
-        \\  where any @m in @c.body > method_definition: @m != null
+        \\  where any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
         .source =
         \\class Service { foo() {}; bar() {}; }
-        \\class Empty {}
+        \\class Controller { baz() {}; }
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_any_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
@@ -93,12 +93,13 @@ test "WHERE with any quantifier - no matches" {
         .tql =
         \\query main() {
         \\  from class_declaration as @c
-        \\  where any @m in @c.body > method_definition: @m = null
+        \\  where any @m in @c.body > method_definition: @m.name = 'nonexistent'
         \\  select @c
         \\}
         ,
         .source =
         \\class Service { foo() {}; bar() {}; }
+        \\class Controller { baz() {}; }
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_any_no_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
@@ -111,27 +112,27 @@ test "WHERE with all quantifier" {
         .tql =
         \\query main() {
         \\  from class_declaration as @c
-        \\  where all @m in @c.body > method_definition: @m != null
+        \\  where all @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
         .source =
-        \\class A { foo() {}; bar() {}; }
-        \\class B {}
+        \\class A { foo() {}; foo() {}; }
+        \\class B { foo() {}; bar() {}; }
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_all.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
-test "WHERE with nested any" {
+test "WHERE with nested any over two sources" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,
         .tql =
         \\query main() {
         \\  from class_declaration as @c
-        \\  where any @m in @c.body > method_definition:
-        \\          any @n in @c.body > method_definition: @n != null
+        \\  where any @a in @c.body > method_definition:
+        \\          any @b in @c.body > method_definition: @a.name = @b.name
         \\  select @c
         \\}
         ,
@@ -139,6 +140,25 @@ test "WHERE with nested any" {
         \\class A { foo() {}; }
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_nested_any.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE field access on outer row" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where @c.name = 'Service'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service {}
+        \\class Controller {}
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_top_level.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -181,6 +201,105 @@ test "WHERE optional binding is not null" {
         \\function c(): string { return 'x'; }
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_null_ne.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE field access with regex match" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m.name ~ /^foo.*/
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { foobar() {}; }
+        \\class B { bar() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_regex.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE field access with not equal" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where @c.name != 'Service'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service {}
+        \\class Controller {}
+        \\class Repository {}
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_ne.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE field access in AND" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where @c.name = 'Service' and any @m in @c.body > method_definition: @m.name = 'foo'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service { foo() {}; }
+        \\class Service { bar() {}; }
+        \\class Other { foo() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_and.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE same field accessed twice" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where @c.name = 'Service' or @c.name = 'Controller'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service {}
+        \\class Controller {}
+        \\class Repository {}
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_twice.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE field access in OR with anonymous lift" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m.name = 'foo' or @m.name = 'bar'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { foo() {}; }
+        \\class B { bar() {}; }
+        \\class C { baz() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_or_quantified.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

@@ -16,7 +16,7 @@
 14: trv field 25
 15: asn 3 (node this)
 16: trv variable_id 3
-17: rel equals (node text) (literal string "foo")
+17: rel like (node text) (literal regex ...)
 18: jmp relates 20
 19: jmp always 21
 20: yield
@@ -27,4 +27,4 @@
 25: yield
 26: halt always
 === values ===
-node class_declaration [0..37]
+node class_declaration [0..24]

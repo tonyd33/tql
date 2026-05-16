@@ -11,20 +11,29 @@
 9: rel equals (node kind) (literal kind_id 261)
 10: halt not_relates
 11: asn 2 (node this)
-12: probe exists 22
+12: probe exists 30
 13: trv variable_id 2
 14: trv field 25
 15: asn 3 (node this)
 16: trv variable_id 3
 17: rel equals (node text) (literal string "foo")
-18: jmp relates 20
-19: jmp always 21
-20: yield
-21: halt always
-22: jmp always 24
-23: halt always
-24: trv variable_id 1
-25: yield
-26: halt always
+18: jmp relates 28
+19: jmp always 20
+20: trv variable_id 2
+21: trv field 25
+22: asn 4 (node this)
+23: trv variable_id 4
+24: rel equals (node text) (literal string "bar")
+25: jmp relates 28
+26: jmp always 29
+27: jmp always 28
+28: yield
+29: halt always
+30: jmp always 32
+31: halt always
+32: trv variable_id 1
+33: yield
+34: halt always
 === values ===
-node class_declaration [0..37]
+node class_declaration [0..21]
+node class_declaration [22..43]
