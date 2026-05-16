@@ -136,6 +136,7 @@ pub const Compiler = struct {
         }
 
         try self.compileSelectClause(builder, body.select_clause);
+        try builder.emit(.{ .halt = .{ .condition = .always } });
     }
 
     fn compileFromClause(self: *Compiler, from_clause: ast.FromClause) CompilerError!void {
@@ -588,10 +589,23 @@ pub const Compiler = struct {
                 }
                 try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
             },
+            // string_literal: []const u8,
+            // regex_literal: []const u8,
+            // number_literal: f64,
+            .string_literal => |str| {
+                const owned_str = try self.addString(str);
+                try builder.emit(.{
+                    .yield = .{ .source = .{ .literal = .{
+                        .string = owned_str,
+                    } } },
+                });
+            },
+            // .number_literal => |numbver| {
+            //     const owned_str = try self.addString(str);
+            //     try builder.emit(.{ .yield = .{ .source = .{ .literal = owned_str } } });
+            // },
             else => @panic("Only variable projection supported for now"),
         }
-
-        try builder.emit(.{ .halt = .{ .condition = .always } });
     }
 };
 
