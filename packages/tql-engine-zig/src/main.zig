@@ -30,7 +30,7 @@ pub fn main() !u8 {
     }
     const allocator = gpa.allocator();
 
-    var stdout_buffer: [8192]u8 = undefined;
+    var stdout_buffer: [1024]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
@@ -128,12 +128,6 @@ fn run(
     stderr: *std.io.Writer,
     config: Config,
 ) !u8 {
-    if (config.query_target_paths.len > 1) {
-        try stderr.print("Only one file supported right now\n", .{});
-        return @intFromEnum(ExitCode.invalid_args);
-    }
-    const source_path = config.query_target_paths[0];
-
     // FIXME: We shouldn't need this
     const language = Language.fromPath(config.query_target_paths[0]) orelse {
         try stderr.print("Cannot detect language from '{s}'. Use --language to specify.\n", .{config.query_target_paths[0]});
@@ -144,15 +138,8 @@ fn run(
 
     var compiler = tql.Compiler.init(allocator, language.getTreeSitterLanguage());
 
-    // IMPROVE: prolly mmap'ing the file is more efficient
     const query_source = blk: {
         const file = try std.fs.cwd().openFile(config.query_path, .{});
-        defer file.close();
-        break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
-    };
-
-    const query_target = blk: {
-        const file = try std.fs.cwd().openFile(source_path, .{});
         defer file.close();
         break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
     };
@@ -166,34 +153,33 @@ fn run(
     compiler.deinit();
     query_source_tree.deinit(allocator);
 
-    var query = tql.Query.init(&program_image, language);
-
-    var query_result = try query.run(allocator, query_target);
-    query.deinit();
-
-    try formatResult(stdout, query_result.values);
-
-    allocator.free(query_target);
-    query_result.deinit();
-    program_image.deinit();
-    return 0;
-}
-
-fn formatResult(writer: *std.io.Writer, values: []Value) !void {
-    var jws = std.json.Stringify{ .writer = writer };
-
+    var jws = std.json.Stringify{ .writer = stdout };
     try jws.beginArray();
-    for (values) |value| {
-        try jws.write(value);
+    for (config.query_target_paths) |query_target_path| {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+
+        const query_target = blk: {
+            const file = try std.fs.cwd().openFile(query_target_path, .{});
+            defer file.close();
+            break :blk try file.readToEndAlloc(arena.allocator(), 10 * 1024 * 1024);
+        };
+
+        var query = tql.Query.init(&program_image, language, query_target, arena.allocator());
+        try query.exec();
+
+        while (try query.next()) |value| {
+            var v = value;
+            try jws.write(v);
+            v.deinit(arena.allocator());
+        }
+
+        query.deinit();
     }
     try jws.endArray();
-}
 
-fn writeIndent(writer: *std.io.Writer, indent: usize) anyerror!void {
-    var i: usize = 0;
-    while (i < indent) : (i += 1) {
-        try writer.print(" ", .{});
-    }
+    program_image.deinit();
+    return 0;
 }
 
 fn printUsage(writer: *std.io.Writer) !void {

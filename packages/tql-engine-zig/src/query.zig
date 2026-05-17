@@ -45,12 +45,14 @@ pub const Node = struct {
 pub const Value = union(enum) {
     nothing: void,
     string: []const u8,
+    uint: u64,
     node: Node,
     range: runtime.Range,
     record: Record,
     list: List,
 
     pub fn fromRuntimeValue(gpa: Allocator, val: runtime.Value, source: []const u8) error{OutOfMemory}!Value {
+        // IMPROVE: allocating these vector values must be a huge bottleneck...
         return switch (val) {
             .nothing => .{ .nothing = {} },
             .string => |s| .{ .string = s },
@@ -58,7 +60,8 @@ pub const Value = union(enum) {
             .range => |r| .{ .range = r },
             .record => |rc| .{ .record = try Record.fromRuntime(gpa, &rc.value, source) },
             .list => |rc| .{ .list = try List.fromRuntime(gpa, &rc.value, source) },
-            else => .{ .nothing = {} },
+            .uint => |u| .{ .uint = u },
+            .kind_id, .field_id, .regex => @panic("TODO"),
         };
     }
 
@@ -78,6 +81,7 @@ pub const Value = union(enum) {
             .range => |r| try jws.write(r),
             .record => |r| try r.jsonStringify(jws),
             .list => |l| try l.jsonStringify(jws),
+            .uint => |u| try jws.write(u),
         }
     }
 };
@@ -166,60 +170,62 @@ pub const QueryResult = struct {
 pub const Query = struct {
     program_image: *ProgramImage,
     language: Language,
+    stats: QueryStats = .{},
+    rt: ?runtime.Runtime = null,
+    source_tree: ?*ts.Tree = null,
+    source_code: []const u8,
+    allocator: Allocator,
 
     /// Borrow ProgramImage.
-    pub fn init(program_image: *ProgramImage, language: Language) Query {
-        return .{ .program_image = program_image, .language = language };
+    pub fn init(
+        program_image: *ProgramImage,
+        language: Language,
+        source_code: []const u8,
+        allocator: Allocator,
+    ) Query {
+        return .{
+            .program_image = program_image,
+            .language = language,
+            .source_code = source_code,
+            .allocator = allocator,
+        };
     }
 
-    pub fn run(self: *Query, gpa: std.mem.Allocator, source_code: []const u8) !QueryResult {
-        var stats = QueryStats{};
-
+    pub fn exec(self: *Query) !void {
         var parse_timer = try std.time.Timer.start();
         const source_parser = ts.Parser.create();
         defer source_parser.destroy();
 
         try source_parser.setLanguage(self.language.getTreeSitterLanguage());
-        const source_tree = source_parser.parseString(source_code, null) orelse return error.SourceParseFailed;
-        defer source_tree.destroy();
-        stats.parse_time_us = parse_timer.read() / 1000;
+        const source_tree = source_parser.parseString(self.source_code, null) orelse return error.SourceParseFailed;
+        self.source_tree = source_tree;
+        self.stats.parse_time_us = parse_timer.read() / 1000;
 
-        var arena: std.heap.ArenaAllocator = .init(gpa);
-        defer arena.deinit();
-        const allocator = arena.allocator();
-
-        var execute_timer = try std.time.Timer.start();
-        var rt = runtime.Runtime.init(.{
+        self.rt = runtime.Runtime.init(.{
             .tree = source_tree,
-            .source = source_code,
+            .source = self.source_code,
             .instructions = self.program_image.instructions,
             .regexes = self.program_image.regexes,
-            .allocator = allocator,
+            .allocator = self.allocator,
         });
-        // FIXME: Regex assignments will fail. The regexes need to be owned by QueryResult
-        defer rt.deinit();
 
-        try rt.exec();
-
-        var values_list = std.ArrayList(Value){};
-        defer values_list.deinit(allocator);
-
-        while (try rt.nextMatch()) |runtime_value| {
-            // NOTE: If we're able to defer this to the consumer, we can save
-            // a ton of heap allocations
-            const enriched_value = try Value.fromRuntimeValue(gpa, runtime_value, source_code);
-            try values_list.append(gpa, enriched_value);
-        }
-
-        const values = try values_list.toOwnedSlice(gpa);
-        stats.execute_time_us = execute_timer.read() / 1000;
-
-        return QueryResult{
-            .values = values,
-            .stats = stats,
-            .allocator = gpa,
-        };
+        try self.rt.?.exec();
     }
 
-    pub fn deinit(_: *Query) void {}
+    pub fn next(self: *Query) !?Value {
+        if (try self.rt.?.nextMatch()) |runtime_value| {
+            return try Value.fromRuntimeValue(
+                self.allocator,
+                runtime_value,
+                self.source_code,
+            );
+        } else {
+            return null;
+        }
+    }
+
+    pub fn deinit(self: *Query) void {
+        self.rt.?.deinit();
+        self.source_tree.?.destroy();
+    }
 };
