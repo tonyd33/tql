@@ -284,6 +284,44 @@ test "WHERE same field accessed twice" {
     }).run();
 }
 
+test "WHERE descendant nav in quantifier source" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c >> method_definition: @m.name = 'foo'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class Service { foo() {}; }
+        \\class Controller { bar() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_descendant_nav_source.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE child nav in comparison body" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: (@m.body > return_statement) != null
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { foo() { return 1; } }
+        \\class B { bar() {} }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_child_nav_in_body.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
 test "WHERE field access in OR with anonymous lift" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,

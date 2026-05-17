@@ -22,7 +22,7 @@ const LabelId = u32;
 
 const BindingMetadata = struct {
     variable_id: VariableId,
-    expression: ast.NavigationExpression,
+    expression: ast.Expression,
     emitted: bool = false,
 };
 
@@ -44,7 +44,6 @@ pub const Compiler = struct {
 
     regexes: std.ArrayList(pcre2.Regex),
     strings: std.ArrayList([]const u8),
-    lifted_navs: std.ArrayList(*ast.FieldAccess),
 
     // FIXME: we're supposed to detect the language
     pub fn init(allocator: Allocator, language: *ts.Language) Compiler {
@@ -55,7 +54,6 @@ pub const Compiler = struct {
             .bindings = std.ArrayList(BindingMetadata){},
             .regexes = std.ArrayList(pcre2.Regex){},
             .strings = std.ArrayList([]const u8){},
-            .lifted_navs = std.ArrayList(*ast.FieldAccess){},
         };
     }
 
@@ -72,11 +70,6 @@ pub const Compiler = struct {
             self.allocator.free(str);
         }
         self.strings.deinit(self.allocator);
-
-        for (self.lifted_navs.items) |fa| {
-            self.allocator.destroy(fa);
-        }
-        self.lifted_navs.deinit(self.allocator);
     }
 
     pub fn addRegex(self: *Compiler, regex: pcre2.Regex) CompilerError!usize {
@@ -175,7 +168,7 @@ pub const Compiler = struct {
                 if (binding.emitted) return;
 
                 try self.ensureExpressionDependencies(builder, binding.expression);
-                try self.compileNavigationExpression(builder, binding.expression);
+                try self.compileAsNavigation(builder, binding.expression);
                 try builder.emit(.{ .asn = .{
                     .variable_id = var_id,
                     .source = .{ .node = .this },
@@ -188,7 +181,7 @@ pub const Compiler = struct {
         @panic("Variable not found in bindings");
     }
 
-    fn ensureExpressionDependencies(self: *Compiler, builder: *InstructionBuilder, expr: ast.NavigationExpression) CompilerError!void {
+    fn ensureExpressionDependencies(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!void {
         switch (expr) {
             .variable => |variable| {
                 const dep_var_id = self.variables.get(variable.name) orelse
@@ -237,16 +230,14 @@ pub const Compiler = struct {
             .parenthesized => |parenthesized| {
                 try self.ensureExpressionDependencies(builder, parenthesized.*);
             },
-            .query_call => {
-                @panic("Query call not implemented");
-            },
+            else => @panic("Non-navigation expression as dependency"),
         }
     }
 
-    fn compileNavigationExpression(
+    fn compileAsNavigation(
         self: *Compiler,
         builder: *InstructionBuilder,
-        expr: ast.NavigationExpression,
+        expr: ast.Expression,
     ) CompilerError!void {
         switch (expr) {
             .variable => |variable| {
@@ -265,25 +256,23 @@ pub const Compiler = struct {
                 try self.compileDescendantNavigation(builder, desc_nav);
             },
             .parenthesized => |parenthesized| {
-                try self.compileNavigationExpression(builder, parenthesized.*);
+                try self.compileAsNavigation(builder, parenthesized.*);
             },
-            .query_call => {
-                @panic("Query call as child navigation parent not yet implemented");
-            },
+            else => @panic("value expression used in navigation position"),
         }
     }
 
     fn compileFieldAccess(self: *Compiler, builder: *InstructionBuilder, field_access: *ast.FieldAccess) CompilerError!void {
-        try self.compileNavigationExpression(builder, field_access.base);
+        try self.compileAsNavigation(builder, field_access.base);
         const field_id = self.language.fieldIdForName(field_access.field);
         try builder.emit(.{ .trv = .{ .field = field_id } });
     }
 
     fn compileChildNavigation(self: *Compiler, builder: *InstructionBuilder, child_nav: *ast.ChildNavigation) CompilerError!void {
-        try self.compileNavigationExpression(builder, child_nav.parent);
+        try self.compileAsNavigation(builder, child_nav.parent);
         try builder.emit(.{ .trv = .{ .child = {} } });
 
-        // FIXME: Why can't I do self.compileNavigationExpression(builder, child_nav.child)?
+        // FIXME: Why can't I do self.compileAsNavigation(builder, child_nav.child)?
         switch (child_nav.child) {
             .node_selector => |node_selector| {
                 const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
@@ -299,11 +288,11 @@ pub const Compiler = struct {
     }
 
     fn compileDescendantNavigation(self: *Compiler, builder: *InstructionBuilder, desc_nav: *ast.DescendantNavigation) CompilerError!void {
-        try self.compileNavigationExpression(builder, desc_nav.parent);
+        try self.compileAsNavigation(builder, desc_nav.parent);
 
         try builder.emit(.{ .trv = .{ .descendant = {} } });
 
-        // FIXME: Why can't I do self.compileNavigationExpression(builder, desc_nav.child)?
+        // FIXME: Why can't I do self.compileAsNavigation(builder, desc_nav.child)?
         switch (desc_nav.descendant) {
             .node_selector => |node_selector| {
                 const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
@@ -413,7 +402,7 @@ pub const Compiler = struct {
         const var_id = try self.variables.getOrPut(quantified.variable.name);
 
         try self.ensureExpressionDependencies(builder, quantified.source);
-        try self.compileNavigationExpression(builder, quantified.source);
+        try self.compileAsNavigation(builder, quantified.source);
         try builder.emit(.{ .asn = .{
             .variable_id = var_id,
             .source = .{ .node = .this },
@@ -501,8 +490,8 @@ pub const Compiler = struct {
             }
         }
 
-        const left_source = try self.compileExpression(builder, comparison.left);
-        const right_source = try self.compileExpression(builder, comparison.right);
+        const left_source = try self.compileAsValue(builder, comparison.left);
+        const right_source = try self.compileAsValue(builder, comparison.right);
 
         const relation: Relation = switch (comparison.operator) {
             .eq => .equals,
@@ -542,21 +531,6 @@ pub const Compiler = struct {
         try builder.emitJump(failure_label, .always);
     }
 
-    // TODO: Unify expressions
-    fn expressionToNavigation(self: *Compiler, expr: ast.Expression) CompilerError!ast.NavigationExpression {
-        return switch (expr) {
-            .variable => |v| ast.NavigationExpression{ .variable = v },
-            .field_access => |fa| blk: {
-                const base_nav = try self.expressionToNavigation(fa.base);
-                const nav_fa = try self.allocator.create(ast.FieldAccess);
-                nav_fa.* = .{ .base = base_nav, .field = fa.field };
-                try self.lifted_navs.append(self.allocator, nav_fa);
-                break :blk ast.NavigationExpression{ .field_access = nav_fa };
-            },
-            else => @panic("non-navigation expression in field-access base"),
-        };
-    }
-
     fn ensureExpressionAsVariable(
         self: *Compiler,
         builder: *InstructionBuilder,
@@ -568,24 +542,25 @@ pub const Compiler = struct {
                 try self.ensureVariableNavigated(builder, var_id);
                 break :blk var_id;
             },
-            .field_access => |fa| try self.liftFieldAccess(builder, fa),
+            .field_access, .child_navigation, .descendant_navigation, .node_selector => try self.liftNavigation(builder, expr),
+            .parenthesized => |p| try self.ensureExpressionAsVariable(builder, p.*),
+            // TODO: we should be able to support all expressions as variables
             else => null,
         };
     }
 
-    fn liftFieldAccess(self: *Compiler, builder: *InstructionBuilder, fa: *ast.FieldAccessExpression) CompilerError!VariableId {
-        const nav = try self.expressionToNavigation(.{ .field_access = fa });
+    fn liftNavigation(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!VariableId {
         const anon_id = self.variables.allocateAnonymous();
         try self.bindings.append(self.allocator, .{
             .variable_id = anon_id,
-            .expression = nav,
+            .expression = expr,
             .emitted = false,
         });
         try self.ensureVariableNavigated(builder, anon_id);
         return anon_id;
     }
 
-    fn compileExpression(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!runtime.ValueSource {
+    fn compileAsValue(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!runtime.ValueSource {
         return switch (expr) {
             .variable => |variable| {
                 if (self.variables.get(variable.name)) |var_id| {
@@ -601,9 +576,7 @@ pub const Compiler = struct {
                     .literal = .{ .string = owned_str },
                 };
             },
-            .number_literal => |_| {
-                @panic("Number literals not yet implemented");
-            },
+            .number_literal => @panic("TODO"),
             .null_literal => runtime.ValueSource{
                 .literal = .{ .nothing = {} },
             },
@@ -614,14 +587,15 @@ pub const Compiler = struct {
                     .literal = .{ .regex = self.regexes.items[regex_index] },
                 };
             },
-            .field_access => |field_access| {
-                const anon_id = try self.liftFieldAccess(builder, field_access);
-                return runtime.ValueSource{ .variable_id = anon_id };
+            .field_access, .child_navigation, .descendant_navigation, .node_selector => blk: {
+                const anon_id = try self.liftNavigation(builder, expr);
+                break :blk runtime.ValueSource{ .variable_id = anon_id };
             },
+            .parenthesized => |p| try self.compileAsValue(builder, p.*),
             .object_literal => |obj| try self.compileRecordExpression(builder, obj),
             .array_literal => |arr| try self.compileListExpression(builder, arr.elements),
             .tuple_literal => |tup| try self.compileListExpression(builder, tup.elements),
-            else => @panic("Expression type not yet implemented"),
+            .function_call, .subquery => @panic("TODO"),
         };
     }
 
@@ -642,7 +616,7 @@ pub const Compiler = struct {
                     };
                 },
                 .key_value => |kv| {
-                    const source = try self.compileExpression(builder, kv.value);
+                    const source = try self.compileAsValue(builder, kv.value);
                     sources[i] = .{
                         .key = try self.addString(kv.key),
                         .source = source,
@@ -665,7 +639,7 @@ pub const Compiler = struct {
         defer self.allocator.free(sources);
 
         for (elements, 0..) |elem, i| {
-            sources[i] = try self.compileExpression(builder, elem);
+            sources[i] = try self.compileAsValue(builder, elem);
         }
 
         try builder.emit(.{ .begin_build = .list });

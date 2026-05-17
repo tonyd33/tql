@@ -39,7 +39,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -80,7 +80,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -90,7 +90,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -170,7 +170,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -180,7 +180,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -219,11 +219,23 @@
           "named": true
         },
         {
-          "type": "field_access_expression",
+          "type": "child_navigation",
+          "named": true
+        },
+        {
+          "type": "descendant_navigation",
+          "named": true
+        },
+        {
+          "type": "field_access",
           "named": true
         },
         {
           "type": "function_call",
+          "named": true
+        },
+        {
+          "type": "node_selector",
           "named": true
         },
         {
@@ -236,6 +248,10 @@
         },
         {
           "type": "object_literal",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
           "named": true
         },
         {
@@ -263,32 +279,6 @@
   },
   {
     "type": "field_access",
-    "named": true,
-    "fields": {
-      "base": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "navigation_expression",
-            "named": true
-          }
-        ]
-      },
-      "field": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "field_access_expression",
     "named": true,
     "fields": {
       "base": {
@@ -455,45 +445,6 @@
     }
   },
   {
-    "type": "navigation_expression",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "child_navigation",
-          "named": true
-        },
-        {
-          "type": "descendant_navigation",
-          "named": true
-        },
-        {
-          "type": "field_access",
-          "named": true
-        },
-        {
-          "type": "node_selector",
-          "named": true
-        },
-        {
-          "type": "parenthesized_navigation",
-          "named": true
-        },
-        {
-          "type": "query_call",
-          "named": true
-        },
-        {
-          "type": "variable",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "node_selector",
     "named": true,
     "fields": {},
@@ -633,7 +584,7 @@
     }
   },
   {
-    "type": "parenthesized_navigation",
+    "type": "parenthesized_expression",
     "named": true,
     "fields": {},
     "children": {
@@ -641,7 +592,7 @@
       "required": true,
       "types": [
         {
-          "type": "navigation_expression",
+          "type": "expression",
           "named": true
         }
       ]
@@ -710,7 +661,7 @@
           "named": true
         },
         {
-          "type": "field_access_expression",
+          "type": "field_access",
           "named": true
         },
         {
@@ -781,7 +732,7 @@
         "required": true,
         "types": [
           {
-            "type": "navigation_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -828,32 +779,6 @@
         "types": [
           {
             "type": "where_clause",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "query_call",
-    "named": true,
-    "fields": {
-      "argument": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "expression",
-            "named": true
-          }
-        ]
-      },
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
             "named": true
           }
         ]

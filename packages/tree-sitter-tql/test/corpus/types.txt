@@ -71,7 +71,7 @@ query main(): Array<class_declaration> {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable

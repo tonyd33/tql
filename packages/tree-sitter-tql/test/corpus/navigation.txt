@@ -17,15 +17,15 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (field_access
-              (navigation_expression
+              (expression
                 (variable
                   (identifier)))
               (identifier)))
@@ -55,17 +55,17 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (field_access
-              (navigation_expression
+              (expression
                 (field_access
-                  (navigation_expression
+                  (expression
                     (variable
                       (identifier)))
                   (identifier)))
@@ -96,18 +96,18 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (child_navigation
-              (navigation_expression
+              (expression
                 (variable
                   (identifier)))
-              (navigation_expression
+              (expression
                 (node_selector
                   (identifier)))))
           (variable
@@ -136,18 +136,18 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (descendant_navigation
-              (navigation_expression
+              (expression
                 (variable
                   (identifier)))
-              (navigation_expression
+              (expression
                 (node_selector
                   (identifier)))))
           (variable
@@ -176,18 +176,18 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (descendant_navigation
-              (navigation_expression
+              (expression
                 (variable
                   (identifier)))
-              (navigation_expression
+              (expression
                 (node_selector
                   (identifier)))))
           (variable
@@ -216,23 +216,23 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
+          (expression
             (child_navigation
-              (navigation_expression
+              (expression
                 (field_access
-                  (navigation_expression
+                  (expression
                     (variable
                       (identifier)))
                   (identifier)))
-              (navigation_expression
+              (expression
                 (field_access
-                  (navigation_expression
+                  (expression
                     (node_selector
                       (identifier)))
                   (identifier)))))
@@ -272,9 +272,9 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (field_access
-              (navigation_expression
+              (expression
                 (variable
                   (identifier)))
               (identifier)))
@@ -290,14 +290,14 @@ query main() {
     (query_body
       (from_clause
         (binding
-          (navigation_expression
+          (expression
             (node_selector
               (identifier)))
           (variable
             (identifier)))
         (binding
-          (navigation_expression
-            (query_call
+          (expression
+            (function_call
               (identifier)
               (expression
                 (variable

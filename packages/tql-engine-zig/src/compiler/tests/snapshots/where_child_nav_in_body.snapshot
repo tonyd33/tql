@@ -1,0 +1,32 @@
+=== bytecode ===
+0: asn 0 (node this)
+1: trv variable_id 0
+2: trv descendant
+3: rel equals (node kind) (literal kind_id 221)
+4: halt not_relates
+5: asn 1 (node this)
+6: trv variable_id 1
+7: trv field 5
+8: trv child
+9: rel equals (node kind) (literal kind_id 261)
+10: halt not_relates
+11: asn 2 (node this)
+12: probe exists 24
+13: trv variable_id 2
+14: trv field 5
+15: trv child
+16: rel equals (node kind) (literal kind_id 200)
+17: halt not_relates
+18: asn 3 (node this)
+19: rel equals (variable_id 3) (literal nothing)
+20: jmp relates 23
+21: jmp always 22
+22: yield
+23: halt always
+24: jmp always 26
+25: halt always
+26: trv variable_id 1
+27: yield
+28: halt always
+=== values ===
+node class_declaration [0..31]

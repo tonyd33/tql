@@ -94,53 +94,35 @@ module.exports = grammar({
     ),
 
     binding: $ => seq(
-      field('expression', $.navigation_expression),
+      field('expression', $.expression),
       'as',
       field('variable', $.variable),
       optional(field('optional', '?')),
     ),
 
-    // TODO: Implement a haskell-like $ combinator
-    navigation_expression: $ => choice(
-      $.node_selector,
-      $.variable,
-      $.field_access,
-      $.child_navigation,
-      $.descendant_navigation,
-      $.query_call,
-      $.parenthesized_navigation,
-    ),
-
     node_selector: $ => $.identifier,
 
     field_access: $ => prec.left(PREC.field, seq(
-      field('base', $.navigation_expression),
+      field('base', $.expression),
       '.',
       field('field', $.identifier),
     )),
 
     child_navigation: $ => prec.left(PREC.child, seq(
-      field('parent', $.navigation_expression),
+      field('parent', $.expression),
       '>',
-      field('child', $.navigation_expression),
+      field('child', $.expression),
     )),
 
     descendant_navigation: $ => prec.left(PREC.descendant, seq(
-      field('parent', $.navigation_expression),
+      field('parent', $.expression),
       choice('descendant::', '>>'),
-      field('descendant', $.navigation_expression),
+      field('descendant', $.expression),
     )),
 
-    query_call: $ => seq(
-      field('name', $.identifier),
+    parenthesized_expression: $ => seq(
       '(',
-      optional(comma_sep1(field('argument', $.expression))),
-      ')',
-    ),
-
-    parenthesized_navigation: $ => seq(
-      '(',
-      $.navigation_expression,
+      $.expression,
       ')',
     ),
 
@@ -187,7 +169,7 @@ module.exports = grammar({
       field('quantifier', choice('any', 'all')),
       field('variable', $.variable),
       'in',
-      field('source', $.navigation_expression),
+      field('source', $.expression),
       ':',
       field('predicate', $.predicate),
     ),
@@ -209,7 +191,7 @@ module.exports = grammar({
       $.regex_literal,
       $.number_literal,
       $.function_call,
-      $.field_access_expression,
+      $.field_access,
       $.object_literal,
       $.array_literal,
       $.tuple_literal,
@@ -255,17 +237,21 @@ module.exports = grammar({
 
     // Expressions
     expression: $ => choice(
+      $.node_selector,
       $.variable,
       $.string_literal,
       $.regex_literal,
       $.number_literal,
       $.null_literal,
+      $.field_access,
+      $.child_navigation,
+      $.descendant_navigation,
       $.function_call,
-      $.field_access_expression,
       $.object_literal,
       $.array_literal,
       $.tuple_literal,
       $.subquery,
+      $.parenthesized_expression,
     ),
 
     function_call: $ => seq(
@@ -274,12 +260,6 @@ module.exports = grammar({
       optional(comma_sep1(field('argument', $.expression))),
       ')',
     ),
-
-    field_access_expression: $ => prec.left(PREC.field, seq(
-      field('base', $.expression),
-      '.',
-      field('field', $.identifier),
-    )),
 
     // Types
     type: $ => choice(

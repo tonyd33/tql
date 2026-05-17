@@ -263,7 +263,7 @@ pub const Parser = struct {
 
     fn parseBinding(self: *Parser, node: ts.Node, source: []const u8) !ast.Binding {
         const expr_node = try expectChildByFieldName(node, "expression");
-        const expression = try self.parseNavigationExpression(expr_node, source);
+        const expression = try self.parseExpression(expr_node, source);
 
         const var_node = try expectChildByFieldName(node, "variable");
         const variable = try self.parseVariable(var_node, source);
@@ -277,63 +277,6 @@ pub const Parser = struct {
         };
     }
 
-    fn parseNavigationExpression(self: *Parser, node: ts.Node, source: []const u8) anyerror!ast.NavigationExpression {
-        const node_type = getNodeType(node);
-
-        // Handle wrapper navigation_expression node
-        if (std.mem.eql(u8, node_type, "navigation_expression")) {
-            // Get the first child which is the actual navigation type
-            var cursor = node.walk();
-            defer cursor.destroy();
-            if (cursor.gotoFirstChild()) {
-                return try self.parseNavigationExpression(cursor.node(), source);
-            }
-            return error.InvalidNavigationExpression;
-        }
-
-        if (std.mem.eql(u8, node_type, "node_selector")) {
-            return .{ .node_selector = try self.parseNodeSelector(node, source) };
-        } else if (std.mem.eql(u8, node_type, "variable")) {
-            return .{ .variable = try self.parseVariable(node, source) };
-        } else if (std.mem.eql(u8, node_type, "field_access")) {
-            const field_access = try self.allocator.create(ast.FieldAccess);
-            field_access.* = try self.parseFieldAccess(node, source);
-            return .{ .field_access = field_access };
-        } else if (std.mem.eql(u8, node_type, "child_navigation")) {
-            const child_nav = try self.allocator.create(ast.ChildNavigation);
-            child_nav.* = try self.parseChildNavigation(node, source);
-            return .{ .child_navigation = child_nav };
-        } else if (std.mem.eql(u8, node_type, "descendant_navigation")) {
-            const desc_nav = try self.allocator.create(ast.DescendantNavigation);
-            desc_nav.* = try self.parseDescendantNavigation(node, source);
-            return .{ .descendant_navigation = desc_nav };
-        } else if (std.mem.eql(u8, node_type, "query_call")) {
-            const query_call = try self.allocator.create(ast.QueryCall);
-            query_call.* = try self.parseQueryCall(node, source);
-            return .{ .query_call = query_call };
-        } else if (std.mem.eql(u8, node_type, "parenthesized_navigation")) {
-            var cursor = node.walk();
-            defer cursor.destroy();
-
-            if (cursor.gotoFirstChild()) {
-                while (true) {
-                    const child = cursor.node();
-                    const child_type = getNodeType(child);
-
-                    if (std.mem.eql(u8, child_type, "navigation_expression")) {
-                        const nav_expr = try self.allocator.create(ast.NavigationExpression);
-                        nav_expr.* = try self.parseNavigationExpression(child, source);
-                        return .{ .parenthesized = nav_expr };
-                    }
-
-                    if (!cursor.gotoNextSibling()) break;
-                }
-            }
-        }
-
-        return error.InvalidNavigationExpression;
-    }
-
     fn parseNodeSelector(self: *Parser, node: ts.Node, source: []const u8) !ast.NodeSelector {
         const node_type = try self.allocator.dupe(u8, nodeText(node, source));
         return ast.NodeSelector{ .node_type = node_type };
@@ -341,7 +284,7 @@ pub const Parser = struct {
 
     fn parseFieldAccess(self: *Parser, node: ts.Node, source: []const u8) !ast.FieldAccess {
         const base_node = try expectChildByFieldName(node, "base");
-        const base = try self.parseNavigationExpression(base_node, source);
+        const base = try self.parseExpression(base_node, source);
 
         const field_node = try expectChildByFieldName(node, "field");
         const field = try self.allocator.dupe(u8, nodeText(field_node, source));
@@ -354,10 +297,10 @@ pub const Parser = struct {
 
     fn parseChildNavigation(self: *Parser, node: ts.Node, source: []const u8) !ast.ChildNavigation {
         const parent_node = try expectChildByFieldName(node, "parent");
-        const parent = try self.parseNavigationExpression(parent_node, source);
+        const parent = try self.parseExpression(parent_node, source);
 
         const child_node = try expectChildByFieldName(node, "child");
-        const child = try self.parseNavigationExpression(child_node, source);
+        const child = try self.parseExpression(child_node, source);
 
         return ast.ChildNavigation{
             .parent = parent,
@@ -367,42 +310,14 @@ pub const Parser = struct {
 
     fn parseDescendantNavigation(self: *Parser, node: ts.Node, source: []const u8) !ast.DescendantNavigation {
         const parent_node = try expectChildByFieldName(node, "parent");
-        const parent = try self.parseNavigationExpression(parent_node, source);
+        const parent = try self.parseExpression(parent_node, source);
 
         const descendant_node = try expectChildByFieldName(node, "descendant");
-        const descendant = try self.parseNavigationExpression(descendant_node, source);
+        const descendant = try self.parseExpression(descendant_node, source);
 
         return ast.DescendantNavigation{
             .parent = parent,
             .descendant = descendant,
-        };
-    }
-
-    fn parseQueryCall(self: *Parser, node: ts.Node, source: []const u8) !ast.QueryCall {
-        const name_node = try expectChildByFieldName(node, "name");
-        const name = try self.allocator.dupe(u8, nodeText(name_node, source));
-
-        var arguments = std.ArrayList(ast.Expression).empty;
-        defer arguments.deinit(self.allocator);
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                const child = cursor.node();
-                if (cursor.fieldName() != null and std.mem.eql(u8, cursor.fieldName().?, "argument")) {
-                    const arg = try self.parseExpression(child, source);
-                    try arguments.append(self.allocator, arg);
-                }
-
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
-
-        return ast.QueryCall{
-            .name = name,
-            .arguments = try arguments.toOwnedSlice(self.allocator),
         };
     }
 
@@ -547,7 +462,7 @@ pub const Parser = struct {
         const variable = try self.parseVariable(var_node, source);
 
         const source_node = try expectChildByFieldName(node, "source");
-        const nav_source = try self.parseNavigationExpression(source_node, source);
+        const nav_source = try self.parseExpression(source_node, source);
 
         const pred_node = try expectChildByFieldName(node, "predicate");
         const pred = try self.allocator.create(ast.Predicate);
@@ -595,9 +510,9 @@ pub const Parser = struct {
             return .{ .number_literal = try self.parseNumberLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "function_call")) {
             return .{ .function_call = try self.parseFunctionCall(node, source) };
-        } else if (std.mem.eql(u8, node_type, "field_access_expression")) {
-            const field_access_expr = try self.allocator.create(ast.FieldAccessExpression);
-            field_access_expr.* = try self.parseFieldAccessExpression(node, source);
+        } else if (std.mem.eql(u8, node_type, "field_access")) {
+            const field_access_expr = try self.allocator.create(ast.FieldAccess);
+            field_access_expr.* = try self.parseFieldAccess(node, source);
             return .{ .field_access = field_access_expr };
         } else if (std.mem.eql(u8, node_type, "object_literal")) {
             return .{ .object_literal = try self.parseObjectLiteral(node, source) };
@@ -761,6 +676,8 @@ pub const Parser = struct {
 
         if (std.mem.eql(u8, node_type, "variable")) {
             return .{ .variable = try self.parseVariable(node, source) };
+        } else if (std.mem.eql(u8, node_type, "node_selector")) {
+            return .{ .node_selector = try self.parseNodeSelector(node, source) };
         } else if (std.mem.eql(u8, node_type, "string_literal")) {
             return .{ .string_literal = try self.parseStringLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "regex_literal")) {
@@ -769,12 +686,20 @@ pub const Parser = struct {
             return .{ .number_literal = try self.parseNumberLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "null_literal")) {
             return .null_literal;
+        } else if (std.mem.eql(u8, node_type, "field_access")) {
+            const field_access = try self.allocator.create(ast.FieldAccess);
+            field_access.* = try self.parseFieldAccess(node, source);
+            return .{ .field_access = field_access };
+        } else if (std.mem.eql(u8, node_type, "child_navigation")) {
+            const child_nav = try self.allocator.create(ast.ChildNavigation);
+            child_nav.* = try self.parseChildNavigation(node, source);
+            return .{ .child_navigation = child_nav };
+        } else if (std.mem.eql(u8, node_type, "descendant_navigation")) {
+            const desc_nav = try self.allocator.create(ast.DescendantNavigation);
+            desc_nav.* = try self.parseDescendantNavigation(node, source);
+            return .{ .descendant_navigation = desc_nav };
         } else if (std.mem.eql(u8, node_type, "function_call")) {
             return .{ .function_call = try self.parseFunctionCall(node, source) };
-        } else if (std.mem.eql(u8, node_type, "field_access_expression")) {
-            const field_access_expr = try self.allocator.create(ast.FieldAccessExpression);
-            field_access_expr.* = try self.parseFieldAccessExpression(node, source);
-            return .{ .field_access = field_access_expr };
         } else if (std.mem.eql(u8, node_type, "object_literal")) {
             return .{ .object_literal = try self.parseObjectLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "array_literal")) {
@@ -785,6 +710,25 @@ pub const Parser = struct {
             const query_body = try self.allocator.create(ast.QueryBody);
             query_body.* = try self.parseSubquery(node, source);
             return .{ .subquery = query_body };
+        } else if (std.mem.eql(u8, node_type, "parenthesized_expression")) {
+            var cursor = node.walk();
+            defer cursor.destroy();
+
+            if (cursor.gotoFirstChild()) {
+                while (true) {
+                    const child = cursor.node();
+                    const child_type = getNodeType(child);
+
+                    if (std.mem.eql(u8, child_type, "expression")) {
+                        const inner = try self.allocator.create(ast.Expression);
+                        inner.* = try self.parseExpression(child, source);
+                        return .{ .parenthesized = inner };
+                    }
+
+                    if (!cursor.gotoNextSibling()) break;
+                }
+            }
+            return error.InvalidExpression;
         }
 
         return error.InvalidExpression;
@@ -815,19 +759,6 @@ pub const Parser = struct {
         return ast.FunctionCall{
             .name = name,
             .arguments = try arguments.toOwnedSlice(self.allocator),
-        };
-    }
-
-    fn parseFieldAccessExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.FieldAccessExpression {
-        const base_node = try expectChildByFieldName(node, "base");
-        const base = try self.parseExpression(base_node, source);
-
-        const field_node = try expectChildByFieldName(node, "field");
-        const field = try self.allocator.dupe(u8, nodeText(field_node, source));
-
-        return ast.FieldAccessExpression{
-            .base = base,
-            .field = field,
         };
     }
 
@@ -970,7 +901,6 @@ pub const ParseError = error{
     ParseFailed,
     MissingRequiredField,
     InvalidDirective,
-    InvalidNavigationExpression,
     InvalidPredicate,
     InvalidProjection,
     InvalidExpression,

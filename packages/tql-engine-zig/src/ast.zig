@@ -110,7 +110,7 @@ pub const FromClause = struct {
 };
 
 pub const Binding = struct {
-    expression: NavigationExpression,
+    expression: Expression,
     variable: Variable,
     optional: bool,
 
@@ -120,72 +120,23 @@ pub const Binding = struct {
     }
 };
 
-pub const NavigationExpression = union(enum) {
-    node_selector: NodeSelector,
-    variable: Variable,
-    field_access: *FieldAccess,
-    child_navigation: *ChildNavigation,
-    descendant_navigation: *DescendantNavigation,
-    query_call: *QueryCall,
-    parenthesized: *NavigationExpression,
-
-    pub fn deinit(self: NavigationExpression, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .node_selector => |ns| allocator.free(ns.node_type),
-            .variable => |v| allocator.free(v.name),
-            .field_access => |fa| {
-                fa.base.deinit(allocator);
-                allocator.free(fa.field);
-                allocator.destroy(fa);
-            },
-            .child_navigation => |cn| {
-                cn.parent.deinit(allocator);
-                cn.child.deinit(allocator);
-                allocator.destroy(cn);
-            },
-            .descendant_navigation => |dn| {
-                dn.parent.deinit(allocator);
-                dn.descendant.deinit(allocator);
-                allocator.destroy(dn);
-            },
-            .query_call => |qc| {
-                allocator.free(qc.name);
-                for (qc.arguments) |arg| {
-                    arg.deinit(allocator);
-                }
-                allocator.free(qc.arguments);
-                allocator.destroy(qc);
-            },
-            .parenthesized => |p| {
-                p.deinit(allocator);
-                allocator.destroy(p);
-            },
-        }
-    }
-};
-
 pub const NodeSelector = struct {
     node_type: Identifier,
 };
 
 pub const FieldAccess = struct {
-    base: NavigationExpression,
+    base: Expression,
     field: Identifier,
 };
 
 pub const ChildNavigation = struct {
-    parent: NavigationExpression,
-    child: NavigationExpression,
+    parent: Expression,
+    child: Expression,
 };
 
 pub const DescendantNavigation = struct {
-    parent: NavigationExpression,
-    descendant: NavigationExpression,
-};
-
-pub const QueryCall = struct {
-    name: Identifier,
-    arguments: []const Expression,
+    parent: Expression,
+    descendant: Expression,
 };
 
 pub const WhereClause = struct {
@@ -272,7 +223,7 @@ pub const LogicalNot = struct {
 pub const QuantifiedExpression = struct {
     quantifier: Quantifier,
     variable: Variable,
-    source: NavigationExpression,
+    source: Expression,
     predicate: *Predicate,
 };
 
@@ -295,7 +246,7 @@ pub const Projection = union(enum) {
     regex_literal: []const u8,
     number_literal: f64,
     function_call: FunctionCall,
-    field_access: *FieldAccessExpression,
+    field_access: *FieldAccess,
     object_literal: ObjectLiteral,
     array_literal: ArrayLiteral,
     tuple_literal: TupleLiteral,
@@ -376,34 +327,49 @@ pub const TupleLiteral = struct {
 };
 
 pub const Expression = union(enum) {
+    node_selector: NodeSelector,
     variable: Variable,
     string_literal: []const u8,
     regex_literal: []const u8,
     number_literal: f64,
     null_literal,
+    field_access: *FieldAccess,
+    child_navigation: *ChildNavigation,
+    descendant_navigation: *DescendantNavigation,
     function_call: FunctionCall,
-    field_access: *FieldAccessExpression,
     object_literal: ObjectLiteral,
     array_literal: ArrayLiteral,
     tuple_literal: TupleLiteral,
     subquery: *QueryBody,
+    parenthesized: *Expression,
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
         switch (self) {
+            .node_selector => |ns| allocator.free(ns.node_type),
             .variable => |v| allocator.free(v.name),
             .string_literal => |s| allocator.free(s),
             .regex_literal => |r| allocator.free(r),
             .number_literal => {},
             .null_literal => {},
-            .function_call => |fc| {
-                allocator.free(fc.name);
-                for (fc.arguments) |arg| arg.deinit(allocator);
-                allocator.free(fc.arguments);
-            },
             .field_access => |fa| {
                 fa.base.deinit(allocator);
                 allocator.free(fa.field);
                 allocator.destroy(fa);
+            },
+            .child_navigation => |cn| {
+                cn.parent.deinit(allocator);
+                cn.child.deinit(allocator);
+                allocator.destroy(cn);
+            },
+            .descendant_navigation => |dn| {
+                dn.parent.deinit(allocator);
+                dn.descendant.deinit(allocator);
+                allocator.destroy(dn);
+            },
+            .function_call => |fc| {
+                allocator.free(fc.name);
+                for (fc.arguments) |arg| arg.deinit(allocator);
+                allocator.free(fc.arguments);
             },
             .object_literal => |ol| {
                 for (ol.fields) |field| field.deinit(allocator);
@@ -421,6 +387,10 @@ pub const Expression = union(enum) {
                 sq.deinit(allocator);
                 allocator.destroy(sq);
             },
+            .parenthesized => |p| {
+                p.deinit(allocator);
+                allocator.destroy(p);
+            },
         }
     }
 };
@@ -428,11 +398,6 @@ pub const Expression = union(enum) {
 pub const FunctionCall = struct {
     name: Identifier,
     arguments: []const Expression,
-};
-
-pub const FieldAccessExpression = struct {
-    base: Expression,
-    field: Identifier,
 };
 
 pub const Type = union(enum) {
