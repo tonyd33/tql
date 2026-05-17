@@ -17,4 +17,4 @@
 15: yield
 16: halt always
 === values ===
-node class_declaration [0..16]
+{"kind":"class_declaration","text":"class Service {}","start_byte":0,"end_byte":16,"start_point":{"row":0,"column":0},"end_point":{"row":0,"column":16},"child_count":3,"named_child_count":2,"is_named":true,"is_missing":false,"is_extra":false}

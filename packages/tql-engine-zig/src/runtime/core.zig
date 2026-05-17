@@ -103,6 +103,71 @@ pub const Runtime = struct {
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
     }
 
+    /// Handle yield. This behaves differently based on whether we're within a
+    /// probe boundary.
+    /// Returns true if a probe boundary was found and handled.
+    fn handleYield(self: *Self) bool {
+        // the asymmetry with handleFin is unpleasing but i think necessary.
+        // here, our actions are determined by a potential nonlocal probe
+        // boundary. on the other hand, fin acts locally. the fin naturally
+        // bubbles up the stack until something eventually handles it.
+        // yield likely cannot do the same because it's a nonterminal action on
+        // a branch (though, we might be able to store the relevant probe
+        // boundary on every stack frame...)
+        var i: usize = self.stack.items.len;
+        while (i > 0) {
+            i -= 1;
+            const search_frame = &self.stack.items[i];
+
+            switch (search_frame.boundary) {
+                .probe => |probe| {
+                    const result: struct { unwind_to: usize, success_addr: ?u32 } = switch (probe) {
+                        .exists => |success_addr| .{
+                            .unwind_to = i,
+                            .success_addr = success_addr,
+                        },
+                        .nexists => .{
+                            .unwind_to = i - 1,
+                            .success_addr = null,
+                        },
+                    };
+
+                    while (self.stack.items.len > result.unwind_to) {
+                        self.deinitFrame();
+                    }
+                    if (result.success_addr) |success_addr| {
+                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                        parent_frame.state.pc = success_addr;
+                    }
+                    return true;
+                },
+                else => {},
+            }
+        }
+        return false;
+    }
+
+    /// Handle "finished", which may be via implicit exhaustion or via explicit
+    /// halt.
+    fn handleFin(self: *Self) void {
+        const boundary = self.stack.items[self.stack.items.len - 1].boundary;
+        self.deinitFrame();
+        switch (boundary) {
+            .probe => |probe| switch (probe) {
+                .exists => {
+                    if (self.stack.items.len > 0) self.handleFin();
+                },
+                .nexists => |on_success| {
+                    if (self.stack.items.len > 0) {
+                        const parent = &self.stack.items[self.stack.items.len - 1];
+                        parent.state.pc = on_success;
+                    }
+                },
+            },
+            else => {},
+        }
+    }
+
     fn getSource(self: *Self, state: State, vs: ValueSource) Value {
         return switch (vs) {
             .literal => |v| v,
@@ -133,50 +198,6 @@ pub const Runtime = struct {
         };
     }
 
-    /// Handle probe boundary logic for halt/trv failure or yield
-    /// Returns true if a probe boundary was found and handled
-    /// If yield_semantics is true: exists succeeds, nexists fails
-    /// If yield_semantics is false: nexists succeeds, exists fails
-    fn handleProbeBoundary(self: *Self, yield_semantics: bool) bool {
-        var i: usize = self.stack.items.len;
-        while (i > 0) {
-            i -= 1;
-            const search_frame = &self.stack.items[i];
-
-            switch (search_frame.boundary) {
-                .probe => |probe| {
-                    const result: struct { unwind_to: usize, success_addr: ?u32 } = switch (probe) {
-                        .nexists => |success_addr| if (yield_semantics) .{
-                            .unwind_to = i - 1,
-                            .success_addr = null,
-                        } else .{
-                            .unwind_to = i,
-                            .success_addr = success_addr,
-                        },
-                        .exists => |success_addr| if (yield_semantics) .{
-                            .unwind_to = i,
-                            .success_addr = success_addr,
-                        } else .{
-                            .unwind_to = i - 1,
-                            .success_addr = null,
-                        },
-                    };
-
-                    while (self.stack.items.len > result.unwind_to) {
-                        self.deinitFrame();
-                    }
-                    if (result.success_addr) |success_addr| {
-                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                        parent_frame.state.pc = success_addr;
-                    }
-                    return true;
-                },
-                else => {},
-            }
-        }
-        return false;
-    }
-
     pub fn nextMatch(self: *Self) !?Value {
         outer: while (self.stack.items.len > 0) {
             const frame = &self.stack.items[self.stack.items.len - 1];
@@ -199,7 +220,7 @@ pub const Runtime = struct {
                         .boundary = Boundary{ .passthrough = {} },
                     });
                 } else {
-                    self.deinitFrame();
+                    self.handleFin();
                 }
                 continue;
             }
@@ -231,11 +252,8 @@ pub const Runtime = struct {
                     };
 
                     if (should_halt) {
-                        if (self.handleProbeBoundary(false)) {
-                            continue :outer;
-                        }
                         frame.state.pc += 1;
-                        self.deinitFrame();
+                        self.handleFin();
                     } else {
                         frame.state.pc += 1;
                     }
@@ -261,7 +279,7 @@ pub const Runtime = struct {
 
                         // I guess there is a question of whether this should error though.
                         // What semantically correct TQL query would even allow for this?
-                        self.deinitFrame();
+                        self.handleFin();
                         continue;
                     }
 
@@ -289,13 +307,7 @@ pub const Runtime = struct {
                         };
                         continue;
                     } else {
-                        const hit_boundary = self.handleProbeBoundary(false);
-                        if (hit_boundary) {
-                            continue;
-                        } else {
-                            // Terminate branch.
-                            self.deinitFrame();
-                        }
+                        self.handleFin();
                     }
                 },
                 .asn => |x| {
@@ -337,7 +349,7 @@ pub const Runtime = struct {
                     frame.state.negate_flag = relates;
                 },
                 .yield => |source| {
-                    if (self.handleProbeBoundary(true)) {
+                    if (self.handleYield()) {
                         continue :outer;
                     }
                     frame.state.pc += 1;

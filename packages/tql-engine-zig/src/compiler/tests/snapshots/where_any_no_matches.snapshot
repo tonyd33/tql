@@ -5,13 +5,13 @@
 3: rel equals (node kind) (literal kind_id 221)
 4: halt not_relates
 5: asn 1 (node this)
-6: trv variable_id 1
-7: trv field 5
-8: trv child
-9: rel equals (node kind) (literal kind_id 261)
-10: halt not_relates
-11: asn 2 (node this)
-12: probe exists 22
+6: probe exists 22
+7: trv variable_id 1
+8: trv field 5
+9: trv child
+10: rel equals (node kind) (literal kind_id 261)
+11: halt not_relates
+12: asn 2 (node this)
 13: trv variable_id 2
 14: trv field 25
 15: asn 3 (node this)

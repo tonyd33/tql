@@ -402,6 +402,10 @@ pub const Compiler = struct {
         const var_id = try self.variables.getOrPut(quantified.variable.name);
 
         try self.ensureExpressionDependencies(builder, quantified.source);
+
+        const probe_mode: runtime.ProbeMode = if (probe_negated) .nexists else .exists;
+        try builder.emitProbe(probe_mode, probe_success_label);
+
         try self.compileAsNavigation(builder, quantified.source);
         try builder.emit(.{ .asn = .{
             .variable_id = var_id,
@@ -413,9 +417,6 @@ pub const Compiler = struct {
             .expression = quantified.source,
             .emitted = true,
         });
-
-        const probe_mode: runtime.ProbeMode = if (probe_negated) .nexists else .exists;
-        try builder.emitProbe(probe_mode, probe_success_label);
 
         const inner_success_label = builder.createLabel();
         const inner_failure_label = builder.createLabel();

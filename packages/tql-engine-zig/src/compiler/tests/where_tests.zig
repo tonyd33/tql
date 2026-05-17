@@ -106,6 +106,25 @@ test "WHERE with any quantifier - no matches" {
     }).run();
 }
 
+test "WHERE any matches second method only" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @c
+        \\  where any @m in @c.body > method_definition: @m.name = 'foo'
+        \\  select @c
+        \\}
+        ,
+        .source =
+        \\class A { bar() {}; foo() {}; }
+        \\class B { bar() {}; baz() {}; }
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_any_second_only.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
 test "WHERE with all quantifier" {
     try (snapshot.SnapshotTest{
         .allocator = testing.allocator,
@@ -280,6 +299,37 @@ test "WHERE same field accessed twice" {
         \\class Repository {}
         ,
         .snapshot_path = "src/compiler/tests/snapshots/where_field_access_twice.snapshot",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE quantified regression for double yield" {
+    try (snapshot.SnapshotTest{
+        .allocator = testing.allocator,
+        .tql =
+        \\query main() {
+        \\  from class_declaration as @class_decl,
+        \\       @class_decl.name as @class_name
+        \\  where @class_name ~ /Foo.*/ and
+        \\        any @md in @class_decl.body > method_definition:
+        \\          @md.return_type != null
+        \\  select { @class_name }
+        \\}
+        ,
+        .source =
+        \\class Foo1 {
+        \\  m1(): string {}
+        \\  m2() {}
+        \\  m3(): number {}
+        \\}
+        \\
+        \\class Foo2 {}
+        \\
+        \\class Foo3 {
+        \\  m3() {}
+        \\}
+        ,
+        .snapshot_path = "src/compiler/tests/snapshots/where_quantified_double_yield.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

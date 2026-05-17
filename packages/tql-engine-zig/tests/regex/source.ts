@@ -1,4 +1,6 @@
-class Foo {}
+class Foo {
+  m1() {}
+}
 
 class Bar {}
 

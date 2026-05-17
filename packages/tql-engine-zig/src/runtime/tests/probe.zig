@@ -338,25 +338,25 @@ test "probe: halt inside call inside nexists probe" {
         \\ void foo() {}
     ;
 
-    // This test demonstrates the bug on line 171 of core.zig:
-    // When halt is executed with a non-local probe boundary (call boundary in between),
-    // the current implementation only checks the immediate frame's boundary,
-    // not searching downward through the stack like yield does.
+    // halt inside a call body unwinds only the call frame; control resumes
+    // in the probe body. If the probe body then halts (no yield ever), the
+    // nexists probe is satisfied (no counterexample) and execution jumps to
+    // on_success.
     //
     // Program:
-    // 0: probe nexists on_success=3   // Start nexists probe
+    // 0: probe nexists on_success=4   // Start nexists probe
     // 1: call 5                       // Call function (creates call boundary)
-    // 2: panic                        // Landmine
-    // 3: yield                        // After probe succeeds
-    // 4: halt
-    // 5: halt                         // Function: halt (should signal success for nexists)
+    // 2: halt                         // After call returns: end probe body
+    // 3: panic                        // Landmine (should not reach)
+    // 4: yield                        // After probe succeeds
+    // 5: halt                         // Function: halt (call exits, returns to PC 2)
     // 6: ret                          // Should not reach here
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 3 } },
+        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
         Instruction{ .call = 5 },
+        Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .ret = {} },
     };
@@ -364,12 +364,11 @@ test "probe: halt inside call inside nexists probe" {
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
     defer ctx.deinit();
 
-    // Should yield once (nexists probe should succeed because halt in call doesn't yield)
-    // Currently this test will FAIL because halt doesn't search for the nexists boundary
+    // Should yield once (nexists probe succeeds: no yield inside body).
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }
 
-test "probe: halt inside call inside exists probe - FIXME line 171" {
+test "probe: halt inside call inside exists probe" {
     const source =
         \\ void foo() {}
     ;
@@ -382,7 +381,7 @@ test "probe: halt inside call inside exists probe - FIXME line 171" {
     // 2: halt                         // After call returns
     // 3: panic                        // Landmine
     // 4: halt                         // Function: halt (should signal failure for exists)
-    // 5: ret                          // Should not reach here
+    // 5: ret                          // Go back
     // 6: panic                        // Landmine
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
@@ -405,55 +404,54 @@ test "probe: halt inside call inside exists probe - FIXME line 171" {
 test "probe: trv fails inside call inside exists probe" {
     const source = ""; // Empty source - no children
 
-    // This test demonstrates the same bug but for trv instead of halt:
-    // When trv fails with a non-local probe boundary (call boundary in between),
-    // the current implementation only checks the immediate frame's boundary,
-    // not searching downward through the stack.
+    // trv failure inside a call exits only the call frame; control resumes
+    // in the probe body. If the probe body then halts (no yield ever), the
+    // exists probe fails (no match) and the parent's branch fails too.
     //
     // Program:
-    // 0: probe exists on_success=6    // Start exists probe
-    // 1: call 4                       // Call function (creates call boundary)
-    // 2: panic                        // Landmine (should not reach - probe should fail)
-    // 3: halt
-    // 4: trv child                    // Function: try to get children (fails - no children)
-    // 5: panic                        // Landmine
-    // 6: panic                        // Landmine (should not reach - probe should fail)
+    // 0: probe exists on_success=5    // Start exists probe
+    // 1: call 4                       // Call function
+    // 2: halt                         // After call returns: end probe body
+    // 3: panic                        // Landmine
+    // 4: trv child                    // Function: fails - no children (exits call)
+    // 5: panic                        // Landmine (probe-success; never reached)
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
+        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 5 } },
         Instruction{ .call = 4 },
-        Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
-        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
+        Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
     defer ctx.deinit();
 
-    // Should have no matches (exists probe fails because trv in call has no results)
+    // Should have no matches (exists probe fails: no yield inside body).
     try ctx.expectMatchKinds(&[_][]const u8{});
 }
 
 test "probe: trv fails inside call inside nexists probe" {
     const source = ""; // Empty source - no children
 
-    // Similar to above but with nexists probe
+    // trv failure inside a call exits only the call frame; control resumes
+    // in the probe body. If the probe body then halts (no yield ever), the
+    // nexists probe succeeds (no counterexample).
     //
     // Program:
-    // 0: probe nexists on_success=3   // Start nexists probe
-    // 1: call 5                       // Call function (creates call boundary)
-    // 2: panic                        // Landmine (should not reach - probe should succeed)
-    // 3: yield                        // After probe succeeds
-    // 4: halt
-    // 5: trv child                    // Function: try to get children (fails - no children)
+    // 0: probe nexists on_success=4   // Start nexists probe
+    // 1: call 5                       // Call function
+    // 2: halt                         // After call returns: end probe body
+    // 3: panic                        // Landmine
+    // 4: yield                        // After probe succeeds
+    // 5: trv child                    // Function: fails - no children (exits call)
     // 6: panic                        // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 3 } },
+        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
         Instruction{ .call = 5 },
+        Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
     };
@@ -461,6 +459,6 @@ test "probe: trv fails inside call inside nexists probe" {
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
     defer ctx.deinit();
 
-    // Should yield once (nexists probe succeeds because trv in call has no results)
+    // Should yield once (nexists probe succeeds: no yield inside body).
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }

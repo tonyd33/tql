@@ -58,10 +58,6 @@ pub const Value = union(enum) {
         }
     }
 
-    pub fn fmt(self: Value, gpa: Allocator) ValueFormatter {
-        return .{ .value = self, .gpa = gpa };
-    }
-
     pub fn eql(a: Value, b: Value) bool {
         if (@intFromEnum(a) != @intFromEnum(b)) return false;
 
@@ -86,62 +82,6 @@ pub const Value = union(enum) {
         };
     }
 };
-
-pub const ValueFormatter = struct {
-    value: Value,
-    gpa: Allocator,
-
-    pub fn format(self: ValueFormatter, writer: *std.Io.Writer) std.Io.Writer.Error!void {
-        try writeValue(writer, self.value, self.gpa);
-    }
-};
-
-fn writeValue(writer: *std.Io.Writer, value: Value, gpa: Allocator) std.Io.Writer.Error!void {
-    switch (value) {
-        .nothing => try writer.writeAll("nothing"),
-        .string => |s| try writer.print("string \"{s}\"", .{s}),
-        .kind_id => |k| try writer.print("kind_id {d}", .{k}),
-        .field_id => |f| try writer.print("field_id {d}", .{f}),
-        .range => |r| try writer.print("range [{d}..{d}]", .{ r.start_byte, r.end_byte }),
-        .node => |n| try writer.print("node {s} [{d}..{d}]", .{ n.kind(), n.startByte(), n.endByte() }),
-        .regex => try writer.writeAll("regex ..."),
-        .record => |rc| {
-            const map = &rc.value.map;
-            try writer.writeAll("{");
-            const keys = collectSortedKeys(gpa, map) catch return error.WriteFailed;
-            defer gpa.free(keys);
-            for (keys, 0..) |k, i| {
-                if (i > 0) try writer.writeAll(", ");
-                try writer.print("{s}: ", .{k});
-                try writeValue(writer, map.get(k).?, gpa);
-            }
-            try writer.writeAll("}");
-        },
-        .list => |rc| {
-            const items = rc.value.items.items;
-            try writer.writeAll("[");
-            for (items, 0..) |item, i| {
-                if (i > 0) try writer.writeAll(", ");
-                try writeValue(writer, item, gpa);
-            }
-            try writer.writeAll("]");
-        },
-    }
-}
-
-fn collectSortedKeys(gpa: Allocator, map: *const std.StringHashMap(Value)) ![][]const u8 {
-    var keys = try gpa.alloc([]const u8, map.count());
-    errdefer gpa.free(keys);
-    var it = map.keyIterator();
-    var i: usize = 0;
-    while (it.next()) |k| : (i += 1) keys[i] = k.*;
-    std.mem.sort([]const u8, keys, {}, lessThanStr);
-    return keys;
-}
-
-fn lessThanStr(_: void, a: []const u8, b: []const u8) bool {
-    return std.mem.order(u8, a, b) == .lt;
-}
 
 pub const Record = struct {
     map: std.StringHashMap(Value),

@@ -11,6 +11,6 @@
 9: yield
 10: halt always
 === values ===
-{class: node class_declaration [0..10]}
-{class: node class_declaration [11..21]}
-{class: node class_declaration [22..32]}
+{"class":{"kind":"class_declaration","text":"class A {}","start_byte":0,"end_byte":10,"start_point":{"row":0,"column":0},"end_point":{"row":0,"column":10},"child_count":3,"named_child_count":2,"is_named":true,"is_missing":false,"is_extra":false}}
+{"class":{"kind":"class_declaration","text":"class B {}","start_byte":11,"end_byte":21,"start_point":{"row":1,"column":0},"end_point":{"row":1,"column":10},"child_count":3,"named_child_count":2,"is_named":true,"is_missing":false,"is_extra":false}}
+{"class":{"kind":"class_declaration","text":"class C {}","start_byte":22,"end_byte":32,"start_point":{"row":2,"column":0},"end_point":{"row":2,"column":10},"child_count":3,"named_child_count":2,"is_named":true,"is_missing":false,"is_extra":false}}

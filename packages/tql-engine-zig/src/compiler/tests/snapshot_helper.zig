@@ -5,6 +5,7 @@ const Compiler = @import("../../compiler.zig").Compiler;
 const Parser = @import("../../parser.zig").Parser;
 const runtime = @import("../../runtime.zig");
 const ast = @import("../../ast.zig");
+const query = @import("../../query.zig");
 
 pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const runtime.Instruction) ![]const u8 {
     var list = std.ArrayList(u8){};
@@ -196,14 +197,15 @@ pub const SnapshotTest = struct {
 
         try rt.exec();
 
-        var values = std.ArrayList(runtime.Value){};
+        var values = std.ArrayList(query.Value){};
         defer {
             for (values.items) |*v| v.deinit(self.allocator);
             values.deinit(self.allocator);
         }
 
         while (try rt.nextMatch()) |value| {
-            try values.append(self.allocator, value.clone());
+            const enriched = try query.Value.fromRuntimeValue(self.allocator, value, self.source);
+            try values.append(self.allocator, enriched);
         }
 
         const actual = try renderSnapshot(self.allocator, program.instructions, values.items);
@@ -213,10 +215,11 @@ pub const SnapshotTest = struct {
     }
 };
 
-fn renderSnapshot(gpa: std.mem.Allocator, instructions: []const runtime.Instruction, values: []const runtime.Value) ![]const u8 {
+fn renderSnapshot(gpa: std.mem.Allocator, instructions: []const runtime.Instruction, values: []const query.Value) ![]const u8 {
     var buf = std.ArrayList(u8){};
     errdefer buf.deinit(gpa);
-    const writer = buf.writer(gpa);
+    var w: std.Io.Writer.Allocating = .fromArrayList(gpa, &buf);
+    const writer = &w.writer;
 
     try writer.writeAll("=== bytecode ===\n");
     const bytecode = try formatInstructions(gpa, instructions);
@@ -224,15 +227,12 @@ fn renderSnapshot(gpa: std.mem.Allocator, instructions: []const runtime.Instruct
     try writer.writeAll(bytecode);
 
     try writer.writeAll("=== values ===\n");
-    var tmp = std.ArrayList(u8){};
-    defer tmp.deinit(gpa);
     for (values) |v| {
-        tmp.clearRetainingCapacity();
-        var w: std.Io.Writer.Allocating = .fromArrayList(gpa, &tmp);
-        try w.writer.print("{f}", .{v.fmt(gpa)});
-        tmp = w.toArrayList();
-        try writer.print("{s}\n", .{tmp.items});
+        var jws = std.json.Stringify{ .writer = writer };
+        try jws.write(v);
+        try writer.writeByte('\n');
     }
 
+    buf = w.toArrayList();
     return try buf.toOwnedSlice(gpa);
 }

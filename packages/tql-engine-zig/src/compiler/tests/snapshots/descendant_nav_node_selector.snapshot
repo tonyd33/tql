@@ -12,5 +12,5 @@
 10: yield
 11: halt always
 === values ===
-node property_identifier [18..21]
-node property_identifier [50..53]
+{"kind":"property_identifier","text":"foo","start_byte":18,"end_byte":21,"start_point":{"row":1,"column":2},"end_point":{"row":1,"column":5},"child_count":0,"named_child_count":0,"is_named":true,"is_missing":false,"is_extra":false}
+{"kind":"property_identifier","text":"bar","start_byte":50,"end_byte":53,"start_point":{"row":4,"column":2},"end_point":{"row":4,"column":5},"child_count":0,"named_child_count":0,"is_named":true,"is_missing":false,"is_extra":false}
