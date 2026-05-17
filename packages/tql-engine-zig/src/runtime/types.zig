@@ -163,6 +163,10 @@ pub const Stack = std.ArrayList(Frame);
 
 pub const RuntimeError = error{
     ExecuteOutOfBounds,
+    InvalidArguments,
+    StackCorruption,
+    InvalidBuildConstruction,
+    PanicInstruction,
 };
 
 pub const ChildIterator = struct {

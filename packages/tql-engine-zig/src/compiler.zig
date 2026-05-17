@@ -17,6 +17,7 @@ const pcre2 = @import("pcre2.zig");
 
 pub const VariableTable = @import("compiler/variable_table.zig").VariableTable;
 pub const InstructionBuilder = @import("compiler/instruction_builder.zig").InstructionBuilder;
+const CompilerError = @import("compiler/types.zig").CompilerError;
 
 const LabelId = u32;
 
@@ -24,13 +25,6 @@ const BindingMetadata = struct {
     variable_id: VariableId,
     expression: ast.Expression,
     emitted: bool = false,
-};
-
-const CompilerError = error{
-    OutOfMemory,
-    PCRE2Unknown,
-    UnresolvedLabel,
-    InvalidLabelReference,
 };
 
 // FIXME: Please don't do this...
@@ -156,9 +150,7 @@ pub const Compiler = struct {
     }
 
     fn ensureRootNavigated(self: *Compiler, builder: *InstructionBuilder) CompilerError!void {
-        // TODO: Regular error
-        const root_id = self.variables.get(ROOT_NAME) orelse
-            @panic("Dependency variable not found");
+        const root_id = self.variables.get(ROOT_NAME) orelse return error.InvalidVariableReference;
         try builder.emit(.{ .trv = .{ .variable_id = root_id } });
     }
 
@@ -177,22 +169,19 @@ pub const Compiler = struct {
                 return;
             }
         }
-        // TODO: Regular error
-        @panic("Variable not found in bindings");
+        return error.InvalidVariableReference;
     }
 
     fn ensureExpressionDependencies(self: *Compiler, builder: *InstructionBuilder, expr: ast.Expression) CompilerError!void {
         switch (expr) {
             .variable => |variable| {
-                const dep_var_id = self.variables.get(variable.name) orelse
-                    @panic("Dependency variable not found");
+                const dep_var_id = self.variables.get(variable.name) orelse return error.InvalidVariableReference;
                 try self.ensureVariableNavigated(builder, dep_var_id);
             },
             .field_access => |field_access| {
                 switch (field_access.base) {
                     .variable => |variable| {
-                        const dep_var_id = self.variables.get(variable.name) orelse
-                            @panic("Base variable not found");
+                        const dep_var_id = self.variables.get(variable.name) orelse return error.InvalidVariableReference;
                         try self.ensureVariableNavigated(builder, dep_var_id);
                     },
                     else => {
@@ -203,8 +192,8 @@ pub const Compiler = struct {
             .child_navigation => |child_nav| {
                 switch (child_nav.parent) {
                     .variable => |variable| {
-                        const dep_var_id = self.variables.get(variable.name) orelse
-                            @panic("Parent variable not found");
+                        const dep_var_id = (self.variables.get(variable.name)) orelse
+                            return error.InvalidVariableReference;
                         try self.ensureVariableNavigated(builder, dep_var_id);
                     },
                     else => {
@@ -216,7 +205,7 @@ pub const Compiler = struct {
                 switch (desc_nav.parent) {
                     .variable => |variable| {
                         const dep_var_id = self.variables.get(variable.name) orelse
-                            @panic("Parent variable not found");
+                            return error.InvalidVariableReference;
                         try self.ensureVariableNavigated(builder, dep_var_id);
                     },
                     else => {
@@ -311,7 +300,7 @@ pub const Compiler = struct {
         if (self.variables.get(variable.name)) |parent_var_id| {
             try builder.emit(.{ .trv = .{ .variable_id = parent_var_id } });
         } else {
-            @panic("Variable not found");
+            return error.InvalidVariableReference;
         }
     }
 
@@ -539,14 +528,14 @@ pub const Compiler = struct {
     ) CompilerError!?VariableId {
         return switch (expr) {
             .variable => |v| blk: {
-                const var_id = self.variables.get(v.name) orelse @panic("Variable not found in comparison");
+                const var_id = self.variables.get(v.name) orelse return error.InvalidVariableReference;
                 try self.ensureVariableNavigated(builder, var_id);
                 break :blk var_id;
             },
             .field_access, .child_navigation, .descendant_navigation, .node_selector => try self.liftNavigation(builder, expr),
             .parenthesized => |p| try self.ensureExpressionAsVariable(builder, p.*),
             // TODO: we should be able to support all expressions as variables
-            else => null,
+            else => @panic("TODO"),
         };
     }
 
@@ -568,7 +557,7 @@ pub const Compiler = struct {
                     try self.ensureVariableNavigated(builder, var_id);
                     return runtime.ValueSource{ .variable_id = var_id };
                 } else {
-                    @panic("Variable not found in expression");
+                    return error.InvalidVariableReference;
                 }
             },
             .string_literal => |str| {
@@ -611,7 +600,7 @@ pub const Compiler = struct {
             switch (field) {
                 .variable => |variable| {
                     const var_id = self.variables.get(variable.name) orelse
-                        @panic("Variable not found in object literal");
+                        return error.InvalidVariableReference;
                     try self.ensureVariableNavigated(builder, var_id);
                     sources[i] = .{
                         .key = try self.addString(variable.name),
@@ -674,6 +663,18 @@ pub const Compiler = struct {
                     } } },
                 });
             },
+            .number_literal => |number| {
+                try builder.emit(.{
+                    .yield = .{ .source = .{ .literal = .{ .uint = number } } },
+                });
+            },
+            .regex_literal => |regex_str| {
+                const regex = try pcre2.Regex.compile(regex_str);
+                const regex_index = try self.addRegex(regex);
+                try builder.emit(.{
+                    .yield = .{ .source = .{ .literal = .{ .regex = self.regexes.items[regex_index] } } },
+                });
+            },
             .object_literal => |obj| {
                 const source = try self.compileRecordExpression(builder, obj);
                 try builder.emit(.{ .yield = .{ .source = source } });
@@ -686,10 +687,6 @@ pub const Compiler = struct {
                 const source = try self.compileListExpression(builder, tup.elements);
                 try builder.emit(.{ .yield = .{ .source = source } });
             },
-            // .number_literal => |numbver| {
-            //     const owned_str = try self.addString(str);
-            //     try builder.emit(.{ .yield = .{ .source = .{ .literal = owned_str } } });
-            // },
             else => @panic("Only variable projection supported for now"),
         }
     }

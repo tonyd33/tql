@@ -235,7 +235,7 @@ pub const Runtime = struct {
                     .push_build, .end_build => {},
                     // Maybe there are more we can allow. Also we should return error not panic
                     else => {
-                        @panic("Invalid program");
+                        return error.InvalidBuildConstruction;
                     },
                 }
             }
@@ -332,29 +332,28 @@ pub const Runtime = struct {
                     frame.state.pc += 1;
                     const a_value = self.getSource(frame.state, x.a);
                     const b_value = self.getSource(frame.state, x.b);
-                    const relates = switch (x.relation) {
+                    const relates = try switch (x.relation) {
                         .equals => a_value.eql(b_value),
-                        // The panics should be caught during bytecode compilation.
                         .like => switch (a_value) {
                             .string => |str| switch (b_value) {
                                 .regex => |*regex| regex.do_test(str),
-                                else => @panic("TODO: return error"),
+                                else => error.InvalidArguments,
                             },
-                            else => @panic("TODO: return error"),
+                            else => error.InvalidArguments,
                         },
                         .lt => switch (a_value) {
                             .uint => |a_uint| switch (b_value) {
                                 .uint => |b_uint| a_uint < b_uint,
-                                else => @panic("TODO: return error"),
+                                else => error.InvalidArguments,
                             },
-                            else => @panic("TODO: return error"),
+                            else => error.InvalidArguments,
                         },
                         .gt => switch (a_value) {
                             .uint => |a_uint| switch (b_value) {
                                 .uint => |b_uint| a_uint > b_uint,
-                                else => @panic("TODO: return error"),
+                                else => error.InvalidArguments,
                             },
-                            else => @panic("TODO: return error"),
+                            else => error.InvalidArguments,
                         },
                     };
                     frame.state.negate_flag = relates;
@@ -423,7 +422,7 @@ pub const Runtime = struct {
                             break;
                         }
                     } else {
-                        @panic("stack corruption: ret without call");
+                        return error.StackCorruption;
                     }
                 },
                 .jmp => |jmp_inst| {
@@ -454,11 +453,11 @@ pub const Runtime = struct {
                 },
                 .push_build => |info| {
                     frame.state.pc += 1;
-                    const build = if (frame.state.build) |b| b else @panic("Invalid program");
+                    const build = try if (frame.state.build) |b| b else error.InvalidBuildConstruction;
                     const value = self.getSource(frame.state, info.source).clone();
                     switch (build) {
                         .record => |rc| {
-                            const name = info.name orelse @panic("Invalid program");
+                            const name = try if (info.name) |n| n else error.InvalidBuildConstruction;
                             try rc.value.map.put(name, value);
                         },
                         .list => |rc| {
@@ -468,7 +467,7 @@ pub const Runtime = struct {
                 },
                 .end_build => |variable_id| {
                     frame.state.pc += 1;
-                    const build = if (frame.state.build) |b| b else @panic("Invalid program");
+                    const build = try if (frame.state.build) |b| b else error.InvalidBuildConstruction;
                     frame.state.build = null;
                     const value: Value = switch (build) {
                         .record => |rc| .{ .record = rc },
@@ -480,7 +479,7 @@ pub const Runtime = struct {
                     old_env.dereference(self.allocator);
                 },
                 .panic => {
-                    @panic("panic instruction executed");
+                    return error.PanicInstruction;
                 },
             }
         }
