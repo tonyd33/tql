@@ -338,12 +338,23 @@ pub const Runtime = struct {
                         .like => switch (a_value) {
                             .string => |str| switch (b_value) {
                                 .regex => |*regex| regex.do_test(str),
-                                else => @panic("rel: type mismatch - expected regex on right side"),
+                                else => @panic("TODO: return error"),
                             },
-                            else => @panic("rel: type mismatch - expected string on left side"),
+                            else => @panic("TODO: return error"),
                         },
-                        .lt, .gt => {
-                            @panic("todo: lt/gt not implemented");
+                        .lt => switch (a_value) {
+                            .uint => |a_uint| switch (b_value) {
+                                .uint => |b_uint| a_uint < b_uint,
+                                else => @panic("TODO: return error"),
+                            },
+                            else => @panic("TODO: return error"),
+                        },
+                        .gt => switch (a_value) {
+                            .uint => |a_uint| switch (b_value) {
+                                .uint => |b_uint| a_uint > b_uint,
+                                else => @panic("TODO: return error"),
+                            },
+                            else => @panic("TODO: return error"),
                         },
                     };
                     frame.state.negate_flag = relates;

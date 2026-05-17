@@ -577,7 +577,9 @@ pub const Compiler = struct {
                     .literal = .{ .string = owned_str },
                 };
             },
-            .number_literal => @panic("TODO"),
+            .number_literal => |number| runtime.ValueSource{
+                .literal = .{ .uint = number },
+            },
             .null_literal => runtime.ValueSource{
                 .literal = .{ .nothing = {} },
             },

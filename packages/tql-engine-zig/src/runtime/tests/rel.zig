@@ -324,3 +324,31 @@ test "rel: relates halt inside exists probe should fail" {
     // Exists probe fails when halt happens, so we get no matches
     try ctx.expectMatchKinds(&[_][]const u8{});
 }
+
+test "rel: numeric comparisons" {
+    const source = "";
+
+    const instructions = [_]Instruction{
+        Instruction{ .asn = .{
+            .variable_id = 0,
+            .source = .{ .literal = Value{ .uint = 1 } },
+        } },
+        Instruction{ .asn = .{
+            .variable_id = 1,
+            .source = .{ .literal = Value{ .uint = 2 } },
+        } },
+        Instruction{ .rel = .{
+            .relation = Relation.lt,
+            .a = .{ .variable_id = 0 },
+            .b = .{ .variable_id = 1 },
+        } },
+        Instruction{ .halt = .{ .condition = .not_relates } },
+        Instruction{ .yield = .{} },
+        Instruction{ .halt = .{} },
+    };
+
+    var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
+    defer ctx.deinit();
+
+    try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
+}

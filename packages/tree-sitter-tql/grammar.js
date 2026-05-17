@@ -343,7 +343,7 @@ module.exports = grammar({
       /./,
     )),
 
-    number_literal: _ => /\d+(\.\d+)?/,
+    number_literal: _ => /\d+?/,
 
     null_literal: _ => 'null',
 

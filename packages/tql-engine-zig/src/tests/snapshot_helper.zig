@@ -72,6 +72,7 @@ fn formatValueSource(writer: anytype, source: runtime.ValueSource) !void {
             try writer.writeAll("literal ");
             switch (l) {
                 .nothing => try writer.writeAll("nothing"),
+                .uint => |uint| try writer.print("uint {}", .{uint}),
                 .string => |s| try writer.print("string \"{s}\"", .{s}),
                 .kind_id => |k| try writer.print("kind_id {}", .{k}),
                 .field_id => |f| try writer.print("field_id {}", .{f}),

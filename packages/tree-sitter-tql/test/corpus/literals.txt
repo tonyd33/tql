@@ -104,22 +104,3 @@ query main() {
       (select_clause
         (projection
           (number_literal))))))
-
-========================================
-decimal number
-========================================
-
-query main() {
-  select 3.14
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (number_literal))))))

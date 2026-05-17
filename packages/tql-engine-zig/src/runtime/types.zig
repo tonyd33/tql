@@ -28,6 +28,7 @@ pub const Range = struct {
 
 pub const Value = union(enum) {
     nothing,
+    uint: u64,
     string: []const u8,
     range: Range,
     kind_id: NodeKindId,
@@ -63,6 +64,7 @@ pub const Value = union(enum) {
 
         return switch (a) {
             .nothing => true,
+            .uint => |uint| uint == b.uint,
             .string => |a_str| std.mem.eql(u8, a_str, b.string),
             .range => |a_range| {
                 const b_range = b.range;

@@ -889,9 +889,9 @@ pub const Parser = struct {
         return try self.allocator.dupe(u8, pattern);
     }
 
-    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !f64 {
+    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !u64 {
         const text = nodeText(node, source);
-        return std.fmt.parseFloat(f64, text) catch return error.InvalidNumberLiteral;
+        return std.fmt.parseUnsigned(u64, text, 10) catch return error.InvalidNumberLiteral;
     }
 };
 
