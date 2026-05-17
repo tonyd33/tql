@@ -9,6 +9,7 @@ const compiler = @import("compiler.zig");
 const language = @import("language.zig");
 const query = @import("query.zig");
 const engine = @import("engine.zig");
+const tests = @import("tests.zig");
 
 pub const AST = ast;
 pub const Parser = parser.Parser;
@@ -30,4 +31,5 @@ test {
     refAllDecls(language);
     refAllDecls(query);
     refAllDecls(engine);
+    refAllDecls(tests);
 }

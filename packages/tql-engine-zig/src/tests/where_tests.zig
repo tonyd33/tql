@@ -19,7 +19,7 @@ test "WHERE with simple comparison" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_simple_comparison.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_simple_comparison.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -40,7 +40,7 @@ test "WHERE with OR logic" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_or_logic.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_or_logic.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -63,7 +63,7 @@ test "WHERE with AND logic" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { foo() {}; bar() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_and_logic.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_and_logic.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -82,7 +82,7 @@ test "WHERE with any quantifier - matches" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_any_matches.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_any_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -101,7 +101,7 @@ test "WHERE with any quantifier - no matches" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_any_no_matches.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_any_no_matches.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -120,7 +120,7 @@ test "WHERE any matches second method only" {
         \\class A { bar() {}; foo() {}; }
         \\class B { bar() {}; baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_any_second_only.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_any_second_only.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -139,7 +139,7 @@ test "WHERE with all quantifier" {
         \\class A { foo() {}; foo() {}; }
         \\class B { foo() {}; bar() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_all.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_all.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -158,7 +158,7 @@ test "WHERE with nested any over two sources" {
         .source =
         \\class A { foo() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_nested_any.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_nested_any.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -177,7 +177,7 @@ test "WHERE field access on outer row" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_top_level.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_top_level.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -198,7 +198,7 @@ test "WHERE optional binding is null" {
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_null_eq.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_null_eq.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -219,7 +219,7 @@ test "WHERE optional binding is not null" {
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_null_ne.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_null_ne.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -238,7 +238,7 @@ test "WHERE field access with regex match" {
         \\class A { foobar() {}; }
         \\class B { bar() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_regex.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_regex.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -258,7 +258,7 @@ test "WHERE field access with not equal" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_ne.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_ne.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -278,7 +278,7 @@ test "WHERE field access in AND" {
         \\class Service { bar() {}; }
         \\class Other { foo() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_and.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_and.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -298,7 +298,7 @@ test "WHERE same field accessed twice" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_twice.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_twice.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -329,7 +329,7 @@ test "WHERE quantified regression for double yield" {
         \\  m3() {}
         \\}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_quantified_double_yield.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_quantified_double_yield.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -348,7 +348,7 @@ test "WHERE descendant nav in quantifier source" {
         \\class Service { foo() {}; }
         \\class Controller { bar() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_descendant_nav_source.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_descendant_nav_source.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -367,7 +367,7 @@ test "WHERE child nav in comparison body" {
         \\class A { foo() { return 1; } }
         \\class B { bar() {} }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_child_nav_in_body.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_child_nav_in_body.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -387,7 +387,7 @@ test "WHERE field access in OR with anonymous lift" {
         \\class B { bar() {}; }
         \\class C { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_field_access_or_quantified.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_field_access_or_quantified.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -406,7 +406,7 @@ test "WHERE any with not-null body" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/where_any_not_null.snapshot",
+        .snapshot_path = "src/tests/snapshots/where_any_not_null.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

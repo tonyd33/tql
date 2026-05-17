@@ -14,7 +14,7 @@ test "select object_literal: shorthand" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_object_shorthand.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_object_shorthand.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -30,7 +30,7 @@ test "select object_literal: two shorthand fields" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_object_two_shorthand.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_object_two_shorthand.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -45,7 +45,7 @@ test "select object_literal: key_value" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_object_key_value.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_object_key_value.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -64,7 +64,7 @@ test "select object_literal: multiple matches" {
         \\class B {}
         \\class C {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/select_object_shorthand_multi.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_object_shorthand_multi.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

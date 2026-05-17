@@ -1,11 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
 const ts = @import("tree-sitter");
-const Compiler = @import("../../compiler.zig").Compiler;
-const Parser = @import("../../parser.zig").Parser;
-const runtime = @import("../../runtime.zig");
-const ast = @import("../../ast.zig");
-const query = @import("../../query.zig");
+const Compiler = @import("../compiler.zig").Compiler;
+const Parser = @import("../parser.zig").Parser;
+const runtime = @import("../runtime.zig");
+const ast = @import("../ast.zig");
+const query = @import("../query.zig");
 
 pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const runtime.Instruction) ![]const u8 {
     var list = std.ArrayList(u8){};

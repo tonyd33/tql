@@ -20,7 +20,7 @@ test "WHERE with regex match - simple pattern" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/regex_match_simple.snapshot",
+        .snapshot_path = "src/tests/snapshots/regex_match_simple.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -41,7 +41,7 @@ test "WHERE with regex match - anchored pattern" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/regex_match_anchored.snapshot",
+        .snapshot_path = "src/tests/snapshots/regex_match_anchored.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -62,7 +62,7 @@ test "WHERE with regex not match" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/regex_not_match.snapshot",
+        .snapshot_path = "src/tests/snapshots/regex_not_match.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -83,7 +83,7 @@ test "WHERE with regex match - character class" {
         \\class Controller {}
         \\class foo {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/regex_match_char_class.snapshot",
+        .snapshot_path = "src/tests/snapshots/regex_match_char_class.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

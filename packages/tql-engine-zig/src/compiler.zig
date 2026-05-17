@@ -692,8 +692,3 @@ pub const Compiler = struct {
         }
     }
 };
-
-test {
-    const refAllDecls = @import("std").testing.refAllDecls;
-    refAllDecls(@import("compiler/tests.zig"));
-}

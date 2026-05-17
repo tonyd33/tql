@@ -14,7 +14,7 @@ test "select tuple_literal: pair" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_tuple_pair.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_tuple_pair.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -30,7 +30,7 @@ test "select tuple_literal: triple" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_tuple_triple.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_tuple_triple.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

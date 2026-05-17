@@ -1,7 +1,5 @@
-const std = @import("std");
-
 test {
-    const refAllDecls = std.testing.refAllDecls;
+    const refAllDecls = @import("std").testing.refAllDecls;
     refAllDecls(@import("tests/basic_tests.zig"));
     refAllDecls(@import("tests/where_tests.zig"));
     refAllDecls(@import("tests/regex_tests.zig"));

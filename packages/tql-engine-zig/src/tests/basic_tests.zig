@@ -13,7 +13,7 @@ test "simple SELECT variable" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_simple.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_simple.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -32,7 +32,7 @@ test "FROM with node selector" {
         \\class Controller {}
         \\function foo() {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/from_node_selector.snapshot",
+        .snapshot_path = "src/tests/snapshots/from_node_selector.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -51,7 +51,7 @@ test "FROM with field access" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/from_field_access.snapshot",
+        .snapshot_path = "src/tests/snapshots/from_field_access.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -72,7 +72,7 @@ test "FROM with child navigation" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/from_child_navigation.snapshot",
+        .snapshot_path = "src/tests/snapshots/from_child_navigation.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -103,7 +103,7 @@ test "FROM with decorator and WHERE - matching test.tql pattern" {
         \\  m1() { }
         \\}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/from_decorator_with_where.snapshot",
+        .snapshot_path = "src/tests/snapshots/from_decorator_with_where.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

@@ -14,7 +14,7 @@ test "select array_literal: single variable" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_array_single.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_array_single.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -29,7 +29,7 @@ test "select array_literal: mixed" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/compiler/tests/snapshots/select_array_mixed.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_array_mixed.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -47,7 +47,7 @@ test "select array_literal: multiple matches" {
         \\class A {}
         \\class B {}
         ,
-        .snapshot_path = "src/compiler/tests/snapshots/select_array_multi.snapshot",
+        .snapshot_path = "src/tests/snapshots/select_array_multi.snapshot",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
