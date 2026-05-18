@@ -172,7 +172,7 @@ pub const Query = struct {
     language: Language,
     stats: QueryStats = .{},
     rt: ?runtime.Runtime = null,
-    source_tree: ?*ts.Tree = null,
+    source_tree: *ts.Tree,
     source_code: []const u8,
     allocator: Allocator,
 
@@ -181,28 +181,21 @@ pub const Query = struct {
         program_image: *ProgramImage,
         language: Language,
         source_code: []const u8,
+        source_tree: *ts.Tree,
         allocator: Allocator,
     ) Query {
         return .{
             .program_image = program_image,
             .language = language,
             .source_code = source_code,
+            .source_tree = source_tree,
             .allocator = allocator,
         };
     }
 
     pub fn exec(self: *Query) !void {
-        var parse_timer = try std.time.Timer.start();
-        const source_parser = ts.Parser.create();
-        defer source_parser.destroy();
-
-        try source_parser.setLanguage(self.language.getTreeSitterLanguage());
-        const source_tree = source_parser.parseString(self.source_code, null) orelse return error.SourceParseFailed;
-        self.source_tree = source_tree;
-        self.stats.parse_time_us = parse_timer.read() / 1000;
-
         self.rt = runtime.Runtime.init(.{
-            .tree = source_tree,
+            .tree = self.source_tree,
             .source = self.source_code,
             .instructions = self.program_image.instructions,
             .regexes = self.program_image.regexes,
@@ -212,6 +205,9 @@ pub const Query = struct {
         try self.rt.?.exec();
     }
 
+    /// After each call to this function, and on deinit(), the memory returned
+    /// from this function becomes invalid. A copy must be made in order to keep
+    /// a reference to the value.
     pub fn next(self: *Query) !?Value {
         if (try self.rt.?.nextMatch()) |runtime_value| {
             return try Value.fromRuntimeValue(
@@ -226,6 +222,5 @@ pub const Query = struct {
 
     pub fn deinit(self: *Query) void {
         self.rt.?.deinit();
-        self.source_tree.?.destroy();
     }
 };

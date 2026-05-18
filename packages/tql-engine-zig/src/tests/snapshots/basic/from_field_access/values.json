@@ -1,0 +1,40 @@
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    },
+    "child_count": 0,
+    "named_child_count": 0,
+    "is_named": true,
+    "is_missing": false,
+    "is_extra": false
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    },
+    "child_count": 0,
+    "named_child_count": 0,
+    "is_named": true,
+    "is_missing": false,
+    "is_extra": false
+  }
+]

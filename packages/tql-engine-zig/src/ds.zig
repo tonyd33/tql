@@ -1,2 +1,17 @@
-pub const OverlayMap = @import("ds/overlay_map.zig").OverlayMap;
-pub const Rc = @import("ds/rc.zig").Rc;
+const overlay_map = @import("ds/overlay_map.zig");
+const rc = @import("ds/rc.zig");
+const ring_buffer = @import("ds/ring_buffer.zig");
+const thread_safe = @import("ds/thread_safe.zig");
+
+pub const OverlayMap = overlay_map.OverlayMap;
+pub const Rc = rc.Rc;
+pub const RingBuffer = ring_buffer.RingBuffer;
+pub const ThreadSafe = thread_safe.ThreadSafe;
+
+test {
+    const refAllDecls = @import("std").testing.refAllDecls;
+    refAllDecls(overlay_map);
+    refAllDecls(rc);
+    refAllDecls(ring_buffer);
+    refAllDecls(thread_safe);
+}

@@ -1,0 +1,21 @@
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    },
+    "child_count": 3,
+    "named_child_count": 2,
+    "is_named": true,
+    "is_missing": false,
+    "is_extra": false
+  }
+]

@@ -1,0 +1,1 @@
+(source_file (query main (parameters) (query_body (from (binding (node class_declaration) c) (binding (field c name) class_name) (binding (field c body) body) (binding (child body (node method_definition)) method_def) (binding (field method_def name) method_name)) (where (and (eq class_name (string "Service")) (eq method_name (string "foo")))) (select c))))

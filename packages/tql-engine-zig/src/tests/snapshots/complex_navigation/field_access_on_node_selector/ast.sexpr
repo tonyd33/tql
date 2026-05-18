@@ -1,0 +1,1 @@
+(source_file (query main (parameters) (query_body (from (binding (field (node class_declaration) name) name)) (select name))))

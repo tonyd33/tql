@@ -1,0 +1,1 @@
+(source_file (query main (parameters) (query_body (from (binding (descendant (node class_declaration) (node property_identifier)) id)) (select id))))

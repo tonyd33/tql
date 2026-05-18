@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "complex_navigation");
+
 test "nested field access" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -19,14 +20,13 @@ test "nested field access" {
         \\  foo() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/nested_field_access.snapshot",
+        .name = "nested_field_access",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "field access on node selector" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration.name as @name
@@ -37,14 +37,13 @@ test "field access on node selector" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/tests/snapshots/field_access_on_node_selector.snapshot",
+        .name = "field_access_on_node_selector",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "child navigation with field access parent" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -58,14 +57,13 @@ test "child navigation with field access parent" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/child_nav_field_access_parent.snapshot",
+        .name = "child_nav_field_access_parent",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "child navigation on node selector" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration.body > method_definition as @method
@@ -81,14 +79,13 @@ test "child navigation on node selector" {
         \\  baz() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/child_nav_node_selector.snapshot",
+        .name = "child_nav_node_selector",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "descendant navigation with field access parent" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -102,14 +99,13 @@ test "descendant navigation with field access parent" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/descendant_nav_field_access_parent.snapshot",
+        .name = "descendant_nav_field_access_parent",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "descendant navigation on node selector" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration >> property_identifier as @id
@@ -124,14 +120,13 @@ test "descendant navigation on node selector" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/descendant_nav_node_selector.snapshot",
+        .name = "descendant_nav_node_selector",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "nested child navigation" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -145,7 +140,7 @@ test "nested child navigation" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/nested_child_nav.snapshot",
+        .name = "nested_child_nav",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

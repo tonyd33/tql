@@ -1,0 +1,21 @@
+[
+  {
+    "kind": "identifier",
+    "text": "Controller",
+    "start_byte": 1,
+    "end_byte": 11,
+    "start_point": {
+      "row": 0,
+      "column": 1
+    },
+    "end_point": {
+      "row": 0,
+      "column": 11
+    },
+    "child_count": 0,
+    "named_child_count": 0,
+    "is_named": true,
+    "is_missing": false,
+    "is_extra": false
+  }
+]

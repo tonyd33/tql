@@ -1,5 +1,6 @@
 const std = @import("std");
 const tql = @import("tql_engine_zig");
+const ts = tql.ts;
 const clap = @import("clap");
 const Engine = tql.Engine;
 const Language = tql.Language;
@@ -30,7 +31,7 @@ pub fn main() !u8 {
     }
     const allocator = gpa.allocator();
 
-    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_buffer: [4096]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
@@ -122,17 +123,117 @@ const Config = struct {
     verbose: bool,
 };
 
+// IMPROVE: need better queue
+const PathQueue = tql.ds.ThreadSafe(tql.ds.RingBuffer([]const u8));
+const ResultQueue = tql.ds.ThreadSafe(std.json.Stringify);
+
+const SharedContext = struct {
+    program_image: tql.Runtime.ProgramImage,
+    paths: []const []const u8,
+    allocator: std.mem.Allocator,
+    writer: *ResultQueue,
+    path_queue: *PathQueue,
+    language: Language,
+};
+
+fn walkPush(ctx: *SharedContext, path: []const u8) !void {
+    var root_dir = try std.fs.openDirAbsolute(path, .{
+        .iterate = true,
+    });
+
+    var walker = try root_dir.walk(ctx.*.allocator);
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".c")) {
+            const cp = try std.fs.path.join(
+                ctx.*.allocator,
+                &[_][]const u8{ path, entry.path },
+            );
+            var guard = ctx.*.path_queue.*.lock();
+            try guard.inner.*.push(cp);
+            guard.release();
+        }
+    }
+    walker.deinit();
+    root_dir.close();
+}
+
+fn walkerThread(ctx: *SharedContext) !void {
+    // FIXME: need to apply backpressure for fixed size queue buffer
+    // FIXME: awful control flow
+    for (ctx.*.paths) |path| {
+        walkPush(ctx, path) catch |err| {
+            if (err == error.NotDir) {
+                const cp = try ctx.*.allocator.dupe(u8, path);
+                var guard = ctx.*.path_queue.*.lock();
+                try guard.inner.*.push(cp);
+                guard.release();
+            } else {
+                return err;
+            }
+        };
+    }
+}
+
+fn workerThread(ctx: *SharedContext) !void {
+    // TODO: need to store results per file and flush to the writer
+    var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
+    const arena_allocator = arena.allocator();
+    const source_parser = ts.Parser.create();
+    try source_parser.setLanguage(ctx.*.language.getTreeSitterLanguage());
+
+    while (blk: {
+        const guard = ctx.*.path_queue.*.lock();
+        const result = guard.inner.*.pop();
+        guard.release();
+        break :blk result;
+    }) |*query_target_path| {
+        std.debug.print("{s}\n", .{query_target_path.*});
+        const query_target = blk: {
+            const file = try std.fs.cwd().openFile(query_target_path.*, .{});
+            defer file.close();
+            break :blk try file.readToEndAlloc(arena_allocator, 10 * 1024 * 1024);
+        };
+        ctx.allocator.free(query_target_path.*);
+
+        const tree_target = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;
+        std.debug.print("finished parsing\n", .{});
+
+        var query = tql.Query.init(
+            &ctx.program_image,
+            ctx.*.language,
+            query_target,
+            tree_target,
+            arena_allocator,
+        );
+        try query.exec();
+
+        while (try query.next()) |value| {
+            var v = value;
+
+            const guard = ctx.*.writer.*.lock();
+            try v.jsonStringify(guard.inner);
+            guard.release();
+
+            v.deinit(arena_allocator);
+        }
+
+        query.deinit();
+        tree_target.destroy();
+        _ = arena.reset(.retain_capacity);
+    }
+
+    source_parser.destroy();
+    arena.deinit();
+}
+
 fn run(
     allocator: std.mem.Allocator,
     stdout: *std.io.Writer,
-    stderr: *std.io.Writer,
+    _: *std.io.Writer,
     config: Config,
 ) !u8 {
     // FIXME: We shouldn't need this
-    const language = Language.fromPath(config.query_target_paths[0]) orelse {
-        try stderr.print("Cannot detect language from '{s}'. Use --language to specify.\n", .{config.query_target_paths[0]});
-        return @intFromEnum(ExitCode.invalid_args);
-    };
+    const language = Language.c;
 
     var tql_parser = try tql.Parser.init(allocator);
 
@@ -153,31 +254,35 @@ fn run(
     compiler.deinit();
     query_source_tree.deinit(allocator);
 
-    var jws = std.json.Stringify{ .writer = stdout };
-    try jws.beginArray();
-    for (config.query_target_paths) |query_target_path| {
-        var arena = std.heap.ArenaAllocator.init(allocator);
-        defer arena.deinit();
+    var jws = ResultQueue{ .inner = .{ .writer = stdout } };
+    var path_queue_inner = try tql.ds.RingBuffer([]const u8).init(allocator, 65535);
+    var path_queue = PathQueue{ .inner = path_queue_inner };
+    var ctx = SharedContext{
+        .program_image = program_image,
+        .paths = config.query_target_paths,
+        .allocator = allocator,
+        .writer = &jws,
+        .path_queue = &path_queue,
+        .language = language,
+    };
+    const num_workers = 1;
+    // TODO: actual thread
+    try walkerThread(&ctx);
+    var workers: [num_workers]std.Thread = undefined;
 
-        const query_target = blk: {
-            const file = try std.fs.cwd().openFile(query_target_path, .{});
-            defer file.close();
-            break :blk try file.readToEndAlloc(arena.allocator(), 10 * 1024 * 1024);
-        };
-
-        var query = tql.Query.init(&program_image, language, query_target, arena.allocator());
-        try query.exec();
-
-        while (try query.next()) |value| {
-            var v = value;
-            try jws.write(v);
-            v.deinit(arena.allocator());
-        }
-
-        query.deinit();
+    // TODO: writer thread
+    try jws.inner.beginArray();
+    for (0..num_workers) |i| {
+        workers[i] = try std.Thread.spawn(.{}, workerThread, .{&ctx});
     }
-    try jws.endArray();
 
+    for (&workers) |*worker| {
+        worker.join();
+    }
+
+    try jws.inner.endArray();
+
+    path_queue_inner.deinit(allocator);
     program_image.deinit();
     return 0;
 }

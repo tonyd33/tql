@@ -1,0 +1,17 @@
+0000: asn 0 (node this)
+0001: trv variable_id 0
+0002: trv descendant
+0003: rel equals (node kind) (literal kind_id 221)
+0004: halt not_relates
+0005: asn 1 (node this)
+0006: trv variable_id 1
+0007: trv child
+0008: rel equals (node kind) (literal kind_id 256)
+0009: halt not_relates
+0010: trv child
+0011: rel equals (node kind) (literal kind_id 261)
+0012: halt not_relates
+0013: asn 2 (node this)
+0014: trv variable_id 2
+0015: yield
+0016: halt always

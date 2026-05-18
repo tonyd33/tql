@@ -4,23 +4,23 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "basic");
+
 test "simple SELECT variable" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  select @result
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_simple.snapshot",
+        .name = "select_simple",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "FROM with node selector" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -32,14 +32,13 @@ test "FROM with node selector" {
         \\class Controller {}
         \\function foo() {}
         ,
-        .snapshot_path = "src/tests/snapshots/from_node_selector.snapshot",
+        .name = "from_node_selector",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "FROM with field access" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -51,14 +50,13 @@ test "FROM with field access" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/tests/snapshots/from_field_access.snapshot",
+        .name = "from_field_access",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "FROM with child navigation" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_body as @body,
@@ -72,14 +70,13 @@ test "FROM with child navigation" {
         \\  bar() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/from_child_navigation.snapshot",
+        .name = "from_child_navigation",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "FROM with decorator and WHERE - matching test.tql pattern" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class,
@@ -103,7 +100,7 @@ test "FROM with decorator and WHERE - matching test.tql pattern" {
         \\  m1() { }
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/from_decorator_with_where.snapshot",
+        .name = "from_decorator_with_where",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

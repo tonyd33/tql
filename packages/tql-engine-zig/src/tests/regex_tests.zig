@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "regex");
+
 test "WHERE with regex match - simple pattern" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -20,14 +21,13 @@ test "WHERE with regex match - simple pattern" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/tests/snapshots/regex_match_simple.snapshot",
+        .name = "regex_match_simple",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with regex match - anchored pattern" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -41,14 +41,13 @@ test "WHERE with regex match - anchored pattern" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/tests/snapshots/regex_match_anchored.snapshot",
+        .name = "regex_match_anchored",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with regex not match" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -62,14 +61,13 @@ test "WHERE with regex not match" {
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .snapshot_path = "src/tests/snapshots/regex_not_match.snapshot",
+        .name = "regex_not_match",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with regex match - character class" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -83,7 +81,7 @@ test "WHERE with regex match - character class" {
         \\class Controller {}
         \\class foo {}
         ,
-        .snapshot_path = "src/tests/snapshots/regex_match_char_class.snapshot",
+        .name = "regex_match_char_class",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

@@ -167,6 +167,7 @@ pub const RuntimeError = error{
     StackCorruption,
     InvalidBuildConstruction,
     PanicInstruction,
+    InvalidAST,
 };
 
 pub const ChildIterator = struct {

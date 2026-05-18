@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false;
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "array_literal");
+
 test "select array_literal: single variable" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -14,14 +15,13 @@ test "select array_literal: single variable" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_array_single.snapshot",
+        .name = "select_array_single",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select array_literal: mixed" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -29,14 +29,13 @@ test "select array_literal: mixed" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_array_mixed.snapshot",
+        .name = "select_array_mixed",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select array_literal: multiple matches" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -47,7 +46,7 @@ test "select array_literal: multiple matches" {
         \\class A {}
         \\class B {}
         ,
-        .snapshot_path = "src/tests/snapshots/select_array_multi.snapshot",
+        .name = "select_array_multi",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

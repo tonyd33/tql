@@ -1,0 +1,11 @@
+0000: asn 0 (node this)
+0001: trv variable_id 0
+0002: trv descendant
+0003: rel equals (node kind) (literal kind_id 221)
+0004: halt not_relates
+0005: asn 1 (node this)
+0006: begin_build record
+0007: push_build class (variable_id 1)
+0008: end_build 2
+0009: yield
+0010: halt always

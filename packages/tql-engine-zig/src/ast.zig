@@ -16,6 +16,13 @@ pub const Directive = union(enum) {
             .import => |i| allocator.free(i.path),
         }
     }
+
+    pub fn sexpr(self: Directive, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .language => |l| try w.print("(language \"{s}\")", .{l.language}),
+            .import => |i| try w.print("(import \"{s}\")", .{i.path}),
+        }
+    }
 };
 
 pub const LanguageDirective = struct {
@@ -35,6 +42,22 @@ pub const SourceFile = struct {
         }
         allocator.free(self.items);
     }
+
+    pub fn sexpr(self: SourceFile, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(source_file");
+        for (self.items) |item| {
+            try w.writeByte(' ');
+            try item.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+
+    pub fn sexprAlloc(self: SourceFile, allocator: std.mem.Allocator) ![]const u8 {
+        var w: std.Io.Writer.Allocating = .init(allocator);
+        errdefer w.deinit();
+        try self.sexpr(&w.writer);
+        return try w.toOwnedSlice();
+    }
 };
 
 pub const SourceItem = union(enum) {
@@ -47,6 +70,14 @@ pub const SourceItem = union(enum) {
             .directive => |d| d.deinit(allocator),
             .query => |q| q.deinit(allocator),
             .query_body => |q| q.deinit(allocator),
+        }
+    }
+
+    pub fn sexpr(self: SourceItem, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .directive => |d| try d.sexpr(w),
+            .query => |q| try q.sexpr(w),
+            .query_body => |qb| try qb.sexpr(w),
         }
     }
 };
@@ -68,6 +99,23 @@ pub const QueryDefinition = struct {
         }
         self.body.deinit(allocator);
     }
+
+    pub fn sexpr(self: QueryDefinition, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(query {s} (parameters", .{self.name});
+        for (self.parameters) |p| {
+            try w.writeByte(' ');
+            try p.sexpr(w);
+        }
+        try w.writeByte(')');
+        if (self.return_type) |rt| {
+            try w.writeAll(" (return_type ");
+            try rt.sexpr(w);
+            try w.writeByte(')');
+        }
+        try w.writeByte(' ');
+        try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
 };
 
 pub const Parameter = struct {
@@ -79,6 +127,15 @@ pub const Parameter = struct {
         if (self.type) |t| {
             t.deinit(allocator);
         }
+    }
+
+    pub fn sexpr(self: Parameter, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(param {s}", .{self.name.name});
+        if (self.type) |t| {
+            try w.writeByte(' ');
+            try t.sexpr(w);
+        }
+        try w.writeByte(')');
     }
 };
 
@@ -96,6 +153,21 @@ pub const QueryBody = struct {
         }
         self.select_clause.deinit(allocator);
     }
+
+    pub fn sexpr(self: QueryBody, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(query_body");
+        if (self.from_clause) |fc| {
+            try w.writeByte(' ');
+            try fc.sexpr(w);
+        }
+        if (self.where_clause) |wc| {
+            try w.writeByte(' ');
+            try wc.sexpr(w);
+        }
+        try w.writeByte(' ');
+        try self.select_clause.sexpr(w);
+        try w.writeByte(')');
+    }
 };
 
 pub const FromClause = struct {
@@ -106,6 +178,15 @@ pub const FromClause = struct {
             binding.deinit(allocator);
         }
         allocator.free(self.bindings);
+    }
+
+    pub fn sexpr(self: FromClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(from");
+        for (self.bindings) |b| {
+            try w.writeByte(' ');
+            try b.sexpr(w);
+        }
+        try w.writeByte(')');
     }
 };
 
@@ -118,6 +199,14 @@ pub const Binding = struct {
         self.expression.deinit(allocator);
         allocator.free(self.variable.name);
     }
+
+    pub fn sexpr(self: Binding, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(binding ");
+        try self.expression.sexpr(w);
+        try w.print(" {s}", .{self.variable.name});
+        if (self.optional) try w.writeAll(" optional");
+        try w.writeByte(')');
+    }
 };
 
 pub const NodeSelector = struct {
@@ -127,16 +216,38 @@ pub const NodeSelector = struct {
 pub const FieldAccess = struct {
     base: Expression,
     field: Identifier,
+
+    pub fn sexpr(self: FieldAccess, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(field ");
+        try self.base.sexpr(w);
+        try w.print(" {s})", .{self.field});
+    }
 };
 
 pub const ChildNavigation = struct {
     parent: Expression,
     child: Expression,
+
+    pub fn sexpr(self: ChildNavigation, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(child ");
+        try self.parent.sexpr(w);
+        try w.writeByte(' ');
+        try self.child.sexpr(w);
+        try w.writeByte(')');
+    }
 };
 
 pub const DescendantNavigation = struct {
     parent: Expression,
     descendant: Expression,
+
+    pub fn sexpr(self: DescendantNavigation, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(descendant ");
+        try self.parent.sexpr(w);
+        try w.writeByte(' ');
+        try self.descendant.sexpr(w);
+        try w.writeByte(')');
+    }
 };
 
 pub const WhereClause = struct {
@@ -144,6 +255,12 @@ pub const WhereClause = struct {
 
     pub fn deinit(self: WhereClause, allocator: std.mem.Allocator) void {
         self.predicate.deinit(allocator);
+    }
+
+    pub fn sexpr(self: WhereClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(where ");
+        try self.predicate.sexpr(w);
+        try w.writeByte(')');
     }
 };
 
@@ -184,6 +301,49 @@ pub const Predicate = union(enum) {
             .parenthesized => |p| {
                 p.deinit(allocator);
                 allocator.destroy(p);
+            },
+        }
+    }
+
+    pub fn sexpr(self: Predicate, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .comparison => |c| {
+                try w.print("({s} ", .{@tagName(c.operator)});
+                try c.left.sexpr(w);
+                try w.writeByte(' ');
+                try c.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_and => |la| {
+                try w.writeAll("(and ");
+                try la.left.sexpr(w);
+                try w.writeByte(' ');
+                try la.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_or => |lo| {
+                try w.writeAll("(or ");
+                try lo.left.sexpr(w);
+                try w.writeByte(' ');
+                try lo.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_not => |ln| {
+                try w.writeAll("(not ");
+                try ln.predicate.sexpr(w);
+                try w.writeByte(')');
+            },
+            .quantified => |q| {
+                try w.print("({s} {s} ", .{ @tagName(q.quantifier), q.variable.name });
+                try q.source.sexpr(w);
+                try w.writeByte(' ');
+                try q.predicate.sexpr(w);
+                try w.writeByte(')');
+            },
+            .parenthesized => |p| {
+                try w.writeAll("(paren ");
+                try p.sexpr(w);
+                try w.writeByte(')');
             },
         }
     }
@@ -237,6 +397,12 @@ pub const SelectClause = struct {
 
     pub fn deinit(self: SelectClause, allocator: std.mem.Allocator) void {
         self.projection.deinit(allocator);
+    }
+
+    pub fn sexpr(self: SelectClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(select ");
+        try self.projection.sexpr(w);
+        try w.writeByte(')');
     }
 };
 
@@ -294,10 +460,38 @@ pub const Projection = union(enum) {
             },
         }
     }
+
+    pub fn sexpr(self: Projection, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .variable => |v| try w.print("{s}", .{v.name}),
+            .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
+            .regex_literal => |r| try w.print("(regex \"{s}\")", .{r}),
+            .number_literal => |n| try w.print("(number {d})", .{n}),
+            .function_call => |fc| try fc.sexpr(w),
+            .field_access => |fa| try fa.sexpr(w),
+            .object_literal => |ol| try ol.sexpr(w),
+            .array_literal => |al| try al.sexpr(w),
+            .tuple_literal => |tl| try tl.sexpr(w),
+            .subquery => |sq| {
+                try w.writeAll("(subquery ");
+                try sq.sexpr(w);
+                try w.writeByte(')');
+            },
+        }
+    }
 };
 
 pub const ObjectLiteral = struct {
     fields: []const ObjectField,
+
+    pub fn sexpr(self: ObjectLiteral, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(object");
+        for (self.fields) |f| {
+            try w.writeByte(' ');
+            try f.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
 };
 
 pub const ObjectField = union(enum) {
@@ -316,14 +510,43 @@ pub const ObjectField = union(enum) {
             },
         }
     }
+
+    pub fn sexpr(self: ObjectField, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .variable => |v| try w.print("{s}", .{v.name}),
+            .key_value => |kv| {
+                try w.print("({s} ", .{kv.key});
+                try kv.value.sexpr(w);
+                try w.writeByte(')');
+            },
+        }
+    }
 };
 
 pub const ArrayLiteral = struct {
     elements: []const Expression,
+
+    pub fn sexpr(self: ArrayLiteral, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(array");
+        for (self.elements) |e| {
+            try w.writeByte(' ');
+            try e.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
 };
 
 pub const TupleLiteral = struct {
     elements: []const Expression,
+
+    pub fn sexpr(self: TupleLiteral, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(tuple");
+        for (self.elements) |e| {
+            try w.writeByte(' ');
+            try e.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
 };
 
 pub const Expression = union(enum) {
@@ -393,11 +616,48 @@ pub const Expression = union(enum) {
             },
         }
     }
+
+    pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .node_selector => |ns| try w.print("(node {s})", .{ns.node_type}),
+            .variable => |v| try w.print("{s}", .{v.name}),
+            .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
+            .regex_literal => |r| try w.print("(regex \"{s}\")", .{r}),
+            .number_literal => |n| try w.print("(number {d})", .{n}),
+            .null_literal => try w.writeAll("null"),
+            .field_access => |fa| try fa.sexpr(w),
+            .child_navigation => |cn| try cn.sexpr(w),
+            .descendant_navigation => |dn| try dn.sexpr(w),
+            .function_call => |fc| try fc.sexpr(w),
+            .object_literal => |ol| try ol.sexpr(w),
+            .array_literal => |al| try al.sexpr(w),
+            .tuple_literal => |tl| try tl.sexpr(w),
+            .subquery => |sq| {
+                try w.writeAll("(subquery ");
+                try sq.sexpr(w);
+                try w.writeByte(')');
+            },
+            .parenthesized => |pe| {
+                try w.writeAll("(paren ");
+                try pe.sexpr(w);
+                try w.writeByte(')');
+            },
+        }
+    }
 };
 
 pub const FunctionCall = struct {
     name: Identifier,
     arguments: []const Expression,
+
+    pub fn sexpr(self: FunctionCall, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(call {s}", .{self.name});
+        for (self.arguments) |arg| {
+            try w.writeByte(' ');
+            try arg.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
 };
 
 pub const Type = union(enum) {
@@ -429,6 +689,36 @@ pub const Type = union(enum) {
             .optional => |opt| {
                 opt.deinit(allocator);
                 allocator.destroy(opt);
+            },
+        }
+    }
+
+    pub fn sexpr(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .identifier => |i| try w.print("{s}", .{i}),
+            .builtin => |b| try w.print("{s}", .{@tagName(b)}),
+            .array => |at| {
+                try w.writeAll("(array_type ");
+                try at.element_type.sexpr(w);
+                try w.writeByte(')');
+            },
+            .object => |ot| {
+                try w.writeAll("(object_type ");
+                try ot.value_type.sexpr(w);
+                try w.writeByte(')');
+            },
+            .tuple => |tt| {
+                try w.writeAll("(tuple_type");
+                for (tt.element_types) |et| {
+                    try w.writeByte(' ');
+                    try et.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
+            .optional => |opt| {
+                try w.writeAll("(optional ");
+                try opt.sexpr(w);
+                try w.writeByte(')');
             },
         }
     }

@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false;
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "object_literal");
+
 test "select object_literal: shorthand" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -14,14 +15,13 @@ test "select object_literal: shorthand" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_object_shorthand.snapshot",
+        .name = "select_object_shorthand",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select object_literal: two shorthand fields" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class,
@@ -30,14 +30,13 @@ test "select object_literal: two shorthand fields" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_object_two_shorthand.snapshot",
+        .name = "select_object_two_shorthand",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select object_literal: key_value" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -45,14 +44,13 @@ test "select object_literal: key_value" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_object_key_value.snapshot",
+        .name = "select_object_key_value",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select object_literal: multiple matches" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -64,7 +62,7 @@ test "select object_literal: multiple matches" {
         \\class B {}
         \\class C {}
         ,
-        .snapshot_path = "src/tests/snapshots/select_object_shorthand_multi.snapshot",
+        .name = "select_object_shorthand_multi",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

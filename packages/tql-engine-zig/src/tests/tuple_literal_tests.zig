@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false;
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "tuple_literal");
+
 test "select tuple_literal: pair" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class
@@ -14,14 +15,13 @@ test "select tuple_literal: pair" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_tuple_pair.snapshot",
+        .name = "select_tuple_pair",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "select tuple_literal: triple" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class,
@@ -30,7 +30,7 @@ test "select tuple_literal: triple" {
         \\}
         ,
         .source = "class Foo {}",
-        .snapshot_path = "src/tests/snapshots/select_tuple_triple.snapshot",
+        .name = "select_tuple_triple",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

@@ -1,5 +1,6 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+// IMPROVE: don't export this
 pub const ts = @import("tree-sitter");
 pub const runtime = @import("runtime.zig");
 const pcre2 = @import("pcre2.zig");
@@ -11,6 +12,8 @@ const query = @import("query.zig");
 const engine = @import("engine.zig");
 const tests = @import("tests.zig");
 
+// IMPROVE: don't export this
+pub const ds = @import("ds.zig");
 pub const AST = ast;
 pub const Parser = parser.Parser;
 pub const Query = query.Query;

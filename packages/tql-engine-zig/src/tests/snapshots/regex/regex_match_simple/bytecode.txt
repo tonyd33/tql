@@ -1,0 +1,17 @@
+0000: asn 0 (node this)
+0001: trv variable_id 0
+0002: trv descendant
+0003: rel equals (node kind) (literal kind_id 221)
+0004: halt not_relates
+0005: asn 1 (node this)
+0006: trv variable_id 1
+0007: trv field 25
+0008: asn 2 (node this)
+0009: trv variable_id 2
+0010: rel like (node text) (literal regex ...)
+0011: jmp relates 14
+0012: jmp always 13
+0013: halt always
+0014: trv variable_id 1
+0015: yield
+0016: halt always

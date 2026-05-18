@@ -1,0 +1,1 @@
+(source_file (query main (parameters) (query_body (from (binding (child (field (node class_declaration) body) (node method_definition)) method)) (select method))))

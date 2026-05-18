@@ -4,9 +4,10 @@ const snapshot = @import("./snapshot_helper.zig");
 
 const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
 
+const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "where");
+
 test "WHERE with simple comparison" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -19,14 +20,13 @@ test "WHERE with simple comparison" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/tests/snapshots/where_simple_comparison.snapshot",
+        .name = "where_simple_comparison",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with OR logic" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -40,14 +40,13 @@ test "WHERE with OR logic" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/tests/snapshots/where_or_logic.snapshot",
+        .name = "where_or_logic",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with AND logic" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c,
@@ -63,14 +62,13 @@ test "WHERE with AND logic" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { foo() {}; bar() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_and_logic.snapshot",
+        .name = "where_and_logic",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with any quantifier - matches" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -82,14 +80,13 @@ test "WHERE with any quantifier - matches" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_any_matches.snapshot",
+        .name = "where_any_matches",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with any quantifier - no matches" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -101,14 +98,13 @@ test "WHERE with any quantifier - no matches" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_any_no_matches.snapshot",
+        .name = "where_any_no_matches",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE any matches second method only" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -120,14 +116,13 @@ test "WHERE any matches second method only" {
         \\class A { bar() {}; foo() {}; }
         \\class B { bar() {}; baz() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_any_second_only.snapshot",
+        .name = "where_any_second_only",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with all quantifier" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -139,14 +134,13 @@ test "WHERE with all quantifier" {
         \\class A { foo() {}; foo() {}; }
         \\class B { foo() {}; bar() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_all.snapshot",
+        .name = "where_all",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE with nested any over two sources" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -158,14 +152,13 @@ test "WHERE with nested any over two sources" {
         .source =
         \\class A { foo() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_nested_any.snapshot",
+        .name = "where_nested_any",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE field access on outer row" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -177,14 +170,13 @@ test "WHERE field access on outer row" {
         \\class Service {}
         \\class Controller {}
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_top_level.snapshot",
+        .name = "where_field_access_top_level",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE optional binding is null" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from function_declaration as @f,
@@ -198,14 +190,13 @@ test "WHERE optional binding is null" {
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_null_eq.snapshot",
+        .name = "where_null_eq",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE optional binding is not null" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from function_declaration as @f,
@@ -219,14 +210,13 @@ test "WHERE optional binding is not null" {
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_null_ne.snapshot",
+        .name = "where_null_ne",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE field access with regex match" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -238,14 +228,13 @@ test "WHERE field access with regex match" {
         \\class A { foobar() {}; }
         \\class B { bar() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_regex.snapshot",
+        .name = "where_field_access_regex",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE field access with not equal" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -258,14 +247,13 @@ test "WHERE field access with not equal" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_ne.snapshot",
+        .name = "where_field_access_ne",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE field access in AND" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -278,14 +266,13 @@ test "WHERE field access in AND" {
         \\class Service { bar() {}; }
         \\class Other { foo() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_and.snapshot",
+        .name = "where_field_access_and",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE same field accessed twice" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -298,14 +285,13 @@ test "WHERE same field accessed twice" {
         \\class Controller {}
         \\class Repository {}
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_twice.snapshot",
+        .name = "where_field_access_twice",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE quantified regression for double yield" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @class_decl,
@@ -329,14 +315,13 @@ test "WHERE quantified regression for double yield" {
         \\  m3() {}
         \\}
         ,
-        .snapshot_path = "src/tests/snapshots/where_quantified_double_yield.snapshot",
+        .name = "where_quantified_double_yield",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE descendant nav in quantifier source" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -348,14 +333,13 @@ test "WHERE descendant nav in quantifier source" {
         \\class Service { foo() {}; }
         \\class Controller { bar() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_descendant_nav_source.snapshot",
+        .name = "where_descendant_nav_source",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE child nav in comparison body" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -367,14 +351,13 @@ test "WHERE child nav in comparison body" {
         \\class A { foo() { return 1; } }
         \\class B { bar() {} }
         ,
-        .snapshot_path = "src/tests/snapshots/where_child_nav_in_body.snapshot",
+        .name = "where_child_nav_in_body",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE field access in OR with anonymous lift" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -387,14 +370,13 @@ test "WHERE field access in OR with anonymous lift" {
         \\class B { bar() {}; }
         \\class C { baz() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_field_access_or_quantified.snapshot",
+        .name = "where_field_access_or_quantified",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
 
 test "WHERE any with not-null body" {
-    try (snapshot.SnapshotTest{
-        .allocator = testing.allocator,
+    try (SnapshotTest{
         .tql =
         \\query main() {
         \\  from class_declaration as @c
@@ -406,7 +388,7 @@ test "WHERE any with not-null body" {
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .snapshot_path = "src/tests/snapshots/where_any_not_null.snapshot",
+        .name = "where_any_not_null",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

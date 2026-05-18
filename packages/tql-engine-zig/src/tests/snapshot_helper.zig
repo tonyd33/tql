@@ -13,7 +13,7 @@ pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const ru
 
     const writer = list.writer(allocator);
     for (instructions, 0..) |inst, i| {
-        try writer.print("{d}: ", .{i});
+        try writer.print("{d:0>4}: ", .{i});
         try formatInstruction(writer, inst);
         try writer.writeByte('\n');
     }
@@ -21,6 +21,7 @@ pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const ru
     return try list.toOwnedSlice(allocator);
 }
 
+// IMPROVE: move to instruction
 fn formatInstruction(writer: anytype, inst: runtime.Instruction) !void {
     switch (inst) {
         .noop => try writer.writeAll("noop"),
@@ -66,6 +67,7 @@ fn formatInstruction(writer: anytype, inst: runtime.Instruction) !void {
     }
 }
 
+// IMPROVE: Move to value source
 fn formatValueSource(writer: anytype, source: runtime.ValueSource) !void {
     switch (source) {
         .literal => |l| {
@@ -162,78 +164,108 @@ pub fn parseTypeScript(source: []const u8) !*ts.Tree {
     return tree;
 }
 
-pub const SnapshotTest = struct {
-    allocator: std.mem.Allocator,
-    tql: []const u8,
-    source: []const u8,
-    snapshot_path: []const u8,
-    update_snapshots: bool = false,
+pub fn SnapshotTester(allocator: std.mem.Allocator, group: []const u8) type {
+    return struct {
+        const Self = @This();
+        tql: []const u8,
+        source: []const u8,
+        name: []const u8,
+        update_snapshots: bool = false,
 
-    pub fn run(self: SnapshotTest) !void {
-        const language = tree_sitter_typescript();
+        pub fn run(self: Self) !void {
+            const language = tree_sitter_typescript();
 
-        var parser = try Parser.init(self.allocator);
-        defer parser.deinit();
+            var parser = try Parser.init(allocator);
+            defer parser.deinit();
 
-        var source_file = try parser.parse(self.tql);
-        defer source_file.deinit(self.allocator);
+            var source_file = try parser.parse(self.tql);
+            defer source_file.deinit(allocator);
 
-        var compiler = Compiler.init(self.allocator, language);
-        defer compiler.deinit();
+            var compiler = Compiler.init(allocator, language);
+            defer compiler.deinit();
 
-        var program = try compiler.compile(self.allocator, source_file);
-        defer program.deinit();
+            var program = try compiler.compile(allocator, source_file);
+            defer program.deinit();
 
-        const tree = try parseTypeScript(self.source);
-        defer tree.destroy();
+            const tree = try parseTypeScript(self.source);
+            defer tree.destroy();
 
-        var rt = runtime.Runtime.init(.{
-            .tree = tree,
-            .source = self.source,
-            .instructions = program.instructions,
-            .regexes = program.regexes,
-            .allocator = self.allocator,
-        });
-        defer rt.deinit();
+            var rt = runtime.Runtime.init(.{
+                .tree = tree,
+                .source = self.source,
+                .instructions = program.instructions,
+                .regexes = program.regexes,
+                .allocator = allocator,
+            });
+            defer rt.deinit();
 
-        try rt.exec();
+            try rt.exec();
 
-        var values = std.ArrayList(query.Value){};
-        defer {
-            for (values.items) |*v| v.deinit(self.allocator);
-            values.deinit(self.allocator);
+            var values = std.ArrayList(query.Value){};
+            defer {
+                for (values.items) |*v| v.deinit(allocator);
+                values.deinit(allocator);
+            }
+
+            while (try rt.nextMatch()) |value| {
+                const enriched = try query.Value.fromRuntimeValue(allocator, value, self.source);
+                try values.append(allocator, enriched);
+            }
+
+            const actual_ast = try source_file.sexprAlloc(allocator);
+            defer allocator.free(actual_ast);
+
+            const actual_bytecode = try renderBytecode(allocator, program.instructions);
+            defer allocator.free(actual_bytecode);
+
+            const actual_values = try renderValues(allocator, values.items);
+            defer allocator.free(actual_values);
+
+            const ast_path = try std.fmt.allocPrint(
+                allocator,
+                "src/tests/snapshots/{s}/{s}/ast.sexpr",
+                .{ group, self.name },
+            );
+            defer allocator.free(ast_path);
+            try expectMatchesSnapshot(allocator, ast_path, actual_ast, self.update_snapshots);
+
+            const bytecode_path = try std.fmt.allocPrint(
+                allocator,
+                "src/tests/snapshots/{s}/{s}/bytecode.txt",
+                .{ group, self.name },
+            );
+            defer allocator.free(bytecode_path);
+            try expectMatchesSnapshot(allocator, bytecode_path, actual_bytecode, self.update_snapshots);
+
+            const values_path = try std.fmt.allocPrint(
+                allocator,
+                "src/tests/snapshots/{s}/{s}/values.json",
+                .{ group, self.name },
+            );
+            defer allocator.free(values_path);
+            try expectMatchesSnapshot(allocator, values_path, actual_values, self.update_snapshots);
         }
+    };
+}
 
-        while (try rt.nextMatch()) |value| {
-            const enriched = try query.Value.fromRuntimeValue(self.allocator, value, self.source);
-            try values.append(self.allocator, enriched);
-        }
+fn renderBytecode(gpa: std.mem.Allocator, instructions: []const runtime.Instruction) ![]const u8 {
+    return try formatInstructions(gpa, instructions);
+}
 
-        const actual = try renderSnapshot(self.allocator, program.instructions, values.items);
-        defer self.allocator.free(actual);
-
-        try expectMatchesSnapshot(self.allocator, self.snapshot_path, actual, self.update_snapshots);
-    }
-};
-
-fn renderSnapshot(gpa: std.mem.Allocator, instructions: []const runtime.Instruction, values: []const query.Value) ![]const u8 {
-    var buf = std.ArrayList(u8){};
-    errdefer buf.deinit(gpa);
-    var w: std.Io.Writer.Allocating = .fromArrayList(gpa, &buf);
+fn renderValues(gpa: std.mem.Allocator, values: []const query.Value) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(gpa);
+    errdefer w.deinit();
     const writer = &w.writer;
 
-    try writer.writeAll("=== bytecode ===\n");
-    const bytecode = try formatInstructions(gpa, instructions);
-    defer gpa.free(bytecode);
-    try writer.writeAll(bytecode);
-
-    try writer.writeAll("=== values ===\n");
+    var jws = std.json.Stringify{
+        .writer = writer,
+        .options = .{ .whitespace = .indent_2 },
+    };
+    try jws.beginArray();
     for (values) |v| {
-        var jws = std.json.Stringify{ .writer = writer };
         try jws.write(v);
-        try writer.writeByte('\n');
     }
+    try jws.endArray();
 
-    buf = w.toArrayList();
-    return try buf.toOwnedSlice(gpa);
+    return try w.toOwnedSlice();
 }
