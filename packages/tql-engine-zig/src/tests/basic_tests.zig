@@ -59,7 +59,7 @@ test "FROM with child navigation" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_body as @body,
+        \\  from class_declaration > class_body as @body,
         \\       @body > method_definition as @m
         \\  select @m
         \\}

@@ -1,6 +1,6 @@
 0000: asn 0 (node this)
 0001: trv variable_id 0
-0002: trv descendant
+0002: trv child
 0003: rel equals (node kind) (literal kind_id 221)
 0004: halt not_relates
 0005: trv field 25

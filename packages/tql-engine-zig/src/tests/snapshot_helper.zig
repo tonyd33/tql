@@ -227,7 +227,6 @@ pub fn SnapshotTester(allocator: std.mem.Allocator, group: []const u8) type {
                 .{ group, self.name },
             );
             defer allocator.free(ast_path);
-            try expectMatchesSnapshot(allocator, ast_path, actual_ast, self.update_snapshots);
 
             const bytecode_path = try std.fmt.allocPrint(
                 allocator,
@@ -235,7 +234,6 @@ pub fn SnapshotTester(allocator: std.mem.Allocator, group: []const u8) type {
                 .{ group, self.name },
             );
             defer allocator.free(bytecode_path);
-            try expectMatchesSnapshot(allocator, bytecode_path, actual_bytecode, self.update_snapshots);
 
             const values_path = try std.fmt.allocPrint(
                 allocator,
@@ -243,7 +241,21 @@ pub fn SnapshotTester(allocator: std.mem.Allocator, group: []const u8) type {
                 .{ group, self.name },
             );
             defer allocator.free(values_path);
-            try expectMatchesSnapshot(allocator, values_path, actual_values, self.update_snapshots);
+
+            var any_failed = false;
+            expectMatchesSnapshot(allocator, ast_path, actual_ast, self.update_snapshots) catch |err| {
+                if (err != error.SnapshotMismatch) return err;
+                any_failed = true;
+            };
+            expectMatchesSnapshot(allocator, bytecode_path, actual_bytecode, self.update_snapshots) catch |err| {
+                if (err != error.SnapshotMismatch) return err;
+                any_failed = true;
+            };
+            expectMatchesSnapshot(allocator, values_path, actual_values, self.update_snapshots) catch |err| {
+                if (err != error.SnapshotMismatch) return err;
+                any_failed = true;
+            };
+            if (any_failed) return error.SnapshotMismatch;
         }
     };
 }
