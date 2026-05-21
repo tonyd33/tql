@@ -262,6 +262,7 @@ pub const Compiler = struct {
         try builder.emit(.{ .trv = .{ .child = {} } });
 
         // FIXME: Why can't I do self.compileAsNavigation(builder, child_nav.child)?
+        // see compileNodeSelector
         switch (child_nav.child) {
             .node_selector => |node_selector| {
                 const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
@@ -282,6 +283,7 @@ pub const Compiler = struct {
         try builder.emit(.{ .trv = .{ .descendant = {} } });
 
         // FIXME: Why can't I do self.compileAsNavigation(builder, desc_nav.child)?
+        // see compileNodeSelector
         switch (desc_nav.descendant) {
             .node_selector => |node_selector| {
                 const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
@@ -308,6 +310,11 @@ pub const Compiler = struct {
         const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
 
         // FIXME: This can't be right
+        // yeah the root problem is the implicit root child traversal.
+        // no pun intended.
+        // any implicit root traversal from the top level selector is bound to
+        // run into this problem and is the same reason why we can't do the
+        // compileAsNavigation mentioned in the other comments
         try builder.emit(.{ .trv = .{ .child = {} } });
         try builder.emit(.{ .rel = .{
             .relation = .equals,

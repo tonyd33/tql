@@ -1,4 +1,4 @@
 query main() {
-  from function_definition.declarator > identifier as @name
+  from ((function_definition).declarator) > identifier as @name
   select @name
 }

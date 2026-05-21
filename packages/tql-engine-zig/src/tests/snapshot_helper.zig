@@ -11,83 +11,15 @@ pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const ru
     var list = std.ArrayList(u8){};
     errdefer list.deinit(allocator);
 
+    // fuck this stupid interface
     const writer = list.writer(allocator);
     for (instructions, 0..) |inst, i| {
         try writer.print("{d:0>4}: ", .{i});
-        try formatInstruction(writer, inst);
+        try inst.print(&writer);
         try writer.writeByte('\n');
     }
 
     return try list.toOwnedSlice(allocator);
-}
-
-// IMPROVE: move to instruction
-fn formatInstruction(writer: anytype, inst: runtime.Instruction) !void {
-    switch (inst) {
-        .noop => try writer.writeAll("noop"),
-        .yield => try writer.writeAll("yield"),
-        .halt => |h| try writer.print("halt {s}", .{@tagName(h.condition)}),
-        .trv => |t| {
-            try writer.writeAll("trv ");
-            switch (t) {
-                .child => try writer.print("child", .{}),
-                .descendant => try writer.print("descendant", .{}),
-                .field => |f| try writer.print("field {}", .{f}),
-                .variable_id => |v| try writer.print("variable_id {}", .{v}),
-            }
-        },
-        .asn => |a| {
-            try writer.print("asn {} (", .{a.variable_id});
-            try formatValueSource(writer, a.source);
-            try writer.writeAll(")");
-        },
-        .rel => |r| {
-            try writer.print("rel {s} (", .{@tagName(r.relation)});
-            try formatValueSource(writer, r.a);
-            try writer.writeAll(") (");
-            try formatValueSource(writer, r.b);
-            try writer.writeAll(")");
-        },
-        .probe => |p| try writer.print("probe {s} {}", .{ @tagName(p.mode), p.on_success }),
-        .call => |c| try writer.print("call {}", .{c}),
-        .ret => try writer.writeAll("ret"),
-        .jmp => |j| try writer.print("jmp {s} {}", .{ @tagName(j.mode), j.address }),
-        .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
-        .push_build => |i| {
-            if (i.name) |name| {
-                try writer.print("push_build {s} (", .{name});
-            } else {
-                try writer.writeAll("push_build (");
-            }
-            try formatValueSource(writer, i.source);
-            try writer.writeAll(")");
-        },
-        .end_build => |v| try writer.print("end_build {}", .{v}),
-        .panic => try writer.writeAll("panic"),
-    }
-}
-
-// IMPROVE: Move to value source
-fn formatValueSource(writer: anytype, source: runtime.ValueSource) !void {
-    switch (source) {
-        .literal => |l| {
-            try writer.writeAll("literal ");
-            switch (l) {
-                .nothing => try writer.writeAll("nothing"),
-                .uint => |uint| try writer.print("uint {}", .{uint}),
-                .string => |s| try writer.print("string \"{s}\"", .{s}),
-                .kind_id => |k| try writer.print("kind_id {}", .{k}),
-                .field_id => |f| try writer.print("field_id {}", .{f}),
-                .range => try writer.writeAll("range ..."),
-                .node => try writer.writeAll("node ..."),
-                .regex => try writer.writeAll("regex ..."),
-                .record => try writer.writeAll("record ..."),
-                .list => try writer.writeAll("list ..."),
-            }
-        },
-        .node => |n| try writer.print("node {s}", .{@tagName(n)}),
-        .variable_id => |v| try writer.print("variable_id {}", .{v}),
-    }
 }
 
 /// Load snapshot from file, or return null if file doesn't exist

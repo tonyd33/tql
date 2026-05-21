@@ -1,5 +1,9 @@
 const std = @import("std");
 
+const RingBufferError = error {
+    RingBufferFull,
+};
+
 pub fn RingBuffer(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -23,7 +27,7 @@ pub fn RingBuffer(comptime T: type) type {
         pub fn push(self: *Self, value: T) !void {
             if (self.push_offset == self.size) {
                 // IMPROVE: better error
-                return error.OutOfMemory;
+                return error.RingBufferFull;
             }
             const idx = (self.pop_idx + self.push_offset) % self.size;
             self.buf[idx] = value;
@@ -99,5 +103,5 @@ test "ring buffer overflow" {
     try rb.push(3);
     try rb.push(4);
 
-    try std.testing.expectError(error.OutOfMemory, rb.push(5));
+    try std.testing.expectError(error.RingBufferFull, rb.push(5));
 }

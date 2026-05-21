@@ -31,7 +31,7 @@ pub fn main() !u8 {
     }
     const allocator = gpa.allocator();
 
-    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_buffer: [1024]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
@@ -98,8 +98,8 @@ pub fn main() !u8 {
     return run(allocator, stdout, stderr, .{
         .query_path = query_path,
         .query_target_paths = source_paths,
-        .format = res.args.format orelse .text,
-        .workers = res.args.workers,
+        .format = res.args.format orelse .json,
+        .workers = res.args.workers orelse 1,
         .captures = res.args.captures != 0,
         .dump_ast = res.args.@"dump-ast" != 0,
         .dump_instructions = res.args.@"dump-instructions" != 0,
@@ -115,7 +115,7 @@ const Config = struct {
     query_path: []const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
-    workers: ?usize,
+    workers: usize = 1,
     captures: bool,
     dump_ast: bool,
     dump_instructions: bool,
@@ -123,18 +123,81 @@ const Config = struct {
     verbose: bool,
 };
 
-// IMPROVE: need better queue
-const PathQueue = tql.ds.ThreadSafe(tql.ds.RingBuffer([]const u8));
-const ResultQueue = tql.ds.ThreadSafe(std.json.Stringify);
+const PathEntry = struct {
+    arena: std.heap.ArenaAllocator,
+    path: []const u8,
+};
+
+const PathQueue = tql.ds.BlockingQueue(PathEntry);
+
+const FileStats = struct {
+    read_time_ns: u64 = 0,
+    parse_time_ns: u64 = 0,
+    query_time_ns: u64 = 0,
+};
+
+const FileResult = struct {
+    arena: std.heap.ArenaAllocator,
+    filename: []const u8,
+    values: std.ArrayList(Value),
+    stats: FileStats,
+
+    fn deinit(self: FileResult) void {
+        self.arena.deinit();
+    }
+};
+
+const ResultQueue = tql.ds.BlockingQueue(FileResult);
+
+const Progress = struct {
+    done: std.atomic.Value(usize) = .init(0),
+    total: std.atomic.Value(usize) = .init(0),
+};
 
 const SharedContext = struct {
     program_image: tql.Runtime.ProgramImage,
     paths: []const []const u8,
     allocator: std.mem.Allocator,
-    writer: *ResultQueue,
+    result_queue: *ResultQueue,
     path_queue: *PathQueue,
     language: Language,
+    progress: *Progress,
 };
+
+const BAR_WIDTH: usize = 30;
+
+fn renderProgress(w: *std.io.Writer, d: usize, t: usize) void {
+    // const pct: usize = if (t == 0) 0 else (d * 100) / t;
+    const filled: usize = if (t == 0) 0 else (d * BAR_WIDTH) / t;
+    var buf: [BAR_WIDTH * 3]u8 = undefined;
+    var i: usize = 0;
+    var k: usize = 0;
+    while (k < BAR_WIDTH) : (k += 1) {
+        const glyph = if (k < filled) "#" else "-";
+        @memcpy(buf[i .. i + glyph.len], glyph);
+        i += glyph.len;
+    }
+    w.print("\r[{s}] {d}/{d}", .{ buf[0..i], d, t }) catch {};
+    w.flush() catch {};
+}
+
+fn progressThread(p: *Progress, stop: *std.atomic.Value(bool), w: *std.io.Writer) void {
+    while (!stop.load(.acquire)) {
+        renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic));
+        std.Thread.sleep(1 * std.time.ns_per_ms);
+    }
+    renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic));
+    w.print("\n", .{}) catch {};
+    w.flush() catch {};
+}
+
+fn pushFile(ctx: *SharedContext, path: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
+    errdefer arena.deinit();
+    const owned = try arena.allocator().dupe(u8, path);
+    try ctx.path_queue.push(.{ .arena = arena, .path = owned });
+    _ = ctx.*.progress.total.fetchAdd(1, .monotonic);
+}
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
     var root_dir = try std.fs.openDirAbsolute(path, .{
@@ -143,14 +206,13 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
 
     var walker = try root_dir.walk(ctx.*.allocator);
     while (try walker.next()) |entry| {
-        if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".c")) {
-            const cp = try std.fs.path.join(
+        if (entry.kind == .file and (std.mem.endsWith(u8, entry.basename, ".c") or std.mem.endsWith(u8, entry.basename, ".h"))) {
+            const joined = try std.fs.path.join(
                 ctx.*.allocator,
                 &[_][]const u8{ path, entry.path },
             );
-            var guard = ctx.*.path_queue.*.lock();
-            try guard.inner.*.push(cp);
-            guard.release();
+            defer ctx.*.allocator.free(joined);
+            try pushFile(ctx, joined);
         }
     }
     walker.deinit();
@@ -158,45 +220,84 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
 }
 
 fn walkerThread(ctx: *SharedContext) !void {
-    // FIXME: need to apply backpressure for fixed size queue buffer
-    // FIXME: awful control flow
     for (ctx.*.paths) |path| {
         walkPush(ctx, path) catch |err| {
             if (err == error.NotDir) {
-                const cp = try ctx.*.allocator.dupe(u8, path);
-                var guard = ctx.*.path_queue.*.lock();
-                try guard.inner.*.push(cp);
-                guard.release();
+                try pushFile(ctx, path);
             } else {
                 return err;
             }
         };
     }
+    ctx.path_queue.close();
+}
+
+fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
+    var totals: FileStats = .{};
+    try jws.beginObject();
+    try jws.objectField("results");
+    try jws.beginArray();
+    while (ctx.result_queue.pop()) |result| {
+        defer result.deinit();
+        totals.read_time_ns += result.stats.read_time_ns;
+        totals.parse_time_ns += result.stats.parse_time_ns;
+        totals.query_time_ns += result.stats.query_time_ns;
+        if (result.values.items.len == 0) continue;
+        try jws.beginObject();
+        try jws.objectField("file");
+        try jws.write(result.filename);
+        try jws.objectField("values");
+        try jws.beginArray();
+        for (result.values.items) |v| try v.jsonStringify(jws);
+        try jws.endArray();
+        try jws.endObject();
+    }
+    try jws.endArray();
+    try jws.objectField("stats");
+    try jws.beginObject();
+    try jws.objectField("read_time_ns");
+    try jws.write(totals.read_time_ns);
+    try jws.objectField("parse_time_ns");
+    try jws.write(totals.parse_time_ns);
+    try jws.objectField("query_time_ns");
+    try jws.write(totals.query_time_ns);
+    try jws.endObject();
+    try jws.endObject();
 }
 
 fn workerThread(ctx: *SharedContext) !void {
-    // TODO: need to store results per file and flush to the writer
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     const arena_allocator = arena.allocator();
     const source_parser = ts.Parser.create();
     try source_parser.setLanguage(ctx.*.language.getTreeSitterLanguage());
 
-    while (blk: {
-        const guard = ctx.*.path_queue.*.lock();
-        const result = guard.inner.*.pop();
-        guard.release();
-        break :blk result;
-    }) |*query_target_path| {
-        std.debug.print("{s}\n", .{query_target_path.*});
-        const query_target = blk: {
-            const file = try std.fs.cwd().openFile(query_target_path.*, .{});
-            defer file.close();
-            break :blk try file.readToEndAlloc(arena_allocator, 10 * 1024 * 1024);
-        };
-        ctx.allocator.free(query_target_path.*);
+    while (ctx.path_queue.pop()) |entry| {
+        var result_arena = entry.arena;
+        errdefer result_arena.deinit();
+        const result_alloc = result_arena.allocator();
+        const query_target_path = entry.path;
 
+        var read_timer = try std.time.Timer.start();
+        const query_target: []align(std.heap.page_size_min) const u8 = blk: {
+            const file = try std.fs.cwd().openFile(query_target_path, .{});
+            defer file.close();
+            const stat = try file.stat();
+            if (stat.size == 0) break :blk &[_]u8{};
+            break :blk try std.posix.mmap(
+                null,
+                stat.size,
+                std.posix.PROT.READ,
+                .{ .TYPE = .PRIVATE },
+                file.handle,
+                0,
+            );
+        };
+        const read_time_ns = read_timer.read();
+        defer if (query_target.len > 0) std.posix.munmap(query_target);
+
+        var parse_timer = try std.time.Timer.start();
         const tree_target = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;
-        std.debug.print("finished parsing\n", .{});
+        const parse_time_ns = parse_timer.read();
 
         var query = tql.Query.init(
             &ctx.program_image,
@@ -207,83 +308,127 @@ fn workerThread(ctx: *SharedContext) !void {
         );
         try query.exec();
 
-        while (try query.next()) |value| {
-            var v = value;
-
-            const guard = ctx.*.writer.*.lock();
-            try v.jsonStringify(guard.inner);
-            guard.release();
-
-            v.deinit(arena_allocator);
+        var values: std.ArrayList(Value) = .empty;
+        var query_timer = try std.time.Timer.start();
+        while (try query.next(result_alloc)) |value| {
+            try values.append(result_alloc, value);
         }
+        const query_time_ns = query_timer.read();
+
+        try ctx.result_queue.push(.{
+            .arena = result_arena,
+            .filename = query_target_path,
+            .values = values,
+            .stats = .{
+                .read_time_ns = read_time_ns,
+                .parse_time_ns = parse_time_ns,
+                .query_time_ns = query_time_ns,
+            },
+        });
 
         query.deinit();
         tree_target.destroy();
         _ = arena.reset(.retain_capacity);
+        _ = ctx.*.progress.done.fetchAdd(1, .monotonic);
     }
 
     source_parser.destroy();
     arena.deinit();
 }
 
-fn run(
-    allocator: std.mem.Allocator,
+fn dumpInstructions(
+    _: std.mem.Allocator,
     stdout: *std.io.Writer,
     _: *std.io.Writer,
-    config: Config,
-) !u8 {
+    _: Config,
+    instructions: []const tql.Runtime.Instruction,
+) !void {
+    for (instructions, 0..) |inst, i| {
+        try stdout.print("{d:0>4}: ", .{i});
+        try inst.print(stdout);
+        try stdout.writeByte('\n');
+    }
+}
+
+fn programImageFromQueryPath(allocator: std.mem.Allocator, query_path: []const u8) !tql.Runtime.ProgramImage {
     // FIXME: We shouldn't need this
     const language = Language.c;
-
     var tql_parser = try tql.Parser.init(allocator);
 
     var compiler = tql.Compiler.init(allocator, language.getTreeSitterLanguage());
 
     const query_source = blk: {
-        const file = try std.fs.cwd().openFile(config.query_path, .{});
+        const file = try std.fs.cwd().openFile(query_path, .{});
         defer file.close();
         break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
     };
 
-    // real shit
     const query_source_tree = try tql_parser.parse(query_source);
     allocator.free(query_source);
     tql_parser.deinit();
 
-    var program_image = try compiler.compile(allocator, query_source_tree);
+    const program_image = try compiler.compile(allocator, query_source_tree);
     compiler.deinit();
     query_source_tree.deinit(allocator);
 
-    var jws = ResultQueue{ .inner = .{ .writer = stdout } };
-    var path_queue_inner = try tql.ds.RingBuffer([]const u8).init(allocator, 65535);
-    var path_queue = PathQueue{ .inner = path_queue_inner };
+    return program_image;
+}
+
+fn run(
+    allocator: std.mem.Allocator,
+    stdout: *std.io.Writer,
+    stderr: *std.io.Writer,
+    config: Config,
+) !u8 {
+    // FIXME: We shouldn't need this
+    const language = Language.c;
+    var program_image = try programImageFromQueryPath(allocator, config.query_path);
+    // IMPROVE: this control flow is terrible
+    if (config.dump_instructions) {
+        try dumpInstructions(allocator, stdout, stderr, config, program_image.instructions);
+        program_image.deinit();
+        return 0;
+    }
+
+    // real shit
+    var jws: std.json.Stringify = .{ .writer = stdout };
+    var path_queue = try PathQueue.init(allocator, 65535);
+    var result_queue = try ResultQueue.init(allocator, 1024);
+    var progress = Progress{};
     var ctx = SharedContext{
         .program_image = program_image,
         .paths = config.query_target_paths,
         .allocator = allocator,
-        .writer = &jws,
+        .result_queue = &result_queue,
         .path_queue = &path_queue,
         .language = language,
+        .progress = &progress,
     };
-    const num_workers = 1;
-    // TODO: actual thread
-    try walkerThread(&ctx);
-    var workers: [num_workers]std.Thread = undefined;
 
-    // TODO: writer thread
-    try jws.inner.beginArray();
-    for (0..num_workers) |i| {
+    var progress_stop = std.atomic.Value(bool).init(false);
+    var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
+    const writer_thread = try std.Thread.spawn(.{}, writerThread, .{ &ctx, &jws });
+    const progress_thread = try std.Thread.spawn(.{}, progressThread, .{ &progress, &progress_stop, stderr });
+    var workers = try allocator.alloc(std.Thread, config.workers);
+
+    for (0..config.workers) |i| {
         workers[i] = try std.Thread.spawn(.{}, workerThread, .{&ctx});
     }
 
-    for (&workers) |*worker| {
+    for (workers) |*worker| {
         worker.join();
     }
+    ctx.result_queue.close();
 
-    try jws.inner.endArray();
+    walker_thread.join();
+    writer_thread.join();
+    progress_stop.store(true, .release);
+    progress_thread.join();
 
-    path_queue_inner.deinit(allocator);
+    path_queue.deinit(allocator);
+    result_queue.deinit(allocator);
     program_image.deinit();
+    allocator.free(workers);
     return 0;
 }
 

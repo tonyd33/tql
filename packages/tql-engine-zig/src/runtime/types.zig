@@ -83,6 +83,21 @@ pub const Value = union(enum) {
             .list => |a_l| a_l == b.list,
         };
     }
+
+    pub fn print(self: Value, writer: anytype) !void {
+        switch (self) {
+            .nothing => try writer.print("nothing", .{}),
+            .uint => |uint| try writer.print("uint {}", .{uint}),
+            .string => |s| try writer.print("string \"{s}\"", .{s}),
+            .kind_id => |k| try writer.print("kind_id {}", .{k}),
+            .field_id => |f| try writer.print("field_id {}", .{f}),
+            .range => try writer.print("range ...", .{}),
+            .node => try writer.print("node ...", .{}),
+            .regex => try writer.print("regex ...", .{}),
+            .record => try writer.print("record ...", .{}),
+            .list => try writer.print("list ...", .{}),
+        }
+    }
 };
 
 pub const Record = struct {
@@ -385,6 +400,28 @@ pub const ValueSource = union(enum) {
     literal: Value,
     node: NodeValueSource,
     variable_id: VariableId,
+
+    pub fn print(self: ValueSource, writer: anytype) !void {
+        switch (self) {
+            .literal => |l| {
+                try writer.print("literal ", .{});
+                switch (l) {
+                    .nothing => try writer.print("nothing", .{}),
+                    .uint => |uint| try writer.print("uint {}", .{uint}),
+                    .string => |s| try writer.print("string \"{s}\"", .{s}),
+                    .kind_id => |k| try writer.print("kind_id {}", .{k}),
+                    .field_id => |f| try writer.print("field_id {}", .{f}),
+                    .range => try writer.print("range ...", .{}),
+                    .node => try writer.print("node ...", .{}),
+                    .regex => try writer.print("regex ...", .{}),
+                    .record => try writer.print("record ...", .{}),
+                    .list => try writer.print("list ...", .{}),
+                }
+            },
+            .node => |n| try writer.print("node {s}", .{@tagName(n)}),
+            .variable_id => |v| try writer.print("variable_id {}", .{v}),
+        }
+    }
 };
 
 pub const ProbeMode = enum {
@@ -439,4 +476,49 @@ pub const Instruction = union(enum) {
     },
     end_build: VariableId,
     panic, // debug, probably remove
+
+    pub fn print(self: Instruction, writer: anytype) !void {
+        switch (self) {
+            .noop => try writer.print("noop", .{}),
+            .yield => try writer.print("yield", .{}),
+            .halt => |h| try writer.print("halt {s}", .{@tagName(h.condition)}),
+            .trv => |t| {
+                try writer.print("trv ", .{});
+                switch (t) {
+                    .child => try writer.print("child", .{}),
+                    .descendant => try writer.print("descendant", .{}),
+                    .field => |f| try writer.print("field {}", .{f}),
+                    .variable_id => |v| try writer.print("variable_id {}", .{v}),
+                }
+            },
+            .asn => |a| {
+                try writer.print("asn {} (", .{a.variable_id});
+                try a.source.print(writer);
+                try writer.print(")", .{});
+            },
+            .rel => |r| {
+                try writer.print("rel {s} (", .{@tagName(r.relation)});
+                try r.a.print(writer);
+                try writer.print(") (", .{});
+                try r.b.print(writer);
+                try writer.print(")", .{});
+            },
+            .probe => |p| try writer.print("probe {s} {}", .{ @tagName(p.mode), p.on_success }),
+            .call => |c| try writer.print("call {}", .{c}),
+            .ret => try writer.print("ret", .{}),
+            .jmp => |j| try writer.print("jmp {s} {}", .{ @tagName(j.mode), j.address }),
+            .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
+            .push_build => |i| {
+                if (i.name) |name| {
+                    try writer.print("push_build {s} (", .{name});
+                } else {
+                    try writer.print("push_build (", .{});
+                }
+                try i.source.print(writer);
+                try writer.print(")", .{});
+            },
+            .end_build => |v| try writer.print("end_build {}", .{v}),
+            .panic => try writer.print("panic", .{}),
+        }
+    }
 };

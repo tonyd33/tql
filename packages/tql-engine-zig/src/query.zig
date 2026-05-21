@@ -23,12 +23,15 @@ pub const Node = struct {
     is_missing: bool,
     is_extra: bool,
 
-    pub fn fromTsNode(ts_node: ts.Node, source: []const u8) Node {
+    pub fn fromTsNode(gpa: Allocator, ts_node: ts.Node, source: []const u8) error{OutOfMemory}!Node {
         const start_point = ts_node.startPoint();
         const end_point = ts_node.endPoint();
+        const kind = try gpa.dupe(u8, ts_node.kind());
+        errdefer gpa.free(kind);
+        const text = try gpa.dupe(u8, source[ts_node.startByte()..ts_node.endByte()]);
         return Node{
-            .kind = ts_node.kind(),
-            .text = source[ts_node.startByte()..ts_node.endByte()],
+            .kind = kind,
+            .text = text,
             .start_byte = ts_node.startByte(),
             .end_byte = ts_node.endByte(),
             .start_point = .{ .row = start_point.row, .column = start_point.column },
@@ -39,6 +42,11 @@ pub const Node = struct {
             .is_missing = ts_node.isMissing(),
             .is_extra = ts_node.isExtra(),
         };
+    }
+
+    pub fn deinit(self: *Node, gpa: Allocator) void {
+        gpa.free(self.kind);
+        gpa.free(self.text);
     }
 };
 
@@ -52,11 +60,10 @@ pub const Value = union(enum) {
     list: List,
 
     pub fn fromRuntimeValue(gpa: Allocator, val: runtime.Value, source: []const u8) error{OutOfMemory}!Value {
-        // IMPROVE: allocating these vector values must be a huge bottleneck...
         return switch (val) {
             .nothing => .{ .nothing = {} },
-            .string => |s| .{ .string = s },
-            .node => |n| .{ .node = Node.fromTsNode(n, source) },
+            .string => |s| .{ .string = try gpa.dupe(u8, s) },
+            .node => |n| .{ .node = try Node.fromTsNode(gpa, n, source) },
             .range => |r| .{ .range = r },
             .record => |rc| .{ .record = try Record.fromRuntime(gpa, &rc.value, source) },
             .list => |rc| .{ .list = try List.fromRuntime(gpa, &rc.value, source) },
@@ -67,6 +74,8 @@ pub const Value = union(enum) {
 
     pub fn deinit(self: *Value, gpa: Allocator) void {
         switch (self.*) {
+            .string => |s| gpa.free(s),
+            .node => |*n| n.deinit(gpa),
             .record => |*r| r.deinit(gpa),
             .list => |*l| l.deinit(gpa),
             else => {},
@@ -102,7 +111,7 @@ pub const Record = struct {
         var i: usize = 0;
         while (it.next()) |e| : (i += 1) {
             entries[i] = .{
-                .key = e.key_ptr.*,
+                .key = try gpa.dupe(u8, e.key_ptr.*),
                 .value = try Value.fromRuntimeValue(gpa, e.value_ptr.*, source),
             };
         }
@@ -111,7 +120,10 @@ pub const Record = struct {
     }
 
     pub fn deinit(self: *Record, gpa: Allocator) void {
-        for (self.entries) |*e| e.value.deinit(gpa);
+        for (self.entries) |*e| {
+            gpa.free(e.key);
+            e.value.deinit(gpa);
+        }
         gpa.free(self.entries);
     }
 
@@ -205,13 +217,13 @@ pub const Query = struct {
         try self.rt.?.exec();
     }
 
-    /// After each call to this function, and on deinit(), the memory returned
-    /// from this function becomes invalid. A copy must be made in order to keep
-    /// a reference to the value.
-    pub fn next(self: *Query) !?Value {
+    /// Materializes the next match into `gpa`. Caller owns the returned Value
+    /// and must call `Value.deinit(gpa)` on it. Strings/nodes are deep-copied so
+    /// the result survives `Query.deinit` and the source tree.
+    pub fn next(self: *Query, gpa: Allocator) !?Value {
         if (try self.rt.?.nextMatch()) |runtime_value| {
             return try Value.fromRuntimeValue(
-                self.allocator,
+                gpa,
                 runtime_value,
                 self.source_code,
             );
