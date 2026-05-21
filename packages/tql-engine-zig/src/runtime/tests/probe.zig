@@ -239,6 +239,34 @@ test "probe: call inside exists probe" {
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }
 
+test "probe: halt across boundary" {
+    const source =
+        \\ void foo() {}
+    ;
+
+    // Program:
+    // 0: probe nexists on_success=4   // Start nexists probe
+    // 1: call 3                       // Call function
+    // 2: panic                        // Landmine
+    // 3: halt                         // Halt (across call boundary)
+    // 4: yield                        // After probe succeeds
+    // 5: halt                         // Terminate root
+    const instructions = [_]Instruction{
+        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
+        Instruction{ .call = 3 },
+        Instruction{ .panic = {} },
+        Instruction{ .halt = .{} },
+        Instruction{ .yield = .{} },
+        Instruction{ .halt = .{} },
+    };
+
+    var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
+    defer ctx.deinit();
+
+    // Should yield once (probe succeeds via call that yields)
+    try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
+}
+
 test "probe: exists inside call" {
     const source =
         \\ void foo() {}

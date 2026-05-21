@@ -221,7 +221,7 @@ pub const Query = struct {
     /// and must call `Value.deinit(gpa)` on it. Strings/nodes are deep-copied so
     /// the result survives `Query.deinit` and the source tree.
     pub fn next(self: *Query, gpa: Allocator) !?Value {
-        if (try self.rt.?.nextMatch()) |runtime_value| {
+        if (try self.rt.?.next()) |runtime_value| {
             return try Value.fromRuntimeValue(
                 gpa,
                 runtime_value,

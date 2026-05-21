@@ -68,7 +68,7 @@ pub const TestContext = struct {
         errdefer values.deinit(self.allocator);
 
         // FIXME: If we need to access the environment, we need to take a snapshot
-        while (try self.runtime.nextMatch()) |value| {
+        while (try self.runtime.next()) |value| {
             try values.append(self.allocator, value);
         }
 

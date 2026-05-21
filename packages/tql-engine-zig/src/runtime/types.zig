@@ -135,6 +135,7 @@ pub const Environment = OverlayMap(VariableId, Value);
 /// difficult-to-express control flow within the stack.
 pub const Boundary = union(enum) {
     root,
+    // IMPROVE: maybe better named split? But it's _above_ a split...
     passthrough,
     probe: union(enum) {
         exists: Address,
@@ -183,18 +184,18 @@ pub const RuntimeError = error{
     InvalidBuildConstruction,
     PanicInstruction,
     InvalidAST,
+    UnexpectedType,
 };
 
 pub const ChildIterator = struct {
-    cursor: ts.TreeCursor,
+    cursor: ?ts.TreeCursor,
     started: bool,
 
-    pub fn init(parent_node: ts.Node) ?ChildIterator {
+    pub fn init(parent_node: ts.Node) ChildIterator {
         var cursor = parent_node.walk();
-        const has_children = cursor.gotoFirstChild();
-        if (!has_children) {
+        if (!cursor.gotoFirstChild()) {
             cursor.destroy();
-            return null;
+            return .{ .cursor = null, .started = false };
         }
 
         var iter = ChildIterator{
@@ -205,7 +206,7 @@ pub const ChildIterator = struct {
         if (!cursor.node().isNamed()) {
             if (!iter.advance()) {
                 cursor.destroy();
-                return null;
+                return .{ .cursor = null, .started = false };
             }
         }
 
@@ -213,10 +214,11 @@ pub const ChildIterator = struct {
     }
 
     pub fn node(self: *const ChildIterator) ts.Node {
-        return self.cursor.node();
+        return self.cursor.?.node();
     }
 
     pub fn next(self: *ChildIterator) bool {
+        if (self.cursor == null) return false;
         if (!self.started) {
             self.started = true;
             return true;
@@ -225,8 +227,9 @@ pub const ChildIterator = struct {
     }
 
     fn advance(self: *ChildIterator) bool {
-        while (self.cursor.gotoNextSibling()) {
-            if (self.cursor.node().isNamed()) {
+        var cursor = &self.cursor.?;
+        while (cursor.gotoNextSibling()) {
+            if (cursor.node().isNamed()) {
                 return true;
             }
         }
@@ -234,21 +237,20 @@ pub const ChildIterator = struct {
     }
 
     pub fn deinit(self: *ChildIterator) void {
-        self.cursor.destroy();
+        if (self.cursor) |*c| c.destroy();
     }
 };
 
 pub const FieldIterator = struct {
-    cursor: ts.TreeCursor,
+    cursor: ?ts.TreeCursor,
     field_id: FieldId,
     started: bool,
 
-    pub fn init(parent_node: ts.Node, field_id: FieldId) ?FieldIterator {
+    pub fn init(parent_node: ts.Node, field_id: FieldId) FieldIterator {
         var cursor = parent_node.walk();
-        const has_children = cursor.gotoFirstChild();
-        if (!has_children) {
+        if (!cursor.gotoFirstChild()) {
             cursor.destroy();
-            return null;
+            return .{ .cursor = null, .field_id = field_id, .started = false };
         }
 
         var iter = FieldIterator{
@@ -261,7 +263,7 @@ pub const FieldIterator = struct {
         if (cursor.fieldId() != field_id) {
             if (!iter.advance()) {
                 cursor.destroy();
-                return null;
+                return .{ .cursor = null, .field_id = field_id, .started = false };
             }
         }
 
@@ -269,10 +271,11 @@ pub const FieldIterator = struct {
     }
 
     pub fn node(self: *const FieldIterator) ts.Node {
-        return self.cursor.node();
+        return self.cursor.?.node();
     }
 
     pub fn next(self: *FieldIterator) bool {
+        if (self.cursor == null) return false;
         if (!self.started) {
             self.started = true;
             return true;
@@ -281,8 +284,9 @@ pub const FieldIterator = struct {
     }
 
     fn advance(self: *FieldIterator) bool {
-        while (self.cursor.gotoNextSibling()) {
-            if (self.cursor.fieldId() == self.field_id) {
+        var cursor = &self.cursor.?;
+        while (cursor.gotoNextSibling()) {
+            if (cursor.fieldId() == self.field_id) {
                 return true;
             }
         }
@@ -290,19 +294,19 @@ pub const FieldIterator = struct {
     }
 
     pub fn deinit(self: *FieldIterator) void {
-        self.cursor.destroy();
+        if (self.cursor) |*c| c.destroy();
     }
 };
 
 pub const DescendantIterator = struct {
-    cursor: ts.TreeCursor,
+    cursor: ?ts.TreeCursor,
     current_index: u32,
     descendant_count: u32,
 
-    pub fn init(parent_node: ts.Node) ?DescendantIterator {
+    pub fn init(parent_node: ts.Node) DescendantIterator {
         const descendant_count = parent_node.descendantCount();
         if (descendant_count == 0) {
-            return null;
+            return .{ .cursor = null, .current_index = 0, .descendant_count = 0 };
         }
 
         var cursor = parent_node.walk();
@@ -316,7 +320,7 @@ pub const DescendantIterator = struct {
         if (!cursor.node().isNamed()) {
             if (!iter.advance()) {
                 cursor.destroy();
-                return null;
+                return .{ .cursor = null, .current_index = 0, .descendant_count = 0 };
             }
         }
 
@@ -324,19 +328,21 @@ pub const DescendantIterator = struct {
     }
 
     pub fn node(self: *const DescendantIterator) ts.Node {
-        return self.cursor.node();
+        return self.cursor.?.node();
     }
 
     pub fn next(self: *DescendantIterator) bool {
+        if (self.cursor == null) return false;
         return self.advance();
     }
 
     fn advance(self: *DescendantIterator) bool {
+        var cursor = &self.cursor.?;
         while (self.current_index + 1 < self.descendant_count) {
             self.current_index += 1;
-            self.cursor.gotoDescendant(self.current_index);
+            cursor.gotoDescendant(self.current_index);
 
-            if (self.cursor.node().isNamed()) {
+            if (cursor.node().isNamed()) {
                 return true;
             }
         }
@@ -344,20 +350,46 @@ pub const DescendantIterator = struct {
     }
 
     pub fn deinit(self: *DescendantIterator) void {
-        self.cursor.destroy();
+        if (self.cursor) |*c| c.destroy();
     }
+};
+
+pub const SingletonIterator = struct {
+    pending: ?ts.Node,
+    current: ts.Node = undefined,
+
+    pub fn init(maybe_node: ?ts.Node) SingletonIterator {
+        return .{ .pending = maybe_node };
+    }
+
+    pub fn node(self: *const SingletonIterator) ts.Node {
+        return self.current;
+    }
+
+    pub fn next(self: *SingletonIterator) bool {
+        if (self.pending) |n| {
+            self.current = n;
+            self.pending = null;
+            return true;
+        }
+        return false;
+    }
+
+    pub fn deinit(_: *SingletonIterator) void {}
 };
 
 pub const SplitIterator = union(enum) {
     child: ChildIterator,
     descendant: DescendantIterator,
     field: FieldIterator,
+    singleton: SingletonIterator,
 
     pub fn node(self: *const SplitIterator) ts.Node {
         return switch (self.*) {
             .child => |*iter| iter.node(),
             .descendant => |*iter| iter.node(),
             .field => |*iter| iter.node(),
+            .singleton => |*iter| iter.node(),
         };
     }
 
@@ -366,6 +398,7 @@ pub const SplitIterator = union(enum) {
             .child => |*iter| iter.next(),
             .descendant => |*iter| iter.next(),
             .field => |*iter| iter.next(),
+            .singleton => |*iter| iter.next(),
         };
     }
 
@@ -374,6 +407,7 @@ pub const SplitIterator = union(enum) {
             .child => |*iter| iter.deinit(),
             .descendant => |*iter| iter.deinit(),
             .field => |*iter| iter.deinit(),
+            .singleton => |*iter| iter.deinit(),
         }
     }
 };

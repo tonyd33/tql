@@ -139,7 +139,7 @@ pub fn SnapshotTester(allocator: std.mem.Allocator, group: []const u8) type {
                 values.deinit(allocator);
             }
 
-            while (try rt.nextMatch()) |value| {
+            while (try rt.next()) |value| {
                 const enriched = try query.Value.fromRuntimeValue(allocator, value, self.source);
                 try values.append(allocator, enriched);
             }

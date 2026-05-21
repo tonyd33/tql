@@ -33,10 +33,10 @@ test "asn: literal" {
 
     try ctx.runtime.exec();
 
-    var value = try ctx.runtime.nextMatch();
+    var value = try ctx.runtime.next();
     try std.testing.expect(std.mem.eql(u8, value.?.string, "hi"));
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value, null);
 }
 
@@ -74,13 +74,13 @@ test "asn: node" {
 
     try ctx.runtime.exec();
 
-    var value = try ctx.runtime.nextMatch();
+    var value = try ctx.runtime.next();
     try std.testing.expectEqualStrings(value.?.string, "void foo_bar() {}");
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value.?.kind_id, function_definition_kind_id);
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value.?.range, Range{
         .start_point = .{ .row = 0, .column = 1 },
         .end_point = .{ .row = 0, .column = 18 },
@@ -88,7 +88,7 @@ test "asn: node" {
         .end_byte = 18,
     });
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value, null);
 }
 
@@ -121,15 +121,15 @@ test "asn: variable" {
 
     try ctx.runtime.exec();
 
-    var value = try ctx.runtime.nextMatch();
+    var value = try ctx.runtime.next();
     try std.testing.expectEqualStrings(value.?.string, "hi");
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqualStrings(value.?.string, "hi");
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value.?.nothing, {});
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value, null);
 }

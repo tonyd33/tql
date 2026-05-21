@@ -130,15 +130,15 @@ test "call/ret: preserves environment correctly" {
     try ctx.runtime.exec();
 
     // Should have exactly one match
-    var value = try ctx.runtime.nextMatch();
+    var value = try ctx.runtime.next();
     try std.testing.expectEqualStrings(value.?.string, "original");
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqualStrings(value.?.string, "after");
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value.?.nothing, {});
 
-    value = try ctx.runtime.nextMatch();
+    value = try ctx.runtime.next();
     try std.testing.expectEqual(value, null);
 }

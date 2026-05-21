@@ -26,6 +26,7 @@ const ChildIterator = types.ChildIterator;
 const FieldIterator = types.FieldIterator;
 const DescendantIterator = types.DescendantIterator;
 const SplitIterator = types.SplitIterator;
+const SingletonIterator = types.SingletonIterator;
 const Axis = types.Axis;
 const NodeValueSource = types.NodeValueSource;
 const ValueSource = types.ValueSource;
@@ -103,69 +104,76 @@ pub const Runtime = struct {
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
     }
 
-    /// Handle yield. This behaves differently based on whether we're within a
-    /// probe boundary.
-    /// Returns true if a probe boundary was found and handled.
-    fn handleYield(self: *Self) bool {
-        // the asymmetry with handleFin is unpleasing but i think necessary.
-        // here, our actions are determined by a potential nonlocal probe
-        // boundary. on the other hand, fin acts locally. the fin naturally
-        // bubbles up the stack until something eventually handles it.
-        // yield likely cannot do the same because it's a nonterminal action on
-        // a branch (though, we might be able to store the relevant probe
-        // boundary on every stack frame...)
+    fn getActiveProbeBoundaryIndex(self: *Self) ?usize {
         var i: usize = self.stack.items.len;
         while (i > 0) {
             i -= 1;
-            const search_frame = &self.stack.items[i];
+            const search_frame = self.stack.items[i];
 
             switch (search_frame.boundary) {
-                .probe => |probe| {
-                    const result: struct { unwind_to: usize, success_addr: ?u32 } = switch (probe) {
-                        .exists => |success_addr| .{
-                            .unwind_to = i,
-                            .success_addr = success_addr,
-                        },
-                        .nexists => .{
-                            .unwind_to = i - 1,
-                            .success_addr = null,
-                        },
-                    };
-
-                    while (self.stack.items.len > result.unwind_to) {
-                        self.deinitFrame();
-                    }
-                    if (result.success_addr) |success_addr| {
-                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                        parent_frame.state.pc = success_addr;
-                    }
-                    return true;
-                },
+                .probe => return i,
                 else => {},
             }
         }
-        return false;
+        return null;
     }
 
-    /// Handle "finished", which may be via implicit exhaustion or via explicit
-    /// halt.
-    fn handleFin(self: *Self) void {
-        const boundary = self.stack.items[self.stack.items.len - 1].boundary;
-        self.deinitFrame();
-        switch (boundary) {
-            .probe => |probe| switch (probe) {
-                .exists => {
-                    if (self.stack.items.len > 0) self.handleFin();
+    /// End the current logical branch and propagate up the stack. Both
+    /// implicit termination and explicit termination flow through here.
+    fn handleBranchEnd(self: *Self) void {
+        while (self.stack.items.len > 0) {
+            const boundary = self.stack.items[self.stack.items.len - 1].boundary;
+            self.deinitFrame();
+            switch (boundary) {
+                // Probe boundaries conditionally handle branch end.
+                .probe => |probe| switch (probe) {
+                    .exists => {
+                        // Child terminated without yielding: probe failed.
+                        // Propagate termination to the caller.
+                        continue;
+                    },
+                    .nexists => |success_addr| {
+                        // Child terminated without yielding: probe succeeded.
+                        // Resume the caller at the success address.
+                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                        parent_frame.state.pc = success_addr;
+                        return;
+                    },
                 },
-                .nexists => |on_success| {
-                    if (self.stack.items.len > 0) {
-                        const parent = &self.stack.items[self.stack.items.len - 1];
-                        parent.state.pc = on_success;
-                    }
-                },
-            },
-            else => {},
+                // root and passthrough boundaries unconditionally handle
+                // branch ends.
+                .root, .passthrough => return,
+                // call boundaries unconditionally propagate branch ends.
+                .call => continue,
+            }
         }
+    }
+
+    /// Handle yield by propagating up the stack. Returns true if the yield was
+    /// handled.
+    fn handleYield(self: *Self) bool {
+        const idx = self.getActiveProbeBoundaryIndex() orelse return false;
+        const probe = self.stack.items[idx].boundary.probe;
+
+        while (self.stack.items.len > idx) {
+            self.deinitFrame();
+        }
+
+        switch (probe) {
+            .exists => |success_addr| {
+                // Child yielded: probe succeeded. Resume the caller at the
+                // success address.
+                const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                parent_frame.state.pc = success_addr;
+            },
+            .nexists => {
+                // Child yielded: probe failed. Propagate termination to the
+                // caller.
+                self.handleBranchEnd();
+            },
+        }
+
+        return true;
     }
 
     fn getSource(self: *Self, state: State, vs: ValueSource) Value {
@@ -198,10 +206,19 @@ pub const Runtime = struct {
         };
     }
 
-    pub fn nextMatch(self: *Self) !?Value {
-        outer: while (self.stack.items.len > 0) {
+    /// Returns next value or null if values are exhausted.
+    /// Value is borrowed to callers and callers should not expect to reference
+    /// the value after any other interaction with the runtime.
+    pub fn next(self: *Self) !?Value {
+        while (self.stack.items.len > 0) {
             const frame = &self.stack.items[self.stack.items.len - 1];
+            if (frame.state.pc >= self.instructions.len) {
+                self.deinitFrame();
+                return error.ExecuteOutOfBounds;
+            }
 
+            // This frame has become a generator for further frames. Once
+            // the inner generator is exhausted, we end the branch.
             if (frame.split) |*split| {
                 const has_next = split.iterator.next();
                 if (has_next) {
@@ -220,20 +237,21 @@ pub const Runtime = struct {
                         .boundary = Boundary{ .passthrough = {} },
                     });
                 } else {
-                    self.handleFin();
+                    self.handleBranchEnd();
                 }
                 continue;
-            }
-
-            if (frame.state.pc >= self.instructions.len) {
-                self.deinitFrame();
-                return error.ExecuteOutOfBounds;
             }
 
             if (frame.state.build != null) {
                 switch (self.instructions[frame.state.pc]) {
                     .push_build, .end_build => {},
-                    // Maybe there are more we can allow. Also we should return error not panic
+                    // The only valid syntax is:
+                    // begin_build
+                    // (zero or more push_build)
+                    // end_build
+                    // We may choose to expand, but the difficulty lies in if
+                    // the frame changes while building or in cases of nested
+                    // builds.
                     else => {
                         return error.InvalidBuildConstruction;
                     },
@@ -245,6 +263,7 @@ pub const Runtime = struct {
                     frame.state.pc += 1;
                 },
                 .halt => |halt_inst| {
+                    frame.state.pc += 1;
                     const should_halt = switch (halt_inst.condition) {
                         .always => true,
                         .relates => frame.state.negate_flag,
@@ -252,63 +271,31 @@ pub const Runtime = struct {
                     };
 
                     if (should_halt) {
-                        frame.state.pc += 1;
-                        self.handleFin();
-                    } else {
-                        frame.state.pc += 1;
+                        self.handleBranchEnd();
                     }
                 },
                 .trv => |axis| {
+                    // Convert this frame to being a generator.
                     frame.state.pc += 1;
-
-                    // Special handling for variable_id, no iterator.
-                    // NOTE: But maybe it should for uniformity...? I imagine it's
-                    // inefficient though...
-                    if (axis == .variable_id) {
-                        const var_id = axis.variable_id;
-                        const maybe_value = frame.state.environment.get(var_id);
-                        if (maybe_value) |value| {
-                            switch (value) {
-                                .node => |node| {
-                                    frame.state.node = node;
-                                    continue;
-                                },
-                                else => {},
-                            }
-                        }
-
-                        // I guess there is a question of whether this should error though.
-                        // What semantically correct TQL query would even allow for this?
-                        self.handleFin();
-                        continue;
-                    }
-
-                    const maybe_iterator: ?SplitIterator = switch (axis) {
-                        .child => blk: {
-                            const iter = ChildIterator.init(frame.state.node);
-                            break :blk if (iter) |i| SplitIterator{ .child = i } else null;
+                    const iterator: SplitIterator = switch (axis) {
+                        .child => .{ .child = ChildIterator.init(frame.state.node) },
+                        .descendant => .{ .descendant = DescendantIterator.init(frame.state.node) },
+                        .field => |field_id| .{ .field = FieldIterator.init(frame.state.node, field_id) },
+                        .variable_id => |var_id| blk: {
+                            const maybe_value = frame.state.environment.get(var_id);
+                            const maybe_node = try if (maybe_value) |v| switch (v) {
+                                .node => |n| n,
+                                .nothing => null,
+                                else => error.UnexpectedType,
+                            } else null;
+                            break :blk .{ .singleton = SingletonIterator.init(maybe_node) };
                         },
-                        .descendant => blk: {
-                            const iter = DescendantIterator.init(frame.state.node);
-                            break :blk if (iter) |i| SplitIterator{ .descendant = i } else null;
-                        },
-                        .field => |field_id| blk: {
-                            const iter = FieldIterator.init(frame.state.node, field_id);
-                            break :blk if (iter) |i| SplitIterator{ .field = i } else null;
-                        },
-                        .variable_id => unreachable,
                     };
 
-                    if (maybe_iterator) |iterator| {
-                        // THe next loop iteration is supposed to handle this.
-                        frame.split = .{
-                            .iterator = iterator,
-                            .resume_pc = frame.state.pc,
-                        };
-                        continue;
-                    } else {
-                        self.handleFin();
-                    }
+                    frame.split = .{
+                        .iterator = iterator,
+                        .resume_pc = frame.state.pc,
+                    };
                 },
                 .asn => |x| {
                     frame.state.pc += 1;
@@ -359,10 +346,10 @@ pub const Runtime = struct {
                     frame.state.negate_flag = relates;
                 },
                 .yield => |source| {
-                    if (self.handleYield()) {
-                        continue :outer;
-                    }
                     frame.state.pc += 1;
+                    if (self.handleYield()) {
+                        continue;
+                    }
                     return self.getSource(frame.state, source.source);
                 },
                 .probe => |probe_inst| {
@@ -407,6 +394,7 @@ pub const Runtime = struct {
                     });
                 },
                 .ret => {
+                    frame.state.pc += 1;
                     var i: usize = self.stack.items.len;
                     while (i > 0) {
                         i -= 1;
@@ -426,6 +414,7 @@ pub const Runtime = struct {
                     }
                 },
                 .jmp => |jmp_inst| {
+                    frame.state.pc += 1;
                     const should_jump = switch (jmp_inst.mode) {
                         .always => true,
                         .relates => frame.state.negate_flag,
@@ -434,8 +423,6 @@ pub const Runtime = struct {
 
                     if (should_jump) {
                         frame.state.pc = jmp_inst.address;
-                    } else {
-                        frame.state.pc += 1;
                     }
                 },
                 .begin_build => |vector| {

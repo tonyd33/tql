@@ -33,13 +33,13 @@ test "build: record" {
     defer ctx.deinit();
     try ctx.runtime.exec();
 
-    const rec = (try ctx.runtime.nextMatch()).?.record;
+    const rec = (try ctx.runtime.next()).?.record;
     try std.testing.expectEqual(rec.rc, 1);
     try std.testing.expectEqual(rec.value.map.count(), 2);
     try std.testing.expectEqualStrings(rec.value.map.get("name").?.string, "alice");
     try std.testing.expectEqual(rec.value.map.get("kind").?.kind_id, 42);
 
-    try std.testing.expectEqual(try ctx.runtime.nextMatch(), null);
+    try std.testing.expectEqual(try ctx.runtime.next(), null);
 }
 
 test "build: list" {
@@ -73,13 +73,13 @@ test "build: list" {
     defer ctx.deinit();
     try ctx.runtime.exec();
 
-    const lst = (try ctx.runtime.nextMatch()).?.list;
+    const lst = (try ctx.runtime.next()).?.list;
     try std.testing.expectEqual(lst.value.items.items.len, 3);
     try std.testing.expectEqualStrings(lst.value.items.items[0].string, "a");
     try std.testing.expectEqualStrings(lst.value.items.items[1].string, "b");
     try std.testing.expectEqualStrings(lst.value.items.items[2].string, "c");
 
-    try std.testing.expectEqual(try ctx.runtime.nextMatch(), null);
+    try std.testing.expectEqual(try ctx.runtime.next(), null);
 }
 
 test "build: nested list of list" {
@@ -116,7 +116,7 @@ test "build: nested list of list" {
     defer ctx.deinit();
     try ctx.runtime.exec();
 
-    const outer = (try ctx.runtime.nextMatch()).?.list;
+    const outer = (try ctx.runtime.next()).?.list;
     try std.testing.expectEqual(outer.value.items.items.len, 2);
 
     // Both outer entries share the same inner Rc(List)
@@ -129,5 +129,5 @@ test "build: nested list of list" {
     try std.testing.expectEqual(inner_a.value.items.items.len, 1);
     try std.testing.expectEqualStrings(inner_a.value.items.items[0].string, "inner-elem");
 
-    try std.testing.expectEqual(try ctx.runtime.nextMatch(), null);
+    try std.testing.expectEqual(try ctx.runtime.next(), null);
 }
