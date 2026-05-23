@@ -676,50 +676,7 @@ pub const Compiler = struct {
     }
 
     fn compileSelectClause(self: *Compiler, builder: *InstructionBuilder, select_clause: ast.SelectClause) !void {
-        switch (select_clause.projection) {
-            .variable => |variable| {
-                if (self.variables.get(variable.name)) |var_id| {
-                    try self.ensureVariableNavigated(builder, var_id);
-                    try builder.emit(.{ .trv = .{ .variable_id = var_id } });
-                }
-                try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
-            },
-            // string_literal: []const u8,
-            // regex_literal: []const u8,
-            // number_literal: f64,
-            .string_literal => |str| {
-                const owned_str = try self.addString(str);
-                try builder.emit(.{
-                    .yield = .{ .source = .{ .literal = .{
-                        .string = owned_str,
-                    } } },
-                });
-            },
-            .number_literal => |number| {
-                try builder.emit(.{
-                    .yield = .{ .source = .{ .literal = .{ .uint = number } } },
-                });
-            },
-            .regex_literal => |regex_str| {
-                const regex = try pcre2.Regex.compile(regex_str);
-                const regex_index = try self.addRegex(regex);
-                try builder.emit(.{
-                    .yield = .{ .source = .{ .literal = .{ .regex = self.regexes.items[regex_index] } } },
-                });
-            },
-            .object_literal => |obj| {
-                const source = try self.compileRecordExpression(builder, obj);
-                try builder.emit(.{ .yield = .{ .source = source } });
-            },
-            .array_literal => |arr| {
-                const source = try self.compileListExpression(builder, arr.elements);
-                try builder.emit(.{ .yield = .{ .source = source } });
-            },
-            .tuple_literal => |tup| {
-                const source = try self.compileListExpression(builder, tup.elements);
-                try builder.emit(.{ .yield = .{ .source = source } });
-            },
-            else => @panic("Only variable projection supported for now"),
-        }
+        const vs = try self.compileAsValue(builder, select_clause.projection);
+        try builder.emit(.{ .yield = .{ .source = vs } });
     }
 };
