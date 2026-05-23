@@ -1,0 +1,11 @@
+# https://just.systems
+# vim: shiftwidth=4
+
+default:
+    @just --list
+
+serve:
+    python -m http.server 8000 -d public/
+
+build:
+    pnpm exec rolldown src/tql.ts --file public/tql.js

@@ -1,6 +1,5 @@
 const std = @import("std");
 const tql = @import("tql_engine_zig");
-const ts = tql.ts;
 const clap = @import("clap");
 const Engine = tql.Engine;
 const Language = tql.Language;
@@ -9,6 +8,7 @@ const Value = tql.Value;
 const VERSION = "0.1.0";
 
 const OutputFormat = enum {
+    // IMPROVE: actually implement these
     text,
     json,
     locations,
@@ -87,7 +87,9 @@ pub fn main() !u8 {
         try printVersion(stdout);
         return @intFromEnum(ExitCode.success);
     }
-    const arg0 = res.positionals[0] orelse {
+    // If --from-file, then this will be the query file.
+    // Otherwise, this is the first target file.
+    const query_or_first_file = res.positionals[0] orelse {
         try stderr.print("Error: query is required\n", .{});
         try printUsage(stderr);
         return @intFromEnum(ExitCode.invalid_args);
@@ -98,14 +100,15 @@ pub fn main() !u8 {
         defer file.close();
         break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
     } else blk: {
-        const buf = try allocator.dupe(u8, arg0);
+        const buf = try allocator.dupe(u8, query_or_first_file);
         break :blk buf;
     };
     defer allocator.free(query);
 
+    // IMPROVE: read stdin if files.len = 0
     const files = if (res.args.@"from-file") |_| blk: {
         const buf = try allocator.alloc([]const u8, res.positionals[1].len + 1);
-        buf[0] = arg0;
+        buf[0] = query_or_first_file;
         @memcpy(buf[1 .. res.positionals[1].len + 1], res.positionals[1]);
         break :blk buf;
     } else blk: {
@@ -222,7 +225,7 @@ const Progress = struct {
 };
 
 const SharedContext = struct {
-    program_image: tql.Runtime.ProgramImage,
+    compiled: *tql.CompiledQuery,
     paths: []const []const u8,
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,
@@ -310,9 +313,7 @@ fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
 
 fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
-    const arena_allocator = arena.allocator();
-    const source_parser = ts.Parser.create();
-    try source_parser.setLanguage(ctx.*.language.getTreeSitterLanguage());
+    defer arena.deinit();
 
     while (ctx.path_queue.pop()) |entry| {
         var result_arena = entry.arena;
@@ -338,45 +339,22 @@ fn workerThread(ctx: *SharedContext) !void {
         const read_time_ns = read_timer.read();
         defer if (query_target.len > 0) std.posix.munmap(query_target);
 
-        var parse_timer = try std.time.Timer.start();
-        const tree_target = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;
-        const parse_time_ns = parse_timer.read();
-
-        var query = tql.Query.init(
-            &ctx.program_image,
-            ctx.*.language,
-            query_target,
-            tree_target,
-            arena_allocator,
-        );
-        try query.exec();
-
-        var values: std.ArrayList(Value) = .empty;
-        var query_timer = try std.time.Timer.start();
-        while (try query.next(result_alloc)) |value| {
-            try values.append(result_alloc, value);
-        }
-        const query_time_ns = query_timer.read();
+        const run_result = try ctx.compiled.run(query_target, result_alloc, arena.allocator());
 
         try ctx.result_queue.push(.{
             .arena = result_arena,
             .filename = query_target_path,
-            .values = values,
+            .values = run_result.values,
             .stats = .{
                 .read_time_ns = read_time_ns,
-                .parse_time_ns = parse_time_ns,
-                .query_time_ns = query_time_ns,
+                .parse_time_ns = run_result.stats.parse_time_ns,
+                .query_time_ns = run_result.stats.query_time_ns,
             },
         });
 
-        query.deinit();
-        tree_target.destroy();
         _ = arena.reset(.retain_capacity);
         _ = ctx.*.progress.done.fetchAdd(1, .monotonic);
     }
-
-    source_parser.destroy();
-    arena.deinit();
 }
 
 fn dumpInstructions(
@@ -393,32 +371,21 @@ fn dumpInstructions(
     }
 }
 
-fn programImageFromQuery(allocator: std.mem.Allocator, query_source: []const u8, language: Language) !tql.Runtime.ProgramImage {
-    var tql_parser = try tql.Parser.init(allocator);
-
-    var compiler = tql.Compiler.init(allocator, language.getTreeSitterLanguage());
-
-    const query_source_tree = try tql_parser.parse(query_source);
-    tql_parser.deinit();
-
-    const program_image = try compiler.compile(allocator, query_source_tree);
-    compiler.deinit();
-    query_source_tree.deinit(allocator);
-
-    return program_image;
-}
-
 fn run(
     allocator: std.mem.Allocator,
     stdout: *std.io.Writer,
     stderr: *std.io.Writer,
     config: Config,
 ) !u8 {
-    var program_image = try programImageFromQuery(allocator, config.query, config.language);
+    var engine = try Engine.init(.{ .allocator = allocator });
+    defer engine.deinit();
+
+    var compiled = try engine.compile(config.query, config.language);
+    defer compiled.deinit();
+
     // IMPROVE: this control flow is terrible
     if (config.dump_instructions) {
-        try dumpInstructions(allocator, stdout, stderr, config, program_image.instructions);
-        program_image.deinit();
+        try dumpInstructions(allocator, stdout, stderr, config, compiled.instructions());
         return 0;
     }
 
@@ -428,7 +395,7 @@ fn run(
     var result_queue = try ResultQueue.init(allocator, 1024);
     var progress = Progress{};
     var ctx = SharedContext{
-        .program_image = program_image,
+        .compiled = &compiled,
         .paths = config.query_target_paths,
         .allocator = allocator,
         .result_queue = &result_queue,
@@ -459,7 +426,6 @@ fn run(
 
     path_queue.deinit(allocator);
     result_queue.deinit(allocator);
-    program_image.deinit();
     allocator.free(workers);
     return 0;
 }

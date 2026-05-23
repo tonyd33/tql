@@ -1,0 +1,20 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>TQL Playground</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <h1>TQL Playground</h1>
+    <p>Edit</p>
+  </body>
+  <script>
+    async function main() {
+      const { start } = await import("./tql.js");
+      await start();
+    }
+    main();
+  </script>
+</html>

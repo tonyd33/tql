@@ -10,7 +10,6 @@ const compiler = @import("compiler.zig");
 const language = @import("language.zig");
 const query = @import("query.zig");
 const engine = @import("engine.zig");
-const tests = @import("tests.zig");
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
@@ -22,6 +21,9 @@ pub const Compiler = compiler.Compiler;
 pub const Runtime = runtime;
 pub const Language = language.Language;
 pub const Engine = engine.Engine;
+pub const CompiledQuery = engine.CompiledQuery;
+pub const RunResult = engine.RunResult;
+pub const RunStats = engine.RunStats;
 
 test {
     const refAllDecls = std.testing.refAllDecls;
@@ -34,5 +36,5 @@ test {
     refAllDecls(language);
     refAllDecls(query);
     refAllDecls(engine);
-    refAllDecls(tests);
+    refAllDecls(@import("tests.zig"));
 }
