@@ -38,5 +38,5 @@ jobs:
       - name: Install
         run: nix develop -c just install
 
-      - name: Build
+      - name: Test
         run: nix develop -c just test
