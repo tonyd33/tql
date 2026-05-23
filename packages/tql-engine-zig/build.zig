@@ -1,12 +1,96 @@
 const std = @import("std");
 
+const TreeSitterGrammar = struct {
+    dep_name: []const u8,
+    root: []const u8 = ".",
+    files: []const []const u8 = &.{
+        "src/parser.c",
+    },
+    flags: []const []const u8 = &.{
+        "-std=c11",
+        "-fPIC",
+    },
+};
+
+const grammars: []const TreeSitterGrammar = &.{
+    .{
+        .dep_name = "tree-sitter-c",
+    },
+    .{
+        .dep_name = "tree-sitter-typescript",
+        .root = "typescript",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+    .{
+        .dep_name = "tree-sitter-typescript",
+        .root = "tsx",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+};
+
+fn addGrammar(
+    b: *std.Build,
+    mod: *std.Build.Module,
+    grammar: TreeSitterGrammar,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) !void {
+    var buf: [std.posix.PATH_MAX]u8 = undefined;
+    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
+
+    const tree_sitter_grammar = b.dependency(grammar.dep_name, .{
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.addIncludePath(tree_sitter_grammar.path(include));
+    mod.addCSourceFiles(.{
+        .root = tree_sitter_grammar.path(grammar.root),
+        .files = grammar.files,
+        .flags = grammar.flags,
+    });
+}
+
+fn addEngineDeps(
+    b: *std.Build,
+    mod: *std.Build.Module,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) !void {
+    const tree_sitter = b.dependency("tree_sitter", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.addImport("tree-sitter", tree_sitter.module("tree_sitter"));
+
+    for (grammars) |grammar| {
+        try addGrammar(b, mod, grammar, target, optimize);
+    }
+
+    const pcre2 = b.dependency("pcre2", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.linkLibrary(pcre2.artifact("pcre2-8"));
+
+    const tree_sitter_tql = b.dependency("tree-sitter-tql", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    mod.addIncludePath(tree_sitter_tql.path("src"));
+    mod.addCSourceFiles(.{
+        .root = tree_sitter_tql.path(""),
+        .files = &.{"src/parser.c"},
+        .flags = &.{ "-std=c11", "-fPIC" },
+    });
+}
+
 // Although this function looks imperative, it does not perform the build
 // directly and instead it mutates the build graph (`b`) that will be then
 // executed by an external runner. The functions in `std.Build` implement a DSL
 // for defining build steps and express dependencies between them, allowing the
 // build runner to parallelize the build automatically (and the cache system to
 // know when a step doesn't need to be re-run).
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Standard target options allow the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -95,61 +179,37 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("clap", clap.module("clap"));
 
-    const tree_sitter = b.dependency("tree_sitter", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.addImport("tree-sitter", tree_sitter.module("tree_sitter"));
+    try addEngineDeps(b, mod, target, optimize);
 
-    const tree_sitter_c = b.dependency("tree-sitter-c", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.addIncludePath(tree_sitter_c.path("src"));
-    mod.addCSourceFiles(.{
-        .root = tree_sitter_c.path(""),
-        .files = &.{"src/parser.c"},
-        .flags = &.{ "-std=c11", "-fPIC" },
-    });
+    const build_wasm = b.option(bool, "wasm", "Build the wasm artifact") orelse false;
+    if (build_wasm) {
+        const wasm_target = b.resolveTargetQuery(.{
+            .cpu_arch = .wasm32,
+            .os_tag = .wasi,
+        });
+        const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+        const wasm_mod = b.addModule("tql_engine_zig_wasm", .{
+            .root_source_file = b.path("src/root.zig"),
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+        });
+        try addEngineDeps(b, wasm_mod, wasm_target, wasm_optimize);
 
-    const tree_sitter_typescript = b.dependency("tree-sitter-typescript", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.addIncludePath(tree_sitter_typescript.path("typescript/src"));
-    mod.addCSourceFiles(.{
-        .root = tree_sitter_typescript.path("typescript"),
-        .files = &.{ "src/parser.c", "src/scanner.c" },
-        .flags = &.{ "-std=c11", "-fPIC" },
-    });
-
-    const tree_sitter_tsx = b.dependency("tree-sitter-typescript", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.addIncludePath(tree_sitter_tsx.path("tsx/src"));
-    mod.addCSourceFiles(.{
-        .root = tree_sitter_tsx.path("tsx"),
-        .files = &.{ "src/parser.c", "src/scanner.c" },
-        .flags = &.{ "-std=c11", "-fPIC" },
-    });
-
-    const pcre2 = b.dependency("pcre2", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.linkLibrary(pcre2.artifact("pcre2-8"));
-
-    const tree_sitter_tql = b.dependency("tree-sitter-tql", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    mod.addIncludePath(tree_sitter_tql.path("src"));
-    mod.addCSourceFiles(.{
-        .root = tree_sitter_tql.path(""),
-        .files = &.{"src/parser.c"},
-        .flags = &.{ "-std=c11", "-fPIC" },
-    });
+        const wasm_exe = b.addExecutable(.{
+            .name = "tql",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/wasm.zig"),
+                .target = wasm_target,
+                .optimize = wasm_optimize,
+                .imports = &.{
+                    .{ .name = "tql_engine_zig", .module = wasm_mod },
+                },
+            }),
+        });
+        wasm_exe.entry = .disabled;
+        wasm_exe.rdynamic = true;
+        b.installArtifact(wasm_exe);
+    }
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).
@@ -180,11 +240,16 @@ pub fn build(b: *std.Build) void {
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.
+    const update_snapshots = b.option(bool, "update-snapshots", "Update snapshots (test mode only)") orelse false;
+    const test_options = b.addOptions();
+    test_options.addOption(bool, "update_snapshots", update_snapshots);
+    mod.addOptions("test_options", test_options);
+
     const mod_tests = b.addTest(.{
         .root_module = mod,
+        .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .simple },
     });
 
-    // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
 
     // Creates an executable that will run `test` blocks from the executable's

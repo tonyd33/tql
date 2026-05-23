@@ -1,4 +1,5 @@
 # https://just.systems
+# vim: shiftwidth=4
 
 default:
     @just --list
@@ -9,14 +10,12 @@ build:
 release:
     zig build -Doptimize=ReleaseFast --release=fast
 
-test:
-    zig build test
-
-test-cli suite *args:
-    ./run_test.sh {{suite}} {{args}}
+[arg("update-snapshot", long="update-snapshot", value="true")]
+test update-snapshot="false":
+    zig build test -Dupdate-snapshots={{ update-snapshot }}
 
 run *args:
-    zig build run -- {{args}}
+    zig build run -- {{ args }}
 
 fmt:
     zig fmt src build.zig

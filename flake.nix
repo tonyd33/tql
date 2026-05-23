@@ -48,33 +48,18 @@
 
       devShells = forEachSupportedSystem (
         { pkgs }:
-        let
-        treeSitterGrammar =
-          grammar:
-          let src = pkgs.tree-sitter-grammars."tree-sitter-${grammar}".src;
-          in
-          {
-            "TS_${pkgs.lib.toUpper grammar}" =
-              if grammar == "typescript" then "${src}/typescript"
-              else if grammar == "tsx" then "${src}/tsx"
-              else src;
-          };
-        in
         {
           default = pkgs.mkShell {
-            buildInputs = with pkgs; [
-              tree-sitter
-              pcre2
-            ];
             packages = with pkgs; [
-              node2nix
               nodejs
-              nodePackages.pnpm
+              pnpm
               openssl
               pkg-config
-              zig
+              zig_0_15
               zls
               just
+              python3
+              wasmtime
             ];
           };
         }

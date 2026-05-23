@@ -1,14 +1,8 @@
-const std = @import("std");
-const testing = std.testing;
-const snapshot = @import("./snapshot_helper.zig");
-
-const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
-
-const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "where");
+const Snapshotter = @import("snapshotter.zig");
 
 test "WHERE with simple comparison" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -16,18 +10,16 @@ test "WHERE with simple comparison" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         ,
-        .name = "where_simple_comparison",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with OR logic" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -35,19 +27,17 @@ test "WHERE with OR logic" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class Repository {}
         ,
-        .name = "where_or_logic",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with AND logic" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @class_name,
@@ -58,90 +48,80 @@ test "WHERE with AND logic" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { foo() {}; bar() {}; }
         ,
-        .name = "where_and_logic",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with any quantifier - matches" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .name = "where_any_matches",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with any quantifier - no matches" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'nonexistent'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .name = "where_any_no_matches",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE any matches second method only" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { bar() {}; foo() {}; }
         \\class B { bar() {}; baz() {}; }
         ,
-        .name = "where_any_second_only",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with all quantifier" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where all @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { foo() {}; foo() {}; }
         \\class B { foo() {}; bar() {}; }
         ,
-        .name = "where_all",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE with nested any over two sources" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @a in @c.body > method_definition:
@@ -149,35 +129,31 @@ test "WHERE with nested any over two sources" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { foo() {}; }
         ,
-        .name = "where_nested_any",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE field access on outer row" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where @c.name = 'Service'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         ,
-        .name = "where_field_access_top_level",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE optional binding is null" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with function_declaration as @f,
         \\       @f.return_type as @rt?
@@ -185,19 +161,17 @@ test "WHERE optional binding is null" {
         \\  select @f
         \\}
         ,
-        .source =
+        .target =
         \\function a(): number { return 1; }
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .name = "where_null_eq",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE optional binding is not null" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with function_declaration as @f,
         \\       @f.return_type as @rt?
@@ -205,132 +179,118 @@ test "WHERE optional binding is not null" {
         \\  select @f
         \\}
         ,
-        .source =
+        .target =
         \\function a(): number { return 1; }
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .name = "where_null_ne",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE expression is null" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with function_declaration as @f
         \\  where @f.return_type is null
         \\  select @f
         \\}
         ,
-        .source =
+        .target =
         \\function a(): number { return 1; }
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .name = "where_is_null",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE expression is not null" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with function_declaration as @f
         \\  where @f.return_type is not null
         \\  select @f
         \\}
         ,
-        .source =
+        .target =
         \\function a(): number { return 1; }
         \\function b() { return 2; }
         \\function c(): string { return 'x'; }
         ,
-        .name = "where_is_not_null",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE field access with regex match" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name ~ /^foo.*/
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { foobar() {}; }
         \\class B { bar() {}; }
         ,
-        .name = "where_field_access_regex",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE field access with not equal" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where @c.name != 'Service'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class Repository {}
         ,
-        .name = "where_field_access_ne",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE field access in AND" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where @c.name = 'Service' and any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; }
         \\class Service { bar() {}; }
         \\class Other { foo() {}; }
         ,
-        .name = "where_field_access_and",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE same field accessed twice" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where @c.name = 'Service' or @c.name = 'Controller'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class Repository {}
         ,
-        .name = "where_field_access_twice",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE quantified regression for double yield" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @class_decl,
         \\       @class_decl.name as @class_name
@@ -340,7 +300,7 @@ test "WHERE quantified regression for double yield" {
         \\  select { @class_name }
         \\}
         ,
-        .source =
+        .target =
         \\class Foo1 {
         \\  m1(): string {}
         \\  m2() {}
@@ -353,80 +313,70 @@ test "WHERE quantified regression for double yield" {
         \\  m3() {}
         \\}
         ,
-        .name = "where_quantified_double_yield",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE descendant nav in quantifier source" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c >> method_definition: @m.name = 'foo'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; }
         \\class Controller { bar() {}; }
         ,
-        .name = "where_descendant_nav_source",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE child nav in comparison body" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: (@m.body > return_statement) != null
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { foo() { return 1; } }
         \\class B { bar() {} }
         ,
-        .name = "where_child_nav_in_body",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE field access in OR with anonymous lift" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo' or @m.name = 'bar'
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class A { foo() {}; }
         \\class B { bar() {}; }
         \\class C { baz() {}; }
         ,
-        .name = "where_field_access_or_quantified",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
 test "WHERE any with not-null body" {
-    try (SnapshotTest{
-        .tql =
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m != null
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service { foo() {}; bar() {}; }
         \\class Controller { baz() {}; }
         ,
-        .name = "where_any_not_null",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }

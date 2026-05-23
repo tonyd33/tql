@@ -1,4 +1,5 @@
 # https://just.systems
+# vim: shiftwidth=4
 
 ts := "pnpm exec tree-sitter"
 

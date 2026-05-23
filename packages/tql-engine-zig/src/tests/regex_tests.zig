@@ -1,14 +1,8 @@
-const std = @import("std");
-const testing = std.testing;
-const snapshot = @import("./snapshot_helper.zig");
+const Snapshotter = @import("snapshotter.zig");
 
-const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
-
-const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "regex");
-
-test "WHERE with regex match - simple pattern" {
-    try (SnapshotTest{
-        .tql =
+test "regex match simple" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -16,19 +10,17 @@ test "WHERE with regex match - simple pattern" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .name = "regex_match_simple",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
-test "WHERE with regex match - anchored pattern" {
-    try (SnapshotTest{
-        .tql =
+test "regex match anchored" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -36,19 +28,17 @@ test "WHERE with regex match - anchored pattern" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .name = "regex_match_anchored",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
-test "WHERE with regex not match" {
-    try (SnapshotTest{
-        .tql =
+test "regex not match" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -56,19 +46,17 @@ test "WHERE with regex not match" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class ServiceProvider {}
         ,
-        .name = "regex_not_match",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }
 
-test "WHERE with regex match - character class" {
-    try (SnapshotTest{
-        .tql =
+test "regex match character class" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
         \\query main() {
         \\  with class_declaration as @c,
         \\       @c.name as @n
@@ -76,12 +64,10 @@ test "WHERE with regex match - character class" {
         \\  select @c
         \\}
         ,
-        .source =
+        .target =
         \\class Service {}
         \\class Controller {}
         \\class foo {}
         ,
-        .name = "regex_match_char_class",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
+    });
 }

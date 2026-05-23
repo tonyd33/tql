@@ -1,4 +1,5 @@
 # https://just.systems
+# vim: shiftwidth=4
 
 mod engine 'packages/tql-engine-zig'
 mod grammar 'packages/tree-sitter-tql'
