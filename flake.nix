@@ -72,27 +72,10 @@
               nodePackages.pnpm
               openssl
               pkg-config
-              cabal-install
-              ghc
-              haskell-language-server
               zig
               zls
+              just
             ];
-            env = { }
-            // treeSitterGrammar "bash"
-            // treeSitterGrammar "c"
-            // treeSitterGrammar "cpp"
-            // treeSitterGrammar "css"
-            // treeSitterGrammar "go"
-            // treeSitterGrammar "haskell"
-            // treeSitterGrammar "java"
-            // treeSitterGrammar "javascript"
-            // treeSitterGrammar "json"
-            // treeSitterGrammar "python"
-            // treeSitterGrammar "rust"
-            // treeSitterGrammar "tsx"
-            // treeSitterGrammar "typescript"
-            ;
           };
         }
       );

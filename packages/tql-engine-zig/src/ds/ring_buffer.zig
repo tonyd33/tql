@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const RingBufferError = error {
+const RingBufferError = error{
     RingBufferFull,
 };
 

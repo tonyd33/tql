@@ -1,0 +1,25 @@
+# https://just.systems
+
+default:
+    @just --list
+
+build:
+    zig build
+
+release:
+    zig build -Doptimize=ReleaseFast --release=fast
+
+test:
+    zig build test
+
+test-cli suite *args:
+    ./run_test.sh {{suite}} {{args}}
+
+run *args:
+    zig build run -- {{args}}
+
+fmt:
+    zig fmt src build.zig
+
+clean:
+    rm -rf zig-out .zig-cache

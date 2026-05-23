@@ -1,0 +1,33 @@
+# https://just.systems
+
+ts := "pnpm exec tree-sitter"
+
+default:
+    @just --list
+
+generate:
+    {{ts}} generate
+
+build: generate
+    {{ts}} build
+    {{ts}} build --wasm
+
+test: generate
+    {{ts}} test
+
+parse *args: generate
+    {{ts}} parse {{args}}
+
+playground: generate
+    {{ts}} build --wasm
+    {{ts}} playground
+
+make *args:
+    make {{args}}
+
+debug-cycle: generate
+    rm -rf build && pnpm node-gyp-build
+
+clean:
+    make clean
+    rm -rf build *.wasm
