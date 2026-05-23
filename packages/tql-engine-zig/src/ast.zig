@@ -140,12 +140,12 @@ pub const Parameter = struct {
 };
 
 pub const QueryBody = struct {
-    from_clause: ?FromClause,
+    with_clause: ?WithClause,
     where_clause: ?WhereClause,
     select_clause: SelectClause,
 
     pub fn deinit(self: QueryBody, allocator: std.mem.Allocator) void {
-        if (self.from_clause) |fc| {
+        if (self.with_clause) |fc| {
             fc.deinit(allocator);
         }
         if (self.where_clause) |wc| {
@@ -156,7 +156,7 @@ pub const QueryBody = struct {
 
     pub fn sexpr(self: QueryBody, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.writeAll("(query_body");
-        if (self.from_clause) |fc| {
+        if (self.with_clause) |fc| {
             try w.writeByte(' ');
             try fc.sexpr(w);
         }
@@ -170,18 +170,18 @@ pub const QueryBody = struct {
     }
 };
 
-pub const FromClause = struct {
+pub const WithClause = struct {
     bindings: []const Binding,
 
-    pub fn deinit(self: FromClause, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: WithClause, allocator: std.mem.Allocator) void {
         for (self.bindings) |binding| {
             binding.deinit(allocator);
         }
         allocator.free(self.bindings);
     }
 
-    pub fn sexpr(self: FromClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(from");
+    pub fn sexpr(self: WithClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(with");
         for (self.bindings) |b| {
             try w.writeByte(' ');
             try b.sexpr(w);
@@ -406,6 +406,8 @@ pub const Quantifier = enum {
     all,
 };
 
+pub const Projection = Expression;
+
 pub const SelectClause = struct {
     projection: Projection,
 
@@ -417,81 +419,6 @@ pub const SelectClause = struct {
         try w.writeAll("(select ");
         try self.projection.sexpr(w);
         try w.writeByte(')');
-    }
-};
-
-pub const Projection = union(enum) {
-    variable: Variable,
-    string_literal: []const u8,
-    regex_literal: []const u8,
-    number_literal: u64,
-    function_call: FunctionCall,
-    field_access: *FieldAccess,
-    object_literal: ObjectLiteral,
-    array_literal: ArrayLiteral,
-    tuple_literal: TupleLiteral,
-    subquery: *QueryBody,
-
-    pub fn deinit(self: Projection, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .variable => |v| allocator.free(v.name),
-            .string_literal => |s| allocator.free(s),
-            .regex_literal => |r| allocator.free(r),
-            .number_literal => {},
-            .function_call => |fc| {
-                allocator.free(fc.name);
-                for (fc.arguments) |arg| {
-                    arg.deinit(allocator);
-                }
-                allocator.free(fc.arguments);
-            },
-            .field_access => |fa| {
-                fa.base.deinit(allocator);
-                allocator.free(fa.field);
-                allocator.destroy(fa);
-            },
-            .object_literal => |ol| {
-                for (ol.fields) |field| {
-                    field.deinit(allocator);
-                }
-                allocator.free(ol.fields);
-            },
-            .array_literal => |al| {
-                for (al.elements) |elem| {
-                    elem.deinit(allocator);
-                }
-                allocator.free(al.elements);
-            },
-            .tuple_literal => |tl| {
-                for (tl.elements) |elem| {
-                    elem.deinit(allocator);
-                }
-                allocator.free(tl.elements);
-            },
-            .subquery => |sq| {
-                sq.deinit(allocator);
-                allocator.destroy(sq);
-            },
-        }
-    }
-
-    pub fn sexpr(self: Projection, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
-            .variable => |v| try w.print("{s}", .{v.name}),
-            .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
-            .regex_literal => |r| try w.print("(regex \"{s}\")", .{r}),
-            .number_literal => |n| try w.print("(number {d})", .{n}),
-            .function_call => |fc| try fc.sexpr(w),
-            .field_access => |fa| try fa.sexpr(w),
-            .object_literal => |ol| try ol.sexpr(w),
-            .array_literal => |al| try al.sexpr(w),
-            .tuple_literal => |tl| try tl.sexpr(w),
-            .subquery => |sq| {
-                try w.writeAll("(subquery ");
-                try sq.sexpr(w);
-                try w.writeByte(')');
-            },
-        }
     }
 };
 
@@ -756,4 +683,3 @@ pub const ObjectType = struct {
 pub const TupleType = struct {
     element_types: []const Type,
 };
-

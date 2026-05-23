@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (from (binding (node class_declaration) c)) (where (any m (child (field c body) (node method_definition)) (ne (paren (child (field m body) (node return_statement))) null))) (select c))))
+(source_file (query main (parameters) (query_body (with (binding (node class_declaration) c)) (where (any m (child (field c body) (node method_definition)) (ne (paren (child (field m body) (node return_statement))) null))) (select c))))

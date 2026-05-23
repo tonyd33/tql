@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (from (binding (node class_declaration) c) (binding (field c name) n)) (where (regex_not_match n (regex "Service"))) (select c))))
+(source_file (query main (parameters) (query_body (with (binding (node class_declaration) c) (binding (field c name) n)) (where (regex_not_match n (regex "Service"))) (select c))))

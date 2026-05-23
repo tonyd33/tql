@@ -260,10 +260,10 @@
           "members": [
             {
               "type": "FIELD",
-              "name": "from_clause",
+              "name": "with_clause",
               "content": {
                 "type": "SYMBOL",
-                "name": "from_clause"
+                "name": "with_clause"
               }
             },
             {
@@ -297,12 +297,12 @@
         }
       ]
     },
-    "from_clause": {
+    "with_clause": {
       "type": "SEQ",
       "members": [
         {
           "type": "STRING",
-          "value": "from"
+          "value": "with"
         },
         {
           "type": "SEQ",
@@ -814,49 +814,8 @@
       ]
     },
     "projection": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "variable"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "string_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "regex_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "number_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "function_call"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "field_access"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "object_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "array_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "tuple_literal"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "subquery"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "expression"
     },
     "object_literal": {
       "type": "SEQ",

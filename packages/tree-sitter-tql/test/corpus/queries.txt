@@ -3,7 +3,7 @@ simple query
 ========================================
 
 query main() {
-  from class_declaration as @class
+  with class_declaration as @class
   select @class
 }
 
@@ -14,7 +14,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -23,15 +23,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
-query with from and where
+query with with and where
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name = 'Controller'
   select @class
@@ -44,7 +45,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -71,15 +72,16 @@ query main() {
                 (string_fragment))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 query with parameters
 ========================================
 
 query find_methods(@class: class_declaration) {
-  from @class.body > method_definition as @method
+  with @class.body > method_definition as @method
   select @method
 }
 
@@ -95,7 +97,7 @@ query find_methods(@class: class_declaration) {
         (type
           (identifier))))
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (child_navigation
@@ -112,15 +114,16 @@ query find_methods(@class: class_declaration) {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 query with return type
 ========================================
 
 query controller_classes(): Array<class_declaration> {
-  from class_declaration as @class
+  with class_declaration as @class
   select @class
 }
 
@@ -136,7 +139,7 @@ query controller_classes(): Array<class_declaration> {
           (type
             (identifier)))))
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -145,15 +148,16 @@ query controller_classes(): Array<class_declaration> {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 query with optional binding
 ========================================
 
 query main() {
-  from method_definition as @method,
+  with method_definition as @method,
        @method.return_type as @return_type?
   where @return_type = null
   select @method
@@ -166,7 +170,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -192,15 +196,16 @@ query main() {
               (null_literal)))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 query with multiple bindings
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @class_name,
        @class.decorator as @decorator,
        @decorator > call_expression as @call,
@@ -215,7 +220,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -262,11 +267,12 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
-query without from clause
+query without with clause
 ========================================
 
 query main() {
@@ -282,5 +288,6 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))

@@ -10,7 +10,7 @@ test "select object_literal: shorthand" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select { @class }
         \\}
         ,
@@ -24,7 +24,7 @@ test "select object_literal: two shorthand fields" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class,
+        \\  with class_declaration as @class,
         \\       @class.name as @name
         \\  select { @class, @name }
         \\}
@@ -39,7 +39,7 @@ test "select object_literal: key_value" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select { kind: 'class', node: @class }
         \\}
         ,
@@ -53,7 +53,7 @@ test "select object_literal: multiple matches" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select { @class }
         \\}
         ,

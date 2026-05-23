@@ -20,8 +20,9 @@ query main(@class: class_declaration) {
     (query_body
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 builtin type
@@ -45,15 +46,16 @@ query main(@str: string) {
     (query_body
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 array type
 ========================================
 
 query main(): Array<class_declaration> {
-  from class_declaration as @class
+  with class_declaration as @class
   select @class
 }
 
@@ -69,7 +71,7 @@ query main(): Array<class_declaration> {
           (type
             (identifier)))))
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -78,8 +80,9 @@ query main(): Array<class_declaration> {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 object type
@@ -103,7 +106,8 @@ query main(): Object<string> {
     (query_body
       (select_clause
         (projection
-          (object_literal))))))
+          (expression
+            (object_literal)))))))
 
 ========================================
 tuple type
@@ -129,12 +133,13 @@ query main(): Tuple<string, number> {
     (query_body
       (select_clause
         (projection
-          (tuple_literal
-            (expression
-              (string_literal
-                (string_fragment)))
-            (expression
-              (number_literal))))))))
+          (expression
+            (tuple_literal
+              (expression
+                (string_literal
+                  (string_fragment)))
+              (expression
+                (number_literal)))))))))
 
 ========================================
 optional type
@@ -160,5 +165,6 @@ query main(@class: class_declaration?) {
     (query_body
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))

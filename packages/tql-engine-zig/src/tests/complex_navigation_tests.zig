@@ -10,7 +10,7 @@ test "nested field access" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       (@c.body > method_definition).name as @nested_name
         \\  select @nested_name
         \\}
@@ -29,7 +29,7 @@ test "field access on node selector" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration.name as @name
+        \\  with class_declaration.name as @name
         \\  select @name
         \\}
         ,
@@ -46,7 +46,7 @@ test "child navigation with field access parent" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.body > method_definition as @method
         \\  select @method
         \\}
@@ -66,7 +66,7 @@ test "child navigation on node selector" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration.body > method_definition as @method
+        \\  with class_declaration.body > method_definition as @method
         \\  select @method
         \\}
         ,
@@ -88,7 +88,7 @@ test "descendant navigation with field access parent" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.body >> property_identifier as @id
         \\  select @id
         \\}
@@ -108,7 +108,7 @@ test "descendant navigation on node selector" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration >> property_identifier as @id
+        \\  with class_declaration >> property_identifier as @id
         \\  select @id
         \\}
         ,
@@ -129,7 +129,7 @@ test "nested child navigation" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       (@c > class_body) > method_definition as @method
         \\  select @method
         \\}

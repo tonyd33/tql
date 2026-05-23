@@ -10,7 +10,7 @@ test "WHERE with simple comparison" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n = 'Service'
         \\  select @c
@@ -29,7 +29,7 @@ test "WHERE with OR logic" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n = 'Service' or @n = 'Controller'
         \\  select @c
@@ -49,7 +49,7 @@ test "WHERE with AND logic" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @class_name,
         \\       @c.body as @body,
         \\       @body > method_definition as @method_def,
@@ -71,7 +71,7 @@ test "WHERE with any quantifier - matches" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
@@ -89,7 +89,7 @@ test "WHERE with any quantifier - no matches" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'nonexistent'
         \\  select @c
         \\}
@@ -107,7 +107,7 @@ test "WHERE any matches second method only" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
@@ -125,7 +125,7 @@ test "WHERE with all quantifier" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where all @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
@@ -143,7 +143,7 @@ test "WHERE with nested any over two sources" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @a in @c.body > method_definition:
         \\          any @b in @c.body > method_definition: @a.name = @b.name
         \\  select @c
@@ -161,7 +161,7 @@ test "WHERE field access on outer row" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where @c.name = 'Service'
         \\  select @c
         \\}
@@ -179,7 +179,7 @@ test "WHERE optional binding is null" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from function_declaration as @f,
+        \\  with function_declaration as @f,
         \\       @f.return_type as @rt?
         \\  where @rt = null
         \\  select @f
@@ -199,7 +199,7 @@ test "WHERE optional binding is not null" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from function_declaration as @f,
+        \\  with function_declaration as @f,
         \\       @f.return_type as @rt?
         \\  where @rt != null
         \\  select @f
@@ -219,7 +219,7 @@ test "WHERE expression is null" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from function_declaration as @f
+        \\  with function_declaration as @f
         \\  where @f.return_type is null
         \\  select @f
         \\}
@@ -238,7 +238,7 @@ test "WHERE expression is not null" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from function_declaration as @f
+        \\  with function_declaration as @f
         \\  where @f.return_type is not null
         \\  select @f
         \\}
@@ -257,7 +257,7 @@ test "WHERE field access with regex match" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name ~ /^foo.*/
         \\  select @c
         \\}
@@ -275,7 +275,7 @@ test "WHERE field access with not equal" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where @c.name != 'Service'
         \\  select @c
         \\}
@@ -294,7 +294,7 @@ test "WHERE field access in AND" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where @c.name = 'Service' and any @m in @c.body > method_definition: @m.name = 'foo'
         \\  select @c
         \\}
@@ -313,7 +313,7 @@ test "WHERE same field accessed twice" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where @c.name = 'Service' or @c.name = 'Controller'
         \\  select @c
         \\}
@@ -332,7 +332,7 @@ test "WHERE quantified regression for double yield" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class_decl,
+        \\  with class_declaration as @class_decl,
         \\       @class_decl.name as @class_name
         \\  where @class_name ~ /Foo.*/ and
         \\        any @md in @class_decl.body > method_definition:
@@ -362,7 +362,7 @@ test "WHERE descendant nav in quantifier source" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c >> method_definition: @m.name = 'foo'
         \\  select @c
         \\}
@@ -380,7 +380,7 @@ test "WHERE child nav in comparison body" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: (@m.body > return_statement) != null
         \\  select @c
         \\}
@@ -398,7 +398,7 @@ test "WHERE field access in OR with anonymous lift" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m.name = 'foo' or @m.name = 'bar'
         \\  select @c
         \\}
@@ -417,7 +417,7 @@ test "WHERE any with not-null body" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c
+        \\  with class_declaration as @c
         \\  where any @m in @c.body > method_definition: @m != null
         \\  select @c
         \\}

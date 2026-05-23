@@ -1,2 +1,2 @@
-from class_declaration.name as @class_name
+with class_declaration.name as @class_name
 select 'Hello!'

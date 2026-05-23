@@ -10,7 +10,7 @@ test "select tuple_literal: pair" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select ('class', @class)
         \\}
         ,
@@ -24,7 +24,7 @@ test "select tuple_literal: triple" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class,
+        \\  with class_declaration as @class,
         \\       @class.name as @name
         \\  select ('class', @name, @class)
         \\}

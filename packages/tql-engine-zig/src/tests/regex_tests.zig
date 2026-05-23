@@ -10,7 +10,7 @@ test "WHERE with regex match - simple pattern" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n ~ /Service/
         \\  select @c
@@ -30,7 +30,7 @@ test "WHERE with regex match - anchored pattern" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n ~ /^Service$/
         \\  select @c
@@ -50,7 +50,7 @@ test "WHERE with regex not match" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n !~ /Service/
         \\  select @c
@@ -70,7 +70,7 @@ test "WHERE with regex match - character class" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  where @n ~ /[A-Z][a-z]+/
         \\  select @c

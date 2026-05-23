@@ -15,8 +15,9 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (string_literal
-            (string_fragment)))))))
+          (expression
+            (string_literal
+              (string_fragment))))))))
 
 ========================================
 string with escape sequences
@@ -35,12 +36,13 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (string_literal
-            (string_fragment)
-            (escape_sequence)
-            (string_fragment)
-            (escape_sequence)
-            (escape_sequence)))))))
+          (expression
+            (string_literal
+              (string_fragment)
+              (escape_sequence)
+              (string_fragment)
+              (escape_sequence)
+              (escape_sequence))))))))
 
 ========================================
 regex literal
@@ -59,8 +61,9 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (regex_literal
-            (regex_fragment)))))))
+          (expression
+            (regex_literal
+              (regex_fragment))))))))
 
 ========================================
 regex with escapes
@@ -79,12 +82,13 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (regex_literal
-            (regex_escape_sequence)
-            (regex_fragment)
-            (regex_escape_sequence)
-            (regex_escape_sequence)
-            (regex_fragment)))))))
+          (expression
+            (regex_literal
+              (regex_escape_sequence)
+              (regex_fragment)
+              (regex_escape_sequence)
+              (regex_escape_sequence)
+              (regex_fragment))))))))
 
 ========================================
 number literal
@@ -103,4 +107,5 @@ query main() {
     (query_body
       (select_clause
         (projection
-          (number_literal))))))
+          (expression
+            (number_literal)))))))

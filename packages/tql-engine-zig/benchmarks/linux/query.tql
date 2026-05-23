@@ -1,5 +1,9 @@
-from function_definition.declarator as @decl,
-     @decl > identifier as @name,
-     @decl >> parameter_list as @parameter_list
-where @name ~ /.*_with_.*/
-select {@name, parameters: @parameter_list}
+from function_definition as @fn,
+     @fn > function_declarator as @fn_decl,
+     @fn_decl > identifier as @name,
+     @fn.body as @body
+where any @c in @body >> call_expression:
+          any @callee in @c.function: @callee ~ /^(k|v|kv)(z|m|c|re)?alloc/ and
+      any @g in @body >> goto_statement:
+          any @lbl in @g.label: @lbl ~ /^(err|out)(_\w+)?$/
+select { name: @name }

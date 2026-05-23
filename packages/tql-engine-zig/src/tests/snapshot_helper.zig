@@ -22,7 +22,7 @@ pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const ru
     return try list.toOwnedSlice(allocator);
 }
 
-/// Load snapshot from file, or return null if file doesn't exist
+/// Load snapshot with file, or return null if file doesn't exist
 pub fn loadSnapshot(allocator: std.mem.Allocator, path: []const u8) !?[]const u8 {
     const file = std.fs.cwd().openFile(path, .{}) catch |err| {
         if (err == error.FileNotFound) return null;
@@ -84,7 +84,7 @@ pub fn expectMatchesSnapshot(
 
 extern fn tree_sitter_typescript() *ts.Language;
 
-/// Helper to create a test tree-sitter tree from TypeScript source
+/// Helper to create a test tree-sitter tree with TypeScript source
 pub fn parseTypeScript(source: []const u8) !*ts.Tree {
     const language = tree_sitter_typescript();
     const parser = ts.Parser.create();

@@ -48,3 +48,10 @@ time find ~/code/linux \
 ```
 
 Time: 102.90s user 3.02s system 97% cpu 1:48.86 total
+
+## Recursive directory walking + MT
+
+### Description
+
+CLI is powered up with recursive directory walking as well as multithreading.
+

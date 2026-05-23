@@ -122,8 +122,8 @@ pub const Compiler = struct {
             .source = .{ .node = .this },
         } });
 
-        if (body.from_clause) |from_clause| {
-            try self.compileFromClause(from_clause);
+        if (body.with_clause) |with_clause| {
+            try self.compileWithClause(with_clause);
         }
 
         if (body.where_clause) |where_clause| {
@@ -134,8 +134,8 @@ pub const Compiler = struct {
         try builder.emit(.{ .halt = .{ .condition = .always } });
     }
 
-    fn compileFromClause(self: *Compiler, from_clause: ast.FromClause) CompilerError!void {
-        for (from_clause.bindings) |binding| {
+    fn compileWithClause(self: *Compiler, with_clause: ast.WithClause) CompilerError!void {
+        for (with_clause.bindings) |binding| {
             try self.compileBinding(binding);
         }
     }
@@ -313,7 +313,7 @@ pub const Compiler = struct {
         // FIXME: This can't be right
         // yeah the root problem is the implicit root child traversal.
         // no pun intended.
-        // any implicit root traversal from the top level selector is bound to
+        // any implicit root traversal with the top level selector is bound to
         // run into this problem and is the same reason why we can't do the
         // compileAsNavigation mentioned in the other comments
         try builder.emit(.{ .trv = .{ .child = {} } });

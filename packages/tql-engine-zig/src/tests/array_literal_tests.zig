@@ -10,7 +10,7 @@ test "select array_literal: single variable" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select [ @class ]
         \\}
         ,
@@ -24,7 +24,7 @@ test "select array_literal: mixed" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select [ 'class', @class ]
         \\}
         ,
@@ -38,7 +38,7 @@ test "select array_literal: multiple matches" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select [ @class ]
         \\}
         ,

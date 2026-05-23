@@ -23,7 +23,7 @@ test "FROM with node selector" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select @class
         \\}
         ,
@@ -32,7 +32,7 @@ test "FROM with node selector" {
         \\class Controller {}
         \\function foo() {}
         ,
-        .name = "from_node_selector",
+        .name = "with_node_selector",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -41,7 +41,7 @@ test "FROM with field access" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @c,
+        \\  with class_declaration as @c,
         \\       @c.name as @n
         \\  select @n
         \\}
@@ -50,7 +50,7 @@ test "FROM with field access" {
         \\class Service {}
         \\class Controller {}
         ,
-        .name = "from_field_access",
+        .name = "with_field_access",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -59,7 +59,7 @@ test "FROM with child navigation" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration > class_body as @body,
+        \\  with class_declaration > class_body as @body,
         \\       @body > method_definition as @m
         \\  select @m
         \\}
@@ -70,7 +70,7 @@ test "FROM with child navigation" {
         \\  bar() {}
         \\}
         ,
-        .name = "from_child_navigation",
+        .name = "with_child_navigation",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }
@@ -79,7 +79,7 @@ test "FROM with decorator and WHERE - matching test.tql pattern" {
     try (SnapshotTest{
         .tql =
         \\query main() {
-        \\  from class_declaration as @class,
+        \\  with class_declaration as @class,
         \\       @class.name as @class_name,
         \\       @class.decorator as @class_decorator,
         \\       @class_decorator > call_expression as @decorator_call,
@@ -100,7 +100,7 @@ test "FROM with decorator and WHERE - matching test.tql pattern" {
         \\  m1() { }
         \\}
         ,
-        .name = "from_decorator_with_where",
+        .name = "with_decorator_with_where",
         .update_snapshots = UPDATE_SNAPSHOTS,
     }).run();
 }

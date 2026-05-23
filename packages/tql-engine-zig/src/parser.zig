@@ -5,7 +5,7 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 const ast = @import("./ast.zig");
 
-// External tree-sitter parser (will be linked from tree-sitter-tql)
+// External tree-sitter parser (will be linked with tree-sitter-tql)
 extern fn tree_sitter_tql() *ts.Language;
 
 pub const Parser = struct {
@@ -78,7 +78,7 @@ pub const Parser = struct {
             } else if (std.mem.eql(u8, node_type, "query_definition")) {
                 const query = try self.parseQueryDefinition(child, source);
                 try items.append(self.allocator, .{ .query = query });
-            }else if (std.mem.eql(u8, node_type, "query_body")) {
+            } else if (std.mem.eql(u8, node_type, "query_body")) {
                 const query_body = try self.parseQueryBody(child, source);
                 try items.append(self.allocator, .{ .query_body = query_body });
             }
@@ -209,8 +209,8 @@ pub const Parser = struct {
     }
 
     fn parseQueryBody(self: *Parser, node: ts.Node, source: []const u8) !ast.QueryBody {
-        const from_clause = if (getChildByFieldName(node, "from_clause")) |fc|
-            try self.parseFromClause(fc, source)
+        const with_clause = if (getChildByFieldName(node, "with_clause")) |fc|
+            try self.parseWithClause(fc, source)
         else
             null;
 
@@ -223,7 +223,7 @@ pub const Parser = struct {
         const select_clause = try self.parseSelectClause(select_node, source);
 
         return ast.QueryBody{
-            .from_clause = from_clause,
+            .with_clause = with_clause,
             .where_clause = where_clause,
             .select_clause = select_clause,
         };
@@ -233,7 +233,7 @@ pub const Parser = struct {
     // FROM Clause Parsing
     // ========================================================================
 
-    fn parseFromClause(self: *Parser, node: ts.Node, source: []const u8) !ast.FromClause {
+    fn parseWithClause(self: *Parser, node: ts.Node, source: []const u8) !ast.WithClause {
         var bindings = std.ArrayList(ast.Binding).empty;
         defer bindings.deinit(self.allocator);
 
@@ -241,7 +241,7 @@ pub const Parser = struct {
         defer cursor.destroy();
 
         if (!cursor.gotoFirstChild()) {
-            return ast.FromClause{ .bindings = try bindings.toOwnedSlice(self.allocator) };
+            return ast.WithClause{ .bindings = try bindings.toOwnedSlice(self.allocator) };
         }
 
         while (true) {
@@ -256,7 +256,7 @@ pub const Parser = struct {
             if (!cursor.gotoNextSibling()) break;
         }
 
-        return ast.FromClause{
+        return ast.WithClause{
             .bindings = try bindings.toOwnedSlice(self.allocator),
         };
     }
@@ -507,35 +507,8 @@ pub const Parser = struct {
             var cursor = node.walk();
             defer cursor.destroy();
             if (cursor.gotoFirstChild()) {
-                return try self.parseProjection(cursor.node(), source);
+                return try self.parseExpression(cursor.node(), source);
             }
-            return error.InvalidProjection;
-        }
-
-        if (std.mem.eql(u8, node_type, "variable")) {
-            return .{ .variable = try self.parseVariable(node, source) };
-        } else if (std.mem.eql(u8, node_type, "string_literal")) {
-            return .{ .string_literal = try self.parseStringLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "regex_literal")) {
-            return .{ .regex_literal = try self.parseRegexLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "number_literal")) {
-            return .{ .number_literal = try self.parseNumberLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "function_call")) {
-            return .{ .function_call = try self.parseFunctionCall(node, source) };
-        } else if (std.mem.eql(u8, node_type, "field_access")) {
-            const field_access_expr = try self.allocator.create(ast.FieldAccess);
-            field_access_expr.* = try self.parseFieldAccess(node, source);
-            return .{ .field_access = field_access_expr };
-        } else if (std.mem.eql(u8, node_type, "object_literal")) {
-            return .{ .object_literal = try self.parseObjectLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "array_literal")) {
-            return .{ .array_literal = try self.parseArrayLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "tuple_literal")) {
-            return .{ .tuple_literal = try self.parseTupleLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "subquery")) {
-            const query_body = try self.allocator.create(ast.QueryBody);
-            query_body.* = try self.parseSubquery(node, source);
-            return .{ .subquery = query_body };
         }
 
         return error.InvalidProjection;
@@ -938,7 +911,7 @@ test "parse simple query" {
 
     const source =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  select @class
         \\}
     ;
@@ -953,7 +926,7 @@ test "parse simple query" {
     try std.testing.expectEqualStrings("main", query.name);
     try std.testing.expect(query.parameters.len == 0);
     try std.testing.expect(query.return_type == null);
-    try std.testing.expect(query.body.from_clause != null);
+    try std.testing.expect(query.body.with_clause != null);
     try std.testing.expect(query.body.where_clause == null);
 }
 
@@ -964,7 +937,7 @@ test "parse query with where clause" {
 
     const source =
         \\query main() {
-        \\  from class_declaration as @class,
+        \\  with class_declaration as @class,
         \\       @class.name as @name
         \\  where @name = 'Controller'
         \\  select @class
@@ -977,7 +950,7 @@ test "parse query with where clause" {
     try std.testing.expect(source_file.items.len == 1);
 
     const query = source_file.items[0].query;
-    try std.testing.expect(query.body.from_clause.?.bindings.len == 2);
+    try std.testing.expect(query.body.with_clause.?.bindings.len == 2);
     try std.testing.expect(query.body.where_clause != null);
     try std.testing.expect(query.body.where_clause.?.predicate == .comparison);
 }
@@ -989,7 +962,7 @@ test "parse query with parameters and return type" {
 
     const source =
         \\query find_methods(@class: class_declaration): Array<method_definition> {
-        \\  from @class.body > method_definition as @method
+        \\  with @class.body > method_definition as @method
         \\  select @method
         \\}
     ;
@@ -1036,7 +1009,7 @@ test "parse logical operators" {
 
     const source =
         \\query main() {
-        \\  from class_declaration as @class,
+        \\  with class_declaration as @class,
         \\       @class.name as @name
         \\  where @name = 'Foo' and @name != 'Bar'
         \\  select @class
@@ -1057,7 +1030,7 @@ test "parse quantified expression" {
 
     const source =
         \\query main() {
-        \\  from class_declaration as @class
+        \\  with class_declaration as @class
         \\  where any @m in @class.body > method_definition: @m != null
         \\  select @class
         \\}

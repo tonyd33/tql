@@ -3,7 +3,7 @@ simple comparison
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name = 'Controller'
   select @class
@@ -16,7 +16,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -43,15 +43,16 @@ query main() {
                 (string_fragment))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 regex comparison
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name ~ /.*Service$/
   select @class
@@ -64,7 +65,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -91,15 +92,16 @@ query main() {
                 (regex_fragment))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 not equal comparison
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name != 'Base'
   select @class
@@ -112,7 +114,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -139,15 +141,16 @@ query main() {
                 (string_fragment))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 logical and
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name = 'Foo' and @name != 'Bar'
   select @class
@@ -160,7 +163,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -197,15 +200,16 @@ query main() {
                     (string_fragment))))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 logical or
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where @name = 'Foo' or @name = 'Bar'
   select @class
@@ -218,7 +222,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -255,15 +259,16 @@ query main() {
                     (string_fragment))))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 null equality
 ========================================
 
 query main() {
-  from method_definition as @method,
+  with method_definition as @method,
        @method.return_type as @return_type?
   where @return_type = null
   select @method
@@ -276,7 +281,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -302,15 +307,16 @@ query main() {
               (null_literal)))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 complex logical expression
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name,
        @class.decorator as @decorator?
   where (@name = 'Foo' or @name = 'Bar') and @decorator = null
@@ -324,7 +330,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -381,15 +387,16 @@ query main() {
                   (null_literal)))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 existential quantifier
 ========================================
 
 query main() {
-  from class_declaration as @class
+  with class_declaration as @class
   where any @m in @class.body > method_definition: @m.decorator != null
   select @class
 }
@@ -401,7 +408,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -436,15 +443,16 @@ query main() {
                   (null_literal)))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 universal quantifier
 ========================================
 
 query main() {
-  from class_declaration as @class
+  with class_declaration as @class
   where all @m in @class.body > method_definition: @m.return_type != null
   select @class
 }
@@ -456,7 +464,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -491,15 +499,16 @@ query main() {
                   (null_literal)))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 nested any quantifier
 ========================================
 
 query main() {
-  from class_declaration as @class
+  with class_declaration as @class
   where any @d in @class.decorator:
           any @m in @class.body > method_definition:
             @d.name = @m.name
@@ -513,7 +522,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -562,15 +571,16 @@ query main() {
                         (identifier))))))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 parenthesized predicate
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   where (@name = 'Foo')
   select @class
@@ -583,7 +593,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -612,15 +622,16 @@ query main() {
                     (string_fragment))))))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 null inequality
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.decorator as @decorator?
   where @decorator != null
   select @class
@@ -633,7 +644,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -659,15 +670,16 @@ query main() {
               (null_literal)))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 is null predicate
 ========================================
 
 query main() {
-  from method_definition as @m
+  with method_definition as @m
   where @m.return_type is null
   select @m
 }
@@ -679,7 +691,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -698,15 +710,16 @@ query main() {
             (null_literal))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 is not null predicate
 ========================================
 
 query main() {
-  from method_definition as @m
+  with method_definition as @m
   where @m.return_type is not null
   select @m
 }
@@ -718,7 +731,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -737,5 +750,6 @@ query main() {
             (null_literal))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))

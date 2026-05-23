@@ -1,4 +1,4 @@
-from class_declaration as @class_decl,
+with class_declaration as @class_decl,
      @class_decl.name as @class_name,
      @class_decl.body > method_definition as @method_definition,
      @method_definition.name as @method_name

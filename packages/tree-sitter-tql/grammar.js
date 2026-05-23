@@ -59,12 +59,12 @@ module.exports = grammar({
 
     query_body: $ =>
       seq(
-        optional(field("from_clause", $.from_clause)),
+        optional(field("with_clause", $.with_clause)),
         optional(field("where_clause", $.where_clause)),
         field("select_clause", $.select_clause),
       ),
 
-    from_clause: $ => seq("from", comma_sep1($.binding)),
+    with_clause: $ => seq("with", comma_sep1($.binding)),
 
     binding: $ =>
       seq(
@@ -165,19 +165,7 @@ module.exports = grammar({
 
     select_clause: $ => seq("select", field("projection", $.projection)),
 
-    projection: $ =>
-      choice(
-        $.variable,
-        $.string_literal,
-        $.regex_literal,
-        $.number_literal,
-        $.function_call,
-        $.field_access,
-        $.object_literal,
-        $.array_literal,
-        $.tuple_literal,
-        $.subquery,
-      ),
+    projection: $ => $.expression,
 
     object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
 

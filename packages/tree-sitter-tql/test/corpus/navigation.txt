@@ -3,7 +3,7 @@ field access
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.name as @name
   select @name
 }
@@ -15,7 +15,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -33,15 +33,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 chained field access
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.decorator.identifier as @name
   select @name
 }
@@ -53,7 +54,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -74,15 +75,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 child navigation
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class > method_definition as @method
   select @method
 }
@@ -94,7 +96,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -114,15 +116,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 descendant navigation with ::
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class descendant::call_expression as @call
   select @call
 }
@@ -134,7 +137,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -154,15 +157,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 descendant navigation with >>
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class >> call_expression as @call
   select @call
 }
@@ -174,7 +178,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -194,15 +198,16 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 complex navigation
 ========================================
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        @class.decorator > call_expression.identifier as @name
   select @name
 }
@@ -214,7 +219,7 @@ query main() {
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -240,20 +245,21 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))
 
 ========================================
 query call in navigation
 ========================================
 
 query helper(@x: class_declaration) {
-  from @x.name as @name
+  with @x.name as @name
   select @name
 }
 
 query main() {
-  from class_declaration as @class,
+  with class_declaration as @class,
        helper(@class) as @result
   select @result
 }
@@ -270,7 +276,7 @@ query main() {
         (type
           (identifier))))
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (field_access
@@ -282,13 +288,14 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier))))))
+          (expression
+            (variable
+              (identifier)))))))
   (query_definition
     (identifier)
     (parameters)
     (query_body
-      (from_clause
+      (with_clause
         (binding
           (expression
             (node_selector
@@ -306,5 +313,6 @@ query main() {
             (identifier))))
       (select_clause
         (projection
-          (variable
-            (identifier)))))))
+          (expression
+            (variable
+              (identifier))))))))

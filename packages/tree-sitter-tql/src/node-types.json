@@ -304,21 +304,6 @@
     }
   },
   {
-    "type": "from_clause",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "binding",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "function_call",
     "named": true,
     "fields": {
@@ -697,43 +682,7 @@
       "required": true,
       "types": [
         {
-          "type": "array_literal",
-          "named": true
-        },
-        {
-          "type": "field_access",
-          "named": true
-        },
-        {
-          "type": "function_call",
-          "named": true
-        },
-        {
-          "type": "number_literal",
-          "named": true
-        },
-        {
-          "type": "object_literal",
-          "named": true
-        },
-        {
-          "type": "regex_literal",
-          "named": true
-        },
-        {
-          "type": "string_literal",
-          "named": true
-        },
-        {
-          "type": "subquery",
-          "named": true
-        },
-        {
-          "type": "tuple_literal",
-          "named": true
-        },
-        {
-          "type": "variable",
+          "type": "expression",
           "named": true
         }
       ]
@@ -793,16 +742,6 @@
     "type": "query_body",
     "named": true,
     "fields": {
-      "from_clause": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "from_clause",
-            "named": true
-          }
-        ]
-      },
       "select_clause": {
         "multiple": false,
         "required": true,
@@ -819,6 +758,16 @@
         "types": [
           {
             "type": "where_clause",
+            "named": true
+          }
+        ]
+      },
+      "with_clause": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "with_clause",
             "named": true
           }
         ]
@@ -1074,6 +1023,21 @@
     }
   },
   {
+    "type": "with_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "binding",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "!=",
     "named": false
   },
@@ -1199,10 +1163,6 @@
     "named": true
   },
   {
-    "type": "from",
-    "named": false
-  },
-  {
     "type": "identifier",
     "named": true
   },
@@ -1272,6 +1232,10 @@
   },
   {
     "type": "where",
+    "named": false
+  },
+  {
+    "type": "with",
     "named": false
   },
   {
