@@ -1,4 +1,5 @@
-query main() {
-  from ((function_definition).declarator) > identifier as @name
-  select @name
-}
+from function_definition.declarator as @decl,
+     @decl > identifier as @name,
+     @decl >> parameter_list as @parameter_list
+where @name ~ /.*_with_.*/
+select {@name, parameters: @parameter_list}

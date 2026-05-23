@@ -1,5 +1,3 @@
-query main() {
-  from class_declaration.name as @class_name
-  where @class_name ~ /Foo.*/
-  select @class_name
-}
+from class_declaration.name as @class_name
+where @class_name ~ /Foo.*/
+select @class_name

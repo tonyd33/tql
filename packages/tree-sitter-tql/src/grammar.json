@@ -515,6 +515,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "is_null_predicate"
+        },
+        {
+          "type": "SYMBOL",
           "name": "logical_and"
         },
         {
@@ -534,6 +538,47 @@
           "name": "parenthesized_predicate"
         }
       ]
+    },
+    "is_null_predicate": {
+      "type": "PREC_LEFT",
+      "value": 7,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "expression",
+            "content": {
+              "type": "SYMBOL",
+              "name": "expression"
+            }
+          },
+          {
+            "type": "STRING",
+            "value": "is"
+          },
+          {
+            "type": "FIELD",
+            "name": "negated",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "not"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            }
+          },
+          {
+            "type": "SYMBOL",
+            "name": "null_literal"
+          }
+        ]
+      }
     },
     "comparison": {
       "type": "PREC_LEFT",

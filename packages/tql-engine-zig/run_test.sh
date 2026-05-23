@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+compile_flags=(-Doptimize=ReleaseFast --release=fast)
+
 suite=$1
 shift
 
@@ -10,4 +12,8 @@ if ! [ -d "cli-tests/$suite" ]; then
   exit 1
 fi
 
-zig build run -- "cli-tests/$suite/query.tql" "cli-tests/$suite/source.ts" "$@"
+zig build "${compile_flags[@]}" run -- \
+  --language typescript \
+  --from-file="cli-tests/$suite/query.tql" \
+  "cli-tests/$suite/source.ts" \
+  "$@"

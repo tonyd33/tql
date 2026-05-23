@@ -361,6 +361,42 @@
     }
   },
   {
+    "type": "is_null_predicate",
+    "named": true,
+    "fields": {
+      "expression": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "negated": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "not",
+            "named": false
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "null_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "language_directive",
     "named": true,
     "fields": {
@@ -623,6 +659,10 @@
       "types": [
         {
           "type": "comparison",
+          "named": true
+        },
+        {
+          "type": "is_null_predicate",
           "named": true
         },
         {
@@ -1172,6 +1212,10 @@
   },
   {
     "type": "in",
+    "named": false
+  },
+  {
+    "type": "is",
     "named": false
   },
   {

@@ -1,0 +1,1 @@
+(source_file (query main (parameters) (query_body (from (binding (node function_declaration) f)) (where (is-null (field f return_type))) (select f))))

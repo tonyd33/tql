@@ -347,6 +347,8 @@ pub const Parser = struct {
 
         if (std.mem.eql(u8, node_type, "comparison")) {
             return .{ .comparison = try self.parseComparison(node, source) };
+        } else if (std.mem.eql(u8, node_type, "is_null_predicate")) {
+            return .{ .is_null = try self.parseIsNullPredicate(node, source) };
         } else if (std.mem.eql(u8, node_type, "logical_and")) {
             const logical_and = try self.allocator.create(ast.LogicalAnd);
             logical_and.* = try self.parseLogicalAnd(node, source);
@@ -399,6 +401,16 @@ pub const Parser = struct {
             .left = left,
             .operator = operator,
             .right = right,
+        };
+    }
+
+    fn parseIsNullPredicate(self: *Parser, node: ts.Node, source: []const u8) !ast.IsNullPredicate {
+        const expr_node = try expectChildByFieldName(node, "expression");
+        const expression = try self.parseExpression(expr_node, source);
+        const negated = getChildByFieldName(node, "negated") != null;
+        return ast.IsNullPredicate{
+            .expression = expression,
+            .negated = negated,
         };
     }
 

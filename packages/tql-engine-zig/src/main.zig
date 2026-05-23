@@ -41,24 +41,27 @@ pub fn main() !u8 {
     defer stderr.flush() catch {};
 
     const params = comptime clap.parseParamsComptime(
-        \\-h, --help                  Display this help and exit.
-        \\-v, --version               Display version and exit.
-        \\-f, --format <format>       Output format (text, json, locations).
+        \\-h, --help                  Display this help and exit
+        \\-v, --version               Display version and exit
+        \\-f, --format <format>       Output format (text, json, locations)
         \\-w, --workers <usize>       Number of workers
-        \\    --captures              Include variable captures/bindings.
-        \\    --dump-ast              Print parsed query AST and exit.
-        \\    --dump-instructions     Print compiled bytecode and exit.
-        \\    --stats                 Print runtime statistics.
-        \\    --verbose               Verbose output.
+        \\-l, --language <language>   Language
+        \\-f, --from-file <file>      Load the query from a file
+        \\    --dump-ast              Print parsed query AST and exit
+        \\    --dump-instructions     Print compiled bytecode and exit
+        \\    --stats                 Print runtime statistics
+        \\    --verbose               Verbose output
+        \\<query>
         \\<file>...
-        \\
     );
 
     const parsers = comptime .{
         .str = clap.parsers.string,
         .format = clap.parsers.enumeration(OutputFormat),
+        .language = clap.parsers.enumeration(Language),
         .usize = clap.parsers.int(usize, 10),
         .file = clap.parsers.string,
+        .query = clap.parsers.string,
     };
 
     var diag = clap.Diagnostic{};
@@ -84,23 +87,46 @@ pub fn main() !u8 {
         try printVersion(stdout);
         return @intFromEnum(ExitCode.success);
     }
-
-    const files = res.positionals[0];
-    if (files.len < 2) {
-        try stderr.print("Error: Expected at least 2 arguments (query file and source file)\n", .{});
+    const arg0 = res.positionals[0] orelse {
+        try stderr.print("Error: query is required\n", .{});
         try printUsage(stderr);
         return @intFromEnum(ExitCode.invalid_args);
-    }
+    };
 
-    const query_path = files[0];
-    const source_paths = files[1..];
+    const query = if (res.args.@"from-file") |query_file| blk: {
+        const file = try std.fs.cwd().openFile(query_file, .{});
+        defer file.close();
+        break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
+    } else blk: {
+        const buf = try allocator.dupe(u8, arg0);
+        break :blk buf;
+    };
+    defer allocator.free(query);
+
+    const files = if (res.args.@"from-file") |_| blk: {
+        const buf = try allocator.alloc([]const u8, res.positionals[1].len + 1);
+        buf[0] = arg0;
+        @memcpy(buf[1 .. res.positionals[1].len + 1], res.positionals[1]);
+        break :blk buf;
+    } else blk: {
+        const buf = try allocator.alloc([]const u8, res.positionals[1].len);
+        @memcpy(buf, res.positionals[1]);
+        break :blk buf;
+    };
+    defer allocator.free(files);
+
+    const language = res.args.language orelse {
+        try stderr.print("Error: --language is required\n", .{});
+        try printUsage(stderr);
+        return @intFromEnum(ExitCode.invalid_args);
+    };
 
     return run(allocator, stdout, stderr, .{
-        .query_path = query_path,
-        .query_target_paths = source_paths,
+        .query = query,
+        .query_target_paths = files,
         .format = res.args.format orelse .json,
+        .language = language,
         .workers = res.args.workers orelse 1,
-        .captures = res.args.captures != 0,
         .dump_ast = res.args.@"dump-ast" != 0,
         .dump_instructions = res.args.@"dump-instructions" != 0,
         .stats = res.args.stats != 0,
@@ -112,16 +138,56 @@ pub fn main() !u8 {
 }
 
 const Config = struct {
-    query_path: []const u8,
+    query: []const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
+    language: Language,
     workers: usize = 1,
-    captures: bool,
     dump_ast: bool,
     dump_instructions: bool,
     stats: bool,
     verbose: bool,
 };
+
+fn printUsage(writer: *std.io.Writer) !void {
+    try writer.print("Usage: tql [OPTIONS] <QUERY> <SOURCE>...\n", .{});
+    try writer.print("Try 'tql --help' for more information.\n", .{});
+}
+
+fn printVersion(writer: *std.io.Writer) !void {
+    try writer.print("tql version {s}\n", .{VERSION});
+}
+
+const BAR_WIDTH: usize = 30;
+
+fn renderProgress(w: *std.io.Writer, done: usize, total: usize, done_walk: bool) void {
+    _ = done_walk;
+    // const pct: usize = if (t == 0) 0 else (d * 100) / t;
+    const filled: usize = if (total == 0) 0 else (done * BAR_WIDTH) / total;
+    var buf: [BAR_WIDTH * 3]u8 = undefined;
+    var i: usize = 0;
+    var k: usize = 0;
+    while (k < BAR_WIDTH) : (k += 1) {
+        const glyph = if (k < filled) "#" else "-";
+        @memcpy(buf[i .. i + glyph.len], glyph);
+        i += glyph.len;
+    }
+    w.print("\r[{s}] {d}/{d}", .{ buf[0..i], done, total }) catch {};
+    w.flush() catch {};
+}
+
+fn progressThread(p: *Progress, stop: *std.atomic.Value(bool), w: *std.io.Writer) void {
+    while (!stop.load(.acquire)) {
+        renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
+        std.Thread.sleep(1 * std.time.ns_per_ms);
+    }
+    renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
+    w.print("\n", .{}) catch {};
+    w.flush() catch {};
+}
+
+// IMPROVE: almost much everything below belongs in the lib. We're trying to
+// "feel out" an appropriate engine API from CLI usage.
 
 const PathEntry = struct {
     arena: std.heap.ArenaAllocator,
@@ -152,6 +218,7 @@ const ResultQueue = tql.ds.BlockingQueue(FileResult);
 const Progress = struct {
     done: std.atomic.Value(usize) = .init(0),
     total: std.atomic.Value(usize) = .init(0),
+    done_walk: bool = false,
 };
 
 const SharedContext = struct {
@@ -164,33 +231,6 @@ const SharedContext = struct {
     progress: *Progress,
 };
 
-const BAR_WIDTH: usize = 30;
-
-fn renderProgress(w: *std.io.Writer, d: usize, t: usize) void {
-    // const pct: usize = if (t == 0) 0 else (d * 100) / t;
-    const filled: usize = if (t == 0) 0 else (d * BAR_WIDTH) / t;
-    var buf: [BAR_WIDTH * 3]u8 = undefined;
-    var i: usize = 0;
-    var k: usize = 0;
-    while (k < BAR_WIDTH) : (k += 1) {
-        const glyph = if (k < filled) "#" else "-";
-        @memcpy(buf[i .. i + glyph.len], glyph);
-        i += glyph.len;
-    }
-    w.print("\r[{s}] {d}/{d}", .{ buf[0..i], d, t }) catch {};
-    w.flush() catch {};
-}
-
-fn progressThread(p: *Progress, stop: *std.atomic.Value(bool), w: *std.io.Writer) void {
-    while (!stop.load(.acquire)) {
-        renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic));
-        std.Thread.sleep(1 * std.time.ns_per_ms);
-    }
-    renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic));
-    w.print("\n", .{}) catch {};
-    w.flush() catch {};
-}
-
 fn pushFile(ctx: *SharedContext, path: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     errdefer arena.deinit();
@@ -200,7 +240,9 @@ fn pushFile(ctx: *SharedContext, path: []const u8) !void {
 }
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
-    var root_dir = try std.fs.openDirAbsolute(path, .{
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const abs = try std.fs.realpath(path, &buf);
+    var root_dir = try std.fs.openDirAbsolute(abs, .{
         .iterate = true,
     });
 
@@ -217,6 +259,7 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
     }
     walker.deinit();
     root_dir.close();
+    ctx.*.progress.*.done_walk = true;
 }
 
 fn walkerThread(ctx: *SharedContext) !void {
@@ -350,21 +393,12 @@ fn dumpInstructions(
     }
 }
 
-fn programImageFromQueryPath(allocator: std.mem.Allocator, query_path: []const u8) !tql.Runtime.ProgramImage {
-    // FIXME: We shouldn't need this
-    const language = Language.c;
+fn programImageFromQuery(allocator: std.mem.Allocator, query_source: []const u8, language: Language) !tql.Runtime.ProgramImage {
     var tql_parser = try tql.Parser.init(allocator);
 
     var compiler = tql.Compiler.init(allocator, language.getTreeSitterLanguage());
 
-    const query_source = blk: {
-        const file = try std.fs.cwd().openFile(query_path, .{});
-        defer file.close();
-        break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
-    };
-
     const query_source_tree = try tql_parser.parse(query_source);
-    allocator.free(query_source);
     tql_parser.deinit();
 
     const program_image = try compiler.compile(allocator, query_source_tree);
@@ -380,9 +414,7 @@ fn run(
     stderr: *std.io.Writer,
     config: Config,
 ) !u8 {
-    // FIXME: We shouldn't need this
-    const language = Language.c;
-    var program_image = try programImageFromQueryPath(allocator, config.query_path);
+    var program_image = try programImageFromQuery(allocator, config.query, config.language);
     // IMPROVE: this control flow is terrible
     if (config.dump_instructions) {
         try dumpInstructions(allocator, stdout, stderr, config, program_image.instructions);
@@ -401,7 +433,7 @@ fn run(
         .allocator = allocator,
         .result_queue = &result_queue,
         .path_queue = &path_queue,
-        .language = language,
+        .language = config.language,
         .progress = &progress,
     };
 
@@ -421,22 +453,13 @@ fn run(
     ctx.result_queue.close();
 
     walker_thread.join();
-    writer_thread.join();
     progress_stop.store(true, .release);
     progress_thread.join();
+    writer_thread.join();
 
     path_queue.deinit(allocator);
     result_queue.deinit(allocator);
     program_image.deinit();
     allocator.free(workers);
     return 0;
-}
-
-fn printUsage(writer: *std.io.Writer) !void {
-    try writer.print("Usage: tql [OPTIONS] <QUERY> <SOURCE>...\n", .{});
-    try writer.print("Try 'tql --help' for more information.\n", .{});
-}
-
-fn printVersion(writer: *std.io.Writer) !void {
-    try writer.print("tql version {s}\n", .{VERSION});
 }

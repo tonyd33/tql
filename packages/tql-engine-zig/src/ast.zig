@@ -266,6 +266,7 @@ pub const WhereClause = struct {
 
 pub const Predicate = union(enum) {
     comparison: Comparison,
+    is_null: IsNullPredicate,
     logical_and: *LogicalAnd,
     logical_or: *LogicalOr,
     logical_not: *LogicalNot,
@@ -277,6 +278,9 @@ pub const Predicate = union(enum) {
             .comparison => |c| {
                 c.left.deinit(allocator);
                 c.right.deinit(allocator);
+            },
+            .is_null => |p| {
+                p.expression.deinit(allocator);
             },
             .logical_and => |la| {
                 la.left.deinit(allocator);
@@ -312,6 +316,11 @@ pub const Predicate = union(enum) {
                 try c.left.sexpr(w);
                 try w.writeByte(' ');
                 try c.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .is_null => |p| {
+                try w.writeAll(if (p.negated) "(is-not-null " else "(is-null ");
+                try p.expression.sexpr(w);
                 try w.writeByte(')');
             },
             .logical_and => |la| {
@@ -353,6 +362,11 @@ pub const Comparison = struct {
     left: Expression,
     operator: ComparisonOperator,
     right: Expression,
+};
+
+pub const IsNullPredicate = struct {
+    expression: Expression,
+    negated: bool,
 };
 
 pub const ComparisonOperator = enum {

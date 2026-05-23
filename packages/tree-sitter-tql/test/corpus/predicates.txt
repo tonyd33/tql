@@ -661,3 +661,81 @@ query main() {
         (projection
           (variable
             (identifier)))))))
+
+========================================
+is null predicate
+========================================
+
+query main() {
+  from method_definition as @m
+  where @m.return_type is null
+  select @m
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (is_null_predicate
+            (expression
+              (field_access
+                (expression
+                  (variable
+                    (identifier)))
+                (identifier)))
+            (null_literal))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))
+
+========================================
+is not null predicate
+========================================
+
+query main() {
+  from method_definition as @m
+  where @m.return_type is not null
+  select @m
+}
+
+---
+
+(source_file
+  (query_definition
+    (identifier)
+    (parameters)
+    (query_body
+      (from_clause
+        (binding
+          (expression
+            (node_selector
+              (identifier)))
+          (variable
+            (identifier))))
+      (where_clause
+        (predicate
+          (is_null_predicate
+            (expression
+              (field_access
+                (expression
+                  (variable
+                    (identifier)))
+                (identifier)))
+            (null_literal))))
+      (select_clause
+        (projection
+          (variable
+            (identifier)))))))

@@ -215,6 +215,44 @@ test "WHERE optional binding is not null" {
     }).run();
 }
 
+test "WHERE expression is null" {
+    try (SnapshotTest{
+        .tql =
+        \\query main() {
+        \\  from function_declaration as @f
+        \\  where @f.return_type is null
+        \\  select @f
+        \\}
+        ,
+        .source =
+        \\function a(): number { return 1; }
+        \\function b() { return 2; }
+        \\function c(): string { return 'x'; }
+        ,
+        .name = "where_is_null",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
+test "WHERE expression is not null" {
+    try (SnapshotTest{
+        .tql =
+        \\query main() {
+        \\  from function_declaration as @f
+        \\  where @f.return_type is not null
+        \\  select @f
+        \\}
+        ,
+        .source =
+        \\function a(): number { return 1; }
+        \\function b() { return 2; }
+        \\function c(): string { return 'x'; }
+        ,
+        .name = "where_is_not_null",
+        .update_snapshots = UPDATE_SNAPSHOTS,
+    }).run();
+}
+
 test "WHERE field access with regex match" {
     try (SnapshotTest{
         .tql =

@@ -1,4 +1,2 @@
-query main() {
-  from class_declaration.name as @class_name
-  select 'Hello!'
-}
+from class_declaration.name as @class_name
+select 'Hello!'

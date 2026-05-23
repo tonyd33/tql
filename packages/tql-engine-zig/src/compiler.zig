@@ -89,6 +89,7 @@ pub const Compiler = struct {
         for (source.items) |item| {
             switch (item) {
                 .query => |query| try self.compileQueryBody(&builder, query.body),
+                .query_body => |query_body| try self.compileQueryBody(&builder, query_body),
                 else => {
                     @panic("Not implemented");
                 },
@@ -346,6 +347,9 @@ pub const Compiler = struct {
             .comparison => |comparison| {
                 try self.compileComparison(builder, comparison, success_label, failure_label);
             },
+            .is_null => |is_null| {
+                try self.compileIsNull(builder, is_null, success_label);
+            },
             .logical_and => |logical_and| {
                 const check_right_label = builder.createLabel();
 
@@ -432,6 +436,27 @@ pub const Compiler = struct {
         try builder.emitJump(outer_success_label, .always);
 
         self.bindings.shrinkRetainingCapacity(bindings_snapshot);
+    }
+
+    fn compileIsNull(
+        self: *Compiler,
+        builder: *InstructionBuilder,
+        is_null: ast.IsNullPredicate,
+        success_label: LabelId,
+    ) CompilerError!void {
+        const probe_success_label = builder.createLabel();
+
+        try self.ensureExpressionDependencies(builder, is_null.expression);
+
+        const probe_mode: runtime.ProbeMode = if (is_null.negated) .exists else .nexists;
+        try builder.emitProbe(probe_mode, probe_success_label);
+
+        try self.compileAsNavigation(builder, is_null.expression);
+        try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
+        try builder.emit(.{ .halt = .{ .condition = .always } });
+
+        try builder.markLabel(probe_success_label);
+        try builder.emitJump(success_label, .always);
     }
 
     fn compileComparison(
