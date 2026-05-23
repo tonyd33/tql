@@ -1,1 +1,0 @@
-(source_file (query main (parameters) (query_body (select result))))

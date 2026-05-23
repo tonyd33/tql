@@ -27,6 +27,5 @@
 0026: jmp relates 29
 0027: jmp always 28
 0028: halt always
-0029: trv variable_id 1
-0030: yield
-0031: halt always
+0029: yield
+0030: halt always

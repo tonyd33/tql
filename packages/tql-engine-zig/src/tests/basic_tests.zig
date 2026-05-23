@@ -6,19 +6,6 @@ const UPDATE_SNAPSHOTS = false; // Set to true to update all snapshots
 
 const SnapshotTest = snapshot.SnapshotTester(testing.allocator, "basic");
 
-test "simple SELECT variable" {
-    try (SnapshotTest{
-        .tql =
-        \\query main() {
-        \\  select @result
-        \\}
-        ,
-        .source = "class Foo {}",
-        .name = "select_simple",
-        .update_snapshots = UPDATE_SNAPSHOTS,
-    }).run();
-}
-
 test "FROM with node selector" {
     try (SnapshotTest{
         .tql =

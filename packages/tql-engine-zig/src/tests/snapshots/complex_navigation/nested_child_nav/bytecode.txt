@@ -12,6 +12,5 @@
 0011: rel equals (node kind) (literal kind_id 261)
 0012: halt not_relates
 0013: asn 2 (node this)
-0014: trv variable_id 2
-0015: yield
-0016: halt always
+0014: yield
+0015: halt always

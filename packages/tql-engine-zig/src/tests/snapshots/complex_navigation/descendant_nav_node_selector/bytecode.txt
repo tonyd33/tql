@@ -7,6 +7,5 @@
 0006: rel equals (node kind) (literal kind_id 377)
 0007: halt not_relates
 0008: asn 1 (node this)
-0009: trv variable_id 1
-0010: yield
-0011: halt always
+0009: yield
+0010: halt always

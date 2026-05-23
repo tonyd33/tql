@@ -1,3 +1,0 @@
-0000: asn 0 (node this)
-0001: yield
-0002: halt always

@@ -18,6 +18,5 @@
 0017: halt always
 0018: jmp always 20
 0019: halt always
-0020: trv variable_id 1
-0021: yield
-0022: halt always
+0020: yield
+0021: halt always

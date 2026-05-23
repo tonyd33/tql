@@ -12,6 +12,5 @@
 0011: jmp relates 14
 0012: jmp always 13
 0013: halt always
-0014: trv variable_id 1
-0015: yield
-0016: halt always
+0014: yield
+0015: halt always

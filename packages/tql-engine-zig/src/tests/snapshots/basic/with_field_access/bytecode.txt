@@ -7,6 +7,5 @@
 0006: trv variable_id 1
 0007: trv field 25
 0008: asn 2 (node this)
-0009: trv variable_id 2
-0010: yield
-0011: halt always
+0009: yield
+0010: halt always

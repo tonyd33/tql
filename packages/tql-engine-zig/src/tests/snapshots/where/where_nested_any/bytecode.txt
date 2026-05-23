@@ -34,6 +34,5 @@
 0033: halt always
 0034: jmp always 36
 0035: halt always
-0036: trv variable_id 1
-0037: yield
-0038: halt always
+0036: yield
+0037: halt always

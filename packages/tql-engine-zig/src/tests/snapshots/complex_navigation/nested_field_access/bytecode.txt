@@ -11,6 +11,5 @@
 0010: halt not_relates
 0011: trv field 25
 0012: asn 2 (node this)
-0013: trv variable_id 2
-0014: yield
-0015: halt always
+0013: yield
+0014: halt always
