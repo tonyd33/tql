@@ -64,6 +64,9 @@
               just
               python3
               wasmtime
+
+              actionlint
+              act
             ];
           };
         }

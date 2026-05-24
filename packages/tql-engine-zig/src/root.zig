@@ -1,5 +1,8 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+const build_options = @import("build_options");
+
+pub const VERSION = build_options.version;
 // IMPROVE: don't export this
 pub const ts = @import("tree-sitter");
 pub const runtime = @import("runtime.zig");
