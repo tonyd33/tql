@@ -35,7 +35,7 @@ jobs:
         run: >
           nix develop -c
           just engine build
-          --prefix "$HOME/.local/bin"
+          --prefix "$HOME/.local"
           -Doptimize=ReleaseFast --release=fast
 
       - name: Checkout Linux source tree
