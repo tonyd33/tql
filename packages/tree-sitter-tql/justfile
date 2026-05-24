@@ -1,5 +1,5 @@
 # https://just.systems
-# vim: noexpandtab
+# vim: noexpandtab tabstop=4 shiftwidth=4
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 ts := "pnpm exec tree-sitter"

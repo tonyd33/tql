@@ -21,14 +21,14 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
+      - name: Install
+        working-directory: tql
+        run: nix develop -c just install
+
       - name: Setup bin
         run: >
           mkdir -p "$HOME/.local/bin" &&
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Install
-        working-directory: tql
-        run: nix develop -c just install
 
       - name: Build optimized engine
         working-directory: tql
