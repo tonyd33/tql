@@ -69,6 +69,7 @@ fn addEngineDeps(
     const pcre2 = b.dependency("pcre2", .{
         .target = target,
         .optimize = optimize,
+        .linkage = .static,
     });
     mod.linkLibrary(pcre2.artifact("pcre2-8"));
 

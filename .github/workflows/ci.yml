@@ -45,14 +45,11 @@ jobs:
           ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
           path: linux
 
-      - name: Test
-        run: ls -al && ls -al tql && ls -al linux
-
       - name: Run query
         working-directory: tql
         run: |
           set -euo pipefail
-          nix develop -c tql '
+          tql '
           with function_definition as @fn,
                @fn > function_declarator as @fn_decl,
                @fn_decl > identifier as @name,
