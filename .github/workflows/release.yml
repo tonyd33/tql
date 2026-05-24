@@ -57,13 +57,17 @@ jobs:
             archive: tar.gz
           - target: aarch64-linux-musl
             archive: tar.gz
+          - target: x86_64-linux-gnu
+            archive: tar.gz
+          - target: aarch64-linux-gnu
+            archive: tar.gz
           - target: x86_64-macos
             archive: tar.gz
           - target: aarch64-macos
             archive: tar.gz
-          - target: x86_64-windows-gnu
-            archive: zip
-            exe_suffix: .exe
+          # - target: x86_64-windows-gnu
+          #   archive: zip
+          #   exe_suffix: .exe
 
     steps:
       - uses: actions/checkout@v6
