@@ -1,5 +1,27 @@
-html {
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: black;
+  margin: 8px;
 }
 
-body {
+textarea, pre, #stats, #output {
+  font-family: ui-monospace, monospace;
+}
+
+pre {
+  padding: 4px;
+}
+
+#editors {
+  display: flex;
+  gap: 8px;
+}
+
+#editors fieldset {
+  flex: 1;
+}
+
+#editors textarea {
+  width: 100%;
+  font-size: 18px;
 }

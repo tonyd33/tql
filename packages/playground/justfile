@@ -6,8 +6,14 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
 	@just --list
 
-serve:
+build:
+	pnpm build
+
+watch:
+	pnpm watch
+
+serve: build
 	python -m http.server 8000 -d public/
 
-build:
-	pnpm exec rolldown src/tql.ts --file public/tql.js
+dev:
+	pnpm watch & python -m http.server 8000 -d public/

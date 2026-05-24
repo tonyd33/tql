@@ -5,6 +5,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 mod engine 'packages/tql-engine-zig'
 mod grammar 'packages/tree-sitter-tql'
+mod js 'packages/tql-js'
 mod playground 'packages/playground'
 
 default:
@@ -23,6 +24,7 @@ check:
 build:
 	just grammar::build
 	just engine::build -Dwasm=true
+	just js::build
 	cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/public/tql.wasm
 	just playground::build
 
