@@ -88,11 +88,10 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ needs.draft-release.outputs.version }}"
-          name="tql-$version-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp "packages/tql-engine-zig/zig-out/bin/tql${{ matrix.exe_suffix }}" "dist/$name/"
-          cp README.md "dist/$name/" 2>/dev/null || true
-          echo "archive-base=$name" | tee -a "$GITHUB_OUTPUT"
+          mkdir -p dist/tql
+          cp "packages/tql-engine-zig/zig-out/bin/tql${{ matrix.exe_suffix }}" dist/tql/
+          cp LICENSE.md dist/tql/
+          echo "archive-base=tql-$version-${{ matrix.target }}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Build tar.gz
         id: archive-tar
@@ -100,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           base="${{ steps.stage.outputs.archive-base }}"
-          tar -C dist -czf "$base.tar.gz" "$base"
+          tar -C dist -czf "$base.tar.gz" tql
           shasum -a 256 "$base.tar.gz" > "$base.tar.gz.sha256"
           echo "asset=$base.tar.gz" | tee -a "$GITHUB_OUTPUT"
           echo "asset-sum=$base.tar.gz.sha256" | tee -a "$GITHUB_OUTPUT"
@@ -111,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           base="${{ steps.stage.outputs.archive-base }}"
-          (cd dist && zip -r9 "../$base.zip" "$base")
+          (cd dist && zip -r9 "../$base.zip" tql)
           shasum -a 256 "$base.zip" > "$base.zip.sha256"
           echo "asset=$base.zip" | tee -a "$GITHUB_OUTPUT"
           echo "asset-sum=$base.zip.sha256" | tee -a "$GITHUB_OUTPUT"
