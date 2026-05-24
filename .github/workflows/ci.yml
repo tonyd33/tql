@@ -46,6 +46,7 @@ jobs:
           path: linux
 
       - name: Run query
+        working-directory: tql
         run: |
           set -euo pipefail
           nix develop -c tql '
