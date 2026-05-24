@@ -43,10 +43,10 @@ pub fn main() !u8 {
     const params = comptime clap.parseParamsComptime(
         \\-h, --help                  Display this help and exit
         \\-v, --version               Display version and exit
-        \\-f, --format <format>       Output format (text, json, locations)
         \\-w, --workers <usize>       Number of workers
         \\-l, --language <language>   Language
         \\-f, --from-file <file>      Load the query from a file
+        \\    --format <format>       Output format (text, json, locations)
         \\    --progress              Show progress
         \\    --stats                 Print runtime statistics
         \\    --verbose               Verbose output
