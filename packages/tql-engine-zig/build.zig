@@ -1,5 +1,8 @@
 const std = @import("std");
 
+// Must match .version in build.zig.zon.
+const VERSION = "0.1.0";
+
 const TreeSitterGrammar = struct {
     dep_name: []const u8,
     root: []const u8 = ".",
@@ -91,6 +94,7 @@ fn addEngineDeps(
 // for defining build steps and express dependencies between them, allowing the
 // build runner to parallelize the build automatically (and the cache system to
 // know when a step doesn't need to be re-run).
+
 pub fn build(b: *std.Build) !void {
     // Standard target options allow the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -173,6 +177,10 @@ pub fn build(b: *std.Build) !void {
     // step). By default the install prefix is `zig-out/` but can be overridden
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
+
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", VERSION);
+    mod.addOptions("build_options", build_options);
 
     const clap = b.dependency("clap", .{
         .target = target,

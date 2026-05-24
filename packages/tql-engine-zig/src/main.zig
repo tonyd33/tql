@@ -5,7 +5,7 @@ const Engine = tql.Engine;
 const Language = tql.Language;
 const Value = tql.Value;
 
-const VERSION = "0.1.0";
+const VERSION = tql.VERSION;
 
 const OutputFormat = enum {
     // IMPROVE: actually implement these

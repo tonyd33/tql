@@ -1,0 +1,121 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    name: draft-release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches build.zig.zon
+        run: |
+          if ! grep -q "\.version = \"${{ steps.version.outputs.version }}\"" packages/tql-engine-zig/build.zig.zon; then
+            echo "tag ${{ steps.version.outputs.version }} does not match .version in build.zig.zon" >&2
+            exit 1
+          fi
+
+      - name: Verify tag matches build.zig
+        run: |
+          if ! grep -q "VERSION = \"${{ steps.version.outputs.version }}\"" packages/tql-engine-zig/build.zig; then
+            echo "tag ${{ steps.version.outputs.version }} does not match VERSION in build.zig" >&2
+            exit 1
+          fi
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create
+          "$GITHUB_REF_NAME"
+          --draft
+          --verify-tag
+          --title "$GITHUB_REF_NAME"
+
+  build-release:
+    name: build-release (${{ matrix.target }})
+    needs: ['draft-release']
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-linux-musl
+            archive: tar.gz
+          - target: aarch64-linux-musl
+            archive: tar.gz
+          - target: x86_64-macos
+            archive: tar.gz
+          - target: aarch64-macos
+            archive: tar.gz
+          - target: x86_64-windows-gnu
+            archive: zip
+            exe_suffix: .exe
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Install
+        run: nix develop -c just install
+
+      - name: Build release binary
+        run: |
+          nix develop -c sh -c "cd packages/tql-engine-zig && zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast --release=fast"
+
+      - name: Stage archive
+        id: stage
+        run: |
+          set -euo pipefail
+          version="${{ needs.draft-release.outputs.version }}"
+          name="tql-$version-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "packages/tql-engine-zig/zig-out/bin/tql${{ matrix.exe_suffix }}" "dist/$name/"
+          cp README.md "dist/$name/" 2>/dev/null || true
+          echo "archive-base=$name" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Build tar.gz
+        id: archive-tar
+        if: matrix.archive == 'tar.gz'
+        run: |
+          set -euo pipefail
+          base="${{ steps.stage.outputs.archive-base }}"
+          tar -C dist -czf "$base.tar.gz" "$base"
+          shasum -a 256 "$base.tar.gz" > "$base.tar.gz.sha256"
+          echo "asset=$base.tar.gz" | tee -a "$GITHUB_OUTPUT"
+          echo "asset-sum=$base.tar.gz.sha256" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Build zip
+        id: archive-zip
+        if: matrix.archive == 'zip'
+        run: |
+          set -euo pipefail
+          base="${{ steps.stage.outputs.archive-base }}"
+          (cd dist && zip -r9 "../$base.zip" "$base")
+          shasum -a 256 "$base.zip" > "$base.zip.sha256"
+          echo "asset=$base.zip" | tee -a "$GITHUB_OUTPUT"
+          echo "asset-sum=$base.zip.sha256" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release upload "$GITHUB_REF_NAME"
+          "${{ steps.archive-tar.outputs.asset || steps.archive-zip.outputs.asset }}"
+          "${{ steps.archive-tar.outputs.asset-sum || steps.archive-zip.outputs.asset-sum }}"
