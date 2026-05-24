@@ -48,7 +48,7 @@ jobs:
       - name: Run query
         run: |
           set -euo pipefail
-          nix-develop -c tql '
+          nix develop -c tql '
           with function_definition as @fn,
                @fn > function_declarator as @fn_decl,
                @fn_decl > identifier as @name,
