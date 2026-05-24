@@ -50,6 +50,10 @@
         { pkgs }:
         {
           default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              tree-sitter
+              pcre2
+            ];
             packages = with pkgs; [
               nodejs
               pnpm

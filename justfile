@@ -1,5 +1,5 @@
 # https://just.systems
-# vim: noexpandtab
+# vim: noexpandtab tabstop=4 shiftwidth=4
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -20,8 +20,11 @@ fmt:
 check:
 	pnpm exec biome check .
 
-build: grammar::build engine::build playground::build
+build:
+	just grammar::build
+	just engine::build -Dwasm=true
 	cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/public/tql.wasm
+	just playground::build
 
 test: grammar::test engine::test
 

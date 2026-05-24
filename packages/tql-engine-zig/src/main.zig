@@ -47,8 +47,7 @@ pub fn main() !u8 {
         \\-w, --workers <usize>       Number of workers
         \\-l, --language <language>   Language
         \\-f, --from-file <file>      Load the query from a file
-        \\    --dump-ast              Print parsed query AST and exit
-        \\    --dump-instructions     Print compiled bytecode and exit
+        \\    --progress              Show progress
         \\    --stats                 Print runtime statistics
         \\    --verbose               Verbose output
         \\<query>
@@ -130,10 +129,9 @@ pub fn main() !u8 {
         .format = res.args.format orelse .json,
         .language = language,
         .workers = res.args.workers orelse 1,
-        .dump_ast = res.args.@"dump-ast" != 0,
-        .dump_instructions = res.args.@"dump-instructions" != 0,
         .stats = res.args.stats != 0,
         .verbose = res.args.verbose != 0,
+        .progress = res.args.progress != 0,
     }) catch |err| {
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.runtime_error);
@@ -146,10 +144,9 @@ const Config = struct {
     format: OutputFormat,
     language: Language,
     workers: usize = 1,
-    dump_ast: bool,
-    dump_instructions: bool,
     stats: bool,
     verbose: bool,
+    progress: bool,
 };
 
 fn printUsage(writer: *std.io.Writer) !void {
@@ -357,20 +354,6 @@ fn workerThread(ctx: *SharedContext) !void {
     }
 }
 
-fn dumpInstructions(
-    _: std.mem.Allocator,
-    stdout: *std.io.Writer,
-    _: *std.io.Writer,
-    _: Config,
-    instructions: []const tql.Runtime.Instruction,
-) !void {
-    for (instructions, 0..) |inst, i| {
-        try stdout.print("{d:0>4}: ", .{i});
-        try inst.print(stdout);
-        try stdout.writeByte('\n');
-    }
-}
-
 fn run(
     allocator: std.mem.Allocator,
     stdout: *std.io.Writer,
@@ -382,12 +365,6 @@ fn run(
 
     var compiled = try engine.compile(config.query, config.language);
     defer compiled.deinit();
-
-    // IMPROVE: this control flow is terrible
-    if (config.dump_instructions) {
-        try dumpInstructions(allocator, stdout, stderr, config, compiled.instructions());
-        return 0;
-    }
 
     // real shit
     var jws: std.json.Stringify = .{ .writer = stdout };
@@ -407,7 +384,7 @@ fn run(
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = try std.Thread.spawn(.{}, writerThread, .{ &ctx, &jws });
-    const progress_thread = try std.Thread.spawn(.{}, progressThread, .{ &progress, &progress_stop, stderr });
+    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ &progress, &progress_stop, stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
 
     for (0..config.workers) |i| {
@@ -421,7 +398,9 @@ fn run(
 
     walker_thread.join();
     progress_stop.store(true, .release);
-    progress_thread.join();
+    if (progress_thread) |p| {
+        p.join();
+    }
     writer_thread.join();
 
     path_queue.deinit(allocator);

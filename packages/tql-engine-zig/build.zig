@@ -69,6 +69,7 @@ fn addEngineDeps(
     const pcre2 = b.dependency("pcre2", .{
         .target = target,
         .optimize = optimize,
+        .linkage = .static,
     });
     mod.linkLibrary(pcre2.artifact("pcre2-8"));
 
@@ -142,7 +143,7 @@ pub fn build(b: *std.Build) !void {
     // If neither case applies to you, feel free to delete the declaration you
     // don't need and to put everything under a single module.
     const exe = b.addExecutable(.{
-        .name = "tql_engine_zig",
+        .name = "tql",
         .root_module = b.createModule(.{
             // b.createModule defines a new module just like b.addModule but,
             // unlike b.addModule, it does not expose the module to consumers of
