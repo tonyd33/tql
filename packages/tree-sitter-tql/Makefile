@@ -93,13 +93,4 @@ uninstall:
 clean:
 	$(RM) $(OBJS) $(LANGUAGE_NAME).pc lib$(LANGUAGE_NAME).a lib$(LANGUAGE_NAME).$(SOEXT)
 
-generate:
-	$(TS) generate
-
-test: generate
-	$(TS) test
-
-debug-cycle: generate
-	$(RM) -rf build && pnpm node-gyp-build
-
-.PHONY: all install uninstall clean test
+.PHONY: all install uninstall clean

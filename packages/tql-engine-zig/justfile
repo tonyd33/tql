@@ -1,24 +1,26 @@
 # https://just.systems
-# vim: shiftwidth=4
+# vim: noexpandtab
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default:
-    @just --list
+	@just --list
 
 build:
-    zig build
+	zig build
 
 release:
-    zig build -Doptimize=ReleaseFast --release=fast
+	zig build -Doptimize=ReleaseFast --release=fast
 
 [arg("update-snapshot", long="update-snapshot", value="true")]
 test update-snapshot="false":
-    zig build test -Dupdate-snapshots={{ update-snapshot }}
+	zig build test -Dupdate-snapshots={{ update-snapshot }}
 
 run *args:
-    zig build run -- {{ args }}
+	zig build run -- {{ args }}
 
 fmt:
-    zig fmt src build.zig
+	zig fmt src build.zig
 
 clean:
-    rm -rf zig-out .zig-cache
+	rm -rf zig-out .zig-cache

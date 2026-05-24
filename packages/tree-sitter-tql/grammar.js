@@ -290,6 +290,3 @@ function comma_sep1(rule) {
   return seq(rule, repeat(seq(",", rule)));
 }
 
-function comma_sep(rule) {
-  return optional(comma_sep1(rule));
-}

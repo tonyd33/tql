@@ -1,34 +1,33 @@
 # https://just.systems
-# vim: shiftwidth=4
+# vim: noexpandtab
 
+set shell := ["bash", "-euo", "pipefail", "-c"]
 ts := "pnpm exec tree-sitter"
 
 default:
-    @just --list
+	@just --list
 
 generate:
-    {{ts}} generate
+	{{ts}} generate
 
 build: generate
-    {{ts}} build
-    {{ts}} build --wasm
+	{{ts}} build
+	{{ts}} build --wasm
 
-test: generate
-    {{ts}} test
+test:
+	{{ts}} test
 
-parse *args: generate
-    {{ts}} parse {{args}}
+parse *args:
+	{{ts}} parse {{args}}
 
-playground: generate
-    {{ts}} build --wasm
-    {{ts}} playground
+playground:
+	{{ts}} build --wasm
+	{{ts}} playground
 
 make *args:
-    make {{args}}
-
-debug-cycle: generate
-    rm -rf build && pnpm node-gyp-build
+	make {{args}}
 
 clean:
-    make clean
-    rm -rf build *.wasm
+	make clean
+	rm -rf build *.wasm
+

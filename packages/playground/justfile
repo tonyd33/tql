@@ -1,11 +1,13 @@
 # https://just.systems
-# vim: shiftwidth=4
+# vim: noexpandtab
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default:
-    @just --list
+	@just --list
 
 serve:
-    python -m http.server 8000 -d public/
+	python -m http.server 8000 -d public/
 
 build:
-    pnpm exec rolldown src/tql.ts --file public/tql.js
+	pnpm exec rolldown src/tql.ts --file public/tql.js
