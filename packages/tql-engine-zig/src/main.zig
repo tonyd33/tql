@@ -245,7 +245,7 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
 
     var walker = try root_dir.walk(ctx.*.allocator);
     while (try walker.next()) |entry| {
-        if (entry.kind == .file and (std.mem.endsWith(u8, entry.basename, ".c") or std.mem.endsWith(u8, entry.basename, ".h"))) {
+        if (entry.kind == .file and ctx.*.language.matchesFileName(entry.basename)) {
             const joined = try std.fs.path.join(
                 ctx.*.allocator,
                 &[_][]const u8{ path, entry.path },
