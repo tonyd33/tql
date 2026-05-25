@@ -55,6 +55,30 @@
             .url = "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.11.0.tar.gz",
             .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
         },
+        .@"tree-sitter-zig" = .{
+            .url = "git+https://github.com/tree-sitter-grammars/tree-sitter-zig#6479aa13f32f701c383083d8b28360ebd682fb7d",
+            .hash = "tree_sitter_zig-1.1.2-AAAAAJ57XACsD_XBHC4i6G6rnCsZ1dZj7CLRTC09toEB",
+        },
+        .@"tree-sitter-python" = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-python#26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",
+            .hash = "N-V-__8AAOiqPgC9tH5tYSAYNsMWLoPiSxcmkHvIhMnezomx",
+        },
+        .@"tree-sitter-rust" = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-rust#77a3747266f4d621d0757825e6b11edcbf991ca5",
+            .hash = "N-V-__8AAHJYbgAipcanYj2A6rnj9wtGzjGzANkrOsqiFAxm",
+        },
+        .@"tree-sitter-go" = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-go#2346a3ab1bb3857b48b29d779a1ef9799a248cd7",
+            .hash = "N-V-__8AAM9cIgDttbrvbwLWFB0JPplu_2KtCWu7__79EjIT",
+        },
+        .@"tree-sitter-javascript" = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-javascript#58404d8cf191d69f2674a8fd507bd5776f46cb11",
+            .hash = "N-V-__8AANlfOQDpOAP-6YMQeJ2nQetX1OpUshQr903bnIHU",
+        },
+        .@"tree-sitter-cpp" = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-cpp#8b5b49eb196bec7040441bee33b2c9a4838d6967",
+            .hash = "N-V-__8AAMePmwGeojPhBaBC10aGwaQIOU4vg1H17IWakWs-",
+        },
     },
     .paths = .{
         "build.zig",

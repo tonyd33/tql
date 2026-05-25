@@ -1,9 +1,16 @@
 import { WASI, type Fd } from "@bjorn3/browser_wasi_shim";
 
+// IMPROVE: keep in sync with zig
 export enum Language {
-  c = 0,
-  typescript = 1,
-  tsx = 2,
+  cpp = 0,
+  c = 1,
+  go = 2,
+  javascript = 3,
+  python = 4,
+  rust = 5,
+  tsx = 6,
+  typescript = 7,
+  zig = 8,
 }
 
 export interface QueryArgs {

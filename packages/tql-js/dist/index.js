@@ -1,9 +1,16 @@
 import { WASI } from "@bjorn3/browser_wasi_shim";
+// IMPROVE: keep in sync with zig
 export var Language;
 (function (Language) {
-    Language[Language["c"] = 0] = "c";
-    Language[Language["typescript"] = 1] = "typescript";
-    Language[Language["tsx"] = 2] = "tsx";
+    Language[Language["cpp"] = 0] = "cpp";
+    Language[Language["c"] = 1] = "c";
+    Language[Language["go"] = 2] = "go";
+    Language[Language["javascript"] = 3] = "javascript";
+    Language[Language["python"] = 4] = "python";
+    Language[Language["rust"] = 5] = "rust";
+    Language[Language["tsx"] = 6] = "tsx";
+    Language[Language["typescript"] = 7] = "typescript";
+    Language[Language["zig"] = 8] = "zig";
 })(Language || (Language = {}));
 const RESULT_SIZE = 12;
 async function compile(options) {

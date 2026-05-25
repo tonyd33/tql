@@ -17,7 +17,26 @@ const TreeSitterGrammar = struct {
 
 const grammars: []const TreeSitterGrammar = &.{
     .{
+        .dep_name = "tree-sitter-cpp",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+    .{
         .dep_name = "tree-sitter-c",
+    },
+    .{
+        .dep_name = "tree-sitter-go",
+    },
+    .{
+        .dep_name = "tree-sitter-javascript",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+    .{
+        .dep_name = "tree-sitter-python",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+    .{
+        .dep_name = "tree-sitter-rust",
+        .files = &.{ "src/parser.c", "src/scanner.c" },
     },
     .{
         .dep_name = "tree-sitter-typescript",
@@ -28,6 +47,9 @@ const grammars: []const TreeSitterGrammar = &.{
         .dep_name = "tree-sitter-typescript",
         .root = "tsx",
         .files = &.{ "src/parser.c", "src/scanner.c" },
+    },
+    .{
+        .dep_name = "tree-sitter-zig",
     },
 };
 

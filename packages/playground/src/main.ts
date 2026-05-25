@@ -13,12 +13,6 @@ const runEl = $<HTMLButtonElement>("run");
 const outputEl = $<HTMLPreElement>("output");
 const statsEl = $<HTMLDivElement>("stats");
 
-const LANGS: Record<string, Language> = {
-  c: Language.c,
-  typescript: Language.typescript,
-  tsx: Language.tsx,
-};
-
 let engine: Engine | null = null;
 
 async function boot() {
@@ -37,7 +31,7 @@ async function boot() {
 
 function run() {
   if (!engine) return;
-  const lang = LANGS[languageEl.value] ?? Language.c;
+  const lang = Language[languageEl.value as keyof typeof Language] ?? Language.c;
   const t0 = performance.now();
   try {
     const result = engine.query({

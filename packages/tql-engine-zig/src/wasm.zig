@@ -32,9 +32,15 @@ export fn tql_run(
     errdefer buf.deinit();
 
     const language: tql.Language = switch (language_id) {
-        0 => .c,
-        1 => .typescript,
-        2 => .tsx,
+        0 => .cpp,
+        1 => .c,
+        2 => .go,
+        3 => .javascript,
+        4 => .python,
+        5 => .rust,
+        6 => .tsx,
+        7 => .typescript,
+        8 => .zig,
         else => return finishErr(&buf, out, "invalid language id"),
     };
 
