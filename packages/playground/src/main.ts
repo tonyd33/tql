@@ -1,4 +1,4 @@
-import { init, Language, type Engine } from "tql";
+import { type Engine, init, Language } from "tql";
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -31,7 +31,8 @@ async function boot() {
 
 function run() {
   if (!engine) return;
-  const lang = Language[languageEl.value as keyof typeof Language] ?? Language.c;
+  const lang =
+    Language[languageEl.value as keyof typeof Language] ?? Language.c;
   const t0 = performance.now();
   try {
     const result = engine.query({
@@ -41,8 +42,7 @@ function run() {
     });
     const wall = (performance.now() - t0).toFixed(2);
     outputEl.textContent = JSON.stringify(result.values, null, 2);
-    statsEl.textContent =
-      `wall ${wall}ms * parse ${result.stats.parse_time_ns}ns * query ${result.stats.query_time_ns}ns`;
+    statsEl.textContent = `wall ${wall}ms * parse ${result.stats.parse_time_ns}ns * query ${result.stats.query_time_ns}ns`;
   } catch (e) {
     outputEl.textContent = `error: ${(e as Error).message}`;
     statsEl.textContent = "";
