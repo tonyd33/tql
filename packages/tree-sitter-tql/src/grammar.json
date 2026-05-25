@@ -378,7 +378,7 @@
     },
     "field_access": {
       "type": "PREC_LEFT",
-      "value": 20,
+      "value": 17,
       "content": {
         "type": "SEQ",
         "members": [

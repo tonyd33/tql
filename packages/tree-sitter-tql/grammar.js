@@ -8,9 +8,9 @@
 // @ts-check
 
 const PREC = {
-  field: 20,
   child: 19,
   descendant: 18,
+  field: 17,
 
   not: 10,
   and: 9,
