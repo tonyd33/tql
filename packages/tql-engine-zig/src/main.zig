@@ -46,17 +46,14 @@ pub fn main() !u8 {
         \\-w, --workers <usize>       Number of workers
         \\-l, --language <language>   Language
         \\-f, --from-file <file>      Load the query from a file
-        \\    --format <format>       Output format (text, json, locations)
         \\    --progress              Show progress
-        \\    --stats                 Print runtime statistics
-        \\    --verbose               Verbose output
         \\<query>
         \\<file>...
     );
 
     const parsers = comptime .{
         .str = clap.parsers.string,
-        .format = clap.parsers.enumeration(OutputFormat),
+        // .format = clap.parsers.enumeration(OutputFormat),
         .language = clap.parsers.enumeration(Language),
         .usize = clap.parsers.int(usize, 10),
         .file = clap.parsers.string,
@@ -126,11 +123,11 @@ pub fn main() !u8 {
     return run(allocator, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
-        .format = res.args.format orelse .json,
+        .format = .json,
         .language = language,
         .workers = res.args.workers orelse 1,
-        .stats = res.args.stats != 0,
-        .verbose = res.args.verbose != 0,
+        .stats = false,
+        .verbose = false,
         .progress = res.args.progress != 0,
     }) catch |err| {
         try stderr.print("Error: {}\n", .{err});
