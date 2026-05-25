@@ -221,14 +221,8 @@ pub const Compiler = struct {
                     },
                 }
             },
-            .node_selector => |ns| {
-                const kind_id = self.language.idForNodeKind(ns.node_type, true);
-                try builder.emit(.{ .rel = .{
-                    .relation = .equals,
-                    .a = .{ .node = .kind },
-                    .b = .{ .literal = .{ .kind_id = kind_id } },
-                } });
-                try builder.emit(.{ .halt = .{ .condition = .not_relates } });
+            .node_selector => {
+                try self.ensureExpressionDependencies(builder, expr);
             },
             .parenthesized => |parenthesized| {
                 try self.ensureExpressionDependencies(builder, parenthesized.*);
