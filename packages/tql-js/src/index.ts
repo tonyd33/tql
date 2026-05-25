@@ -84,7 +84,14 @@ class TqlEngine implements Engine {
     }
 
     try {
-      exp.tql_run(args.language, query.ptr, query.len, target.ptr, target.len, outPtr);
+      exp.tql_run(
+        args.language,
+        query.ptr,
+        query.len,
+        target.ptr,
+        target.len,
+        outPtr,
+      );
       const view = new DataView(exp.memory.buffer, outPtr, RESULT_SIZE);
       const status = view.getInt32(0, true);
       const dataPtr = view.getUint32(4, true);
@@ -126,7 +133,11 @@ export async function init(options: Options): Promise<Engine> {
   const instance = await WebAssembly.instantiate(wasm, {
     wasi_snapshot_preview1: wasi.wasiImport,
   });
-  wasi.initialize(instance as unknown as { exports: { memory: WebAssembly.Memory; _initialize?: () => void } });
+  wasi.initialize(
+    instance as unknown as {
+      exports: { memory: WebAssembly.Memory; _initialize?: () => void };
+    },
+  );
 
   return new TqlEngine(instance.exports as unknown as WasmExports);
 }

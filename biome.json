@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.8/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -8,7 +8,8 @@
   "files": {
     "ignoreUnknown": false,
     "includes": [
-      "packages/tql-engine-node/**/*",
+      "packages/playground/src/**/*",
+      "packages/tql-js/src/**/*",
       "packages/tree-sitter-tql/grammar.js"
     ]
   },
