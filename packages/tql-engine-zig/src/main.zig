@@ -222,7 +222,7 @@ const Progress = struct {
 };
 
 const SharedContext = struct {
-    compiled: *tql.CompiledQuery,
+    compiled: *tql.Query,
     paths: []const []const u8,
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,

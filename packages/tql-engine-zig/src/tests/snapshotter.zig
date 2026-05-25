@@ -1,6 +1,6 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
-const query = @import("../query.zig");
+const engine = @import("../engine.zig");
 const runtime = @import("../runtime.zig");
 
 const Compiler = @import("../compiler.zig").Compiler;
@@ -55,14 +55,14 @@ pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQue
 
     try rt.exec();
 
-    var values = std.ArrayList(query.Value){};
+    var values = std.ArrayList(engine.Value){};
     defer {
         for (values.items) |*v| v.deinit(allocator);
         values.deinit(allocator);
     }
 
     while (try rt.next()) |value| {
-        const enriched = try query.Value.fromRuntimeValue(allocator, value, opts.target);
+        const enriched = try engine.Value.fromRuntimeValue(allocator, value, opts.target);
         try values.append(allocator, enriched);
     }
 
@@ -116,7 +116,7 @@ fn renderBytecode(gpa: std.mem.Allocator, instructions: []const runtime.Instruct
     return try formatInstructions(gpa, instructions);
 }
 
-fn renderValues(gpa: std.mem.Allocator, values: []const query.Value) ![]const u8 {
+fn renderValues(gpa: std.mem.Allocator, values: []const engine.Value) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(gpa);
     errdefer w.deinit();
     const writer = &w.writer;
