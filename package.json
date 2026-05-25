@@ -11,7 +11,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.23.0",
   "devDependencies": {
-    "@biomejs/biome": "2.3.8",
+    "@biomejs/biome": "2.4.15",
     "tree-sitter-cli": "^0.25.10"
   }
 }
