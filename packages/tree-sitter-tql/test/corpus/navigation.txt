@@ -228,19 +228,19 @@ query main() {
             (identifier)))
         (binding
           (expression
-            (child_navigation
+            (field_access
               (expression
-                (field_access
+                (child_navigation
                   (expression
-                    (variable
+                    (field_access
+                      (expression
+                        (variable
+                          (identifier)))
                       (identifier)))
-                  (identifier)))
-              (expression
-                (field_access
                   (expression
                     (node_selector
-                      (identifier)))
-                  (identifier)))))
+                      (identifier)))))
+              (identifier)))
           (variable
             (identifier))))
       (select_clause

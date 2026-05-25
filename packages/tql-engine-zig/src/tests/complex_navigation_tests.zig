@@ -4,7 +4,7 @@ test "nested field access" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
         \\with @root > class_declaration as @c,
-        \\     (@c.body > method_definition).name as @nested_name
+        \\     @c.body > method_definition.name as @nested_name
         \\select @nested_name
         ,
         .target =
@@ -18,7 +18,7 @@ test "nested field access" {
 test "field access on node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with (@root > class_declaration).name as @name
+        \\with @root > class_declaration.name as @name
         \\select @name
         ,
         .target =
@@ -47,7 +47,7 @@ test "child navigation with field access parent" {
 test "child navigation on node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with (@root > class_declaration).body > method_definition as @method
+        \\with @root > class_declaration.body > method_definition as @method
         \\select @method
         ,
         .target =
