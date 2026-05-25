@@ -15,7 +15,7 @@ install:
 	pnpm install --frozen-lockfile
 
 fmt: engine::fmt
-	pnpm exec biome format --write .
+	pnpm exec biome check --write .
 
 check:
 	pnpm exec biome check .

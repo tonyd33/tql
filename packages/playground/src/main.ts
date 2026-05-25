@@ -1,4 +1,4 @@
-import { init, Language, type Engine } from "tql";
+import { type Engine, init, Language } from "tql";
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);

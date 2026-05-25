@@ -1,4 +1,4 @@
-import { WASI, type Fd } from "@bjorn3/browser_wasi_shim";
+import { type Fd, WASI } from "@bjorn3/browser_wasi_shim";
 
 // IMPROVE: keep in sync with zig
 export enum Language {
