@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (with (binding (node class_declaration) c)) (where (or (eq (field c name) (string "Service")) (eq (field c name) (string "Controller")))) (select c))))
+(source_file (query_body (with (binding (child root (node class_declaration)) c)) (where (or (eq (field c name) (string "Service")) (eq (field c name) (string "Controller")))) (select c)))

@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (with (binding (node class_declaration) c) (binding (field c name) n)) (where (regex_match n (regex "[A-Z][a-z]+"))) (select c))))
+(source_file (query_body (with (binding (child root (node class_declaration)) c) (binding (field c name) n)) (where (regex_match n (regex "[A-Z][a-z]+"))) (select c)))

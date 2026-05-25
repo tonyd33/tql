@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (with (binding (node function_declaration) f) (binding (field f return_type) rt optional)) (where (eq rt null)) (select f))))
+(source_file (query_body (with (binding (child root (node function_declaration)) f) (binding (field f return_type) rt optional)) (where (eq rt null)) (select f)))

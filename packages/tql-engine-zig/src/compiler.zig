@@ -23,12 +23,12 @@ const LabelId = u32;
 
 const BindingMetadata = struct {
     variable_id: VariableId,
-    expression: ast.Expression,
+    // HACK: root doesn't have an expression
+    expression: ?ast.Expression,
     emitted: bool = false,
 };
 
-// FIXME: Please don't do this...
-const ROOT_NAME = &[_]u8{0};
+const ROOT_NAME = "root";
 
 pub const Compiler = struct {
     allocator: Allocator,
@@ -117,6 +117,11 @@ pub const Compiler = struct {
 
     fn compileQueryBody(self: *Compiler, builder: *InstructionBuilder, body: ast.QueryBody) !void {
         const root_id = try self.variables.getOrPut(ROOT_NAME);
+        try self.bindings.append(self.allocator, .{
+            .variable_id = root_id,
+            .expression = null,
+            .emitted = true,
+        });
         try builder.emit(.{ .asn = .{
             .variable_id = root_id,
             .source = .{ .node = .this },
@@ -160,8 +165,10 @@ pub const Compiler = struct {
             if (binding.variable_id == var_id) {
                 if (binding.emitted) return;
 
-                try self.ensureExpressionDependencies(builder, binding.expression);
-                try self.compileAsNavigation(builder, binding.expression);
+                if (binding.expression) |expression| {
+                    try self.ensureExpressionDependencies(builder, expression);
+                    try self.compileAsNavigation(builder, expression);
+                }
                 try builder.emit(.{ .asn = .{
                     .variable_id = var_id,
                     .source = .{ .node = .this },
@@ -215,7 +222,7 @@ pub const Compiler = struct {
                 }
             },
             .node_selector => {
-                try self.ensureRootNavigated(builder);
+                try self.ensureExpressionDependencies(builder, expr);
             },
             .parenthesized => |parenthesized| {
                 try self.ensureExpressionDependencies(builder, parenthesized.*);
@@ -261,42 +268,13 @@ pub const Compiler = struct {
     fn compileChildNavigation(self: *Compiler, builder: *InstructionBuilder, child_nav: *ast.ChildNavigation) CompilerError!void {
         try self.compileAsNavigation(builder, child_nav.parent);
         try builder.emit(.{ .trv = .{ .child = {} } });
-
-        // FIXME: Why can't I do self.compileAsNavigation(builder, child_nav.child)?
-        // see compileNodeSelector
-        switch (child_nav.child) {
-            .node_selector => |node_selector| {
-                const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
-                try builder.emit(.{ .rel = .{
-                    .relation = .equals,
-                    .a = .{ .node = .kind },
-                    .b = .{ .literal = .{ .kind_id = kind_id } },
-                } });
-                try builder.emit(.{ .halt = .{ .condition = .not_relates } });
-            },
-            else => unreachable,
-        }
+        try self.compileAsNavigation(builder, child_nav.child);
     }
 
     fn compileDescendantNavigation(self: *Compiler, builder: *InstructionBuilder, desc_nav: *ast.DescendantNavigation) CompilerError!void {
         try self.compileAsNavigation(builder, desc_nav.parent);
-
         try builder.emit(.{ .trv = .{ .descendant = {} } });
-
-        // FIXME: Why can't I do self.compileAsNavigation(builder, desc_nav.child)?
-        // see compileNodeSelector
-        switch (desc_nav.descendant) {
-            .node_selector => |node_selector| {
-                const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
-                try builder.emit(.{ .rel = .{
-                    .relation = .equals,
-                    .a = .{ .node = .kind },
-                    .b = .{ .literal = .{ .kind_id = kind_id } },
-                } });
-                try builder.emit(.{ .halt = .{ .condition = .not_relates } });
-            },
-            else => {},
-        }
+        try self.compileAsNavigation(builder, desc_nav.descendant);
     }
 
     fn compileVariableSelector(self: *Compiler, builder: *InstructionBuilder, variable: ast.Variable) CompilerError!void {
@@ -310,13 +288,6 @@ pub const Compiler = struct {
     fn compileNodeSelector(self: *Compiler, builder: *InstructionBuilder, node_selector: ast.NodeSelector) !void {
         const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
 
-        // FIXME: This can't be right
-        // yeah the root problem is the implicit root child traversal.
-        // no pun intended.
-        // any implicit root traversal with the top level selector is bound to
-        // run into this problem and is the same reason why we can't do the
-        // compileAsNavigation mentioned in the other comments
-        try builder.emit(.{ .trv = .{ .child = {} } });
         try builder.emit(.{ .rel = .{
             .relation = .equals,
             .a = .{ .node = .kind },

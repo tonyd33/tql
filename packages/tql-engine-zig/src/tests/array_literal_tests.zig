@@ -3,10 +3,8 @@ const Snapshotter = @import("snapshotter.zig");
 test "single variable" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\query main() {
-        \\  with class_declaration as @class
-        \\  select [ @class ]
-        \\}
+        \\with @root > class_declaration as @class
+        \\select [ @class ]
         ,
         .target = "class Foo {}",
     });
@@ -15,10 +13,8 @@ test "single variable" {
 test "mixed" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\query main() {
-        \\  with class_declaration as @class
-        \\  select [ 'class', @class ]
-        \\}
+        \\with @root > class_declaration as @class
+        \\select [ 'class', @class ]
         ,
         .target = "class Foo {}",
     });
@@ -27,10 +23,8 @@ test "mixed" {
 test "multiple matches" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\query main() {
-        \\  with class_declaration as @class
-        \\  select [ @class ]
-        \\}
+        \\with @root > class_declaration as @class
+        \\select [ @class ]
         ,
         .target =
         \\class A {}
