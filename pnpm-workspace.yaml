@@ -1,8 +1,7 @@
 packages:
   - packages/playground
   - packages/tql-js
-  # getting installation errors if i try to add this
-  # - packages/tree-sitter-tql
+  - packages/tree-sitter-tql
 
 onlyBuiltDependencies:
   - tree-sitter
