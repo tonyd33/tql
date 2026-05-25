@@ -17,3 +17,6 @@ serve: build
 
 dev:
 	pnpm watch & python -m http.server 8000 -d public/
+
+clean:
+	rm -rf node_modules public/bundle.js public/bundle.js.map public/tql.wasm

@@ -6,7 +6,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
 	@just --list
 
-build *args:
+build *args="-Dwasm=true":
 	zig build {{ args }}
 
 release:

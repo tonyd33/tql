@@ -12,22 +12,20 @@ default:
 	@just --list
 
 install:
-	pnpm install
+	pnpm install --frozen-lockfile
 
-fmt:
+fmt: engine::fmt
 	pnpm exec biome format --write .
-	@just engine fmt
 
 check:
 	pnpm exec biome check .
 
-build:
-	just grammar::build
-	just engine::build -Dwasm=true
-	just js::build
+build: grammar::build engine::build js::build playground::build
 	cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/public/tql.wasm
-	just playground::build
 
+[parallel]
 test: grammar::test engine::test
 
-clean: grammar::clean engine::clean
+[parallel]
+clean: grammar::clean js::clean playground::clean engine::clean
+	rm -rf node_modules
