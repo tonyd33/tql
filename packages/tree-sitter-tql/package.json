@@ -1,6 +1,6 @@
 {
   "name": "tree-sitter-tql",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tql grammar for tree-sitter",
   "repository": "https://github.com/tree-sitter/tree-sitter-tql",
   "license": "MIT",
