@@ -3,7 +3,7 @@ const ts = @import("tree-sitter");
 const ds = @import("../ds.zig");
 const OverlayMap = ds.OverlayMap;
 const Rc = ds.Rc;
-const pcre2 = @import("../pcre2.zig");
+const pcre2 = @import("../regex.zig");
 
 const Allocator = std.mem.Allocator;
 

@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ts = @import("tree-sitter");
 
-const pcre2 = @import("../../pcre2.zig");
+const pcre2 = @import("../../regex.zig");
 
 const types = @import("../types.zig");
 const Instruction = types.Instruction;

@@ -1,5 +1,0 @@
-with class_declaration as @class_decl,
-     @class_decl.name as @class_name,
-     (@class_decl.body > method_definition).name as @method_name
-where @class_name ~ /Foo.*/
-select { @class_name, @method_name }

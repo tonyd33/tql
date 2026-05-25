@@ -5,7 +5,7 @@ const ts = @import("tree-sitter");
 const ds = @import("../ds.zig");
 const Rc = ds.Rc;
 
-const pcre2 = @import("../pcre2.zig");
+const pcre2 = @import("../regex.zig");
 
 const types = @import("./types.zig");
 const FieldId = types.FieldId;

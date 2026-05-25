@@ -6,7 +6,7 @@ pub const VERSION = build_options.version;
 // IMPROVE: don't export this
 pub const ts = @import("tree-sitter");
 pub const runtime = @import("runtime.zig");
-const pcre2 = @import("pcre2.zig");
+const pcre2 = @import("regex.zig");
 const ast = @import("ast.zig");
 const parser = @import("parser.zig");
 const compiler = @import("compiler.zig");

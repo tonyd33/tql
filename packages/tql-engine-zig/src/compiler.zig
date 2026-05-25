@@ -13,7 +13,7 @@ const Relation = runtime.Relation;
 const ProgramImage = runtime.ProgramImage;
 
 const ast = @import("ast.zig");
-const pcre2 = @import("pcre2.zig");
+const pcre2 = @import("regex.zig");
 
 pub const VariableTable = @import("compiler/variable_table.zig").VariableTable;
 pub const InstructionBuilder = @import("compiler/instruction_builder.zig").InstructionBuilder;

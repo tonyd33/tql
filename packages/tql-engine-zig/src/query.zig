@@ -2,7 +2,7 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 
 const runtime = @import("runtime.zig");
-const pcre2 = @import("pcre2.zig");
+const pcre2 = @import("regex.zig");
 
 const Language = @import("language.zig").Language;
 const Allocator = std.mem.Allocator;

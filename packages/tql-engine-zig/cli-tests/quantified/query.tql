@@ -1,7 +1,0 @@
-with class_declaration as @class_decl,
-     @class_decl.name as @class_name,
-     @class_decl.body > method_definition as @method_definition,
-     @method_definition.name as @method_name
-where @class_name ~ /Foo.*/ and
-      not any @ret_type in @method_definition.return_type: @ret_type != null
-select { @class_name, @method_name }

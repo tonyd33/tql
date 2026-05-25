@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const runtime = @import("../runtime.zig");
 const Instruction = runtime.Instruction;
 
-const pcre2 = @import("../pcre2.zig");
+const pcre2 = @import("../regex.zig");
 
 pub const ProgramImage = struct {
     instructions: []const Instruction,

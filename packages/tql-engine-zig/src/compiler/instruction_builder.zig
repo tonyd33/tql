@@ -12,7 +12,7 @@ const Address = runtime.Address;
 const Relation = runtime.Relation;
 
 const ast = @import("../ast.zig");
-const pcre2 = @import("../pcre2.zig");
+const pcre2 = @import("../regex.zig");
 
 const LabelId = u32;
 
