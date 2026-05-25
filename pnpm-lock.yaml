@@ -12,8 +12,8 @@ importers:
         specifier: 2.4.15
         version: 2.4.15
       tree-sitter-cli:
-        specifier: ^0.25.10
-        version: 0.25.10
+        specifier: ^0.26.0
+        version: 0.26.9
 
   packages/playground:
     dependencies:
@@ -217,8 +217,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  tree-sitter-cli@0.25.10:
-    resolution: {integrity: sha512-KoebQguKMCIghisEOdA372TIbrUl0kdnfZ9YQIBRAeOvNSKe85XbU4LuFW7hduRUwJj0rAG7pX5wo9sZhbBF1g==}
+  tree-sitter-cli@0.26.9:
+    resolution: {integrity: sha512-7l+U1RmazPVe+yA/JiX80GFOILnL/j24GbawamIzNQC8UlINrcyECbaWGaG1wuq4j/m0DQTx7Uu4r0iW9Ao1BQ==}
     engines: {node: '>=12.0.0'}
     hasBin: true
 
@@ -371,7 +371,7 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.0.2
       '@rolldown/binding-win32-x64-msvc': 1.0.2
 
-  tree-sitter-cli@0.25.10: {}
+  tree-sitter-cli@0.26.9: {}
 
   tslib@2.8.1:
     optional: true

@@ -4,6 +4,8 @@ on:
       - master
   pull_request:
 
+name: CI
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'push' }}
@@ -76,6 +78,9 @@ jobs:
 
       - name: Build
         run: nix develop -c just build
+
+      - name: Ensure tree-sitter generation up to date
+        run: git diff --exit-code -- packages/tree-sitter-tql/src
 
   test:
     runs-on: ubuntu-latest
