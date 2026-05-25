@@ -1,1 +1,1 @@
-(source_file (query main (parameters) (query_body (with (binding (child (node class_declaration) (node class_body)) body) (binding (child body (node method_definition)) m)) (select m))))
+(source_file (query_body (with (binding (child (child root (node class_declaration)) (node class_body)) body) (binding (child body (node method_definition)) m)) (select m)))
