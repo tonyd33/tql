@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: nix develop -c just build
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v3
         with:
