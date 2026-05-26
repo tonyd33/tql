@@ -8,7 +8,6 @@
   "files": {
     "ignoreUnknown": false,
     "includes": [
-      "packages/playground/src/**/*",
       "packages/tql-js/src/**/*",
       "packages/tree-sitter-tql/grammar.js"
     ]

@@ -20,8 +20,9 @@ fmt: engine::fmt
 check:
 	pnpm exec biome check .
 
-build: grammar::build engine::build js::build playground::build
-	cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/public/tql.wasm
+build: grammar::build engine::build js::build
+	cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/static/tql.wasm
+	just playground::build
 
 [parallel]
 test: grammar::test engine::test
