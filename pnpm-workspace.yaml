@@ -8,3 +8,4 @@ onlyBuiltDependencies:
   - tree-sitter
   - tree-sitter-cli
   - tree-sitter-javascript
+  - esbuild

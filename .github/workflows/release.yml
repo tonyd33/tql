@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 on:
   push:
@@ -89,7 +89,7 @@ jobs:
           set -euo pipefail
           version="${{ needs.draft-release.outputs.version }}"
           mkdir -p dist/tql
-          cp "packages/tql-engine-zig/zig-out/bin/tql${{ matrix.exe_suffix }}" dist/tql/
+          cp "packages/tql-engine-zig/zig-out/bin/tql" dist/tql/
           cp LICENSE.md dist/tql/
           echo "archive-base=tql-$version-${{ matrix.target }}" | tee -a "$GITHUB_OUTPUT"
 

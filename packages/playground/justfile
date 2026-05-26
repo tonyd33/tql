@@ -7,16 +7,14 @@ default:
 	@just --list
 
 build:
-	pnpm build
-
-watch:
-	pnpm watch
+	pnpm run build
 
 serve: build
-	python -m http.server 8000 -d public/
+	python -m http.server 8000 -d build
 
 dev:
-	pnpm watch & python -m http.server 8000 -d public/
+	pnpm run dev
 
 clean:
-	rm -rf node_modules public/bundle.js public/bundle.js.map public/tql.wasm
+	rm -rf node_modules build static/tql.wasm
+

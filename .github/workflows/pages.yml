@@ -2,7 +2,8 @@ name: Deploy Playground
 
 on:
   push:
-    branches: [$default-branch]
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
@@ -29,13 +30,15 @@ jobs:
         run: nix develop -c just install
 
       - name: Build
+        env:
+          BASE_PATH: '/${{ github.event.repository.name }}'
         run: nix develop -c just build
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/playground/public
+          path: packages/playground/build
 
   deploy:
     needs: build
