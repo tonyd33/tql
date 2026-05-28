@@ -1,0 +1,36 @@
+version: "3"
+
+vars:
+  TS: pnpm exec tree-sitter
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  generate:
+    cmds: ["{{.TS}} generate"]
+
+  build:
+    deps: [generate]
+    cmds:
+      - "{{.TS}} build"
+      - "{{.TS}} build --wasm"
+
+  test:
+    cmds: ["{{.TS}} test"]
+
+  parse:
+    cmds: ["{{.TS}} parse {{.CLI_ARGS}}"]
+
+  playground:
+    cmds:
+      - "{{.TS}} build --wasm"
+      - "{{.TS}} playground"
+
+  make:
+    cmds: ["make {{.CLI_ARGS}}"]
+
+  clean:
+    cmds:
+      - make clean
+      - rm -rf build *.wasm

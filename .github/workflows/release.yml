@@ -77,7 +77,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Install
-        run: nix develop -c just install
+        run: nix develop -c task install
 
       - name: Build release binary
         run: |

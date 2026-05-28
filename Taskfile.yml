@@ -1,0 +1,49 @@
+version: "3"
+
+includes:
+  engine:
+    taskfile: ./packages/tql-engine-zig
+    dir: ./packages/tql-engine-zig
+  grammar:
+    taskfile: ./packages/tree-sitter-tql
+    dir: ./packages/tree-sitter-tql
+  js:
+    taskfile: ./packages/tql-js
+    dir: ./packages/tql-js
+  playground:
+    taskfile: ./packages/playground
+    dir: ./packages/playground
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  install:
+    desc: pnpm install (frozen lockfile)
+    cmds: [pnpm install --frozen-lockfile]
+
+  fmt:
+    desc: Format everything
+    deps: [engine:fmt]
+    cmds: [pnpm exec biome check --write .]
+
+  check:
+    desc: Lint + type check
+    deps: [playground:check]
+    cmds: [pnpm exec biome check .]
+
+  build:
+    desc: Build grammar, engine, js, playground
+    deps: [grammar:build, engine:build, js:build]
+    cmds:
+      - cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/static/tql.wasm
+      - task: playground:build
+
+  test:
+    desc: Run all tests
+    deps: [grammar:test, engine:test]
+
+  clean:
+    desc: Clean all build artifacts + node_modules
+    deps: [grammar:clean, js:clean, playground:clean, engine:clean]
+    cmds: [rm -rf node_modules]

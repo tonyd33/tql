@@ -1,11 +1,16 @@
 packages:
   - packages/playground
   - packages/tql-js
-  # getting installation errors if i try to add this
-  # - packages/tree-sitter-tql
 
 onlyBuiltDependencies:
-  - tree-sitter
-  - tree-sitter-cli
-  - tree-sitter-javascript
   - esbuild
+  - tree-sitter
+  - tree-sitter-c
+  - tree-sitter-cli
+  - tree-sitter-cpp
+  - tree-sitter-go
+  - tree-sitter-javascript
+  - tree-sitter-python
+  - tree-sitter-rust
+  - tree-sitter-typescript
+  - tree-sitter-zig

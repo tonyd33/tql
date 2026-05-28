@@ -27,12 +27,12 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Install
-        run: nix develop -c just install
+        run: nix develop -c task install
 
       - name: Build
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
-        run: nix develop -c just build
+        run: nix develop -c task build
 
       - uses: actions/configure-pages@v6
 
