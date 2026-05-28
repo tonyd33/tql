@@ -61,7 +61,7 @@
               pkg-config
               zig_0_15
               zls
-              just
+              go-task
               python3
               wasmtime
 

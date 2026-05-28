@@ -25,7 +25,7 @@ jobs:
 
       - name: Install
         working-directory: tql
-        run: nix develop -c just install
+        run: nix develop -c task install
 
       - name: Setup bin
         run: >
@@ -35,8 +35,7 @@ jobs:
       - name: Build optimized engine
         working-directory: tql
         run: >
-          nix develop -c
-          just engine build
+          nix develop -c task engine:build --
           --prefix "$HOME/.local"
           -Doptimize=ReleaseFast --release=fast
 
@@ -74,13 +73,16 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Install
-        run: nix develop -c just install
+        run: nix develop -c task install
 
       - name: Build
-        run: nix develop -c just build
+        run: nix develop -c task build
 
       - name: Ensure tree-sitter generation up to date
         run: git diff --exit-code -- packages/tree-sitter-tql/src
+
+      - name: Check
+        run: nix develop -c task check
 
   test:
     runs-on: ubuntu-latest
@@ -93,23 +95,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Install
-        run: nix develop -c just install
+        run: nix develop -c task install
 
       - name: Test
-        run: nix develop -c just test
-
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-
-      - name: Install
-        run: nix develop -c just install
-
-      - name: Lint
-        run: nix develop -c just check
+        run: nix develop -c task test

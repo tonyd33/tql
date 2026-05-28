@@ -1,0 +1,27 @@
+version: "3"
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  build:
+    vars:
+      ARGS: '{{.CLI_ARGS | default "-Dwasm=true"}}'
+    cmds: ["zig build {{.ARGS}}"]
+
+  release:
+    cmds: ["zig build -Doptimize=ReleaseFast --release=fast"]
+
+  test:
+    vars:
+      UPDATE_SNAPSHOT: '{{.UPDATE_SNAPSHOT | default "false"}}'
+    cmds: ["zig build test -Dupdate-snapshots={{.UPDATE_SNAPSHOT}}"]
+
+  run:
+    cmds: ["zig build run -- {{.CLI_ARGS}}"]
+
+  fmt:
+    cmds: [zig fmt src build.zig]
+
+  clean:
+    cmds: [rm -rf zig-out .zig-cache]

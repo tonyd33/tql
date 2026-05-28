@@ -1,0 +1,11 @@
+version: "3"
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  build:
+    cmds: [pnpm exec tsc]
+
+  clean:
+    cmds: [rm -rf dist node_modules]
