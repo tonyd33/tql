@@ -1,19 +1,11 @@
 <script lang="ts">
-  import { init } from "tql";
+  import { ready } from "$lib/boot";
   import Playground from "$lib/Playground.svelte";
-  async function boot(): Promise<Engine> {
-    return init({
-      compilation: {
-        via: "streaming",
-        source: fetch("./tql.wasm"),
-      },
-    });
-  }
 </script>
-{#await boot()}
+{#await ready}
 <p>loading...</p>
-{:then engine}
-<Playground {engine}/>
+{:then _}
+<Playground />
 {:catch error}
-<p>error</p>
+<p>error {error}</p>
 {/await}
