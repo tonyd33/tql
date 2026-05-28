@@ -1,0 +1,23 @@
+name: Setup
+description: Install Nix + load flake devShell into the job env via direnv.
+
+inputs:
+  path:
+    description: Directory containing .envrc / flake.nix
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@v31
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+
+    - name: Load devShell into env
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      run: |
+        nix profile install nixpkgs#direnv
+        direnv allow .
+        direnv export gha >> "$GITHUB_ENV"
