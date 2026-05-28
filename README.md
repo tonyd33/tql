@@ -79,3 +79,28 @@ runExample = compileQuery [b_func_decl, b_param_decl, b_func_name] keep proj
 Each binding fans the env out over its matching nodes. On a file with two
 functions where the first has two parameters and the second has one, the stream
 after `b_param_decl` carries three envs, and `proj` emits three records.
+
+### Projection desugaring
+
+In the canonical form, a `Proj` is just a single variable lookup (e.g. `proj
+env = env Map.! "v"`). Anything more complex in `select`, including record and
+list literals, is itself a TQL expression and gets hoisted into a fresh `with`
+binding (preserving referential transparency). Writing `<expr>` for any
+TQL expression:
+
+```tql
+select <expr>
+```
+
+is sugar for:
+
+```tql
+with <expr> as @__e
+select @__e
+```
+
+The record literal in the original example follows the same rule: it is one
+expression, hoisted into a single binding, and the `select` reduces to a
+variable lookup. So all evaluation (selectors, navigation, record
+construction, function calls) happens inside `Bind`s; the `Proj` is purely a
+read from the env.
