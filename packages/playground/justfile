@@ -3,10 +3,24 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+ts := "pnpm exec tree-sitter"
+grammars := "c:c cpp:cpp go:go javascript:javascript python:python rust:rust typescript:typescript/typescript tsx:typescript/tsx zig:zig"
+
 default:
 	@just --list
 
-build:
+[private]
+build-wasm:
+	#!/usr/bin/env bash
+	for pair in {{ grammars }}; do
+		out="${pair%%:*}"
+		src="${pair#*:}"
+		{{ ts }} build --wasm \
+			"node_modules/tree-sitter-$src" \
+			--output "static/tree-sitter-$out.wasm"
+	done
+
+build: build-wasm
 	pnpm run build
 
 serve: build
@@ -16,5 +30,7 @@ dev:
 	pnpm run dev
 
 clean:
-	rm -rf node_modules build static/tql.wasm
+	rm -rf node_modules build static/*.wasm
 
+check:
+	pnpm run check

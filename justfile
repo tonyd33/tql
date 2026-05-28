@@ -17,7 +17,7 @@ install:
 fmt: engine::fmt
 	pnpm exec biome check --write .
 
-check:
+check: playground::check
 	pnpm exec biome check .
 
 build: grammar::build engine::build js::build

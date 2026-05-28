@@ -98,7 +98,7 @@ jobs:
       - name: Test
         run: nix develop -c just test
 
-  lint:
+  check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
