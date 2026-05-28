@@ -90,7 +90,7 @@ jobs:
           version="${{ needs.draft-release.outputs.version }}"
           mkdir -p dist/tql
           cp "packages/tql-engine-zig/zig-out/bin/tql" dist/tql/
-          cp LICENSE.md dist/tql/
+          cp LICENSE dist/tql/
           echo "archive-base=tql-$version-${{ matrix.target }}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Build tar.gz
