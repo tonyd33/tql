@@ -19,6 +19,7 @@ pub const SnapshotQueryOpts = struct {
 };
 
 pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQueryOpts) !void {
+    const io = std.testing.io;
     const group = comptime groupFromFile(src.file);
     const test_name = comptime sanitize(src.fn_name);
     const update_snapshots = test_options.update_snapshots;
@@ -55,7 +56,7 @@ pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQue
 
     try rt.exec();
 
-    var values = std.ArrayList(engine.Value){};
+    var values = std.ArrayList(engine.Value).empty;
     defer {
         for (values.items) |*v| v.deinit(allocator);
         values.deinit(allocator);
@@ -97,15 +98,15 @@ pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQue
     defer allocator.free(values_path);
 
     var any_failed = false;
-    expectMatchesSnapshot(allocator, ast_path, actual_ast, update_snapshots) catch |err| {
+    expectMatchesSnapshot(allocator, io, ast_path, actual_ast, update_snapshots) catch |err| {
         if (err != error.SnapshotMismatch) return err;
         any_failed = true;
     };
-    expectMatchesSnapshot(allocator, bytecode_path, actual_bytecode, update_snapshots) catch |err| {
+    expectMatchesSnapshot(allocator, io, bytecode_path, actual_bytecode, update_snapshots) catch |err| {
         if (err != error.SnapshotMismatch) return err;
         any_failed = true;
     };
-    expectMatchesSnapshot(allocator, values_path, actual_values, update_snapshots) catch |err| {
+    expectMatchesSnapshot(allocator, io, values_path, actual_values, update_snapshots) catch |err| {
         if (err != error.SnapshotMismatch) return err;
         any_failed = true;
     };
@@ -135,53 +136,53 @@ fn renderValues(gpa: std.mem.Allocator, values: []const engine.Value) ![]const u
 }
 
 pub fn formatInstructions(allocator: std.mem.Allocator, instructions: []const runtime.Instruction) ![]const u8 {
-    var list = std.ArrayList(u8){};
-    errdefer list.deinit(allocator);
+    var allocating = try std.Io.Writer.Allocating.initCapacity(allocator, 10 * 1024 * 1024);
+    defer allocating.deinit();
 
-    // fuck this stupid interface
-    const writer = list.writer(allocator);
     for (instructions, 0..) |inst, i| {
-        try writer.print("{d:0>4}: ", .{i});
-        try inst.print(&writer);
-        try writer.writeByte('\n');
+        try allocating.writer.print("{d:0>4}: ", .{i});
+        try inst.print(&allocating.writer);
+        try allocating.writer.writeByte('\n');
     }
 
-    return try list.toOwnedSlice(allocator);
+    return try allocating.toOwnedSlice();
 }
 
 /// Load snapshot with file, or return null if file doesn't exist
-pub fn loadSnapshot(allocator: std.mem.Allocator, path: []const u8) !?[]const u8 {
-    const file = std.fs.cwd().openFile(path, .{}) catch |err| {
+pub fn loadSnapshot(allocator: std.mem.Allocator, io: std.Io, path: []const u8) !?[]const u8 {
+    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch |err| {
         if (err == error.FileNotFound) return null;
         return err;
     };
-    defer file.close();
+    defer file.close(io);
 
-    const content = try file.readToEndAlloc(allocator, 1024 * 1024);
+    var file_reader = file.reader(io, &.{});
+    const content = try file_reader.interface.allocRemaining(allocator, .limited(10 * 1024 * 1024));
     return content;
 }
 
 /// Save snapshot to file
-pub fn saveSnapshot(path: []const u8, content: []const u8) !void {
+pub fn saveSnapshot(io: std.Io, path: []const u8, content: []const u8) !void {
     // Ensure directory exists
     if (std.fs.path.dirname(path)) |dir| {
-        try std.fs.cwd().makePath(dir);
+        try std.Io.Dir.cwd().createDirPath(io, dir);
     }
 
-    const file = try std.fs.cwd().createFile(path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer file.close(io);
 
-    try file.writeAll(content);
+    try file.writeStreamingAll(io, content);
 }
 
 /// Compare actual output with snapshot, with option to update on mismatch
 pub fn expectMatchesSnapshot(
     allocator: std.mem.Allocator,
+    io: std.Io,
     snapshot_path: []const u8,
     actual: []const u8,
     update_on_mismatch: bool,
 ) !void {
-    const expected = try loadSnapshot(allocator, snapshot_path);
+    const expected = try loadSnapshot(allocator, io, snapshot_path);
     defer if (expected) |e| allocator.free(e);
 
     if (expected) |exp| {
@@ -193,7 +194,7 @@ pub fn expectMatchesSnapshot(
         if (update_on_mismatch) {
             // Update snapshot
             std.debug.print("Updating snapshot: {s}\n", .{snapshot_path});
-            try saveSnapshot(snapshot_path, actual);
+            try saveSnapshot(io, snapshot_path, actual);
             return;
         }
 
@@ -205,7 +206,7 @@ pub fn expectMatchesSnapshot(
     } else {
         // No snapshot exists - create it
         std.debug.print("Creating snapshot: {s}\n", .{snapshot_path});
-        try saveSnapshot(snapshot_path, actual);
+        try saveSnapshot(io, snapshot_path, actual);
     }
 }
 
