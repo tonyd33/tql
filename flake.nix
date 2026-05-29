@@ -59,7 +59,7 @@
               pnpm
               openssl
               pkg-config
-              zig_0_15
+              zig_0_16
               zls
               go-task
               python3

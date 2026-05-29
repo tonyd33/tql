@@ -22,10 +22,10 @@
     // original project's identity. Thus it is recommended to leave the comment
     // on the following line intact, so that it shows up in code reviews that
     // modify the field.
-    .fingerprint = 0x2aa69d157391b39d, // Changing this has security and trust implications.
+    .fingerprint = 0x2aa69d15c14c7958,
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
     // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
@@ -33,16 +33,16 @@
     // internet connectivity.
     .dependencies = .{
         .tree_sitter = .{
-            .url = "git+https://github.com/tree-sitter/zig-tree-sitter/?ref=HEAD#5373b8395bcf6cf17e6a02be1a9996bedb34abf6",
-            .hash = "tree_sitter-0.25.0-8heIf7iZAQDu5oiKLKffYhdvWpEuxc5OhsySDlkFLxFT",
+            .url = "git+https://github.com/tree-sitter/zig-tree-sitter#b55d4977d61330390fc733944da06106ff972660",
+            .hash = "tree_sitter-0.26.0-8heIf3CaAQB4SSumoGzq3gLSz2rkvXxcKFyskRWqDGBz",
         },
         .@"tree-sitter-c" = .{
             .url = "git+https://github.com/tree-sitter/tree-sitter-c#ae19b676b13bdcc13b7665397e6d9b14975473dd",
             .hash = "N-V-__8AANxPSADtRZNZbKidAJYnL1fypqkbR-SuTdd7NtGk",
         },
         .pcre2 = .{
-            .url = "git+https://github.com/PCRE2Project/pcre2/?ref=HEAD#123424f8a2267aa12ef819c64744b9cea934e414",
-            .hash = "N-V-__8AAJAn4wC758_pw55lz937cKqu88thkQsfOvji-D-F",
+            .url = "git+https://github.com/PCRE2Project/pcre2/#ff92e0b9cea5b5ae3af12ba930d03556684f098b",
+            .hash = "pcre2-10.48.0-DEV-IZ6r6143XgBwdTFHTbN3piYuRCxWAFZWO64qcKujwd07",
         },
         .@"tree-sitter-typescript" = .{
             .url = "git+https://github.com/tree-sitter/tree-sitter-typescript#75b3874edb2dc714fb1fd77a32013d0f8699989f",
@@ -52,12 +52,12 @@
             .path = "../tree-sitter-tql",
         },
         .clap = .{
-            .url = "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.11.0.tar.gz",
-            .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
+            .url = "git+https://github.com/Hejsil/zig-clap#bf56f229ed5b6c381d90e192234913c6deb3f688",
+            .hash = "clap-0.12.0-oBajB9noAQCFiI2syvjiZf6dENWUBFPWMEzdEPr99ZVx",
         },
         .@"tree-sitter-zig" = .{
-            .url = "git+https://github.com/tree-sitter-grammars/tree-sitter-zig#6479aa13f32f701c383083d8b28360ebd682fb7d",
-            .hash = "tree_sitter_zig-1.1.2-AAAAAJ57XACsD_XBHC4i6G6rnCsZ1dZj7CLRTC09toEB",
+            .url = "git+https://github.com/tonyd33/tree-sitter-zig/#3b2792dcbc4a7c28740b817464c9a09f225fd44e",
+            .hash = "tree_sitter_zig-1.1.2-KYTH1Hh4XABcptIfFB46twBm8M2MMaQlGW-pGDp_60Xj",
         },
         .@"tree-sitter-python" = .{
             .url = "git+https://github.com/tree-sitter/tree-sitter-python#26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",

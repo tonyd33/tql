@@ -45,9 +45,9 @@ pub const Compiler = struct {
             .allocator = allocator,
             .variables = VariableTable.init(allocator),
             .language = language,
-            .bindings = std.ArrayList(BindingMetadata){},
-            .regexes = std.ArrayList(pcre2.Regex){},
-            .strings = std.ArrayList([]const u8){},
+            .bindings = std.ArrayList(BindingMetadata).empty,
+            .regexes = std.ArrayList(pcre2.Regex).empty,
+            .strings = std.ArrayList([]const u8).empty,
         };
     }
 
