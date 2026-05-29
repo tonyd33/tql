@@ -6,6 +6,9 @@ inputs:
     description: Directory containing .envrc / flake.nix
     required: false
     default: .
+  cachix-auth-token:
+    description: Cachix auth token
+    required: false
 
 runs:
   using: composite
@@ -13,7 +16,7 @@ runs:
     - uses: cachix/cachix-action@v17
       with:
         name: tql
-        authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+        authToken: ${{ inputs.cachix-auth-token }}
 
     - uses: cachix/install-nix-action@v31
       with:
