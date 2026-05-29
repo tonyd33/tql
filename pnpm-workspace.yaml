@@ -1,6 +1,7 @@
 packages:
   - packages/playground
   - packages/tql-js
+  - packages/tree-sitter-tql
 
 onlyBuiltDependencies:
   - esbuild
