@@ -24,41 +24,18 @@
           f {
             pkgs = import inputs.nixpkgs {
               inherit system;
-              overlays = [ inputs.self.overlays.default ];
             };
           }
         );
     in
     {
-      overlays.default = final: prev: rec {
-        nodejs = prev.nodejs;
-        # rustToolchain =
-          # with inputs.fenix.packages.${prev.stdenv.hostPlatform.system};
-          # combine (
-            # with stable;
-            # [
-              # clippy
-              # rustc
-              # cargo
-              # rustfmt
-              # rust-src
-            # ]
-          # );
-      };
-
       devShells = forEachSupportedSystem (
         { pkgs }:
         {
           default = pkgs.mkShell {
-            buildInputs = with pkgs; [
-              tree-sitter
-              pcre2
-            ];
             packages = with pkgs; [
-              nodejs
+              nodejs_22
               pnpm
-              openssl
-              pkg-config
               zig_0_16
               zls
               go-task
