@@ -1,0 +1,16 @@
+with @root > function_definition as @fn,
+-- ^ keyword
+--   ^ variable
+--            ^ property
+     @fn > function_declarator as @fn_decl,
+     @fn_decl > identifier as @name,
+     @fn.body as @body
+--        ^ attribute
+where any @c in @body >> call_expression:
+          any @callee in @c.function: @callee ~ /^(k|v|kv)(z|m|c|re)?alloc/ and
+--                                                  ^ string.regex
+--                                                                           ^ keyword
+      any @g in @body >> goto_statement:
+          any @lbl in @g.label: @lbl ~ /^(err|out)(_\w+)?$/
+select { @name }
+-- ^ keyword
