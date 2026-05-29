@@ -165,11 +165,13 @@ pub const List = struct {
 
 pub const Config = struct {
     allocator: Allocator,
+    // Do I really need this?
+    io: std.Io,
 };
 
 pub const RunStats = struct {
-    parse_time_ns: u64 = 0,
-    query_time_ns: u64 = 0,
+    parse_time: std.Io.Duration,
+    query_time: std.Io.Duration,
 };
 
 pub const RunResult = struct {
@@ -218,6 +220,7 @@ pub const Engine = struct {
             .program_image = program_image,
             .language = language,
             .allocator = self.config.allocator,
+            .io = self.config.io,
         };
     }
 };
@@ -226,6 +229,8 @@ pub const Query = struct {
     program_image: runtime.ProgramImage,
     language: Language,
     allocator: Allocator,
+    // Do I really want this...?
+    io: std.Io,
 
     pub fn deinit(self: *Query) void {
         self.program_image.deinit();
@@ -248,10 +253,10 @@ pub const Query = struct {
         defer source_parser.destroy();
         try source_parser.setLanguage(self.language.getTreeSitterLanguage());
 
-        var parse_timer = try std.time.Timer.start();
+        const parse_start = std.Io.Timestamp.now(self.io, .real);
         const tree = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;
         defer tree.destroy();
-        const parse_time_ns = parse_timer.read();
+        const parse_time = parse_start.untilNow(self.io, .real);
 
         var rt = runtime.Runtime.init(.{
             .tree = tree,
@@ -269,18 +274,18 @@ pub const Query = struct {
             values.deinit(result_allocator);
         }
 
-        var query_timer = try std.time.Timer.start();
+        const query_start = std.Io.Timestamp.now(self.io, .real);
         while (try rt.next()) |runtime_value| {
             const v = try Value.fromRuntimeValue(result_allocator, runtime_value, query_target);
             try values.append(result_allocator, v);
         }
-        const query_time_ns = query_timer.read();
+        const query_time = query_start.untilNow(self.io, .real);
 
         return .{
             .values = values,
             .stats = .{
-                .parse_time_ns = parse_time_ns,
-                .query_time_ns = query_time_ns,
+                .parse_time = parse_time,
+                .query_time = query_time,
             },
             .allocator = result_allocator,
         };

@@ -59,9 +59,9 @@
               pnpm
               openssl
               pkg-config
-              zig_0_15
+              zig_0_16
               zls
-              just
+              go-task
               python3
               wasmtime
 

@@ -18,10 +18,27 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"svelte": "^5.55.2",
 		"svelte-check": "^4.4.6",
+		"tree-sitter-c": "^0.24.1",
+		"tree-sitter-cli": "^0.26.9",
+		"tree-sitter-cpp": "^0.23.4",
+		"tree-sitter-go": "^0.25.0",
+		"tree-sitter-javascript": "^0.25.0",
+		"tree-sitter-python": "^0.25.0",
+		"tree-sitter-rust": "^0.24.0",
+		"tree-sitter-typescript": "^0.23.2",
+		"tree-sitter-zig": "^0.2.0",
 		"typescript": "^6.0.2",
 		"vite": "^8.0.7"
 	},
 	"dependencies": {
-		"tql": "workspace:*"
+		"@codemirror/lang-cpp": "^6.0.3",
+		"@codemirror/lang-go": "^6.0.1",
+		"@codemirror/lang-javascript": "^6.2.5",
+		"@codemirror/lang-python": "^6.2.1",
+		"@codemirror/lang-rust": "^6.0.2",
+		"@codemirror/state": "^6.6.0",
+		"codemirror": "^6.0.2",
+		"tql": "workspace:*",
+		"web-tree-sitter": "^0.26.9"
 	}
 }

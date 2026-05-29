@@ -7,9 +7,10 @@ const RingBuffer = @import("ring_buffer.zig").RingBuffer;
 pub fn BlockingQueue(comptime T: type) type {
     return struct {
         const Self = @This();
+        io: std.Io,
         buf: RingBuffer(T),
-        mu: std.Thread.Mutex = .{},
-        cv: std.Thread.Condition = .{},
+        mu: std.Io.Mutex = .init,
+        cv: std.Io.Condition = .init,
         closed_flag: bool = false,
 
         pub const PopResult = union(enum) {
@@ -18,8 +19,11 @@ pub fn BlockingQueue(comptime T: type) type {
             closed,
         };
 
-        pub fn init(allocator: std.mem.Allocator, size: u16) !Self {
-            return .{ .buf = try RingBuffer(T).init(allocator, size) };
+        pub fn init(allocator: std.mem.Allocator, io: std.Io, size: u16) !Self {
+            return .{
+                .buf = try RingBuffer(T).init(allocator, size),
+                .io = io,
+            };
         }
 
         pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
@@ -29,42 +33,42 @@ pub fn BlockingQueue(comptime T: type) type {
         /// Block until pushed. Returns error only if a non-full buffer error
         /// occurs.
         pub fn push(self: *Self, value: T) !void {
-            self.mu.lock();
-            defer self.mu.unlock();
+            try self.mu.lock(self.io);
+            defer self.mu.unlock(self.io);
             while (true) {
                 self.buf.push(value) catch |err| {
                     if (err == error.RingBufferFull) {
-                        self.cv.wait(&self.mu);
+                        try self.cv.wait(self.io, &self.mu);
                         continue;
                     }
                     return err;
                 };
                 break;
             }
-            self.cv.signal();
+            self.cv.signal(self.io);
         }
 
         /// Block until a value is available or the queue is closed and drained.
-        pub fn pop(self: *Self) ?T {
-            self.mu.lock();
-            defer self.mu.unlock();
+        pub fn pop(self: *Self) !?T {
+            try self.mu.lock(self.io);
+            defer self.mu.unlock(self.io);
             while (true) {
                 if (self.buf.pop()) |v| {
-                    self.cv.signal();
+                    self.cv.signal(self.io);
                     return v;
                 }
                 if (self.closed_flag) return null;
-                self.cv.wait(&self.mu);
+                try self.cv.wait(self.io, &self.mu);
             }
         }
 
         /// Mark the queue closed and wake all blocked threads. Pending values
         /// remain poppable; subsequent pops after drain return `.closed`.
-        pub fn close(self: *Self) void {
-            self.mu.lock();
+        pub fn close(self: *Self) !void {
+            try self.mu.lock(self.io);
             self.closed_flag = true;
-            self.cv.broadcast();
-            self.mu.unlock();
+            self.cv.broadcast(self.io);
+            self.mu.unlock(self.io);
         }
     };
 }

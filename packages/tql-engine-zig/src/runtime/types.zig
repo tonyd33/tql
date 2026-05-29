@@ -84,7 +84,7 @@ pub const Value = union(enum) {
         };
     }
 
-    pub fn print(self: Value, writer: anytype) !void {
+    pub fn print(self: Value, writer: *std.Io.Writer) !void {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
             .uint => |uint| try writer.print("uint {}", .{uint}),
@@ -435,7 +435,7 @@ pub const ValueSource = union(enum) {
     node: NodeValueSource,
     variable_id: VariableId,
 
-    pub fn print(self: ValueSource, writer: anytype) !void {
+    pub fn print(self: ValueSource, writer: *std.Io.Writer) !void {
         switch (self) {
             .literal => |l| {
                 try writer.print("literal ", .{});
@@ -511,7 +511,7 @@ pub const Instruction = union(enum) {
     end_build: VariableId,
     panic, // debug, probably remove
 
-    pub fn print(self: Instruction, writer: anytype) !void {
+    pub fn print(self: Instruction, writer: *std.Io.Writer) !void {
         switch (self) {
             .noop => try writer.print("noop", .{}),
             .yield => try writer.print("yield", .{}),

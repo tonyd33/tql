@@ -19,13 +19,13 @@ jobs:
         with:
           path: tql
 
-      - uses: cachix/install-nix-action@v31
+      - uses: ./tql/.github/actions/setup
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          path: tql
 
       - name: Install
         working-directory: tql
-        run: nix develop -c just install
+        run: task install
 
       - name: Setup bin
         run: >
@@ -35,8 +35,7 @@ jobs:
       - name: Build optimized engine
         working-directory: tql
         run: >
-          nix develop -c
-          just engine build
+          task engine:build --
           --prefix "$HOME/.local"
           -Doptimize=ReleaseFast --release=fast
 
@@ -69,18 +68,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: ./.github/actions/setup
 
       - name: Install
-        run: nix develop -c just install
+        run: task install
 
       - name: Build
-        run: nix develop -c just build
+        run: task build
 
       - name: Ensure tree-sitter generation up to date
         run: git diff --exit-code -- packages/tree-sitter-tql/src
+
+      - name: Check
+        run: task check
 
   test:
     runs-on: ubuntu-latest
@@ -88,28 +88,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: ./.github/actions/setup
 
       - name: Install
-        run: nix develop -c just install
+        run: task install
 
       - name: Test
-        run: nix develop -c just test
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-
-      - name: Install
-        run: nix develop -c just install
-
-      - name: Lint
-        run: nix develop -c just check
+        run: task test

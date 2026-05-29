@@ -23,18 +23,18 @@ const ExitCode = enum(u8) {
     invalid_args = 5,
 };
 
-pub fn main() !u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        const result = gpa.deinit();
-        if (result == .leak) @panic("memory leaked");
-    }
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !u8 {
+    // var gpa = init.gpa;
+    // defer {
+    //     const result = gpa.deinit();
+    //     if (result == .leak) @panic("memory leaked");
+    // }
+    const allocator = init.gpa;
 
     var stdout_buffer: [1024]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
+    var stderr_writer = std.Io.File.stderr().writer(init.io, &stderr_buffer);
     const stdout = &stdout_writer.interface;
     const stderr = &stderr_writer.interface;
     defer stdout.flush() catch {};
@@ -61,7 +61,7 @@ pub fn main() !u8 {
     };
 
     var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, .{
+    var res = clap.parse(clap.Help, &params, parsers, init.minimal.args, .{
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
@@ -72,7 +72,7 @@ pub fn main() !u8 {
     defer res.deinit();
 
     if (res.args.help != 0) {
-        try clap.helpToFile(.stderr(), clap.Help, &params, .{
+        try clap.helpToFile(init.io, .stderr(), clap.Help, &params, .{
             .description_on_new_line = false,
             .spacing_between_parameters = 0,
         });
@@ -92,9 +92,11 @@ pub fn main() !u8 {
     };
 
     const query = if (res.args.@"from-file") |query_file| blk: {
-        const file = try std.fs.cwd().openFile(query_file, .{});
-        defer file.close();
-        break :blk try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
+        const file = try std.Io.Dir.cwd().openFile(init.io, query_file, .{});
+        defer file.close(init.io);
+        var file_reader = file.reader(init.io, &.{});
+        const contents = try file_reader.interface.allocRemaining(allocator, .limited(10 * 1024 * 1024));
+        break :blk contents;
     } else blk: {
         const buf = try allocator.dupe(u8, query_or_first_file);
         break :blk buf;
@@ -120,7 +122,7 @@ pub fn main() !u8 {
         return @intFromEnum(ExitCode.invalid_args);
     };
 
-    return run(allocator, stdout, stderr, .{
+    return run(allocator, init.io, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
         .format = .json,
@@ -146,18 +148,18 @@ const Config = struct {
     progress: bool,
 };
 
-fn printUsage(writer: *std.io.Writer) !void {
+fn printUsage(writer: *std.Io.Writer) !void {
     try writer.print("Usage: tql [OPTIONS] <QUERY> <SOURCE>...\n", .{});
     try writer.print("Try 'tql --help' for more information.\n", .{});
 }
 
-fn printVersion(writer: *std.io.Writer) !void {
+fn printVersion(writer: *std.Io.Writer) !void {
     try writer.print("tql version {s}\n", .{VERSION});
 }
 
 const BAR_WIDTH: usize = 30;
 
-fn renderProgress(w: *std.io.Writer, done: usize, total: usize, done_walk: bool) void {
+fn renderProgress(w: *std.Io.Writer, done: usize, total: usize, done_walk: bool) void {
     _ = done_walk;
     // const pct: usize = if (t == 0) 0 else (d * 100) / t;
     const filled: usize = if (total == 0) 0 else (done * BAR_WIDTH) / total;
@@ -173,10 +175,10 @@ fn renderProgress(w: *std.io.Writer, done: usize, total: usize, done_walk: bool)
     w.flush() catch {};
 }
 
-fn progressThread(p: *Progress, stop: *std.atomic.Value(bool), w: *std.io.Writer) void {
+fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), w: *std.Io.Writer) !void {
     while (!stop.load(.acquire)) {
         renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
-        std.Thread.sleep(1 * std.time.ns_per_ms);
+        try io.sleep(std.Io.Duration.fromMilliseconds(1), .real);
     }
     renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
     w.print("\n", .{}) catch {};
@@ -194,9 +196,9 @@ const PathEntry = struct {
 const PathQueue = tql.ds.BlockingQueue(PathEntry);
 
 const FileStats = struct {
-    read_time_ns: u64 = 0,
-    parse_time_ns: u64 = 0,
-    query_time_ns: u64 = 0,
+    read_time: std.Io.Duration = .zero,
+    parse_time: std.Io.Duration = .zero,
+    query_time: std.Io.Duration = .zero,
 };
 
 const FileResult = struct {
@@ -226,6 +228,7 @@ const SharedContext = struct {
     path_queue: *PathQueue,
     language: Language,
     progress: *Progress,
+    io: std.Io,
 };
 
 fn pushFile(ctx: *SharedContext, path: []const u8) !void {
@@ -237,14 +240,14 @@ fn pushFile(ctx: *SharedContext, path: []const u8) !void {
 }
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const abs = try std.fs.realpath(path, &buf);
-    var root_dir = try std.fs.openDirAbsolute(abs, .{
+    const abs = try std.Io.Dir.realPathFileAbsoluteAlloc(ctx.*.io, path, ctx.allocator);
+    defer ctx.allocator.free(abs);
+    var root_dir = try std.Io.Dir.openDirAbsolute(ctx.*.io, abs, .{
         .iterate = true,
     });
 
     var walker = try root_dir.walk(ctx.*.allocator);
-    while (try walker.next()) |entry| {
+    while (try walker.next(ctx.*.io)) |entry| {
         if (entry.kind == .file and ctx.*.language.matchesFileName(entry.basename)) {
             const joined = try std.fs.path.join(
                 ctx.*.allocator,
@@ -255,7 +258,7 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
         }
     }
     walker.deinit();
-    root_dir.close();
+    root_dir.close(ctx.io);
     ctx.*.progress.*.done_walk = true;
 }
 
@@ -269,7 +272,7 @@ fn walkerThread(ctx: *SharedContext) !void {
             }
         };
     }
-    ctx.path_queue.close();
+    try ctx.path_queue.close();
 }
 
 fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
@@ -277,11 +280,11 @@ fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.beginObject();
     try jws.objectField("results");
     try jws.beginArray();
-    while (ctx.result_queue.pop()) |result| {
+    while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        totals.read_time_ns += result.stats.read_time_ns;
-        totals.parse_time_ns += result.stats.parse_time_ns;
-        totals.query_time_ns += result.stats.query_time_ns;
+        totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
+        totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
+        totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
         if (result.values.items.len == 0) continue;
         try jws.beginObject();
         try jws.objectField("file");
@@ -296,11 +299,11 @@ fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.objectField("stats");
     try jws.beginObject();
     try jws.objectField("read_time_ns");
-    try jws.write(totals.read_time_ns);
+    try jws.write(totals.read_time.nanoseconds);
     try jws.objectField("parse_time_ns");
-    try jws.write(totals.parse_time_ns);
+    try jws.write(totals.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");
-    try jws.write(totals.query_time_ns);
+    try jws.write(totals.query_time.nanoseconds);
     try jws.endObject();
     try jws.endObject();
 }
@@ -309,28 +312,28 @@ fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     defer arena.deinit();
 
-    while (ctx.path_queue.pop()) |entry| {
+    while (try ctx.path_queue.pop()) |entry| {
         var result_arena = entry.arena;
         errdefer result_arena.deinit();
         const result_alloc = result_arena.allocator();
         const query_target_path = entry.path;
 
-        var read_timer = try std.time.Timer.start();
+        const read_start = std.Io.Timestamp.now(ctx.io, .real);
         const query_target: []align(std.heap.page_size_min) const u8 = blk: {
-            const file = try std.fs.cwd().openFile(query_target_path, .{});
-            defer file.close();
-            const stat = try file.stat();
+            const file = try std.Io.Dir.cwd().openFile(ctx.io, query_target_path, .{});
+            defer file.close(ctx.io);
+            const stat = try file.stat(ctx.io);
             if (stat.size == 0) break :blk &[_]u8{};
             break :blk try std.posix.mmap(
                 null,
                 stat.size,
-                std.posix.PROT.READ,
+                .{ .READ = true },
                 .{ .TYPE = .PRIVATE },
                 file.handle,
                 0,
             );
         };
-        const read_time_ns = read_timer.read();
+        const read_time = read_start.untilNow(ctx.io, .real);
         defer if (query_target.len > 0) std.posix.munmap(query_target);
 
         const run_result = try ctx.compiled.run(query_target, result_alloc, arena.allocator());
@@ -340,9 +343,9 @@ fn workerThread(ctx: *SharedContext) !void {
             .filename = query_target_path,
             .values = run_result.values,
             .stats = .{
-                .read_time_ns = read_time_ns,
-                .parse_time_ns = run_result.stats.parse_time_ns,
-                .query_time_ns = run_result.stats.query_time_ns,
+                .read_time = read_time,
+                .parse_time = run_result.stats.parse_time,
+                .query_time = run_result.stats.query_time,
             },
         });
 
@@ -353,11 +356,15 @@ fn workerThread(ctx: *SharedContext) !void {
 
 fn run(
     allocator: std.mem.Allocator,
-    stdout: *std.io.Writer,
-    stderr: *std.io.Writer,
+    io: std.Io,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
     config: Config,
 ) !u8 {
-    var engine = try Engine.init(.{ .allocator = allocator });
+    var engine = try Engine.init(.{
+        .allocator = allocator,
+        .io = io,
+    });
     defer engine.deinit();
 
     var compiled = try engine.compile(config.query, config.language);
@@ -365,8 +372,8 @@ fn run(
 
     // real shit
     var jws: std.json.Stringify = .{ .writer = stdout };
-    var path_queue = try PathQueue.init(allocator, 65535);
-    var result_queue = try ResultQueue.init(allocator, 1024);
+    var path_queue = try PathQueue.init(allocator, io, 65535);
+    var result_queue = try ResultQueue.init(allocator, io, 1024);
     var progress = Progress{};
     var ctx = SharedContext{
         .compiled = &compiled,
@@ -376,12 +383,13 @@ fn run(
         .path_queue = &path_queue,
         .language = config.language,
         .progress = &progress,
+        .io = io,
     };
 
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = try std.Thread.spawn(.{}, writerThread, .{ &ctx, &jws });
-    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ &progress, &progress_stop, stderr }) else null;
+    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
 
     for (0..config.workers) |i| {
@@ -391,7 +399,7 @@ fn run(
     for (workers) |*worker| {
         worker.join();
     }
-    ctx.result_queue.close();
+    try ctx.result_queue.close();
 
     walker_thread.join();
     progress_stop.store(true, .release);

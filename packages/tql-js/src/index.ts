@@ -13,6 +13,24 @@ export enum Language {
   zig = 8,
 }
 
+export interface LanguageInfo {
+  id: Language;
+  key: keyof typeof Language;
+  displayName: string;
+}
+
+export const languages: readonly LanguageInfo[] = [
+  { id: Language.cpp, key: "cpp", displayName: "C++" },
+  { id: Language.c, key: "c", displayName: "C" },
+  { id: Language.go, key: "go", displayName: "Go" },
+  { id: Language.javascript, key: "javascript", displayName: "JavaScript" },
+  { id: Language.python, key: "python", displayName: "Python" },
+  { id: Language.rust, key: "rust", displayName: "Rust" },
+  { id: Language.tsx, key: "tsx", displayName: "TSX" },
+  { id: Language.typescript, key: "typescript", displayName: "TypeScript" },
+  { id: Language.zig, key: "zig", displayName: "Zig" },
+] as const;
+
 export interface QueryArgs {
   querySource: string;
   queryTarget: string;

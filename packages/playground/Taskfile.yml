@@ -1,0 +1,63 @@
+version: "3"
+
+vars:
+  TS: pnpm exec tree-sitter
+  # output-name: source-dir (relative to node_modules/tree-sitter-)
+  GRAMMARS:
+    map:
+      c: c
+      cpp: cpp
+      go: go
+      javascript: javascript
+      python: python
+      rust: rust
+      typescript: typescript/typescript
+      tsx: typescript/tsx
+      zig: zig
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  grammar:
+    desc: Build one grammar to static/tree-sitter-<NAME>.wasm
+    label: "grammar:{{.NAME}}"
+    requires:
+      vars: [NAME, SRC]
+    sources:
+      - "node_modules/tree-sitter-{{.SRC}}/grammar.js"
+      - "node_modules/tree-sitter-{{.SRC}}/src/**/*"
+    generates:
+      - "static/tree-sitter-{{.NAME}}.wasm"
+    cmds:
+      - "{{.TS}} build --wasm node_modules/tree-sitter-{{.SRC}} --output static/tree-sitter-{{.NAME}}.wasm"
+
+  grammars:
+    desc: Build all grammar wasm files
+    deps:
+      - for: { var: GRAMMARS, as: SRC }
+        task: grammar
+        vars: { NAME: "{{.KEY}}", SRC: "{{.SRC}}" }
+
+  setup:
+    cmds: [{ task: grammars }]
+
+  build:
+    deps: [setup]
+    cmds: [pnpm run build]
+
+  serve:
+    deps: [build]
+    cmds: ["python -m http.server 8000 -d build"]
+
+  dev:
+    cmds: [pnpm run dev]
+
+  check:
+    cmds: [pnpm run check]
+
+  clean:
+    cmds:
+      - rm -rf node_modules build
+      - rm -f static/tree-sitter-*.wasm
