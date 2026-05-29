@@ -58,7 +58,12 @@ fn runImpl(
     query_target: []const u8,
     buf: *std.Io.Writer.Allocating,
 ) !void {
-    var engine = try tql.Engine.init(.{ .allocator = gpa });
+    var single_threaded = std.Io.Threaded.init_single_threaded;
+    const io = single_threaded.io();
+    var engine = try tql.Engine.init(.{
+        .allocator = gpa,
+        .io = io,
+    });
     defer engine.deinit();
 
     var compiled = try engine.compile(query_source, language);
@@ -79,9 +84,9 @@ fn runImpl(
     try jws.objectField("stats");
     try jws.beginObject();
     try jws.objectField("parse_time_ns");
-    try jws.write(run_result.stats.parse_time_ns);
+    try jws.write(run_result.stats.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");
-    try jws.write(run_result.stats.query_time_ns);
+    try jws.write(run_result.stats.query_time.nanoseconds);
     try jws.endObject();
     try jws.endObject();
 }
