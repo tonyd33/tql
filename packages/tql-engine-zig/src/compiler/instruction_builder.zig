@@ -25,7 +25,7 @@ pub const InstructionBuilder = struct {
 
     pub fn init(allocator: Allocator) InstructionBuilder {
         return .{
-            .instructions = std.ArrayList(Instruction){},
+            .instructions = std.ArrayList(Instruction).empty,
             .allocator = allocator,
             .pending_labels = std.AutoHashMap(u32, std.ArrayList(usize)).init(allocator),
             .resolved_labels = std.AutoHashMap(u32, Address).init(allocator),
@@ -68,7 +68,7 @@ pub const InstructionBuilder = struct {
 
         const result = try self.pending_labels.getOrPut(label_id);
         if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize){};
+            result.value_ptr.* = std.ArrayList(usize).empty;
         }
         try result.value_ptr.append(self.allocator, inst_index);
     }
@@ -80,7 +80,7 @@ pub const InstructionBuilder = struct {
 
         const result = try self.pending_labels.getOrPut(on_success_label);
         if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize){};
+            result.value_ptr.* = std.ArrayList(usize).empty;
         }
         try result.value_ptr.append(self.allocator, inst_index);
     }
