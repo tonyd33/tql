@@ -101,6 +101,16 @@ pub const Runtime = struct {
             }
         }
 
+        switch (frame.boundary) {
+            .probe => |probe| switch (probe.data) {
+                .exists, .nexists => {},
+                .aggregate => |agg| switch (agg.value) {
+                    .list => |list| list.dereference(self.allocator),
+                },
+            },
+            .root, .passthrough, .call => {},
+        }
+
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
     }
 
@@ -120,59 +130,84 @@ pub const Runtime = struct {
 
     /// End the current logical branch and propagate up the stack. Both
     /// implicit termination and explicit termination flow through here.
-    fn handleBranchEnd(self: *Self) void {
+    fn handleBranchEnd(self: *Self) !void {
         while (self.stack.items.len > 0) {
             const boundary = self.stack.items[self.stack.items.len - 1].boundary;
-            self.deinitFrame();
             switch (boundary) {
                 // Probe boundaries conditionally handle branch end.
-                .probe => |probe| switch (probe) {
+                .probe => |probe| switch (probe.data) {
                     .exists => {
                         // Child terminated without yielding: probe failed.
                         // Propagate termination to the caller.
+                        self.deinitFrame();
                         continue;
                     },
-                    .nexists => |success_addr| {
+                    .nexists => {
                         // Child terminated without yielding: probe succeeded.
                         // Resume the caller at the success address.
+                        self.deinitFrame();
                         const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                        parent_frame.state.pc = success_addr;
+                        parent_frame.state.pc = probe.resume_address;
+                        return;
+                    },
+                    .aggregate => |agg| {
+                        const list_ref = switch (agg.value) {
+                            .list => |list| list.reference(),
+                        };
+                        self.deinitFrame();
+                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                        const old_env = parent_frame.state.environment;
+                        const value = Value{ .list = list_ref };
+                        const new_env = try old_env.copyPut(self.allocator, agg.variable, value);
+                        parent_frame.state.environment = new_env;
+                        old_env.dereference(self.allocator);
+                        parent_frame.state.pc = probe.resume_address;
                         return;
                     },
                 },
                 // root and passthrough boundaries unconditionally handle
                 // branch ends.
-                .root, .passthrough => return,
+                .root, .passthrough => {
+                    self.deinitFrame();
+                    return;
+                },
                 // call boundaries unconditionally propagate branch ends.
-                .call => continue,
+                .call => {
+                    self.deinitFrame();
+                    continue;
+                },
             }
         }
     }
 
     /// Handle yield by propagating up the stack. Returns true if the yield was
     /// handled.
-    fn handleYield(self: *Self) bool {
+    fn handleYield(self: *Self, value: Value) !bool {
         const idx = self.getActiveProbeBoundaryIndex() orelse return false;
         const probe = self.stack.items[idx].boundary.probe;
 
-        while (self.stack.items.len > idx) {
-            self.deinitFrame();
-        }
-
-        switch (probe) {
-            .exists => |success_addr| {
+        switch (probe.data) {
+            .exists => {
                 // Child yielded: probe succeeded. Resume the caller at the
                 // success address.
+                while (self.stack.items.len > idx) {
+                    self.deinitFrame();
+                }
                 const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                parent_frame.state.pc = success_addr;
+                parent_frame.state.pc = probe.resume_address;
             },
             .nexists => {
                 // Child yielded: probe failed. Propagate termination to the
                 // caller.
-                self.handleBranchEnd();
+                while (self.stack.items.len > idx) {
+                    self.deinitFrame();
+                }
+                try self.handleBranchEnd();
+            },
+            .aggregate => |agg| switch (agg.value) {
+                .list => |list| try list.value.items.append(self.allocator, value),
             },
         }
-
         return true;
     }
 
@@ -237,7 +272,7 @@ pub const Runtime = struct {
                         .boundary = Boundary{ .passthrough = {} },
                     });
                 } else {
-                    self.handleBranchEnd();
+                    try self.handleBranchEnd();
                 }
                 continue;
             }
@@ -271,7 +306,7 @@ pub const Runtime = struct {
                     };
 
                     if (should_halt) {
-                        self.handleBranchEnd();
+                        try self.handleBranchEnd();
                     }
                 },
                 .trv => |axis| {
@@ -347,10 +382,12 @@ pub const Runtime = struct {
                 },
                 .yield => |source| {
                     frame.state.pc += 1;
-                    if (self.handleYield()) {
+                    const value = self.getSource(frame.state, source.source);
+                    if (try self.handleYield(value)) {
                         continue;
+                    } else {
+                        return value;
                     }
-                    return self.getSource(frame.state, source.source);
                 },
                 .probe => |probe_inst| {
                     frame.state.pc += 1;
@@ -361,9 +398,28 @@ pub const Runtime = struct {
                     frame.state.environment = env_copy_old_frame;
                     old_env.dereference(self.allocator);
 
-                    const boundary = switch (probe_inst.mode) {
-                        .exists => Boundary{ .probe = .{ .exists = probe_inst.on_success } },
-                        .nexists => Boundary{ .probe = .{ .nexists = probe_inst.on_success } },
+                    const boundary = switch (probe_inst.data) {
+                        .exists => Boundary{ .probe = .{
+                            .resume_address = probe_inst.resume_address,
+                            .data = .exists,
+                        } },
+                        .nexists => Boundary{ .probe = .{
+                            .resume_address = probe_inst.resume_address,
+                            .data = .nexists,
+                        } },
+                        .aggregate => |spec| switch (spec.kind) {
+                            .list => Boundary{
+                                .probe = .{
+                                    .resume_address = probe_inst.resume_address,
+                                    .data = .{ .aggregate = .{
+                                        .variable = spec.variable,
+                                        .value = .{
+                                            .list = try Rc(List).create(self.allocator, List.init()),
+                                        },
+                                    } },
+                                },
+                            },
+                        },
                     };
 
                     try self.stack.append(self.allocator, Frame{

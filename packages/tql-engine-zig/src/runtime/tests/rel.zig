@@ -245,8 +245,8 @@ test "rel: relates halt inside nexists probe should succeed" {
         // 0: Start nexists probe
         Instruction{
             .probe = .{
-                .mode = .nexists,
-                .on_success = 6, // Jump here if probe succeeds (halt)
+                .data = .nexists,
+                .resume_address = 6, // Jump here if probe succeeds (halt)
             },
         },
         // 1: Inside probe - assign different values
@@ -290,8 +290,8 @@ test "rel: relates halt inside exists probe should fail" {
         // 0: Start exists probe
         Instruction{
             .probe = .{
-                .mode = .exists,
-                .on_success = 6, // Jump here if probe succeeds (yield happens)
+                .data = .exists,
+                .resume_address = 6, // Jump here if probe succeeds (yield happens)
             },
         },
         // 1: Inside probe - assign different values

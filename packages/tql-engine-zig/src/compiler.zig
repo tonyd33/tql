@@ -83,6 +83,17 @@ pub const Compiler = struct {
         var builder = InstructionBuilder.init(self.allocator);
         defer builder.deinit();
 
+        const root_id = try self.variables.getOrPut(ROOT_NAME);
+        try self.bindings.append(self.allocator, .{
+            .variable_id = root_id,
+            .expression = null,
+            .emitted = true,
+        });
+        try builder.emit(.{ .asn = .{
+            .variable_id = root_id,
+            .source = .{ .node = .this },
+        } });
+
         // FIXME: we're supposed to search for main
         // It would be nice if we can compile just the query body though, since that gives
         // a valid program.
@@ -116,17 +127,6 @@ pub const Compiler = struct {
     }
 
     fn compileQueryBody(self: *Compiler, builder: *InstructionBuilder, body: ast.QueryBody) !void {
-        const root_id = try self.variables.getOrPut(ROOT_NAME);
-        try self.bindings.append(self.allocator, .{
-            .variable_id = root_id,
-            .expression = null,
-            .emitted = true,
-        });
-        try builder.emit(.{ .asn = .{
-            .variable_id = root_id,
-            .source = .{ .node = .this },
-        } });
-
         if (body.with_clause) |with_clause| {
             try self.compileWithClause(with_clause);
         }
@@ -167,7 +167,7 @@ pub const Compiler = struct {
 
                 if (binding.expression) |expression| {
                     try self.ensureExpressionDependencies(builder, expression);
-                    try self.compileAsNavigation(builder, expression);
+                    try self.navigate(builder, expression);
                 }
                 try builder.emit(.{ .asn = .{
                     .variable_id = var_id,
@@ -231,53 +231,53 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileAsNavigation(
+    fn navigate(
         self: *Compiler,
         builder: *InstructionBuilder,
         expr: ast.Expression,
     ) CompilerError!void {
         switch (expr) {
             .variable => |variable| {
-                try self.compileVariableSelector(builder, variable);
+                try self.navigateVariable(builder, variable);
             },
             .node_selector => |node_selector| {
-                try self.compileNodeSelector(builder, node_selector);
+                try self.navigateNodeSelector(builder, node_selector);
             },
             .field_access => |field_access| {
-                try self.compileFieldAccess(builder, field_access);
+                try self.navigateFieldAccess(builder, field_access);
             },
             .child_navigation => |nested_child_nav| {
-                try self.compileChildNavigation(builder, nested_child_nav);
+                try self.navigateChild(builder, nested_child_nav);
             },
             .descendant_navigation => |desc_nav| {
-                try self.compileDescendantNavigation(builder, desc_nav);
+                try self.navigateDescendant(builder, desc_nav);
             },
             .parenthesized => |parenthesized| {
-                try self.compileAsNavigation(builder, parenthesized.*);
+                try self.navigate(builder, parenthesized.*);
             },
             else => @panic("value expression used in navigation position"),
         }
     }
 
-    fn compileFieldAccess(self: *Compiler, builder: *InstructionBuilder, field_access: *ast.FieldAccess) CompilerError!void {
-        try self.compileAsNavigation(builder, field_access.base);
+    fn navigateFieldAccess(self: *Compiler, builder: *InstructionBuilder, field_access: *ast.FieldAccess) CompilerError!void {
+        try self.navigate(builder, field_access.base);
         const field_id = self.language.fieldIdForName(field_access.field);
         try builder.emit(.{ .trv = .{ .field = field_id } });
     }
 
-    fn compileChildNavigation(self: *Compiler, builder: *InstructionBuilder, child_nav: *ast.ChildNavigation) CompilerError!void {
-        try self.compileAsNavigation(builder, child_nav.parent);
+    fn navigateChild(self: *Compiler, builder: *InstructionBuilder, child_nav: *ast.ChildNavigation) CompilerError!void {
+        try self.navigate(builder, child_nav.parent);
         try builder.emit(.{ .trv = .{ .child = {} } });
-        try self.compileAsNavigation(builder, child_nav.child);
+        try self.navigate(builder, child_nav.child);
     }
 
-    fn compileDescendantNavigation(self: *Compiler, builder: *InstructionBuilder, desc_nav: *ast.DescendantNavigation) CompilerError!void {
-        try self.compileAsNavigation(builder, desc_nav.parent);
+    fn navigateDescendant(self: *Compiler, builder: *InstructionBuilder, desc_nav: *ast.DescendantNavigation) CompilerError!void {
+        try self.navigate(builder, desc_nav.parent);
         try builder.emit(.{ .trv = .{ .descendant = {} } });
-        try self.compileAsNavigation(builder, desc_nav.descendant);
+        try self.navigate(builder, desc_nav.descendant);
     }
 
-    fn compileVariableSelector(self: *Compiler, builder: *InstructionBuilder, variable: ast.Variable) CompilerError!void {
+    fn navigateVariable(self: *Compiler, builder: *InstructionBuilder, variable: ast.Variable) CompilerError!void {
         if (self.variables.get(variable.name)) |parent_var_id| {
             try builder.emit(.{ .trv = .{ .variable_id = parent_var_id } });
         } else {
@@ -285,7 +285,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileNodeSelector(self: *Compiler, builder: *InstructionBuilder, node_selector: ast.NodeSelector) !void {
+    fn navigateNodeSelector(self: *Compiler, builder: *InstructionBuilder, node_selector: ast.NodeSelector) !void {
         const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
 
         try builder.emit(.{ .rel = .{
@@ -367,17 +367,17 @@ pub const Compiler = struct {
         const body_negated = quantified.quantifier == .all;
         const probe_negated = negated != body_negated;
 
-        const probe_success_label = builder.createLabel();
+        const probe_resume_label = builder.createLabel();
 
         const bindings_snapshot = self.bindings.items.len;
         const var_id = try self.variables.getOrPut(quantified.variable.name);
 
         try self.ensureExpressionDependencies(builder, quantified.source);
 
-        const probe_mode: runtime.ProbeMode = if (probe_negated) .nexists else .exists;
-        try builder.emitProbe(probe_mode, probe_success_label);
+        const probe_data: runtime.ProbeData = if (probe_negated) .nexists else .exists;
+        try builder.emitProbe(probe_data, probe_resume_label);
 
-        try self.compileAsNavigation(builder, quantified.source);
+        try self.navigate(builder, quantified.source);
         try builder.emit(.{ .asn = .{
             .variable_id = var_id,
             .source = .{ .node = .this },
@@ -403,7 +403,7 @@ pub const Compiler = struct {
         try builder.markLabel(inner_failure_label);
         try builder.emit(.{ .halt = .{ .condition = .always } });
 
-        try builder.markLabel(probe_success_label);
+        try builder.markLabel(probe_resume_label);
         try builder.emitJump(outer_success_label, .always);
 
         self.bindings.shrinkRetainingCapacity(bindings_snapshot);
@@ -413,21 +413,21 @@ pub const Compiler = struct {
         self: *Compiler,
         builder: *InstructionBuilder,
         is_null: ast.IsNullPredicate,
-        success_label: LabelId,
+        resume_label: LabelId,
     ) CompilerError!void {
-        const probe_success_label = builder.createLabel();
+        const probe_resume_label = builder.createLabel();
 
         try self.ensureExpressionDependencies(builder, is_null.expression);
 
-        const probe_mode: runtime.ProbeMode = if (is_null.negated) .exists else .nexists;
-        try builder.emitProbe(probe_mode, probe_success_label);
+        const probe_data: runtime.ProbeData = if (is_null.negated) .exists else .nexists;
+        try builder.emitProbe(probe_data, probe_resume_label);
 
-        try self.compileAsNavigation(builder, is_null.expression);
+        try self.navigate(builder, is_null.expression);
         try builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
         try builder.emit(.{ .halt = .{ .condition = .always } });
 
-        try builder.markLabel(probe_success_label);
-        try builder.emitJump(success_label, .always);
+        try builder.markLabel(probe_resume_label);
+        try builder.emitJump(resume_label, .always);
     }
 
     fn compileComparison(
@@ -582,7 +582,7 @@ pub const Compiler = struct {
                     .literal = .{ .regex = self.regexes.items[regex_index] },
                 };
             },
-            .field_access, .child_navigation, .descendant_navigation, .node_selector => blk: {
+            .field_access, .child_navigation, .descendant_navigation, .node_selector,  => blk: {
                 const anon_id = try self.liftNavigation(builder, expr);
                 break :blk runtime.ValueSource{ .variable_id = anon_id };
             },
@@ -590,7 +590,8 @@ pub const Compiler = struct {
             .object_literal => |obj| try self.compileRecordExpression(builder, obj),
             .array_literal => |arr| try self.compileListExpression(builder, arr.elements),
             .tuple_literal => |tup| try self.compileListExpression(builder, tup.elements),
-            .function_call, .subquery => @panic("TODO"),
+            .subquery => |sq| try self.compileSubquery(builder, sq),
+            .function_call => @panic("TODO"),
         };
     }
 
@@ -644,6 +645,23 @@ pub const Compiler = struct {
         const tmp = self.variables.allocateAnonymous();
         try builder.emit(.{ .end_build = tmp });
         return .{ .variable_id = tmp };
+    }
+
+    fn compileSubquery(self: *Compiler, builder: *InstructionBuilder, subquery: *ast.QueryBody) CompilerError!runtime.ValueSource {
+        const resume_label = builder.createLabel();
+        const anon_variable = self.variables.allocateAnonymous();
+
+        try builder.emitProbe(.{
+            .aggregate = .{
+                .variable = anon_variable,
+                .kind = .list,
+            },
+        }, resume_label);
+        try self.compileQueryBody(builder, subquery.*);
+
+        try builder.markLabel(resume_label);
+
+        return .{ .variable_id = anon_variable };
     }
 
     fn compileSelectClause(self: *Compiler, builder: *InstructionBuilder, select_clause: ast.SelectClause) !void {

@@ -131,15 +131,32 @@ pub const List = struct {
 // standard hash map if we do more copies than lookups. But we probably do? May need to benchmark.
 pub const Environment = OverlayMap(VariableId, Value);
 
+pub const AggregatingValue = enum { list };
+
+pub const AggregationSpec = struct {
+    variable: VariableId,
+    kind: AggregatingValue,
+};
+
 /// A boundary is part of a stack frame. Its purpose is to embed otherwise
 /// difficult-to-express control flow within the stack.
 pub const Boundary = union(enum) {
     root,
     // IMPROVE: maybe better named split? But it's _above_ a split...
     passthrough,
-    probe: union(enum) {
-        exists: Address,
-        nexists: Address,
+    /// Probe boundaries handle control flow of yield and branch termination.
+    probe: struct {
+        resume_address: Address,
+        data: union(enum) {
+            exists,
+            nexists,
+            aggregate: struct {
+                variable: VariableId,
+                value: union(AggregatingValue) {
+                    list: *Rc(List),
+                },
+            },
+        },
     },
     call,
 };
@@ -458,9 +475,10 @@ pub const ValueSource = union(enum) {
     }
 };
 
-pub const ProbeMode = enum {
+pub const ProbeData = union(enum) {
     exists,
     nexists,
+    aggregate: AggregationSpec,
 };
 
 pub const Relation = enum {
@@ -493,8 +511,8 @@ pub const Instruction = union(enum) {
         source: ValueSource = .{ .node = .this },
     },
     probe: struct {
-        mode: ProbeMode,
-        on_success: Address,
+        resume_address: Address,
+        data: ProbeData,
     },
     call: Address,
     ret,
@@ -537,7 +555,11 @@ pub const Instruction = union(enum) {
                 try r.b.print(writer);
                 try writer.print(")", .{});
             },
-            .probe => |p| try writer.print("probe {s} {}", .{ @tagName(p.mode), p.on_success }),
+            .probe => |p| switch (p.data) {
+                .exists => try writer.print("probe exists {}", .{p.resume_address}),
+                .nexists => try writer.print("probe nexists {}", .{p.resume_address}),
+                .aggregate => |a| try writer.print("probe aggregate {} {} {s}", .{ p.resume_address, a.variable, @tagName(a.kind) }),
+            },
             .call => |c| try writer.print("call {}", .{c}),
             .ret => try writer.print("ret", .{}),
             .jmp => |j| try writer.print("jmp {s} {}", .{ @tagName(j.mode), j.address }),
