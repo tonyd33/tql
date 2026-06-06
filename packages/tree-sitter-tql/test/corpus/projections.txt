@@ -281,11 +281,10 @@ query main() {
        @class.name as @class_name
   select {
     class: @class_name,
-    methods: (
+    methods:
       with @class.body > method_definition as @method,
            @method.name as @method_name
       select @method_name
-    )
   }
 }
 

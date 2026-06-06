@@ -17,7 +17,7 @@ tasks:
       - "{{.TS}} build --wasm"
 
   test:
-    cmds: ["{{.TS}} test"]
+    cmds: ["{{.TS}} test {{.CLI_ARGS}}"]
 
   parse:
     cmds: ["{{.TS}} parse {{.CLI_ARGS}}"]

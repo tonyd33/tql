@@ -990,21 +990,8 @@
       ]
     },
     "subquery": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "("
-        },
-        {
-          "type": "SYMBOL",
-          "name": "query_body"
-        },
-        {
-          "type": "STRING",
-          "value": ")"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "query_body"
     },
     "expression": {
       "type": "CHOICE",

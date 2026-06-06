@@ -23,8 +23,12 @@ const LabelId = u32;
 
 const BindingMetadata = struct {
     variable_id: VariableId,
-    // HACK: root doesn't have an expression
-    expression: ?ast.Expression,
+    /// How to navigate to this variable, if possible.
+    navigation: union(enum) {
+        // IMPROVE: maybe we want a first-class separation of navigable expressions?
+        expression: ast.Expression,
+        none,
+    },
     emitted: bool = false,
 };
 
@@ -94,7 +98,7 @@ pub const Compiler = struct {
         const root_id = try self.variable_table.getOrPut(ROOT_NAME);
         try self.binding_metadata.append(self.allocator, .{
             .variable_id = root_id,
-            .expression = null,
+            .navigation = .none,
             .emitted = true,
         });
         try self.instruction_builder.emit(.{ .asn = .{
@@ -145,25 +149,45 @@ pub const Compiler = struct {
         try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
     }
 
+    /// Compilation of the with clause simply attaches binding metadata to each variable.
     fn compileWithClause(self: *Compiler, with_clause: ast.WithClause) CompilerError!void {
         for (with_clause.bindings) |binding| {
-            try self.compileBinding(binding);
+            try self.bindMetadata(binding.variable, binding.expression);
         }
     }
 
-    fn compileBinding(self: *Compiler, binding: ast.Binding) CompilerError!void {
-        const var_id = try self.variable_table.getOrPut(binding.variable.name);
-
-        try self.binding_metadata.append(self.allocator, .{
-            .variable_id = var_id,
-            .expression = binding.expression,
-            .emitted = false,
-        });
-    }
-
-    fn ensureRootNavigated(self: *Compiler) CompilerError!void {
-        const root_id = self.variable_table.get(ROOT_NAME) orelse return error.InvalidVariableReference;
-        try self.instruction_builder.emit(.{ .trv = .{ .variable_id = root_id } });
+    fn bindMetadata(self: *Compiler, variable: ast.Variable, expression: ast.Expression) CompilerError!void {
+        switch (expression) {
+            .node_selector, .field_access, .child_navigation, .descendant_navigation, .variable => {
+                const var_id = try self.variable_table.getOrPut(variable.name);
+                try self.binding_metadata.append(self.allocator, .{
+                    .variable_id = var_id,
+                    .navigation = .{ .expression = expression },
+                    .emitted = false,
+                });
+            },
+            .parenthesized => |parenthesized| {
+                try self.bindMetadata(variable, parenthesized.*);
+            },
+            .string_literal, .regex_literal, .number_literal, .null_literal, .function_call => {
+                const var_id = try self.variable_table.getOrPut(variable.name);
+                try self.binding_metadata.append(self.allocator, .{
+                    .variable_id = var_id,
+                    .navigation = .none,
+                    .emitted = false,
+                });
+            },
+            .object_literal, .array_literal, .tuple_literal => {
+                // same as above, but not sure what to do with this
+                const var_id = try self.variable_table.getOrPut(variable.name);
+                try self.binding_metadata.append(self.allocator, .{
+                    .variable_id = var_id,
+                    .navigation = .none,
+                    .emitted = false,
+                });
+            },
+            .subquery => {},
+        }
     }
 
     fn ensureVariableNavigated(self: *Compiler, var_id: VariableId) CompilerError!void {
@@ -171,9 +195,12 @@ pub const Compiler = struct {
             if (binding.variable_id == var_id) {
                 if (binding.emitted) return;
 
-                if (binding.expression) |expression| {
-                    try self.ensureExpressionDependencies(expression);
-                    try self.navigate(expression);
+                switch (binding.navigation) {
+                    .expression => |expression| {
+                        try self.ensureExpressionDependencies(expression);
+                        try self.navigate(expression);
+                    },
+                    .none => {},
                 }
                 try self.instruction_builder.emit(.{ .asn = .{
                     .variable_id = var_id,
@@ -388,7 +415,7 @@ pub const Compiler = struct {
 
         try self.binding_metadata.append(self.allocator, .{
             .variable_id = var_id,
-            .expression = quantified.source,
+            .navigation = .{ .expression = quantified.source },
             .emitted = true,
         });
 
@@ -546,7 +573,7 @@ pub const Compiler = struct {
         const anon_id = self.variable_table.allocateAnonymous();
         try self.binding_metadata.append(self.allocator, .{
             .variable_id = anon_id,
-            .expression = expr,
+            .navigation = .{ .expression = expr },
             .emitted = false,
         });
         try self.ensureVariableNavigated(anon_id);
