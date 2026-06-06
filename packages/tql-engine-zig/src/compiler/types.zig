@@ -4,4 +4,6 @@ pub const CompilerError = error{
     UnresolvedLabel,
     InvalidLabelReference,
     InvalidVariableReference,
+    InvalidUnnestArgument,
+    ProgrammerDumb,
 };

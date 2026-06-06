@@ -19,7 +19,7 @@ test "probe: exists with yield - continues after probe" {
     // 3: yield                        // After probe succeeds
     // 4: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 3 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 3 } },
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
@@ -43,7 +43,7 @@ test "probe: exists with halt - terminates branch" {
     // 1: halt                         // Halt inside probe (signals failure)
     // 2: panic                        // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 2 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 2 } },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
     };
@@ -68,7 +68,7 @@ test "probe: exists with traversal that succeeds" {
     // 4: yield                        // After probe succeeds
     // 5: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
@@ -94,7 +94,7 @@ test "probe: exists with traversal that fails" {
     // 4: panic                        // Landmine
     // 5: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
@@ -120,7 +120,7 @@ test "probe: nexists with yield - terminates branch" {
     // 2: halt
     // 3: panic                         // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 3 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 3 } },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -144,7 +144,7 @@ test "probe: nexists with halt - continues after probe" {
     // 2: yield                         // After probe succeeds, yield
     // 3: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 2 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 2 } },
         Instruction{ .halt = .{} },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
@@ -169,7 +169,7 @@ test "probe: nexists with traversal that succeeds" {
     // 3: halt
     // 4: panic                         // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
@@ -193,7 +193,7 @@ test "probe: nexists with traversal that fails" {
     // 3: yield                         // After probe succeeds (no children found)
     // 4: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 3 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 3 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
@@ -222,7 +222,7 @@ test "probe: call inside exists probe" {
     // 6: yield                        // After probe succeeds
     // 7: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -252,7 +252,7 @@ test "probe: halt across boundary" {
     // 4: yield                        // After probe succeeds
     // 5: halt                         // Terminate root
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 3 },
         Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
@@ -284,7 +284,7 @@ test "probe: exists inside call" {
         Instruction{ .call = 3 },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .yield = .{} },
         Instruction{ .halt = .{} },
         Instruction{ .ret = {} },
@@ -312,8 +312,8 @@ test "probe: nested probes - exists inside exists" {
     // 6: yield                        // After outer probe
     // 7: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
@@ -344,8 +344,8 @@ test "probe: nested probes - exists inside nexists" {
     // 6: yield                        // Yields
     // 7: halt
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 6 } },
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 6 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
         Instruction{ .halt = .{} },
@@ -380,7 +380,7 @@ test "probe: halt inside call inside nexists probe" {
     // 5: halt                         // Function: halt (call exits, returns to PC 2)
     // 6: ret                          // Should not reach here
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 5 },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -412,7 +412,7 @@ test "probe: halt inside call inside exists probe" {
     // 5: ret                          // Go back
     // 6: panic                        // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 6 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -444,7 +444,7 @@ test "probe: trv fails inside call inside exists probe" {
     // 4: trv child                    // Function: fails - no children (exits call)
     // 5: panic                        // Landmine (probe-success; never reached)
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.exists, .on_success = 5 } },
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 5 } },
         Instruction{ .call = 4 },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },
@@ -475,7 +475,7 @@ test "probe: trv fails inside call inside nexists probe" {
     // 5: trv child                    // Function: fails - no children (exits call)
     // 6: panic                        // Landmine
     const instructions = [_]Instruction{
-        Instruction{ .probe = .{ .mode = ProbeMode.nexists, .on_success = 4 } },
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 5 },
         Instruction{ .halt = .{} },
         Instruction{ .panic = {} },

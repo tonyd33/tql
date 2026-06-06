@@ -1,0 +1,16 @@
+0000: asn 0 (node this)
+0001: probe aggregate 14 2 list
+0002: trv variable_id 0
+0003: trv child
+0004: rel equals (node kind) (literal kind_id 196)
+0005: halt not_relates
+0006: asn 1 (node this)
+0007: trv variable_id 1
+0008: trv child
+0009: rel equals (node kind) (literal kind_id 278)
+0010: halt not_relates
+0011: asn 3 (node this)
+0012: yield
+0013: halt always
+0014: yield
+0015: halt always

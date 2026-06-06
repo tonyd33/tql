@@ -1,0 +1,1 @@
+(source_file (query_body (with (binding (field (child root (node function_definition)) declarator) func_decl) (binding (call unnest (subquery (query_body (select (child (field func_decl parameters) (node parameter_declaration)))))) param_decl) (binding (field func_decl declarator) func_name)) (select (object (name func_name) (param param_decl)))))

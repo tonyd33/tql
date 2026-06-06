@@ -1,0 +1,61 @@
+[
+  [
+    {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      },
+      "child_count": 2,
+      "named_child_count": 2,
+      "is_named": true,
+      "is_missing": false,
+      "is_extra": false
+    },
+    {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      },
+      "child_count": 2,
+      "named_child_count": 2,
+      "is_named": true,
+      "is_missing": false,
+      "is_extra": false
+    },
+    {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      },
+      "child_count": 1,
+      "named_child_count": 1,
+      "is_named": true,
+      "is_missing": false,
+      "is_extra": false
+    }
+  ]
+]

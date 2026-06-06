@@ -73,12 +73,15 @@ pub const InstructionBuilder = struct {
         try result.value_ptr.append(self.allocator, inst_index);
     }
 
-    pub fn emitProbe(self: *InstructionBuilder, mode: runtime.ProbeMode, on_success_label: u32) Allocator.Error!void {
+    pub fn emitProbe(self: *InstructionBuilder, data: runtime.ProbeData, resume_label: u32) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
 
-        try self.instructions.append(self.allocator, Instruction{ .probe = .{ .mode = mode, .on_success = 0 } });
+        try self.instructions.append(self.allocator, Instruction{ .probe = .{
+            .data = data,
+            .resume_address = 0,
+        } });
 
-        const result = try self.pending_labels.getOrPut(on_success_label);
+        const result = try self.pending_labels.getOrPut(resume_label);
         if (!result.found_existing) {
             result.value_ptr.* = std.ArrayList(usize).empty;
         }
@@ -104,7 +107,7 @@ pub const InstructionBuilder = struct {
                 const inst = &self.instructions.items[inst_index];
                 switch (inst.*) {
                     .jmp => |*jmp| jmp.address = address,
-                    .probe => |*probe| probe.on_success = address,
+                    .probe => |*probe| probe.resume_address = address,
                     else => return error.InvalidLabelReference,
                 }
             }
@@ -216,8 +219,8 @@ test "InstructionBuilder: emitProbe with forward reference" {
 
     // Probe should be resolved to address 3 (the second yield)
     try testing.expectEqual(@as(usize, 4), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 3), instructions[0].probe.on_success);
-    try testing.expectEqual(runtime.ProbeMode.exists, instructions[0].probe.mode);
+    try testing.expectEqual(@as(runtime.Address, 3), instructions[0].probe.resume_address);
+    try testing.expectEqual(runtime.ProbeData.exists, instructions[0].probe.data);
 }
 
 test "InstructionBuilder: multiple jumps to same label" {

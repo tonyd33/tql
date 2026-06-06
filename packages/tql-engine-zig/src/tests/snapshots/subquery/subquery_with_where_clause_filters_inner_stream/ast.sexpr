@@ -1,0 +1,1 @@
+(source_file (query_body (with (binding (child root (node function_definition)) func)) (select (object (fn func) (int_params (paren (subquery (query_body (with (binding (child (field (field func declarator) parameters) (node parameter_declaration)) p) (binding (field p type) t)) (where (eq t (string "int"))) (select p)))))))))

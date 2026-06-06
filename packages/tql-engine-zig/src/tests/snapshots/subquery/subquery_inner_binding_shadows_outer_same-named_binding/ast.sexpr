@@ -1,0 +1,1 @@
+(source_file (query_body (with (binding (child root (node function_definition)) x) (binding (call unnest (subquery (query_body (with (binding (field (child root (node function_definition)) declarator) x)) (select x)))) inner)) (select (object (outer_x x) (inner inner)))))

@@ -1,0 +1,1 @@
+(source_file (query_body (with (binding (child root (node function_definition)) func)) (select (object (fn func) (all_funcs (subquery (query_body (select (child root (node function_definition))))))))))

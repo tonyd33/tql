@@ -1,0 +1,1 @@
+(source_file (query_body (with (binding (child root (node function_definition)) func) (binding (call unnest (subquery (query_body (select (child func (node goto_statement)))))) g)) (select (object (fn func) (g g)))))

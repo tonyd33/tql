@@ -182,7 +182,7 @@ module.exports = grammar({
     tuple_literal: $ =>
       seq("(", $.expression, ",", comma_sep1($.expression), ")"),
 
-    subquery: $ => seq("(", $.query_body, ")"),
+    subquery: $ => $.query_body,
 
     // Expressions
     expression: $ =>

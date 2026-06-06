@@ -1,0 +1,105 @@
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      },
+      "child_count": 0,
+      "named_child_count": 0,
+      "is_named": true,
+      "is_missing": false,
+      "is_extra": false
+    },
+    "param": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        },
+        "child_count": 2,
+        "named_child_count": 2,
+        "is_named": true,
+        "is_missing": false,
+        "is_extra": false
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        },
+        "child_count": 2,
+        "named_child_count": 2,
+        "is_named": true,
+        "is_missing": false,
+        "is_extra": false
+      }
+    ]
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      },
+      "child_count": 0,
+      "named_child_count": 0,
+      "is_named": true,
+      "is_missing": false,
+      "is_extra": false
+    },
+    "param": [
+      {
+        "kind": "parameter_declaration",
+        "text": "void",
+        "start_byte": 49,
+        "end_byte": 53,
+        "start_point": {
+          "row": 1,
+          "column": 9
+        },
+        "end_point": {
+          "row": 1,
+          "column": 13
+        },
+        "child_count": 1,
+        "named_child_count": 1,
+        "is_named": true,
+        "is_missing": false,
+        "is_extra": false
+      }
+    ]
+  }
+]
