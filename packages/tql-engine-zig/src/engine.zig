@@ -17,11 +17,6 @@ pub const Node = struct {
     end_byte: u32,
     start_point: runtime.Point,
     end_point: runtime.Point,
-    child_count: u32,
-    named_child_count: u32,
-    is_named: bool,
-    is_missing: bool,
-    is_extra: bool,
 
     pub fn fromTsNode(gpa: Allocator, ts_node: ts.Node, source: []const u8) error{OutOfMemory}!Node {
         const start_point = ts_node.startPoint();
@@ -36,11 +31,6 @@ pub const Node = struct {
             .end_byte = ts_node.endByte(),
             .start_point = .{ .row = start_point.row, .column = start_point.column },
             .end_point = .{ .row = end_point.row, .column = end_point.column },
-            .child_count = ts_node.childCount(),
-            .named_child_count = ts_node.namedChildCount(),
-            .is_named = ts_node.isNamed(),
-            .is_missing = ts_node.isMissing(),
-            .is_extra = ts_node.isExtra(),
         };
     }
 

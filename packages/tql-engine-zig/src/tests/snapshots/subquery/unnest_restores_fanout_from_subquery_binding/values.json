@@ -12,12 +12,7 @@
       "end_point": {
         "row": 0,
         "column": 7
-      },
-      "child_count": 0,
-      "named_child_count": 0,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     },
     "param": {
       "kind": "parameter_declaration",
@@ -31,12 +26,7 @@
       "end_point": {
         "row": 0,
         "column": 13
-      },
-      "child_count": 2,
-      "named_child_count": 2,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     }
   },
   {
@@ -52,12 +42,7 @@
       "end_point": {
         "row": 0,
         "column": 7
-      },
-      "child_count": 0,
-      "named_child_count": 0,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     },
     "param": {
       "kind": "parameter_declaration",
@@ -71,12 +56,7 @@
       "end_point": {
         "row": 0,
         "column": 20
-      },
-      "child_count": 2,
-      "named_child_count": 2,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     }
   },
   {
@@ -92,12 +72,7 @@
       "end_point": {
         "row": 1,
         "column": 8
-      },
-      "child_count": 0,
-      "named_child_count": 0,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     },
     "param": {
       "kind": "parameter_declaration",
@@ -111,12 +86,7 @@
       "end_point": {
         "row": 1,
         "column": 13
-      },
-      "child_count": 1,
-      "named_child_count": 1,
-      "is_named": true,
-      "is_missing": false,
-      "is_extra": false
+      }
     }
   }
 ]

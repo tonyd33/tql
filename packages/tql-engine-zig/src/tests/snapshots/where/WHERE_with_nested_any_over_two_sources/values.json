@@ -11,11 +11,6 @@
     "end_point": {
       "row": 0,
       "column": 21
-    },
-    "child_count": 3,
-    "named_child_count": 2,
-    "is_named": true,
-    "is_missing": false,
-    "is_extra": false
+    }
   }
 ]
