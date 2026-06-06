@@ -4,29 +4,11 @@ const ts = @import("tree-sitter");
 
 const runtime = @import("../runtime.zig");
 
-pub const VariableTable = struct {
-    map: std.StringHashMap(runtime.VariableId),
-
-    pub fn init(allocator: Allocator) VariableTable {
-        return .{
-            .map = std.StringHashMap(runtime.VariableId).init(allocator),
-        };
-    }
-
-    pub fn deinit(self: *VariableTable) void {
-        self.map.deinit();
-    }
-
-    pub fn get(self: *const VariableTable, name: []const u8) ?runtime.VariableId {
-        return self.map.get(name);
-    }
-};
+const VariableTable = std.StringHashMap(runtime.VariableId);
 
 pub const ScopeStack = struct {
     allocator: std.mem.Allocator,
     variable_tables: std.ArrayList(VariableTable),
-    /// IDs are unique across the whole compile. Scopes only govern name → id
-    /// lookup, not id allocation.
     next_id: runtime.VariableId,
 
     pub fn init(allocator: std.mem.Allocator) ScopeStack {
@@ -58,16 +40,12 @@ pub const ScopeStack = struct {
         var scope = self.variable_tables.pop();
         scope.?.deinit();
     }
-
     pub fn getOrPut(self: *ScopeStack, name: []const u8) error{
         OutOfMemory,
         ProgrammerDumb,
     }!runtime.VariableId {
-        if (self.get(name)) |id| {
-            return id;
-        }
         const curr = try self.currentScope();
-        const result = try curr.map.getOrPut(name);
+        const result = try curr.getOrPut(name);
         if (!result.found_existing) {
             result.value_ptr.* = self.next_id;
             self.next_id += 1;

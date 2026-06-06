@@ -78,7 +78,6 @@ test "nested subquery" {
 }
 
 test "subquery with where clause filters inner stream" {
-    if (1 == 1) return error.SkipZigTest;
     // where in subquery scopes to the subquery's bindings only.
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
@@ -86,12 +85,12 @@ test "subquery with where clause filters inner stream" {
         \\with @root > function_definition as @func
         \\select {
         \\  fn: @func,
-        \\  int_params:
+        \\  int_params: (
         \\    with @func.declarator.parameters > parameter_declaration as @p,
         \\         @p.type as @t
-        \\    where @t == "int"
+        \\    where @t = 'int'
         \\    select @p
-        \\
+        \\  )
         \\}
         ,
         .target =
@@ -102,7 +101,6 @@ test "subquery with where clause filters inner stream" {
 }
 
 test "subquery as binding produces list per outer fanout" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
@@ -170,13 +168,29 @@ test "unnest restores fanout from subquery binding with inner binds" {
 }
 
 test "unnest on empty subquery drops branch" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
         \\with @root > function_definition as @func,
         \\     unnest(select @func > goto_statement) as @g
         \\select { fn: @func, g: @g }
+        ,
+        .target =
+        \\int add(int a, int b) { return a + b; }
+        ,
+    });
+}
+
+test "subquery inner binding shadows outer same-named binding" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .language = .c,
+        .query =
+        \\with @root > function_definition as @x,
+        \\     unnest(
+        \\       with @root > function_definition.declarator as @x
+        \\       select @x
+        \\     ) as @inner
+        \\select { outer_x: @x, inner: @inner }
         ,
         .target =
         \\int add(int a, int b) { return a + b; }

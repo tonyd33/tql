@@ -4,7 +4,7 @@
 0003: rel equals (node kind) (literal kind_id 196)
 0004: halt not_relates
 0005: asn 1 (node this)
-0006: probe aggregate 16 2 list
+0006: probe aggregate 24 2 list
 0007: trv variable_id 1
 0008: trv field 10
 0009: trv field 28
@@ -12,11 +12,19 @@
 0011: rel equals (node kind) (literal kind_id 260)
 0012: halt not_relates
 0013: asn 3 (node this)
-0014: yield
-0015: halt always
-0016: begin_build record
-0017: push_build fn (variable_id 1)
-0018: push_build int_params (variable_id 2)
-0019: end_build 5
-0020: yield
+0014: trv variable_id 3
+0015: trv field 36
+0016: asn 4 (node this)
+0017: trv variable_id 4
+0018: rel equals (node text) (literal string "int")
+0019: jmp relates 22
+0020: jmp always 21
 0021: halt always
+0022: yield
+0023: halt always
+0024: begin_build record
+0025: push_build fn (variable_id 1)
+0026: push_build int_params (variable_id 2)
+0027: end_build 5
+0028: yield
+0029: halt always

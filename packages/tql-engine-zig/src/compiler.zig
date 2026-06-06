@@ -15,9 +15,7 @@ const ProgramImage = runtime.ProgramImage;
 const ast = @import("ast.zig");
 const pcre2 = @import("regex.zig");
 
-const variable_table = @import("compiler/variable_table.zig");
-pub const VariableTable = variable_table.VariableTable;
-const ScopeStack = variable_table.ScopeStack;
+const ScopeStack = @import("compiler/scope_stack.zig").ScopeStack;
 pub const InstructionBuilder = @import("compiler/instruction_builder.zig").InstructionBuilder;
 const CompilerError = @import("compiler/types.zig").CompilerError;
 
@@ -30,6 +28,10 @@ const BindingMetadata = struct {
         // IMPROVE: maybe we want a first-class separation of navigable expressions?
         /// To navigate to this variable, evaluate the following expression.
         expression: ast.Expression,
+        /// To navigate to this variable, run the subquery body and aggregate
+        /// every yielded fan-out path into this variable as a list. The
+        /// subquery's scope is isolated from the enclosing scope.
+        subquery: *ast.QueryBody,
         /// To navigate to this variable, run the subquery body and bind the
         /// projection of each yielded fan-out path into this variable.
         unnest_subquery: *ast.QueryBody,
@@ -198,7 +200,7 @@ pub const Compiler = struct {
         }
 
         const table = try self.scope_stack.currentScope();
-        var variable_iterator = table.map.iterator();
+        var variable_iterator = table.iterator();
         var variable_map = std.hash_map.AutoHashMap(runtime.VariableId, []const u8).init(allocator);
         while (variable_iterator.next()) |entry| {
             const slice = try self.addString(entry.key_ptr.*);
@@ -261,7 +263,14 @@ pub const Compiler = struct {
                     .emitted = false,
                 });
             },
-            .subquery => {},
+            .subquery => |sq| {
+                const var_id = try self.scope_stack.getOrPut(variable.name);
+                try self.binding_metadata.append(self.allocator, .{
+                    .variable_id = var_id,
+                    .navigation = .{ .subquery = sq },
+                    .emitted = false,
+                });
+            },
             .function_call => |fc| {
                 // TODO: prelude functions
                 if (!std.mem.eql(u8, "unnest", fc.name)) return error.InvalidUnnestArgument;
@@ -291,6 +300,21 @@ pub const Compiler = struct {
                     .expression => |expression| {
                         try self.navigateTo(expression);
                         try self.bindCursorTo(var_id);
+                    },
+                    .subquery => |sq| {
+                        const resume_label = self.instruction_builder.createLabel();
+                        try self.instruction_builder.emitProbe(.{
+                            .aggregate = .{ .variable = var_id, .kind = .list },
+                        }, resume_label);
+
+                        try self.scope_stack.enterScope();
+                        if (sq.with_clause) |wc| try self.compileWithClause(wc);
+                        if (sq.where_clause) |wc| try self.compileWhereClause(wc);
+                        try self.compileSelectClause(sq.select_clause);
+                        try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
+                        self.scope_stack.exitScope();
+
+                        try self.instruction_builder.markLabel(resume_label);
                     },
                     .unnest_subquery => |sq| {
                         try self.scope_stack.enterScope();
