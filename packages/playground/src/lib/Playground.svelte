@@ -9,13 +9,34 @@
   const parser = new Parser();
 
   let query = $state(`with @root > function_definition.declarator as @func_decl,
-     @func_decl.parameters > parameter_declaration as @param_decl,
-     @func_decl.declarator as @func_name
-select { name: @func_name, parameter: @param_decl }
-`);
-  let target = $state(`int add(int a, int b) { return a + b; }
-int main(void) { return add(1, 2); }
-`);
+     @func_decl.declarator as @func_name,
+     (
+       with @func_decl.parameters > parameter_declaration as @param,
+            @param.type as @param_type,
+            @param.declarator as @param_name
+       where @param_type = 'int'
+       select @param_name
+     ) as @int_param_names
+select { @func_name, @int_param_names }`);
+  let target = $state(`#include <stddef.h>
+#include <stdio.h>
+
+int add(int a, int b) {
+  return a + b;
+}
+
+size_t strlen(const char *s) {
+  const char *p = s;
+  while (*p++) {}
+  return p - s;
+}
+
+int main(int argc, char **argv) {
+  printf("Hello world\\n");
+  printf("strlen(\\"Hello world\\") = %lu\\n", strlen("Hello world"));
+  printf("add(1, 2) = %d\\n", add(1, 2));
+  return 0;
+}`);
 
   let selectedLanguage = $state<Language>(Language.c);
   const langKey = $derived(languages.find((l) => l.id === selectedLanguage)!.key);
