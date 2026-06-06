@@ -1,0 +1,24 @@
+0000: asn 0 (node this)
+0001: trv variable_id 0
+0002: trv child
+0003: rel equals (node kind) (literal kind_id 196)
+0004: halt not_relates
+0005: trv field 10
+0006: asn 1 (node this)
+0007: trv variable_id 1
+0008: trv field 10
+0009: asn 3 (node this)
+0010: trv variable_id 1
+0011: trv field 28
+0012: asn 4 (node this)
+0013: trv variable_id 4
+0014: trv child
+0015: rel equals (node kind) (literal kind_id 260)
+0016: halt not_relates
+0017: asn 2 (node this)
+0018: begin_build record
+0019: push_build name (variable_id 3)
+0020: push_build param (variable_id 2)
+0021: end_build 5
+0022: yield
+0023: halt always

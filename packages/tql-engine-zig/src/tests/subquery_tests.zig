@@ -120,7 +120,6 @@ test "subquery as binding produces list per outer fanout" {
 }
 
 test "subquery binding without rebinding fans out (baseline)" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
@@ -137,12 +136,30 @@ test "subquery binding without rebinding fans out (baseline)" {
 }
 
 test "unnest restores fanout from subquery binding" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
         \\with @root > function_definition.declarator as @func_decl,
         \\     unnest(select @func_decl.parameters > parameter_declaration) as @param_decl,
+        \\     @func_decl.declarator as @func_name
+        \\select { name: @func_name, param: @param_decl }
+        ,
+        .target =
+        \\int add(int a, int b) { return a + b; }
+        \\int main(void) { return 0; }
+        ,
+    });
+}
+
+test "unnest restores fanout from subquery binding with inner binds" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .language = .c,
+        .query =
+        \\with @root > function_definition.declarator as @func_decl,
+        \\     unnest(
+        \\       with @func_decl.parameters as @params
+        \\       select @params > parameter_declaration
+        \\     ) as @param_decl,
         \\     @func_decl.declarator as @func_name
         \\select { name: @func_name, param: @param_decl }
         ,
@@ -169,13 +186,12 @@ test "unnest on empty subquery drops branch" {
 }
 
 test "unnest of singleton list yields one fanout" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
         \\with @root > function_definition as @func,
         \\     unnest(select @func.declarator) as @d
-        \\select @d
+        \\select { @func, @d }
         ,
         .target =
         \\int add(int a, int b) { return a + b; }
