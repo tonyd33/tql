@@ -205,7 +205,7 @@ pub const Runtime = struct {
                 try self.handleBranchEnd();
             },
             .aggregate => |agg| switch (agg.value) {
-                .list => |list| try list.value.items.append(self.allocator, value),
+                .list => |list| try list.value.items.append(self.allocator, value.clone()),
             },
         }
         return true;

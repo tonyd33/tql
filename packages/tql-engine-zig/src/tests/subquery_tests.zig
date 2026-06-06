@@ -59,7 +59,6 @@ test "subquery captures outer binding" {
 }
 
 test "nested subquery" {
-    if (1 == 1) return error.SkipZigTest;
     try Snapshotter.snapshotQuery(@src(), .{
         .language = .c,
         .query =
