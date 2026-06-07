@@ -23,14 +23,22 @@ const ExitCode = enum(u8) {
     invalid_args = 5,
 };
 
-pub fn main(init: std.process.Init) !u8 {
-    // var gpa = init.gpa;
-    // defer {
-    //     const result = gpa.deinit();
-    //     if (result == .leak) @panic("memory leaked");
-    // }
-    const allocator = init.gpa;
+const Subcommands = enum {
+    run,
+    help,
+};
 
+const main_parsers = .{
+    .command = clap.parsers.enumeration(Subcommands),
+};
+
+const main_params = clap.parseParamsComptime(
+    \\-h, --help                  Display this help and exit
+    \\<command>
+    \\
+);
+
+pub fn main(init: std.process.Init) !u8 {
     var stdout_buffer: [1024]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
@@ -40,6 +48,58 @@ pub fn main(init: std.process.Init) !u8 {
     defer stdout.flush() catch {};
     defer stderr.flush() catch {};
 
+    var iter = try init.minimal.args.iterateAllocator(init.gpa);
+    defer iter.deinit();
+
+    _ = iter.next();
+
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &main_params, main_parsers, &iter, .{
+        .diagnostic = &diag,
+        .allocator = init.gpa,
+
+        // Terminate the parsing of arguments after parsing the first positional (0 is passed
+        // here because parsed positionals are, like slices and arrays, indexed starting at 0).
+        //
+        // This will terminate the parsing after parsing the subcommand enum and leave `iter`
+        // not fully consumed. It can then be reused to parse the arguments for subcommands.
+        .terminating_positional = 0,
+    }) catch |err| {
+        try diag.reportToFile(init.io, .stderr(), err);
+        return err;
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        try clap.helpToFile(init.io, .stderr(), clap.Help, &main_params, .{
+            .description_on_new_line = false,
+            .spacing_between_parameters = 0,
+        });
+        return @intFromEnum(ExitCode.success);
+    }
+
+    const command = res.positionals[0] orelse return error.MissingCommand;
+    switch (command) {
+        .help => {
+            try clap.helpToFile(init.io, .stderr(), clap.Help, &main_params, .{
+                .description_on_new_line = false,
+                .spacing_between_parameters = 0,
+            });
+            return @intFromEnum(ExitCode.success);
+        },
+        .run => {
+            return runMain(init.io, init.gpa, stdout, stderr, &iter);
+        },
+    }
+}
+
+fn runMain(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    iter: *std.process.Args.Iterator,
+) !u8 {
     const params = comptime clap.parseParamsComptime(
         \\-h, --help                  Display this help and exit
         \\-v, --version               Display version and exit
@@ -61,18 +121,17 @@ pub fn main(init: std.process.Init) !u8 {
     };
 
     var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, init.minimal.args, .{
+    var res = clap.parseEx(clap.Help, &params, parsers, iter, .{
         .diagnostic = &diag,
-        .allocator = allocator,
+        .allocator = gpa,
     }) catch |err| {
-        try diag.report(stderr, err);
-        try stderr.flush();
+        try diag.reportToFile(io, .stderr(), err);
         return @intFromEnum(ExitCode.invalid_args);
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        try clap.helpToFile(init.io, .stderr(), clap.Help, &params, .{
+        try clap.helpToFile(io, .stderr(), clap.Help, &params, .{
             .description_on_new_line = false,
             .spacing_between_parameters = 0,
         });
@@ -92,29 +151,29 @@ pub fn main(init: std.process.Init) !u8 {
     };
 
     const query = if (res.args.@"from-file") |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(init.io, query_file, .{});
-        defer file.close(init.io);
-        var file_reader = file.reader(init.io, &.{});
-        const contents = try file_reader.interface.allocRemaining(allocator, .limited(10 * 1024 * 1024));
+        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
+        defer file.close(io);
+        var file_reader = file.reader(io, &.{});
+        const contents = try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
         break :blk contents;
     } else blk: {
-        const buf = try allocator.dupe(u8, query_or_first_file);
+        const buf = try gpa.dupe(u8, query_or_first_file);
         break :blk buf;
     };
-    defer allocator.free(query);
+    defer gpa.free(query);
 
     // IMPROVE: read stdin if files.len = 0
     const files = if (res.args.@"from-file") |_| blk: {
-        const buf = try allocator.alloc([]const u8, res.positionals[1].len + 1);
+        const buf = try gpa.alloc([]const u8, res.positionals[1].len + 1);
         buf[0] = query_or_first_file;
         @memcpy(buf[1 .. res.positionals[1].len + 1], res.positionals[1]);
         break :blk buf;
     } else blk: {
-        const buf = try allocator.alloc([]const u8, res.positionals[1].len);
+        const buf = try gpa.alloc([]const u8, res.positionals[1].len);
         @memcpy(buf, res.positionals[1]);
         break :blk buf;
     };
-    defer allocator.free(files);
+    defer gpa.free(files);
 
     const language = res.args.language orelse {
         try stderr.print("Error: --language is required\n", .{});
@@ -122,7 +181,7 @@ pub fn main(init: std.process.Init) !u8 {
         return @intFromEnum(ExitCode.invalid_args);
     };
 
-    return run(allocator, init.io, stdout, stderr, .{
+    return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
         .format = .json,
@@ -135,6 +194,16 @@ pub fn main(init: std.process.Init) !u8 {
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.runtime_error);
     };
+}
+
+fn runGrammar(
+    _: std.Io,
+    _: std.mem.Allocator,
+    _: *std.Io.Writer,
+    _: *std.Io.Writer,
+    _: *std.process.Args.Iterator,
+) !u8 {
+    return @intFromEnum(ExitCode.success);
 }
 
 const Config = struct {
