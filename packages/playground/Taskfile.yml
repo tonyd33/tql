@@ -13,7 +13,8 @@ vars:
       rust: rust
       typescript: typescript/typescript
       tsx: typescript/tsx
-      zig: zig
+      # zig takes so long to build for some reason
+      # zig: zig
 
 tasks:
   default:
