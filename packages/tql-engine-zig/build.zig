@@ -1,7 +1,7 @@
 const std = @import("std");
 
 // Must match .version in build.zig.zon.
-const VERSION = "0.1.2";
+const VERSION = "0.1.4";
 
 const TreeSitterGrammar = struct {
     dep_name: []const u8,
