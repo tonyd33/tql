@@ -9,7 +9,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.23.0",
+  "packageManager": "pnpm@10.34.3",
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
     "tree-sitter-cli": "^0.26.0"
