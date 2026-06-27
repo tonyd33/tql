@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: tql
 
@@ -40,7 +40,7 @@ jobs:
           -Doptimize=ReleaseFast --release=fast
 
       - name: Checkout Linux source tree
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: torvalds/linux
           ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup
         with:
@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup
 
