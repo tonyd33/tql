@@ -6,7 +6,7 @@ tasks:
 
   build:
     cmds:
-      - zig build
+      - zig build -Dgrammars=available
       - zig build wasm -Dgrammars=available
 
   release:

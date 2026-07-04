@@ -168,56 +168,74 @@ fn validGrammarNames(b: *std.Build) ![]const u8 {
     return buf.toOwnedSlice(b.allocator);
 }
 
-fn parseGrammarNames(b: *std.Build, str: []const u8) ![]const []const u8 {
-    if (str.len == 0) return &.{};
-    if (std.mem.eql(u8, str, "available")) {
-        const names = try b.allocator.alloc([]const u8, grammars.len);
-        for (grammars, 0..) |g, i| names[i] = g.outName();
-        return names;
-    }
+const GrammarSelection = union(enum) {
+    available,
+    subset: []const []const u8,
+    none,
+};
+
+fn parseGrammarNames(b: *std.Build, str: []const u8) !GrammarSelection {
+    if (std.mem.eql(u8, str, "none")) return .none;
+    if (std.mem.eql(u8, str, "available")) return .available;
     var result: std.ArrayList([]const u8) = .empty;
     var it = std.mem.splitScalar(u8, str, ',');
     while (it.next()) |name| {
         if (name.len > 0) try result.append(b.allocator, name);
     }
-    return result.toOwnedSlice(b.allocator);
+    return .{ .subset = try result.toOwnedSlice(b.allocator) };
+}
+
+fn selectionNames(b: *std.Build, sel: GrammarSelection) ![]const []const u8 {
+    return switch (sel) {
+        .none => &.{},
+        .available => blk: {
+            const names = try b.allocator.alloc([]const u8, grammars.len);
+            for (grammars, 0..) |g, i| names[i] = g.outName();
+            break :blk names;
+        },
+        .subset => |names| names,
+    };
 }
 
 fn selectedGrammars(
     b: *std.Build,
-    names: []const []const u8,
+    sel: GrammarSelection,
 ) ![]const TreeSitterGrammar {
-    if (names.len == 0) return &.{};
+    return switch (sel) {
+        .none => &.{},
+        .available => b.allocator.dupe(TreeSitterGrammar, grammars),
+        .subset => |names| blk: {
+            var seen: std.ArrayListUnmanaged(bool) = .empty;
+            defer seen.deinit(b.allocator);
+            try seen.appendNTimes(b.allocator, false, grammars.len);
 
-    var seen: std.ArrayListUnmanaged(bool) = .empty;
-    defer seen.deinit(b.allocator);
-    try seen.appendNTimes(b.allocator, false, grammars.len);
-
-    var result: std.ArrayList(TreeSitterGrammar) = .empty;
-    for (names) |name| {
-        var found_idx: ?usize = null;
-        for (grammars, 0..) |g, i| {
-            if (std.mem.eql(u8, g.outName(), name)) {
-                found_idx = i;
-                break;
+            var result: std.ArrayList(TreeSitterGrammar) = .empty;
+            for (names) |name| {
+                var found_idx: ?usize = null;
+                for (grammars, 0..) |g, i| {
+                    if (std.mem.eql(u8, g.outName(), name)) {
+                        found_idx = i;
+                        break;
+                    }
+                }
+                if (found_idx == null) {
+                    const valid = try validGrammarNames(b);
+                    defer b.allocator.free(valid);
+                    std.debug.print(
+                        "error: unknown grammar '{s}'. Valid names: {s}\n",
+                        .{ name, valid },
+                    );
+                    return error.UnknownGrammar;
+                }
+                const idx = found_idx.?;
+                if (!seen.items[idx]) {
+                    seen.items[idx] = true;
+                    try result.append(b.allocator, grammars[idx]);
+                }
             }
-        }
-        if (found_idx == null) {
-            const valid = try validGrammarNames(b);
-            defer b.allocator.free(valid);
-            std.debug.print(
-                "error: unknown grammar '{s}'. Valid names: {s}\n",
-                .{ name, valid },
-            );
-            return error.UnknownGrammar;
-        }
-        const idx = found_idx.?;
-        if (!seen.items[idx]) {
-            seen.items[idx] = true;
-            try result.append(b.allocator, grammars[idx]);
-        }
-    }
-    return result.toOwnedSlice(b.allocator);
+            break :blk result.toOwnedSlice(b.allocator);
+        },
+    };
 }
 
 
@@ -312,9 +330,10 @@ pub fn build(b: *std.Build) !void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
-    const grammars_str = b.option([]const u8, "grammars", "Comma-separated grammar names to build into the binary, or 'available' for all (default: none)") orelse "";
-    const selected_names = try parseGrammarNames(b, grammars_str);
-    const selected = try selectedGrammars(b, selected_names);
+    const grammars_str = b.option([]const u8, "grammars", "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)") orelse "none";
+    const selection = try parseGrammarNames(b, grammars_str);
+    const selected = try selectedGrammars(b, selection);
+    const selected_names = try selectionNames(b, selection);
 
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", VERSION);
@@ -396,7 +415,7 @@ pub fn build(b: *std.Build) !void {
     const test_options = b.addOptions();
     test_options.addOption(bool, "update_snapshots", update_snapshots);
 
-    const forced_grammars = try selectedGrammars(b, &.{ "c", "typescript" });
+    const forced_grammars = try selectedGrammars(b, .{ .subset = &.{ "c", "typescript" } });
 
     const test_build_options = b.addOptions();
     test_build_options.addOption([]const u8, "version", VERSION);
