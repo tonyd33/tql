@@ -297,7 +297,6 @@ pub const Predicate = union(enum) {
                 allocator.destroy(ln);
             },
             .quantified => |q| {
-                allocator.free(q.variable.name);
                 q.source.deinit(allocator);
                 q.predicate.deinit(allocator);
                 allocator.destroy(q.predicate);
@@ -343,7 +342,7 @@ pub const Predicate = union(enum) {
                 try w.writeByte(')');
             },
             .quantified => |q| {
-                try w.print("({s} {s} ", .{ @tagName(q.quantifier), q.variable.name });
+                try w.print("({s} ", .{@tagName(q.quantifier)});
                 try q.source.sexpr(w);
                 try w.writeByte(' ');
                 try q.predicate.sexpr(w);
@@ -396,7 +395,6 @@ pub const LogicalNot = struct {
 
 pub const QuantifiedExpression = struct {
     quantifier: Quantifier,
-    variable: Variable,
     source: Expression,
     predicate: *Predicate,
 };
@@ -490,9 +488,18 @@ pub const TupleLiteral = struct {
     }
 };
 
+pub const DotFieldAccess = struct {
+    field: Identifier,
+
+    pub fn sexpr(self: DotFieldAccess, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(dot-field {s})", .{self.field});
+    }
+};
+
 pub const Expression = union(enum) {
     node_selector: NodeSelector,
     variable: Variable,
+    dot_field_access: DotFieldAccess,
     string_literal: []const u8,
     regex_literal: []const u8,
     number_literal: u64,
@@ -511,6 +518,7 @@ pub const Expression = union(enum) {
         switch (self) {
             .node_selector => |ns| allocator.free(ns.node_type),
             .variable => |v| allocator.free(v.name),
+            .dot_field_access => |dfa| allocator.free(dfa.field),
             .string_literal => |s| allocator.free(s),
             .regex_literal => |r| allocator.free(r),
             .number_literal => {},
@@ -562,6 +570,7 @@ pub const Expression = union(enum) {
         switch (self) {
             .node_selector => |ns| try w.print("(node {s})", .{ns.node_type}),
             .variable => |v| try w.print("{s}", .{v.name}),
+            .dot_field_access => |dfa| try dfa.sexpr(w),
             .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
             .regex_literal => |r| try w.print("(regex \"{s}\")", .{r}),
             .number_literal => |n| try w.print("(number {d})", .{n}),

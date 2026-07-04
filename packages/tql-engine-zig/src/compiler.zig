@@ -42,6 +42,7 @@ const BindingMetadata = struct {
 };
 
 const ROOT_NAME = "root";
+const DOT_NAME = "__dot";
 
 pub const Compiler = struct {
     language: *const ts.Language,
@@ -161,6 +162,12 @@ pub const Compiler = struct {
                 try self.instruction_builder.emit(.{ .trv = .{ .descendant = {} } });
                 try self.navigateTo(desc_nav.descendant);
             },
+            .dot_field_access => |dfa| {
+                const dot_id = self.scope_stack.get(DOT_NAME) orelse return error.InvalidVariableReference;
+                try self.navigateToVariable(dot_id);
+                const field_id = self.language.fieldIdForName(dfa.field);
+                try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
+            },
             .parenthesized => |parenthesized| {
                 try self.navigateTo(parenthesized.*);
             },
@@ -230,7 +237,7 @@ pub const Compiler = struct {
 
     fn bindMetadata(self: *Compiler, variable: ast.Variable, expression: ast.Expression) CompilerError!void {
         switch (expression) {
-            .node_selector, .field_access, .child_navigation, .descendant_navigation, .variable => {
+            .node_selector, .field_access, .dot_field_access, .child_navigation, .descendant_navigation, .variable => {
                 const var_id = try self.scope_stack.getOrPut(variable.name);
                 try self.binding_metadata.append(self.allocator, .{
                     .variable_id = var_id,
@@ -368,6 +375,11 @@ pub const Compiler = struct {
             .field_access => |fa| try self.forceEvaluation(fa.base),
             .child_navigation => |cn| try self.forceEvaluation(cn.parent),
             .descendant_navigation => |dn| try self.forceEvaluation(dn.parent),
+            .dot_field_access => {
+                if (self.scope_stack.get(DOT_NAME)) |dot_id| {
+                    try self.forceBoundEvaluation(dot_id);
+                }
+            },
             .parenthesized => |p| try self.forceEvaluation(p.*),
             .node_selector, .string_literal, .regex_literal, .number_literal, .null_literal => {},
             else => @panic("Non-navigation expression as dependency"),
@@ -446,7 +458,6 @@ pub const Compiler = struct {
         const probe_resume_label = self.instruction_builder.createLabel();
 
         const bindings_snapshot = self.binding_metadata.items.len;
-        const var_id = try self.scope_stack.getOrPut(quantified.variable.name);
 
         try self.forceEvaluation(quantified.source);
 
@@ -454,10 +465,14 @@ pub const Compiler = struct {
         try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
         try self.navigateTo(quantified.source);
-        try self.bindCursorTo(var_id);
+
+        // Bind the current element to __dot so dot_field_access expressions can resolve it.
+        try self.scope_stack.enterScope();
+        const dot_id = try self.scope_stack.getOrPut(DOT_NAME);
+        try self.bindCursorTo(dot_id);
 
         try self.binding_metadata.append(self.allocator, .{
-            .variable_id = var_id,
+            .variable_id = dot_id,
             .navigation = .{ .expression = quantified.source },
             .emitted = true,
         });
@@ -475,6 +490,8 @@ pub const Compiler = struct {
 
         try self.instruction_builder.markLabel(inner_failure_label);
         try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
+
+        self.scope_stack.exitScope();
 
         try self.instruction_builder.markLabel(probe_resume_label);
         try self.instruction_builder.emitJump(outer_success_label, .always);
@@ -607,7 +624,7 @@ pub const Compiler = struct {
                 try self.forceBoundEvaluation(var_id);
                 break :blk var_id;
             },
-            .field_access, .child_navigation, .descendant_navigation, .node_selector => blk: {
+            .dot_field_access, .field_access, .child_navigation, .descendant_navigation, .node_selector => blk: {
                 const anon_id = try self.scope_stack.allocateAnonymous();
                 try self.binding_metadata.append(self.allocator, .{
                     .variable_id = anon_id,
@@ -652,11 +669,7 @@ pub const Compiler = struct {
                     .literal = .{ .regex = self.regexes.items[regex_index] },
                 };
             },
-            .field_access,
-            .child_navigation,
-            .descendant_navigation,
-            .node_selector,
-            => {
+            .dot_field_access, .field_access, .child_navigation, .descendant_navigation, .node_selector => {
                 const anon_id = try self.materializeAsVariable(expr);
                 return runtime.ValueSource{ .variable_id = anon_id };
             },

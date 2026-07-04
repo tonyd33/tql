@@ -1,170 +1,101 @@
 ========================================
-identifier type
+function definition single param
 ========================================
 
-query main(@class: class_declaration) {
-  select @class
-}
+def find_methods(@class): @class.body > method_definition;
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters
-      (parameter
-        (variable
-          (identifier))
-        (type
-          (identifier))))
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (function_definition
+    name: (identifier)
+    parameters: (def_parameters
+      (variable
+        (identifier)))
+    body: (pipeline
+      (pipeline_step
+        (expression
+          (child_navigation
+            parent: (expression
+              (field_access
+                base: (expression
+                  (variable
+                    (identifier)))
+                field: (identifier)))
+            child: (expression
+              (node_selector
+                (identifier)))))))))
 
 ========================================
-builtin type
+function definition multiple params
 ========================================
 
-query main(@str: string) {
-  select @str
-}
+def methods_named(@class; @name): @class.body > method_definition as @m | select(@m.name = @name) | @m;
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters
-      (parameter
-        (variable
-          (identifier))
-        (type
-          (builtin_type))))
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (function_definition
+    name: (identifier)
+    parameters: (def_parameters
+      (variable
+        (identifier))
+      (variable
+        (identifier)))
+    body: (pipeline
+      (pipeline_step
+        (bind_step
+          expression: (expression
+            (child_navigation
+              parent: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              child: (expression
+                (node_selector
+                  (identifier)))))
+          variable: (variable
+            (identifier))))
+      (pipeline_step
+        (select_step
+          predicate: (predicate
+            (comparison
+              left: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              right: (expression
+                (variable
+                  (identifier)))))))
+      (pipeline_step
+        (expression
+          (variable
+            (identifier)))))))
 
 ========================================
-array type
+function definition no params
 ========================================
 
-query main(): Array<class_declaration> {
-  with class_declaration as @class
-  select @class
-}
+def all_classes: class_declaration as @c | @c;
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (return_type_annotation
-      (type
-        (array_type
-          (type
-            (identifier)))))
-    (query_body
-      (with_clause
-        (binding
-          (expression
+  (function_definition
+    name: (identifier)
+    body: (pipeline
+      (pipeline_step
+        (bind_step
+          expression: (expression
             (node_selector
               (identifier)))
-          (variable
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-object type
-========================================
-
-query main(): Object<string> {
-  select {}
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (return_type_annotation
-      (type
-        (object_type
-          (type
-            (builtin_type)))))
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (object_literal)))))))
-
-========================================
-tuple type
-========================================
-
-query main(): Tuple<string, number> {
-  select ('hello', 42)
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (return_type_annotation
-      (type
-        (tuple_type
-          (type
-            (builtin_type))
-          (type
-            (builtin_type)))))
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (tuple_literal
-              (expression
-                (string_literal
-                  (string_fragment)))
-              (expression
-                (number_literal)))))))))
-
-========================================
-optional type
-========================================
-
-query main(@class: class_declaration?) {
-  select @class
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters
-      (parameter
-        (variable
-          (identifier))
-        (type
-          (optional_type
-            (type
-              (identifier))))))
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      (pipeline_step
+        (expression
+          (variable
+            (identifier)))))))

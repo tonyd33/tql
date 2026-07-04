@@ -1,5 +1,5 @@
 /**
- * @file TQL (Tree Query Language) - Option B Grammar
+ * @file TQL (Tree Query Language)
  * @author Tony Du
  * @license MIT
  */
@@ -26,7 +26,7 @@ module.exports = grammar({
 
   rules: {
     source_file: $ =>
-      repeat(choice($.directive, $.query_definition, $.query_body)),
+      repeat(choice($.directive, $.function_definition, $.pipeline)),
 
     comment: _ => token(seq("--", /.*/)),
 
@@ -38,35 +38,26 @@ module.exports = grammar({
 
     import_directive: $ => seq("import", field("path", $.string_literal)),
 
-    // Query definitions
-    query_definition: $ =>
+    // Function definitions: def name(@a; @b): pipeline;
+    function_definition: $ =>
       seq(
-        "query",
+        "def",
         field("name", $.identifier),
-        optional($.parameters),
-        optional($.return_type_annotation),
-        "{",
-        field("body", $.query_body),
-        "}",
+        optional(field("parameters", $.def_parameters)),
+        ":",
+        field("body", $.pipeline),
+        ";",
       ),
 
-    parameters: $ => seq("(", optional(comma_sep1($.parameter)), ")"),
+    def_parameters: $ => seq("(", optional(semicolon_sep1($.variable)), ")"),
 
-    parameter: $ =>
-      seq(field("name", $.variable), optional(seq(":", field("type", $.type)))),
+    // Pipeline: step | step | ... | step
+    pipeline: $ => seq($.pipeline_step, repeat(seq("|", $.pipeline_step))),
 
-    return_type_annotation: $ => seq(":", field("type", $.type)),
+    pipeline_step: $ => choice($.bind_step, $.select_step, $.expression),
 
-    query_body: $ =>
-      seq(
-        optional(field("with_clause", $.with_clause)),
-        optional(field("where_clause", $.where_clause)),
-        field("select_clause", $.select_clause),
-      ),
-
-    with_clause: $ => seq("with", comma_sep1($.binding)),
-
-    binding: $ =>
+    // expr as @v  or  expr as @v?
+    bind_step: $ =>
       seq(
         field("expression", $.expression),
         "as",
@@ -74,7 +65,11 @@ module.exports = grammar({
         optional(field("optional", "?")),
       ),
 
-    node_selector: $ => $.identifier,
+    // select(pred)
+    select_step: $ => seq("select", "(", field("predicate", $.predicate), ")"),
+
+    // Navigation expressions
+    node_selector: $ => prec(-1, $.identifier),
 
     field_access: $ =>
       prec.left(
@@ -93,15 +88,12 @@ module.exports = grammar({
         PREC.descendant,
         seq(
           field("parent", $.expression),
-          choice("descendant::", ">>"),
+          ">>",
           field("descendant", $.expression),
         ),
       ),
 
-    parenthesized_expression: $ => seq("(", $.expression, ")"),
-
-    where_clause: $ => seq("where", field("predicate", $.predicate)),
-
+    // Predicates
     predicate: $ =>
       choice(
         $.comparison,
@@ -129,8 +121,6 @@ module.exports = grammar({
         PREC.comparison,
         seq(
           field("left", $.expression),
-          // maybe these should have first class distinction to support syntax
-          // like 'foo' not like /regex/ or @bar is not null
           field("operator", choice("=", "!=", "~", "!~", ">", "<", ">=", "<=")),
           field("right", $.expression),
         ),
@@ -151,42 +141,23 @@ module.exports = grammar({
     logical_not: $ =>
       prec.right(PREC.not, seq("not", field("predicate", $.predicate))),
 
+    // any(gen; cond) / all(gen; cond)
     quantified_expression: $ =>
       seq(
         field("quantifier", choice("any", "all")),
-        field("variable", $.variable),
-        "in",
+        "(",
         field("source", $.expression),
-        ":",
+        ";",
         field("predicate", $.predicate),
+        ")",
       ),
 
     parenthesized_predicate: $ => seq("(", $.predicate, ")"),
 
-    select_clause: $ => seq("select", field("projection", $.projection)),
-
-    projection: $ => $.expression,
-
-    object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
-
-    object_field: $ =>
-      choice(
-        // Shorthand: @variable
-        $.variable,
-        // Full form: field: expression
-        seq(field("key", $.identifier), ":", field("value", $.expression)),
-      ),
-
-    array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
-
-    tuple_literal: $ =>
-      seq("(", $.expression, ",", comma_sep1($.expression), ")"),
-
-    subquery: $ => $.query_body,
-
     // Expressions
     expression: $ =>
       choice(
+        $.dot_field_access,
         $.node_selector,
         $.variable,
         $.string_literal,
@@ -199,20 +170,53 @@ module.exports = grammar({
         $.function_call,
         $.object_literal,
         $.array_literal,
+        $.array_collect,
         $.tuple_literal,
         $.subquery,
-        $.parenthesized_expression,
       ),
+
+    dot_field_access: $ =>
+      prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
     function_call: $ =>
       seq(
         field("name", $.identifier),
         "(",
-        optional(comma_sep1(field("argument", $.expression))),
+        optional(semicolon_sep1(field("argument", $.expression))),
         ")",
       ),
 
-    // Types
+    object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
+
+    object_field: $ =>
+      choice(
+        $.variable,
+        seq(field("key", $.identifier), ":", field("value", $.expression)),
+      ),
+
+    array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
+
+    array_collect: $ =>
+      seq(
+        "[",
+        choice(
+          seq($.bind_step, repeat(seq("|", $.pipeline_step))),
+          seq($.select_step, repeat(seq("|", $.pipeline_step))),
+          seq(
+            $.expression,
+            "|",
+            $.pipeline_step,
+            repeat(seq("|", $.pipeline_step)),
+          ),
+        ),
+        "]",
+      ),
+
+    tuple_literal: $ =>
+      seq("(", $.expression, ",", comma_sep1($.expression), ")"),
+
+    subquery: $ => seq("(", $.pipeline, ")"),
+
     type: $ =>
       choice(
         $.identifier,
@@ -288,4 +292,8 @@ module.exports = grammar({
 
 function comma_sep1(rule) {
   return seq(rule, repeat(seq(",", rule)));
+}
+
+function semicolon_sep1(rule) {
+  return seq(rule, repeat(seq(";", rule)));
 }

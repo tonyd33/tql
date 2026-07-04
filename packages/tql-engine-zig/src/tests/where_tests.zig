@@ -3,10 +3,7 @@ const Snapshotter = @import("snapshotter.zig");
 test "WHERE with simple comparison" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.name as @n
-        \\where @n = 'Service'
-        \\select @c
+        \\@root > class_declaration as @c | @c.name as @n | select(@n = 'Service') | @c
         ,
         .target =
         \\class Service {}
@@ -18,10 +15,7 @@ test "WHERE with simple comparison" {
 test "WHERE with OR logic" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.name as @n
-        \\where @n = 'Service' or @n = 'Controller'
-        \\select @c
+        \\@root > class_declaration as @c | @c.name as @n | select(@n = 'Service' or @n = 'Controller') | @c
         ,
         .target =
         \\class Service {}
@@ -34,13 +28,13 @@ test "WHERE with OR logic" {
 test "WHERE with AND logic" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.name as @class_name,
-        \\     @c.body as @body,
-        \\     @body > method_definition as @method_def,
-        \\     @method_def.name as @method_name
-        \\where @class_name = 'Service' and @method_name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c |
+        \\@c.name as @class_name |
+        \\@c.body as @body |
+        \\@body > method_definition as @method_def |
+        \\@method_def.name as @method_name |
+        \\select(@class_name = 'Service' and @method_name = 'foo') |
+        \\@c
         ,
         .target =
         \\class Service { foo() {}; bar() {}; }
@@ -52,9 +46,7 @@ test "WHERE with AND logic" {
 test "WHERE with any quantifier - matches" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m.name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name = 'foo')) | @c
         ,
         .target =
         \\class Service { foo() {}; bar() {}; }
@@ -66,9 +58,7 @@ test "WHERE with any quantifier - matches" {
 test "WHERE with any quantifier - no matches" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m.name = 'nonexistent'
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name = 'nonexistent')) | @c
         ,
         .target =
         \\class Service { foo() {}; bar() {}; }
@@ -80,9 +70,7 @@ test "WHERE with any quantifier - no matches" {
 test "WHERE any matches second method only" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m.name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name = 'foo')) | @c
         ,
         .target =
         \\class A { bar() {}; foo() {}; }
@@ -94,9 +82,7 @@ test "WHERE any matches second method only" {
 test "WHERE with all quantifier" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where all @m in @c.body > method_definition: @m.name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c | select(all(@c.body > method_definition; .name = 'foo')) | @c
         ,
         .target =
         \\class A { foo() {}; foo() {}; }
@@ -108,10 +94,7 @@ test "WHERE with all quantifier" {
 test "WHERE with nested any over two sources" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @a in @c.body > method_definition:
-        \\        any @b in @c.body > method_definition: @a.name = @b.name
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; any(@c.body > method_definition; .name = .name))) | @c
         ,
         .target =
         \\class A { foo() {}; }
@@ -122,9 +105,7 @@ test "WHERE with nested any over two sources" {
 test "WHERE field access on outer row" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where @c.name = 'Service'
-        \\select @c
+        \\@root > class_declaration as @c | select(@c.name = 'Service') | @c
         ,
         .target =
         \\class Service {}
@@ -136,10 +117,7 @@ test "WHERE field access on outer row" {
 test "WHERE optional binding is null" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > function_declaration as @f,
-        \\     @f.return_type as @rt?
-        \\where @rt = null
-        \\select @f
+        \\@root > function_declaration as @f | @f.return_type as @rt? | select(@rt = null) | @f
         ,
         .target =
         \\function a(): number { return 1; }
@@ -152,10 +130,7 @@ test "WHERE optional binding is null" {
 test "WHERE optional binding is not null" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > function_declaration as @f,
-        \\     @f.return_type as @rt?
-        \\where @rt != null
-        \\select @f
+        \\@root > function_declaration as @f | @f.return_type as @rt? | select(@rt != null) | @f
         ,
         .target =
         \\function a(): number { return 1; }
@@ -168,9 +143,7 @@ test "WHERE optional binding is not null" {
 test "WHERE expression is null" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > function_declaration as @f
-        \\where @f.return_type is null
-        \\select @f
+        \\@root > function_declaration as @f | select(@f.return_type is null) | @f
         ,
         .target =
         \\function a(): number { return 1; }
@@ -183,9 +156,7 @@ test "WHERE expression is null" {
 test "WHERE expression is not null" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > function_declaration as @f
-        \\where @f.return_type is not null
-        \\select @f
+        \\@root > function_declaration as @f | select(@f.return_type is not null) | @f
         ,
         .target =
         \\function a(): number { return 1; }
@@ -198,9 +169,7 @@ test "WHERE expression is not null" {
 test "WHERE field access with regex match" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m.name ~ /^foo.*/
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name ~ /^foo.*/)) | @c
         ,
         .target =
         \\class A { foobar() {}; }
@@ -212,9 +181,7 @@ test "WHERE field access with regex match" {
 test "WHERE field access with not equal" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where @c.name != 'Service'
-        \\select @c
+        \\@root > class_declaration as @c | select(@c.name != 'Service') | @c
         ,
         .target =
         \\class Service {}
@@ -227,9 +194,7 @@ test "WHERE field access with not equal" {
 test "WHERE field access in AND" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where @c.name = 'Service' and any @m in @c.body > method_definition: @m.name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c | select(@c.name = 'Service' and any(@c.body > method_definition; .name = 'foo')) | @c
         ,
         .target =
         \\class Service { foo() {}; }
@@ -242,9 +207,7 @@ test "WHERE field access in AND" {
 test "WHERE same field accessed twice" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where @c.name = 'Service' or @c.name = 'Controller'
-        \\select @c
+        \\@root > class_declaration as @c | select(@c.name = 'Service' or @c.name = 'Controller') | @c
         ,
         .target =
         \\class Service {}
@@ -257,12 +220,10 @@ test "WHERE same field accessed twice" {
 test "WHERE quantified regression for double yield" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @class_decl,
-        \\     @class_decl.name as @class_name
-        \\where @class_name ~ /Foo.*/ and
-        \\      any @md in @class_decl.body > method_definition:
-        \\        @md.return_type != null
-        \\select { @class_name }
+        \\@root > class_declaration as @c |
+        \\@c.name as @class_name |
+        \\select(@class_name ~ /Foo.*/ and any(@c.body > method_definition; .return_type != null)) |
+        \\{ @class_name }
         ,
         .target =
         \\class Foo1 {
@@ -283,9 +244,7 @@ test "WHERE quantified regression for double yield" {
 test "WHERE descendant nav in quantifier source" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c >> method_definition: @m.name = 'foo'
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c >> method_definition; .name = 'foo')) | @c
         ,
         .target =
         \\class Service { foo() {}; }
@@ -297,9 +256,7 @@ test "WHERE descendant nav in quantifier source" {
 test "WHERE child nav in comparison body" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: (@m.body > return_statement) != null
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .body > return_statement != null)) | @c
         ,
         .target =
         \\class A { foo() { return 1; } }
@@ -311,9 +268,7 @@ test "WHERE child nav in comparison body" {
 test "WHERE field access in OR with anonymous lift" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m.name = 'foo' or @m.name = 'bar'
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name = 'foo' or .name = 'bar')) | @c
         ,
         .target =
         \\class A { foo() {}; }
@@ -326,9 +281,7 @@ test "WHERE field access in OR with anonymous lift" {
 test "WHERE any with not-null body" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c
-        \\where any @m in @c.body > method_definition: @m != null
-        \\select @c
+        \\@root > class_declaration as @c | select(any(@c.body > method_definition; .name != null)) | @c
         ,
         .target =
         \\class Service { foo() {}; bar() {}; }

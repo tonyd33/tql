@@ -18,7 +18,7 @@
 0017: rel equals (node kind) (literal kind_id 261)
 0018: halt not_relates
 0019: asn 3 (node this)
-0020: trv variable_id 2
+0020: trv variable_id 3
 0021: trv field 25
 0022: asn 4 (node this)
 0023: trv variable_id 3
