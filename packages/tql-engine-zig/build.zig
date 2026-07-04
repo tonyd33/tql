@@ -204,12 +204,6 @@ pub fn build(b: *std.Build) !void {
     build_options.addOption([]const u8, "version", VERSION);
     mod.addOptions("build_options", build_options);
 
-    const clap = b.dependency("clap", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.root_module.addImport("clap", clap.module("clap"));
-
     try addEngineDeps(b, mod, target, optimize);
 
     const build_wasm = b.option(bool, "wasm", "Build the wasm artifact") orelse false;
