@@ -37,7 +37,9 @@ jobs:
         run: >
           task engine:build --
           --prefix "$HOME/.local"
-          -Doptimize=ReleaseFast --release=fast
+          -Dgrammars=c
+          -Doptimize=ReleaseFast
+          --release=fast
 
       - name: Checkout Linux source tree
         uses: actions/checkout@v7
