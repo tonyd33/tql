@@ -21,7 +21,7 @@ export fn tql_free(ptr: [*]u8, len: usize) void {
 }
 
 export fn tql_run(
-    language_id: u32,
+    grammar_id: u32,
     query_ptr: [*]const u8,
     query_len: usize,
     target_ptr: [*]const u8,
@@ -31,20 +31,24 @@ export fn tql_run(
     var buf = std.Io.Writer.Allocating.init(gpa);
     errdefer buf.deinit();
 
-    const language: tql.Language = switch (language_id) {
-        0 => .cpp,
-        1 => .c,
-        2 => .go,
-        3 => .javascript,
-        4 => .python,
-        5 => .rust,
-        6 => .tsx,
-        7 => .typescript,
-        8 => .zig,
-        else => return finishErr(&buf, out, "invalid language id"),
+    const name: []const u8 = switch (grammar_id) {
+        0 => "cpp",
+        1 => "c",
+        2 => "go",
+        3 => "javascript",
+        4 => "python",
+        5 => "rust",
+        6 => "tsx",
+        7 => "typescript",
+        8 => "zig",
+        else => return finishErr(&buf, out, "invalid grammar id"),
     };
 
-    runImpl(language, query_ptr[0..query_len], target_ptr[0..target_len], &buf) catch |err| {
+    var registry = tql.GrammarRegistry.init(gpa, &.{});
+    defer registry.deinit();
+    const grammar = registry.get(name) catch return finishErr(&buf, out, "grammar not found");
+
+    runImpl(grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf) catch |err| {
         return finishErr(&buf, out, @errorName(err));
     };
 
@@ -53,7 +57,7 @@ export fn tql_run(
 }
 
 fn runImpl(
-    language: tql.Language,
+    grammar: *const tql.Grammar,
     query_source: []const u8,
     query_target: []const u8,
     buf: *std.Io.Writer.Allocating,
@@ -66,7 +70,7 @@ fn runImpl(
     });
     defer engine.deinit();
 
-    var compiled = try engine.compile(query_source, language);
+    var compiled = try engine.compile(query_source, grammar);
     defer compiled.deinit();
 
     var arena = std.heap.ArenaAllocator.init(gpa);

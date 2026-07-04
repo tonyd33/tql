@@ -1,7 +1,7 @@
 const std = @import("std");
 const tql = @import("tql_engine_zig");
 const Engine = tql.Engine;
-const Language = tql.Language;
+const Grammar = tql.Grammar;
 const Value = tql.Value;
 
 const VERSION = tql.VERSION;
@@ -41,7 +41,7 @@ const main_cmds = .{
             .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
             .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
-            .language = Opt{ .names = .{ .long = "language", .short = 'l' }, .has_arg = .required_argument, .meta = "lang", .description = "Language" },
+            .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
         },
     },
@@ -130,8 +130,22 @@ pub fn main(init: std.process.Init) !u8 {
 
     switch (SubcmdResolver(main_cmds).match(word)) {
         .subcmd => |s| switch (s) {
-            .run => return runMain(init.io, init.gpa, stdout, stderr, &iter),
-            .grammar => return runGrammar(init.io, init.gpa, stdout, stderr, &iter),
+            .run => return runMain(
+                init.io,
+                init.gpa,
+                stdout,
+                stderr,
+                init.environ_map,
+                &iter,
+            ),
+            .grammar => return runGrammar(
+                init.io,
+                init.gpa,
+                stdout,
+                stderr,
+                init.environ_map,
+                &iter,
+            ),
         },
         .unknown => |w| {
             try stderr.print("Error: unknown command '{s}'\n", .{w});
@@ -146,14 +160,23 @@ fn runMain(
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
     stderr: *std.Io.Writer,
+    environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
+    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
+    defer {
+        for (search_paths) |p| gpa.free(p);
+        gpa.free(search_paths);
+    }
+    var registry = tql.GrammarRegistry.init(gpa, search_paths);
+    defer registry.deinit();
+
     var tokenizer = ArgTokenizer(main_cmds.run.opts).init(iter);
 
     var show_help = false;
     var from_file: ?[]const u8 = null;
     var workers: usize = 1;
-    var language: ?Language = null;
+    var grammar: ?*const Grammar = null;
     var progress = false;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
@@ -163,7 +186,7 @@ fn runMain(
             .flag => |f| switch (f) {
                 .help => show_help = true,
                 .progress => progress = true,
-                .from_file, .workers, .language => unreachable,
+                .from_file, .workers, .grammar => unreachable,
             },
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
@@ -171,7 +194,10 @@ fn runMain(
                     try stderr.print("Error: --workers requires a positive integer\n", .{});
                     return @intFromEnum(ExitCode.invalid_args);
                 },
-                .language => language = Language.fromName(kv.value),
+                .grammar => grammar = registry.get(kv.value) catch |err| {
+                    try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
+                    return @intFromEnum(ExitCode.invalid_args);
+                },
                 .help, .progress => unreachable,
             },
             .positional => |p| try positionals.append(gpa, p),
@@ -206,11 +232,17 @@ fn runMain(
     else
         positionals.items[1..];
 
+    const grammar_resolved = grammar orelse {
+        try stderr.print("Error: --grammar is required\n", .{});
+        try printUsage(run_cmd, stderr);
+        return @intFromEnum(ExitCode.invalid_args);
+    };
+
     return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
         .format = .json,
-        .language = language.?,
+        .grammar = grammar_resolved,
         .workers = workers,
         .stats = false,
         .verbose = false,
@@ -222,10 +254,11 @@ fn runMain(
 }
 
 fn runGrammar(
-    _: std.Io,
+    io: std.Io,
     gpa: std.mem.Allocator,
     _: *std.Io.Writer,
     stderr: *std.Io.Writer,
+    environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
     var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter);
@@ -256,7 +289,7 @@ fn runGrammar(
 
     switch (SubcmdResolver(grammar_subcmds).match(positionals.items[0])) {
         .subcmd => |s| switch (s) {
-            .list => {}, // TODO: list installed grammars
+            .list => return listGrammars(io, gpa, environ_map, stderr),
             .add => {}, // TODO: install grammars
             .remove => {}, // TODO: remove grammars
         },
@@ -270,11 +303,51 @@ fn runGrammar(
     return @intFromEnum(ExitCode.success);
 }
 
+fn listGrammars(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    environ_map: *const std.process.Environ.Map,
+    stderr: *std.Io.Writer,
+) !u8 {
+    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
+    defer {
+        for (search_paths) |p| gpa.free(p);
+        gpa.free(search_paths);
+    }
+    var registry = tql.GrammarRegistry.init(gpa, search_paths);
+    defer registry.deinit();
+
+    const dyn = try registry.listDynamic(io);
+    defer {
+        for (dyn) |d| {
+            gpa.free(d.name);
+            gpa.free(d.dir);
+        }
+        gpa.free(dyn);
+    }
+
+    try stderr.writeAll("Built-in grammars:\n");
+    if (tql.Grammar.static_grammars.len == 0) {
+        try stderr.writeAll("  (none)\n");
+    } else {
+        for (tql.Grammar.static_grammars) |grammar| try stderr.print("  {s}\n", .{grammar.name});
+    }
+
+    try stderr.writeAll("\nDynamic grammars:\n");
+    if (dyn.len == 0) {
+        try stderr.writeAll("  (none)\n");
+    } else {
+        for (dyn) |d| try stderr.print("  {s}  {s}\n", .{ d.name, d.dir });
+    }
+
+    return @intFromEnum(ExitCode.success);
+}
+
 const Config = struct {
     query: []const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
-    language: Language,
+    grammar: *const Grammar,
     workers: usize = 1,
     stats: bool,
     verbose: bool,
@@ -354,7 +427,7 @@ const SharedContext = struct {
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,
     path_queue: *PathQueue,
-    language: Language,
+    grammar: *const Grammar,
     progress: *Progress,
     io: std.Io,
 };
@@ -376,7 +449,7 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
 
     var walker = try root_dir.walk(ctx.*.allocator);
     while (try walker.next(ctx.*.io)) |entry| {
-        if (entry.kind == .file and ctx.*.language.matchesFileName(entry.basename)) {
+        if (entry.kind == .file and ctx.*.grammar.matchesFileName(entry.basename)) {
             const joined = try std.fs.path.join(
                 ctx.*.allocator,
                 &[_][]const u8{ path, entry.path },
@@ -495,7 +568,7 @@ fn run(
     });
     defer engine.deinit();
 
-    var compiled = try engine.compile(config.query, config.language);
+    var compiled = try engine.compile(config.query, config.grammar);
     defer compiled.deinit();
 
     // real shit
@@ -509,7 +582,7 @@ fn run(
         .allocator = allocator,
         .result_queue = &result_queue,
         .path_queue = &path_queue,
-        .language = config.language,
+        .grammar = config.grammar,
         .progress = &progress,
         .io = io,
     };

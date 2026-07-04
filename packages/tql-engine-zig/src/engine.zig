@@ -6,7 +6,7 @@ const parser = @import("parser.zig");
 const compiler = @import("compiler.zig");
 const runtime = @import("runtime.zig");
 const ast = @import("ast.zig");
-const Language = @import("language.zig").Language;
+const Grammar = @import("grammar.zig").Grammar;
 
 // Mirror a ts.Node. We want this to have its own lifetime independent of the tree sitter AST
 // that backs a ts.Node.
@@ -198,17 +198,17 @@ pub const Engine = struct {
 
     /// Parse + compile a TQL query for a given target language.
     /// Returned CompiledQuery owns its ProgramImage.
-    pub fn compile(self: *Engine, query_source: []const u8, language: Language) !Query {
+    pub fn compile(self: *Engine, query_source: []const u8, grammar: *const Grammar) !Query {
         const source_file = try self.tql_parser.parse(query_source);
         defer source_file.deinit(self.config.allocator);
 
-        var c = compiler.Compiler.init(self.config.allocator, language.getTreeSitterLanguage());
+        var c = compiler.Compiler.init(self.config.allocator, grammar.language);
         defer c.deinit();
 
         const program_image = try c.compile(self.config.allocator, source_file);
         return .{
             .program_image = program_image,
-            .language = language,
+            .grammar = grammar,
             .allocator = self.config.allocator,
             .io = self.config.io,
         };
@@ -217,7 +217,7 @@ pub const Engine = struct {
 
 pub const Query = struct {
     program_image: runtime.ProgramImage,
-    language: Language,
+    grammar: *const Grammar,
     allocator: Allocator,
     // Do I really want this...?
     io: std.Io,
@@ -241,7 +241,7 @@ pub const Query = struct {
     ) !RunResult {
         const source_parser = ts.Parser.create();
         defer source_parser.destroy();
-        try source_parser.setLanguage(self.language.getTreeSitterLanguage());
+        try source_parser.setLanguage(self.grammar.language);
 
         const parse_start = std.Io.Timestamp.now(self.io, .real);
         const tree = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;

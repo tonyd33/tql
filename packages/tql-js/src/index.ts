@@ -1,7 +1,6 @@
 import { type Fd, WASI } from "@bjorn3/browser_wasi_shim";
 
-// IMPROVE: keep in sync with zig
-export enum Language {
+export enum Grammar {
   cpp = 0,
   c = 1,
   go = 2,
@@ -13,28 +12,28 @@ export enum Language {
   zig = 8,
 }
 
-export interface LanguageInfo {
-  id: Language;
-  key: keyof typeof Language;
+export interface GrammarInfo {
+  id: Grammar;
+  key: keyof typeof Grammar;
   displayName: string;
 }
 
-export const languages: readonly LanguageInfo[] = [
-  { id: Language.cpp, key: "cpp", displayName: "C++" },
-  { id: Language.c, key: "c", displayName: "C" },
-  { id: Language.go, key: "go", displayName: "Go" },
-  { id: Language.javascript, key: "javascript", displayName: "JavaScript" },
-  { id: Language.python, key: "python", displayName: "Python" },
-  { id: Language.rust, key: "rust", displayName: "Rust" },
-  { id: Language.tsx, key: "tsx", displayName: "TSX" },
-  { id: Language.typescript, key: "typescript", displayName: "TypeScript" },
-  { id: Language.zig, key: "zig", displayName: "Zig" },
+export const grammars: readonly GrammarInfo[] = [
+  { id: Grammar.cpp, key: "cpp", displayName: "C++" },
+  { id: Grammar.c, key: "c", displayName: "C" },
+  { id: Grammar.go, key: "go", displayName: "Go" },
+  { id: Grammar.javascript, key: "javascript", displayName: "JavaScript" },
+  { id: Grammar.python, key: "python", displayName: "Python" },
+  { id: Grammar.rust, key: "rust", displayName: "Rust" },
+  { id: Grammar.tsx, key: "tsx", displayName: "TSX" },
+  { id: Grammar.typescript, key: "typescript", displayName: "TypeScript" },
+  { id: Grammar.zig, key: "zig", displayName: "Zig" },
 ] as const;
 
 export interface QueryArgs {
   querySource: string;
   queryTarget: string;
-  language: Language;
+  grammar: Grammar;
 }
 
 export interface QueryStats {
@@ -103,7 +102,7 @@ class TqlEngine implements Engine {
 
     try {
       exp.tql_run(
-        args.language,
+        args.grammar,
         query.ptr,
         query.len,
         target.ptr,

@@ -2,7 +2,7 @@
   import { Parser, type Tree } from "web-tree-sitter";
   import { EditorView } from "codemirror";
   import { EditorSelection } from "@codemirror/state";
-  import { languages, Language, type QueryResult } from "tql";
+  import { grammars, Grammar, type QueryResult } from "tql";
   import { engine, loadLanguage } from "$lib/boot";
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
@@ -38,8 +38,8 @@ int main(int argc, char **argv) {
   return 0;
 }`);
 
-  let selectedLanguage = $state<Language>(Language.c);
-  const langKey = $derived(languages.find((l) => l.id === selectedLanguage)!.key);
+  let selectedGrammar = $state<Grammar>(Grammar.c);
+  const grammarKey = $derived(grammars.find((l) => l.id === selectedGrammar)!.key);
 
   let targetView: EditorView | undefined;
   function highlightTarget(start: number, end: number) {
@@ -53,9 +53,9 @@ int main(int argc, char **argv) {
 
   let tree = $state<Tree | null>(null);
   $effect(() => {
-    const key = langKey;
+    const key = grammarKey;
     loadLanguage(key).then((lang) => {
-      if (langKey !== key) return;
+      if (grammarKey !== key) return;
       parser.setLanguage(lang);
       tree = parser.parse(target);
     });
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     result = engine.query({
       querySource: query,
       queryTarget: target,
-      language: selectedLanguage,
+      grammar: selectedGrammar,
     });
   }
 </script>
@@ -78,10 +78,10 @@ int main(int argc, char **argv) {
   <aside class="sidebar">
     <h1>tql</h1>
     <label class="field">
-      <span>Language</span>
-      <select bind:value={selectedLanguage}>
-        {#each languages as language}
-          <option value={language.id}>{language.displayName}</option>
+      <span>Grammar</span>
+      <select bind:value={selectedGrammar}>
+        {#each grammars as grammar}
+          <option value={grammar.id}>{grammar.displayName}</option>
         {/each}
       </select>
     </label>
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   <section class="panel panel-target">
     <header>Target</header>
     <div class="panel-body">
-      <Editor bind:value={target} lang={langKey} onReady={(v) => (targetView = v)} />
+      <Editor bind:value={target} lang={grammarKey} onReady={(v) => (targetView = v)} />
     </div>
   </section>
 
