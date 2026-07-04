@@ -5,9 +5,11 @@ tasks:
     cmds: [task --list]
 
   build:
+    vars:
+      ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
     cmds:
-      - zig build -Dgrammars=available
-      - zig build wasm -Dgrammars=available
+      - zig build {{.ARGS}}
+      - zig build wasm {{.ARGS}}
 
   release:
     cmds: ["zig build -Doptimize=ReleaseFast --release=fast"]
