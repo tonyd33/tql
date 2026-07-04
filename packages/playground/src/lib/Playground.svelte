@@ -8,16 +8,16 @@
   import Editor from "$lib/Editor.svelte";
   const parser = new Parser();
 
-  let query = $state(`with @root > function_definition.declarator as @func_decl,
-     @func_decl.declarator as @func_name,
-     (
-       with @func_decl.parameters > parameter_declaration as @param,
-            @param.type as @param_type,
-            @param.declarator as @param_name
-       where @param_type = 'int'
-       select @param_name
-     ) as @int_param_names
-select { @func_name, @int_param_names }`);
+  let query = $state(`@root > function_definition.declarator as @func_decl
+| @func_decl.declarator as @func_name
+| (
+  @func_decl.parameters > parameter_declaration as @param
+  | @param.type as @param_type
+  | @param.declarator as @param_name
+  | select(@param_type = 'int')
+  | @param_name
+) as @int_param_names
+| { @func_name, @int_param_names }`);
   let target = $state(`#include <stddef.h>
 #include <stdio.h>
 

@@ -53,15 +53,15 @@ jobs:
         run: |
           set -euo pipefail
           tql run --grammar c '
-          @root > function_definition as @fn |
-          @fn > function_declarator as @fn_decl |
-          @fn_decl > identifier as @name |
-          @fn.body as @body |
-          select(
+          @root > function_definition as @fn
+          | @fn > function_declarator as @fn_decl
+          | @fn_decl > identifier as @name
+          | @fn.body as @body
+          | select(
             any(@body >> call_expression; .function ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
             any(@body >> goto_statement; .label ~ /^(err|out)(_\w+)?$/)
-          ) |
-          { @name }
+          )
+          | { @name }
           ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
 
   build:
