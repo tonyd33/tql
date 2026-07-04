@@ -27,6 +27,30 @@ pub const Language = enum {
         };
     }
 
+    pub fn fromName(n: []const u8) ?Language {
+        if (std.mem.eql(u8, n, "cpp")) {
+            return .cpp;
+        } else if (std.mem.eql(u8, n, "c")) {
+            return .c;
+        } else if (std.mem.eql(u8, n, "go")) {
+            return .go;
+        } else if (std.mem.eql(u8, n, "javascript")) {
+            return .javascript;
+        } else if (std.mem.eql(u8, n, "python")) {
+            return .python;
+        } else if (std.mem.eql(u8, n, "rust")) {
+            return .rust;
+        } else if (std.mem.eql(u8, n, "tsx")) {
+            return .tsx;
+        } else if (std.mem.eql(u8, n, "typescript")) {
+            return .typescript;
+        } else if (std.mem.eql(u8, n, "zig")) {
+            return .zig;
+        } else {
+            return null;
+        }
+    }
+
     pub fn name(self: Language) []const u8 {
         return switch (self) {
             .cpp => "cpp",

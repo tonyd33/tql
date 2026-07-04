@@ -1,11 +1,17 @@
 const std = @import("std");
 const tql = @import("tql_engine_zig");
-const clap = @import("clap");
 const Engine = tql.Engine;
 const Language = tql.Language;
 const Value = tql.Value;
 
 const VERSION = tql.VERSION;
+
+// IMPROVE: split arg parser
+const ArgTokenizer = tql.arg_parser.ArgTokenizer;
+const SubcmdResolver = tql.arg_parser.SubcmdResolver;
+const Opt = tql.arg_parser.Opt;
+const Positional = tql.arg_parser.Positional;
+const printUsage = tql.arg_parser.printUsage;
 
 const OutputFormat = enum {
     // IMPROVE: actually implement these
@@ -23,14 +29,64 @@ const ExitCode = enum(u8) {
     invalid_args = 5,
 };
 
-pub fn main(init: std.process.Init) !u8 {
-    // var gpa = init.gpa;
-    // defer {
-    //     const result = gpa.deinit();
-    //     if (result == .leak) @panic("memory leaked");
-    // }
-    const allocator = init.gpa;
+const main_opts = .{
+    .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
+};
 
+const main_cmds = .{
+    .run = .{
+        .aliases = &[_][]const u8{},
+        .description = @as(?[]const u8, "Run a query against files"),
+        .opts = .{
+            .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
+            .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
+            .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
+            .language = Opt{ .names = .{ .long = "language", .short = 'l' }, .has_arg = .required_argument, .meta = "lang", .description = "Language" },
+            .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
+        },
+    },
+    .grammar = .{
+        .aliases = &[_][]const u8{},
+        .description = @as(?[]const u8, "Manage grammars"),
+        .opts = .{
+            .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
+            .install_dir = Opt{ .names = .{ .long = "install-dir" }, .has_arg = .required_argument, .meta = "dir", .description = "Grammar install directory" },
+        },
+    },
+};
+
+const grammar_subcmds = .{
+    .list = .{ .aliases = &[_][]const u8{"ls"}, .description = @as(?[]const u8, "List installed grammars") },
+    .add = .{ .aliases = &[_][]const u8{}, .description = @as(?[]const u8, "Install grammars") },
+    .remove = .{ .aliases = &[_][]const u8{"rm"}, .description = @as(?[]const u8, "Remove grammars") },
+};
+
+const main_cmd = .{
+    .name = "tql",
+    .opts = main_opts,
+    .subcmds = main_cmds,
+};
+
+const run_cmd = .{
+    .name = "tql run",
+    .opts = main_cmds.run.opts,
+    .positionals = &[_]Positional{
+        .{ .name = "query", .required = false },
+        .{ .name = "file", .required = true, .variadic = true },
+    },
+};
+
+const grammar_cmd = .{
+    .name = "tql grammar",
+    .opts = main_cmds.grammar.opts,
+    .subcmds = grammar_subcmds,
+    .subcmd_label = "SUBCOMMAND",
+    .positionals = &[_]Positional{
+        .{ .name = "grammar", .required = false, .variadic = true },
+    },
+};
+
+pub fn main(init: std.process.Init) !u8 {
     var stdout_buffer: [1024]u8 = undefined;
     var stderr_buffer: [1024]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
@@ -40,101 +96,178 @@ pub fn main(init: std.process.Init) !u8 {
     defer stdout.flush() catch {};
     defer stderr.flush() catch {};
 
-    const params = comptime clap.parseParamsComptime(
-        \\-h, --help                  Display this help and exit
-        \\-v, --version               Display version and exit
-        \\-w, --workers <usize>       Number of workers
-        \\-l, --language <language>   Language
-        \\-f, --from-file <file>      Load the query from a file
-        \\    --progress              Show progress
-        \\<query>
-        \\<file>...
-    );
+    var iter = try init.minimal.args.iterateAllocator(init.gpa);
+    defer iter.deinit();
 
-    const parsers = comptime .{
-        .str = clap.parsers.string,
-        // .format = clap.parsers.enumeration(OutputFormat),
-        .language = clap.parsers.enumeration(Language),
-        .usize = clap.parsers.int(usize, 10),
-        .file = clap.parsers.string,
-        .query = clap.parsers.string,
-    };
+    _ = iter.next();
 
-    var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, init.minimal.args, .{
-        .diagnostic = &diag,
-        .allocator = allocator,
-    }) catch |err| {
-        try diag.report(stderr, err);
-        try stderr.flush();
-        return @intFromEnum(ExitCode.invalid_args);
-    };
-    defer res.deinit();
+    var tokenizer = ArgTokenizer(main_opts).init(&iter);
+    var show_help = false;
+    var subcmd: ?[]const u8 = null;
 
-    if (res.args.help != 0) {
-        try clap.helpToFile(init.io, .stderr(), clap.Help, &params, .{
-            .description_on_new_line = false,
-            .spacing_between_parameters = 0,
-        });
+    while (try tokenizer.next()) |tok| {
+        switch (tok) {
+            .flag => |f| switch (f) {
+                .help => show_help = true,
+            },
+            .positional => |p| {
+                subcmd = p;
+                break;
+            },
+            .named_arg => unreachable,
+        }
+    }
+
+    if (show_help) {
+        try printUsage(main_cmd, stderr);
         return @intFromEnum(ExitCode.success);
     }
 
-    if (res.args.version != 0) {
-        try printVersion(stdout);
+    const word = subcmd orelse {
+        try printUsage(main_cmd, stderr);
         return @intFromEnum(ExitCode.success);
-    }
-    // If --from-file, then this will be the query file.
-    // Otherwise, this is the first target file.
-    const query_or_first_file = res.positionals[0] orelse {
-        try stderr.print("Error: query is required\n", .{});
-        try printUsage(stderr);
-        return @intFromEnum(ExitCode.invalid_args);
     };
 
-    const query = if (res.args.@"from-file") |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(init.io, query_file, .{});
-        defer file.close(init.io);
-        var file_reader = file.reader(init.io, &.{});
-        const contents = try file_reader.interface.allocRemaining(allocator, .limited(10 * 1024 * 1024));
-        break :blk contents;
+    switch (SubcmdResolver(main_cmds).match(word)) {
+        .subcmd => |s| switch (s) {
+            .run => return runMain(init.io, init.gpa, stdout, stderr, &iter),
+            .grammar => return runGrammar(init.io, init.gpa, stdout, stderr, &iter),
+        },
+        .unknown => |w| {
+            try stderr.print("Error: unknown command '{s}'\n", .{w});
+            try printUsage(main_cmd, stderr);
+            return @intFromEnum(ExitCode.invalid_args);
+        },
+    }
+}
+
+fn runMain(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    iter: *std.process.Args.Iterator,
+) !u8 {
+    var tokenizer = ArgTokenizer(main_cmds.run.opts).init(iter);
+
+    var show_help = false;
+    var from_file: ?[]const u8 = null;
+    var workers: usize = 1;
+    var language: ?Language = null;
+    var progress = false;
+    var positionals: std.ArrayList([]const u8) = .empty;
+    defer positionals.deinit(gpa);
+
+    while (try tokenizer.next()) |tok| {
+        switch (tok) {
+            .flag => |f| switch (f) {
+                .help => show_help = true,
+                .progress => progress = true,
+                .from_file, .workers, .language => unreachable,
+            },
+            .named_arg => |kv| switch (kv.field) {
+                .from_file => from_file = kv.value,
+                .workers => workers = std.fmt.parseInt(usize, kv.value, 10) catch {
+                    try stderr.print("Error: --workers requires a positive integer\n", .{});
+                    return @intFromEnum(ExitCode.invalid_args);
+                },
+                .language => language = Language.fromName(kv.value),
+                .help, .progress => unreachable,
+            },
+            .positional => |p| try positionals.append(gpa, p),
+        }
+    }
+
+    if (show_help) {
+        try printUsage(run_cmd, stderr);
+        return @intFromEnum(ExitCode.success);
+    }
+
+    // If --from-file, positionals are all target files.
+    // Otherwise, first positional is the inline query, rest are target files.
+    const query: []const u8 = if (from_file) |query_file| blk: {
+        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
+        defer file.close(io);
+        var file_reader = file.reader(io, &.{});
+        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
     } else blk: {
-        const buf = try allocator.dupe(u8, query_or_first_file);
-        break :blk buf;
+        if (positionals.items.len == 0) {
+            try stderr.print("Error: query is required\n", .{});
+            try printUsage(run_cmd, stderr);
+            return @intFromEnum(ExitCode.invalid_args);
+        }
+        break :blk try gpa.dupe(u8, positionals.items[0]);
     };
-    defer allocator.free(query);
+    defer gpa.free(query);
 
     // IMPROVE: read stdin if files.len = 0
-    const files = if (res.args.@"from-file") |_| blk: {
-        const buf = try allocator.alloc([]const u8, res.positionals[1].len + 1);
-        buf[0] = query_or_first_file;
-        @memcpy(buf[1 .. res.positionals[1].len + 1], res.positionals[1]);
-        break :blk buf;
-    } else blk: {
-        const buf = try allocator.alloc([]const u8, res.positionals[1].len);
-        @memcpy(buf, res.positionals[1]);
-        break :blk buf;
-    };
-    defer allocator.free(files);
+    const files: []const []const u8 = if (from_file != null)
+        positionals.items
+    else
+        positionals.items[1..];
 
-    const language = res.args.language orelse {
-        try stderr.print("Error: --language is required\n", .{});
-        try printUsage(stderr);
-        return @intFromEnum(ExitCode.invalid_args);
-    };
-
-    return run(allocator, init.io, stdout, stderr, .{
+    return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
         .format = .json,
-        .language = language,
-        .workers = res.args.workers orelse 1,
+        .language = language.?,
+        .workers = workers,
         .stats = false,
         .verbose = false,
-        .progress = res.args.progress != 0,
+        .progress = progress,
     }) catch |err| {
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.runtime_error);
     };
+}
+
+fn runGrammar(
+    _: std.Io,
+    gpa: std.mem.Allocator,
+    _: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    iter: *std.process.Args.Iterator,
+) !u8 {
+    var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter);
+
+    var show_help = false;
+    var install_dir: ?[]const u8 = null;
+    var positionals: std.ArrayList([]const u8) = .empty;
+    defer positionals.deinit(gpa);
+
+    while (try tokenizer.next()) |tok| {
+        switch (tok) {
+            .flag => |f| switch (f) {
+                .help => show_help = true,
+                .install_dir => unreachable,
+            },
+            .named_arg => |kv| switch (kv.field) {
+                .install_dir => install_dir = kv.value,
+                .help => unreachable,
+            },
+            .positional => |p| try positionals.append(gpa, p),
+        }
+    }
+
+    if (show_help or positionals.items.len == 0) {
+        try printUsage(grammar_cmd, stderr);
+        return @intFromEnum(ExitCode.success);
+    }
+
+    switch (SubcmdResolver(grammar_subcmds).match(positionals.items[0])) {
+        .subcmd => |s| switch (s) {
+            .list => {}, // TODO: list installed grammars
+            .add => {}, // TODO: install grammars
+            .remove => {}, // TODO: remove grammars
+        },
+        .unknown => |w| {
+            try stderr.print("Error: unknown grammar subcommand '{s}'\n", .{w});
+            try printUsage(grammar_cmd, stderr);
+            return @intFromEnum(ExitCode.invalid_args);
+        },
+    }
+
+    return @intFromEnum(ExitCode.success);
 }
 
 const Config = struct {
@@ -147,11 +280,6 @@ const Config = struct {
     verbose: bool,
     progress: bool,
 };
-
-fn printUsage(writer: *std.Io.Writer) !void {
-    try writer.print("Usage: tql [OPTIONS] <QUERY> <SOURCE>...\n", .{});
-    try writer.print("Try 'tql --help' for more information.\n", .{});
-}
 
 fn printVersion(writer: *std.Io.Writer) !void {
     try writer.print("tql version {s}\n", .{VERSION});

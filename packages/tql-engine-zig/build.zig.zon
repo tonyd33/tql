@@ -51,10 +51,6 @@
         .@"tree-sitter-tql" = .{
             .path = "../tree-sitter-tql",
         },
-        .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#bf56f229ed5b6c381d90e192234913c6deb3f688",
-            .hash = "clap-0.12.0-oBajB9noAQCFiI2syvjiZf6dENWUBFPWMEzdEPr99ZVx",
-        },
         .@"tree-sitter-zig" = .{
             .url = "git+https://github.com/tonyd33/tree-sitter-zig/#3b2792dcbc4a7c28740b817464c9a09f225fd44e",
             .hash = "tree_sitter_zig-1.1.2-KYTH1Hh4XABcptIfFB46twBm8M2MMaQlGW-pGDp_60Xj",
