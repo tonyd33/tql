@@ -1,160 +1,322 @@
 const std = @import("std");
 
-const ArgToken = union(enum) {
-    flag: []const u8, // field
-    named_arg: struct {
-        field: []const u8,
-        value: []const u8,
-    },
-    named_arg_optional: struct {
-        field: []const u8,
-        value: ?[]const u8,
-    },
-    positional: []const u8,
+pub const Opt = struct {
+    names: struct { long: ?[]const u8 = null, short: ?u8 = null },
+    has_arg: enum {
+        no_argument,
+        required_argument,
+    } = .no_argument,
+    meta: ?[]const u8 = null,
+    description: ?[]const u8 = null,
 };
 
-const ParseError = error{
+pub const Positional = struct {
+    name: []const u8,
+    required: bool = false,
+    variadic: bool = false,
+};
+
+fn writePositional(p: Positional, writer: *std.Io.Writer) !void {
+    if (p.required) {
+        try writer.print("<{s}>", .{p.name});
+        if (p.variadic) try writer.writeAll("...");
+    } else {
+        try writer.print("[<{s}>", .{p.name});
+        if (p.variadic) try writer.writeAll("...");
+        try writer.writeAll("]");
+    }
+}
+
+pub fn printUsage(comptime cmd: anytype, writer: *std.Io.Writer) !void {
+    const name = cmd.name;
+    const opts = cmd.opts;
+    const has_subcmds = @hasField(@TypeOf(cmd), "subcmds");
+    const has_positionals = @hasField(@TypeOf(cmd), "positionals");
+    const subcmd_label = if (@hasField(@TypeOf(cmd), "subcmd_label")) cmd.subcmd_label else "COMMAND";
+
+    try writer.print("Usage: {s}", .{name});
+    if (has_subcmds) {
+        try writer.print(" <{s}>", .{subcmd_label});
+    }
+    try writer.writeAll(" [OPTIONS]");
+    if (has_positionals) {
+        for (cmd.positionals) |p| {
+            try writer.writeAll(" ");
+            try writePositional(p, writer);
+        }
+    }
+    try writer.writeAll("\n");
+
+    if (has_subcmds) {
+        try writer.writeAll("\n");
+        if (std.mem.eql(u8, subcmd_label, "SUBCOMMAND")) {
+            try writer.writeAll("Subcommands:\n");
+        } else {
+            try writer.writeAll("Commands:\n");
+        }
+        try printSubcmds(cmd.subcmds, writer);
+    }
+
+    try writer.writeAll("\nOptions:\n");
+    try printHelp(opts, writer);
+}
+
+pub const ParseError = error{
     MissingArg,
     ExtraArg,
     UnknownArg,
     InvalidArgSyntax,
 };
 
-const OptDef = struct {
-    field: []const u8,
-    names: struct { long: ?[]const u8 = null, short: ?u8 = null },
-    has_arg: enum {
-        no_argument,
-        required_argument,
-        optional_argument,
-    } = .no_argument,
-};
+fn flagsStr(
+    comptime short: ?u8,
+    comptime long: ?[]const u8,
+    comptime has_arg: anytype,
+    comptime meta: ?[]const u8,
+) []const u8 {
+    comptime {
+        var buf: [256]u8 = undefined;
+        var i: usize = 0;
+        if (short) |s| {
+            buf[i] = '-';
+            buf[i + 1] = s;
+            i += 2;
+        } else {
+            buf[i] = ' ';
+            buf[i + 1] = ' ';
+            buf[i + 2] = ' ';
+            buf[i + 3] = ' ';
+            i += 4;
+        }
+        if (short != null and long != null) {
+            buf[i] = ',';
+            buf[i + 1] = ' ';
+            i += 2;
+        }
+        if (long) |l| {
+            buf[i] = '-';
+            buf[i + 1] = '-';
+            i += 2;
+            for (l) |c| {
+                buf[i] = c;
+                i += 1;
+            }
+        }
+        if (has_arg == .required_argument) {
+            if (meta) |m| {
+                buf[i] = ' ';
+                buf[i + 1] = '<';
+                i += 2;
+                for (m) |c| {
+                    buf[i] = c;
+                    i += 1;
+                }
+                buf[i] = '>';
+                i += 1;
+            }
+        }
+        const result = buf[0..i].*;
+        return &result;
+    }
+}
 
-// TODO: optional args, nargs
-fn Lexer(comptime _: type) type {
+pub fn printHelp(comptime opts: anytype, writer: *std.Io.Writer) !void {
+    const T = @TypeOf(opts);
+    const col_width = comptime blk: {
+        var w: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.description == null) continue;
+            const fw = flagsStr(opt.names.short, opt.names.long, opt.has_arg, opt.meta).len;
+            if (fw > w) w = fw;
+        }
+        break :blk w;
+    };
+
+    inline for (std.meta.fields(T)) |f| {
+        const opt: Opt = @field(opts, f.name);
+        if (opt.description) |desc| {
+            const flags = comptime flagsStr(opt.names.short, opt.names.long, opt.has_arg, opt.meta);
+            const w = flags.len;
+            const pad = comptime " " ** (col_width + 2 - w);
+            try writer.print("  {s}{s}{s}\n", .{ flags, pad, desc });
+        }
+    }
+}
+
+pub fn SubcmdResolver(comptime cmds: anytype) type {
+    const T = @TypeOf(cmds);
+    const Fields = std.meta.FieldEnum(T);
+
+    return struct {
+        pub const Result = union(enum) {
+            subcmd: Fields,
+            unknown: []const u8,
+        };
+
+        pub fn match(word: []const u8) Result {
+            inline for (std.meta.fields(T)) |f| {
+                if (std.mem.eql(u8, word, f.name)) return .{ .subcmd = @field(Fields, f.name) };
+                const entry = @field(cmds, f.name);
+                for (entry.aliases) |alias| {
+                    if (std.mem.eql(u8, word, alias)) return .{ .subcmd = @field(Fields, f.name) };
+                }
+            }
+            return .{ .unknown = word };
+        }
+    };
+}
+
+fn subcmdNamesStr(comptime aliases: []const []const u8, comptime name: []const u8) []const u8 {
+    comptime {
+        var buf: [256]u8 = undefined;
+        var i: usize = 0;
+        for (name) |c| {
+            buf[i] = c;
+            i += 1;
+        }
+        for (aliases) |a| {
+            buf[i] = ',';
+            buf[i + 1] = ' ';
+            i += 2;
+            for (a) |c| {
+                buf[i] = c;
+                i += 1;
+            }
+        }
+        const result = buf[0..i].*;
+        return &result;
+    }
+}
+
+pub fn printSubcmds(comptime cmds: anytype, writer: *std.Io.Writer) !void {
+    const T = @TypeOf(cmds);
+    const col_width = comptime blk: {
+        var w: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const entry = @field(cmds, f.name);
+            const fw = subcmdNamesStr(entry.aliases, f.name).len;
+            if (fw > w) w = fw;
+        }
+        break :blk w;
+    };
+
+    inline for (std.meta.fields(T)) |f| {
+        const entry = @field(cmds, f.name);
+        const names = comptime subcmdNamesStr(entry.aliases, f.name);
+        const w = names.len;
+        const pad = comptime " " ** (col_width + 2 - w);
+        if (entry.description) |desc| {
+            try writer.print("  {s}{s}{s}\n", .{ names, pad, desc });
+        } else {
+            try writer.print("  {s}\n", .{names});
+        }
+    }
+}
+
+pub fn ArgTokenizer(comptime opts: anytype) type {
+    const T = @TypeOf(opts);
+    const Fields = std.meta.FieldEnum(T);
+
     return struct {
         const Self = @This();
 
-        opt_defs: []const OptDef,
+        pub const Token = union(enum) {
+            flag: Fields,
+            named_arg: struct { field: Fields, value: []const u8 },
+            positional: []const u8,
+        };
+
         iter: *std.process.Args.Iterator,
         continuation: ?[]const u8,
 
-        pub fn init(
-            iter: *std.process.Args.Iterator,
-            comptime opt_defs: []const OptDef,
-        ) Self {
-            return .{
-                .opt_defs = opt_defs,
-                .iter = iter,
-                .continuation = null,
-            };
+        pub fn init(iter: *std.process.Args.Iterator) Self {
+            return .{ .iter = iter, .continuation = null };
         }
 
-        fn parseShort(self: *Self, rest: []const u8) !?ArgToken {
-            const value = rest[0];
-            // TODO: value should be a printable character except space (isgraph)
-            for (self.opt_defs) |opt_def| {
-                if (opt_def.names.short) |short| {
-                    if (value != short) continue;
-
-                    switch (opt_def.has_arg) {
-                        .no_argument => {
-                            if (rest.len > 1) {
-                                self.continuation = rest[1..];
-                            } else {
-                                self.continuation = null;
-                            }
-                            return .{ .flag = opt_def.field };
-                        },
-                        .optional_argument => {
-                            // we'll likely have to do something hacky by peeking into the iterator
-                            @panic("crap");
-                        },
-                        .required_argument => {
-                            if (rest.len > 1) {
-                                if (rest[1] == '=') {
-                                    if (rest.len == 2) {
-                                        // no more chars, this is malformed
-                                        return error.InvalidArgSyntax;
+        fn parseShort(self: *Self, rest: []const u8) !?Token {
+            const ch = rest[0];
+            inline for (std.meta.fields(T)) |f| {
+                const opt: Opt = @field(opts, f.name);
+                if (opt.names.short) |short| {
+                    if (ch == short) {
+                        const field = @field(Fields, f.name);
+                        switch (opt.has_arg) {
+                            .no_argument => {
+                                self.continuation = if (rest.len > 1) rest[1..] else null;
+                                return .{ .flag = field };
+                            },
+                            .required_argument => {
+                                if (rest.len > 1) {
+                                    if (rest[1] == '=') {
+                                        if (rest.len == 2) return error.InvalidArgSyntax;
+                                        self.continuation = null;
+                                        return .{ .named_arg = .{ .field = field, .value = rest[2..] } };
                                     } else {
                                         self.continuation = null;
-                                        return .{ .named_arg = .{ .field = opt_def.field, .value = rest[2..] } };
+                                        return .{ .named_arg = .{ .field = field, .value = rest[1..] } };
                                     }
                                 } else {
                                     self.continuation = null;
-                                    return .{ .named_arg = .{ .field = opt_def.field, .value = rest[1..] } };
+                                    const val = self.iter.next() orelse return error.MissingArg;
+                                    return .{ .named_arg = .{ .field = field, .value = val } };
                                 }
-                            } else {
-                                self.continuation = null;
-                                const short_arg = self.iter.next() orelse return error.MissingArg;
-                                return .{ .named_arg = .{ .field = opt_def.field, .value = short_arg } };
-                            }
-                        },
+                            },
+                        }
                     }
                 }
             }
             return error.UnknownArg;
         }
 
-        pub fn next(self: *Self) !?ArgToken {
-            if (self.continuation) |continuation| {
-                return try self.parseShort(continuation);
-            } else if (self.iter.next()) |arg| {
-                if (std.mem.eql(u8, arg, "--")) return null;
+        pub fn next(self: *Self) !?Token {
+            if (self.continuation) |cont| {
+                return try self.parseShort(cont);
+            }
 
-                if (std.mem.startsWith(u8, arg, "--")) {
-                    const rest = arg[2..];
+            const arg = self.iter.next() orelse return null;
 
-                    for (self.opt_defs) |opt_def| {
-                        if (opt_def.names.long) |long| {
-                            if (!std.mem.startsWith(u8, rest, long)) continue;
+            if (std.mem.eql(u8, arg, "--")) return null;
 
-                            switch (opt_def.has_arg) {
+            if (std.mem.startsWith(u8, arg, "--")) {
+                const rest = arg[2..];
+                inline for (std.meta.fields(T)) |f| {
+                    const opt: Opt = @field(opts, f.name);
+                    if (opt.names.long) |long| {
+                        if (std.mem.startsWith(u8, rest, long)) {
+                            const field = @field(Fields, f.name);
+                            switch (opt.has_arg) {
                                 .no_argument => {
                                     if (rest.len == long.len) {
-                                        return .{ .flag = opt_def.field };
+                                        return .{ .flag = field };
                                     } else if (rest[long.len] == '=') {
                                         return error.ExtraArg;
                                     }
                                 },
-                                .optional_argument => {
-                                    @panic("crap");
-                                },
                                 .required_argument => {
                                     if (rest.len > long.len) {
                                         if (rest[long.len] == '=') {
-                                            if (rest.len == long.len + 1) {
-                                                // no more chars, this is malformed
-                                                return error.InvalidArgSyntax;
-                                            } else {
-                                                const long_arg = rest[long.len + 1 ..];
-                                                return .{ .named_arg = .{ .field = opt_def.field, .value = long_arg } };
-                                            }
-                                        } else {
-                                            // Possibly still recoverable, there may be another opt def
-                                            // capable of parsing this.
-                                            continue;
+                                            if (rest.len == long.len + 1) return error.InvalidArgSyntax;
+                                            return .{ .named_arg = .{ .field = field, .value = rest[long.len + 1 ..] } };
                                         }
+                                        // prefix match but not exact — keep scanning
                                     } else {
-                                        const long_arg = self.iter.next() orelse return error.MissingArg;
-                                        return .{ .named_arg = .{ .field = opt_def.field, .value = long_arg } };
+                                        const val = self.iter.next() orelse return error.MissingArg;
+                                        return .{ .named_arg = .{ .field = field, .value = val } };
                                     }
                                 },
                             }
                         }
                     }
-                    return error.UnknownArg;
                 }
-
-                if (arg.len > 1 and arg[0] == '-') {
-                    const rest = arg[1..];
-                    return self.parseShort(rest);
-                }
-
-                return .{ .positional = arg };
-            } else {
-                return null;
+                return error.UnknownArg;
             }
+
+            if (arg.len > 1 and arg[0] == '-') {
+                return self.parseShort(arg[1..]);
+            }
+
+            return .{ .positional = arg };
         }
     };
 }
@@ -162,11 +324,24 @@ fn Lexer(comptime _: type) type {
 const testing = std.testing;
 
 test "tokenize" {
+    const opts = .{
+        .a = Opt{ .names = .{ .short = 'a' } },
+        .b = Opt{ .names = .{ .short = 'b' }, .has_arg = .required_argument },
+        .c = Opt{ .names = .{ .short = 'c' }, .has_arg = .required_argument },
+        .d = Opt{ .names = .{ .short = 'd' } },
+        .e = Opt{ .names = .{ .short = 'e' } },
+        .f = Opt{ .names = .{ .short = 'f' } },
+        .alpha = Opt{ .names = .{ .long = "alpha" } },
+        .bravo = Opt{ .names = .{ .long = "bravo" }, .has_arg = .required_argument },
+        .charlie = Opt{ .names = .{ .long = "charlie" }, .has_arg = .required_argument },
+    };
+
     const args = std.process.Args{ .vector = &.{
         "-a",
         "--alpha",
         "-bfoo",
-        "--bravo", "foo",
+        "--bravo",
+        "foo",
         "hello",
         "-c",
         "bar",
@@ -175,32 +350,21 @@ test "tokenize" {
         "world",
     } };
     var iterator = args.iterate();
-    var tokenizer = Lexer(u8).init(
-        &iterator,
-        &[_]OptDef{
-            .{ .field = "a", .names = .{ .short = 'a' } },
-            .{ .field = "b", .names = .{ .short = 'b' }, .has_arg = .required_argument },
-            .{ .field = "c", .names = .{ .short = 'c' }, .has_arg = .required_argument },
-            .{ .field = "d", .names = .{ .short = 'd' } },
-            .{ .field = "e", .names = .{ .short = 'e' } },
-            .{ .field = "f", .names = .{ .short = 'f' } },
-            .{ .field = "alpha", .names = .{ .long = "alpha" } },
-            .{ .field = "bravo", .names = .{ .long = "bravo" }, .has_arg = .required_argument },
-            .{ .field = "charlie", .names = .{ .long = "charlie" }, .has_arg = .required_argument },
-        },
-    );
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .flag = "a" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .flag = "alpha" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .named_arg = .{ .field = "b", .value = "foo" } });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .named_arg = .{ .field = "bravo", .value = "foo" } });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .positional = "hello" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .named_arg = .{ .field = "c", .value = "bar" } });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .named_arg = .{ .field = "charlie", .value = "bar" } });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .flag = "d" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .flag = "e" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .flag = "f" });
-    try testing.expectEqualDeep(tokenizer.next(), ArgToken{ .positional = "world" });
-    try testing.expectEqualDeep(tokenizer.next(), null);
+    var tokenizer = ArgTokenizer(opts).init(&iterator);
+
+    const T = @TypeOf(tokenizer).Token;
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .a });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .alpha });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .named_arg = .{ .field = .b, .value = "foo" } });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .named_arg = .{ .field = .bravo, .value = "foo" } });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .positional = "hello" });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .named_arg = .{ .field = .c, .value = "bar" } });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .named_arg = .{ .field = .charlie, .value = "bar" } });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .d });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .e });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .f });
+    try testing.expectEqualDeep(try tokenizer.next(), T{ .positional = "world" });
+    try testing.expectEqualDeep(try tokenizer.next(), null);
 
     iterator.deinit();
 }
