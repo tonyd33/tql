@@ -4,7 +4,8 @@ const engine = @import("../engine.zig");
 const runtime = @import("../runtime.zig");
 
 const Compiler = @import("../compiler.zig").Compiler;
-const Language = @import("../language.zig").Language;
+const grammar_mod = @import("../grammar.zig");
+const Registry = grammar_mod.Registry;
 const Parser = @import("../parser.zig").Parser;
 const Runtime = @import("../runtime.zig").Runtime;
 
@@ -15,7 +16,7 @@ const test_options = @import("test_options");
 pub const SnapshotQueryOpts = struct {
     query: []const u8,
     target: []const u8,
-    language: Language = .typescript,
+    grammar: []const u8 = "typescript",
 };
 
 pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQueryOpts) !void {
@@ -24,7 +25,9 @@ pub fn snapshotQuery(comptime src: std.builtin.SourceLocation, opts: SnapshotQue
     const test_name = comptime sanitize(src.fn_name);
     const update_snapshots = test_options.update_snapshots;
     const allocator = std.testing.allocator;
-    const language = opts.language.getTreeSitterLanguage();
+    var registry = Registry.init(allocator, &.{});
+    defer registry.deinit();
+    const language = (try registry.get(opts.grammar)).language;
 
     var tql_parser = try Parser.init(allocator);
     defer tql_parser.deinit();

@@ -2,7 +2,7 @@ const Snapshotter = @import("snapshotter.zig");
 
 test "subquery in select projects list per outer match" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func
         \\select ( select @func.declarator.parameters > parameter_declaration )
@@ -16,7 +16,7 @@ test "subquery in select projects list per outer match" {
 
 test "subquery empty produces empty list" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func
         \\select ( select @func > goto_statement )
@@ -29,7 +29,7 @@ test "subquery empty produces empty list" {
 
 test "subquery shares root with enclosing scope" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func
         \\select { fn: @func, all_funcs: select @root > function_definition }
@@ -43,7 +43,7 @@ test "subquery shares root with enclosing scope" {
 
 test "subquery captures outer binding" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition.declarator as @func_decl
         \\select {
@@ -60,7 +60,7 @@ test "subquery captures outer binding" {
 
 test "nested subquery" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func
         \\select {
@@ -80,7 +80,7 @@ test "nested subquery" {
 test "subquery with where clause filters inner stream" {
     // where in subquery scopes to the subquery's bindings only.
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func
         \\select {
@@ -102,7 +102,7 @@ test "subquery with where clause filters inner stream" {
 
 test "subquery as binding produces list per outer fanout" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition.declarator as @func_decl,
         \\     select @func_decl.parameters > parameter_declaration as @param_decl,
@@ -118,7 +118,7 @@ test "subquery as binding produces list per outer fanout" {
 
 test "subquery binding without rebinding fans out (baseline)" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition.declarator as @func_decl,
         \\     @func_decl.parameters > parameter_declaration as @param_decl,
@@ -134,7 +134,7 @@ test "subquery binding without rebinding fans out (baseline)" {
 
 test "unnest restores fanout from subquery binding" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition.declarator as @func_decl,
         \\     unnest(select @func_decl.parameters > parameter_declaration) as @param_decl,
@@ -150,7 +150,7 @@ test "unnest restores fanout from subquery binding" {
 
 test "unnest restores fanout from subquery binding with inner binds" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition.declarator as @func_decl,
         \\     unnest(
@@ -169,7 +169,7 @@ test "unnest restores fanout from subquery binding with inner binds" {
 
 test "unnest on empty subquery drops branch" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func,
         \\     unnest(select @func > goto_statement) as @g
@@ -183,7 +183,7 @@ test "unnest on empty subquery drops branch" {
 
 test "subquery inner binding shadows outer same-named binding" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @x,
         \\     unnest(
@@ -200,7 +200,7 @@ test "subquery inner binding shadows outer same-named binding" {
 
 test "unnest of singleton list yields one fanout" {
     try Snapshotter.snapshotQuery(@src(), .{
-        .language = .c,
+        .grammar = "c",
         .query =
         \\with @root > function_definition as @func,
         \\     unnest(select @func.declarator) as @d

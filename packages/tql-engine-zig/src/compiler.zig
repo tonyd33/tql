@@ -44,7 +44,7 @@ const BindingMetadata = struct {
 const ROOT_NAME = "root";
 
 pub const Compiler = struct {
-    language: *ts.Language,
+    language: *const ts.Language,
 
     allocator: Allocator,
     instruction_builder: InstructionBuilder,
@@ -55,7 +55,7 @@ pub const Compiler = struct {
     strings: std.ArrayList([]const u8),
 
     // FIXME: we're supposed to detect the language
-    pub fn init(allocator: Allocator, language: *ts.Language) Compiler {
+    pub fn init(allocator: Allocator, language: *const ts.Language) Compiler {
         const strings = std.ArrayList([]const u8).empty;
         const regexes = std.ArrayList(pcre2.Regex).empty;
         const bindings = std.ArrayList(BindingMetadata).empty;

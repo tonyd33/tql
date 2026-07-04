@@ -6,19 +6,30 @@ const VERSION = "0.1.4";
 const TreeSitterGrammar = struct {
     dep_name: []const u8,
     root: []const u8 = ".",
-    files: []const []const u8 = &.{
-        "src/parser.c",
-    },
+    has_scanner: bool = false,
     flags: []const []const u8 = &.{
         "-std=c11",
         "-fPIC",
     },
+    /// Name used for the .so artifact and grammar lookup (defaults to dep_name
+    /// stripped of "tree-sitter-" prefix). Required when one dep produces
+    /// multiple grammars (e.g. typescript + tsx).
+    out_name: ?[]const u8 = null,
+
+    fn outName(self: TreeSitterGrammar) []const u8 {
+        if (self.out_name) |n| return n;
+        const prefix = "tree-sitter-";
+        if (std.mem.startsWith(u8, self.dep_name, prefix)) {
+            return self.dep_name[prefix.len..];
+        }
+        return self.dep_name;
+    }
 };
 
 const grammars: []const TreeSitterGrammar = &.{
     .{
         .dep_name = "tree-sitter-cpp",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-c",
@@ -28,25 +39,27 @@ const grammars: []const TreeSitterGrammar = &.{
     },
     .{
         .dep_name = "tree-sitter-javascript",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-python",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-rust",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-typescript",
         .root = "typescript",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
+        .out_name = "typescript",
     },
     .{
         .dep_name = "tree-sitter-typescript",
         .root = "tsx",
-        .files = &.{ "src/parser.c", "src/scanner.c" },
+        .has_scanner = true,
+        .out_name = "tsx",
     },
     .{
         .dep_name = "tree-sitter-zig",
@@ -70,14 +83,49 @@ fn addGrammar(
     mod.addIncludePath(tree_sitter_grammar.path(include));
     mod.addCSourceFiles(.{
         .root = tree_sitter_grammar.path(grammar.root),
-        .files = grammar.files,
+        .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
         .flags = grammar.flags,
+    });
+}
+
+fn buildGrammarSharedLib(
+    b: *std.Build,
+    grammar: TreeSitterGrammar,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) !*std.Build.Step.Compile {
+    var buf: [std.posix.PATH_MAX]u8 = undefined;
+    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
+
+    const dep = b.dependency(grammar.dep_name, .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    mod.addIncludePath(dep.path(include));
+    mod.addCSourceFiles(.{
+        .root = dep.path(grammar.root),
+        .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
+        .flags = grammar.flags,
+    });
+
+    const name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()});
+    return b.addLibrary(.{
+        .name = name,
+        .root_module = mod,
+        .linkage = .dynamic,
     });
 }
 
 fn addEngineDeps(
     b: *std.Build,
     mod: *std.Build.Module,
+    selected: []const TreeSitterGrammar,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) !void {
@@ -87,7 +135,7 @@ fn addEngineDeps(
     });
     mod.addImport("tree-sitter", tree_sitter.module("tree_sitter"));
 
-    for (grammars) |grammar| {
+    for (selected) |grammar| {
         try addGrammar(b, mod, grammar, target, optimize);
     }
 
@@ -108,6 +156,86 @@ fn addEngineDeps(
         .files = &.{"src/parser.c"},
         .flags = &.{ "-std=c11", "-fPIC" },
     });
+}
+
+fn validGrammarNames(b: *std.Build) ![]const u8 {
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(b.allocator);
+    for (grammars, 0..) |g, i| {
+        if (i > 0) try buf.appendSlice(b.allocator, ", ");
+        try buf.appendSlice(b.allocator, g.outName());
+    }
+    return buf.toOwnedSlice(b.allocator);
+}
+
+const GrammarSelection = union(enum) {
+    available,
+    subset: []const []const u8,
+    none,
+};
+
+fn parseGrammarNames(b: *std.Build, str: []const u8) !GrammarSelection {
+    if (std.mem.eql(u8, str, "none")) return .none;
+    if (std.mem.eql(u8, str, "available")) return .available;
+    var result: std.ArrayList([]const u8) = .empty;
+    var it = std.mem.splitScalar(u8, str, ',');
+    while (it.next()) |name| {
+        if (name.len > 0) try result.append(b.allocator, name);
+    }
+    return .{ .subset = try result.toOwnedSlice(b.allocator) };
+}
+
+fn selectionNames(b: *std.Build, sel: GrammarSelection) ![]const []const u8 {
+    return switch (sel) {
+        .none => &.{},
+        .available => blk: {
+            const names = try b.allocator.alloc([]const u8, grammars.len);
+            for (grammars, 0..) |g, i| names[i] = g.outName();
+            break :blk names;
+        },
+        .subset => |names| names,
+    };
+}
+
+fn selectedGrammars(
+    b: *std.Build,
+    sel: GrammarSelection,
+) ![]const TreeSitterGrammar {
+    return switch (sel) {
+        .none => &.{},
+        .available => b.allocator.dupe(TreeSitterGrammar, grammars),
+        .subset => |names| blk: {
+            var seen: std.ArrayListUnmanaged(bool) = .empty;
+            defer seen.deinit(b.allocator);
+            try seen.appendNTimes(b.allocator, false, grammars.len);
+
+            var result: std.ArrayList(TreeSitterGrammar) = .empty;
+            for (names) |name| {
+                var found_idx: ?usize = null;
+                for (grammars, 0..) |g, i| {
+                    if (std.mem.eql(u8, g.outName(), name)) {
+                        found_idx = i;
+                        break;
+                    }
+                }
+                if (found_idx == null) {
+                    const valid = try validGrammarNames(b);
+                    defer b.allocator.free(valid);
+                    std.debug.print(
+                        "error: unknown grammar '{s}'. Valid names: {s}\n",
+                        .{ name, valid },
+                    );
+                    return error.UnknownGrammar;
+                }
+                const idx = found_idx.?;
+                if (!seen.items[idx]) {
+                    seen.items[idx] = true;
+                    try result.append(b.allocator, grammars[idx]);
+                }
+            }
+            break :blk result.toOwnedSlice(b.allocator);
+        },
+    };
 }
 
 // Although this function looks imperative, it does not perform the build
@@ -200,41 +328,57 @@ pub fn build(b: *std.Build) !void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
+    const grammars_str = b.option([]const u8, "grammars", "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)") orelse "none";
+    const selection = try parseGrammarNames(b, grammars_str);
+    const selected = try selectedGrammars(b, selection);
+    const selected_names = try selectionNames(b, selection);
+
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", VERSION);
+    build_options.addOption([]const []const u8, "static_grammars", selected_names);
     mod.addOptions("build_options", build_options);
 
-    try addEngineDeps(b, mod, target, optimize);
+    try addEngineDeps(b, mod, selected, target, optimize);
 
-    const build_wasm = b.option(bool, "wasm", "Build the wasm artifact") orelse false;
-    if (build_wasm) {
-        const wasm_target = b.resolveTargetQuery(.{
-            .cpu_arch = .wasm32,
-            .os_tag = .wasi,
+    const grammars_step = b.step("grammars", "Build shared libraries for the selected grammars");
+    for (selected) |g| {
+        const lib = try buildGrammarSharedLib(b, g, target, optimize);
+        const install = b.addInstallArtifact(lib, .{
+            .dest_dir = .{ .override = .{ .custom = "lib/tql/grammars" } },
         });
-        const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
-        const wasm_mod = b.addModule("tql_engine_zig_wasm", .{
-            .root_source_file = b.path("src/root.zig"),
+        grammars_step.dependOn(&install.step);
+    }
+
+    const wasm_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .wasi,
+    });
+    const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+    const wasm_mod = b.addModule("tql_engine_zig_wasm", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = wasm_target,
+        .optimize = wasm_optimize,
+    });
+    wasm_mod.addOptions("build_options", build_options);
+    try addEngineDeps(b, wasm_mod, selected, wasm_target, wasm_optimize);
+
+    const wasm_exe = b.addExecutable(.{
+        .name = "tql",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
             .target = wasm_target,
             .optimize = wasm_optimize,
-        });
-        try addEngineDeps(b, wasm_mod, wasm_target, wasm_optimize);
+            .imports = &.{
+                .{ .name = "tql_engine_zig", .module = wasm_mod },
+            },
+        }),
+    });
+    wasm_exe.entry = .disabled;
+    wasm_exe.rdynamic = true;
 
-        const wasm_exe = b.addExecutable(.{
-            .name = "tql",
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("src/wasm.zig"),
-                .target = wasm_target,
-                .optimize = wasm_optimize,
-                .imports = &.{
-                    .{ .name = "tql_engine_zig", .module = wasm_mod },
-                },
-            }),
-        });
-        wasm_exe.entry = .disabled;
-        wasm_exe.rdynamic = true;
-        b.installArtifact(wasm_exe);
-    }
+    const wasm_step = b.step("wasm", "Build the wasm artifact");
+    const wasm_install = b.addInstallArtifact(wasm_exe, .{});
+    wasm_step.dependOn(&wasm_install.step);
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).
@@ -268,10 +412,24 @@ pub fn build(b: *std.Build) !void {
     const update_snapshots = b.option(bool, "update-snapshots", "Update snapshots (test mode only)") orelse false;
     const test_options = b.addOptions();
     test_options.addOption(bool, "update_snapshots", update_snapshots);
-    mod.addOptions("test_options", test_options);
+
+    const forced_grammars = try selectedGrammars(b, .{ .subset = &.{ "c", "typescript" } });
+
+    const test_build_options = b.addOptions();
+    test_build_options.addOption([]const u8, "version", VERSION);
+    test_build_options.addOption([]const []const u8, "static_grammars", &.{ "c", "typescript" });
+
+    const test_mod = b.addModule("tql_engine_zig_test", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    test_mod.addOptions("build_options", test_build_options);
+    test_mod.addOptions("test_options", test_options);
+    try addEngineDeps(b, test_mod, forced_grammars, target, optimize);
 
     const mod_tests = b.addTest(.{
-        .root_module = mod,
+        .root_module = test_mod,
         .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .simple },
     });
 

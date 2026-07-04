@@ -37,7 +37,9 @@ jobs:
         run: >
           task engine:build --
           --prefix "$HOME/.local"
-          -Doptimize=ReleaseFast --release=fast
+          -Dgrammars=c
+          -Doptimize=ReleaseFast
+          --release=fast
 
       - name: Checkout Linux source tree
         uses: actions/checkout@v7
@@ -50,7 +52,7 @@ jobs:
         working-directory: tql
         run: |
           set -euo pipefail
-          tql run --language c '
+          tql run --grammar c '
           with @root > function_definition as @fn,
                @fn > function_declarator as @fn_decl,
                @fn_decl > identifier as @name,
