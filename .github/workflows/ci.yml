@@ -50,7 +50,7 @@ jobs:
         working-directory: tql
         run: |
           set -euo pipefail
-          tql --language c '
+          tql run --language c '
           with @root > function_definition as @fn,
                @fn > function_declarator as @fn_decl,
                @fn_decl > identifier as @name,
