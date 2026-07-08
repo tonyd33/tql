@@ -7,26 +7,28 @@ class_declaration as @class | @class.name as @name | @name
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -39,29 +41,31 @@ class_declaration as @class | @class.decorator.identifier as @name | @name
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (field_access
-                base: (expression
-                  (variable
-                    (identifier)))
-                field: (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -74,28 +78,30 @@ class_declaration as @class | @class > method_definition as @method | @method
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (child_navigation
-            parent: (expression
-              (variable
-                (identifier)))
-            child: (expression
-              (node_selector
-                (identifier)))))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (child_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  child: (expression
+                    (node_selector
+                      (identifier)))))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -108,28 +114,30 @@ class_declaration as @class | @class >> call_expression as @call | @call
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (descendant_navigation
-            parent: (expression
-              (variable
-                (identifier)))
-            descendant: (expression
-              (node_selector
-                (identifier)))))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (descendant_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  descendant: (expression
+                    (node_selector
+                      (identifier)))))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -142,34 +150,36 @@ class_declaration as @class | @class.decorator > call_expression.identifier as @
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (child_navigation
-                parent: (expression
-                  (field_access
-                    base: (expression
-                      (variable
-                        (identifier)))
-                    field: (identifier)))
-                child: (expression
-                  (node_selector
-                    (identifier)))))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (child_navigation
+                      parent: (expression
+                        (field_access
+                          base: (expression
+                            (variable
+                              (identifier)))
+                          field: (identifier)))
+                      child: (expression
+                        (node_selector
+                          (identifier)))))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -189,34 +199,34 @@ class_declaration as @class | helper(@class) as @result | @result
     parameters: (def_parameters
       (variable
         (identifier)))
-    body: (pipeline
-      (pipeline_step
-        (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier))))))
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
+    body: (expression
+      (field_access
+        base: (expression
+          (variable
             (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (function_call
-            name: (identifier)
-            argument: (expression
-              (variable
-                (identifier)))))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+        field: (identifier))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (function_call
+                  name: (identifier)
+                  argument: (expression
+                    (variable
+                      (identifier)))))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -229,10 +239,8 @@ identity operator (bare dot)
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (identity)))))
+  (expression
+    (identity)))
 
 ========================================
 identity pipe identity
@@ -243,10 +251,9 @@ identity pipe identity
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (identity)))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (identity))
+      right: (expression
         (identity)))))

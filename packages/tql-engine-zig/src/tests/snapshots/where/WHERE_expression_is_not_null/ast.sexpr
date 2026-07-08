@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node function_declaration)) f) (transform (call select (is-not-null (field f return_type)))) (transform f)))
+(source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-not-null (field f return_type)))) f))

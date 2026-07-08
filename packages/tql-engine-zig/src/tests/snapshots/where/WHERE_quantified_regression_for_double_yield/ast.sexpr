@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) c) (bind (field c name) class_name) (transform (call select (and (regex_match class_name (regex "Foo.*")) (any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (transform (object class_name))))
+(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) (bind (field c name) class_name)) (call select (and (regex_match class_name (regex "Foo.*")) (any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))

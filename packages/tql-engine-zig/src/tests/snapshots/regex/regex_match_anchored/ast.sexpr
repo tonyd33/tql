@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) c) (bind (field c name) n) (transform (call select (regex_match n (regex "^Service$")))) (transform c)))
+(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) (bind (field c name) n)) (call select (regex_match n (regex "^Service$")))) c))

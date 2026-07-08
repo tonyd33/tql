@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (descendant (child . (node class_declaration)) (node property_identifier)) id) (transform id)))
+(source_file (pipe (bind (descendant (child . (node class_declaration)) (node property_identifier)) id) id))

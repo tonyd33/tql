@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node function_definition)) func) (transform (subquery (pipeline (bind (child (field (field func declarator) parameters) (node parameter_declaration)) p) (transform p))))))
+(source_file (pipe (bind (child . (node function_definition)) func) (paren (pipe (bind (child (field (field func declarator) parameters) (node parameter_declaration)) p) p))))

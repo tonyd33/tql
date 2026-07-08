@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) c) (transform c) (bind . snap) (transform snap)))
+(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) (bind . snap)) snap))

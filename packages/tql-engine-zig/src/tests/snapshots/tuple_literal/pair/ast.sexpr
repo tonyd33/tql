@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) class) (transform (tuple (string "class") class))))
+(source_file (pipe (bind (child . (node class_declaration)) class) (tuple (string "class") class)))

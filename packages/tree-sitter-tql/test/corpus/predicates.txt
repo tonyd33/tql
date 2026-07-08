@@ -7,38 +7,41 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (comparison
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (variable
-                  (identifier)))
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (string_literal
-                  content: (string_fragment))))))))
-    (pipeline_step
-      (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (string_literal
+                      content: (string_fragment)))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -51,38 +54,41 @@ class_declaration as @class | @class.name as @name | select(@name ~ /.*Service$/
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (comparison
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (variable
-                  (identifier)))
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (regex_literal
-                  pattern: (regex_fragment))))))))
-    (pipeline_step
-      (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (regex_literal
+                      pattern: (regex_fragment)))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -95,38 +101,41 @@ class_declaration as @class | @class.name as @name | select(@name != 'Base') | @
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (comparison
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (variable
-                  (identifier)))
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (string_literal
-                  content: (string_fragment))))))))
-    (pipeline_step
-      (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (string_literal
+                      content: (string_fragment)))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -139,48 +148,51 @@ class_declaration as @class | @class.name as @name | select(@name = 'Foo' and @n
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (logical_and
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (comparison
-                  left: (expression
-                    (variable
+                (bind_expression
+                  expression: (expression
+                    (node_selector
                       (identifier)))
-                  right: (expression
-                    (string_literal
-                      content: (string_fragment)))))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (comparison
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_and
                   left: (expression
-                    (variable
-                      (identifier)))
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))
                   right: (expression
-                    (string_literal
-                      content: (string_fragment))))))))))
-    (pipeline_step
-      (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -193,48 +205,51 @@ class_declaration as @class | @class.name as @name | select(@name = 'Foo' or @na
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (logical_or
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (comparison
-                  left: (expression
-                    (variable
+                (bind_expression
+                  expression: (expression
+                    (node_selector
                       (identifier)))
-                  right: (expression
-                    (string_literal
-                      content: (string_fragment)))))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (comparison
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_or
                   left: (expression
-                    (variable
-                      (identifier)))
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))
                   right: (expression
-                    (string_literal
-                      content: (string_fragment))))))))))
-    (pipeline_step
-      (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -247,37 +262,40 @@ method_definition as @method | @method.return_type as @return_type? | select(@re
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (comparison
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (variable
-                  (identifier)))
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (null_literal)))))))
-    (pipeline_step
-      (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (null_literal))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -290,44 +308,48 @@ class_declaration as @class | @class.name as @name | @class.decorator as @decora
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (logical_and
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (subquery
-                  (pipeline
-                    (pipeline_step
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (node_selector
+                          (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (bind_expression
+                      expression: (expression
+                        (field_access
+                          base: (expression
+                            (variable
+                              (identifier)))
+                          field: (identifier)))
+                      variable: (variable
+                        (identifier))))))
+              right: (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_and
+                  left: (expression
+                    (parenthesized
                       (expression
                         (logical_or
                           left: (expression
@@ -345,16 +367,15 @@ class_declaration as @class | @class.name as @name | @class.decorator as @decora
                                   (identifier)))
                               right: (expression
                                 (string_literal
-                                  content: (string_fragment)))))))))))
-              right: (expression
-                (comparison
-                  left: (expression
-                    (variable
-                      (identifier)))
+                                  content: (string_fragment)))))))))
                   right: (expression
-                    (null_literal)))))))))
-    (pipeline_step
-      (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (null_literal))))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -367,119 +388,21 @@ class_declaration as @class | select(any(@class.body > method_definition; .decor
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (quantified_expression
-              source: (expression
-                (child_navigation
-                  parent: (expression
-                    (field_access
-                      base: (expression
-                        (variable
-                          (identifier)))
-                      field: (identifier)))
-                  child: (expression
-                    (node_selector
-                      (identifier)))))
-              predicate: (expression
-                (comparison
-                  left: (expression
-                    (dot_field_access
-                      field: (identifier)))
-                  right: (expression
-                    (null_literal)))))))))
-    (pipeline_step
-      (expression
-        (variable
-          (identifier))))))
-
-========================================
-universal quantifier
-========================================
-
-class_declaration as @class | select(all(@class.body > method_definition; .return_type != null)) | @class
-
----
-
-(source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (quantified_expression
-              source: (expression
-                (child_navigation
-                  parent: (expression
-                    (field_access
-                      base: (expression
-                        (variable
-                          (identifier)))
-                      field: (identifier)))
-                  child: (expression
-                    (node_selector
-                      (identifier)))))
-              predicate: (expression
-                (comparison
-                  left: (expression
-                    (dot_field_access
-                      field: (identifier)))
-                  right: (expression
-                    (null_literal)))))))))
-    (pipeline_step
-      (expression
-        (variable
-          (identifier))))))
-
-========================================
-nested any quantifier
-========================================
-
-class_declaration as @class | select(any(@class.decorator; any(@class.body > method_definition; .name = .name))) | @class
-
----
-
-(source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (quantified_expression
-              source: (expression
-                (field_access
-                  base: (expression
-                    (variable
-                      (identifier)))
-                  field: (identifier)))
-              predicate: (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
                 (quantified_expression
                   source: (expression
                     (child_navigation
@@ -498,10 +421,111 @@ class_declaration as @class | select(any(@class.decorator; any(@class.body > met
                         (dot_field_access
                           field: (identifier)))
                       right: (expression
+                        (null_literal))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+universal quantifier
+========================================
+
+class_declaration as @class | select(all(@class.body > method_definition; .return_type != null)) | @class
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (quantified_expression
+                  source: (expression
+                    (child_navigation
+                      parent: (expression
+                        (field_access
+                          base: (expression
+                            (variable
+                              (identifier)))
+                          field: (identifier)))
+                      child: (expression
+                        (node_selector
+                          (identifier)))))
+                  predicate: (expression
+                    (comparison
+                      left: (expression
                         (dot_field_access
-                          field: (identifier))))))))))))
-    (pipeline_step
-      (expression
+                          field: (identifier)))
+                      right: (expression
+                        (null_literal))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+nested any quantifier
+========================================
+
+class_declaration as @class | select(any(@class.decorator; any(@class.body > method_definition; .name = .name))) | @class
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (quantified_expression
+                  source: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  predicate: (expression
+                    (quantified_expression
+                      source: (expression
+                        (child_navigation
+                          parent: (expression
+                            (field_access
+                              base: (expression
+                                (variable
+                                  (identifier)))
+                              field: (identifier)))
+                          child: (expression
+                            (node_selector
+                              (identifier)))))
+                      predicate: (expression
+                        (comparison
+                          left: (expression
+                            (dot_field_access
+                              field: (identifier)))
+                          right: (expression
+                            (dot_field_access
+                              field: (identifier)))))))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -514,32 +538,34 @@ class_declaration as @class | @class.name as @name | select((@name = 'Foo')) | @
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (subquery
-              (pipeline
-                (pipeline_step
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (parenthesized
                   (expression
                     (comparison
                       left: (expression
@@ -547,9 +573,8 @@ class_declaration as @class | @class.name as @name | select((@name = 'Foo')) | @
                           (identifier)))
                       right: (expression
                         (string_literal
-                          content: (string_fragment))))))))))))
-    (pipeline_step
-      (expression
+                          content: (string_fragment)))))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -562,37 +587,40 @@ class_declaration as @class | @class.decorator as @decorator? | select(@decorato
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (comparison
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (pipe_expression
               left: (expression
-                (variable
-                  (identifier)))
+                (bind_expression
+                  expression: (expression
+                    (node_selector
+                      (identifier)))
+                  variable: (variable
+                    (identifier))))
               right: (expression
-                (null_literal)))))))
-    (pipeline_step
-      (expression
+                (bind_expression
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  variable: (variable
+                    (identifier))))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (null_literal))))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -605,29 +633,30 @@ method_definition as @m | select(@m.return_type is null) | @m
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (is_null_expr
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
               expression: (expression
-                (field_access
-                  base: (expression
-                    (variable
-                      (identifier)))
-                  field: (identifier)))
-              (null_literal))))))
-    (pipeline_step
-      (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (is_null_expr
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  (null_literal)))))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -640,28 +669,29 @@ method_definition as @m | select(@m.return_type is not null) | @m
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
-        (function_call
-          name: (identifier)
-          argument: (expression
-            (is_null_expr
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
               expression: (expression
-                (field_access
-                  base: (expression
-                    (variable
-                      (identifier)))
-                  field: (identifier)))
-              (null_literal))))))
-    (pipeline_step
-      (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (is_null_expr
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  (null_literal)))))))
+      right: (expression
         (variable
           (identifier))))))

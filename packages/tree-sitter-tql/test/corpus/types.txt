@@ -12,19 +12,17 @@ def find_methods(@class): @class.body > method_definition;
     parameters: (def_parameters
       (variable
         (identifier)))
-    body: (pipeline
-      (pipeline_step
-        (expression
-          (child_navigation
-            parent: (expression
-              (field_access
-                base: (expression
-                  (variable
-                    (identifier)))
-                field: (identifier)))
-            child: (expression
-              (node_selector
-                (identifier)))))))))
+    body: (expression
+      (child_navigation
+        parent: (expression
+          (field_access
+            base: (expression
+              (variable
+                (identifier)))
+            field: (identifier)))
+        child: (expression
+          (node_selector
+            (identifier)))))))
 
 ========================================
 function definition multiple params
@@ -42,39 +40,40 @@ def methods_named(@class; @name): @class.body > method_definition as @m | select
         (identifier))
       (variable
         (identifier)))
-    body: (pipeline
-      (pipeline_step
-        (bind_step
-          expression: (expression
-            (child_navigation
-              parent: (expression
-                (field_access
-                  base: (expression
-                    (variable
-                      (identifier)))
-                  field: (identifier)))
-              child: (expression
-                (node_selector
-                  (identifier)))))
-          variable: (variable
-            (identifier))))
-      (pipeline_step
-        (expression
-          (function_call
-            name: (identifier)
-            argument: (expression
-              (comparison
-                left: (expression
-                  (field_access
-                    base: (expression
+    body: (expression
+      (pipe_expression
+        left: (expression
+          (pipe_expression
+            left: (expression
+              (bind_expression
+                expression: (expression
+                  (child_navigation
+                    parent: (expression
+                      (field_access
+                        base: (expression
+                          (variable
+                            (identifier)))
+                        field: (identifier)))
+                    child: (expression
+                      (node_selector
+                        (identifier)))))
+                variable: (variable
+                  (identifier))))
+            right: (expression
+              (function_call
+                name: (identifier)
+                argument: (expression
+                  (comparison
+                    left: (expression
+                      (field_access
+                        base: (expression
+                          (variable
+                            (identifier)))
+                        field: (identifier)))
+                    right: (expression
                       (variable
-                        (identifier)))
-                    field: (identifier)))
-                right: (expression
-                  (variable
-                    (identifier))))))))
-      (pipeline_step
-        (expression
+                        (identifier)))))))))
+        right: (expression
           (variable
             (identifier)))))))
 
@@ -89,15 +88,15 @@ def all_classes: class_declaration as @c | @c;
 (source_file
   (function_definition
     name: (identifier)
-    body: (pipeline
-      (pipeline_step
-        (bind_step
-          expression: (expression
-            (node_selector
-              (identifier)))
-          variable: (variable
-            (identifier))))
-      (pipeline_step
-        (expression
+    body: (expression
+      (pipe_expression
+        left: (expression
+          (bind_expression
+            expression: (expression
+              (node_selector
+                (identifier)))
+            variable: (variable
+              (identifier))))
+        right: (expression
           (variable
             (identifier)))))))

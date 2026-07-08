@@ -7,11 +7,9 @@ string literal
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (string_literal
-          content: (string_fragment))))))
+  (expression
+    (string_literal
+      content: (string_fragment))))
 
 ========================================
 string with escape sequences
@@ -22,15 +20,13 @@ string with escape sequences
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (string_literal
-          content: (string_fragment)
-          content: (escape_sequence)
-          content: (string_fragment)
-          content: (escape_sequence)
-          content: (escape_sequence))))))
+  (expression
+    (string_literal
+      content: (string_fragment)
+      content: (escape_sequence)
+      content: (string_fragment)
+      content: (escape_sequence)
+      content: (escape_sequence))))
 
 ========================================
 regex literal
@@ -41,11 +37,9 @@ regex literal
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (regex_literal
-          pattern: (regex_fragment))))))
+  (expression
+    (regex_literal
+      pattern: (regex_fragment))))
 
 ========================================
 regex with escapes
@@ -56,15 +50,13 @@ regex with escapes
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (regex_literal
-          pattern: (regex_escape_sequence)
-          pattern: (regex_fragment)
-          pattern: (regex_escape_sequence)
-          pattern: (regex_escape_sequence)
-          pattern: (regex_fragment))))))
+  (expression
+    (regex_literal
+      pattern: (regex_escape_sequence)
+      pattern: (regex_fragment)
+      pattern: (regex_escape_sequence)
+      pattern: (regex_escape_sequence)
+      pattern: (regex_fragment))))
 
 ========================================
 number literal
@@ -75,7 +67,5 @@ number literal
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (number_literal)))))
+  (expression
+    (number_literal)))

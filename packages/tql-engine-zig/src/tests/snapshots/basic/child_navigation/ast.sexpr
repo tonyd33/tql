@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child (child . (node class_declaration)) (node class_body)) body) (bind (child body (node method_definition)) m) (transform m)))
+(source_file (pipe (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (bind (child body (node method_definition)) m)) m))

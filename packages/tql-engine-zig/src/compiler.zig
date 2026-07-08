@@ -101,11 +101,11 @@ pub const Compiler = struct {
         for (source.items) |item| {
             switch (item) {
                 .query => |query| {
-                    try self.compilePipeline(query.body);
+                    try self.compileTopLevel(query.body);
                     try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
                 },
-                .pipeline => |pipeline| {
-                    try self.compilePipeline(pipeline);
+                .expression => |expr| {
+                    try self.compileTopLevel(expr);
                     try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
                 },
                 else => @panic("Not implemented"),
@@ -132,56 +132,85 @@ pub const Compiler = struct {
         };
     }
 
-    fn compilePipeline(self: *Compiler, pipeline: ast.Pipeline) CompilerError!void {
-        const steps = pipeline.steps;
-        if (steps.len == 0) return error.InvalidVariableReference;
-
-        for (steps[0 .. steps.len - 1]) |step| {
-            switch (step) {
-                .bind => |b| try self.compileBindStep(b),
-                .transform => |t| {
-                    const anon_id = try self.allocateAnonymous();
-                    const vs = try self.compileExpression(t.expression);
-                    try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
-                    try self.variables.put(DOT_NAME, anon_id);
-                },
-            }
+    // Compile expression as top-level statement: pipe steps update dot, final step yields.
+    fn compileTopLevel(self: *Compiler, expr: ast.Expression) CompilerError!void {
+        switch (expr) {
+            .pipe_expression => |pe| {
+                try self.compileTopLevelStep(pe.left);
+                try self.compileTopLevel(pe.right);
+            },
+            .bind_expression => |be| {
+                const var_id = try self.putVariable(be.variable.name);
+                const vs = try self.compileExpression(be.expression);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+            },
+            else => {
+                const vs = try self.compileExpression(expr);
+                try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
+            },
         }
-
-        const last = steps[steps.len - 1].transform;
-        const vs = try self.compileExpression(last.expression);
-        try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
     }
 
-    fn compileBindStep(self: *Compiler, bind: ast.BindStep) CompilerError!void {
-        const var_id = try self.putVariable(bind.variable.name);
-        const vs = try self.compileExpression(bind.expression);
-        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+    // Compile a non-final pipeline step: update dot or bind variable, no yield.
+    fn compileTopLevelStep(self: *Compiler, expr: ast.Expression) CompilerError!void {
+        switch (expr) {
+            .pipe_expression => |pe| {
+                try self.compileTopLevelStep(pe.left);
+                try self.compileTopLevelStep(pe.right);
+            },
+            .bind_expression => |be| {
+                const var_id = try self.putVariable(be.variable.name);
+                const vs = try self.compileExpression(be.expression);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+            },
+            else => {
+                const anon_id = try self.allocateAnonymous();
+                const vs = try self.compileExpression(expr);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
+                try self.variables.put(DOT_NAME, anon_id);
+            },
+        }
     }
 
-    fn compileUnnestPipeline(self: *Compiler, pipeline: ast.Pipeline, var_id: VariableId) CompilerError!void {
-        const steps = pipeline.steps;
-        if (steps.len == 0) return error.InvalidVariableReference;
-
+    // Compile a pipe_expression embedded in another expression (collect into list).
+    fn compilePipeAsValue(self: *Compiler, expr: ast.Expression, var_id: VariableId) CompilerError!void {
         const saved_dot = self.variables.get(DOT_NAME).?;
-
-        for (steps[0 .. steps.len - 1]) |step| {
-            switch (step) {
-                .bind => |b| try self.compileBindStep(b),
-                .transform => |t| {
-                    const anon_id = try self.allocateAnonymous();
-                    const vs = try self.compileExpression(t.expression);
-                    try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
-                    try self.variables.put(DOT_NAME, anon_id);
-                },
-            }
+        switch (expr) {
+            .pipe_expression => |pe| {
+                try self.compilePipeStepAsValue(pe.left);
+                try self.compilePipeAsValue(pe.right, var_id);
+            },
+            .bind_expression => |be| {
+                const bid = try self.putVariable(be.variable.name);
+                const vs = try self.compileExpression(be.expression);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = bid, .source = vs } });
+            },
+            else => {
+                const vs = try self.compileExpression(expr);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+            },
         }
-
-        const last = steps[steps.len - 1].transform;
-        const vs = try self.compileExpression(last.expression);
-        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
-
         try self.variables.put(DOT_NAME, saved_dot);
+    }
+
+    fn compilePipeStepAsValue(self: *Compiler, expr: ast.Expression) CompilerError!void {
+        switch (expr) {
+            .pipe_expression => |pe| {
+                try self.compilePipeStepAsValue(pe.left);
+                try self.compilePipeStepAsValue(pe.right);
+            },
+            .bind_expression => |be| {
+                const var_id = try self.putVariable(be.variable.name);
+                const vs = try self.compileExpression(be.expression);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+            },
+            else => {
+                const anon_id = try self.allocateAnonymous();
+                const vs = try self.compileExpression(expr);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
+                try self.variables.put(DOT_NAME, anon_id);
+            },
+        }
     }
 
     fn compileGuardExpr(
@@ -440,20 +469,21 @@ pub const Compiler = struct {
             },
             .array_literal => |arr| return try self.compileListExpression(arr.elements),
             .tuple_literal => |tup| return try self.compileListExpression(tup.elements),
-            .subquery => |subquery| {
+            .parenthesized => |p| return try self.compileExpression(p.*),
+            .bind_expression => return error.InvalidGuardExpression,
+            .pipe_expression => {
                 const resume_label = self.instruction_builder.createLabel();
                 const anon_variable = try self.allocateAnonymous();
 
                 try self.instruction_builder.emitProbe(.{
                     .aggregate = .{ .variable = anon_variable, .kind = .list },
                 }, resume_label);
-                try self.compilePipeline(subquery.*);
+                try self.compileTopLevel(expr);
                 try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
 
                 try self.instruction_builder.markLabel(resume_label);
                 return .{ .variable_id = anon_variable };
             },
-            .parenthesized => |p| return try self.compileExpression(p.*),
             .function_call => |fc| {
                 if (std.mem.eql(u8, fc.name, "select")) {
                     return self.compileBuiltinSelect(fc);
@@ -489,9 +519,9 @@ pub const Compiler = struct {
         if (fc.arguments.len != 1) return error.InvalidUnnestArgument;
         var arg = fc.arguments[0];
         while (arg == .parenthesized) arg = arg.parenthesized.*;
-        if (arg != .subquery) return error.InvalidUnnestArgument;
+        if (arg != .pipe_expression) return error.InvalidUnnestArgument;
         const anon_id = try self.allocateAnonymous();
-        try self.compileUnnestPipeline(arg.subquery.*, anon_id);
+        try self.compilePipeAsValue(arg, anon_id);
         return .{ .variable_id = anon_id };
     }
 

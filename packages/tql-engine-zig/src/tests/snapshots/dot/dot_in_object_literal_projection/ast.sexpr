@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) c) (transform c) (transform (object (name (dot-field name))))))
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) (object (name (dot-field name)))))

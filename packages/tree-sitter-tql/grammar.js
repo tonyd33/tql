@@ -16,6 +16,8 @@ const PREC = {
   not: 9,
   and: 8,
   or: 7,
+  bind: 3,
+  pipe: 1,
 };
 
 module.exports = grammar({
@@ -23,10 +25,9 @@ module.exports = grammar({
 
   extras: $ => [/\s/, $.comment],
 
-
   rules: {
     source_file: $ =>
-      repeat(choice($.directive, $.function_definition, $.pipeline)),
+      repeat(choice($.directive, $.function_definition, $.expression)),
 
     comment: _ => token(seq("--", /.*/)),
 
@@ -38,32 +39,69 @@ module.exports = grammar({
 
     import_directive: $ => seq("import", field("path", $.string_literal)),
 
-    // Function definitions: def name(@a; @b): pipeline;
+    // Function definitions: def name(@a; @b): expr;
     function_definition: $ =>
       seq(
         "def",
         field("name", $.identifier),
         optional(field("parameters", $.def_parameters)),
         ":",
-        field("body", $.pipeline),
+        field("body", $.expression),
         ";",
       ),
 
     def_parameters: $ => seq("(", optional(semicolon_sep1($.variable)), ")"),
 
-    // Pipeline: step | step | ... | step
-    pipeline: $ => seq($.pipeline_step, repeat(seq("|", $.pipeline_step))),
-
-    pipeline_step: $ => choice($.bind_step, $.expression),
+    // Expressions (includes boolean/guard expressions formerly in predicate)
+    expression: $ =>
+      choice(
+        $.identity,
+        $.dot_field_access,
+        $.node_selector,
+        $.variable,
+        $.string_literal,
+        $.regex_literal,
+        $.number_literal,
+        $.null_literal,
+        $.field_access,
+        $.child_navigation,
+        $.descendant_navigation,
+        $.function_call,
+        $.object_literal,
+        $.array_literal,
+        $.tuple_literal,
+        $.parenthesized,
+        $.bind_expression,
+        $.pipe_expression,
+        $.comparison,
+        $.is_null_expr,
+        $.logical_and,
+        $.logical_or,
+        $.logical_not,
+        $.quantified_expression,
+      ),
 
     // expr as @v  or  expr as @v?
-    bind_step: $ =>
-      seq(
+    bind_expression: $ =>
+      prec.right(PREC.bind, seq(
         field("expression", $.expression),
         "as",
         field("variable", $.variable),
         optional(field("optional", "?")),
-      ),
+      )),
+
+    // A | B — pipeline as expression, left-associative, lowest precedence
+    pipe_expression: $ =>
+      prec.left(PREC.pipe, seq(
+        field("left", $.expression),
+        "|",
+        field("right", $.expression),
+      )),
+
+    identity: _ => token("."),
+
+    dot_field_access: $ =>
+      prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
     // Navigation expressions
     node_selector: $ => prec(-1, $.identifier),
@@ -89,39 +127,6 @@ module.exports = grammar({
           field("descendant", $.expression),
         ),
       ),
-
-    // Expressions (includes boolean/guard expressions formerly in predicate)
-    expression: $ =>
-      choice(
-        $.identity,
-        $.dot_field_access,
-        $.node_selector,
-        $.variable,
-        $.string_literal,
-        $.regex_literal,
-        $.number_literal,
-        $.null_literal,
-        $.field_access,
-        $.child_navigation,
-        $.descendant_navigation,
-        $.function_call,
-        $.object_literal,
-        $.array_literal,
-        $.array_collect,
-        $.tuple_literal,
-        $.subquery,
-        $.comparison,
-        $.is_null_expr,
-        $.logical_and,
-        $.logical_or,
-        $.logical_not,
-        $.quantified_expression,
-      ),
-
-    identity: _ => token("."),
-
-    dot_field_access: $ =>
-      prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
     // Boolean/guard expressions (formerly predicates)
     is_null_expr: $ =>
@@ -189,25 +194,11 @@ module.exports = grammar({
 
     array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
 
-    array_collect: $ =>
-      seq(
-        "[",
-        choice(
-          seq($.bind_step, repeat(seq("|", $.pipeline_step))),
-          seq(
-            $.expression,
-            "|",
-            $.pipeline_step,
-            repeat(seq("|", $.pipeline_step)),
-          ),
-        ),
-        "]",
-      ),
-
     tuple_literal: $ =>
       seq("(", $.expression, ",", comma_sep1($.expression), ")"),
 
-    subquery: $ => seq("(", $.pipeline, ")"),
+    // (expr) — parenthesized expression (handles subqueries too)
+    parenthesized: $ => seq("(", $.expression, ")"),
 
     type: $ =>
       choice(

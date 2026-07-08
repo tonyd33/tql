@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node class_declaration)) c) (bind (field c name) n) (transform (call select (or (eq n (string "Service")) (eq n (string "Controller"))))) (transform c)))
+(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) (bind (field c name) n)) (call select (or (eq n (string "Service")) (eq n (string "Controller"))))) c))

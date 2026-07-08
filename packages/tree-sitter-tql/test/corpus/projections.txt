@@ -7,16 +7,16 @@ class_declaration as @class | @class
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (node_selector
+              (identifier)))
+          variable: (variable
+            (identifier))))
+      right: (expression
         (variable
           (identifier))))))
 
@@ -29,26 +29,28 @@ class_declaration as @class | @class.name as @name | { class: @class, name: @nam
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (object_literal
           (object_field
             key: (identifier)
@@ -70,26 +72,28 @@ class_declaration as @class | @class.name as @name | { @class, @name }
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (object_literal
           (object_field
             (variable
@@ -107,26 +111,28 @@ class_declaration as @class | @class.name as @name | [@class, @name]
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (array_literal
           (expression
             (variable
@@ -144,26 +150,28 @@ class_declaration as @class | @class.name as @name | (@class, @name)
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (tuple_literal
           (expression
             (variable
@@ -181,31 +189,33 @@ class_declaration as @class | @class.body > method_definition as @method | { cla
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (child_navigation
-            parent: (expression
-              (field_access
-                base: (expression
-                  (variable
-                    (identifier)))
-                field: (identifier)))
-            child: (expression
-              (node_selector
-                (identifier)))))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (child_navigation
+                  parent: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  child: (expression
+                    (node_selector
+                      (identifier)))))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (object_literal
           (object_field
             key: (identifier)
@@ -230,26 +240,28 @@ class_declaration as @class | @class.name as @class_name | { class: @class_name,
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (node_selector
-            (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (bind_step
-        expression: (expression
-          (field_access
-            base: (expression
-              (variable
-                (identifier)))
-            field: (identifier)))
-        variable: (variable
-          (identifier))))
-    (pipeline_step
-      (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (node_selector
+                  (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (bind_expression
+              expression: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))
+              variable: (variable
+                (identifier))))))
+      right: (expression
         (object_literal
           (object_field
             key: (identifier)
@@ -259,35 +271,39 @@ class_declaration as @class | @class.name as @class_name | { class: @class_name,
           (object_field
             key: (identifier)
             value: (expression
-              (array_collect
-                (bind_step
-                  expression: (expression
-                    (child_navigation
-                      parent: (expression
-                        (field_access
-                          base: (expression
-                            (variable
-                              (identifier)))
-                          field: (identifier)))
-                      child: (expression
-                        (node_selector
-                          (identifier)))))
-                  variable: (variable
-                    (identifier)))
-                (pipeline_step
-                  (bind_step
-                    expression: (expression
-                      (field_access
-                        base: (expression
-                          (variable
-                            (identifier)))
-                        field: (identifier)))
-                    variable: (variable
-                      (identifier))))
-                (pipeline_step
-                  (expression
-                    (variable
-                      (identifier))))))))))))
+              (array_literal
+                (expression
+                  (pipe_expression
+                    left: (expression
+                      (pipe_expression
+                        left: (expression
+                          (bind_expression
+                            expression: (expression
+                              (child_navigation
+                                parent: (expression
+                                  (field_access
+                                    base: (expression
+                                      (variable
+                                        (identifier)))
+                                    field: (identifier)))
+                                child: (expression
+                                  (node_selector
+                                    (identifier)))))
+                            variable: (variable
+                              (identifier))))
+                        right: (expression
+                          (bind_expression
+                            expression: (expression
+                              (field_access
+                                base: (expression
+                                  (variable
+                                    (identifier)))
+                                field: (identifier)))
+                            variable: (variable
+                              (identifier))))))
+                    right: (expression
+                      (variable
+                        (identifier)))))))))))))
 
 ========================================
 emit string literal
@@ -298,11 +314,9 @@ emit string literal
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (string_literal
-          content: (string_fragment))))))
+  (expression
+    (string_literal
+      content: (string_fragment))))
 
 ========================================
 emit number
@@ -313,7 +327,5 @@ emit number
 ---
 
 (source_file
-  (pipeline
-    (pipeline_step
-      (expression
-        (number_literal)))))
+  (expression
+    (number_literal)))

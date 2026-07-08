@@ -77,9 +77,9 @@ pub const Parser = struct {
             } else if (std.mem.eql(u8, node_type, "function_definition")) {
                 const query = try self.parseFunctionDefinition(child, source);
                 try items.append(self.allocator, .{ .query = query });
-            } else if (std.mem.eql(u8, node_type, "pipeline")) {
-                const pipeline = try self.parsePipeline(child, source);
-                try items.append(self.allocator, .{ .pipeline = pipeline });
+            } else if (std.mem.eql(u8, node_type, "expression")) {
+                const expr = try self.parseExpression(child, source);
+                try items.append(self.allocator, .{ .expression = expr });
             }
 
             if (!cursor.gotoNextSibling()) break;
@@ -139,7 +139,7 @@ pub const Parser = struct {
         }
 
         const body_node = try expectChildByFieldName(node, "body");
-        const body = try self.parsePipeline(body_node, source);
+        const body = try self.parseExpression(body_node, source);
 
         return ast.QueryDefinition{
             .name = name,
@@ -176,70 +176,6 @@ pub const Parser = struct {
         }
 
         return try params.toOwnedSlice(self.allocator);
-    }
-
-    // ========================================================================
-    // Pipeline Parsing
-    // ========================================================================
-
-    fn parsePipeline(self: *Parser, node: ts.Node, source: []const u8) !ast.Pipeline {
-        var steps = std.ArrayList(ast.PipelineStep).empty;
-        defer steps.deinit(self.allocator);
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-
-        if (!cursor.gotoFirstChild()) return error.InvalidExpression;
-
-        while (true) {
-            const child = cursor.node();
-            const child_type = getNodeType(child);
-
-            if (std.mem.eql(u8, child_type, "pipeline_step")) {
-                var step_cursor = child.walk();
-                defer step_cursor.destroy();
-
-                if (!step_cursor.gotoFirstChild()) {
-                    if (!cursor.gotoNextSibling()) break;
-                    continue;
-                }
-
-                const step = step_cursor.node();
-                const step_type = getNodeType(step);
-
-                if (std.mem.eql(u8, step_type, "bind_step")) {
-                    const bind = try self.parseBindStep(step, source);
-                    try steps.append(self.allocator, .{ .bind = bind });
-                } else if (std.mem.eql(u8, step_type, "expression")) {
-                    const expr = try self.parseExpression(step, source);
-                    try steps.append(self.allocator, .{ .transform = .{ .expression = expr } });
-                }
-            }
-
-            if (!cursor.gotoNextSibling()) break;
-        }
-
-        if (steps.items.len == 0) return error.InvalidExpression;
-
-        return ast.Pipeline{
-            .steps = try steps.toOwnedSlice(self.allocator),
-        };
-    }
-
-    fn parseBindStep(self: *Parser, node: ts.Node, source: []const u8) !ast.BindStep {
-        const expr_node = try expectChildByFieldName(node, "expression");
-        const expression = try self.parseExpression(expr_node, source);
-
-        const var_node = try expectChildByFieldName(node, "variable");
-        const variable = try self.parseVariable(var_node, source);
-
-        const optional = getChildByFieldName(node, "optional") != null;
-
-        return ast.BindStep{
-            .expression = expression,
-            .variable = variable,
-            .optional = optional,
-        };
     }
 
     // ========================================================================
@@ -444,14 +380,20 @@ pub const Parser = struct {
             return .{ .object_literal = try self.parseObjectLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "array_literal")) {
             return .{ .array_literal = try self.parseArrayLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "array_collect")) {
-            return .{ .array_literal = try self.parseArrayCollect(node, source) };
         } else if (std.mem.eql(u8, node_type, "tuple_literal")) {
             return .{ .tuple_literal = try self.parseTupleLiteral(node, source) };
-        } else if (std.mem.eql(u8, node_type, "subquery")) {
-            const pipeline = try self.allocator.create(ast.Pipeline);
-            pipeline.* = try self.parseSubquery(node, source);
-            return .{ .subquery = pipeline };
+        } else if (std.mem.eql(u8, node_type, "parenthesized")) {
+            const inner = try self.allocator.create(ast.Expression);
+            inner.* = try self.parseParenthesized(node, source);
+            return .{ .parenthesized = inner };
+        } else if (std.mem.eql(u8, node_type, "bind_expression")) {
+            const be = try self.allocator.create(ast.BindExpression);
+            be.* = try self.parseBindExpression(node, source);
+            return .{ .bind_expression = be };
+        } else if (std.mem.eql(u8, node_type, "pipe_expression")) {
+            const pe = try self.allocator.create(ast.PipeExpression);
+            pe.* = try self.parsePipeExpression(node, source);
+            return .{ .pipe_expression = pe };
         } else if (std.mem.eql(u8, node_type, "comparison")) {
             const cmp = try self.allocator.create(ast.Comparison);
             cmp.* = try self.parseComparison(node, source);
@@ -588,31 +530,6 @@ pub const Parser = struct {
         };
     }
 
-    fn parseArrayCollect(self: *Parser, node: ts.Node, source: []const u8) !ast.ArrayLiteral {
-        var cursor = node.walk();
-        defer cursor.destroy();
-
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                const child = cursor.node();
-                const child_type = getNodeType(child);
-
-                if (std.mem.eql(u8, child_type, "pipeline")) {
-                    const pipeline = try self.allocator.create(ast.Pipeline);
-                    pipeline.* = try self.parsePipeline(child, source);
-                    const subquery_expr = ast.Expression{ .subquery = pipeline };
-                    const elements = try self.allocator.alloc(ast.Expression, 1);
-                    elements[0] = subquery_expr;
-                    return ast.ArrayLiteral{ .elements = elements };
-                }
-
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
-
-        return error.InvalidExpression;
-    }
-
     fn parseTupleLiteral(self: *Parser, node: ts.Node, source: []const u8) !ast.TupleLiteral {
         var elements = std.ArrayList(ast.Expression).empty;
         defer elements.deinit(self.allocator);
@@ -639,7 +556,7 @@ pub const Parser = struct {
         };
     }
 
-    fn parseSubquery(self: *Parser, node: ts.Node, source: []const u8) !ast.Pipeline {
+    fn parseParenthesized(self: *Parser, node: ts.Node, source: []const u8) !ast.Expression {
         var cursor = node.walk();
         defer cursor.destroy();
 
@@ -648,15 +565,44 @@ pub const Parser = struct {
                 const child = cursor.node();
                 const child_type = getNodeType(child);
 
-                if (std.mem.eql(u8, child_type, "pipeline")) {
-                    return try self.parsePipeline(child, source);
+                if (std.mem.eql(u8, child_type, "expression")) {
+                    return try self.parseExpression(child, source);
                 }
 
                 if (!cursor.gotoNextSibling()) break;
             }
         }
 
-        return error.InvalidSubquery;
+        return error.InvalidExpression;
+    }
+
+    fn parseBindExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.BindExpression {
+        const expr_node = try expectChildByFieldName(node, "expression");
+        const expression = try self.parseExpression(expr_node, source);
+
+        const var_node = try expectChildByFieldName(node, "variable");
+        const variable = try self.parseVariable(var_node, source);
+
+        const optional = getChildByFieldName(node, "optional") != null;
+
+        return ast.BindExpression{
+            .expression = expression,
+            .variable = variable,
+            .optional = optional,
+        };
+    }
+
+    fn parsePipeExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.PipeExpression {
+        const left_node = try expectChildByFieldName(node, "left");
+        const left = try self.parseExpression(left_node, source);
+
+        const right_node = try expectChildByFieldName(node, "right");
+        const right = try self.parseExpression(right_node, source);
+
+        return ast.PipeExpression{
+            .left = left,
+            .right = right,
+        };
     }
 
     // ========================================================================
@@ -797,7 +743,6 @@ pub const ParseError = error{
     InvalidProjection,
     InvalidExpression,
     InvalidObjectField,
-    InvalidSubquery,
     InvalidStringLiteral,
     InvalidRegexLiteral,
     InvalidNumberLiteral,
@@ -822,12 +767,12 @@ test "parse simple pipeline" {
     defer source_file.deinit(allocator);
 
     try std.testing.expect(source_file.items.len == 1);
-    try std.testing.expect(source_file.items[0] == .pipeline);
+    try std.testing.expect(source_file.items[0] == .expression);
 
-    const pipeline = source_file.items[0].pipeline;
-    try std.testing.expect(pipeline.steps.len == 2);
-    try std.testing.expect(pipeline.steps[0] == .bind);
-    try std.testing.expect(pipeline.steps[1] == .transform);
+    const expr = source_file.items[0].expression;
+    try std.testing.expect(expr == .pipe_expression);
+    try std.testing.expect(expr.pipe_expression.left == .bind_expression);
+    try std.testing.expect(expr.pipe_expression.right == .variable);
 }
 
 test "parse pipeline with select filter" {
@@ -841,15 +786,16 @@ test "parse pipeline with select filter" {
     defer source_file.deinit(allocator);
 
     try std.testing.expect(source_file.items.len == 1);
+    try std.testing.expect(source_file.items[0] == .expression);
 
-    const pipeline = source_file.items[0].pipeline;
-    try std.testing.expect(pipeline.steps.len == 4);
-    try std.testing.expect(pipeline.steps[0] == .bind);
-    try std.testing.expect(pipeline.steps[1] == .bind);
-    try std.testing.expect(pipeline.steps[2] == .transform);
-    try std.testing.expect(pipeline.steps[2].transform.expression == .function_call);
-    try std.testing.expectEqualStrings("select", pipeline.steps[2].transform.expression.function_call.name);
-    try std.testing.expect(pipeline.steps[3] == .transform);
+    // A | B | C | D parses as ((A | B) | C) | D
+    const expr = source_file.items[0].expression;
+    try std.testing.expect(expr == .pipe_expression);
+    try std.testing.expect(expr.pipe_expression.right == .variable);
+
+    const inner = expr.pipe_expression.left.pipe_expression;
+    try std.testing.expect(inner.right == .function_call);
+    try std.testing.expectEqualStrings("select", inner.right.function_call.name);
 }
 
 test "parse function definition" {
@@ -870,6 +816,7 @@ test "parse function definition" {
     try std.testing.expect(query.parameters.len == 1);
     try std.testing.expectEqualStrings("class", query.parameters[0].name.name);
     try std.testing.expect(query.return_type == null);
+    try std.testing.expect(query.body == .pipe_expression);
 }
 
 test "parse directives" {
@@ -902,9 +849,9 @@ test "parse logical and" {
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
 
-    const pipeline = source_file.items[0].pipeline;
-    try std.testing.expect(pipeline.steps[2] == .transform);
-    const select_expr = pipeline.steps[2].transform.expression;
+    // ((A | B) | select(...)) | @class
+    const expr = source_file.items[0].expression;
+    const select_expr = expr.pipe_expression.left.pipe_expression.right;
     try std.testing.expect(select_expr == .function_call);
     try std.testing.expect(select_expr.function_call.arguments[0] == .logical_and);
 }
@@ -919,9 +866,9 @@ test "parse quantified expression" {
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
 
-    const pipeline = source_file.items[0].pipeline;
-    try std.testing.expect(pipeline.steps[1] == .transform);
-    const select_expr = pipeline.steps[1].transform.expression;
+    // (A | select(...)) | @class
+    const expr = source_file.items[0].expression;
+    const select_expr = expr.pipe_expression.left.pipe_expression.right;
     try std.testing.expect(select_expr == .function_call);
     try std.testing.expect(select_expr.function_call.arguments[0] == .quantified);
     try std.testing.expect(select_expr.function_call.arguments[0].quantified.quantifier == .any);

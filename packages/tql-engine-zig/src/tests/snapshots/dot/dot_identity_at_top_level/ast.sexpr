@@ -1,1 +1,1 @@
-(source_file (pipeline (transform .) (transform .)))
+(source_file (pipe . .))

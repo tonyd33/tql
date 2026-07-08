@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node function_definition)) func) (transform (object (fn func) (all_funcs (subquery (pipeline (bind (child . (node function_definition)) f) (transform f))))))))
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (all_funcs (paren (pipe (bind (child . (node function_definition)) f) f))))))

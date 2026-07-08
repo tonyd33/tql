@@ -1,1 +1,1 @@
-(source_file (pipeline (bind (child . (node function_definition)) func) (transform (subquery (pipeline (bind (child func (node goto_statement)) g) (transform g))))))
+(source_file (pipe (bind (child . (node function_definition)) func) (paren (pipe (bind (child func (node goto_statement)) g) g))))

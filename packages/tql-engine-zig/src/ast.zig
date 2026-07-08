@@ -63,13 +63,13 @@ pub const SourceFile = struct {
 pub const SourceItem = union(enum) {
     directive: Directive,
     query: QueryDefinition,
-    pipeline: Pipeline,
+    expression: Expression,
 
     pub fn deinit(self: SourceItem, allocator: std.mem.Allocator) void {
         switch (self) {
             .directive => |d| d.deinit(allocator),
             .query => |q| q.deinit(allocator),
-            .pipeline => |p| p.deinit(allocator),
+            .expression => |e| e.deinit(allocator),
         }
     }
 
@@ -77,7 +77,7 @@ pub const SourceItem = union(enum) {
         switch (self) {
             .directive => |d| try d.sexpr(w),
             .query => |q| try q.sexpr(w),
-            .pipeline => |p| try p.sexpr(w),
+            .expression => |e| try e.sexpr(w),
         }
     }
 };
@@ -86,7 +86,7 @@ pub const QueryDefinition = struct {
     name: Identifier,
     parameters: []const Parameter,
     return_type: ?Type,
-    body: Pipeline,
+    body: Expression,
 
     pub fn deinit(self: QueryDefinition, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -139,60 +139,17 @@ pub const Parameter = struct {
     }
 };
 
-// ============================================================================
-// Pipeline — the v2 representation mirroring the tree-sitter grammar
-// ============================================================================
-
-pub const Pipeline = struct {
-    steps: []const PipelineStep,
-
-    pub fn deinit(self: Pipeline, allocator: std.mem.Allocator) void {
-        for (self.steps) |step| {
-            step.deinit(allocator);
-        }
-        allocator.free(self.steps);
-    }
-
-    pub fn sexpr(self: Pipeline, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(pipeline");
-        for (self.steps) |step| {
-            try w.writeByte(' ');
-            try step.sexpr(w);
-        }
-        try w.writeByte(')');
-    }
-};
-
-pub const PipelineStep = union(enum) {
-    bind: BindStep,
-    transform: TransformStep,
-
-    pub fn deinit(self: PipelineStep, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .bind => |s| s.deinit(allocator),
-            .transform => |s| s.deinit(allocator),
-        }
-    }
-
-    pub fn sexpr(self: PipelineStep, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
-            .bind => |s| try s.sexpr(w),
-            .transform => |s| try s.sexpr(w),
-        }
-    }
-};
-
-pub const BindStep = struct {
+pub const BindExpression = struct {
     expression: Expression,
     variable: Variable,
     optional: bool,
 
-    pub fn deinit(self: BindStep, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: BindExpression, allocator: std.mem.Allocator) void {
         self.expression.deinit(allocator);
         allocator.free(self.variable.name);
     }
 
-    pub fn sexpr(self: BindStep, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    pub fn sexpr(self: BindExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.writeAll("(bind ");
         try self.expression.sexpr(w);
         try w.print(" {s}", .{self.variable.name});
@@ -201,16 +158,15 @@ pub const BindStep = struct {
     }
 };
 
-pub const TransformStep = struct {
-    expression: Expression,
+pub const PipeExpression = struct {
+    left: Expression,
+    right: Expression,
 
-    pub fn deinit(self: TransformStep, allocator: std.mem.Allocator) void {
-        self.expression.deinit(allocator);
-    }
-
-    pub fn sexpr(self: TransformStep, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(transform ");
-        try self.expression.sexpr(w);
+    pub fn sexpr(self: PipeExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(pipe ");
+        try self.left.sexpr(w);
+        try w.writeByte(' ');
+        try self.right.sexpr(w);
         try w.writeByte(')');
     }
 };
@@ -403,8 +359,9 @@ pub const Expression = union(enum) {
     object_literal: ObjectLiteral,
     array_literal: ArrayLiteral,
     tuple_literal: TupleLiteral,
-    subquery: *Pipeline,
     parenthesized: *Expression,
+    bind_expression: *BindExpression,
+    pipe_expression: *PipeExpression,
     // Boolean/guard expressions (formerly Predicate variants)
     comparison: *Comparison,
     is_null: *IsNullExpr,
@@ -455,13 +412,18 @@ pub const Expression = union(enum) {
                 for (tl.elements) |elem| elem.deinit(allocator);
                 allocator.free(tl.elements);
             },
-            .subquery => |sq| {
-                sq.deinit(allocator);
-                allocator.destroy(sq);
-            },
             .parenthesized => |p| {
                 p.deinit(allocator);
                 allocator.destroy(p);
+            },
+            .bind_expression => |be| {
+                be.deinit(allocator);
+                allocator.destroy(be);
+            },
+            .pipe_expression => |pe| {
+                pe.left.deinit(allocator);
+                pe.right.deinit(allocator);
+                allocator.destroy(pe);
             },
             .comparison => |c| {
                 c.left.deinit(allocator);
@@ -512,16 +474,13 @@ pub const Expression = union(enum) {
             .object_literal => |ol| try ol.sexpr(w),
             .array_literal => |al| try al.sexpr(w),
             .tuple_literal => |tl| try tl.sexpr(w),
-            .subquery => |sq| {
-                try w.writeAll("(subquery ");
-                try sq.sexpr(w);
-                try w.writeByte(')');
-            },
             .parenthesized => |pe| {
                 try w.writeAll("(paren ");
                 try pe.sexpr(w);
                 try w.writeByte(')');
             },
+            .bind_expression => |be| try be.sexpr(w),
+            .pipe_expression => |pe| try pe.sexpr(w),
             .comparison => |c| {
                 try w.print("({s} ", .{@tagName(c.operator)});
                 try c.left.sexpr(w);
