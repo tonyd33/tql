@@ -12,17 +12,17 @@ const PREC = {
   descendant: 18,
   field: 17,
 
-  not: 10,
-  and: 9,
-  or: 8,
-
-  comparison: 7,
+  comparison: 10,
+  not: 9,
+  and: 8,
+  or: 7,
 };
 
 module.exports = grammar({
   name: "tql",
 
   extras: $ => [/\s/, $.comment],
+
 
   rules: {
     source_file: $ =>
@@ -54,7 +54,7 @@ module.exports = grammar({
     // Pipeline: step | step | ... | step
     pipeline: $ => seq($.pipeline_step, repeat(seq("|", $.pipeline_step))),
 
-    pipeline_step: $ => choice($.bind_step, $.select_step, $.expression),
+    pipeline_step: $ => choice($.bind_step, $.expression),
 
     // expr as @v  or  expr as @v?
     bind_step: $ =>
@@ -64,9 +64,6 @@ module.exports = grammar({
         field("variable", $.variable),
         optional(field("optional", "?")),
       ),
-
-    // select(pred)
-    select_step: $ => seq("select", "(", field("predicate", $.predicate), ")"),
 
     // Navigation expressions
     node_selector: $ => prec(-1, $.identifier),
@@ -93,70 +90,10 @@ module.exports = grammar({
         ),
       ),
 
-    // Predicates
-    predicate: $ =>
-      choice(
-        $.comparison,
-        $.is_null_predicate,
-        $.logical_and,
-        $.logical_or,
-        $.logical_not,
-        $.quantified_expression,
-        $.parenthesized_predicate,
-      ),
-
-    is_null_predicate: $ =>
-      prec.left(
-        PREC.comparison,
-        seq(
-          field("expression", $.expression),
-          "is",
-          field("negated", optional("not")),
-          $.null_literal,
-        ),
-      ),
-
-    comparison: $ =>
-      prec.left(
-        PREC.comparison,
-        seq(
-          field("left", $.expression),
-          field("operator", choice("=", "!=", "~", "!~", ">", "<", ">=", "<=")),
-          field("right", $.expression),
-        ),
-      ),
-
-    logical_and: $ =>
-      prec.left(
-        PREC.and,
-        seq(field("left", $.predicate), "and", field("right", $.predicate)),
-      ),
-
-    logical_or: $ =>
-      prec.left(
-        PREC.or,
-        seq(field("left", $.predicate), "or", field("right", $.predicate)),
-      ),
-
-    logical_not: $ =>
-      prec.right(PREC.not, seq("not", field("predicate", $.predicate))),
-
-    // any(gen; cond) / all(gen; cond)
-    quantified_expression: $ =>
-      seq(
-        field("quantifier", choice("any", "all")),
-        "(",
-        field("source", $.expression),
-        ";",
-        field("predicate", $.predicate),
-        ")",
-      ),
-
-    parenthesized_predicate: $ => seq("(", $.predicate, ")"),
-
-    // Expressions
+    // Expressions (includes boolean/guard expressions formerly in predicate)
     expression: $ =>
       choice(
+        $.identity,
         $.dot_field_access,
         $.node_selector,
         $.variable,
@@ -173,10 +110,66 @@ module.exports = grammar({
         $.array_collect,
         $.tuple_literal,
         $.subquery,
+        $.comparison,
+        $.is_null_expr,
+        $.logical_and,
+        $.logical_or,
+        $.logical_not,
+        $.quantified_expression,
       ),
+
+    identity: _ => token("."),
 
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
+
+    // Boolean/guard expressions (formerly predicates)
+    is_null_expr: $ =>
+      prec.left(
+        PREC.comparison,
+        seq(
+          field("expression", $.expression),
+          "is",
+          field("negated", optional("not")),
+          $.null_literal,
+        ),
+      ),
+
+    comparison: $ =>
+      prec.left(
+        PREC.comparison,
+        seq(
+          field("left", $.expression),
+          field("operator", choice("=", "!=", "~", "!~")),
+          field("right", $.expression),
+        ),
+      ),
+
+    logical_and: $ =>
+      prec.left(
+        PREC.and,
+        seq(field("left", $.expression), "and", field("right", $.expression)),
+      ),
+
+    logical_or: $ =>
+      prec.left(
+        PREC.or,
+        seq(field("left", $.expression), "or", field("right", $.expression)),
+      ),
+
+    logical_not: $ =>
+      prec.right(PREC.not, seq("not", field("predicate", $.expression))),
+
+    // any(gen; cond) / all(gen; cond)
+    quantified_expression: $ =>
+      seq(
+        field("quantifier", choice("any", "all")),
+        "(",
+        field("source", $.expression),
+        ";",
+        field("predicate", $.expression),
+        ")",
+      ),
 
     function_call: $ =>
       seq(
@@ -201,7 +194,6 @@ module.exports = grammar({
         "[",
         choice(
           seq($.bind_step, repeat(seq("|", $.pipeline_step))),
-          seq($.select_step, repeat(seq("|", $.pipeline_step))),
           seq(
             $.expression,
             "|",

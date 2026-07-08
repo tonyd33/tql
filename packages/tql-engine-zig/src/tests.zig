@@ -8,4 +8,5 @@ test {
     refAllDecls(@import("tests/array_literal_tests.zig"));
     refAllDecls(@import("tests/tuple_literal_tests.zig"));
     refAllDecls(@import("tests/subquery_tests.zig"));
+    refAllDecls(@import("tests/dot_tests.zig"));
 }

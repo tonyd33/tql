@@ -1,0 +1,1 @@
+(source_file (pipeline (bind (child . (node class_declaration)) c) (transform (call select (any (child (field c body) (node method_definition)) (ne . null)))) (transform c)))

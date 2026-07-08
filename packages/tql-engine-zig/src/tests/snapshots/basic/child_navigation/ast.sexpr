@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child (child root (node class_declaration)) (node class_body)) body) (binding (child body (node method_definition)) m)) (select m)))
+(source_file (pipeline (bind (child (child . (node class_declaration)) (node class_body)) body) (bind (child body (node method_definition)) m) (transform m)))

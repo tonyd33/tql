@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) c)) (where (any (child (field c body) (node method_definition)) (eq (dot-field name) (string "nonexistent")))) (select c)))
+(source_file (pipeline (bind (child . (node class_declaration)) c) (transform (call select (any (child (field c body) (node method_definition)) (eq (dot-field name) (string "nonexistent"))))) (transform c)))

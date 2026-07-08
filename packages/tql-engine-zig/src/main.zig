@@ -441,7 +441,7 @@ fn pushFile(ctx: *SharedContext, path: []const u8) !void {
 }
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
-    const abs = try std.Io.Dir.realPathFileAbsoluteAlloc(ctx.*.io, path, ctx.allocator);
+    const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.*.io, path, ctx.allocator);
     defer ctx.allocator.free(abs);
     var root_dir = try std.Io.Dir.openDirAbsolute(ctx.*.io, abs, .{
         .iterate = true,

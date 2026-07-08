@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) class)) (select (tuple (string "class") class))))
+(source_file (pipeline (bind (child . (node class_declaration)) class) (transform (tuple (string "class") class))))

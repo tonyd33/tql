@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "type_identifier",
+    "text": "Foo",
+    "start_byte": 6,
+    "end_byte": 9,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 9
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Bar",
+    "start_byte": 19,
+    "end_byte": 22,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 9
+    }
+  }
+]

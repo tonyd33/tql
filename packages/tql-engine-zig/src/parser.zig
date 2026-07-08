@@ -56,7 +56,6 @@ pub const Parser = struct {
         return node.grammarKind();
     }
 
-    // TODO: We should really use the emitted field/kind ids...
     fn parseSourceFile(self: *Parser, node: ts.Node, source: []const u8) !ast.SourceFile {
         var items = std.ArrayList(ast.SourceItem).empty;
         defer items.deinit(self.allocator);
@@ -79,8 +78,8 @@ pub const Parser = struct {
                 const query = try self.parseFunctionDefinition(child, source);
                 try items.append(self.allocator, .{ .query = query });
             } else if (std.mem.eql(u8, node_type, "pipeline")) {
-                const query_body = try self.parsePipeline(child, source);
-                try items.append(self.allocator, .{ .query_body = query_body });
+                const pipeline = try self.parsePipeline(child, source);
+                try items.append(self.allocator, .{ .pipeline = pipeline });
             }
 
             if (!cursor.gotoNextSibling()) break;
@@ -126,7 +125,7 @@ pub const Parser = struct {
     }
 
     // ========================================================================
-    // Function Definition Parsing (v2: def name(args): pipeline;)
+    // Function Definition Parsing
     // ========================================================================
 
     fn parseFunctionDefinition(self: *Parser, node: ts.Node, source: []const u8) !ast.QueryDefinition {
@@ -180,17 +179,12 @@ pub const Parser = struct {
     }
 
     // ========================================================================
-    // Pipeline Parsing — normalizes v2 pipeline into v1 QueryBody
+    // Pipeline Parsing
     // ========================================================================
 
-    fn parsePipeline(self: *Parser, node: ts.Node, source: []const u8) !ast.QueryBody {
-        var bindings = std.ArrayList(ast.Binding).empty;
-        defer bindings.deinit(self.allocator);
-
-        var where_preds = std.ArrayList(ast.Predicate).empty;
-        defer where_preds.deinit(self.allocator);
-
-        var last_expr: ?ast.Expression = null;
+    fn parsePipeline(self: *Parser, node: ts.Node, source: []const u8) !ast.Pipeline {
+        var steps = std.ArrayList(ast.PipelineStep).empty;
+        defer steps.deinit(self.allocator);
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -202,7 +196,6 @@ pub const Parser = struct {
             const child_type = getNodeType(child);
 
             if (std.mem.eql(u8, child_type, "pipeline_step")) {
-                // pipeline_step wraps bind_step, select_step, or expression
                 var step_cursor = child.walk();
                 defer step_cursor.destroy();
 
@@ -215,85 +208,25 @@ pub const Parser = struct {
                 const step_type = getNodeType(step);
 
                 if (std.mem.eql(u8, step_type, "bind_step")) {
-                    // Flush any pending last_expr as a transform binding with anonymous var
-                    if (last_expr) |expr| {
-                        const anon_name = try self.allocator.dupe(u8, "__t");
-                        try bindings.append(self.allocator, ast.Binding{
-                            .expression = expr,
-                            .variable = ast.Variable{ .name = anon_name },
-                            .optional = false,
-                        });
-                        last_expr = null;
-                    }
-                    const binding = try self.parseBindStep(step, source);
-                    try bindings.append(self.allocator, binding);
-                } else if (std.mem.eql(u8, step_type, "select_step")) {
-                    // Flush any pending last_expr
-                    if (last_expr) |expr| {
-                        const anon_name = try self.allocator.dupe(u8, "__t");
-                        try bindings.append(self.allocator, ast.Binding{
-                            .expression = expr,
-                            .variable = ast.Variable{ .name = anon_name },
-                            .optional = false,
-                        });
-                        last_expr = null;
-                    }
-                    const pred = try self.parseSelectStep(step, source);
-                    try where_preds.append(self.allocator, pred);
+                    const bind = try self.parseBindStep(step, source);
+                    try steps.append(self.allocator, .{ .bind = bind });
                 } else if (std.mem.eql(u8, step_type, "expression")) {
-                    // Flush any pending last_expr as transform binding
-                    if (last_expr) |expr| {
-                        const anon_name = try self.allocator.dupe(u8, "__t");
-                        try bindings.append(self.allocator, ast.Binding{
-                            .expression = expr,
-                            .variable = ast.Variable{ .name = anon_name },
-                            .optional = false,
-                        });
-                    }
-                    last_expr = try self.parseExpression(step, source);
+                    const expr = try self.parseExpression(step, source);
+                    try steps.append(self.allocator, .{ .transform = .{ .expression = expr } });
                 }
             }
 
             if (!cursor.gotoNextSibling()) break;
         }
 
-        const with_clause: ?ast.WithClause = if (bindings.items.len > 0)
-            ast.WithClause{ .bindings = try bindings.toOwnedSlice(self.allocator) }
-        else
-            null;
+        if (steps.items.len == 0) return error.InvalidExpression;
 
-        const where_clause: ?ast.WhereClause = blk: {
-            if (where_preds.items.len == 0) break :blk null;
-            if (where_preds.items.len == 1) {
-                const pred = where_preds.items[0];
-                where_preds.items.len = 0;
-                break :blk ast.WhereClause{ .predicate = pred };
-            }
-            // AND multiple predicates together
-            var combined = where_preds.items[0];
-            var i: usize = 1;
-            while (i < where_preds.items.len) : (i += 1) {
-                const and_node = try self.allocator.create(ast.LogicalAnd);
-                and_node.* = ast.LogicalAnd{
-                    .left = combined,
-                    .right = where_preds.items[i],
-                };
-                combined = ast.Predicate{ .logical_and = and_node };
-            }
-            where_preds.items.len = 0;
-            break :blk ast.WhereClause{ .predicate = combined };
-        };
-
-        const projection = last_expr orelse return error.InvalidExpression;
-
-        return ast.QueryBody{
-            .with_clause = with_clause,
-            .where_clause = where_clause,
-            .select_clause = ast.SelectClause{ .projection = projection },
+        return ast.Pipeline{
+            .steps = try steps.toOwnedSlice(self.allocator),
         };
     }
 
-    fn parseBindStep(self: *Parser, node: ts.Node, source: []const u8) !ast.Binding {
+    fn parseBindStep(self: *Parser, node: ts.Node, source: []const u8) !ast.BindStep {
         const expr_node = try expectChildByFieldName(node, "expression");
         const expression = try self.parseExpression(expr_node, source);
 
@@ -302,16 +235,11 @@ pub const Parser = struct {
 
         const optional = getChildByFieldName(node, "optional") != null;
 
-        return ast.Binding{
+        return ast.BindStep{
             .expression = expression,
             .variable = variable,
             .optional = optional,
         };
-    }
-
-    fn parseSelectStep(self: *Parser, node: ts.Node, source: []const u8) !ast.Predicate {
-        const pred_node = try expectChildByFieldName(node, "predicate");
-        return try self.parsePredicate(pred_node, source);
     }
 
     // ========================================================================
@@ -369,61 +297,8 @@ pub const Parser = struct {
     }
 
     // ========================================================================
-    // Predicate Parsing
+    // Boolean/guard Expression Parsing (formerly Predicate Parsing)
     // ========================================================================
-
-    fn parsePredicate(self: *Parser, node: ts.Node, source: []const u8) anyerror!ast.Predicate {
-        const node_type = getNodeType(node);
-
-        if (std.mem.eql(u8, node_type, "predicate")) {
-            var cursor = node.walk();
-            defer cursor.destroy();
-            if (cursor.gotoFirstChild()) {
-                return try self.parsePredicate(cursor.node(), source);
-            }
-            return error.InvalidPredicate;
-        }
-
-        if (std.mem.eql(u8, node_type, "comparison")) {
-            return .{ .comparison = try self.parseComparison(node, source) };
-        } else if (std.mem.eql(u8, node_type, "is_null_predicate")) {
-            return .{ .is_null = try self.parseIsNullPredicate(node, source) };
-        } else if (std.mem.eql(u8, node_type, "logical_and")) {
-            const logical_and = try self.allocator.create(ast.LogicalAnd);
-            logical_and.* = try self.parseLogicalAnd(node, source);
-            return .{ .logical_and = logical_and };
-        } else if (std.mem.eql(u8, node_type, "logical_or")) {
-            const logical_or = try self.allocator.create(ast.LogicalOr);
-            logical_or.* = try self.parseLogicalOr(node, source);
-            return .{ .logical_or = logical_or };
-        } else if (std.mem.eql(u8, node_type, "logical_not")) {
-            const logical_not = try self.allocator.create(ast.LogicalNot);
-            logical_not.* = try self.parseLogicalNot(node, source);
-            return .{ .logical_not = logical_not };
-        } else if (std.mem.eql(u8, node_type, "quantified_expression")) {
-            return .{ .quantified = try self.parseQuantifiedExpression(node, source) };
-        } else if (std.mem.eql(u8, node_type, "parenthesized_predicate")) {
-            var cursor = node.walk();
-            defer cursor.destroy();
-
-            if (cursor.gotoFirstChild()) {
-                while (true) {
-                    const child = cursor.node();
-                    const child_type = getNodeType(child);
-
-                    if (std.mem.eql(u8, child_type, "predicate")) {
-                        const pred = try self.allocator.create(ast.Predicate);
-                        pred.* = try self.parsePredicate(child, source);
-                        return .{ .parenthesized = pred };
-                    }
-
-                    if (!cursor.gotoNextSibling()) break;
-                }
-            }
-        }
-
-        return error.InvalidPredicate;
-    }
 
     fn parseComparison(self: *Parser, node: ts.Node, source: []const u8) !ast.Comparison {
         const left_node = try expectChildByFieldName(node, "left");
@@ -443,11 +318,11 @@ pub const Parser = struct {
         };
     }
 
-    fn parseIsNullPredicate(self: *Parser, node: ts.Node, source: []const u8) !ast.IsNullPredicate {
+    fn parseIsNullExpr(self: *Parser, node: ts.Node, source: []const u8) !ast.IsNullExpr {
         const expr_node = try expectChildByFieldName(node, "expression");
         const expression = try self.parseExpression(expr_node, source);
         const negated = getChildByFieldName(node, "negated") != null;
-        return ast.IsNullPredicate{
+        return ast.IsNullExpr{
             .expression = expression,
             .negated = negated,
         };
@@ -458,20 +333,16 @@ pub const Parser = struct {
         if (std.mem.eql(u8, text, "!=")) return .ne;
         if (std.mem.eql(u8, text, "~")) return .regex_match;
         if (std.mem.eql(u8, text, "!~")) return .regex_not_match;
-        if (std.mem.eql(u8, text, ">")) return .gt;
-        if (std.mem.eql(u8, text, "<")) return .lt;
-        if (std.mem.eql(u8, text, ">=")) return .gte;
-        if (std.mem.eql(u8, text, "<=")) return .lte;
         // FIXME: Should error
         return .eq;
     }
 
     fn parseLogicalAnd(self: *Parser, node: ts.Node, source: []const u8) !ast.LogicalAnd {
         const left_node = try expectChildByFieldName(node, "left");
-        const left = try self.parsePredicate(left_node, source);
+        const left = try self.parseExpression(left_node, source);
 
         const right_node = try expectChildByFieldName(node, "right");
-        const right = try self.parsePredicate(right_node, source);
+        const right = try self.parseExpression(right_node, source);
 
         return ast.LogicalAnd{
             .left = left,
@@ -481,10 +352,10 @@ pub const Parser = struct {
 
     fn parseLogicalOr(self: *Parser, node: ts.Node, source: []const u8) !ast.LogicalOr {
         const left_node = try expectChildByFieldName(node, "left");
-        const left = try self.parsePredicate(left_node, source);
+        const left = try self.parseExpression(left_node, source);
 
         const right_node = try expectChildByFieldName(node, "right");
-        const right = try self.parsePredicate(right_node, source);
+        const right = try self.parseExpression(right_node, source);
 
         return ast.LogicalOr{
             .left = left,
@@ -494,7 +365,7 @@ pub const Parser = struct {
 
     fn parseLogicalNot(self: *Parser, node: ts.Node, source: []const u8) !ast.LogicalNot {
         const pred_node = try expectChildByFieldName(node, "predicate");
-        const predicate = try self.parsePredicate(pred_node, source);
+        const predicate = try self.parseExpression(pred_node, source);
 
         return ast.LogicalNot{
             .predicate = predicate,
@@ -513,8 +384,8 @@ pub const Parser = struct {
         const nav_source = try self.parseExpression(source_node, source);
 
         const pred_node = try expectChildByFieldName(node, "predicate");
-        const pred = try self.allocator.create(ast.Predicate);
-        pred.* = try self.parsePredicate(pred_node, source);
+        const pred = try self.allocator.create(ast.Expression);
+        pred.* = try self.parseExpression(pred_node, source);
 
         return ast.QuantifiedExpression{
             .quantifier = quantifier,
@@ -551,6 +422,8 @@ pub const Parser = struct {
             return .{ .number_literal = try self.parseNumberLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "null_literal")) {
             return .null_literal;
+        } else if (std.mem.eql(u8, node_type, "identity")) {
+            return .identity;
         } else if (std.mem.eql(u8, node_type, "dot_field_access")) {
             return .{ .dot_field_access = try self.parseDotFieldAccess(node, source) };
         } else if (std.mem.eql(u8, node_type, "field_access")) {
@@ -576,9 +449,33 @@ pub const Parser = struct {
         } else if (std.mem.eql(u8, node_type, "tuple_literal")) {
             return .{ .tuple_literal = try self.parseTupleLiteral(node, source) };
         } else if (std.mem.eql(u8, node_type, "subquery")) {
-            const query_body = try self.allocator.create(ast.QueryBody);
-            query_body.* = try self.parseSubquery(node, source);
-            return .{ .subquery = query_body };
+            const pipeline = try self.allocator.create(ast.Pipeline);
+            pipeline.* = try self.parseSubquery(node, source);
+            return .{ .subquery = pipeline };
+        } else if (std.mem.eql(u8, node_type, "comparison")) {
+            const cmp = try self.allocator.create(ast.Comparison);
+            cmp.* = try self.parseComparison(node, source);
+            return .{ .comparison = cmp };
+        } else if (std.mem.eql(u8, node_type, "is_null_expr")) {
+            const p = try self.allocator.create(ast.IsNullExpr);
+            p.* = try self.parseIsNullExpr(node, source);
+            return .{ .is_null = p };
+        } else if (std.mem.eql(u8, node_type, "logical_and")) {
+            const la = try self.allocator.create(ast.LogicalAnd);
+            la.* = try self.parseLogicalAnd(node, source);
+            return .{ .logical_and = la };
+        } else if (std.mem.eql(u8, node_type, "logical_or")) {
+            const lo = try self.allocator.create(ast.LogicalOr);
+            lo.* = try self.parseLogicalOr(node, source);
+            return .{ .logical_or = lo };
+        } else if (std.mem.eql(u8, node_type, "logical_not")) {
+            const ln = try self.allocator.create(ast.LogicalNot);
+            ln.* = try self.parseLogicalNot(node, source);
+            return .{ .logical_not = ln };
+        } else if (std.mem.eql(u8, node_type, "quantified_expression")) {
+            const q = try self.allocator.create(ast.QuantifiedExpression);
+            q.* = try self.parseQuantifiedExpression(node, source);
+            return .{ .quantified = q };
         }
 
         return error.InvalidExpression;
@@ -692,8 +589,6 @@ pub const Parser = struct {
     }
 
     fn parseArrayCollect(self: *Parser, node: ts.Node, source: []const u8) !ast.ArrayLiteral {
-        // [pipeline] — collect pipeline results into array
-        // Represented as a subquery in select position: array_literal with one subquery element
         var cursor = node.walk();
         defer cursor.destroy();
 
@@ -703,9 +598,9 @@ pub const Parser = struct {
                 const child_type = getNodeType(child);
 
                 if (std.mem.eql(u8, child_type, "pipeline")) {
-                    const query_body = try self.allocator.create(ast.QueryBody);
-                    query_body.* = try self.parsePipeline(child, source);
-                    const subquery_expr = ast.Expression{ .subquery = query_body };
+                    const pipeline = try self.allocator.create(ast.Pipeline);
+                    pipeline.* = try self.parsePipeline(child, source);
+                    const subquery_expr = ast.Expression{ .subquery = pipeline };
                     const elements = try self.allocator.alloc(ast.Expression, 1);
                     elements[0] = subquery_expr;
                     return ast.ArrayLiteral{ .elements = elements };
@@ -744,8 +639,7 @@ pub const Parser = struct {
         };
     }
 
-    fn parseSubquery(self: *Parser, node: ts.Node, source: []const u8) !ast.QueryBody {
-        // subquery = "(" pipeline ")" in v2
+    fn parseSubquery(self: *Parser, node: ts.Node, source: []const u8) !ast.Pipeline {
         var cursor = node.walk();
         defer cursor.destroy();
 
@@ -928,12 +822,12 @@ test "parse simple pipeline" {
     defer source_file.deinit(allocator);
 
     try std.testing.expect(source_file.items.len == 1);
-    try std.testing.expect(source_file.items[0] == .query_body);
+    try std.testing.expect(source_file.items[0] == .pipeline);
 
-    const qb = source_file.items[0].query_body;
-    try std.testing.expect(qb.with_clause != null);
-    try std.testing.expect(qb.with_clause.?.bindings.len == 1);
-    try std.testing.expect(qb.where_clause == null);
+    const pipeline = source_file.items[0].pipeline;
+    try std.testing.expect(pipeline.steps.len == 2);
+    try std.testing.expect(pipeline.steps[0] == .bind);
+    try std.testing.expect(pipeline.steps[1] == .transform);
 }
 
 test "parse pipeline with select filter" {
@@ -948,10 +842,14 @@ test "parse pipeline with select filter" {
 
     try std.testing.expect(source_file.items.len == 1);
 
-    const qb = source_file.items[0].query_body;
-    try std.testing.expect(qb.with_clause.?.bindings.len == 2);
-    try std.testing.expect(qb.where_clause != null);
-    try std.testing.expect(qb.where_clause.?.predicate == .comparison);
+    const pipeline = source_file.items[0].pipeline;
+    try std.testing.expect(pipeline.steps.len == 4);
+    try std.testing.expect(pipeline.steps[0] == .bind);
+    try std.testing.expect(pipeline.steps[1] == .bind);
+    try std.testing.expect(pipeline.steps[2] == .transform);
+    try std.testing.expect(pipeline.steps[2].transform.expression == .function_call);
+    try std.testing.expectEqualStrings("select", pipeline.steps[2].transform.expression.function_call.name);
+    try std.testing.expect(pipeline.steps[3] == .transform);
 }
 
 test "parse function definition" {
@@ -1004,8 +902,11 @@ test "parse logical and" {
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
 
-    const qb = source_file.items[0].query_body;
-    try std.testing.expect(qb.where_clause.?.predicate == .logical_and);
+    const pipeline = source_file.items[0].pipeline;
+    try std.testing.expect(pipeline.steps[2] == .transform);
+    const select_expr = pipeline.steps[2].transform.expression;
+    try std.testing.expect(select_expr == .function_call);
+    try std.testing.expect(select_expr.function_call.arguments[0] == .logical_and);
 }
 
 test "parse quantified expression" {
@@ -1018,8 +919,11 @@ test "parse quantified expression" {
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
 
-    const qb = source_file.items[0].query_body;
-    try std.testing.expect(qb.where_clause.?.predicate == .quantified);
-    try std.testing.expect(qb.where_clause.?.predicate.quantified.quantifier == .any);
-    try std.testing.expect(qb.where_clause.?.predicate.quantified.source == .child_navigation);
+    const pipeline = source_file.items[0].pipeline;
+    try std.testing.expect(pipeline.steps[1] == .transform);
+    const select_expr = pipeline.steps[1].transform.expression;
+    try std.testing.expect(select_expr == .function_call);
+    try std.testing.expect(select_expr.function_call.arguments[0] == .quantified);
+    try std.testing.expect(select_expr.function_call.arguments[0].quantified.quantifier == .any);
+    try std.testing.expect(select_expr.function_call.arguments[0].quantified.source == .child_navigation);
 }

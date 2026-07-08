@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "program",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]

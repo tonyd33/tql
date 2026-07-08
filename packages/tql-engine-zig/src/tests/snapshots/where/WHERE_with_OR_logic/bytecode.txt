@@ -9,13 +9,13 @@
 0008: asn 2 (node this)
 0009: trv variable_id 2
 0010: rel equals (node text) (literal string "Service")
-0011: jmp relates 19
-0012: jmp always 13
+0011: jmp not_relates 13
+0012: jmp always 16
 0013: trv variable_id 2
 0014: rel equals (node text) (literal string "Controller")
-0015: jmp relates 19
+0015: jmp not_relates 17
 0016: jmp always 18
-0017: jmp always 19
-0018: halt always
+0017: halt always
+0018: asn 3 (variable_id 0)
 0019: yield
 0020: halt always

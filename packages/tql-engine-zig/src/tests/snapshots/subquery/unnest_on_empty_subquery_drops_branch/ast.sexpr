@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node function_definition)) func) (binding (call unnest (subquery (query_body (with (binding (child func (node goto_statement)) g)) (select g)))) g)) (select (object (fn func) (g g)))))
+(source_file (pipeline (bind (child . (node function_definition)) func) (bind (call unnest (subquery (pipeline (bind (child func (node goto_statement)) g) (transform g)))) g) (transform (object (fn func) (g g)))))

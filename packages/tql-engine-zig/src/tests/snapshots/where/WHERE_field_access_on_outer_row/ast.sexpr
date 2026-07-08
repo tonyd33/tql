@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) c)) (where (eq (field c name) (string "Service"))) (select c)))
+(source_file (pipeline (bind (child . (node class_declaration)) c) (transform (call select (eq (field c name) (string "Service")))) (transform c)))

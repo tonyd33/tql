@@ -1,13 +1,11 @@
 [ "def"
   "as"
-  "select"
   "is"
   "any"
   "all"
   "and"
   "or"
   "not"
-  "is"
 ] @keyword
 
 (null_literal) @constant.builtin

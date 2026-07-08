@@ -1,5 +1,5 @@
-@root > function_definition as @fn
--- ^ variable
+. > function_definition as @fn
+--                         ^ variable
 --           ^ property
 |
 @fn > function_declarator as @fn_decl |
@@ -8,7 +8,7 @@
 --   ^ attribute
 |
 select(any(@body >> call_expression; .function ~ /^(k|v|kv)(z|m|c|re)?alloc/))
--- ^ keyword
+-- ^ function
 --                                                   ^ string.regex
 |
 { @name }

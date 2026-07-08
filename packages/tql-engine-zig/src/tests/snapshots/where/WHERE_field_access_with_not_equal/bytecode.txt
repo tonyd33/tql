@@ -6,11 +6,12 @@
 0005: asn 1 (node this)
 0006: trv variable_id 1
 0007: trv field 25
-0008: asn 2 (node this)
-0009: trv variable_id 2
+0008: asn 3 (node this)
+0009: trv variable_id 3
 0010: rel equals (node text) (literal string "Service")
-0011: jmp relates 14
-0012: jmp always 13
+0011: jmp not_relates 13
+0012: jmp always 14
 0013: halt always
-0014: yield
-0015: halt always
+0014: asn 2 (variable_id 0)
+0015: yield
+0016: halt always

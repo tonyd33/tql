@@ -9,8 +9,9 @@
 0008: asn 2 (node this)
 0009: trv variable_id 2
 0010: rel like (node text) (literal regex ...)
-0011: jmp relates 14
-0012: jmp always 13
+0011: jmp not_relates 13
+0012: jmp always 14
 0013: halt always
-0014: yield
-0015: halt always
+0014: asn 3 (variable_id 0)
+0015: yield
+0016: halt always

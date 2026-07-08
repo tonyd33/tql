@@ -59,18 +59,20 @@ def methods_named(@class; @name): @class.body > method_definition as @m | select
           variable: (variable
             (identifier))))
       (pipeline_step
-        (select_step
-          predicate: (predicate
-            (comparison
-              left: (expression
-                (field_access
-                  base: (expression
-                    (variable
-                      (identifier)))
-                  field: (identifier)))
-              right: (expression
-                (variable
-                  (identifier)))))))
+        (expression
+          (function_call
+            name: (identifier)
+            argument: (expression
+              (comparison
+                left: (expression
+                  (field_access
+                    base: (expression
+                      (variable
+                        (identifier)))
+                    field: (identifier)))
+                right: (expression
+                  (variable
+                    (identifier))))))))
       (pipeline_step
         (expression
           (variable

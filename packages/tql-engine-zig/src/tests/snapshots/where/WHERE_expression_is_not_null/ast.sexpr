@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node function_declaration)) f)) (where (is-not-null (field f return_type))) (select f)))
+(source_file (pipeline (bind (child . (node function_declaration)) f) (transform (call select (is-not-null (field f return_type)))) (transform f)))

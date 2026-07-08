@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) c) (binding (field c name) n)) (where (regex_match n (regex "^Service$"))) (select c)))
+(source_file (pipeline (bind (child . (node class_declaration)) c) (bind (field c name) n) (transform (call select (regex_match n (regex "^Service$")))) (transform c)))

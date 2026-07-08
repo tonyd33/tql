@@ -6,9 +6,9 @@
 0005: asn 1 (node this)
 0006: trv variable_id 1
 0007: trv field 10
-0008: asn 3 (node this)
-0009: trv variable_id 3
-0010: asn 2 (node this)
+0008: asn 2 (node this)
+0009: asn 3 (variable_id 2)
+0010: asn 2 (variable_id 3)
 0011: begin_build record
 0012: push_build func (variable_id 1)
 0013: push_build d (variable_id 2)

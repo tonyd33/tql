@@ -1,0 +1,6 @@
+0000: asn 0 (node this)
+0001: trv variable_id 0
+0002: asn 1 (node this)
+0003: trv variable_id 1
+0004: yield
+0005: halt always

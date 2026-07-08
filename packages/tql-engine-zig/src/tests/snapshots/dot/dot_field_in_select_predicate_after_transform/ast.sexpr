@@ -1,0 +1,1 @@
+(source_file (pipeline (bind (child . (node class_declaration)) c) (transform c) (transform (call select (regex_match (dot-field name) (regex "Controller")))) (transform .)))

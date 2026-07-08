@@ -18,10 +18,6 @@
         {
           "type": "pipeline_step",
           "named": true
-        },
-        {
-          "type": "select_step",
-          "named": true
         }
       ]
     }
@@ -130,23 +126,7 @@
             "named": false
           },
           {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": "<=",
-            "named": false
-          },
-          {
             "type": "=",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
-          },
-          {
-            "type": ">=",
             "named": false
           },
           {
@@ -264,6 +244,10 @@
           "named": true
         },
         {
+          "type": "comparison",
+          "named": true
+        },
+        {
           "type": "descendant_navigation",
           "named": true
         },
@@ -280,6 +264,26 @@
           "named": true
         },
         {
+          "type": "identity",
+          "named": true
+        },
+        {
+          "type": "is_null_expr",
+          "named": true
+        },
+        {
+          "type": "logical_and",
+          "named": true
+        },
+        {
+          "type": "logical_not",
+          "named": true
+        },
+        {
+          "type": "logical_or",
+          "named": true
+        },
+        {
           "type": "node_selector",
           "named": true
         },
@@ -293,6 +297,10 @@
         },
         {
           "type": "object_literal",
+          "named": true
+        },
+        {
+          "type": "quantified_expression",
           "named": true
         },
         {
@@ -407,6 +415,11 @@
     }
   },
   {
+    "type": "identity",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "import_directive",
     "named": true,
     "fields": {
@@ -423,7 +436,7 @@
     }
   },
   {
-    "type": "is_null_predicate",
+    "type": "is_null_expr",
     "named": true,
     "fields": {
       "expression": {
@@ -483,7 +496,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -493,7 +506,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -509,7 +522,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -525,7 +538,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -535,7 +548,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -609,21 +622,6 @@
     }
   },
   {
-    "type": "parenthesized_predicate",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "predicate",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "pipeline",
     "named": true,
     "fields": {},
@@ -653,49 +651,6 @@
         {
           "type": "expression",
           "named": true
-        },
-        {
-          "type": "select_step",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "predicate",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "comparison",
-          "named": true
-        },
-        {
-          "type": "is_null_predicate",
-          "named": true
-        },
-        {
-          "type": "logical_and",
-          "named": true
-        },
-        {
-          "type": "logical_not",
-          "named": true
-        },
-        {
-          "type": "logical_or",
-          "named": true
-        },
-        {
-          "type": "parenthesized_predicate",
-          "named": true
-        },
-        {
-          "type": "quantified_expression",
-          "named": true
         }
       ]
     }
@@ -709,7 +664,7 @@
         "required": true,
         "types": [
           {
-            "type": "predicate",
+            "type": "expression",
             "named": true
           }
         ]
@@ -754,22 +709,6 @@
           },
           {
             "type": "regex_fragment",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "select_step",
-    "named": true,
-    "fields": {
-      "predicate": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "predicate",
             "named": true
           }
         ]
@@ -910,23 +849,11 @@
     "named": false
   },
   {
-    "type": "<",
-    "named": false
-  },
-  {
-    "type": "<=",
-    "named": false
-  },
-  {
     "type": "=",
     "named": false
   },
   {
     "type": ">",
-    "named": false
-  },
-  {
-    "type": ">=",
     "named": false
   },
   {
@@ -1017,10 +944,6 @@
   {
     "type": "regex_fragment",
     "named": true
-  },
-  {
-    "type": "select",
-    "named": false
   },
   {
     "type": "string_fragment",

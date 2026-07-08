@@ -219,3 +219,34 @@ class_declaration as @class | helper(@class) as @result | @result
       (expression
         (variable
           (identifier))))))
+
+========================================
+identity operator (bare dot)
+========================================
+
+.
+
+---
+
+(source_file
+  (pipeline
+    (pipeline_step
+      (expression
+        (identity)))))
+
+========================================
+identity pipe identity
+========================================
+
+. | .
+
+---
+
+(source_file
+  (pipeline
+    (pipeline_step
+      (expression
+        (identity)))
+    (pipeline_step
+      (expression
+        (identity)))))

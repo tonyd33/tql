@@ -5,10 +5,10 @@
 0004: halt not_relates
 0005: asn 1 (node this)
 0006: probe aggregate 21 2 list
-0007: probe aggregate 19 4 list
-0008: trv variable_id 1
-0009: trv field 10
-0010: asn 3 (node this)
+0007: trv variable_id 1
+0008: trv field 10
+0009: asn 3 (node this)
+0010: probe aggregate 19 4 list
 0011: trv variable_id 3
 0012: trv field 28
 0013: trv child

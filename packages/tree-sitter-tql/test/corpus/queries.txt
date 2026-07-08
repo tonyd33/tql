@@ -48,15 +48,17 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
         variable: (variable
           (identifier))))
     (pipeline_step
-      (select_step
-        predicate: (predicate
-          (comparison
-            left: (expression
-              (variable
-                (identifier)))
-            right: (expression
-              (string_literal
-                content: (string_fragment)))))))
+      (expression
+        (function_call
+          name: (identifier)
+          argument: (expression
+            (comparison
+              left: (expression
+                (variable
+                  (identifier)))
+              right: (expression
+                (string_literal
+                  content: (string_fragment))))))))
     (pipeline_step
       (expression
         (variable
@@ -142,14 +144,16 @@ method_definition as @method | @method.return_type as @return_type? | select(@re
         variable: (variable
           (identifier))))
     (pipeline_step
-      (select_step
-        predicate: (predicate
-          (comparison
-            left: (expression
-              (variable
-                (identifier)))
-            right: (expression
-              (null_literal))))))
+      (expression
+        (function_call
+          name: (identifier)
+          argument: (expression
+            (comparison
+              left: (expression
+                (variable
+                  (identifier)))
+              right: (expression
+                (null_literal)))))))
     (pipeline_step
       (expression
         (variable
