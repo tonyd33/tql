@@ -1,0 +1,1 @@
+(source_file (pipe (descendant . (node property_identifier)) (call text)))

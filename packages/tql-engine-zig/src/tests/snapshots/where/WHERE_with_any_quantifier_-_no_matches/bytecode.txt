@@ -1,26 +1,37 @@
-0000: asn 0 (node this)
-0001: trv variable_id 0
-0002: trv child
-0003: rel equals (node kind) (literal kind_id 221)
-0004: halt not_relates
-0005: asn 1 (node this)
-0006: probe exists 21
-0007: trv variable_id 1
-0008: trv field 5
-0009: trv child
-0010: rel equals (node kind) (literal kind_id 261)
-0011: halt not_relates
-0012: asn 3 (node this)
-0013: trv variable_id 3
-0014: trv field 25
-0015: asn 4 (node this)
-0016: trv variable_id 4
-0017: rel equals (node text) (literal string "nonexistent")
-0018: jmp not_relates 20
-0019: yield
-0020: halt always
-0021: jmp always 23
-0022: halt always
-0023: asn 2 (variable_id 0)
-0024: yield
-0025: halt always
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "nonexistent") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt

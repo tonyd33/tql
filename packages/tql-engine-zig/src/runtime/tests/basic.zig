@@ -14,7 +14,7 @@ test "noop: basic" {
 
     const instructions = [_]Instruction{
         Instruction{ .noop = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -47,7 +47,7 @@ test "yield: basic" {
 
     const instructions = [_]Instruction{
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });

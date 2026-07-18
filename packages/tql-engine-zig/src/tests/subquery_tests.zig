@@ -4,7 +4,7 @@ test "subquery in select projects list per outer match" {
     try Snapshotter.snapshotQuery(@src(), .{
         .grammar = "c",
         .query =
-        \\. > function_definition as @func | (@func.declarator.parameters > parameter_declaration as @p | @p)
+        \\. > function_definition as @func | [@func.declarator.parameters > parameter_declaration]
         ,
         .target =
         \\int add(int a, int b) { return a + b; }
@@ -17,7 +17,7 @@ test "subquery empty produces empty list" {
     try Snapshotter.snapshotQuery(@src(), .{
         .grammar = "c",
         .query =
-        \\. > function_definition as @func | (@func > goto_statement as @g | @g)
+        \\. > function_definition as @func | [@func > goto_statement]
         ,
         .target =
         \\int add(int a, int b) { return a + b; }
@@ -25,11 +25,11 @@ test "subquery empty produces empty list" {
     });
 }
 
-test "subquery shares root with enclosing scope" {
+test "collect dot refers to piped-in value" {
     try Snapshotter.snapshotQuery(@src(), .{
         .grammar = "c",
         .query =
-        \\. > function_definition as @func | { fn: @func, all_funcs: (. > function_definition as @f | @f) }
+        \\. > function_definition | { fn: ., params: [. >> parameter_declaration] }
         ,
         .target =
         \\int add(int a, int b) { return a + b; }
@@ -44,7 +44,7 @@ test "subquery captures outer binding" {
         .query =
         \\. > function_definition.declarator as @func_decl | {
         \\  name: @func_decl.declarator,
-        \\  params: (@func_decl.parameters > parameter_declaration as @p | @p)
+        \\  params: [@func_decl.parameters > parameter_declaration as @p | @p]
         \\}
         ,
         .target =
@@ -60,10 +60,10 @@ test "nested subquery" {
         .query =
         \\. > function_definition as @func | {
         \\  fn: @func,
-        \\  param_lists: (
+        \\  param_lists: [
         \\    @func.declarator as @decl |
-        \\    (@decl.parameters > parameter_declaration as @p | @p)
-        \\  )
+        \\    [@decl.parameters > parameter_declaration as @p | @p]
+        \\  ]
         \\}
         ,
         .target =
@@ -78,12 +78,12 @@ test "subquery with where clause filters inner stream" {
         .query =
         \\. > function_definition as @func | {
         \\  fn: @func,
-        \\  int_params: (
+        \\  int_params: [
         \\    @func.declarator.parameters > parameter_declaration as @p |
         \\    @p.type as @t |
-        \\    select(@t = 'int') |
+        \\    select(@t | text = 'int') |
         \\    @p
-        \\  )
+        \\  ]
         \\}
         ,
         .target =
@@ -98,7 +98,7 @@ test "subquery as binding produces list per outer fanout" {
         .grammar = "c",
         .query =
         \\. > function_definition.declarator as @func_decl |
-        \\(@func_decl.parameters > parameter_declaration as @p | @p) as @param_decl |
+        \\[@func_decl.parameters > parameter_declaration as @p | @p] as @param_decl |
         \\@func_decl.declarator as @func_name |
         \\{ name: @func_name, param: @param_decl }
         ,
@@ -130,7 +130,7 @@ test "unnest restores fanout from subquery binding" {
         .grammar = "c",
         .query =
         \\. > function_definition.declarator as @func_decl |
-        \\unnest((@func_decl.parameters > parameter_declaration as @p | @p)) as @param_decl |
+        \\unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
         \\@func_decl.declarator as @func_name |
         \\{ name: @func_name, param: @param_decl }
         ,
@@ -146,11 +146,10 @@ test "unnest restores fanout from subquery binding with inner binds" {
         .grammar = "c",
         .query =
         \\. > function_definition.declarator as @func_decl |
-        \\unnest((
+        \\unnest([
         \\  @func_decl.parameters as @params |
-        \\  @params > parameter_declaration as @p |
-        \\  @p
-        \\)) as @param_decl |
+        \\  @params > parameter_declaration
+        \\]) as @param_decl |
         \\@func_decl.declarator as @func_name |
         \\{ name: @func_name, param: @param_decl }
         ,
@@ -166,7 +165,7 @@ test "unnest on empty subquery drops branch" {
         .grammar = "c",
         .query =
         \\. > function_definition as @func |
-        \\unnest((@func > goto_statement as @g | @g)) as @g |
+        \\unnest([@func > goto_statement]) as @g |
         \\{ fn: @func, g: @g }
         ,
         .target =
@@ -180,7 +179,7 @@ test "unnest of singleton list yields one fanout" {
         .grammar = "c",
         .query =
         \\. > function_definition as @func |
-        \\unnest((@func.declarator as @d | @d)) as @d |
+        \\unnest([@func.declarator]) as @d |
         \\{ @func, @d }
         ,
         .target =

@@ -25,11 +25,10 @@ pub const DescendantIterator = types.DescendantIterator;
 pub const SplitIterator = types.SplitIterator;
 
 pub const Axis = types.Axis;
-pub const NodeValueSource = types.NodeValueSource;
+pub const CurrentValueSource = types.CurrentValueSource;
 pub const ValueSource = types.ValueSource;
 pub const ProbeData = types.ProbeData;
 pub const Relation = types.Relation;
-pub const Condition = types.Condition;
 pub const Instruction = types.Instruction;
 
 pub const ProgramImage = @import("runtime/program_image.zig").ProgramImage;

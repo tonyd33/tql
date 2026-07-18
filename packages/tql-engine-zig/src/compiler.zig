@@ -3,7 +3,6 @@ const Allocator = std.mem.Allocator;
 const ts = @import("tree-sitter");
 
 const runtime = @import("runtime.zig");
-const Condition = runtime.Condition;
 const Instruction = runtime.Instruction;
 const VariableId = runtime.VariableId;
 const NodeKindId = runtime.NodeKindId;
@@ -20,8 +19,6 @@ const CompilerError = @import("compiler/types.zig").CompilerError;
 
 const LabelId = u32;
 const VariableTable = std.StringHashMap(VariableId);
-
-const DOT_NAME = "__dot";
 
 pub const Compiler = struct {
     language: *const ts.Language,
@@ -81,6 +78,12 @@ pub const Compiler = struct {
         return id;
     }
 
+    fn bindValue(self: *Compiler) CompilerError!runtime.ValueSource {
+        const tmp = try self.allocateAnonymous();
+        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = tmp, .source = .{ .current = .value } } });
+        return .{ .variable_id = tmp };
+    }
+
     pub fn addRegex(self: *Compiler, regex: pcre2.Regex) CompilerError!usize {
         const index = self.regexes.items.len;
         try self.regexes.append(self.allocator, regex);
@@ -95,18 +98,17 @@ pub const Compiler = struct {
     }
 
     pub fn compile(self: *Compiler, allocator: std.mem.Allocator, source: ast.SourceFile) CompilerError!ProgramImage {
-        const dot_id = try self.putVariable(DOT_NAME);
-        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = dot_id, .source = .{ .node = .this } } });
-
         for (source.items) |item| {
             switch (item) {
                 .query => |query| {
-                    try self.compileTopLevel(query.body);
-                    try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
+                    const vs = try self.compileExpression(query.body);
+                    try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
+                    try self.instruction_builder.emit(.halt);
                 },
                 .expression => |expr| {
-                    try self.compileTopLevel(expr);
-                    try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
+                    const vs = try self.compileExpression(expr);
+                    try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
+                    try self.instruction_builder.emit(.halt);
                 },
                 else => @panic("Not implemented"),
             }
@@ -132,297 +134,27 @@ pub const Compiler = struct {
         };
     }
 
-    // Compile expression as top-level statement: pipe steps update dot, final step yields.
-    fn compileTopLevel(self: *Compiler, expr: ast.Expression) CompilerError!void {
-        switch (expr) {
-            .pipe_expression => |pe| {
-                try self.compileTopLevelStep(pe.left);
-                try self.compileTopLevel(pe.right);
-            },
-            .bind_expression => |be| {
-                const var_id = try self.putVariable(be.variable.name);
-                const vs = try self.compileExpression(be.expression);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
-            },
-            else => {
-                const vs = try self.compileExpression(expr);
-                try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
-            },
-        }
-    }
-
-    // Compile a non-final pipeline step: update dot or bind variable, no yield.
-    fn compileTopLevelStep(self: *Compiler, expr: ast.Expression) CompilerError!void {
-        switch (expr) {
-            .pipe_expression => |pe| {
-                try self.compileTopLevelStep(pe.left);
-                try self.compileTopLevelStep(pe.right);
-            },
-            .bind_expression => |be| {
-                const var_id = try self.putVariable(be.variable.name);
-                const vs = try self.compileExpression(be.expression);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
-            },
-            else => {
-                const anon_id = try self.allocateAnonymous();
-                const vs = try self.compileExpression(expr);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
-                try self.variables.put(DOT_NAME, anon_id);
-            },
-        }
-    }
-
-    // Compile a pipe_expression embedded in another expression (collect into list).
-    fn compilePipeAsValue(self: *Compiler, expr: ast.Expression, var_id: VariableId) CompilerError!void {
-        const saved_dot = self.variables.get(DOT_NAME).?;
-        switch (expr) {
-            .pipe_expression => |pe| {
-                try self.compilePipeStepAsValue(pe.left);
-                try self.compilePipeAsValue(pe.right, var_id);
-            },
-            .bind_expression => |be| {
-                const bid = try self.putVariable(be.variable.name);
-                const vs = try self.compileExpression(be.expression);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = bid, .source = vs } });
-            },
-            else => {
-                const vs = try self.compileExpression(expr);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
-            },
-        }
-        try self.variables.put(DOT_NAME, saved_dot);
-    }
-
-    fn compilePipeStepAsValue(self: *Compiler, expr: ast.Expression) CompilerError!void {
-        switch (expr) {
-            .pipe_expression => |pe| {
-                try self.compilePipeStepAsValue(pe.left);
-                try self.compilePipeStepAsValue(pe.right);
-            },
-            .bind_expression => |be| {
-                const var_id = try self.putVariable(be.variable.name);
-                const vs = try self.compileExpression(be.expression);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
-            },
-            else => {
-                const anon_id = try self.allocateAnonymous();
-                const vs = try self.compileExpression(expr);
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = vs } });
-                try self.variables.put(DOT_NAME, anon_id);
-            },
-        }
-    }
-
-    fn compileGuardExpr(
-        self: *Compiler,
-        expr: ast.Expression,
-        failure_label: LabelId,
-    ) CompilerError!void {
-        switch (expr) {
-            .comparison => |c| try self.compileComparison(c.*, failure_label),
-            .is_null => |p| try self.compileIsNull(p.*),
-            .logical_and => |la| {
-                try self.compileGuardExpr(la.left, failure_label);
-                try self.compileGuardExpr(la.right, failure_label);
-            },
-            .logical_or => |lo| {
-                const right_label = self.instruction_builder.createLabel();
-                const skip_label = self.instruction_builder.createLabel();
-
-                try self.compileGuardExpr(lo.left, right_label);
-                try self.instruction_builder.emitJump(skip_label, .always);
-
-                try self.instruction_builder.markLabel(right_label);
-                try self.compileGuardExpr(lo.right, failure_label);
-
-                try self.instruction_builder.markLabel(skip_label);
-            },
-            .logical_not => |ln| {
-                if (ln.predicate == .quantified) {
-                    try self.compileQuantified(ln.predicate.quantified.*, true);
-                } else {
-                    const inner_failure_label = self.instruction_builder.createLabel();
-
-                    try self.compileGuardExpr(ln.predicate, inner_failure_label);
-                    try self.instruction_builder.emitJump(failure_label, .always);
-
-                    try self.instruction_builder.markLabel(inner_failure_label);
-                }
-            },
-            .quantified => |q| try self.compileQuantified(q.*, false),
-            .parenthesized => |p| try self.compileGuardExpr(p.*, failure_label),
-            else => return error.InvalidGuardExpression,
-        }
-    }
-
-    fn compileQuantified(
-        self: *Compiler,
-        quantified: ast.QuantifiedExpression,
-        negated: bool,
-    ) CompilerError!void {
-        const body_negated = quantified.quantifier == .all;
-        const probe_negated = negated != body_negated;
-
-        const probe_resume_label = self.instruction_builder.createLabel();
-
-        const probe_data: runtime.ProbeData = if (probe_negated) .nexists else .exists;
-        try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
-
-        _ = try self.compileExpression(quantified.source);
-
-        const saved_dot = self.variables.get(DOT_NAME).?;
-
-        const dot_id = try self.allocateAnonymous();
-        try self.variables.put(DOT_NAME, dot_id);
-        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = dot_id, .source = .{ .node = .this } } });
-
-        const inner_failure_label = self.instruction_builder.createLabel();
-        if (body_negated) {
-            try self.compileGuardExpr(quantified.predicate.*, inner_failure_label);
-            try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
-            try self.instruction_builder.markLabel(inner_failure_label);
-            try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
-        } else {
-            try self.compileGuardExpr(quantified.predicate.*, inner_failure_label);
-            try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
-            try self.instruction_builder.markLabel(inner_failure_label);
-            try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
-        }
-
-        try self.variables.put(DOT_NAME, saved_dot);
-
-        try self.instruction_builder.markLabel(probe_resume_label);
-    }
-
-    fn compileIsNull(
-        self: *Compiler,
-        is_null: ast.IsNullExpr,
-    ) CompilerError!void {
-        const probe_resume_label = self.instruction_builder.createLabel();
-
-        const probe_data: runtime.ProbeData = if (is_null.negated) .exists else .nexists;
-        try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
-
-        _ = try self.compileExpression(is_null.expression);
-        try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .node = .this } } });
-        try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
-
-        try self.instruction_builder.markLabel(probe_resume_label);
-    }
-
-    fn compileComparison(
-        self: *Compiler,
-        comparison: ast.Comparison,
-        failure_label: LabelId,
-    ) CompilerError!void {
-        if (comparison.right == .string_literal) {
-            const var_id = try self.ensureVariable(try self.compileExpression(comparison.left));
-            const owned_str = try self.addString(comparison.right.string_literal);
-
-            // TODO: need a text() function. that's why this is so awkward.
-            try self.instruction_builder.emit(.{ .trv = .{ .variable_id = var_id } });
-            try self.instruction_builder.emit(.{ .rel = .{
-                .relation = .equals,
-                .a = .{ .node = .text },
-                .b = .{ .literal = .{ .string = owned_str } },
-            } });
-
-            try self.instruction_builder.emitJump(failure_label, .not_relates);
-            return;
-        }
-
-        if (comparison.right == .regex_literal) {
-            const var_id = try self.ensureVariable(try self.compileExpression(comparison.left));
-            try self.instruction_builder.emit(.{ .trv = .{ .variable_id = var_id } });
-
-            const regex = try pcre2.Regex.compile(comparison.right.regex_literal);
-            const regex_index = try self.addRegex(regex);
-
-            try self.instruction_builder.emit(.{ .rel = .{
-                .relation = .like,
-                .a = .{ .node = .text },
-                .b = .{ .literal = .{ .regex = self.regexes.items[regex_index] } },
-            } });
-
-            switch (comparison.operator) {
-                .regex_match => try self.instruction_builder.emitJump(failure_label, .not_relates),
-                .regex_not_match => try self.instruction_builder.emitJump(failure_label, .relates),
-                else => unreachable,
-            }
-            return;
-        }
-
-        const left_source = try self.compileExpression(comparison.left);
-        const right_source = try self.compileExpression(comparison.right);
-
-        switch (comparison.operator) {
-            .eq => {
-                try self.instruction_builder.emit(.{ .rel = .{ .relation = .equals, .a = left_source, .b = right_source } });
-                try self.instruction_builder.emitJump(failure_label, .not_relates);
-            },
-            .ne => {
-                try self.instruction_builder.emit(.{ .rel = .{ .relation = .equals, .a = left_source, .b = right_source } });
-                try self.instruction_builder.emitJump(failure_label, .relates);
-            },
-            .regex_match => {
-                try self.instruction_builder.emit(.{ .rel = .{ .relation = .like, .a = left_source, .b = right_source } });
-                try self.instruction_builder.emitJump(failure_label, .not_relates);
-            },
-            .regex_not_match => {
-                try self.instruction_builder.emit(.{ .rel = .{ .relation = .like, .a = left_source, .b = right_source } });
-                try self.instruction_builder.emitJump(failure_label, .relates);
-            },
-        }
-    }
-
+    /// Compile an expression to a ValueSource.
+    ///
+    /// Stability of the returned ValueSource is only guaranteed right after
+    /// function execution. Callers must bind it to preserve it.
+    ///
+    /// This function makes no guarantees on cursor stability, so caller is
+    /// responsible for saving cursor pre-call if necessary.
+    ///
+    /// Postconditions:
+    /// - fanout may have occurred
+    /// - cursor is not well-defined
+    /// - environment is mutated in a way that shouldn't be observable by
+    ///   callers
+    /// - no top-level yields have been emitted (yields behind probes are
+    ///   permitted)
+    ///
     fn compileExpression(self: *Compiler, expr: ast.Expression) CompilerError!runtime.ValueSource {
         switch (expr) {
             .variable => |variable| {
                 const var_id = self.variables.get(variable.name) orelse return error.InvalidVariableReference;
                 return .{ .variable_id = var_id };
-            },
-            .node_selector => |node_selector| {
-                const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
-                try self.instruction_builder.emit(.{ .rel = .{
-                    .relation = .equals,
-                    .a = .{ .node = .kind },
-                    .b = .{ .literal = .{ .kind_id = kind_id } },
-                } });
-                try self.instruction_builder.emit(.{ .halt = .{ .condition = .not_relates } });
-                return .{ .node = .this };
-            },
-            .field_access => |field_access| {
-                const base = try self.compileExpression(field_access.base);
-                if (base == .variable_id) try self.instruction_builder.emit(.{ .trv = .{ .variable_id = base.variable_id } });
-                const field_id = self.language.fieldIdForName(field_access.field);
-                try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
-                return .{ .node = .this };
-            },
-            .child_navigation => |child_nav| {
-                const parent = try self.compileExpression(child_nav.parent);
-                if (parent == .variable_id) try self.instruction_builder.emit(.{ .trv = .{ .variable_id = parent.variable_id } });
-                try self.instruction_builder.emit(.{ .trv = .{ .child = {} } });
-                _ = try self.compileExpression(child_nav.child);
-                return .{ .node = .this };
-            },
-            .descendant_navigation => |desc_nav| {
-                const parent = try self.compileExpression(desc_nav.parent);
-                if (parent == .variable_id) try self.instruction_builder.emit(.{ .trv = .{ .variable_id = parent.variable_id } });
-                try self.instruction_builder.emit(.{ .trv = .{ .descendant = {} } });
-                _ = try self.compileExpression(desc_nav.descendant);
-                return .{ .node = .this };
-            },
-            .dot_field_access => |dfa| {
-                const dot_id = self.variables.get(DOT_NAME) orelse return error.InvalidVariableReference;
-                try self.instruction_builder.emit(.{ .trv = .{ .variable_id = dot_id } });
-                const field_id = self.language.fieldIdForName(dfa.field);
-                try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
-                return .{ .node = .this };
-            },
-            .identity => {
-                const dot_id = self.variables.get(DOT_NAME) orelse return error.InvalidVariableReference;
-                try self.instruction_builder.emit(.{ .trv = .{ .variable_id = dot_id } });
-                return .{ .node = .this };
             },
             .string_literal => |str| {
                 const owned_str = try self.addString(str);
@@ -434,6 +166,48 @@ pub const Compiler = struct {
                 const regex = try pcre2.Regex.compile(pattern);
                 const regex_index = try self.addRegex(regex);
                 return .{ .literal = .{ .regex = self.regexes.items[regex_index] } };
+            },
+            .function_call => |fc| {
+                if (std.mem.eql(u8, fc.name, "text")) {
+                    if (fc.arguments.len != 0) return error.InvalidGuardExpression;
+                    return .{ .current = .text };
+                } else if (std.mem.eql(u8, fc.name, "select")) {
+                    return self.compileBuiltinSelect(fc);
+                } else if (std.mem.eql(u8, fc.name, "unnest")) {
+                    return self.compileBuiltinUnnest(fc);
+                } else {
+                    return error.InvalidVariableReference;
+                }
+            },
+            .field_access => |fa| {
+                const base = try self.compileExpression(fa.base);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = base } });
+                const field_id = self.language.fieldIdForName(fa.field);
+                try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
+                return try self.bindValue();
+            },
+            .dot_field_access => |dfa| {
+                const field_id = self.language.fieldIdForName(dfa.field);
+                try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
+                return try self.bindValue();
+            },
+            .identity => {
+                return .{ .current = .value };
+            },
+            .node_selector => |node_selector| {
+                const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
+                const bool_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .rel = .{
+                    .relation = .equals,
+                    .a = .{ .current = .kind },
+                    .b = .{ .literal = .{ .kind_id = kind_id } },
+                    .dest = bool_tmp,
+                } });
+                const skip_label = self.instruction_builder.createLabel();
+                try self.instruction_builder.emitJumpCnd(.{ .variable_id = bool_tmp }, skip_label, false);
+                try self.instruction_builder.emit(.halt);
+                try self.instruction_builder.markLabel(skip_label);
+                return try self.bindValue();
             },
             .object_literal => |obj| {
                 const FieldSource = struct { key: []const u8, source: runtime.ValueSource };
@@ -467,77 +241,211 @@ pub const Compiler = struct {
                 try self.instruction_builder.emit(.{ .end_build = tmp });
                 return .{ .variable_id = tmp };
             },
-            .array_literal => |arr| return try self.compileListExpression(arr.elements),
-            .tuple_literal => |tup| return try self.compileListExpression(tup.elements),
+            .array_literal => |arr| return try self.compileListValue(arr.elements),
+            .tuple_literal => |tup| return try self.compileListValue(tup.elements),
             .parenthesized => |p| return try self.compileExpression(p.*),
-            .bind_expression => return error.InvalidGuardExpression,
-            .pipe_expression => {
+            .collect_expression => |p| {
                 const resume_label = self.instruction_builder.createLabel();
-                const anon_variable = try self.allocateAnonymous();
-
+                const anon_var = try self.allocateAnonymous();
                 try self.instruction_builder.emitProbe(.{
-                    .aggregate = .{ .variable = anon_variable, .kind = .list },
+                    .aggregate = .{ .variable = anon_var, .kind = .list },
                 }, resume_label);
-                try self.compileTopLevel(expr);
-                try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
-
+                const pv = try self.compileExpression(p.*);
+                try self.instruction_builder.emit(.{ .yield = .{ .source = pv } });
+                try self.instruction_builder.emit(.halt);
                 try self.instruction_builder.markLabel(resume_label);
-                return .{ .variable_id = anon_variable };
+                return .{ .variable_id = anon_var };
             },
-            .function_call => |fc| {
-                if (std.mem.eql(u8, fc.name, "select")) {
-                    return self.compileBuiltinSelect(fc);
-                } else if (std.mem.eql(u8, fc.name, "unnest")) {
-                    return self.compileBuiltinUnnest(fc);
-                } else {
-                    return error.InvalidVariableReference;
+            .pipe_expression => |pe| {
+                const lv = try self.compileExpression(pe.left);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = lv } });
+                return self.compileExpression(pe.right);
+            },
+            .child_navigation => |cn| {
+                const parent = try self.compileExpression(cn.parent);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = parent } });
+                try self.instruction_builder.emit(.{ .trv = .{ .child = {} } });
+                const cv = try self.compileExpression(cn.child);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = cv } });
+                return try self.bindValue();
+            },
+            .descendant_navigation => |dn| {
+                const parent = try self.compileExpression(dn.parent);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = parent } });
+                try self.instruction_builder.emit(.{ .trv = .{ .descendant = {} } });
+                const dv = try self.compileExpression(dn.descendant);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = dv } });
+                return try self.bindValue();
+            },
+            .comparison => |comparison| {
+                const left_source = try self.compileExpression(comparison.left);
+                const right_source = try self.compileExpression(comparison.right);
+                const bool_tmp = try self.allocateAnonymous();
+
+                switch (comparison.operator) {
+                    .eq => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .equals, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return .{ .variable_id = bool_tmp };
+                    },
+                    .ne => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .equals, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return try self.compileNegateValue(.{ .variable_id = bool_tmp });
+                    },
+                    .regex_match => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .like, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return .{ .variable_id = bool_tmp };
+                    },
+                    .regex_not_match => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .like, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return try self.compileNegateValue(.{ .variable_id = bool_tmp });
+                    },
                 }
             },
-            .comparison, .is_null, .logical_and, .logical_or, .logical_not, .quantified => return error.InvalidGuardExpression,
+            .is_null => |is_null| {
+                const probe_resume_label = self.instruction_builder.createLabel();
+
+                const probe_data: runtime.ProbeData = if (is_null.negated) .exists else .nexists;
+                try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
+
+                _ = try self.compileExpression(is_null.expression);
+                try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .current = .value } } });
+                try self.instruction_builder.emit(.halt);
+
+                try self.instruction_builder.markLabel(probe_resume_label);
+                return .{ .literal = .{ .bool = true } };
+            },
+            .logical_and => |la| {
+                const result_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = .{ .literal = .{ .bool = false } } } });
+                const end_label = self.instruction_builder.createLabel();
+                const left_vs = try self.compileExpression(la.left);
+                try self.instruction_builder.emitJumpCnd(left_vs, end_label, true);
+                const right_vs = try self.compileExpression(la.right);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = right_vs } });
+                try self.instruction_builder.markLabel(end_label);
+                return .{ .variable_id = result_tmp };
+            },
+            .logical_or => |lo| {
+                const result_tmp = try self.allocateAnonymous();
+                const saved_node = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
+                const true_label = self.instruction_builder.createLabel();
+                const end_label = self.instruction_builder.createLabel();
+                const left_vs = try self.compileExpression(lo.left);
+                try self.instruction_builder.emitJumpCnd(left_vs, true_label, false);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = saved_node } } });
+                const right_vs = try self.compileExpression(lo.right);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = right_vs } });
+                try self.instruction_builder.emitJump(end_label);
+                try self.instruction_builder.markLabel(true_label);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = left_vs } });
+                try self.instruction_builder.markLabel(end_label);
+                return .{ .variable_id = result_tmp };
+            },
+            .logical_not => |ln| {
+                if (ln.predicate == .quantified) {
+                    try self.compileQuantified(ln.predicate.quantified.*, true);
+                    return .{ .literal = .{ .bool = true } };
+                }
+                const inner_vs = try self.compileExpression(ln.predicate);
+                return try self.compileNegateValue(inner_vs);
+            },
+            .quantified => |q| {
+                try self.compileQuantified(q.*, false);
+                return .{ .literal = .{ .bool = true } };
+            },
+            .bind_expression => |be| {
+                const var_id = try self.putVariable(be.variable.name);
+                const vs = try self.compileExpression(be.expression);
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
+                return .{ .variable_id = var_id };
+            },
         }
+    }
+
+    fn compileQuantified(
+        self: *Compiler,
+        quantified: ast.QuantifiedExpression,
+        negated: bool,
+    ) CompilerError!void {
+        const body_negated = quantified.quantifier == .all;
+        const probe_negated = negated != body_negated;
+
+        const probe_resume_label = self.instruction_builder.createLabel();
+
+        const probe_data: runtime.ProbeData = if (probe_negated) .nexists else .exists;
+        try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
+
+        const source_vs = try self.compileExpression(quantified.source);
+        try self.instruction_builder.emit(.{ .trv = .{ .value_source = source_vs } });
+
+        const inner_failure_label = self.instruction_builder.createLabel();
+        const pred_vs = try self.compileExpression(quantified.predicate.*);
+        if (body_negated) {
+            try self.instruction_builder.emitJumpCnd(pred_vs, inner_failure_label, true);
+            try self.instruction_builder.emit(.halt);
+            try self.instruction_builder.markLabel(inner_failure_label);
+            try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .current = .value } } });
+        } else {
+            try self.instruction_builder.emitJumpCnd(pred_vs, inner_failure_label, true);
+            try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .current = .value } } });
+            try self.instruction_builder.markLabel(inner_failure_label);
+            try self.instruction_builder.emit(.halt);
+        }
+
+        try self.instruction_builder.markLabel(probe_resume_label);
+    }
+
+    /// Emits instructions that flip a boolean, storing the result in a new
+    /// variable.
+    ///
+    /// This is a HACK and legitimately has performance implications that stems
+    /// from the fact that there's no runtime-native way to negate a boolean
+    /// currently.
+    ///
+    /// I'm consciously deciding not to change the runtime API until a clearer
+    /// pattern emerges for operations on variables.
+    ///
+    /// Precondition:
+    /// - vs refers to a boolean typed value
+    ///
+    fn compileNegateValue(self: *Compiler, vs: runtime.ValueSource) CompilerError!runtime.ValueSource {
+        const result_tmp = try self.allocateAnonymous();
+        const true_label = self.instruction_builder.createLabel();
+        const end_label = self.instruction_builder.createLabel();
+        try self.instruction_builder.emitJumpCnd(vs, true_label, false);
+        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = .{ .literal = .{ .bool = true } } } });
+        try self.instruction_builder.emitJump(end_label);
+        try self.instruction_builder.markLabel(true_label);
+        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = .{ .literal = .{ .bool = false } } } });
+        try self.instruction_builder.markLabel(end_label);
+        return .{ .variable_id = result_tmp };
     }
 
     fn compileBuiltinSelect(self: *Compiler, fc: ast.FunctionCall) CompilerError!runtime.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidGuardExpression;
-        const expr = fc.arguments[0];
-
-        const failure_label = self.instruction_builder.createLabel();
-        try self.compileGuardExpr(expr, failure_label);
-        const skip_label = self.instruction_builder.createLabel();
-        try self.instruction_builder.emitJump(skip_label, .always);
-
-        try self.instruction_builder.markLabel(failure_label);
-        try self.instruction_builder.emit(.{ .halt = .{ .condition = .always } });
-
-        try self.instruction_builder.markLabel(skip_label);
-        const dot_id = self.variables.get(DOT_NAME) orelse return error.InvalidVariableReference;
-
-        return .{ .variable_id = dot_id };
+        const saved_node = try self.allocateAnonymous();
+        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
+        const vs = try self.compileExpression(fc.arguments[0]);
+        try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = saved_node } } });
+        const end_label = self.instruction_builder.createLabel();
+        try self.instruction_builder.emitJumpCnd(vs, end_label, false);
+        try self.instruction_builder.emit(.halt);
+        try self.instruction_builder.markLabel(end_label);
+        return .{ .current = .value };
     }
 
     fn compileBuiltinUnnest(self: *Compiler, fc: ast.FunctionCall) CompilerError!runtime.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidUnnestArgument;
         var arg = fc.arguments[0];
         while (arg == .parenthesized) arg = arg.parenthesized.*;
-        if (arg != .pipe_expression) return error.InvalidUnnestArgument;
-        const anon_id = try self.allocateAnonymous();
-        try self.compilePipeAsValue(arg, anon_id);
-        return .{ .variable_id = anon_id };
+        if (arg == .collect_expression) arg = arg.collect_expression.*;
+        const uv = try self.compileExpression(arg);
+        try self.instruction_builder.emit(.{ .trv = .{ .value_source = uv } });
+        return try self.bindValue();
     }
 
-    fn ensureVariable(self: *Compiler, vs: runtime.ValueSource) CompilerError!VariableId {
-        return switch (vs) {
-            .variable_id => |id| id,
-            .node => blk: {
-                const anon_id = try self.allocateAnonymous();
-                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = anon_id, .source = .{ .node = .this } } });
-                break :blk anon_id;
-            },
-            .literal => return error.InvalidVariableReference,
-        };
-    }
-
-    fn compileListExpression(self: *Compiler, elements: []const ast.Expression) CompilerError!runtime.ValueSource {
+    fn compileListValue(self: *Compiler, elements: []const ast.Expression) CompilerError!runtime.ValueSource {
         const sources = try self.allocator.alloc(runtime.ValueSource, elements.len);
         defer self.allocator.free(sources);
 

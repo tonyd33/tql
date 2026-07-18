@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (bind (child . (node function_definition)) func) (bind (call unnest (paren (pipe (bind (child func (node goto_statement)) g) g))) g)) (object (fn func) (g g))))
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (child func (node goto_statement))))) g) (object (fn func) (g g))))

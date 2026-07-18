@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (bind (child . (node function_definition)) func) (bind (call unnest (paren (pipe (bind (field func declarator) d) d))) d)) (object func d)))
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))

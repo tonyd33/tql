@@ -360,6 +360,7 @@ pub const Expression = union(enum) {
     array_literal: ArrayLiteral,
     tuple_literal: TupleLiteral,
     parenthesized: *Expression,
+    collect_expression: *Expression,
     bind_expression: *BindExpression,
     pipe_expression: *PipeExpression,
     // Boolean/guard expressions (formerly Predicate variants)
@@ -413,6 +414,10 @@ pub const Expression = union(enum) {
                 allocator.free(tl.elements);
             },
             .parenthesized => |p| {
+                p.deinit(allocator);
+                allocator.destroy(p);
+            },
+            .collect_expression => |p| {
                 p.deinit(allocator);
                 allocator.destroy(p);
             },
@@ -476,6 +481,11 @@ pub const Expression = union(enum) {
             .tuple_literal => |tl| try tl.sexpr(w),
             .parenthesized => |pe| {
                 try w.writeAll("(paren ");
+                try pe.sexpr(w);
+                try w.writeByte(')');
+            },
+            .collect_expression => |pe| {
+                try w.writeAll("(collect ");
                 try pe.sexpr(w);
                 try w.writeByte(')');
             },

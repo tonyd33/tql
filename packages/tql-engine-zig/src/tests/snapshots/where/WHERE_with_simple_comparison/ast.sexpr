@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) (bind (field c name) n)) (call select (eq n (string "Service")))) c))
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (eq (pipe n (call text)) (string "Service")))) c))

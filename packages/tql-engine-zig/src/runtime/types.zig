@@ -28,6 +28,7 @@ pub const Range = struct {
 
 pub const Value = union(enum) {
     nothing,
+    bool: bool,
     uint: u64,
     string: []const u8,
     range: Range,
@@ -64,6 +65,7 @@ pub const Value = union(enum) {
 
         return switch (a) {
             .nothing => true,
+            .bool => |bv| bv == b.bool,
             .uint => |uint| uint == b.uint,
             .string => |a_str| std.mem.eql(u8, a_str, b.string),
             .range => |a_range| {
@@ -87,6 +89,7 @@ pub const Value = union(enum) {
     pub fn print(self: Value, writer: *std.Io.Writer) !void {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
+            .bool => |bv| try writer.print("bool {}", .{bv}),
             .uint => |uint| try writer.print("uint {}", .{uint}),
             .string => |s| try writer.print("string \"{s}\"", .{s}),
             .kind_id => |k| try writer.print("kind_id {}", .{k}),
@@ -168,9 +171,8 @@ pub const Vector = enum {
 
 pub const State = struct {
     pc: u32,
-    node: ts.Node,
+    value: Value,
     environment: Environment.Cell,
-    negate_flag: bool = false,
     build: ?union(Vector) {
         record: *Rc(Record),
         list: *Rc(List),
@@ -230,8 +232,8 @@ pub const ChildIterator = struct {
         return iter;
     }
 
-    pub fn node(self: *const ChildIterator) ts.Node {
-        return self.cursor.?.node();
+    pub fn value(self: *const ChildIterator) Value {
+        return .{ .node = self.cursor.?.node() };
     }
 
     pub fn next(self: *ChildIterator) bool {
@@ -287,8 +289,8 @@ pub const FieldIterator = struct {
         return iter;
     }
 
-    pub fn node(self: *const FieldIterator) ts.Node {
-        return self.cursor.?.node();
+    pub fn value(self: *const FieldIterator) Value {
+        return .{ .node = self.cursor.?.node() };
     }
 
     pub fn next(self: *FieldIterator) bool {
@@ -344,8 +346,8 @@ pub const DescendantIterator = struct {
         return iter;
     }
 
-    pub fn node(self: *const DescendantIterator) ts.Node {
-        return self.cursor.?.node();
+    pub fn value(self: *const DescendantIterator) Value {
+        return .{ .node = self.cursor.?.node() };
     }
 
     pub fn next(self: *DescendantIterator) bool {
@@ -372,20 +374,20 @@ pub const DescendantIterator = struct {
 };
 
 pub const SingletonIterator = struct {
-    pending: ?ts.Node,
-    current: ts.Node = undefined,
+    pending: ?Value,
+    current: Value = .nothing,
 
-    pub fn init(maybe_node: ?ts.Node) SingletonIterator {
-        return .{ .pending = maybe_node };
+    pub fn init(maybe_value: ?Value) SingletonIterator {
+        return .{ .pending = maybe_value };
     }
 
-    pub fn node(self: *const SingletonIterator) ts.Node {
+    pub fn value(self: *const SingletonIterator) Value {
         return self.current;
     }
 
     pub fn next(self: *SingletonIterator) bool {
-        if (self.pending) |n| {
-            self.current = n;
+        if (self.pending) |v| {
+            self.current = v;
             self.pending = null;
             return true;
         }
@@ -401,12 +403,12 @@ pub const SplitIterator = union(enum) {
     field: FieldIterator,
     singleton: SingletonIterator,
 
-    pub fn node(self: *const SplitIterator) ts.Node {
+    pub fn value(self: *const SplitIterator) Value {
         return switch (self.*) {
-            .child => |*iter| iter.node(),
-            .descendant => |*iter| iter.node(),
-            .field => |*iter| iter.node(),
-            .singleton => |*iter| iter.node(),
+            .child => |*iter| iter.value(),
+            .descendant => |*iter| iter.value(),
+            .field => |*iter| iter.value(),
+            .singleton => |*iter| iter.value(),
         };
     }
 
@@ -435,13 +437,11 @@ pub const Axis = union(enum) {
     // NOTE: Consider removing this since it's accomplishable with cmp on child
     // and likely not much more efficient
     field: FieldId,
-    variable_id: VariableId,
+    value_source: ValueSource,
 };
 
-pub const NodeValueSource = enum {
-    const Self = @This();
-
-    this,
+pub const CurrentValueSource = enum {
+    value,
     text,
     kind,
     range,
@@ -449,7 +449,7 @@ pub const NodeValueSource = enum {
 
 pub const ValueSource = union(enum) {
     literal: Value,
-    node: NodeValueSource,
+    current: CurrentValueSource,
     variable_id: VariableId,
 
     pub fn print(self: ValueSource, writer: *std.Io.Writer) !void {
@@ -458,6 +458,7 @@ pub const ValueSource = union(enum) {
                 try writer.print("literal ", .{});
                 switch (l) {
                     .nothing => try writer.print("nothing", .{}),
+                    .bool => |bv| try writer.print("bool {}", .{bv}),
                     .uint => |uint| try writer.print("uint {}", .{uint}),
                     .string => |s| try writer.print("string \"{s}\"", .{s}),
                     .kind_id => |k| try writer.print("kind_id {}", .{k}),
@@ -469,7 +470,7 @@ pub const ValueSource = union(enum) {
                     .list => try writer.print("list ...", .{}),
                 }
             },
-            .node => |n| try writer.print("node {s}", .{@tagName(n)}),
+            .current => |c| try writer.print("(current value) {s}", .{@tagName(c)}),
             .variable_id => |v| try writer.print("variable_id {}", .{v}),
         }
     }
@@ -488,15 +489,9 @@ pub const Relation = enum {
     gt,
 };
 
-pub const Condition = enum {
-    always,
-    relates,
-    not_relates,
-};
-
 pub const Instruction = union(enum) {
     noop,
-    halt: struct { condition: Condition = .always },
+    halt,
     trv: Axis,
     asn: struct {
         variable_id: VariableId,
@@ -506,9 +501,11 @@ pub const Instruction = union(enum) {
         relation: Relation,
         a: ValueSource,
         b: ValueSource,
+        /// If set, write the bool result into this variable; else write into state.value.
+        dest: ?VariableId = null,
     },
     yield: struct {
-        source: ValueSource = .{ .node = .this },
+        source: ValueSource = .{ .current = .value },
     },
     probe: struct {
         resume_address: Address,
@@ -518,7 +515,9 @@ pub const Instruction = union(enum) {
     ret,
     jmp: struct {
         address: Address,
-        mode: Condition = .always,
+        /// When set, jump is conditional: taken iff source resolves to Value.bool == !negate.
+        source: ?ValueSource = null,
+        negate: bool = false,
     },
     begin_build: Vector,
     push_build: struct {
@@ -533,14 +532,18 @@ pub const Instruction = union(enum) {
         switch (self) {
             .noop => try writer.print("noop", .{}),
             .yield => try writer.print("yield", .{}),
-            .halt => |h| try writer.print("halt {s}", .{@tagName(h.condition)}),
+            .halt => try writer.print("halt", .{}),
             .trv => |t| {
                 try writer.print("trv ", .{});
                 switch (t) {
                     .child => try writer.print("child", .{}),
                     .descendant => try writer.print("descendant", .{}),
                     .field => |f| try writer.print("field {}", .{f}),
-                    .variable_id => |v| try writer.print("variable_id {}", .{v}),
+                    .value_source => |vs| {
+                        try writer.print("value_source (", .{});
+                        try vs.print(writer);
+                        try writer.print(")", .{});
+                    },
                 }
             },
             .asn => |a| {
@@ -553,7 +556,11 @@ pub const Instruction = union(enum) {
                 try r.a.print(writer);
                 try writer.print(") (", .{});
                 try r.b.print(writer);
-                try writer.print(")", .{});
+                if (r.dest) |d| {
+                    try writer.print(") -> {}", .{d});
+                } else {
+                    try writer.print(")", .{});
+                }
             },
             .probe => |p| switch (p.data) {
                 .exists => try writer.print("probe exists {}", .{p.resume_address}),
@@ -562,7 +569,13 @@ pub const Instruction = union(enum) {
             },
             .call => |c| try writer.print("call {}", .{c}),
             .ret => try writer.print("ret", .{}),
-            .jmp => |j| try writer.print("jmp {s} {}", .{ @tagName(j.mode), j.address }),
+            .jmp => |j| if (j.source) |vs| {
+                try writer.print("jmp {} if{s} (", .{ j.address, if (j.negate) " not" else "" });
+                try vs.print(writer);
+                try writer.print(")", .{});
+            } else {
+                try writer.print("jmp {}", .{j.address});
+            },
             .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
             .push_build => |i| {
                 if (i.name) |name| {

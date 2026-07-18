@@ -1,1 +1,1 @@
-(source_file (pipe (bind (child . (node class_declaration)) class) (array class)))
+(source_file (pipe (bind (child . (node class_declaration)) class) (collect class)))

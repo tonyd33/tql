@@ -12,12 +12,12 @@ const PREC = {
   descendant: 18,
   field: 17,
 
+  pipe: 11,
   comparison: 10,
   not: 9,
   and: 8,
   or: 7,
   bind: 3,
-  pipe: 1,
 };
 
 module.exports = grammar({
@@ -57,7 +57,6 @@ module.exports = grammar({
       choice(
         $.identity,
         $.dot_field_access,
-        $.node_selector,
         $.variable,
         $.string_literal,
         $.regex_literal,
@@ -69,6 +68,7 @@ module.exports = grammar({
         $.function_call,
         $.object_literal,
         $.array_literal,
+        $.collect_expression,
         $.tuple_literal,
         $.parenthesized,
         $.bind_expression,
@@ -83,23 +83,26 @@ module.exports = grammar({
 
     // expr as @v  or  expr as @v?
     bind_expression: $ =>
-      prec.right(PREC.bind, seq(
-        field("expression", $.expression),
-        "as",
-        field("variable", $.variable),
-        optional(field("optional", "?")),
-      )),
+      prec.right(
+        PREC.bind,
+        seq(
+          field("expression", $.expression),
+          "as",
+          field("variable", $.variable),
+          optional(field("optional", "?")),
+        ),
+      ),
 
     // A | B — pipeline as expression, left-associative, lowest precedence
     pipe_expression: $ =>
-      prec.left(PREC.pipe, seq(
-        field("left", $.expression),
-        "|",
-        field("right", $.expression),
-      )),
+      prec.left(
+        PREC.pipe,
+        seq(field("left", $.expression), "|", field("right", $.expression)),
+      ),
 
     identity: _ => token("."),
 
+    // TODO: Get rid of this
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
@@ -115,7 +118,11 @@ module.exports = grammar({
     child_navigation: $ =>
       prec.left(
         PREC.child,
-        seq(field("parent", $.expression), ">", field("child", $.expression)),
+        seq(
+          field("parent", $.expression),
+          ">",
+          field("child", $.node_selector),
+        ),
       ),
 
     descendant_navigation: $ =>
@@ -124,7 +131,7 @@ module.exports = grammar({
         seq(
           field("parent", $.expression),
           ">>",
-          field("descendant", $.expression),
+          field("descendant", $.node_selector),
         ),
       ),
 
@@ -177,11 +184,17 @@ module.exports = grammar({
       ),
 
     function_call: $ =>
-      seq(
+      choice(
+        prec(
+          1,
+          seq(
+            field("name", $.identifier),
+            "(",
+            optional(semicolon_sep1(field("argument", $.expression))),
+            ")",
+          ),
+        ),
         field("name", $.identifier),
-        "(",
-        optional(semicolon_sep1(field("argument", $.expression))),
-        ")",
       ),
 
     object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
@@ -193,6 +206,8 @@ module.exports = grammar({
       ),
 
     array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
+
+    collect_expression: $ => prec(1, seq("[", $.expression, "]")),
 
     tuple_literal: $ =>
       seq("(", $.expression, ",", comma_sep1($.expression), ")"),

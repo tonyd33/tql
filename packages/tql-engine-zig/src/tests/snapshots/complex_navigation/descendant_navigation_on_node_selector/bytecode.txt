@@ -1,11 +1,20 @@
-0000: asn 0 (node this)
-0001: trv variable_id 0
-0002: trv child
-0003: rel equals (node kind) (literal kind_id 221)
-0004: halt not_relates
-0005: trv descendant
-0006: rel equals (node kind) (literal kind_id 377)
-0007: halt not_relates
-0008: asn 1 (node this)
-0009: yield
-0010: halt always
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: trv descendant
+0010: rel equals ((current value) kind) (literal kind_id 377) -> 4
+0011: jmp 13 if (variable_id 4)
+0012: halt
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: asn 6 ((current value) value)
+0016: asn 0 (variable_id 6)
+0017: trv value_source (variable_id 0)
+0018: yield
+0019: halt

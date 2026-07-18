@@ -1,17 +1,24 @@
-0000: asn 0 (node this)
-0001: trv variable_id 0
-0002: trv child
-0003: rel equals (node kind) (literal kind_id 221)
-0004: halt not_relates
-0005: asn 1 (node this)
-0006: trv variable_id 1
-0007: trv field 25
-0008: asn 2 (node this)
-0009: trv variable_id 2
-0010: rel like (node text) (literal regex ...)
-0011: jmp not_relates 13
-0012: jmp always 14
-0013: halt always
-0014: asn 3 (variable_id 0)
-0015: yield
-0016: halt always
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 0)
+0017: rel like ((current value) text) (literal regex ...) -> 7
+0018: trv value_source (variable_id 6)
+0019: jmp 21 if (variable_id 7)
+0020: halt
+0021: trv value_source ((current value) value)
+0022: yield
+0023: halt

@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (bind (descendant (field c body) (node property_identifier)) id)) id))
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (descendant (field c body) (node property_identifier))) id) id))

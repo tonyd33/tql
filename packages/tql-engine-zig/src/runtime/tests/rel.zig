@@ -7,35 +7,40 @@ const types = @import("../types.zig");
 const Instruction = types.Instruction;
 const Axis = types.Axis;
 const Value = types.Value;
-const NodeValueSource = types.NodeValueSource;
 const Relation = types.Relation;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
 extern fn tree_sitter_c() callconv(.c) *ts.Language;
 
+// rel stores its bool result in `dest` (variable_id 2) to avoid clobbering state.value.
+// jmp then reads variable_id 2 to decide whether to branch.
+//   negate=false → jump when dest is TRUE  ("pass if true")
+//   negate=true  → jump when dest is FALSE ("pass if false")
+//
+// Pattern for "halt if false" (require relation to hold):
+//   rel { ..., dest = 2 }
+//   jmp { address=N, source={variable_id=2}, negate=false }  // skip halt if true
+//   halt
+//   N: yield / ...
+//
+// Pattern for "halt if true" (require relation to NOT hold):
+//   rel { ..., dest = 2 }
+//   jmp { address=N, source={variable_id=2}, negate=true }   // skip halt if false
+//   halt
+//   N: yield / ...
+
 test "rel: equals with matching strings" {
     const source = "int x;";
 
-    // Assign two variables with the same string value, then test nequals
-    // Since they're equal, equals should succeed and we get one match
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .not_relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -47,25 +52,15 @@ test "rel: equals with matching strings" {
 test "rel: not equals with matching strings" {
     const source = "int x;";
 
-    // Assign two variables with the same string value, then test equals with not_relates halt
-    // Since they're equal, flag is true, not_relates halt triggers
+    // Strings equal → bool true in dest=2. "halt if true": jmp(skip, negate=true) skips halt when false; true → fall to halt.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -77,25 +72,15 @@ test "rel: not equals with matching strings" {
 test "rel: not equals with different strings" {
     const source = "int x;";
 
-    // Assign two variables with different string values, then test equals with not_relates halt
-    // Since they're different, flag is false, not_relates halt doesn't trigger, we yield
+    // Strings differ → false in dest=2. "halt if true": jmp(yield, negate=true) → taken (value==false) → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "world" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -107,27 +92,17 @@ test "rel: not equals with different strings" {
 test "rel: like with regex matching" {
     const source = "int x;";
 
-    // Assign a string and regex pattern, then test like (string ~ regex)
     var regex = try pcre2.Regex.compile("hel.*");
     defer regex.deinit();
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello world" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .regex = regex } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.like,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .not_relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -139,28 +114,17 @@ test "rel: like with regex matching" {
 test "rel: like with regex not matching" {
     const source = "int x;";
 
-    // Assign a string and regex pattern, then test like (string ~ regex)
-    // String doesn't match the pattern, so flag will be false
     var regex = try pcre2.Regex.compile("^foo.*");
     defer regex.deinit();
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "bar baz" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .regex = regex } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.like,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .not_relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "bar baz" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -172,28 +136,18 @@ test "rel: like with regex not matching" {
 test "rel: not like with regex matching" {
     const source = "int x;";
 
-    // Assign a string and regex pattern, then test like with relates halt
-    // Since string matches the pattern, flag is true, relates halt triggers
     var regex = try pcre2.Regex.compile(".*world");
     defer regex.deinit();
 
+    // Match → true in dest=2. "halt if true": jmp(yield, negate=true) NOT taken → halt.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello world" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .regex = regex } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.like,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -205,28 +159,18 @@ test "rel: not like with regex matching" {
 test "rel: not like with regex not matching" {
     const source = "int x;";
 
-    // Assign a string and regex pattern, then test like with relates halt
-    // Since string doesn't match, flag is false, relates halt doesn't trigger, we yield
     var regex = try pcre2.Regex.compile("^xyz.*");
     defer regex.deinit();
 
+    // No match → false in dest=2. "halt if true": jmp(yield, negate=true) taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello world" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .regex = regex } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.like,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -235,43 +179,31 @@ test "rel: not like with regex not matching" {
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }
 
-test "rel: relates halt inside nexists probe should succeed" {
+test "rel: halt inside nexists probe should succeed" {
     const source = "int x;";
 
-    // Test that relates halt (after rel failure) inside nexists probe triggers probe success
-    // Stack: root -> nexists probe -> rel sets flag false -> relates halt triggers
-    // Expected: nexists succeeds (halt means success), jumps to address 6, yields
+    // Strings differ → false in dest=3. "halt if false": jmp(6, negate=false) NOT taken → halt.
+    // nexists probe: halt → probe succeeds → resumes at 9.
     const instructions = [_]Instruction{
-        // 0: Start nexists probe
-        Instruction{
-            .probe = .{
-                .data = .nexists,
-                .resume_address = 6, // Jump here if probe succeeds (halt)
-            },
-        },
-        // 1: Inside probe - assign different values
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        // 2: Assign different value
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "world" } },
-        } },
-        // 3: Test equals - this sets flag to false since strings are different
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        // 4: relates halt - triggers because flag is false
-        Instruction{ .halt = .{ .condition = .not_relates } },
-        // 5: This should never be reached
+        // 0: nexists probe
+        Instruction{ .probe = .{ .data = .nexists, .resume_address = 9 } },
+        // 1-2: assign different values
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        // 3: rel → false, store in var 3
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 3 } },
+        // 4: jmp to 6 if true; false → not taken → fall to halt
+        Instruction{ .jmp = .{ .address = 6, .source = .{ .variable_id = 3 }, .negate = false } },
+        // 5: halt → nexists sees halt → success → resume at 9
+        Instruction{ .halt = {} },
+        // 6: would be reached if rel was true
+        Instruction{ .jmp = .{ .address = 7 } },
+        // 7-8: unreachable in this test
         Instruction{ .panic = {} },
-        // 6: Probe succeeded, yield result
+        Instruction{ .panic = {} },
+        // 9: probe succeeded
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -280,71 +212,48 @@ test "rel: relates halt inside nexists probe should succeed" {
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }
 
-test "rel: relates halt inside exists probe should fail" {
+test "rel: halt inside exists probe should fail" {
     const source = "int x;";
 
-    // Test that relates halt (after rel failure) inside exists probe triggers probe failure
-    // Stack: root -> exists probe -> rel sets flag false -> relates halt triggers
-    // Expected: exists fails (halt means failure), entire branch terminates, no matches
+    // Strings differ → false in dest=3. jmp not taken → halt.
+    // exists probe: halt means failure → no yield.
     const instructions = [_]Instruction{
-        // 0: Start exists probe
-        Instruction{
-            .probe = .{
-                .data = .exists,
-                .resume_address = 6, // Jump here if probe succeeds (yield happens)
-            },
-        },
-        // 1: Inside probe - assign different values
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        // 2: Assign different value
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "world" } },
-        } },
-        // 3: Test equals - this sets flag to false since strings are different
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        // 4: relates halt - triggers because flag is false
-        Instruction{ .halt = .{ .condition = .not_relates } },
-        // 5: This should never be reached
+        // 0: exists probe
+        Instruction{ .probe = .{ .data = .exists, .resume_address = 8 } },
+        // 1-2: assign different values
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        // 3: rel → false, store in var 3
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 3 } },
+        // 4: jmp past halt if true; false → not taken → halt
+        Instruction{ .jmp = .{ .address = 6, .source = .{ .variable_id = 3 }, .negate = false } },
+        // 5: halt → exists probe fails
+        Instruction{ .halt = {} },
+        // 6-7: unreachable
         Instruction{ .panic = {} },
-        // 6: This should never be reached either
+        Instruction{ .panic = {} },
+        // 8: unreachable (probe failure kills the branch)
         Instruction{ .panic = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
     defer ctx.deinit();
 
-    // Exists probe fails when halt happens, so we get no matches
     try ctx.expectMatchKinds(&[_][]const u8{});
 }
 
 test "rel: numeric comparisons" {
     const source = "";
 
+    // 1 < 2 → true in dest=2. jmp(yield, negate=false) taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .uint = 1 } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .uint = 2 } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.lt,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        Instruction{ .halt = .{ .condition = .not_relates } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .uint = 1 } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .uint = 2 } } } },
+        Instruction{ .rel = .{ .relation = Relation.lt, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });

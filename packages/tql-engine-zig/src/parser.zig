@@ -386,6 +386,10 @@ pub const Parser = struct {
             const inner = try self.allocator.create(ast.Expression);
             inner.* = try self.parseParenthesized(node, source);
             return .{ .parenthesized = inner };
+        } else if (std.mem.eql(u8, node_type, "collect_expression")) {
+            const inner = try self.allocator.create(ast.Expression);
+            inner.* = try self.parseCollectExpression(node, source);
+            return .{ .collect_expression = inner };
         } else if (std.mem.eql(u8, node_type, "bind_expression")) {
             const be = try self.allocator.create(ast.BindExpression);
             be.* = try self.parseBindExpression(node, source);
@@ -566,6 +570,26 @@ pub const Parser = struct {
                 const child_type = getNodeType(child);
 
                 if (std.mem.eql(u8, child_type, "expression")) {
+                    return try self.parseExpression(child, source);
+                }
+
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return error.InvalidExpression;
+    }
+
+    fn parseCollectExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.Expression {
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                const child_type = getNodeType(child);
+
+                if (!std.mem.eql(u8, child_type, "[") and !std.mem.eql(u8, child_type, "]")) {
                     return try self.parseExpression(child, source);
                 }
 

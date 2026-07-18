@@ -107,7 +107,7 @@ test "dot field access after function transform" {
 test "dot in any quantifier predicate" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\. > class_declaration as @c | select(any(@c.body > method_definition; .name = 'foo')) | @c
+        \\. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
         ,
         .target =
         \\class A { foo() {}; }
@@ -119,7 +119,7 @@ test "dot in any quantifier predicate" {
 test "dot field in any predicate" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\. > class_declaration as @c | select(any(@c.body > method_definition; .name ~ /^foo/)) | @c
+        \\. > class_declaration as @c | select(any(@c.body > method_definition; .name | text ~ /^foo/)) | @c
         ,
         .target =
         \\class A { foobar() {}; }
@@ -158,7 +158,7 @@ test "dot in object literal projection" {
 test "dot field in select predicate after transform" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\. > class_declaration as @c | @c | select(.name ~ /Controller/) | .
+        \\. > class_declaration as @c | @c | select(.name | text ~ /Controller/) | .
         ,
         .target =
         \\class FooController {}
@@ -170,7 +170,7 @@ test "dot field in select predicate after transform" {
 test "dot field select then dot field project" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\. > class_declaration as @c | @c | select(.name ~ /Controller/) | .name
+        \\. > class_declaration as @c | @c | select(.name | text ~ /Controller/) | .name
         ,
         .target =
         \\class FooController {}
