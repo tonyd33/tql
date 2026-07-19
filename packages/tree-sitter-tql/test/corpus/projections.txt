@@ -12,8 +12,8 @@ class_declaration as @class | @class
       left: (expression
         (bind_expression
           expression: (expression
-            (node_selector
-              (identifier)))
+            (function_call
+              name: (identifier)))
           variable: (variable
             (identifier))))
       right: (expression
@@ -32,24 +32,24 @@ class_declaration as @class | @class.name as @name | { class: @class, name: @nam
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (object_literal
           (object_field
@@ -75,24 +75,24 @@ class_declaration as @class | @class.name as @name | { @class, @name }
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (object_literal
           (object_field
@@ -114,24 +114,24 @@ class_declaration as @class | @class.name as @name | [@class, @name]
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (array_literal
           (expression
@@ -153,24 +153,24 @@ class_declaration as @class | @class.name as @name | (@class, @name)
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (tuple_literal
           (expression
@@ -192,17 +192,17 @@ class_declaration as @class | @class.body > method_definition as @method | { cla
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (child_navigation
                   parent: (expression
                     (field_access
@@ -210,11 +210,10 @@ class_declaration as @class | @class.body > method_definition as @method | { cla
                         (variable
                           (identifier)))
                       field: (identifier)))
-                  child: (expression
-                    (node_selector
-                      (identifier)))))
-              variable: (variable
-                (identifier))))))
+                  child: (node_selector
+                    (identifier))))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (object_literal
           (object_field
@@ -243,24 +242,24 @@ class_declaration as @class | @class.name as @class_name | { class: @class_name,
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (object_literal
           (object_field
@@ -271,36 +270,35 @@ class_declaration as @class | @class.name as @class_name | { class: @class_name,
           (object_field
             key: (identifier)
             value: (expression
-              (array_literal
+              (collect_expression
                 (expression
                   (pipe_expression
                     left: (expression
-                      (pipe_expression
-                        left: (expression
-                          (bind_expression
-                            expression: (expression
-                              (child_navigation
-                                parent: (expression
-                                  (field_access
-                                    base: (expression
-                                      (variable
-                                        (identifier)))
-                                    field: (identifier)))
-                                child: (expression
-                                  (node_selector
-                                    (identifier)))))
-                            variable: (variable
-                              (identifier))))
-                        right: (expression
-                          (bind_expression
-                            expression: (expression
+                      (bind_expression
+                        expression: (expression
+                          (pipe_expression
+                            left: (expression
+                              (bind_expression
+                                expression: (expression
+                                  (child_navigation
+                                    parent: (expression
+                                      (field_access
+                                        base: (expression
+                                          (variable
+                                            (identifier)))
+                                        field: (identifier)))
+                                    child: (node_selector
+                                      (identifier))))
+                                variable: (variable
+                                  (identifier))))
+                            right: (expression
                               (field_access
                                 base: (expression
                                   (variable
                                     (identifier)))
-                                field: (identifier)))
-                            variable: (variable
-                              (identifier))))))
+                                field: (identifier)))))
+                        variable: (variable
+                          (identifier))))
                     right: (expression
                       (variable
                         (identifier)))))))))))))

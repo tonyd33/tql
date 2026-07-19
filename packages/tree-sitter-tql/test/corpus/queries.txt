@@ -12,8 +12,8 @@ class_declaration as @class | @class
       left: (expression
         (bind_expression
           expression: (expression
-            (node_selector
-              (identifier)))
+            (function_call
+              name: (identifier)))
           variable: (variable
             (identifier))))
       right: (expression
@@ -34,24 +34,24 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -89,9 +89,8 @@ def find_methods(@class): @class.body > method_definition;
               (variable
                 (identifier)))
             field: (identifier)))
-        child: (expression
-          (node_selector
-            (identifier)))))))
+        child: (node_selector
+          (identifier))))))
 
 ========================================
 function definition no params
@@ -109,8 +108,8 @@ def controller_classes: class_declaration as @c | @c;
         left: (expression
           (bind_expression
             expression: (expression
-              (node_selector
-                (identifier)))
+              (function_call
+                name: (identifier)))
             variable: (variable
               (identifier))))
         right: (expression
@@ -131,24 +130,24 @@ method_definition as @method | @method.return_type as @return_type? | select(@re
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)

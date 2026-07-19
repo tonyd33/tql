@@ -1356,11 +1356,7 @@
       "name": "comment"
     }
   ],
-  "conflicts": [
-    [
-      "function_call"
-    ]
-  ],
+  "conflicts": [],
   "precedences": [],
   "externals": [],
   "inline": [],

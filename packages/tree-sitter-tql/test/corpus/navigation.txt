@@ -10,24 +10,24 @@ class_declaration as @class | @class.name as @name | @name
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (variable
                       (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))
@@ -44,17 +44,17 @@ class_declaration as @class | @class.decorator.identifier as @name | @name
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (field_access
@@ -62,9 +62,9 @@ class_declaration as @class | @class.decorator.identifier as @name | @name
                         (variable
                           (identifier)))
                       field: (identifier)))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))
@@ -81,26 +81,25 @@ class_declaration as @class | @class > method_definition as @method | @method
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (child_navigation
                   parent: (expression
                     (variable
                       (identifier)))
-                  child: (expression
-                    (node_selector
-                      (identifier)))))
-              variable: (variable
-                (identifier))))))
+                  child: (node_selector
+                    (identifier))))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))
@@ -117,26 +116,25 @@ class_declaration as @class | @class >> call_expression as @call | @call
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (descendant_navigation
                   parent: (expression
                     (variable
                       (identifier)))
-                  descendant: (expression
-                    (node_selector
-                      (identifier)))))
-              variable: (variable
-                (identifier))))))
+                  descendant: (node_selector
+                    (identifier))))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))
@@ -153,17 +151,17 @@ class_declaration as @class | @class.decorator > call_expression.identifier as @
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
                   base: (expression
                     (child_navigation
@@ -173,12 +171,11 @@ class_declaration as @class | @class.decorator > call_expression.identifier as @
                             (variable
                               (identifier)))
                           field: (identifier)))
-                      child: (expression
-                        (node_selector
-                          (identifier)))))
-                  field: (identifier)))
-              variable: (variable
-                (identifier))))))
+                      child: (node_selector
+                        (identifier))))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))
@@ -208,24 +205,24 @@ class_declaration as @class | helper(@class) as @result | @result
   (expression
     (pipe_expression
       left: (expression
-        (pipe_expression
-          left: (expression
-            (bind_expression
-              expression: (expression
-                (node_selector
-                  (identifier)))
-              variable: (variable
-                (identifier))))
-          right: (expression
-            (bind_expression
-              expression: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (function_call
                   name: (identifier)
                   argument: (expression
                     (variable
-                      (identifier)))))
-              variable: (variable
-                (identifier))))))
+                      (identifier)))))))
+          variable: (variable
+            (identifier))))
       right: (expression
         (variable
           (identifier))))))

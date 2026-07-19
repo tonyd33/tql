@@ -20,9 +20,8 @@ def find_methods(@class): @class.body > method_definition;
               (variable
                 (identifier)))
             field: (identifier)))
-        child: (expression
-          (node_selector
-            (identifier)))))))
+        child: (node_selector
+          (identifier))))))
 
 ========================================
 function definition multiple params
@@ -54,9 +53,8 @@ def methods_named(@class; @name): @class.body > method_definition as @m | select
                           (variable
                             (identifier)))
                         field: (identifier)))
-                    child: (expression
-                      (node_selector
-                        (identifier)))))
+                    child: (node_selector
+                      (identifier))))
                 variable: (variable
                   (identifier))))
             right: (expression
@@ -93,8 +91,8 @@ def all_classes: class_declaration as @c | @c;
         left: (expression
           (bind_expression
             expression: (expression
-              (node_selector
-                (identifier)))
+              (function_call
+                name: (identifier)))
             variable: (variable
               (identifier))))
         right: (expression

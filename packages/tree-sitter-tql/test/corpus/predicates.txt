@@ -12,24 +12,24 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -59,24 +59,24 @@ class_declaration as @class | @class.name as @name | select(@name ~ /.*Service$/
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -106,24 +106,24 @@ class_declaration as @class | @class.name as @name | select(@name != 'Base') | @
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -153,24 +153,24 @@ class_declaration as @class | @class.name as @name | select(@name = 'Foo' and @n
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -210,24 +210,24 @@ class_declaration as @class | @class.name as @name | select(@name = 'Foo' or @na
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -267,24 +267,24 @@ method_definition as @method | @method.return_type as @return_type? | select(@re
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -313,36 +313,36 @@ class_declaration as @class | @class.name as @name | @class.decorator as @decora
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
+            (bind_expression
+              expression: (expression
                 (pipe_expression
                   left: (expression
                     (bind_expression
                       expression: (expression
-                        (node_selector
-                          (identifier)))
+                        (pipe_expression
+                          left: (expression
+                            (bind_expression
+                              expression: (expression
+                                (function_call
+                                  name: (identifier)))
+                              variable: (variable
+                                (identifier))))
+                          right: (expression
+                            (field_access
+                              base: (expression
+                                (variable
+                                  (identifier)))
+                              field: (identifier)))))
                       variable: (variable
                         (identifier))))
                   right: (expression
-                    (bind_expression
-                      expression: (expression
-                        (field_access
-                          base: (expression
-                            (variable
-                              (identifier)))
-                          field: (identifier)))
-                      variable: (variable
-                        (identifier))))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -395,8 +395,8 @@ class_declaration as @class | select(any(@class.body > method_definition; .decor
           left: (expression
             (bind_expression
               expression: (expression
-                (node_selector
-                  (identifier)))
+                (function_call
+                  name: (identifier)))
               variable: (variable
                 (identifier))))
           right: (expression
@@ -412,9 +412,8 @@ class_declaration as @class | select(any(@class.body > method_definition; .decor
                             (variable
                               (identifier)))
                           field: (identifier)))
-                      child: (expression
-                        (node_selector
-                          (identifier)))))
+                      child: (node_selector
+                        (identifier))))
                   predicate: (expression
                     (comparison
                       left: (expression
@@ -442,8 +441,8 @@ class_declaration as @class | select(all(@class.body > method_definition; .retur
           left: (expression
             (bind_expression
               expression: (expression
-                (node_selector
-                  (identifier)))
+                (function_call
+                  name: (identifier)))
               variable: (variable
                 (identifier))))
           right: (expression
@@ -459,9 +458,8 @@ class_declaration as @class | select(all(@class.body > method_definition; .retur
                             (variable
                               (identifier)))
                           field: (identifier)))
-                      child: (expression
-                        (node_selector
-                          (identifier)))))
+                      child: (node_selector
+                        (identifier))))
                   predicate: (expression
                     (comparison
                       left: (expression
@@ -489,8 +487,8 @@ class_declaration as @class | select(any(@class.decorator; any(@class.body > met
           left: (expression
             (bind_expression
               expression: (expression
-                (node_selector
-                  (identifier)))
+                (function_call
+                  name: (identifier)))
               variable: (variable
                 (identifier))))
           right: (expression
@@ -514,9 +512,8 @@ class_declaration as @class | select(any(@class.decorator; any(@class.body > met
                                 (variable
                                   (identifier)))
                               field: (identifier)))
-                          child: (expression
-                            (node_selector
-                              (identifier)))))
+                          child: (node_selector
+                            (identifier))))
                       predicate: (expression
                         (comparison
                           left: (expression
@@ -543,24 +540,24 @@ class_declaration as @class | @class.name as @name | select((@name = 'Foo')) | @
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -592,24 +589,24 @@ class_declaration as @class | @class.decorator as @decorator? | select(@decorato
       left: (expression
         (pipe_expression
           left: (expression
-            (pipe_expression
-              left: (expression
-                (bind_expression
-                  expression: (expression
-                    (node_selector
-                      (identifier)))
-                  variable: (variable
-                    (identifier))))
-              right: (expression
-                (bind_expression
-                  expression: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
                     (field_access
                       base: (expression
                         (variable
                           (identifier)))
-                      field: (identifier)))
-                  variable: (variable
-                    (identifier))))))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
           right: (expression
             (function_call
               name: (identifier)
@@ -640,8 +637,8 @@ method_definition as @m | select(@m.return_type is null) | @m
           left: (expression
             (bind_expression
               expression: (expression
-                (node_selector
-                  (identifier)))
+                (function_call
+                  name: (identifier)))
               variable: (variable
                 (identifier))))
           right: (expression
@@ -676,8 +673,8 @@ method_definition as @m | select(@m.return_type is not null) | @m
           left: (expression
             (bind_expression
               expression: (expression
-                (node_selector
-                  (identifier)))
+                (function_call
+                  name: (identifier)))
               variable: (variable
                 (identifier))))
           right: (expression
