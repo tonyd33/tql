@@ -1,1 +1,0 @@
-(source_file (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (object (name (field func_decl declarator)) (params (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))))))

@@ -1,0 +1,490 @@
+================================================================================
+nested field access
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c.body > method_definition.name as @nested_name | @nested_name
+--- source ---
+class Service {
+  foo() {}
+}
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field (child (field c body) (node method_definition)) name)) nested_name) nested_name))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 5
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: trv child
+0015: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0016: jmp 18 if (variable_id 6)
+0017: halt
+0018: asn 7 ((current value) value)
+0019: trv value_source (variable_id 7)
+0020: asn 8 ((current value) value)
+0021: trv value_source (variable_id 8)
+0022: trv field 25
+0023: asn 9 ((current value) value)
+0024: asn 0 (variable_id 9)
+0025: trv value_source (variable_id 0)
+0026: yield
+0027: halt
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  }
+]
+================================================================================
+field access on node selector
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration.name as @name | @name
+--- source ---
+class Service {}
+class Controller {}
+--- ast ---
+(source_file (pipe (bind (field (child . (node class_declaration)) name) name) name))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: trv field 25
+0010: asn 4 ((current value) value)
+0011: asn 0 (variable_id 4)
+0012: trv value_source (variable_id 0)
+0013: yield
+0014: halt
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+================================================================================
+child navigation with field access parent
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c.body > method_definition as @method | @method
+--- source ---
+class Service {
+  foo() {}
+  bar() {}
+}
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (child (field c body) (node method_definition))) method) method))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 5
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: trv child
+0015: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0016: jmp 18 if (variable_id 6)
+0017: halt
+0018: asn 7 ((current value) value)
+0019: trv value_source (variable_id 7)
+0020: asn 8 ((current value) value)
+0021: asn 0 (variable_id 8)
+0022: trv value_source (variable_id 0)
+0023: yield
+0024: halt
+--- values ---
+[
+  {
+    "kind": "method_definition",
+    "text": "foo() {}",
+    "start_byte": 18,
+    "end_byte": 26,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 10
+    }
+  },
+  {
+    "kind": "method_definition",
+    "text": "bar() {}",
+    "start_byte": 29,
+    "end_byte": 37,
+    "start_point": {
+      "row": 2,
+      "column": 2
+    },
+    "end_point": {
+      "row": 2,
+      "column": 10
+    }
+  }
+]
+================================================================================
+child navigation on node selector
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration.body > method_definition as @method | @method
+--- source ---
+class Service {
+  foo() {}
+  bar() {}
+}
+class Controller {
+  baz() {}
+}
+--- ast ---
+(source_file (pipe (bind (child (field (child . (node class_declaration)) body) (node method_definition)) method) method))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: trv field 5
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: trv child
+0013: rel equals ((current value) kind) (literal kind_id 261) -> 5
+0014: jmp 16 if (variable_id 5)
+0015: halt
+0016: asn 6 ((current value) value)
+0017: trv value_source (variable_id 6)
+0018: asn 7 ((current value) value)
+0019: asn 0 (variable_id 7)
+0020: trv value_source (variable_id 0)
+0021: yield
+0022: halt
+--- values ---
+[
+  {
+    "kind": "method_definition",
+    "text": "foo() {}",
+    "start_byte": 18,
+    "end_byte": 26,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 10
+    }
+  },
+  {
+    "kind": "method_definition",
+    "text": "bar() {}",
+    "start_byte": 29,
+    "end_byte": 37,
+    "start_point": {
+      "row": 2,
+      "column": 2
+    },
+    "end_point": {
+      "row": 2,
+      "column": 10
+    }
+  },
+  {
+    "kind": "method_definition",
+    "text": "baz() {}",
+    "start_byte": 61,
+    "end_byte": 69,
+    "start_point": {
+      "row": 5,
+      "column": 2
+    },
+    "end_point": {
+      "row": 5,
+      "column": 10
+    }
+  }
+]
+================================================================================
+descendant navigation with field access parent
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c.body >> property_identifier as @id | @id
+--- source ---
+class Service {
+  foo() {}
+  bar() {}
+}
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (descendant (field c body) (node property_identifier))) id) id))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 5
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: trv descendant
+0015: rel equals ((current value) kind) (literal kind_id 377) -> 6
+0016: jmp 18 if (variable_id 6)
+0017: halt
+0018: asn 7 ((current value) value)
+0019: trv value_source (variable_id 7)
+0020: asn 8 ((current value) value)
+0021: asn 0 (variable_id 8)
+0022: trv value_source (variable_id 0)
+0023: yield
+0024: halt
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  },
+  {
+    "kind": "property_identifier",
+    "text": "bar",
+    "start_byte": 29,
+    "end_byte": 32,
+    "start_point": {
+      "row": 2,
+      "column": 2
+    },
+    "end_point": {
+      "row": 2,
+      "column": 5
+    }
+  }
+]
+================================================================================
+descendant navigation on node selector
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration >> property_identifier as @id | @id
+--- source ---
+class Service {
+  foo() {}
+}
+class Controller {
+  bar() {}
+}
+--- ast ---
+(source_file (pipe (bind (descendant (child . (node class_declaration)) (node property_identifier)) id) id))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: trv descendant
+0010: rel equals ((current value) kind) (literal kind_id 377) -> 4
+0011: jmp 13 if (variable_id 4)
+0012: halt
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: asn 6 ((current value) value)
+0016: asn 0 (variable_id 6)
+0017: trv value_source (variable_id 0)
+0018: yield
+0019: halt
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  },
+  {
+    "kind": "property_identifier",
+    "text": "bar",
+    "start_byte": 50,
+    "end_byte": 53,
+    "start_point": {
+      "row": 4,
+      "column": 2
+    },
+    "end_point": {
+      "row": 4,
+      "column": 5
+    }
+  }
+]
+================================================================================
+nested child navigation
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c > class_body > method_definition as @method | @method
+--- source ---
+class Service {
+  foo() {}
+  bar() {}
+}
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (child (child c (node class_body)) (node method_definition))) method) method))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv child
+0012: rel equals ((current value) kind) (literal kind_id 256) -> 5
+0013: jmp 15 if (variable_id 5)
+0014: halt
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 6)
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: trv child
+0020: rel equals ((current value) kind) (literal kind_id 261) -> 8
+0021: jmp 23 if (variable_id 8)
+0022: halt
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
+0025: asn 10 ((current value) value)
+0026: asn 0 (variable_id 10)
+0027: trv value_source (variable_id 0)
+0028: yield
+0029: halt
+--- values ---
+[
+  {
+    "kind": "method_definition",
+    "text": "foo() {}",
+    "start_byte": 18,
+    "end_byte": 26,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 10
+    }
+  },
+  {
+    "kind": "method_definition",
+    "text": "bar() {}",
+    "start_byte": 29,
+    "end_byte": 37,
+    "start_point": {
+      "row": 2,
+      "column": 2
+    },
+    "end_point": {
+      "row": 2,
+      "column": 10
+    }
+  }
+]

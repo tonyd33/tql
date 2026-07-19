@@ -1,0 +1,1461 @@
+================================================================================
+WHERE with simple comparison
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c.name as @n | select(@n | text = 'Service') | @c
+--- source ---
+class Service {}
+class Controller {}
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (eq (pipe n (call text)) (string "Service")))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 0)
+0017: rel equals ((current value) text) (literal string "Service") -> 7
+0018: trv value_source (variable_id 6)
+0019: jmp 21 if (variable_id 7)
+0020: halt
+0021: trv value_source ((current value) value)
+0022: yield
+0023: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]
+================================================================================
+WHERE with OR logic
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | @c.name as @n | select(@n | text = 'Service' or @n | text = 'Controller') | @c
+--- source ---
+class Service {}
+class Controller {}
+class Repository {}
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (or (eq (pipe n (call text)) (string "Service")) (eq (pipe n (call text)) (string "Controller"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: asn 8 ((current value) value)
+0017: trv value_source (variable_id 0)
+0018: rel equals ((current value) text) (literal string "Service") -> 9
+0019: jmp 25 if (variable_id 9)
+0020: trv value_source (variable_id 8)
+0021: trv value_source (variable_id 0)
+0022: rel equals ((current value) text) (literal string "Controller") -> 10
+0023: asn 7 (variable_id 10)
+0024: jmp 26
+0025: asn 7 (variable_id 9)
+0026: trv value_source (variable_id 6)
+0027: jmp 29 if (variable_id 7)
+0028: halt
+0029: trv value_source ((current value) value)
+0030: yield
+0031: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Controller {}",
+    "start_byte": 17,
+    "end_byte": 36,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 19
+    }
+  }
+]
+================================================================================
+WHERE with AND logic
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c |
+@c.name as @class_name |
+@c.body as @body |
+@body > method_definition as @method_def |
+@method_def.name as @method_name |
+select(@class_name | text = 'Service' and @method_name | text = 'foo') |
+@c
+--- source ---
+class Service { foo() {}; bar() {}; }
+class Controller { foo() {}; bar() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (pipe (bind (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (field c body)) body) (child body (node method_definition))) method_def) (field method_def name)) method_name) (call select (and (eq (pipe class_name (call text)) (string "Service")) (eq (pipe method_name (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 5
+0003: jmp 5 if (variable_id 5)
+0004: halt
+0005: asn 6 ((current value) value)
+0006: trv value_source (variable_id 6)
+0007: asn 7 ((current value) value)
+0008: asn 4 (variable_id 7)
+0009: trv value_source (variable_id 4)
+0010: trv value_source (variable_id 4)
+0011: trv field 25
+0012: asn 8 ((current value) value)
+0013: asn 3 (variable_id 8)
+0014: trv value_source (variable_id 3)
+0015: trv value_source (variable_id 4)
+0016: trv field 5
+0017: asn 9 ((current value) value)
+0018: asn 2 (variable_id 9)
+0019: trv value_source (variable_id 2)
+0020: trv value_source (variable_id 2)
+0021: trv child
+0022: rel equals ((current value) kind) (literal kind_id 261) -> 10
+0023: jmp 25 if (variable_id 10)
+0024: halt
+0025: asn 11 ((current value) value)
+0026: trv value_source (variable_id 11)
+0027: asn 12 ((current value) value)
+0028: asn 1 (variable_id 12)
+0029: trv value_source (variable_id 1)
+0030: trv value_source (variable_id 1)
+0031: trv field 25
+0032: asn 13 ((current value) value)
+0033: asn 0 (variable_id 13)
+0034: trv value_source (variable_id 0)
+0035: asn 14 ((current value) value)
+0036: asn 15 (literal bool false)
+0037: trv value_source (variable_id 3)
+0038: rel equals ((current value) text) (literal string "Service") -> 16
+0039: jmp 43 if not (variable_id 16)
+0040: trv value_source (variable_id 0)
+0041: rel equals ((current value) text) (literal string "foo") -> 17
+0042: asn 15 (variable_id 17)
+0043: trv value_source (variable_id 14)
+0044: jmp 46 if (variable_id 15)
+0045: halt
+0046: trv value_source ((current value) value)
+0047: yield
+0048: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  }
+]
+================================================================================
+WHERE with any quantifier - matches
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+--- source ---
+class Service { foo() {}; bar() {}; }
+class Controller { baz() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "foo") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  }
+]
+================================================================================
+WHERE with any quantifier - no matches
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'nonexistent')) | @c
+--- source ---
+class Service { foo() {}; bar() {}; }
+class Controller { baz() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "nonexistent"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "nonexistent") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[]
+================================================================================
+WHERE any matches second method only
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+--- source ---
+class A { bar() {}; foo() {}; }
+class B { bar() {}; baz() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "foo") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { bar() {}; foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+================================================================================
+WHERE with all quantifier
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(all(@c.body > method_definition; .name | text = 'foo')) | @c
+--- source ---
+class A { foo() {}; foo() {}; }
+class B { foo() {}; bar() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call all (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe nexists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "foo") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: halt
+0030: yield
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+================================================================================
+WHERE field access on outer row
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(@c.name | text = 'Service') | @c
+--- source ---
+class Service {}
+class Controller {}
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq (pipe (field c name) (call text)) (string "Service")))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 0)
+0012: trv field 25
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: rel equals ((current value) text) (literal string "Service") -> 6
+0016: trv value_source (variable_id 4)
+0017: jmp 19 if (variable_id 6)
+0018: halt
+0019: trv value_source ((current value) value)
+0020: yield
+0021: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]
+================================================================================
+WHERE optional binding is null
+================================================================================
+grammar: typescript
+
+--- query ---
+. > function_declaration as @f | @f.return_type as @rt? | select(@rt = null) | @f
+--- source ---
+function a(): number { return 1; }
+function b() { return 2; }
+function c(): string { return 'x'; }
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (eq rt null))) f))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 33
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: rel equals (variable_id 0) (literal nothing) -> 7
+0017: trv value_source (variable_id 6)
+0018: jmp 20 if (variable_id 7)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: yield
+0022: halt
+--- values ---
+[]
+================================================================================
+WHERE optional binding is not null
+================================================================================
+grammar: typescript
+
+--- query ---
+. > function_declaration as @f | @f.return_type as @rt? | select(@rt != null) | @f
+--- source ---
+function a(): number { return 1; }
+function b() { return 2; }
+function c(): string { return 'x'; }
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (ne rt null))) f))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 33
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: rel equals (variable_id 0) (literal nothing) -> 7
+0017: jmp 20 if (variable_id 7)
+0018: asn 8 (literal bool true)
+0019: jmp 21
+0020: asn 8 (literal bool false)
+0021: trv value_source (variable_id 6)
+0022: jmp 24 if (variable_id 8)
+0023: halt
+0024: trv value_source ((current value) value)
+0025: yield
+0026: halt
+--- values ---
+[
+  {
+    "kind": "function_declaration",
+    "text": "function a(): number { return 1; }",
+    "start_byte": 0,
+    "end_byte": 34,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 34
+    }
+  },
+  {
+    "kind": "function_declaration",
+    "text": "function c(): string { return 'x'; }",
+    "start_byte": 62,
+    "end_byte": 98,
+    "start_point": {
+      "row": 2,
+      "column": 0
+    },
+    "end_point": {
+      "row": 2,
+      "column": 36
+    }
+  }
+]
+================================================================================
+WHERE expression is null
+================================================================================
+grammar: typescript
+
+--- query ---
+. > function_declaration as @f | select(@f.return_type is null) | @f
+--- source ---
+function a(): number { return 1; }
+function b() { return 2; }
+function c(): string { return 'x'; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-null (field f return_type)))) f))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe nexists 17
+0012: trv value_source (variable_id 0)
+0013: trv field 33
+0014: asn 5 ((current value) value)
+0015: yield
+0016: halt
+0017: trv value_source (variable_id 4)
+0018: jmp 20 if (literal bool true)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: yield
+0022: halt
+--- values ---
+[
+  {
+    "kind": "function_declaration",
+    "text": "function b() { return 2; }",
+    "start_byte": 35,
+    "end_byte": 61,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 26
+    }
+  }
+]
+================================================================================
+WHERE expression is not null
+================================================================================
+grammar: typescript
+
+--- query ---
+. > function_declaration as @f | select(@f.return_type is not null) | @f
+--- source ---
+function a(): number { return 1; }
+function b() { return 2; }
+function c(): string { return 'x'; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-not-null (field f return_type)))) f))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 17
+0012: trv value_source (variable_id 0)
+0013: trv field 33
+0014: asn 5 ((current value) value)
+0015: yield
+0016: halt
+0017: trv value_source (variable_id 4)
+0018: jmp 20 if (literal bool true)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: yield
+0022: halt
+--- values ---
+[
+  {
+    "kind": "function_declaration",
+    "text": "function a(): number { return 1; }",
+    "start_byte": 0,
+    "end_byte": 34,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 34
+    }
+  },
+  {
+    "kind": "function_declaration",
+    "text": "function c(): string { return 'x'; }",
+    "start_byte": 62,
+    "end_byte": 98,
+    "start_point": {
+      "row": 2,
+      "column": 0
+    },
+    "end_point": {
+      "row": 2,
+      "column": 36
+    }
+  }
+]
+================================================================================
+WHERE field access with regex match
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text ~ /^foo.*/)) | @c
+--- source ---
+class A { foobar() {}; }
+class B { bar() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (regex_match (pipe (dot-field name) (call text)) (regex "^foo.*"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel like ((current value) text) (literal regex ...) -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foobar() {}; }",
+    "start_byte": 0,
+    "end_byte": 24,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 24
+    }
+  }
+]
+================================================================================
+WHERE field access with not equal
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(@c.name | text != 'Service') | @c
+--- source ---
+class Service {}
+class Controller {}
+class Repository {}
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (ne (pipe (field c name) (call text)) (string "Service")))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 0)
+0012: trv field 25
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: rel equals ((current value) text) (literal string "Service") -> 6
+0016: jmp 19 if (variable_id 6)
+0017: asn 7 (literal bool true)
+0018: jmp 20
+0019: asn 7 (literal bool false)
+0020: trv value_source (variable_id 4)
+0021: jmp 23 if (variable_id 7)
+0022: halt
+0023: trv value_source ((current value) value)
+0024: yield
+0025: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Controller {}",
+    "start_byte": 17,
+    "end_byte": 36,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 19
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Repository {}",
+    "start_byte": 37,
+    "end_byte": 56,
+    "start_point": {
+      "row": 2,
+      "column": 0
+    },
+    "end_point": {
+      "row": 2,
+      "column": 19
+    }
+  }
+]
+================================================================================
+WHERE field access in AND
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(@c.name | text = 'Service' and any(@c.body > method_definition; .name | text = 'foo')) | @c
+--- source ---
+class Service { foo() {}; }
+class Service { bar() {}; }
+class Other { foo() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Service")) (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo")))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 (literal bool false)
+0012: trv value_source (variable_id 0)
+0013: trv field 25
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 6)
+0016: rel equals ((current value) text) (literal string "Service") -> 7
+0017: jmp 39 if not (variable_id 7)
+0018: probe exists 38
+0019: trv value_source (variable_id 0)
+0020: trv field 5
+0021: asn 8 ((current value) value)
+0022: trv value_source (variable_id 8)
+0023: trv child
+0024: rel equals ((current value) kind) (literal kind_id 261) -> 9
+0025: jmp 27 if (variable_id 9)
+0026: halt
+0027: asn 10 ((current value) value)
+0028: trv value_source (variable_id 10)
+0029: asn 11 ((current value) value)
+0030: trv value_source (variable_id 11)
+0031: trv field 25
+0032: asn 12 ((current value) value)
+0033: trv value_source (variable_id 12)
+0034: rel equals ((current value) text) (literal string "foo") -> 13
+0035: jmp 37 if not (variable_id 13)
+0036: yield
+0037: halt
+0038: asn 5 (literal bool true)
+0039: trv value_source (variable_id 4)
+0040: jmp 42 if (variable_id 5)
+0041: halt
+0042: trv value_source ((current value) value)
+0043: yield
+0044: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    }
+  }
+]
+================================================================================
+WHERE same field accessed twice
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(@c.name | text = 'Service' or @c.name | text = 'Controller') | @c
+--- source ---
+class Service {}
+class Controller {}
+class Repository {}
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (or (eq (pipe (field c name) (call text)) (string "Service")) (eq (pipe (field c name) (call text)) (string "Controller"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 6 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv field 25
+0014: asn 7 ((current value) value)
+0015: trv value_source (variable_id 7)
+0016: rel equals ((current value) text) (literal string "Service") -> 8
+0017: jmp 26 if (variable_id 8)
+0018: trv value_source (variable_id 6)
+0019: trv value_source (variable_id 0)
+0020: trv field 25
+0021: asn 9 ((current value) value)
+0022: trv value_source (variable_id 9)
+0023: rel equals ((current value) text) (literal string "Controller") -> 10
+0024: asn 5 (variable_id 10)
+0025: jmp 27
+0026: asn 5 (variable_id 8)
+0027: trv value_source (variable_id 4)
+0028: jmp 30 if (variable_id 5)
+0029: halt
+0030: trv value_source ((current value) value)
+0031: yield
+0032: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Controller {}",
+    "start_byte": 17,
+    "end_byte": 36,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 19
+    }
+  }
+]
+================================================================================
+WHERE quantified regression for double yield
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c |
+@c.name as @class_name |
+select(@class_name | text ~ /Foo.*/ and any(@c.body > method_definition; .return_type != null)) |
+{ @class_name }
+--- source ---
+class Foo1 {
+  m1(): string {}
+  m2() {}
+  m3(): number {}
+}
+
+class Foo2 {}
+
+class Foo3 {
+  m3() {}
+}
+--- ast ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (call select (and (regex_match (pipe class_name (call text)) (regex "Foo.*")) (call any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: asn 7 (literal bool false)
+0017: trv value_source (variable_id 0)
+0018: rel like ((current value) text) (literal regex ...) -> 8
+0019: jmp 44 if not (variable_id 8)
+0020: probe exists 43
+0021: trv value_source (variable_id 1)
+0022: trv field 5
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
+0025: trv child
+0026: rel equals ((current value) kind) (literal kind_id 261) -> 10
+0027: jmp 29 if (variable_id 10)
+0028: halt
+0029: asn 11 ((current value) value)
+0030: trv value_source (variable_id 11)
+0031: asn 12 ((current value) value)
+0032: trv value_source (variable_id 12)
+0033: trv field 33
+0034: asn 13 ((current value) value)
+0035: rel equals (variable_id 13) (literal nothing) -> 14
+0036: jmp 39 if (variable_id 14)
+0037: asn 15 (literal bool true)
+0038: jmp 40
+0039: asn 15 (literal bool false)
+0040: jmp 42 if not (variable_id 15)
+0041: yield
+0042: halt
+0043: asn 7 (literal bool true)
+0044: trv value_source (variable_id 6)
+0045: jmp 47 if (variable_id 7)
+0046: halt
+0047: trv value_source ((current value) value)
+0048: begin_build record
+0049: push_build class_name (variable_id 0)
+0050: end_build 16
+0051: yield
+0052: halt
+--- values ---
+[
+  {
+    "class_name": {
+      "kind": "type_identifier",
+      "text": "Foo1",
+      "start_byte": 6,
+      "end_byte": 10,
+      "start_point": {
+        "row": 0,
+        "column": 6
+      },
+      "end_point": {
+        "row": 0,
+        "column": 10
+      }
+    }
+  }
+]
+================================================================================
+WHERE descendant nav in quantifier source
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c >> method_definition; .name | text = 'foo')) | @c
+--- source ---
+class Service { foo() {}; }
+class Controller { bar() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 28
+0012: trv value_source (variable_id 0)
+0013: trv descendant
+0014: rel equals ((current value) kind) (literal kind_id 261) -> 5
+0015: jmp 17 if (variable_id 5)
+0016: halt
+0017: asn 6 ((current value) value)
+0018: trv value_source (variable_id 6)
+0019: asn 7 ((current value) value)
+0020: trv value_source (variable_id 7)
+0021: trv field 25
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: rel equals ((current value) text) (literal string "foo") -> 9
+0025: jmp 27 if not (variable_id 9)
+0026: yield
+0027: halt
+0028: trv value_source (variable_id 4)
+0029: jmp 31 if (literal bool true)
+0030: halt
+0031: trv value_source ((current value) value)
+0032: yield
+0033: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    }
+  }
+]
+================================================================================
+WHERE child nav in comparison body
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .body > return_statement != null)) | @c
+--- source ---
+class A { foo() { return 1; } }
+class B { bar() {} }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (child (dot-field body) (node return_statement)) null)))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 42
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 5
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: trv child
+0028: rel equals ((current value) kind) (literal kind_id 200) -> 10
+0029: jmp 31 if (variable_id 10)
+0030: halt
+0031: asn 11 ((current value) value)
+0032: trv value_source (variable_id 11)
+0033: asn 12 ((current value) value)
+0034: rel equals (variable_id 12) (literal nothing) -> 13
+0035: jmp 38 if (variable_id 13)
+0036: asn 14 (literal bool true)
+0037: jmp 39
+0038: asn 14 (literal bool false)
+0039: jmp 41 if not (variable_id 14)
+0040: yield
+0041: halt
+0042: trv value_source (variable_id 4)
+0043: jmp 45 if (literal bool true)
+0044: halt
+0045: trv value_source ((current value) value)
+0046: yield
+0047: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() { return 1; } }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+================================================================================
+WHERE field access in OR with anonymous lift
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo' or .name | text = 'bar')) | @c
+--- source ---
+class A { foo() {}; }
+class B { bar() {}; }
+class C { baz() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (or (eq (pipe (dot-field name) (call text)) (string "foo")) (eq (pipe (dot-field name) (call text)) (string "bar")))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 41
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: asn 10 ((current value) value)
+0025: trv field 25
+0026: asn 11 ((current value) value)
+0027: trv value_source (variable_id 11)
+0028: rel equals ((current value) text) (literal string "foo") -> 12
+0029: jmp 37 if (variable_id 12)
+0030: trv value_source (variable_id 10)
+0031: trv field 25
+0032: asn 13 ((current value) value)
+0033: trv value_source (variable_id 13)
+0034: rel equals ((current value) text) (literal string "bar") -> 14
+0035: asn 9 (variable_id 14)
+0036: jmp 38
+0037: asn 9 (variable_id 12)
+0038: jmp 40 if not (variable_id 9)
+0039: yield
+0040: halt
+0041: trv value_source (variable_id 4)
+0042: jmp 44 if (literal bool true)
+0043: halt
+0044: trv value_source ((current value) value)
+0045: yield
+0046: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 21,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 21
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class B { bar() {}; }",
+    "start_byte": 22,
+    "end_byte": 43,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 21
+    }
+  }
+]
+================================================================================
+WHERE any with not-null body
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name != null)) | @c
+--- source ---
+class Service { foo() {}; bar() {}; }
+class Controller { baz() {}; }
+--- ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 34
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: rel equals (variable_id 9) (literal nothing) -> 10
+0027: jmp 30 if (variable_id 10)
+0028: asn 11 (literal bool true)
+0029: jmp 31
+0030: asn 11 (literal bool false)
+0031: jmp 33 if not (variable_id 11)
+0032: yield
+0033: halt
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
+0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Controller { baz() {}; }",
+    "start_byte": 38,
+    "end_byte": 68,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 30
+    }
+  }
+]

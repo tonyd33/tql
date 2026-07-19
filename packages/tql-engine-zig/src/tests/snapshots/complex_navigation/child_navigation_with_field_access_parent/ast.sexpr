@@ -1,1 +1,0 @@
-(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (child (field c body) (node method_definition))) method) method))

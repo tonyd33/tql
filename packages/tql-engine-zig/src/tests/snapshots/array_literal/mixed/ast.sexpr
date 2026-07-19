@@ -1,1 +1,0 @@
-(source_file (pipe (bind (child . (node class_declaration)) class) (array (string "class") class)))

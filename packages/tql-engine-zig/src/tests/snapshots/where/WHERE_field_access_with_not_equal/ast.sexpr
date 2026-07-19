@@ -1,1 +1,0 @@
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (ne (pipe (field c name) (call text)) (string "Service")))) c))

@@ -1,1 +1,0 @@
-(source_file (pipe (bind (pipe (pipe (bind (child . (node class_declaration)) c) c) .) snap) snap))

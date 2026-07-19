@@ -1,1 +1,0 @@
-(source_file (pipe (bind (descendant (child . (node class_declaration)) (node property_identifier)) id) id))

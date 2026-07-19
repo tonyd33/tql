@@ -1,1 +1,0 @@
-(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "[A-Z][a-z]+")))) c))

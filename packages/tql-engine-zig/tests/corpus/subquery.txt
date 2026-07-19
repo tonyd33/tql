@@ -1,0 +1,1328 @@
+================================================================================
+subquery in select projects list per outer match
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func | [@func.declarator.parameters > parameter_declaration]
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (child . (node function_definition)) func) (collect (child (field (field func declarator) parameters) (node parameter_declaration)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: probe aggregate 27 4 list
+0011: trv value_source (variable_id 0)
+0012: trv field 10
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: trv field 28
+0016: asn 6 ((current value) value)
+0017: trv value_source (variable_id 6)
+0018: trv child
+0019: rel equals ((current value) kind) (literal kind_id 260) -> 7
+0020: jmp 22 if (variable_id 7)
+0021: halt
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: asn 9 ((current value) value)
+0025: yield
+0026: halt
+0027: yield
+0028: halt
+--- values ---
+[
+  [
+    {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      }
+    },
+    {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      }
+    }
+  ],
+  [
+    {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      }
+    }
+  ]
+]
+================================================================================
+subquery empty produces empty list
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func | [@func > goto_statement]
+--- source ---
+int add(int a, int b) { return a + b; }
+--- ast ---
+(source_file (pipe (bind (child . (node function_definition)) func) (collect (child func (node goto_statement)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: probe aggregate 21 4 list
+0011: trv value_source (variable_id 0)
+0012: trv child
+0013: rel equals ((current value) kind) (literal kind_id 278) -> 5
+0014: jmp 16 if (variable_id 5)
+0015: halt
+0016: asn 6 ((current value) value)
+0017: trv value_source (variable_id 6)
+0018: asn 7 ((current value) value)
+0019: yield
+0020: halt
+0021: yield
+0022: halt
+--- values ---
+[
+  []
+]
+================================================================================
+collect dot refers to piped-in value
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition | { fn: ., params: [. >> parameter_declaration] }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (child . (node function_definition)) (object (fn .) (params (collect (descendant . (node parameter_declaration)))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: probe aggregate 20 3 list
+0010: trv value_source ((current value) value)
+0011: trv descendant
+0012: rel equals ((current value) kind) (literal kind_id 260) -> 4
+0013: jmp 15 if (variable_id 4)
+0014: halt
+0015: asn 5 ((current value) value)
+0016: trv value_source (variable_id 5)
+0017: asn 6 ((current value) value)
+0018: yield
+0019: halt
+0020: begin_build record
+0021: push_build fn ((current value) value)
+0022: push_build params (variable_id 3)
+0023: end_build 7
+0024: yield
+0025: halt
+--- values ---
+[
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        }
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        }
+      }
+    ]
+  },
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    },
+    "params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "void",
+        "start_byte": 49,
+        "end_byte": 53,
+        "start_point": {
+          "row": 1,
+          "column": 9
+        },
+        "end_point": {
+          "row": 1,
+          "column": 13
+        }
+      }
+    ]
+  }
+]
+================================================================================
+subquery captures outer binding
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition.declarator as @func_decl | {
+  name: @func_decl.declarator,
+  params: [@func_decl.parameters > parameter_declaration as @p | @p]
+}
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (object (name (field func_decl declarator)) (params (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: trv field 10
+0010: asn 4 ((current value) value)
+0011: asn 0 (variable_id 4)
+0012: trv value_source (variable_id 0)
+0013: trv value_source (variable_id 0)
+0014: trv field 10
+0015: asn 5 ((current value) value)
+0016: probe aggregate 32 6 list
+0017: trv value_source (variable_id 0)
+0018: trv field 28
+0019: asn 8 ((current value) value)
+0020: trv value_source (variable_id 8)
+0021: trv child
+0022: rel equals ((current value) kind) (literal kind_id 260) -> 9
+0023: jmp 25 if (variable_id 9)
+0024: halt
+0025: asn 10 ((current value) value)
+0026: trv value_source (variable_id 10)
+0027: asn 11 ((current value) value)
+0028: asn 7 (variable_id 11)
+0029: trv value_source (variable_id 7)
+0030: yield
+0031: halt
+0032: begin_build record
+0033: push_build name (variable_id 5)
+0034: push_build params (variable_id 6)
+0035: end_build 12
+0036: yield
+0037: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        }
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        }
+      }
+    ]
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "void",
+        "start_byte": 49,
+        "end_byte": 53,
+        "start_point": {
+          "row": 1,
+          "column": 9
+        },
+        "end_point": {
+          "row": 1,
+          "column": 13
+        }
+      }
+    ]
+  }
+]
+================================================================================
+nested subquery
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func | {
+  fn: @func,
+  param_lists: [
+    @func.declarator as @decl |
+    [@decl.parameters > parameter_declaration as @p | @p]
+  ]
+}
+--- source ---
+int add(int a, int b) { return a + b; }
+--- ast ---
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (param_lists (collect (pipe (bind (field func declarator) decl) (collect (pipe (bind (child (field decl parameters) (node parameter_declaration)) p) p))))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: probe aggregate 34 4 list
+0011: trv value_source (variable_id 0)
+0012: trv field 10
+0013: asn 6 ((current value) value)
+0014: asn 5 (variable_id 6)
+0015: trv value_source (variable_id 5)
+0016: probe aggregate 32 7 list
+0017: trv value_source (variable_id 5)
+0018: trv field 28
+0019: asn 9 ((current value) value)
+0020: trv value_source (variable_id 9)
+0021: trv child
+0022: rel equals ((current value) kind) (literal kind_id 260) -> 10
+0023: jmp 25 if (variable_id 10)
+0024: halt
+0025: asn 11 ((current value) value)
+0026: trv value_source (variable_id 11)
+0027: asn 12 ((current value) value)
+0028: asn 8 (variable_id 12)
+0029: trv value_source (variable_id 8)
+0030: yield
+0031: halt
+0032: yield
+0033: halt
+0034: begin_build record
+0035: push_build fn (variable_id 0)
+0036: push_build param_lists (variable_id 4)
+0037: end_build 13
+0038: yield
+0039: halt
+--- values ---
+[
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "param_lists": [
+      [
+        {
+          "kind": "parameter_declaration",
+          "text": "int a",
+          "start_byte": 8,
+          "end_byte": 13,
+          "start_point": {
+            "row": 0,
+            "column": 8
+          },
+          "end_point": {
+            "row": 0,
+            "column": 13
+          }
+        },
+        {
+          "kind": "parameter_declaration",
+          "text": "int b",
+          "start_byte": 15,
+          "end_byte": 20,
+          "start_point": {
+            "row": 0,
+            "column": 15
+          },
+          "end_point": {
+            "row": 0,
+            "column": 20
+          }
+        }
+      ]
+    ]
+  }
+]
+================================================================================
+subquery with where clause filters inner stream
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func | {
+  fn: @func,
+  int_params: [
+    @func.declarator.parameters > parameter_declaration as @p |
+    @p.type as @t |
+    select(@t | text = 'int') |
+    @p
+  ]
+}
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (int_params (collect (pipe (pipe (bind (pipe (bind (child (field (field func declarator) parameters) (node parameter_declaration)) p) (field p type)) t) (call select (eq (pipe t (call text)) (string "int")))) p))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: probe aggregate 41 4 list
+0011: trv value_source (variable_id 0)
+0012: trv field 10
+0013: asn 7 ((current value) value)
+0014: trv value_source (variable_id 7)
+0015: trv field 28
+0016: asn 8 ((current value) value)
+0017: trv value_source (variable_id 8)
+0018: trv child
+0019: rel equals ((current value) kind) (literal kind_id 260) -> 9
+0020: jmp 22 if (variable_id 9)
+0021: halt
+0022: asn 10 ((current value) value)
+0023: trv value_source (variable_id 10)
+0024: asn 11 ((current value) value)
+0025: asn 6 (variable_id 11)
+0026: trv value_source (variable_id 6)
+0027: trv value_source (variable_id 6)
+0028: trv field 36
+0029: asn 12 ((current value) value)
+0030: asn 5 (variable_id 12)
+0031: trv value_source (variable_id 5)
+0032: asn 13 ((current value) value)
+0033: trv value_source (variable_id 5)
+0034: rel equals ((current value) text) (literal string "int") -> 14
+0035: trv value_source (variable_id 13)
+0036: jmp 38 if (variable_id 14)
+0037: halt
+0038: trv value_source ((current value) value)
+0039: yield
+0040: halt
+0041: begin_build record
+0042: push_build fn (variable_id 0)
+0043: push_build int_params (variable_id 4)
+0044: end_build 15
+0045: yield
+0046: halt
+--- values ---
+[
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "int_params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        }
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        }
+      }
+    ]
+  },
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    },
+    "int_params": []
+  }
+]
+================================================================================
+subquery as binding produces list per outer fanout
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition.declarator as @func_decl |
+[@func_decl.parameters > parameter_declaration as @p | @p] as @param_decl |
+@func_decl.declarator as @func_name |
+{ name: @func_name, param: @param_decl }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
+0003: jmp 5 if (variable_id 3)
+0004: halt
+0005: asn 4 ((current value) value)
+0006: trv value_source (variable_id 4)
+0007: asn 5 ((current value) value)
+0008: trv value_source (variable_id 5)
+0009: trv field 10
+0010: asn 6 ((current value) value)
+0011: asn 2 (variable_id 6)
+0012: trv value_source (variable_id 2)
+0013: probe aggregate 29 7 list
+0014: trv value_source (variable_id 2)
+0015: trv field 28
+0016: asn 9 ((current value) value)
+0017: trv value_source (variable_id 9)
+0018: trv child
+0019: rel equals ((current value) kind) (literal kind_id 260) -> 10
+0020: jmp 22 if (variable_id 10)
+0021: halt
+0022: asn 11 ((current value) value)
+0023: trv value_source (variable_id 11)
+0024: asn 12 ((current value) value)
+0025: asn 8 (variable_id 12)
+0026: trv value_source (variable_id 8)
+0027: yield
+0028: halt
+0029: asn 1 (variable_id 7)
+0030: trv value_source (variable_id 1)
+0031: trv value_source (variable_id 2)
+0032: trv field 10
+0033: asn 13 ((current value) value)
+0034: asn 0 (variable_id 13)
+0035: trv value_source (variable_id 0)
+0036: begin_build record
+0037: push_build name (variable_id 0)
+0038: push_build param (variable_id 1)
+0039: end_build 14
+0040: yield
+0041: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        }
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        }
+      }
+    ]
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "param": [
+      {
+        "kind": "parameter_declaration",
+        "text": "void",
+        "start_byte": 49,
+        "end_byte": 53,
+        "start_point": {
+          "row": 1,
+          "column": 9
+        },
+        "end_point": {
+          "row": 1,
+          "column": 13
+        }
+      }
+    ]
+  }
+]
+================================================================================
+subquery binding without rebinding fans out (baseline)
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition.declarator as @func_decl |
+@func_decl.parameters > parameter_declaration as @param_decl |
+@func_decl.declarator as @func_name |
+{ name: @func_name, param: @param_decl }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (child (field func_decl parameters) (node parameter_declaration))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
+0003: jmp 5 if (variable_id 3)
+0004: halt
+0005: asn 4 ((current value) value)
+0006: trv value_source (variable_id 4)
+0007: asn 5 ((current value) value)
+0008: trv value_source (variable_id 5)
+0009: trv field 10
+0010: asn 6 ((current value) value)
+0011: asn 2 (variable_id 6)
+0012: trv value_source (variable_id 2)
+0013: trv value_source (variable_id 2)
+0014: trv field 28
+0015: asn 7 ((current value) value)
+0016: trv value_source (variable_id 7)
+0017: trv child
+0018: rel equals ((current value) kind) (literal kind_id 260) -> 8
+0019: jmp 21 if (variable_id 8)
+0020: halt
+0021: asn 9 ((current value) value)
+0022: trv value_source (variable_id 9)
+0023: asn 10 ((current value) value)
+0024: asn 1 (variable_id 10)
+0025: trv value_source (variable_id 1)
+0026: trv value_source (variable_id 2)
+0027: trv field 10
+0028: asn 11 ((current value) value)
+0029: asn 0 (variable_id 11)
+0030: trv value_source (variable_id 0)
+0031: begin_build record
+0032: push_build name (variable_id 0)
+0033: push_build param (variable_id 1)
+0034: end_build 12
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      }
+    }
+  }
+]
+================================================================================
+unnest restores fanout from subquery binding
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition.declarator as @func_decl |
+unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
+@func_decl.declarator as @func_name |
+{ name: @func_name, param: @param_decl }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (child (field func_decl parameters) (node parameter_declaration))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
+0003: jmp 5 if (variable_id 3)
+0004: halt
+0005: asn 4 ((current value) value)
+0006: trv value_source (variable_id 4)
+0007: asn 5 ((current value) value)
+0008: trv value_source (variable_id 5)
+0009: trv field 10
+0010: asn 6 ((current value) value)
+0011: asn 2 (variable_id 6)
+0012: trv value_source (variable_id 2)
+0013: trv value_source (variable_id 2)
+0014: trv field 28
+0015: asn 7 ((current value) value)
+0016: trv value_source (variable_id 7)
+0017: trv child
+0018: rel equals ((current value) kind) (literal kind_id 260) -> 8
+0019: jmp 21 if (variable_id 8)
+0020: halt
+0021: asn 9 ((current value) value)
+0022: trv value_source (variable_id 9)
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
+0025: asn 11 ((current value) value)
+0026: asn 1 (variable_id 11)
+0027: trv value_source (variable_id 1)
+0028: trv value_source (variable_id 2)
+0029: trv field 10
+0030: asn 12 ((current value) value)
+0031: asn 0 (variable_id 12)
+0032: trv value_source (variable_id 0)
+0033: begin_build record
+0034: push_build name (variable_id 0)
+0035: push_build param (variable_id 1)
+0036: end_build 13
+0037: yield
+0038: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      }
+    }
+  }
+]
+================================================================================
+unnest restores fanout from subquery binding with inner binds
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition.declarator as @func_decl |
+unnest([
+  @func_decl.parameters as @params |
+  @params > parameter_declaration
+]) as @param_decl |
+@func_decl.declarator as @func_name |
+{ name: @func_name, param: @param_decl }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (pipe (bind (field func_decl parameters) params) (child params (node parameter_declaration)))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
+0003: jmp 5 if (variable_id 3)
+0004: halt
+0005: asn 4 ((current value) value)
+0006: trv value_source (variable_id 4)
+0007: asn 5 ((current value) value)
+0008: trv value_source (variable_id 5)
+0009: trv field 10
+0010: asn 6 ((current value) value)
+0011: asn 2 (variable_id 6)
+0012: trv value_source (variable_id 2)
+0013: trv value_source (variable_id 2)
+0014: trv field 28
+0015: asn 8 ((current value) value)
+0016: asn 7 (variable_id 8)
+0017: trv value_source (variable_id 7)
+0018: trv value_source (variable_id 7)
+0019: trv child
+0020: rel equals ((current value) kind) (literal kind_id 260) -> 9
+0021: jmp 23 if (variable_id 9)
+0022: halt
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
+0025: asn 11 ((current value) value)
+0026: trv value_source (variable_id 11)
+0027: asn 12 ((current value) value)
+0028: asn 1 (variable_id 12)
+0029: trv value_source (variable_id 1)
+0030: trv value_source (variable_id 2)
+0031: trv field 10
+0032: asn 13 ((current value) value)
+0033: asn 0 (variable_id 13)
+0034: trv value_source (variable_id 0)
+0035: begin_build record
+0036: push_build name (variable_id 0)
+0037: push_build param (variable_id 1)
+0038: end_build 14
+0039: yield
+0040: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      }
+    }
+  }
+]
+================================================================================
+unnest on empty subquery drops branch
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func |
+unnest([@func > goto_statement]) as @g |
+{ fn: @func, g: @g }
+--- source ---
+int add(int a, int b) { return a + b; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (child func (node goto_statement))))) g) (object (fn func) (g g))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv child
+0012: rel equals ((current value) kind) (literal kind_id 278) -> 5
+0013: jmp 15 if (variable_id 5)
+0014: halt
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 6)
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: asn 8 ((current value) value)
+0020: asn 0 (variable_id 8)
+0021: trv value_source (variable_id 0)
+0022: begin_build record
+0023: push_build fn (variable_id 1)
+0024: push_build g (variable_id 0)
+0025: end_build 9
+0026: yield
+0027: halt
+--- values ---
+[]
+================================================================================
+unnest of singleton list yields one fanout
+================================================================================
+grammar: c
+
+--- query ---
+. > function_definition as @func |
+unnest([@func.declarator]) as @d |
+{ @func, @d }
+--- source ---
+int add(int a, int b) { return a + b; }
+--- ast ---
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 10
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: asn 6 ((current value) value)
+0015: asn 0 (variable_id 6)
+0016: trv value_source (variable_id 0)
+0017: begin_build record
+0018: push_build func (variable_id 1)
+0019: push_build d (variable_id 0)
+0020: end_build 7
+0021: yield
+0022: halt
+--- values ---
+[
+  {
+    "d": {
+      "kind": "function_declarator",
+      "text": "add(int a, int b)",
+      "start_byte": 4,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
+    },
+    "func": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    }
+  }
+]

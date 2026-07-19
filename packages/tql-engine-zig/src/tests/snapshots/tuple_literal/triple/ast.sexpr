@@ -1,1 +1,0 @@
-(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) class) (field class name)) name) (tuple (string "class") name class)))

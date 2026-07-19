@@ -1,1 +1,0 @@
-(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) n))

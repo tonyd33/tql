@@ -415,15 +415,10 @@ pub fn build(b: *std.Build) !void {
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.
-    const update_snapshots = b.option(bool, "update-snapshots", "Update snapshots (test mode only)") orelse false;
-    const test_options = b.addOptions();
-    test_options.addOption(bool, "update_snapshots", update_snapshots);
-
     const forced_grammars = try selectedGrammars(b, .{ .subset = &.{ "c", "typescript" } });
 
     const test_build_options = b.addOptions();
     test_build_options.addOption([]const u8, "version", VERSION);
-    test_build_options.addOption([]const []const u8, "static_grammars", &.{ "c", "typescript" });
 
     const test_mod = b.addModule("tql_engine_zig_test", .{
         .root_source_file = b.path("src/root.zig"),
@@ -431,14 +426,14 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     test_mod.addOptions("build_options", test_build_options);
-    test_mod.addOptions("test_options", test_options);
     try addEngineDeps(b, test_mod, forced_grammars, target, optimize);
 
     const mod_tests = b.addTest(.{
         .root_module = test_mod,
-        .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .simple },
+        .test_runner = .{ .path = b.path("tests/test_runner.zig"), .mode = .simple },
     });
 
+    // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
 
     // Creates an executable that will run `test` blocks from the executable's
@@ -457,6 +452,21 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+
+    const snapshot_runner_mod = b.createModule(.{
+        .root_source_file = b.path("tests/snapshot_runner.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    snapshot_runner_mod.addImport("engine", test_mod);
+    const snapshot_runner_exe = b.addExecutable(.{
+        .name = "snapshot-runner",
+        .root_module = snapshot_runner_mod,
+    });
+    const run_snapshot_runner = b.addRunArtifact(snapshot_runner_exe);
+    if (b.args) |args| run_snapshot_runner.addArgs(args);
+    const snapshot_test_step = b.step("snapshot-test", "Run inline corpus snapshot tests");
+    snapshot_test_step.dependOn(&run_snapshot_runner.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //

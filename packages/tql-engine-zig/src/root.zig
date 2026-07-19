@@ -36,5 +36,4 @@ test {
     refAllDecls(compiler);
     refAllDecls(grammar);
     refAllDecls(engine);
-    refAllDecls(@import("tests.zig"));
 }
