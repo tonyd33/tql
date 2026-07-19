@@ -283,10 +283,6 @@
         {
           "type": "SYMBOL",
           "name": "logical_not"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "quantified_expression"
         }
       ]
     },
@@ -656,56 +652,6 @@
           }
         ]
       }
-    },
-    "quantified_expression": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "FIELD",
-          "name": "quantifier",
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "STRING",
-                "value": "any"
-              },
-              {
-                "type": "STRING",
-                "value": "all"
-              }
-            ]
-          }
-        },
-        {
-          "type": "STRING",
-          "value": "("
-        },
-        {
-          "type": "FIELD",
-          "name": "source",
-          "content": {
-            "type": "SYMBOL",
-            "name": "expression"
-          }
-        },
-        {
-          "type": "STRING",
-          "value": ";"
-        },
-        {
-          "type": "FIELD",
-          "name": "predicate",
-          "content": {
-            "type": "SYMBOL",
-            "name": "expression"
-          }
-        },
-        {
-          "type": "STRING",
-          "value": ")"
-        }
-      ]
     },
     "function_call": {
       "type": "CHOICE",

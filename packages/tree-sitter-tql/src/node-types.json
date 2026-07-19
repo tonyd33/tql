@@ -300,10 +300,6 @@
           "named": true
         },
         {
-          "type": "quantified_expression",
-          "named": true
-        },
-        {
           "type": "regex_literal",
           "named": true
         },
@@ -659,46 +655,6 @@
     }
   },
   {
-    "type": "quantified_expression",
-    "named": true,
-    "fields": {
-      "predicate": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "expression",
-            "named": true
-          }
-        ]
-      },
-      "quantifier": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "all",
-            "named": false
-          },
-          {
-            "type": "any",
-            "named": false
-          }
-        ]
-      },
-      "source": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "regex_literal",
     "named": true,
     "fields": {
@@ -865,15 +821,7 @@
     "named": false
   },
   {
-    "type": "all",
-    "named": false
-  },
-  {
     "type": "and",
-    "named": false
-  },
-  {
-    "type": "any",
     "named": false
   },
   {

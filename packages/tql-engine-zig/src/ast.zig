@@ -252,17 +252,6 @@ pub const LogicalNot = struct {
     predicate: Expression,
 };
 
-pub const QuantifiedExpression = struct {
-    quantifier: Quantifier,
-    source: Expression,
-    predicate: *Expression,
-};
-
-pub const Quantifier = enum {
-    any,
-    all,
-};
-
 // ============================================================================
 // Expressions
 // ============================================================================
@@ -369,7 +358,6 @@ pub const Expression = union(enum) {
     logical_and: *LogicalAnd,
     logical_or: *LogicalOr,
     logical_not: *LogicalNot,
-    quantified: *QuantifiedExpression,
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
         switch (self) {
@@ -453,12 +441,6 @@ pub const Expression = union(enum) {
                 ln.predicate.deinit(allocator);
                 allocator.destroy(ln);
             },
-            .quantified => |q| {
-                q.source.deinit(allocator);
-                q.predicate.deinit(allocator);
-                allocator.destroy(q.predicate);
-                allocator.destroy(q);
-            },
         }
     }
 
@@ -520,13 +502,6 @@ pub const Expression = union(enum) {
             .logical_not => |ln| {
                 try w.writeAll("(not ");
                 try ln.predicate.sexpr(w);
-                try w.writeByte(')');
-            },
-            .quantified => |q| {
-                try w.print("({s} ", .{@tagName(q.quantifier)});
-                try q.source.sexpr(w);
-                try w.writeByte(' ');
-                try q.predicate.sexpr(w);
                 try w.writeByte(')');
             },
         }

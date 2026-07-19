@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))

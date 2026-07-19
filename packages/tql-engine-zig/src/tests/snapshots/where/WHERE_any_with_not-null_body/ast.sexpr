@@ -1,1 +1,1 @@
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))

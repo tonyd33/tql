@@ -308,28 +308,6 @@ pub const Parser = struct {
         };
     }
 
-    fn parseQuantifiedExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.QuantifiedExpression {
-        const quantifier_node = try expectChildByFieldName(node, "quantifier");
-        const quantifier_text = nodeText(quantifier_node, source);
-        const quantifier: ast.Quantifier = if (std.mem.eql(u8, quantifier_text, "all"))
-            .all
-        else
-            .any;
-
-        const source_node = try expectChildByFieldName(node, "source");
-        const nav_source = try self.parseExpression(source_node, source);
-
-        const pred_node = try expectChildByFieldName(node, "predicate");
-        const pred = try self.allocator.create(ast.Expression);
-        pred.* = try self.parseExpression(pred_node, source);
-
-        return ast.QuantifiedExpression{
-            .quantifier = quantifier,
-            .source = nav_source,
-            .predicate = pred,
-        };
-    }
-
     // ========================================================================
     // Expression Parsing
     // ========================================================================
@@ -418,10 +396,6 @@ pub const Parser = struct {
             const ln = try self.allocator.create(ast.LogicalNot);
             ln.* = try self.parseLogicalNot(node, source);
             return .{ .logical_not = ln };
-        } else if (std.mem.eql(u8, node_type, "quantified_expression")) {
-            const q = try self.allocator.create(ast.QuantifiedExpression);
-            q.* = try self.parseQuantifiedExpression(node, source);
-            return .{ .quantified = q };
         }
 
         return error.InvalidExpression;
@@ -894,7 +868,8 @@ test "parse quantified expression" {
     const expr = source_file.items[0].expression;
     const select_expr = expr.pipe_expression.left.pipe_expression.right;
     try std.testing.expect(select_expr == .function_call);
-    try std.testing.expect(select_expr.function_call.arguments[0] == .quantified);
-    try std.testing.expect(select_expr.function_call.arguments[0].quantified.quantifier == .any);
-    try std.testing.expect(select_expr.function_call.arguments[0].quantified.source == .child_navigation);
+    const any_call = select_expr.function_call.arguments[0];
+    try std.testing.expect(any_call == .function_call);
+    try std.testing.expectEqualStrings("any", any_call.function_call.name);
+    try std.testing.expect(any_call.function_call.arguments[0] == .child_navigation);
 }

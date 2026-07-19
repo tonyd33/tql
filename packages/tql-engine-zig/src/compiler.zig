@@ -175,6 +175,9 @@ pub const Compiler = struct {
                     return self.compileBuiltinSelect(fc);
                 } else if (std.mem.eql(u8, fc.name, "unnest")) {
                     return self.compileBuiltinUnnest(fc);
+                } else if (std.mem.eql(u8, fc.name, "any") or std.mem.eql(u8, fc.name, "all")) {
+                    try self.compileBuiltinQuantified(fc, false);
+                    return .{ .literal = .{ .bool = true } };
                 } else {
                     return error.InvalidVariableReference;
                 }
@@ -343,16 +346,16 @@ pub const Compiler = struct {
                 return .{ .variable_id = result_tmp };
             },
             .logical_not => |ln| {
-                if (ln.predicate == .quantified) {
-                    try self.compileQuantified(ln.predicate.quantified.*, true);
+                // TODO: Figure out how to unify the model such that this "special" case isn't necessary
+                if (ln.predicate == .function_call and
+                    (std.mem.eql(u8, ln.predicate.function_call.name, "any") or
+                        std.mem.eql(u8, ln.predicate.function_call.name, "all")))
+                {
+                    try self.compileBuiltinQuantified(ln.predicate.function_call, true);
                     return .{ .literal = .{ .bool = true } };
                 }
                 const inner_vs = try self.compileExpression(ln.predicate);
                 return try self.compileNegateValue(inner_vs);
-            },
-            .quantified => |q| {
-                try self.compileQuantified(q.*, false);
-                return .{ .literal = .{ .bool = true } };
             },
             .bind_expression => |be| {
                 const var_id = try self.putVariable(be.variable.name);
@@ -363,12 +366,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileQuantified(
+    fn compileBuiltinQuantified(
         self: *Compiler,
-        quantified: ast.QuantifiedExpression,
+        fc: ast.FunctionCall,
         negated: bool,
     ) CompilerError!void {
-        const body_negated = quantified.quantifier == .all;
+        if (fc.arguments.len != 2) return error.InvalidGuardExpression;
+        const is_all = std.mem.eql(u8, fc.name, "all");
+        const body_negated = is_all;
         const probe_negated = negated != body_negated;
 
         const probe_resume_label = self.instruction_builder.createLabel();
@@ -376,11 +381,11 @@ pub const Compiler = struct {
         const probe_data: runtime.ProbeData = if (probe_negated) .nexists else .exists;
         try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
-        const source_vs = try self.compileExpression(quantified.source);
+        const source_vs = try self.compileExpression(fc.arguments[0]);
         try self.instruction_builder.emit(.{ .trv = .{ .value_source = source_vs } });
 
         const inner_failure_label = self.instruction_builder.createLabel();
-        const pred_vs = try self.compileExpression(quantified.predicate.*);
+        const pred_vs = try self.compileExpression(fc.arguments[1]);
         if (body_negated) {
             try self.instruction_builder.emitJumpCnd(pred_vs, inner_failure_label, true);
             try self.instruction_builder.emit(.halt);

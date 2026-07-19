@@ -52,7 +52,6 @@ module.exports = grammar({
 
     def_parameters: $ => seq("(", optional(semicolon_sep1($.variable)), ")"),
 
-    // Expressions (includes boolean/guard expressions formerly in predicate)
     expression: $ =>
       choice(
         $.identity,
@@ -78,10 +77,8 @@ module.exports = grammar({
         $.logical_and,
         $.logical_or,
         $.logical_not,
-        $.quantified_expression,
       ),
 
-    // expr as @v  or  expr as @v?
     bind_expression: $ =>
       prec.right(
         PREC.bind,
@@ -93,7 +90,6 @@ module.exports = grammar({
         ),
       ),
 
-    // A | B — pipeline as expression, left-associative, lowest precedence
     pipe_expression: $ =>
       prec.left(
         PREC.pipe,
@@ -106,7 +102,6 @@ module.exports = grammar({
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
-    // Navigation expressions
     node_selector: $ => prec(-1, $.identifier),
 
     field_access: $ =>
@@ -135,7 +130,6 @@ module.exports = grammar({
         ),
       ),
 
-    // Boolean/guard expressions (formerly predicates)
     is_null_expr: $ =>
       prec.left(
         PREC.comparison,
@@ -172,17 +166,6 @@ module.exports = grammar({
     logical_not: $ =>
       prec.right(PREC.not, seq("not", field("predicate", $.expression))),
 
-    // any(gen; cond) / all(gen; cond)
-    quantified_expression: $ =>
-      seq(
-        field("quantifier", choice("any", "all")),
-        "(",
-        field("source", $.expression),
-        ";",
-        field("predicate", $.expression),
-        ")",
-      ),
-
     function_call: $ =>
       choice(
         prec(
@@ -212,7 +195,6 @@ module.exports = grammar({
     tuple_literal: $ =>
       seq("(", $.expression, ",", comma_sep1($.expression), ")"),
 
-    // (expr) — parenthesized expression (handles subqueries too)
     parenthesized: $ => seq("(", $.expression, ")"),
 
     type: $ =>
@@ -236,7 +218,6 @@ module.exports = grammar({
 
     optional_type: $ => seq(field("base_type", $.type), "?"),
 
-    // Literals
     string_literal: $ =>
       seq(
         "'",
