@@ -267,6 +267,11 @@ pub fn build(b: *std.Build) !void {
     // to our consumers. We must give it a name because a Zig package can expose
     // multiple modules and consumers will need to be able to specify which
     // module they want to access.
+    const goz = b.dependency("goz", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const mod = b.addModule("tql_engine_zig", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
@@ -318,6 +323,7 @@ pub fn build(b: *std.Build) !void {
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
                 .{ .name = "tql_engine_zig", .module = mod },
+                .{ .name = "goz", .module = goz.module("goz") },
             },
         }),
     });
