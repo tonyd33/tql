@@ -203,6 +203,7 @@ pub fn printSubcmds(comptime cmds: anytype, writer: *std.Io.Writer) !void {
 
     inline for (std.meta.fields(T)) |f| {
         const entry = @field(cmds, f.name);
+        if (@hasField(@TypeOf(entry), "hidden") and entry.hidden) continue;
         const names = comptime subcmdNamesStr(entry.aliases, f.name);
         const w = names.len;
         const pad = comptime " " ** (col_width + 2 - w);
@@ -216,14 +217,61 @@ pub fn printSubcmds(comptime cmds: anytype, writer: *std.Io.Writer) !void {
 
 pub fn ArgTokenizer(comptime opts: anytype) type {
     const T = @TypeOf(opts);
-    const Fields = std.meta.FieldEnum(T);
+
+    const flag_count = comptime blk: {
+        var n: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .no_argument) n += 1;
+        }
+        break :blk n;
+    };
+
+    const arg_count = comptime blk: {
+        var n: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .required_argument) n += 1;
+        }
+        break :blk n;
+    };
+
+    const FlagFields = blk: {
+        var names: [flag_count][]const u8 = undefined;
+        var vals: [flag_count]u16 = undefined;
+        var i: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .no_argument) {
+                names[i] = f.name;
+                vals[i] = i;
+                i += 1;
+            }
+        }
+        break :blk @Enum(u16, .exhaustive, &names, &vals);
+    };
+
+    const ArgFields = blk: {
+        var names: [arg_count][]const u8 = undefined;
+        var vals: [arg_count]u16 = undefined;
+        var i: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .required_argument) {
+                names[i] = f.name;
+                vals[i] = i;
+                i += 1;
+            }
+        }
+        break :blk @Enum(u16, .exhaustive, &names, &vals);
+    };
 
     return struct {
         const Self = @This();
 
         pub const Token = union(enum) {
-            flag: Fields,
-            named_arg: struct { field: Fields, value: []const u8 },
+            flag: FlagFields,
+            named_arg: struct { field: ArgFields, value: []const u8 },
             positional: []const u8,
         };
 
@@ -240,13 +288,13 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
                 const opt: Opt = @field(opts, f.name);
                 if (opt.names.short) |short| {
                     if (ch == short) {
-                        const field = @field(Fields, f.name);
                         switch (opt.has_arg) {
                             .no_argument => {
                                 self.continuation = if (rest.len > 1) rest[1..] else null;
-                                return .{ .flag = field };
+                                return .{ .flag = @field(FlagFields, f.name) };
                             },
                             .required_argument => {
+                                const field = @field(ArgFields, f.name);
                                 if (rest.len > 1) {
                                     if (rest[1] == '=') {
                                         if (rest.len == 2) return error.InvalidArgSyntax;
@@ -284,22 +332,21 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
                     const opt: Opt = @field(opts, f.name);
                     if (opt.names.long) |long| {
                         if (std.mem.startsWith(u8, rest, long)) {
-                            const field = @field(Fields, f.name);
                             switch (opt.has_arg) {
                                 .no_argument => {
                                     if (rest.len == long.len) {
-                                        return .{ .flag = field };
+                                        return .{ .flag = @field(FlagFields, f.name) };
                                     } else if (rest[long.len] == '=') {
                                         return error.ExtraArg;
                                     }
                                 },
                                 .required_argument => {
+                                    const field = @field(ArgFields, f.name);
                                     if (rest.len > long.len) {
                                         if (rest[long.len] == '=') {
                                             if (rest.len == long.len + 1) return error.InvalidArgSyntax;
                                             return .{ .named_arg = .{ .field = field, .value = rest[long.len + 1 ..] } };
                                         }
-                                        // prefix match but not exact — keep scanning
                                     } else {
                                         const val = self.iter.next() orelse return error.MissingArg;
                                         return .{ .named_arg = .{ .field = field, .value = val } };
