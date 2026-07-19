@@ -3,14 +3,14 @@ subquery in select projects list per outer match
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func | [@func.declarator.parameters > parameter_declaration]
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) func) (collect (child (field (field func declarator) parameters) (node parameter_declaration)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -97,13 +97,13 @@ subquery empty produces empty list
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func | [@func > goto_statement]
 --- source ---
 int add(int a, int b) { return a + b; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) func) (collect (child func (node goto_statement)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -139,14 +139,14 @@ collect dot refers to piped-in value
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition | { fn: ., params: [. >> parameter_declaration] }
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (child . (node function_definition)) (object (fn .) (params (collect (descendant . (node parameter_declaration)))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -262,7 +262,7 @@ subquery captures outer binding
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition.declarator as @func_decl | {
   name: @func_decl.declarator,
   params: [@func_decl.parameters > parameter_declaration as @p | @p]
@@ -270,9 +270,9 @@ grammar: c
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (object (name (field func_decl declarator)) (params (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -400,7 +400,7 @@ nested subquery
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func | {
   fn: @func,
   param_lists: [
@@ -410,9 +410,9 @@ grammar: c
 }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (param_lists (collect (pipe (bind (field func declarator) decl) (collect (pipe (bind (child (field decl parameters) (node parameter_declaration)) p) p))))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -512,7 +512,7 @@ subquery with where clause filters inner stream
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func | {
   fn: @func,
   int_params: [
@@ -525,9 +525,9 @@ grammar: c
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (int_params (collect (pipe (pipe (bind (pipe (bind (child (field (field func declarator) parameters) (node parameter_declaration)) p) (field p type)) t) (call select (eq (pipe t (call text)) (string "int")))) p))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -649,7 +649,7 @@ subquery as binding produces list per outer fanout
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition.declarator as @func_decl |
 [@func_decl.parameters > parameter_declaration as @p | @p] as @param_decl |
 @func_decl.declarator as @func_name |
@@ -657,9 +657,9 @@ grammar: c
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -791,7 +791,7 @@ subquery binding without rebinding fans out (baseline)
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition.declarator as @func_decl |
 @func_decl.parameters > parameter_declaration as @param_decl |
 @func_decl.declarator as @func_name |
@@ -799,9 +799,9 @@ grammar: c
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (child (field func_decl parameters) (node parameter_declaration))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -940,7 +940,7 @@ unnest restores fanout from subquery binding
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition.declarator as @func_decl |
 unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
 @func_decl.declarator as @func_name |
@@ -948,9 +948,9 @@ unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (child (field func_decl parameters) (node parameter_declaration))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1091,7 +1091,7 @@ unnest restores fanout from subquery binding with inner binds
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition.declarator as @func_decl |
 unnest([
   @func_decl.parameters as @params |
@@ -1102,9 +1102,9 @@ unnest([
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (pipe (bind (field func_decl parameters) params) (child params (node parameter_declaration)))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1247,15 +1247,15 @@ unnest on empty subquery drops branch
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func |
 unnest([@func > goto_statement]) as @g |
 { fn: @func, g: @g }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (child func (node goto_statement))))) g) (object (fn func) (g g))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1294,15 +1294,15 @@ unnest of singleton list yields one fanout
 ================================================================================
 grammar: c
 
---- query ---
+--- tql ---
 . > function_definition as @func |
 unnest([@func.declarator]) as @d |
 { @func, @d }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source ast ---
+--- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))
 --- bytecode ---
 0000: trv value_source ((current value) value)

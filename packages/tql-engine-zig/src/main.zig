@@ -34,7 +34,7 @@ const main_opts = .{
 };
 
 const main_cmds = .{
-    .run = .{
+    .query = .{
         .aliases = &[_][]const u8{},
         .description = @as(?[]const u8, "Run a query against files"),
         .opts = .{
@@ -44,6 +44,11 @@ const main_cmds = .{
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
         },
+    },
+    .version = .{
+        .aliases = &[_][]const u8{},
+        .description = @as(?[]const u8, "Get version info"),
+        .opts = .{},
     },
     .grammar = .{
         .aliases = &[_][]const u8{},
@@ -85,13 +90,17 @@ const main_cmd = .{
     .subcmds = main_cmds,
 };
 
-const run_cmd = .{
-    .name = "tql run",
-    .opts = main_cmds.run.opts,
+const query_cmd = .{
+    .name = "tql query",
+    .opts = main_cmds.query.opts,
     .positionals = &[_]Positional{
         .{ .name = "query", .required = false },
         .{ .name = "file", .required = true, .variadic = true },
     },
+};
+
+const version_cmd = .{
+    .name = "tql version",
 };
 
 const grammar_cmd = .{
@@ -148,7 +157,7 @@ pub fn main(init: std.process.Init) !u8 {
 
     switch (SubcmdResolver(main_cmds).match(word)) {
         .subcmd => |s| switch (s) {
-            .run => return runMain(
+            .query => return runQuery(
                 init.io,
                 init.gpa,
                 stdout,
@@ -156,6 +165,10 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 &iter,
             ),
+            .version => {
+                try printVersion(stdout);
+                return @intFromEnum(ExitCode.success);
+            },
             .grammar => return runGrammar(
                 init.io,
                 init.gpa,
@@ -181,7 +194,7 @@ pub fn main(init: std.process.Init) !u8 {
     }
 }
 
-fn runMain(
+fn runQuery(
     io: std.Io,
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
@@ -197,7 +210,7 @@ fn runMain(
     var registry = tql.GrammarRegistry.init(gpa, search_paths);
     defer registry.deinit();
 
-    var tokenizer = ArgTokenizer(main_cmds.run.opts).init(iter);
+    var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter);
 
     var show_help = false;
     var from_file: ?[]const u8 = null;
@@ -229,7 +242,7 @@ fn runMain(
     }
 
     if (show_help) {
-        try printUsage(run_cmd, stderr);
+        try printUsage(query_cmd, stderr);
         return @intFromEnum(ExitCode.success);
     }
 
@@ -243,7 +256,7 @@ fn runMain(
     } else blk: {
         if (positionals.items.len == 0) {
             try stderr.print("Error: query is required\n", .{});
-            try printUsage(run_cmd, stderr);
+            try printUsage(query_cmd, stderr);
             return @intFromEnum(ExitCode.invalid_args);
         }
         break :blk try gpa.dupe(u8, positionals.items[0]);
@@ -258,7 +271,7 @@ fn runMain(
 
     const grammar_resolved = grammar orelse {
         try stderr.print("Error: --grammar is required\n", .{});
-        try printUsage(run_cmd, stderr);
+        try printUsage(query_cmd, stderr);
         return @intFromEnum(ExitCode.invalid_args);
     };
 

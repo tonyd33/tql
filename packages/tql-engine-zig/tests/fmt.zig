@@ -4,7 +4,20 @@ const ts = engine_mod.ts;
 const RuntimeMod = engine_mod.Runtime;
 const Value = engine_mod.Value;
 
-pub fn formatAst(allocator: std.mem.Allocator, ast: anytype) ![]const u8 {
+pub const ansi = struct {
+    pub const reset = "\x1b[0m";
+    pub const bold = "\x1b[1m";
+    pub const dim = "\x1b[2m";
+    pub const green = "\x1b[32m";
+    pub const red = "\x1b[31m";
+    pub const yellow = "\x1b[33m";
+    pub const cyan = "\x1b[36m";
+    pub const green_bold = "\x1b[1;32m";
+    pub const red_bold = "\x1b[1;31m";
+    pub const yellow_bold = "\x1b[1;33m";
+};
+
+pub fn formatAst(allocator: std.mem.Allocator, ast: engine_mod.ast.SourceFile) ![]const u8 {
     return ast.sexprAlloc(allocator);
 }
 

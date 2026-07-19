@@ -185,7 +185,7 @@ fn parseGrammarNames(b: *std.Build, str: []const u8) !GrammarSelection {
     return .{ .subset = try result.toOwnedSlice(b.allocator) };
 }
 
-fn selectionNames(b: *std.Build, sel: GrammarSelection) ![]const []const u8 {
+fn selectedGrammarNames(b: *std.Build, sel: GrammarSelection) ![]const []const u8 {
     return switch (sel) {
         .none => &.{},
         .available => blk: {
@@ -238,13 +238,24 @@ fn selectedGrammars(
     };
 }
 
+fn addLibBuildOptions(
+    b: *std.Build,
+    sel: GrammarSelection,
+) !*std.Build.Step.Options {
+    const selected_names = try selectedGrammarNames(b, sel);
+
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", VERSION);
+    build_options.addOption([]const []const u8, "static_grammars", selected_names);
+    return build_options;
+}
+
 // Although this function looks imperative, it does not perform the build
 // directly and instead it mutates the build graph (`b`) that will be then
 // executed by an external runner. The functions in `std.Build` implement a DSL
 // for defining build steps and express dependencies between them, allowing the
 // build runner to parallelize the build automatically (and the cache system to
 // know when a step doesn't need to be re-run).
-
 pub fn build(b: *std.Build) !void {
     // Standard target options allow the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -272,7 +283,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const mod = b.addModule("tql_engine_zig", .{
+    const lib_mod = b.addModule("tql_engine_zig", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
         // in this file, which means that if you have declarations that you
@@ -322,7 +333,7 @@ pub fn build(b: *std.Build) !void {
                 // repeated because you are allowed to rename your imports, which
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
-                .{ .name = "tql_engine_zig", .module = mod },
+                .{ .name = "tql_engine_zig", .module = lib_mod },
                 .{ .name = "goz", .module = goz.module("goz") },
             },
         }),
@@ -337,14 +348,11 @@ pub fn build(b: *std.Build) !void {
     const grammars_str = b.option([]const u8, "grammars", "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)") orelse "none";
     const selection = try parseGrammarNames(b, grammars_str);
     const selected = try selectedGrammars(b, selection);
-    const selected_names = try selectionNames(b, selection);
 
-    const build_options = b.addOptions();
-    build_options.addOption([]const u8, "version", VERSION);
-    build_options.addOption([]const []const u8, "static_grammars", selected_names);
-    mod.addOptions("build_options", build_options);
+    const lib_build_options = try addLibBuildOptions(b, .none);
+    lib_mod.addOptions("build_options", lib_build_options);
 
-    try addEngineDeps(b, mod, selected, target, optimize);
+    try addEngineDeps(b, lib_mod, selected, target, optimize);
 
     const grammars_step = b.step("grammars", "Build shared libraries for the selected grammars");
     for (selected) |g| {
@@ -365,7 +373,7 @@ pub fn build(b: *std.Build) !void {
         .target = wasm_target,
         .optimize = wasm_optimize,
     });
-    wasm_mod.addOptions("build_options", build_options);
+    wasm_mod.addOptions("build_options", lib_build_options);
     try addEngineDeps(b, wasm_mod, selected, wasm_target, wasm_optimize);
 
     const wasm_exe = b.addExecutable(.{
@@ -385,6 +393,41 @@ pub fn build(b: *std.Build) !void {
     const wasm_step = b.step("wasm", "Build the wasm artifact");
     const wasm_install = b.addInstallArtifact(wasm_exe, .{});
     wasm_step.dependOn(&wasm_install.step);
+
+    const test_grammar_selection = GrammarSelection.available;
+    const test_grammars = try selectedGrammars(b, test_grammar_selection);
+    const test_lib_mod = b.addModule("tql_engine_zig_test", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const test_lib_build_options = try addLibBuildOptions(b, test_grammar_selection);
+    test_lib_mod.addOptions("build_options", test_lib_build_options);
+    try addEngineDeps(b, test_lib_mod, test_grammars, target, optimize);
+
+    const mod_tests = b.addTest(.{
+        .root_module = test_lib_mod,
+    });
+
+    const snapshot_runner_exe = b.addExecutable(.{
+        .name = "snapshot-runner",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/snapshot_runner.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "engine", .module = test_lib_mod },
+                .{ .name = "goz", .module = goz.module("goz") },
+            },
+        }),
+    });
+    const snapshot_runner_tests = b.addTest(.{
+        .root_module = snapshot_runner_exe.root_module,
+    });
+    const run_snapshot_runner = b.addRunArtifact(snapshot_runner_exe);
+    if (b.args) |args| run_snapshot_runner.addArgs(args);
+    const snapshot_test_step = b.step("snapshot-test", "Run inline corpus snapshot tests");
+    snapshot_test_step.dependOn(&run_snapshot_runner.step);
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).
@@ -415,26 +458,6 @@ pub fn build(b: *std.Build) !void {
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.
-    const forced_grammars = try selectedGrammars(b, .{ .subset = &.{ "c", "typescript" } });
-
-    const test_build_options = b.addOptions();
-    test_build_options.addOption([]const u8, "version", VERSION);
-    test_build_options.addOption([]const []const u8, "static_grammars", &.{ "c", "typescript" });
-
-    const test_mod = b.addModule("tql_engine_zig_test", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    test_mod.addOptions("build_options", test_build_options);
-    try addEngineDeps(b, test_mod, forced_grammars, target, optimize);
-
-    const mod_tests = b.addTest(.{
-        .root_module = test_mod,
-    });
-
-    // A run step that will run the test executable.
-    const run_mod_tests = b.addRunArtifact(mod_tests);
 
     // Creates an executable that will run `test` blocks from the executable's
     // root module. Note that test executables only test one module at a time,
@@ -444,7 +467,9 @@ pub fn build(b: *std.Build) !void {
     });
 
     // A run step that will run the second test executable.
+    const run_mod_tests = b.addRunArtifact(mod_tests);
     const run_exe_tests = b.addRunArtifact(exe_tests);
+    const run_snapshot_runner_tests = b.addRunArtifact(snapshot_runner_tests);
 
     // A top level step for running all tests. dependOn can be called multiple
     // times and since the two run steps do not depend on one another, this will
@@ -452,22 +477,7 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
-
-    const snapshot_runner_mod = b.createModule(.{
-        .root_source_file = b.path("tests/snapshot_runner.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    snapshot_runner_mod.addImport("engine", test_mod);
-    snapshot_runner_mod.addImport("goz", b.dependency("goz", .{}).module("goz"));
-    const snapshot_runner_exe = b.addExecutable(.{
-        .name = "snapshot-runner",
-        .root_module = snapshot_runner_mod,
-    });
-    const run_snapshot_runner = b.addRunArtifact(snapshot_runner_exe);
-    if (b.args) |args| run_snapshot_runner.addArgs(args);
-    const snapshot_test_step = b.step("snapshot-test", "Run inline corpus snapshot tests");
-    snapshot_test_step.dependOn(&run_snapshot_runner.step);
+    test_step.dependOn(&run_snapshot_runner_tests.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //

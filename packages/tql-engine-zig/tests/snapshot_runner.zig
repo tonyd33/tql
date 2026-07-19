@@ -3,61 +3,177 @@ const engine_mod = @import("engine");
 const goz = @import("goz");
 const ts = engine_mod.ts;
 const corpus_parser = @import("corpus_parser.zig");
-const snapshot_utils = @import("snapshot_utils.zig");
+const fmt = @import("fmt.zig");
 
 const Parser = engine_mod.Parser;
 const Compiler = engine_mod.Compiler;
-const RuntimeMod = engine_mod.Runtime;
+const Runtime = engine_mod.Runtime.Runtime;
 const GrammarRegistry = engine_mod.GrammarRegistry;
 const Value = engine_mod.Value;
 
+const SectionKind = corpus_parser.SectionKind;
+
 const DEFAULT_CORPUS_DIR = "tests/corpus";
 
-const c = struct {
-    const reset = "\x1b[0m";
-    const bold = "\x1b[1m";
-    const dim = "\x1b[2m";
-    const green = "\x1b[32m";
-    const red = "\x1b[31m";
-    const yellow = "\x1b[33m";
-    const cyan = "\x1b[36m";
-    const green_bold = "\x1b[1;32m";
-    const red_bold = "\x1b[1;31m";
-    const yellow_bold = "\x1b[1;33m";
+const ansi = fmt.ansi;
+
+const COMPARABLE_SECTIONS = [_]SectionKind{
+    .tql_tree,
+    .source_tree,
+    .bytecode,
+    .values,
 };
 
-const UpdateSections = struct {
-    tql_ast: bool = false,
-    bytecode: bool = false,
-    values: bool = false,
+const CompareSections = struct {
+    const Fields = blk: {
+        var names: [COMPARABLE_SECTIONS.len][]const u8 = undefined;
+        for (COMPARABLE_SECTIONS, 0..) |kind, i| names[i] = @tagName(kind);
+        const default: bool = false;
+        break :blk @Struct(
+            .auto,
+            null,
+            &names,
+            &@as([COMPARABLE_SECTIONS.len]type, @splat(bool)),
+            &@splat(.{ .default_value_ptr = @ptrCast(&default) }),
+        );
+    };
 
-    fn all() UpdateSections {
-        return .{ .tql_ast = true, .bytecode = true, .values = true };
+    fields: Fields = .{},
+
+    fn get(self: CompareSections, comptime kind: SectionKind) bool {
+        return @field(self.fields, @tagName(kind));
+    }
+
+    fn addAll(self: *CompareSections) void {
+        inline for (COMPARABLE_SECTIONS) |kind| {
+            @field(self.fields, @tagName(kind)) = true;
+        }
+    }
+
+    fn addSection(self: *CompareSections, s: []const u8) !void {
+        inline for (COMPARABLE_SECTIONS) |kind| {
+            if (std.mem.eql(u8, s, @tagName(kind))) {
+                @field(self.fields, @tagName(kind)) = true;
+                return;
+            }
+        }
+        return error.NoSuchSection;
     }
 };
 
 const Options = struct {
     help: bool = false,
-    update: UpdateSections = .{},
-    filter: ?[]const u8 = null,
+    update: CompareSections = .{},
+    file_name: ?[]const u8 = null,
+    include: ?[]const u8 = null,
     corpus_dir: []const u8 = DEFAULT_CORPUS_DIR,
     fail_fast: bool = false,
     color: bool = true,
 };
 
-const ActualOutputs = struct {
-    source_ast: []const u8,
-    tql_ast: []const u8,
-    bytecode: []const u8,
-    values: []const u8,
+const TestOutputs = blk: {
+    var names: [COMPARABLE_SECTIONS.len][]const u8 = undefined;
+    for (COMPARABLE_SECTIONS, 0..) |kind, i| names[i] = @tagName(kind);
+    break :blk @Struct(
+        .auto,
+        null,
+        &names,
+        &@as([COMPARABLE_SECTIONS.len]type, @splat([]const u8)),
+        &@splat(.{}),
+    );
+};
 
-    fn deinit(self: *ActualOutputs, allocator: std.mem.Allocator) void {
-        allocator.free(self.source_ast);
-        allocator.free(self.tql_ast);
-        allocator.free(self.bytecode);
-        allocator.free(self.values);
+const CaseResult = enum { passed, failed, skipped, modified };
+
+const FileResult = struct {
+    passed: u32,
+    failed: u32,
+    skipped: u32,
+    failed_fast: bool,
+};
+
+const DiffEntry = struct {
+    group: []const u8,
+    case_name: []const u8,
+    section: []const u8,
+    expected: []const u8,
+    actual: []const u8,
+};
+
+const TestRunContext = struct {
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    opts: Options,
+    diffs: std.ArrayList(DiffEntry),
+
+    fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options) TestRunContext {
+        return .{
+            .gpa = gpa,
+            .stdout = stdout,
+            .opts = opts,
+            .diffs = .empty,
+        };
+    }
+
+    fn deinit(self: *TestRunContext) void {
+        for (self.diffs.items) |d| {
+            self.gpa.free(d.group);
+            self.gpa.free(d.case_name);
+            self.gpa.free(d.expected);
+            self.gpa.free(d.actual);
+        }
+        self.diffs.deinit(self.gpa);
+    }
+
+    fn addDiff(
+        self: *TestRunContext,
+        group: []const u8,
+        case_name: []const u8,
+        section: []const u8,
+        expected: []const u8,
+        actual: []const u8,
+    ) !void {
+        try self.diffs.append(self.gpa, .{
+            .group = try self.gpa.dupe(u8, group),
+            .case_name = try self.gpa.dupe(u8, case_name),
+            .section = section,
+            .expected = try self.gpa.dupe(u8, expected),
+            .actual = try self.gpa.dupe(u8, actual),
+        });
     }
 };
+
+pub fn dictionarySort(
+    comptime T: type,
+    comptime lessThanFn: fn (void, T, T) bool,
+) fn (void, []const T, []const T) bool {
+    return struct {
+        pub fn inner(_: void, a: []const T, b: []const T) bool {
+            var ord = std.math.Order.eq;
+            var i: usize = 0;
+            const upper = @min(a.len, b.len);
+            while (ord == std.math.Order.eq and i < upper) {
+                ord = if (a[i] == b[i])
+                    std.math.Order.eq
+                else if (lessThanFn({}, a[i], b[i]))
+                    std.math.Order.lt
+                else
+                    std.math.Order.gt;
+                i += 1;
+            }
+            return switch (ord) {
+                .eq => if (a.len == b.len)
+                    false
+                else if (a.len > b.len)
+                    true
+                else
+                    false,
+                .lt => true,
+                .gt => false,
+            };
+        }
+    }.inner;
+}
 
 pub fn main(init: std.process.Init) !u8 {
     const gpa = init.gpa;
@@ -79,188 +195,44 @@ pub fn main(init: std.process.Init) !u8 {
         return 0;
     }
 
-    // Auto-detect color support from stdout.
     if (opts.color) {
         opts.color = try std.Io.File.stdout().isTty(io);
     }
 
-    var total: u32 = 0;
+    var ctx = TestRunContext.init(gpa, stdout, opts);
+    defer ctx.deinit();
+
     var passed: u32 = 0;
     var failed: u32 = 0;
     var skipped: u32 = 0;
 
-    const cwd = std.Io.Dir.cwd();
-    var corpus_dir = try cwd.openDir(io, opts.corpus_dir, .{ .iterate = true });
-    defer corpus_dir.close(io);
-
-    var corpus_files: std.ArrayList([]const u8) = .empty;
+    const corpus_files = try collectCorpusFiles(gpa, io, opts.corpus_dir);
     defer {
-        for (corpus_files.items) |f| gpa.free(f);
-        corpus_files.deinit(gpa);
+        for (corpus_files) |f| gpa.free(f);
+        gpa.free(corpus_files);
     }
 
-    var dir_iter = corpus_dir.iterate();
-    while (try dir_iter.next(io)) |entry| {
-        if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.name, ".txt")) continue;
-        try corpus_files.append(gpa, try gpa.dupe(u8, entry.name));
-    }
-
-    std.mem.sortUnstable([]const u8, corpus_files.items, {}, struct {
-        fn lessThan(_: void, a: []const u8, b: []const u8) bool {
-            return std.mem.lessThan(u8, a, b);
+    for (corpus_files) |filename| {
+        if (opts.file_name) |name| {
+            const stem = filename[0 .. filename.len - 4];
+            if (!std.mem.eql(u8, stem, name) and !std.mem.eql(u8, filename, name)) continue;
         }
-    }.lessThan);
-
-    var failed_fast = false;
-    for (corpus_files.items) |filename| {
-        const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ opts.corpus_dir, filename });
-        defer gpa.free(path);
-
-        const content = try cwd.readFileAlloc(io, path, gpa, .limited(10 * 1024 * 1024));
-        defer gpa.free(content);
-
-        var corpus = try corpus_parser.parse(gpa, content);
-        defer corpus.deinit();
-
-        // Strip .txt suffix for display.
-        const group = if (std.mem.endsWith(u8, filename, ".txt"))
-            filename[0 .. filename.len - 4]
-        else
-            filename;
-
-        var file_modified = false;
-        var file_header_printed = false;
-
-        for (corpus.cases) |*tc| {
-            if (opts.filter) |f| {
-                if (std.mem.indexOf(u8, tc.name, f) == null) {
-                    skipped += 1;
-                    continue;
-                }
-            }
-
-            total += 1;
-
-            if (!file_header_printed) {
-                if (opts.color) {
-                    try stdout.print("\n{s}{s}{s}\n", .{ c.bold, group, c.reset });
-                } else {
-                    try stdout.print("\n{s}\n", .{group});
-                }
-                file_header_printed = true;
-            }
-
-            var actual = runTestCase(gpa, tc.*) catch |err| {
-                if (opts.color) {
-                    try stdout.print("  {s}✗{s} {s} {s}({s}){s}\n", .{ c.red_bold, c.reset, tc.name, c.dim, @errorName(err), c.reset });
-                } else {
-                    try stdout.print("  FAIL {s} ({})\n", .{ tc.name, err });
-                }
-                failed += 1;
-                if (opts.fail_fast) {
-                    failed_fast = true;
-                    break;
-                }
-                continue;
-            };
-            defer actual.deinit(gpa);
-
-            var test_failed = false;
-            var test_modified = false;
-
-            // source_ast is always auto-updated, never causes a test failure.
-            if (tc.source_ast == null or !std.mem.eql(u8, tc.source_ast.?, actual.source_ast)) {
-                if (tc.source_ast) |s| gpa.free(s);
-                tc.source_ast = try gpa.dupe(u8, actual.source_ast);
-                test_modified = true;
-                file_modified = true;
-            }
-
-            const Section = struct {
-                name: []const u8,
-                actual: []const u8,
-                expected: *?[]const u8,
-                update: bool,
-            };
-            const sections = [_]Section{
-                .{ .name = "tql ast", .actual = actual.tql_ast, .expected = &tc.expected_tql_ast, .update = opts.update.tql_ast },
-                .{ .name = "bytecode", .actual = actual.bytecode, .expected = &tc.expected_bytecode, .update = opts.update.bytecode },
-                .{ .name = "values", .actual = actual.values, .expected = &tc.expected_values, .update = opts.update.values },
-            };
-
-            for (sections) |sec| {
-                if (sec.expected.*) |exp| {
-                    if (!std.mem.eql(u8, exp, sec.actual)) {
-                        if (sec.update) {
-                            gpa.free(exp);
-                            sec.expected.* = try gpa.dupe(u8, sec.actual);
-                            test_modified = true;
-                            file_modified = true;
-                        } else {
-                            if (!test_failed) {
-                                if (opts.color) {
-                                    try stdout.print("  {s}✗{s} {s}\n", .{ c.red_bold, c.reset, tc.name });
-                                } else {
-                                    try stdout.print("  FAIL {s}\n", .{tc.name});
-                                }
-                                test_failed = true;
-                            }
-                            try printDiff(stdout, sec.name, exp, sec.actual, opts.color);
-                        }
-                    }
-                } else {
-                    sec.expected.* = try gpa.dupe(u8, sec.actual);
-                    test_modified = true;
-                    file_modified = true;
-                }
-            }
-
-            if (test_failed) {
-                failed += 1;
-            } else if (test_modified) {
-                if (opts.color) {
-                    try stdout.print("  {s}~{s} {s}\n", .{ c.yellow_bold, c.reset, tc.name });
-                } else {
-                    try stdout.print("  UPDATED {s}\n", .{tc.name});
-                }
-                passed += 1;
-            } else {
-                if (opts.color) {
-                    try stdout.print("  {s}✓{s} {s}\n", .{ c.green, c.reset, tc.name });
-                } else {
-                    try stdout.print("  PASS {s}\n", .{tc.name});
-                }
-                passed += 1;
-            }
-
-            if (opts.fail_fast and test_failed) {
-                failed_fast = true;
-                break;
-            }
-        }
-
-        if (file_modified) {
-            var w = std.Io.Writer.Allocating.init(gpa);
-            defer w.deinit();
-            try corpus_parser.serialize(&w.writer, corpus.cases);
-            const bytes = try w.toOwnedSlice();
-            defer gpa.free(bytes);
-            try cwd.writeFile(io, .{ .sub_path = path, .data = bytes });
-        }
-
-        if (failed_fast) break;
+        const result = try testFile(&ctx, io, filename);
+        passed += result.passed;
+        failed += result.failed;
+        skipped += result.skipped;
+        if (result.failed_fast) break;
     }
 
     try stdout.writeByte('\n');
     if (opts.color) {
         if (failed > 0) {
-            try stdout.print("{s}✗ {d} failed{s}", .{ c.red_bold, failed, c.reset });
-            try stdout.print("{s}, {d} passed, {d} skipped{s}\n", .{ c.dim, passed, skipped, c.reset });
+            try stdout.print("{s}✗ {d} failed{s}", .{ ansi.red_bold, failed, ansi.reset });
+            try stdout.print("{s}, {d} passed, {d} skipped{s}\n", .{ ansi.dim, passed, skipped, ansi.reset });
         } else {
-            try stdout.print("{s}✓ {d} passed{s}", .{ c.green_bold, passed, c.reset });
+            try stdout.print("{s}✓ {d} passed{s}", .{ ansi.green_bold, passed, ansi.reset });
             if (skipped > 0) {
-                try stdout.print("{s}, {d} skipped{s}", .{ c.dim, skipped, c.reset });
+                try stdout.print("{s}, {d} skipped{s}", .{ ansi.dim, skipped, ansi.reset });
             }
             try stdout.writeByte('\n');
         }
@@ -268,10 +240,242 @@ pub fn main(init: std.process.Init) !u8 {
         try stdout.print("{d} passed, {d} failed, {d} skipped\n", .{ passed, failed, skipped });
     }
 
+    if (ctx.diffs.items.len > 0) {
+        try stdout.writeByte('\n');
+        var last_group: []const u8 = "";
+        var last_case: []const u8 = "";
+        for (ctx.diffs.items) |d| {
+            if (!std.mem.eql(u8, d.group, last_group)) {
+                if (opts.color) {
+                    try stdout.print("\n{s}{s}{s}\n", .{ ansi.bold, d.group, ansi.reset });
+                } else {
+                    try stdout.print("\n{s}\n", .{d.group});
+                }
+                last_group = d.group;
+                last_case = "";
+            }
+            if (!std.mem.eql(u8, d.case_name, last_case)) {
+                if (opts.color) {
+                    try stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, d.case_name });
+                } else {
+                    try stdout.print("  FAIL {s}\n", .{d.case_name});
+                }
+                last_case = d.case_name;
+            }
+            try printDiff(stdout, d.section, d.expected, d.actual, opts.color);
+        }
+    }
+
     return if (failed > 0) 1 else 0;
 }
 
-fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !ActualOutputs {
+fn collectCorpusFiles(gpa: std.mem.Allocator, io: std.Io, corpus_dir: []const u8) ![][]const u8 {
+    const cwd = std.Io.Dir.cwd();
+    var dir = try cwd.openDir(io, corpus_dir, .{ .iterate = true });
+    defer dir.close(io);
+
+    var files: std.ArrayList([]const u8) = .empty;
+    errdefer {
+        for (files.items) |f| gpa.free(f);
+        files.deinit(gpa);
+    }
+
+    var iter = dir.iterate();
+    while (try iter.next(io)) |entry| {
+        if (entry.kind != .file) continue;
+        if (!std.mem.endsWith(u8, entry.name, ".txt")) continue;
+        try files.append(gpa, try gpa.dupe(u8, entry.name));
+    }
+
+    std.mem.sortUnstable([]const u8, files.items, {}, comptime dictionarySort(u8, std.sort.asc(u8)));
+
+    return files.toOwnedSlice(gpa);
+}
+
+fn testFile(
+    ctx: *TestRunContext,
+    io: std.Io,
+    filename: []const u8,
+) !FileResult {
+    const gpa = ctx.gpa;
+    const cwd = std.Io.Dir.cwd();
+    const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ ctx.opts.corpus_dir, filename });
+    defer gpa.free(path);
+
+    const content = try cwd.readFileAlloc(io, path, gpa, .limited(10 * 1024 * 1024));
+    defer gpa.free(content);
+
+    var corpus = try corpus_parser.parse(gpa, content);
+    defer corpus.deinit();
+
+    const group = filename[0 .. filename.len - 4];
+
+    var result: FileResult = .{ .passed = 0, .failed = 0, .skipped = 0, .failed_fast = false };
+    var file_modified = false;
+    var file_header_printed = false;
+
+    var directives: std.ArrayList(corpus_parser.UpdateDirective) = .empty;
+    defer {
+        for (directives.items) |d| {
+            for (d.sections) |s| gpa.free(s.new_content);
+            gpa.free(d.sections);
+        }
+        directives.deinit(gpa);
+    }
+
+    for (corpus.cases) |tc| {
+        if (ctx.opts.include) |pattern| {
+            // TODO: regex matching
+            if (!std.mem.eql(u8, tc.name, pattern)) {
+                result.skipped += 1;
+                continue;
+            }
+        }
+
+        if (!file_header_printed) {
+            if (ctx.opts.color) {
+                try ctx.stdout.print("\n{s}{s}{s}\n", .{ ansi.bold, group, ansi.reset });
+            } else {
+                try ctx.stdout.print("\n{s}\n", .{group});
+            }
+            file_header_printed = true;
+        }
+
+        var section_updates: std.ArrayList(corpus_parser.SectionUpdate) = .empty;
+        defer section_updates.deinit(gpa);
+
+        const case_result = try testCase(ctx, tc, &section_updates, group);
+        switch (case_result) {
+            .passed, .modified => result.passed += 1,
+            .failed => result.failed += 1,
+            .skipped => result.skipped += 1,
+        }
+
+        if (case_result == .modified) {
+            file_modified = true;
+            try directives.append(gpa, .{
+                .case_name = tc.name,
+                .sections = try section_updates.toOwnedSlice(gpa),
+            });
+        }
+
+        if (ctx.opts.fail_fast and case_result == .failed) {
+            result.failed_fast = true;
+            break;
+        }
+    }
+
+    if (file_modified) {
+        const bytes = try corpus_parser.applyUpdates(gpa, corpus, directives.items);
+        defer gpa.free(bytes);
+        try cwd.writeFile(io, .{ .sub_path = path, .data = bytes });
+    }
+
+    return result;
+}
+
+fn testCase(
+    ctx: *TestRunContext,
+    tc: corpus_parser.TestCase,
+    updates: *std.ArrayList(corpus_parser.SectionUpdate),
+    group: []const u8,
+) !CaseResult {
+    const gpa = ctx.gpa;
+    var test_gpa: std.heap.DebugAllocator(.{}) = .init;
+    const test_alloc = test_gpa.allocator();
+    const actual = runTestCase(test_alloc, tc) catch |err| {
+        _ = test_gpa.deinit();
+        if (ctx.opts.color) {
+            try ctx.stdout.print(
+                "  {s}✗{s} {s} {s}({s}){s}\n",
+                .{ ansi.red_bold, ansi.reset, tc.name, ansi.dim, @errorName(err), ansi.reset },
+            );
+        } else {
+            try ctx.stdout.print("  FAIL {s} ({})\n", .{ tc.name, err });
+        }
+        return .failed;
+    };
+
+    var test_failed = false;
+    var test_modified = false;
+
+    inline for (COMPARABLE_SECTIONS) |kind| {
+        const actual_val = @field(actual, @tagName(kind));
+        const section: corpus_parser.Section = @field(tc, @tagName(kind));
+        const exp = section.content;
+
+        if (exp.len > 0) {
+            if (!std.mem.eql(u8, exp, actual_val)) {
+                if (ctx.opts.update.get(kind)) {
+                    try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
+                    test_modified = true;
+                } else {
+                    if (!test_failed) {
+                        if (ctx.opts.color) {
+                            try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+                        } else {
+                            try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+                        }
+                        test_failed = true;
+                    }
+                    try ctx.addDiff(group, tc.name, kind.name(), exp, actual_val);
+                }
+            }
+        } else if (ctx.opts.update.get(kind)) {
+            try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
+            test_modified = true;
+        } else {
+            if (!test_failed) {
+                if (ctx.opts.color) {
+                    try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+                } else {
+                    try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+                }
+                test_failed = true;
+            }
+            try ctx.addDiff(group, tc.name, kind.name(), "", actual_val);
+        }
+    }
+
+    inline for (COMPARABLE_SECTIONS) |kind| test_alloc.free(@field(actual, @tagName(kind)));
+    const leaked = test_gpa.deinit() == .leak;
+
+    if (leaked) {
+        if (!test_failed) {
+            if (ctx.opts.color) {
+                try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+            } else {
+                try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+            }
+            test_failed = true;
+        }
+        if (ctx.opts.color) {
+            try ctx.stdout.print("    {s}[memory leak]{s}\n", .{ ansi.red, ansi.reset });
+        } else {
+            try ctx.stdout.print("    [memory leak]\n", .{});
+        }
+    }
+
+    if (test_failed) {
+        return .failed;
+    } else if (test_modified) {
+        if (ctx.opts.color) {
+            try ctx.stdout.print("  {s}~{s} {s}\n", .{ ansi.yellow_bold, ansi.reset, tc.name });
+        } else {
+            try ctx.stdout.print("  UPDATED {s}\n", .{tc.name});
+        }
+        return .modified;
+    } else {
+        if (ctx.opts.color) {
+            try ctx.stdout.print("  {s}✓{s} {s}\n", .{ ansi.green, ansi.reset, tc.name });
+        } else {
+            try ctx.stdout.print("  PASS {s}\n", .{tc.name});
+        }
+        return .passed;
+    }
+}
+
+fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !TestOutputs {
     var registry = GrammarRegistry.init(allocator, &.{});
     defer registry.deinit();
     const language = (try registry.get(tc.grammar)).language;
@@ -279,7 +483,7 @@ fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !Actual
     var tql_parser = try Parser.init(allocator);
     defer tql_parser.deinit();
 
-    var ast = try tql_parser.parse(tc.query);
+    var ast = try tql_parser.parse(tc.query.content);
     defer ast.deinit(allocator);
 
     var compiler = Compiler.init(allocator, language);
@@ -292,12 +496,12 @@ fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !Actual
     defer ts_parser.destroy();
 
     try ts_parser.setLanguage(language);
-    const tree = ts_parser.parseString(tc.target, null) orelse return error.ParseFailed;
+    const tree = ts_parser.parseString(tc.target.content, null) orelse return error.ParseFailed;
     defer tree.destroy();
 
-    var rt = RuntimeMod.Runtime.init(.{
+    var rt = Runtime.init(.{
         .tree = tree,
-        .source = tc.target,
+        .source = tc.target.content,
         .instructions = program.instructions,
         .regexes = program.regexes,
         .allocator = allocator,
@@ -313,41 +517,41 @@ fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !Actual
     }
 
     while (try rt.next()) |value| {
-        const enriched = try Value.fromRuntimeValue(allocator, value, tc.target);
+        const enriched = try Value.fromRuntimeValue(allocator, value, tc.target.content);
         try values.append(allocator, enriched);
     }
 
-    const actual_source_ast_raw = try snapshot_utils.formatSourceAst(allocator, tree);
-    defer allocator.free(actual_source_ast_raw);
-    const actual_source_ast = try allocator.dupe(u8, std.mem.trimEnd(u8, actual_source_ast_raw, "\n"));
-    errdefer allocator.free(actual_source_ast);
+    const source_tree_raw = try fmt.formatSourceAst(allocator, tree);
+    defer allocator.free(source_tree_raw);
+    const source_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, source_tree_raw, "\n"));
+    errdefer allocator.free(source_tree);
 
-    const actual_tql_ast_raw = try snapshot_utils.formatAst(allocator, ast);
-    defer allocator.free(actual_tql_ast_raw);
-    const actual_tql_ast = try allocator.dupe(u8, std.mem.trimEnd(u8, actual_tql_ast_raw, "\n"));
-    errdefer allocator.free(actual_tql_ast);
+    const tql_tree_raw = try fmt.formatAst(allocator, ast);
+    defer allocator.free(tql_tree_raw);
+    const tql_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, tql_tree_raw, "\n"));
+    errdefer allocator.free(tql_tree);
 
-    const actual_bytecode_raw = try snapshot_utils.formatBytecode(allocator, program.instructions);
-    defer allocator.free(actual_bytecode_raw);
-    const actual_bytecode = try allocator.dupe(u8, std.mem.trimEnd(u8, actual_bytecode_raw, "\n"));
-    errdefer allocator.free(actual_bytecode);
+    const bytecode_raw = try fmt.formatBytecode(allocator, program.instructions);
+    defer allocator.free(bytecode_raw);
+    const bytecode = try allocator.dupe(u8, std.mem.trimEnd(u8, bytecode_raw, "\n"));
+    errdefer allocator.free(bytecode);
 
-    const actual_values_raw = try snapshot_utils.formatValues(allocator, values.items);
-    defer allocator.free(actual_values_raw);
-    const actual_values = try allocator.dupe(u8, std.mem.trimEnd(u8, actual_values_raw, "\n"));
+    const values_raw = try fmt.formatValues(allocator, values.items);
+    defer allocator.free(values_raw);
+    const actual_values = try allocator.dupe(u8, std.mem.trimEnd(u8, values_raw, "\n"));
     errdefer allocator.free(actual_values);
 
     return .{
-        .source_ast = actual_source_ast,
-        .tql_ast = actual_tql_ast,
-        .bytecode = actual_bytecode,
+        .source_tree = source_tree,
+        .tql_tree = tql_tree,
+        .bytecode = bytecode,
         .values = actual_values,
     };
 }
 
 fn printDiff(writer: *std.Io.Writer, section: []const u8, expected: []const u8, actual: []const u8, color: bool) !void {
     if (color) {
-        try writer.print("    {s}[{s}]{s}\n", .{ c.cyan, section, c.reset });
+        try writer.print("    {s}[{s}]{s}\n", .{ ansi.cyan, section, ansi.reset });
     } else {
         try writer.print("    [{s}]\n", .{section});
     }
@@ -427,21 +631,21 @@ fn printDiff(writer: *std.Io.Writer, section: []const u8, expected: []const u8, 
         switch (entry.op) {
             .keep => {
                 if (color) {
-                    try writer.print("    {s}  {s}{s}\n", .{ c.dim, entry.line, c.reset });
+                    try writer.print("    {s}  {s}{s}\n", .{ ansi.dim, entry.line, ansi.reset });
                 } else {
                     try writer.print("      {s}\n", .{entry.line});
                 }
             },
             .remove => {
                 if (color) {
-                    try writer.print("    {s}- {s}{s}\n", .{ c.red, entry.line, c.reset });
+                    try writer.print("    {s}- {s}{s}\n", .{ ansi.red, entry.line, ansi.reset });
                 } else {
                     try writer.print("    - {s}\n", .{entry.line});
                 }
             },
             .add => {
                 if (color) {
-                    try writer.print("    {s}+ {s}{s}\n", .{ c.green, entry.line, c.reset });
+                    try writer.print("    {s}+ {s}{s}\n", .{ ansi.green, entry.line, ansi.reset });
                 } else {
                     try writer.print("    + {s}\n", .{entry.line});
                 }
@@ -453,8 +657,30 @@ fn printDiff(writer: *std.Io.Writer, section: []const u8, expected: []const u8, 
 
 const cli_opts = .{
     .help = goz.Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
-    .update = goz.Opt{ .names = .{ .long = "update" }, .has_arg = .optional_argument, .meta = "SECTIONS", .description = "Update snapshots: all, tql-ast, bytecode, values (comma-separated); bare --update updates all" },
-    .corpus_dir = goz.Opt{ .names = .{ .long = "corpus-dir" }, .has_arg = .required_argument, .meta = "DIR", .description = "Corpus directory (default: tests/corpus)" },
+    .update = goz.Opt{
+        .names = .{ .long = "update", .short = 'u' },
+        .has_arg = .optional_argument,
+        .meta = "SECTIONS",
+        .description = "Update snapshots: all, source_tree, tql_tree, bytecode, values (comma-separated); bare --update updates all",
+    },
+    .file_name = goz.Opt{
+        .names = .{ .long = "file-name" },
+        .has_arg = .required_argument,
+        .meta = "NAME",
+        .description = "Run only the corpus file with this name (with or without .txt)",
+    },
+    .include = goz.Opt{
+        .names = .{ .long = "include", .short = 'i' },
+        .has_arg = .required_argument,
+        .meta = "PATTERN",
+        .description = "Run only test cases matching this pattern (exact match; TODO: regex)",
+    },
+    .corpus_dir = goz.Opt{
+        .names = .{ .long = "corpus-dir" },
+        .has_arg = .required_argument,
+        .meta = "DIR",
+        .description = "Corpus directory (default: tests/corpus)",
+    },
     .fail_fast = goz.Opt{ .names = .{ .long = "fail-fast" }, .description = "Stop on first failure" },
     .no_color = goz.Opt{ .names = .{ .long = "no-color" }, .description = "Disable color output" },
 };
@@ -462,9 +688,7 @@ const cli_opts = .{
 const snapshot_cmd = .{
     .name = "snapshot-test",
     .opts = cli_opts,
-    .positionals = &[_]goz.Positional{
-        .{ .name = "filter", .required = false },
-    },
+    .positionals = &[_]goz.Positional{},
 };
 
 fn parseArgs(iter: *std.process.Args.Iterator) !Options {
@@ -478,29 +702,32 @@ fn parseArgs(iter: *std.process.Args.Iterator) !Options {
                 .no_color => opts.color = false,
             },
             .named_arg => |kv| switch (kv.field) {
+                .file_name => opts.file_name = kv.value,
+                .include => opts.include = kv.value,
                 .corpus_dir => opts.corpus_dir = kv.value,
             },
             .named_opt => |kv| switch (kv.field) {
                 .update => {
                     if (kv.value) |v| {
                         if (std.mem.eql(u8, v, "all")) {
-                            opts.update = UpdateSections.all();
+                            opts.update.addAll();
                         } else {
-                            opts.update = .{};
                             var it = std.mem.splitScalar(u8, v, ',');
                             while (it.next()) |s| {
-                                if (std.mem.eql(u8, s, "tql-ast")) opts.update.tql_ast = true;
-                                if (std.mem.eql(u8, s, "bytecode")) opts.update.bytecode = true;
-                                if (std.mem.eql(u8, s, "values")) opts.update.values = true;
+                                try opts.update.addSection(s);
                             }
                         }
                     } else {
-                        opts.update = UpdateSections.all();
+                        opts.update.addAll();
                     }
                 },
             },
-            .positional => |p| opts.filter = p,
+            .positional => {},
         }
     }
     return opts;
+}
+
+test {
+    std.testing.refAllDecls(corpus_parser);
 }

@@ -3,13 +3,13 @@ single variable
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @class | [ @class ]
 --- source ---
 class Foo {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (collect class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -52,13 +52,13 @@ mixed
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @class | [ 'class', @class ]
 --- source ---
 class Foo {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (array (string "class") class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -103,14 +103,15 @@ multiple matches
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @class | [ @class ]
 --- source ---
 class A {}
 class B {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+
+--- tql tree ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (collect class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)

@@ -3,14 +3,14 @@ WHERE with simple comparison
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | @c.name as @n | select(@n | text = 'Service') | @c
 --- source ---
 class Service {}
 class Controller {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (eq (pipe n (call text)) (string "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -60,15 +60,15 @@ WHERE with OR logic
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | @c.name as @n | select(@n | text = 'Service' or @n | text = 'Controller') | @c
 --- source ---
 class Service {}
 class Controller {}
 class Repository {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (or (eq (pipe n (call text)) (string "Service")) (eq (pipe n (call text)) (string "Controller"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -140,7 +140,7 @@ WHERE with AND logic
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c |
 @c.name as @class_name |
 @c.body as @body |
@@ -151,9 +151,9 @@ select(@class_name | text = 'Service' and @method_name | text = 'foo') |
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { foo() {}; bar() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (pipe (bind (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (field c body)) body) (child body (node method_definition))) method_def) (field method_def name)) method_name) (call select (and (eq (pipe class_name (call text)) (string "Service")) (eq (pipe method_name (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -228,14 +228,14 @@ WHERE with any quantifier - matches
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -298,14 +298,14 @@ WHERE with any quantifier - no matches
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'nonexistent')) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "nonexistent"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -353,14 +353,14 @@ WHERE any matches second method only
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
 --- source ---
 class A { bar() {}; foo() {}; }
 class B { bar() {}; baz() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -423,14 +423,14 @@ WHERE with all quantifier
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(all(@c.body > method_definition; .name | text = 'foo')) | @c
 --- source ---
 class A { foo() {}; foo() {}; }
 class B { foo() {}; bar() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call all (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -489,74 +489,19 @@ class B { foo() {}; bar() {}; }
 ]
 
 ================================================================================
-WHERE field access on outer row
-================================================================================
-grammar: typescript
-
---- query ---
-. > class_declaration as @c | select(@c.name | text = 'Service') | @c
---- source ---
-class Service {}
-class Controller {}
---- source ast ---
-(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq (pipe (field c name) (call text)) (string "Service")))) c))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 0)
-0012: trv field 25
-0013: asn 5 ((current value) value)
-0014: trv value_source (variable_id 5)
-0015: rel equals ((current value) text) (literal string "Service") -> 6
-0016: trv value_source (variable_id 4)
-0017: jmp 19 if (variable_id 6)
-0018: halt
-0019: trv value_source ((current value) value)
-0020: yield
-0021: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Service {}",
-    "start_byte": 0,
-    "end_byte": 16,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 16
-    }
-  }
-]
-
-================================================================================
 WHERE optional binding is null
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > function_declaration as @f | @f.return_type as @rt? | select(@rt = null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- source ast ---
+--- source tree ---
 (program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (eq rt null))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -590,15 +535,15 @@ WHERE optional binding is not null
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > function_declaration as @f | @f.return_type as @rt? | select(@rt != null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- source ast ---
+--- source tree ---
 (program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (ne rt null))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -665,15 +610,15 @@ WHERE expression is null
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > function_declaration as @f | select(@f.return_type is null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- source ast ---
+--- source tree ---
 (program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-null (field f return_type)))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -722,15 +667,15 @@ WHERE expression is not null
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > function_declaration as @f | select(@f.return_type is not null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- source ast ---
+--- source tree ---
 (program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-not-null (field f return_type)))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -793,14 +738,14 @@ WHERE field access with regex match
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name | text ~ /^foo.*/)) | @c
 --- source ---
 class A { foobar() {}; }
 class B { bar() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (regex_match (pipe (dot-field name) (call text)) (regex "^foo.*"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -863,15 +808,15 @@ WHERE field access with not equal
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(@c.name | text != 'Service') | @c
 --- source ---
 class Service {}
 class Controller {}
 class Repository {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (ne (pipe (field c name) (call text)) (string "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -937,15 +882,15 @@ WHERE field access in AND
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(@c.name | text = 'Service' and any(@c.body > method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; }
 class Service { bar() {}; }
 class Other { foo() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Service")) (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo")))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1016,15 +961,15 @@ WHERE same field accessed twice
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(@c.name | text = 'Service' or @c.name | text = 'Controller') | @c
 --- source ---
 class Service {}
 class Controller {}
 class Repository {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (or (eq (pipe (field c name) (call text)) (string "Service")) (eq (pipe (field c name) (call text)) (string "Controller"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1097,7 +1042,7 @@ WHERE quantified regression for double yield
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c |
 @c.name as @class_name |
 select(@class_name | text ~ /Foo.*/ and any(@c.body > method_definition; .return_type != null)) |
@@ -1114,9 +1059,9 @@ class Foo2 {}
 class Foo3 {
   m3() {}
 }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (call select (and (regex_match (pipe class_name (call text)) (regex "Foo.*")) (call any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1197,14 +1142,14 @@ WHERE descendant nav in quantifier source
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c >> method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; }
 class Controller { bar() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1264,14 +1209,14 @@ WHERE child nav in comparison body
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .body > return_statement != null)) | @c
 --- source ---
 class A { foo() { return 1; } }
 class B { bar() {} }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (child (dot-field body) (node return_statement)) null)))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1345,15 +1290,15 @@ WHERE field access in OR with anonymous lift
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo' or .name | text = 'bar')) | @c
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
 class C { baz() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (or (eq (pipe (dot-field name) (call text)) (string "foo")) (eq (pipe (dot-field name) (call text)) (string "bar")))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1440,14 +1385,14 @@ WHERE any with not-null body
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; .name != null)) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1527,14 +1472,14 @@ WHERE with nested any over two sources
 ================================================================================
 grammar: typescript
 
---- query ---
+--- tql ---
 . > class_declaration as @c | select(any(@c.body > method_definition; any(@c.body > method_definition; .name = .name))) | @c
 --- source ---
 class A { foo() {}; bar() {}; }
 class B {}
---- source ast ---
+--- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
---- tql ast ---
+--- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (call any (child (field c body) (node method_definition)) (eq (dot-field name) (dot-field name)))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
