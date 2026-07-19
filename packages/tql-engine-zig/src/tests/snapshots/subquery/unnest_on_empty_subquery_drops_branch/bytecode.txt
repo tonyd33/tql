@@ -1,17 +1,28 @@
-0000: asn 0 (node this)
-0001: trv variable_id 0
-0002: trv child
-0003: rel equals (node kind) (literal kind_id 196)
-0004: halt not_relates
-0005: asn 1 (node this)
-0006: trv variable_id 1
-0007: trv child
-0008: rel equals (node kind) (literal kind_id 278)
-0009: halt not_relates
-0010: asn 2 (node this)
-0011: begin_build record
-0012: push_build fn (variable_id 1)
-0013: push_build g (variable_id 2)
-0014: end_build 3
-0015: yield
-0016: halt always
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv child
+0012: rel equals ((current value) kind) (literal kind_id 278) -> 5
+0013: jmp 15 if (variable_id 5)
+0014: halt
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 6)
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: asn 8 ((current value) value)
+0020: asn 0 (variable_id 8)
+0021: trv value_source (variable_id 0)
+0022: begin_build record
+0023: push_build fn (variable_id 1)
+0024: push_build g (variable_id 0)
+0025: end_build 9
+0026: yield
+0027: halt

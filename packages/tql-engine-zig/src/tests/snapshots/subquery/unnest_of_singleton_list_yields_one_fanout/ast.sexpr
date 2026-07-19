@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node function_definition)) func) (binding (call unnest (subquery (query_body (select (field func declarator))))) d)) (select (object func d))))
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))

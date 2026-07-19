@@ -1,0 +1,1 @@
+(source_file (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (eq (pipe id (call text)) (string "bar")))) id))

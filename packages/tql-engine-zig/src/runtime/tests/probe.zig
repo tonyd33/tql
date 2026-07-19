@@ -3,7 +3,6 @@ const std = @import("std");
 const types = @import("../types.zig");
 const Instruction = types.Instruction;
 const Axis = types.Axis;
-const ProbeMode = types.ProbeMode;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -23,7 +22,7 @@ test "probe: exists with yield - continues after probe" {
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -44,7 +43,7 @@ test "probe: exists with halt - terminates branch" {
     // 2: panic                        // Landmine
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 2 } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
     };
 
@@ -71,9 +70,9 @@ test "probe: exists with traversal that succeeds" {
         Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -97,9 +96,9 @@ test "probe: exists with traversal that fails" {
         Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -122,7 +121,7 @@ test "probe: nexists with yield - terminates branch" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 3 } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
     };
 
@@ -145,9 +144,9 @@ test "probe: nexists with halt - continues after probe" {
     // 3: halt
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 2 } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -172,7 +171,7 @@ test "probe: nexists with traversal that succeeds" {
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
     };
 
@@ -197,7 +196,7 @@ test "probe: nexists with traversal that fails" {
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -224,12 +223,12 @@ test "probe: call inside exists probe" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
         Instruction{ .ret = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -255,9 +254,9 @@ test "probe: halt across boundary" {
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 3 },
         Instruction{ .panic = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -283,10 +282,10 @@ test "probe: exists inside call" {
     const instructions = [_]Instruction{
         Instruction{ .call = 3 },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .ret = {} },
     };
 
@@ -319,7 +318,7 @@ test "probe: nested probes - exists inside exists" {
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -348,10 +347,10 @@ test "probe: nested probes - exists inside nexists" {
         Instruction{ .probe = .{ .data = .exists, .resume_address = 4 } },
         Instruction{ .yield = .{} },
         Instruction{ .panic = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -382,10 +381,10 @@ test "probe: halt inside call inside nexists probe" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 5 },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .ret = {} },
     };
 
@@ -414,9 +413,9 @@ test "probe: halt inside call inside exists probe" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .ret = {} },
         Instruction{ .panic = {} },
     };
@@ -446,7 +445,7 @@ test "probe: trv fails inside call inside exists probe" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 5 } },
         Instruction{ .call = 4 },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .panic = {} },
@@ -477,7 +476,7 @@ test "probe: trv fails inside call inside nexists probe" {
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 5 },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
         Instruction{ .trv = Axis{ .child = {} } },

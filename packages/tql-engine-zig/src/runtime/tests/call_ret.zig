@@ -22,7 +22,7 @@ test "call/ret: basic call and return" {
     const instructions = [_]Instruction{
         Instruction{ .call = 3 },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .noop = {} },
         Instruction{ .ret = {} },
     };
@@ -51,7 +51,7 @@ test "call/ret: yields inside called function" {
     const instructions = [_]Instruction{
         Instruction{ .call = 4 },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
@@ -87,7 +87,7 @@ test "call/ret: nested calls" {
     const instructions = [_]Instruction{
         Instruction{ .call = 4 },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .call = 7 },
         Instruction{ .ret = {} },
@@ -118,7 +118,7 @@ test "call/ret: preserves environment correctly" {
         Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 2 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 3 } } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
         Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "modified" } } } },
         Instruction{ .asn = .{ .variable_id = 3, .source = .{ .literal = Value{ .string = "local" } } } },
         Instruction{ .ret = {} },

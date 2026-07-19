@@ -1,16 +1,1 @@
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 21,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 21
-    }
-  }
-]
+[]

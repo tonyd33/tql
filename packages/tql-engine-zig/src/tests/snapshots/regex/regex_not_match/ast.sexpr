@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) c) (binding (field c name) n)) (where (regex_not_match n (regex "Service"))) (select c)))
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_not_match (pipe n (call text)) (regex "Service")))) c))

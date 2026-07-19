@@ -2,754 +2,547 @@
 simple comparison
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name = 'Controller'
-  select @class
-}
+class_declaration as @class | @class.name as @name | select(@name = 'Controller') | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (string_literal
-                (string_fragment))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (string_literal
+                      content: (string_fragment)))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 regex comparison
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name ~ /.*Service$/
-  select @class
-}
+class_declaration as @class | @class.name as @name | select(@name ~ /.*Service$/) | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (regex_literal
-                (regex_fragment))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (regex_literal
+                      pattern: (regex_fragment)))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 not equal comparison
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name != 'Base'
-  select @class
-}
+class_declaration as @class | @class.name as @name | select(@name != 'Base') | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (string_literal
-                (string_fragment))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (string_literal
+                      content: (string_fragment)))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 logical and
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name = 'Foo' and @name != 'Bar'
-  select @class
-}
+class_declaration as @class | @class.name as @name | select(@name = 'Foo' and @name != 'Bar') | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (logical_and
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (string_literal
-                    (string_fragment)))))
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (string_literal
-                    (string_fragment))))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_and
+                  left: (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))
+                  right: (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 logical or
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name = 'Foo' or @name = 'Bar'
-  select @class
-}
+class_declaration as @class | @class.name as @name | select(@name = 'Foo' or @name = 'Bar') | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (logical_or
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (string_literal
-                    (string_fragment)))))
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (string_literal
-                    (string_fragment))))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_or
+                  left: (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))
+                  right: (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 null equality
 ========================================
 
-query main() {
-  with method_definition as @method,
-       @method.return_type as @return_type?
-  where @return_type = null
-  select @method
-}
+method_definition as @method | @method.return_type as @return_type? | select(@return_type = null) | @method
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (null_literal)))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (null_literal))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 complex logical expression
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name,
-       @class.decorator as @decorator?
-  where (@name = 'Foo' or @name = 'Bar') and @decorator = null
-  select @class
-}
+class_declaration as @class | @class.name as @name | @class.decorator as @decorator? | select((@name = 'Foo' or @name = 'Bar') and @decorator = null) | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (logical_and
-            (predicate
-              (parenthesized_predicate
-                (predicate
-                  (logical_or
-                    (predicate
-                      (comparison
-                        (expression
-                          (variable
-                            (identifier)))
-                        (expression
-                          (string_literal
-                            (string_fragment)))))
-                    (predicate
-                      (comparison
-                        (expression
-                          (variable
-                            (identifier)))
-                        (expression
-                          (string_literal
-                            (string_fragment)))))))))
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (null_literal)))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (pipe_expression
+                          left: (expression
+                            (bind_expression
+                              expression: (expression
+                                (function_call
+                                  name: (identifier)))
+                              variable: (variable
+                                (identifier))))
+                          right: (expression
+                            (field_access
+                              base: (expression
+                                (variable
+                                  (identifier)))
+                              field: (identifier)))))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (logical_and
+                  left: (expression
+                    (parenthesized
+                      (expression
+                        (logical_or
+                          left: (expression
+                            (comparison
+                              left: (expression
+                                (variable
+                                  (identifier)))
+                              right: (expression
+                                (string_literal
+                                  content: (string_fragment)))))
+                          right: (expression
+                            (comparison
+                              left: (expression
+                                (variable
+                                  (identifier)))
+                              right: (expression
+                                (string_literal
+                                  content: (string_fragment)))))))))
+                  right: (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (null_literal))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
-========================================
-existential quantifier
-========================================
-
-query main() {
-  with class_declaration as @class
-  where any @m in @class.body > method_definition: @m.decorator != null
-  select @class
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (quantified_expression
-            (variable
-              (identifier))
-            (expression
-              (child_navigation
-                (expression
-                  (field_access
-                    (expression
-                      (variable
-                        (identifier)))
-                    (identifier)))
-                (expression
-                  (node_selector
-                    (identifier)))))
-            (predicate
-              (comparison
-                (expression
-                  (field_access
-                    (expression
-                      (variable
-                        (identifier)))
-                    (identifier)))
-                (expression
-                  (null_literal)))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-universal quantifier
-========================================
-
-query main() {
-  with class_declaration as @class
-  where all @m in @class.body > method_definition: @m.return_type != null
-  select @class
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (quantified_expression
-            (variable
-              (identifier))
-            (expression
-              (child_navigation
-                (expression
-                  (field_access
-                    (expression
-                      (variable
-                        (identifier)))
-                    (identifier)))
-                (expression
-                  (node_selector
-                    (identifier)))))
-            (predicate
-              (comparison
-                (expression
-                  (field_access
-                    (expression
-                      (variable
-                        (identifier)))
-                    (identifier)))
-                (expression
-                  (null_literal)))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-nested any quantifier
-========================================
-
-query main() {
-  with class_declaration as @class
-  where any @d in @class.decorator:
-          any @m in @class.body > method_definition:
-            @d.name = @m.name
-  select @class
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (quantified_expression
-            (variable
-              (identifier))
-            (expression
-              (field_access
-                (expression
-                  (variable
-                    (identifier)))
-                (identifier)))
-            (predicate
-              (quantified_expression
-                (variable
-                  (identifier))
-                (expression
-                  (child_navigation
-                    (expression
-                      (field_access
-                        (expression
-                          (variable
-                            (identifier)))
-                        (identifier)))
-                    (expression
-                      (node_selector
-                        (identifier)))))
-                (predicate
-                  (comparison
-                    (expression
-                      (field_access
-                        (expression
-                          (variable
-                            (identifier)))
-                        (identifier)))
-                    (expression
-                      (field_access
-                        (expression
-                          (variable
-                            (identifier)))
-                        (identifier))))))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
 
 ========================================
 parenthesized predicate
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where (@name = 'Foo')
-  select @class
-}
+class_declaration as @class | @class.name as @name | select((@name = 'Foo')) | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (parenthesized_predicate
-            (predicate
-              (comparison
-                (expression
-                  (variable
-                    (identifier)))
-                (expression
-                  (string_literal
-                    (string_fragment))))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (parenthesized
+                  (expression
+                    (comparison
+                      left: (expression
+                        (variable
+                          (identifier)))
+                      right: (expression
+                        (string_literal
+                          content: (string_fragment)))))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 null inequality
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.decorator as @decorator?
-  where @decorator != null
-  select @class
-}
+class_declaration as @class | @class.decorator as @decorator? | select(@decorator != null) | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (null_literal)))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (null_literal))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 is null predicate
 ========================================
 
-query main() {
-  with method_definition as @m
-  where @m.return_type is null
-  select @m
-}
+method_definition as @m | select(@m.return_type is null) | @m
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (is_null_predicate
-            (expression
-              (field_access
-                (expression
-                  (variable
-                    (identifier)))
-                (identifier)))
-            (null_literal))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (function_call
+                  name: (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (is_null_expr
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  (null_literal)))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 is not null predicate
 ========================================
 
-query main() {
-  with method_definition as @m
-  where @m.return_type is not null
-  select @m
-}
+method_definition as @m | select(@m.return_type is not null) | @m
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (is_null_predicate
-            (expression
-              (field_access
-                (expression
-                  (variable
-                    (identifier)))
-                (identifier)))
-            (null_literal))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (function_call
+                  name: (identifier)))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (is_null_expr
+                  expression: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  (null_literal)))))))
+      right: (expression
+        (variable
+          (identifier))))))

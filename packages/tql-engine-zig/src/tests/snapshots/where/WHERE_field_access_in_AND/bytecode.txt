@@ -1,33 +1,45 @@
-0000: asn 0 (node this)
-0001: trv variable_id 0
-0002: trv child
-0003: rel equals (node kind) (literal kind_id 221)
-0004: halt not_relates
-0005: asn 1 (node this)
-0006: trv variable_id 1
-0007: trv field 25
-0008: asn 2 (node this)
-0009: trv variable_id 2
-0010: rel equals (node text) (literal string "Service")
-0011: jmp relates 13
-0012: jmp always 30
-0013: probe exists 29
-0014: trv variable_id 1
-0015: trv field 5
-0016: trv child
-0017: rel equals (node kind) (literal kind_id 261)
-0018: halt not_relates
-0019: asn 3 (node this)
-0020: trv variable_id 3
-0021: trv field 25
-0022: asn 4 (node this)
-0023: trv variable_id 4
-0024: rel equals (node text) (literal string "foo")
-0025: jmp relates 27
-0026: jmp always 28
-0027: yield
-0028: halt always
-0029: jmp always 31
-0030: halt always
-0031: yield
-0032: halt always
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 (literal bool false)
+0012: trv value_source (variable_id 0)
+0013: trv field 25
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 6)
+0016: rel equals ((current value) text) (literal string "Service") -> 7
+0017: jmp 39 if not (variable_id 7)
+0018: probe exists 38
+0019: trv value_source (variable_id 0)
+0020: trv field 5
+0021: asn 8 ((current value) value)
+0022: trv value_source (variable_id 8)
+0023: trv child
+0024: rel equals ((current value) kind) (literal kind_id 261) -> 9
+0025: jmp 27 if (variable_id 9)
+0026: halt
+0027: asn 10 ((current value) value)
+0028: trv value_source (variable_id 10)
+0029: asn 11 ((current value) value)
+0030: trv value_source (variable_id 11)
+0031: trv field 25
+0032: asn 12 ((current value) value)
+0033: trv value_source (variable_id 12)
+0034: rel equals ((current value) text) (literal string "foo") -> 13
+0035: jmp 37 if not (variable_id 13)
+0036: yield
+0037: halt
+0038: asn 5 (literal bool true)
+0039: trv value_source (variable_id 4)
+0040: jmp 42 if (variable_id 5)
+0041: halt
+0042: trv value_source ((current value) value)
+0043: yield
+0044: halt

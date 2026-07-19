@@ -2,317 +2,255 @@
 field access
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  select @name
-}
+class_declaration as @class | @class.name as @name | @name
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 chained field access
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.decorator.identifier as @name
-  select @name
-}
+class_declaration as @class | @class.decorator.identifier as @name | @name
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
-                  (expression
-                    (variable
-                      (identifier)))
-                  (identifier)))
-              (identifier)))
-          (variable
+                  base: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  field: (identifier)))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 child navigation
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class > method_definition as @method
-  select @method
-}
+class_declaration as @class | @class > method_definition as @method | @method
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (child_navigation
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (child_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  child: (node_selector
+                    (identifier))))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-descendant navigation with ::
-========================================
-
-query main() {
-  with class_declaration as @class,
-       @class descendant::call_expression as @call
-  select @call
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (descendant_navigation
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 descendant navigation with >>
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class >> call_expression as @call
-  select @call
-}
+class_declaration as @class | @class >> call_expression as @call | @call
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (descendant_navigation
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (descendant_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  descendant: (node_selector
+                    (identifier))))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
 complex navigation
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.decorator > call_expression.identifier as @name
-  select @name
-}
+class_declaration as @class | @class.decorator > call_expression.identifier as @name | @name
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (child_navigation
-                  (expression
-                    (field_access
-                      (expression
-                        (variable
-                          (identifier)))
-                      (identifier)))
-                  (expression
-                    (node_selector
-                      (identifier)))))
-              (identifier)))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (field_access
+                  base: (expression
+                    (child_navigation
+                      parent: (expression
+                        (field_access
+                          base: (expression
+                            (variable
+                              (identifier)))
+                          field: (identifier)))
+                      child: (node_selector
+                        (identifier))))
+                  field: (identifier)))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-query call in navigation
-========================================
-
-query helper(@x: class_declaration) {
-  with @x.name as @name
-  select @name
-}
-
-query main() {
-  with class_declaration as @class,
-       helper(@class) as @result
-  select @result
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters
-      (parameter
+      right: (expression
         (variable
-          (identifier))
-        (type
-          (identifier))))
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier)))))))
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
+          (identifier))))))
+
+========================================
+function call in navigation
+========================================
+
+def helper(@x): @x.name;
+
+class_declaration as @class | helper(@class) as @result | @result
+
+---
+
+(source_file
+  (function_definition
+    name: (identifier)
+    parameters: (def_parameters
+      (variable
+        (identifier)))
+    body: (expression
+      (field_access
+        base: (expression
           (variable
             (identifier)))
-        (binding
-          (expression
-            (function_call
-              (identifier)
-              (expression
-                (variable
-                  (identifier)))))
-          (variable
+        field: (identifier))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (function_call
+                  name: (identifier)
+                  argument: (expression
+                    (variable
+                      (identifier)))))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+identity operator (bare dot)
+========================================
+
+.
+
+---
+
+(source_file
+  (expression
+    (identity)))
+
+========================================
+identity pipe identity
+========================================
+
+. | .
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (identity))
+      right: (expression
+        (identity)))))

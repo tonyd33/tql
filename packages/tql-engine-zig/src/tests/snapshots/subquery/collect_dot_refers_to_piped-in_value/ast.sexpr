@@ -1,0 +1,1 @@
+(source_file (pipe (child . (node function_definition)) (object (fn .) (params (collect (descendant . (node parameter_declaration)))))))

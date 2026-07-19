@@ -5,7 +5,7 @@ const types = @import("../types.zig");
 const Instruction = types.Instruction;
 const Axis = types.Axis;
 const ValueSource = types.ValueSource;
-const NodeValueSource = types.NodeValueSource;
+const CurrentValueSource = types.CurrentValueSource;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -20,7 +20,7 @@ test "trv: children depth 1" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -39,7 +39,7 @@ test "trv: children depth 2" {
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -58,7 +58,7 @@ test "trv: descendants" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .descendant = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -87,7 +87,7 @@ test "trv: descendants with child" {
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .descendant = {} } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -120,7 +120,7 @@ test "trv: field" {
         Instruction{ .trv = Axis{ .child = {} } }, // Get function_definition
         Instruction{ .trv = Axis{ .field = declarator_field_id } }, // Get declarator field
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -142,7 +142,7 @@ test "trv: field with multiple declarations" {
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .trv = Axis{ .field = declarator_field_id } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -164,13 +164,13 @@ test "trv: variable_id with node" {
         Instruction{
             .asn = .{
                 .variable_id = 1,
-                .source = ValueSource{ .node = NodeValueSource.this }, // Save current node
+                .source = ValueSource{ .current = CurrentValueSource.value }, // Save current value
             },
         },
         Instruction{ .trv = Axis{ .descendant = {} } }, // Navigate away to descendants
-        Instruction{ .trv = Axis{ .variable_id = 1 } }, // trv back to the stored node
+        Instruction{ .trv = Axis{ .value_source = ValueSource{ .variable_id = 1 } } }, // trv back to the stored node
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -194,9 +194,9 @@ test "trv: variable_id with missing variable" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .trv = Axis{ .variable_id = 999 } }, // Variable doesn't exist
+        Instruction{ .trv = Axis{ .value_source = ValueSource{ .variable_id = 999 } } }, // Variable doesn't exist
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -212,7 +212,7 @@ test "trv: empty node has no children" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -228,7 +228,7 @@ test "trv: empty traversal then yield" {
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
         Instruction{ .yield = .{} }, // This should not execute
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -243,7 +243,7 @@ test "trv: empty traversal with halt after" {
 
     const instructions = [_]Instruction{
         Instruction{ .trv = Axis{ .child = {} } }, // Try to get children (none exist)
-        Instruction{ .halt = .{} }, // This should not execute
+        Instruction{ .halt = {} }, // This should not execute
         Instruction{ .yield = .{} },
     };
 

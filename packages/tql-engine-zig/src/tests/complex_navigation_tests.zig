@@ -3,9 +3,7 @@ const Snapshotter = @import("snapshotter.zig");
 test "nested field access" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.body > method_definition.name as @nested_name
-        \\select @nested_name
+        \\. > class_declaration as @c | @c.body > method_definition.name as @nested_name | @nested_name
         ,
         .target =
         \\class Service {
@@ -18,8 +16,7 @@ test "nested field access" {
 test "field access on node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration.name as @name
-        \\select @name
+        \\. > class_declaration.name as @name | @name
         ,
         .target =
         \\class Service {}
@@ -31,9 +28,7 @@ test "field access on node selector" {
 test "child navigation with field access parent" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.body > method_definition as @method
-        \\select @method
+        \\. > class_declaration as @c | @c.body > method_definition as @method | @method
         ,
         .target =
         \\class Service {
@@ -47,8 +42,7 @@ test "child navigation with field access parent" {
 test "child navigation on node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration.body > method_definition as @method
-        \\select @method
+        \\. > class_declaration.body > method_definition as @method | @method
         ,
         .target =
         \\class Service {
@@ -65,9 +59,7 @@ test "child navigation on node selector" {
 test "descendant navigation with field access parent" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.body >> property_identifier as @id
-        \\select @id
+        \\. > class_declaration as @c | @c.body >> property_identifier as @id | @id
         ,
         .target =
         \\class Service {
@@ -81,8 +73,7 @@ test "descendant navigation with field access parent" {
 test "descendant navigation on node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with (@root > class_declaration) >> property_identifier as @id
-        \\select @id
+        \\. > class_declaration >> property_identifier as @id | @id
         ,
         .target =
         \\class Service {
@@ -98,9 +89,7 @@ test "descendant navigation on node selector" {
 test "nested child navigation" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     (@c > class_body) > method_definition as @method
-        \\select @method
+        \\. > class_declaration as @c | @c > class_body > method_definition as @method | @method
         ,
         .target =
         \\class Service {

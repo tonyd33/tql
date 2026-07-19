@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child (child root (node class_declaration)) (node class_body)) body) (binding (child body (node method_definition)) m)) (select m)))
+(source_file (pipe (bind (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (child body (node method_definition))) m) m))

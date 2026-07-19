@@ -3,8 +3,7 @@ const Snapshotter = @import("snapshotter.zig");
 test "pair" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @class
-        \\select ('class', @class)
+        \\. > class_declaration as @class | ('class', @class)
         ,
         .target = "class Foo {}",
     });
@@ -13,9 +12,7 @@ test "pair" {
 test "triple" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @class,
-        \\     @class.name as @name
-        \\select ('class', @name, @class)
+        \\. > class_declaration as @class | @class.name as @name | ('class', @name, @class)
         ,
         .target = "class Foo {}",
     });

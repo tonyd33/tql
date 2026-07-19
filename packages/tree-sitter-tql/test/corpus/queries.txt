@@ -1,293 +1,176 @@
 ========================================
-simple query
+simple pipeline
 ========================================
 
-query main() {
-  with class_declaration as @class
-  select @class
-}
+class_declaration as @class | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (function_call
+              name: (identifier)))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-query with with and where
-========================================
-
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  where @name = 'Controller'
-  select @class
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
-              (variable
-                (identifier)))
-            (expression
-              (string_literal
-                (string_fragment))))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-query with parameters
-========================================
-
-query find_methods(@class: class_declaration) {
-  with @class.body > method_definition as @method
-  select @method
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters
-      (parameter
+      right: (expression
         (variable
-          (identifier))
-        (type
-          (identifier))))
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (child_navigation
-              (expression
-                (field_access
-                  (expression
+          (identifier))))))
+
+========================================
+pipeline with filter
+========================================
+
+class_declaration as @class | @class.name as @name | select(@name = 'Controller') | @class
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
                     (variable
                       (identifier)))
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+                  right: (expression
+                    (string_literal
+                      content: (string_fragment)))))))))
+      right: (expression
+        (variable
+          (identifier))))))
 
 ========================================
-query with return type
+function definition
 ========================================
 
-query controller_classes(): Array<class_declaration> {
-  with class_declaration as @class
-  select @class
-}
+def find_methods(@class): @class.body > method_definition;
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (return_type_annotation
-      (type
-        (array_type
-          (type
-            (identifier)))))
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
-
-========================================
-query with optional binding
-========================================
-
-query main() {
-  with method_definition as @method,
-       @method.return_type as @return_type?
-  where @return_type = null
-  select @method
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (where_clause
-        (predicate
-          (comparison
-            (expression
+  (function_definition
+    name: (identifier)
+    parameters: (def_parameters
+      (variable
+        (identifier)))
+    body: (expression
+      (child_navigation
+        parent: (expression
+          (field_access
+            base: (expression
               (variable
                 (identifier)))
-            (expression
-              (null_literal)))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+            field: (identifier)))
+        child: (node_selector
+          (identifier))))))
 
 ========================================
-query with multiple bindings
+function definition no params
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @class_name,
-       @class.decorator as @decorator,
-       @decorator > call_expression as @call,
-       @call.identifier as @decorator_name
-  select @decorator_name
-}
+def controller_classes: class_declaration as @c | @c;
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
+  (function_definition
+    name: (identifier)
+    body: (expression
+      (pipe_expression
+        left: (expression
+          (bind_expression
+            expression: (expression
+              (function_call
+                name: (identifier)))
+            variable: (variable
+              (identifier))))
+        right: (expression
           (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (child_navigation
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+            (identifier)))))))
 
 ========================================
-query without with clause
+pipeline with optional binding
 ========================================
 
-query main() {
-  select @result
-}
+method_definition as @method | @method.return_type as @return_type? | select(@return_type = null) | @method
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (variable
-              (identifier))))))))
+  (expression
+    (pipe_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (bind_expression
+              expression: (expression
+                (pipe_expression
+                  left: (expression
+                    (bind_expression
+                      expression: (expression
+                        (function_call
+                          name: (identifier)))
+                      variable: (variable
+                        (identifier))))
+                  right: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))))
+              variable: (variable
+                (identifier))))
+          right: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (comparison
+                  left: (expression
+                    (variable
+                      (identifier)))
+                  right: (expression
+                    (null_literal))))))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+pipeline without filter
+========================================
+
+@result
+
+---
+
+(source_file
+  (expression
+    (variable
+      (identifier))))

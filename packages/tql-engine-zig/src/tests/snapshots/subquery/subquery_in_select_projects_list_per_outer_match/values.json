@@ -27,7 +27,9 @@
         "row": 0,
         "column": 20
       }
-    },
+    }
+  ],
+  [
     {
       "kind": "parameter_declaration",
       "text": "void",

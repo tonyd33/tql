@@ -2,110 +2,70 @@
 string literal
 ========================================
 
-query main() {
-  select 'hello world'
-}
+'hello world'
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (string_literal
-              (string_fragment))))))))
+  (expression
+    (string_literal
+      content: (string_fragment))))
 
 ========================================
 string with escape sequences
 ========================================
 
-query main() {
-  select 'hello\nworld\t\''
-}
+'hello\nworld\t\''
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (string_literal
-              (string_fragment)
-              (escape_sequence)
-              (string_fragment)
-              (escape_sequence)
-              (escape_sequence))))))))
+  (expression
+    (string_literal
+      content: (string_fragment)
+      content: (escape_sequence)
+      content: (string_fragment)
+      content: (escape_sequence)
+      content: (escape_sequence))))
 
 ========================================
 regex literal
 ========================================
 
-query main() {
-  select /[a-z]+/
-}
+/[a-z]+/
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (regex_literal
-              (regex_fragment))))))))
+  (expression
+    (regex_literal
+      pattern: (regex_fragment))))
 
 ========================================
 regex with escapes
 ========================================
 
-query main() {
-  select /\d+\.\d+/
-}
+/\d+\.\d+/
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (regex_literal
-              (regex_escape_sequence)
-              (regex_fragment)
-              (regex_escape_sequence)
-              (regex_escape_sequence)
-              (regex_fragment))))))))
+  (expression
+    (regex_literal
+      pattern: (regex_escape_sequence)
+      pattern: (regex_fragment)
+      pattern: (regex_escape_sequence)
+      pattern: (regex_escape_sequence)
+      pattern: (regex_fragment))))
 
 ========================================
 number literal
 ========================================
 
-query main() {
-  select 42
-}
+42
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (number_literal)))))))
+  (expression
+    (number_literal)))

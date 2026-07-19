@@ -7,7 +7,7 @@ const Instruction = types.Instruction;
 const Axis = types.Axis;
 const ValueSource = types.ValueSource;
 const Value = types.Value;
-const NodeValueSource = types.NodeValueSource;
+const CurrentValueSource = types.CurrentValueSource;
 const Range = types.Range;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
@@ -25,7 +25,7 @@ test "asn: literal" {
             .source = ValueSource{ .literal = Value{ .string = "hi" } },
         } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -53,20 +53,20 @@ test "asn: node" {
         Instruction{ .trv = Axis{ .child = {} } },
         Instruction{ .asn = .{
             .variable_id = 1,
-            .source = ValueSource{ .node = NodeValueSource.text },
+            .source = ValueSource{ .current = CurrentValueSource.text },
         } },
         Instruction{ .asn = .{
             .variable_id = 2,
-            .source = ValueSource{ .node = NodeValueSource.kind },
+            .source = ValueSource{ .current = CurrentValueSource.kind },
         } },
         Instruction{ .asn = .{
             .variable_id = 3,
-            .source = ValueSource{ .node = NodeValueSource.range },
+            .source = ValueSource{ .current = CurrentValueSource.range },
         } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 2 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 3 } } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -113,7 +113,7 @@ test "asn: variable" {
         Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 1 } } },
         Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 2 } } },
         Instruction{ .yield = .{ .source = ValueSource{ .variable_id = 3 } } },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });

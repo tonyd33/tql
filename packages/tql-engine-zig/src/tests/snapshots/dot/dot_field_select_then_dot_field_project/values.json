@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "type_identifier",
+    "text": "FooController",
+    "start_byte": 6,
+    "end_byte": 19,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 19
+    }
+  }
+]

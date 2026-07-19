@@ -28,7 +28,7 @@ const DescendantIterator = types.DescendantIterator;
 const SplitIterator = types.SplitIterator;
 const SingletonIterator = types.SingletonIterator;
 const Axis = types.Axis;
-const NodeValueSource = types.NodeValueSource;
+const CurrentValueSource = types.CurrentValueSource;
 const ValueSource = types.ValueSource;
 const Instruction = types.Instruction;
 const Vector = types.Vector;
@@ -77,7 +77,7 @@ pub const Runtime = struct {
             Frame{
                 .state = State{
                     .pc = 0,
-                    .node = self.tree.rootNode(),
+                    .value = .{ .node = self.tree.rootNode() },
                     .environment = env,
                 },
                 .boundary = Boundary{ .root = {} },
@@ -211,30 +211,33 @@ pub const Runtime = struct {
         return true;
     }
 
-    fn getSource(self: *Self, state: State, vs: ValueSource) Value {
+    fn getSource(self: *Self, state: State, vs: ValueSource) !Value {
         return switch (vs) {
             .literal => |v| v,
-            .node => |n| switch (n) {
-                .this => {
-                    return Value{ .node = state.node };
+            .current => |c| switch (c) {
+                .value => state.value,
+                .text => switch (state.value) {
+                    .node => |node| blk: {
+                        const slice = self.source[node.startByte()..node.endByte()];
+                        break :blk Value{ .string = slice };
+                    },
+                    else => error.UnexpectedType,
                 },
-                .text => {
-                    const start_byte = state.node.startByte();
-                    const end_byte = state.node.endByte();
-                    const slice = self.source[start_byte..end_byte];
-                    return Value{ .string = slice };
+                .kind => switch (state.value) {
+                    .node => |node| Value{ .kind_id = node.kindId() },
+                    else => error.UnexpectedType,
                 },
-                .kind => {
-                    return Value{ .kind_id = state.node.kindId() };
-                },
-                .range => {
-                    const range = state.node.range();
-                    return Value{ .range = .{
-                        .start_point = .{ .row = range.start_point.row, .column = range.start_point.column },
-                        .end_point = .{ .row = range.end_point.row, .column = range.end_point.column },
-                        .start_byte = range.start_byte,
-                        .end_byte = range.end_byte,
-                    } };
+                .range => switch (state.value) {
+                    .node => |node| blk: {
+                        const range = node.range();
+                        break :blk Value{ .range = .{
+                            .start_point = .{ .row = range.start_point.row, .column = range.start_point.column },
+                            .end_point = .{ .row = range.end_point.row, .column = range.end_point.column },
+                            .start_byte = range.start_byte,
+                            .end_byte = range.end_byte,
+                        } };
+                    },
+                    else => error.UnexpectedType,
                 },
             },
             .variable_id => |v| state.environment.get(v) orelse Value{ .nothing = {} },
@@ -266,7 +269,7 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = split.resume_pc,
-                            .node = split.iterator.node(),
+                            .value = split.iterator.value(),
                             .environment = env_copy_new_frame,
                         },
                         .boundary = Boundary{ .passthrough = {} },
@@ -297,33 +300,31 @@ pub const Runtime = struct {
                 .noop => {
                     frame.state.pc += 1;
                 },
-                .halt => |halt_inst| {
+                .halt => {
                     frame.state.pc += 1;
-                    const should_halt = switch (halt_inst.condition) {
-                        .always => true,
-                        .relates => frame.state.negate_flag,
-                        .not_relates => !frame.state.negate_flag,
-                    };
-
-                    if (should_halt) {
-                        try self.handleBranchEnd();
-                    }
+                    try self.handleBranchEnd();
                 },
                 .trv => |axis| {
                     // Convert this frame to being a generator.
                     frame.state.pc += 1;
                     const iterator: SplitIterator = switch (axis) {
-                        .child => .{ .child = ChildIterator.init(frame.state.node) },
-                        .descendant => .{ .descendant = DescendantIterator.init(frame.state.node) },
-                        .field => |field_id| .{ .field = FieldIterator.init(frame.state.node, field_id) },
-                        .variable_id => |var_id| blk: {
-                            const maybe_value = frame.state.environment.get(var_id);
-                            const maybe_node = try if (maybe_value) |v| switch (v) {
-                                .node => |n| n,
-                                .nothing => null,
-                                else => error.UnexpectedType,
-                            } else null;
-                            break :blk .{ .singleton = SingletonIterator.init(maybe_node) };
+                        .child => switch (frame.state.value) {
+                            .node => |n| .{ .child = ChildIterator.init(n) },
+                            else => return error.UnexpectedType,
+                        },
+                        .descendant => switch (frame.state.value) {
+                            .node => |n| .{ .descendant = DescendantIterator.init(n) },
+                            else => return error.UnexpectedType,
+                        },
+                        .field => |field_id| switch (frame.state.value) {
+                            .node => |n| .{ .field = FieldIterator.init(n, field_id) },
+                            else => return error.UnexpectedType,
+                        },
+                        .value_source => |vs| blk: {
+                            const value = try self.getSource(frame.state, vs);
+                            break :blk .{ .singleton = SingletonIterator.init(
+                                if (value == .nothing) null else value,
+                            ) };
                         },
                     };
 
@@ -334,7 +335,7 @@ pub const Runtime = struct {
                 },
                 .asn => |x| {
                     frame.state.pc += 1;
-                    const value = self.getSource(frame.state, x.source);
+                    const value = try self.getSource(frame.state, x.source);
                     switch (value) {
                         // NOTE: Maybe we should panic here.
                         .nothing => {},
@@ -352,8 +353,8 @@ pub const Runtime = struct {
                 },
                 .rel => |x| {
                     frame.state.pc += 1;
-                    const a_value = self.getSource(frame.state, x.a);
-                    const b_value = self.getSource(frame.state, x.b);
+                    const a_value = try self.getSource(frame.state, x.a);
+                    const b_value = try self.getSource(frame.state, x.b);
                     const relates = try switch (x.relation) {
                         .equals => a_value.eql(b_value),
                         .like => switch (a_value) {
@@ -378,11 +379,19 @@ pub const Runtime = struct {
                             else => error.InvalidArguments,
                         },
                     };
-                    frame.state.negate_flag = relates;
+                    const result = Value{ .bool = relates };
+                    if (x.dest) |var_id| {
+                        const old_env = frame.state.environment;
+                        const new_env = try old_env.copyPut(self.allocator, var_id, result);
+                        frame.state.environment = new_env;
+                        old_env.dereference(self.allocator);
+                    } else {
+                        frame.state.value = result;
+                    }
                 },
                 .yield => |source| {
                     frame.state.pc += 1;
-                    const value = self.getSource(frame.state, source.source);
+                    const value = try self.getSource(frame.state, source.source);
                     if (try self.handleYield(value)) {
                         continue;
                     } else {
@@ -425,7 +434,7 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = frame.state.pc,
-                            .node = frame.state.node,
+                            .value = frame.state.value,
                             .environment = env_copy_new_frame,
                         },
                         .boundary = boundary,
@@ -443,7 +452,7 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = target_address,
-                            .node = frame.state.node,
+                            .value = frame.state.value,
                             .environment = env_copy_new_frame,
                         },
                         .boundary = Boundary{ .call = {} },
@@ -471,15 +480,15 @@ pub const Runtime = struct {
                 },
                 .jmp => |jmp_inst| {
                     frame.state.pc += 1;
-                    const should_jump = switch (jmp_inst.mode) {
-                        .always => true,
-                        .relates => frame.state.negate_flag,
-                        .not_relates => !frame.state.negate_flag,
-                    };
-
-                    if (should_jump) {
-                        frame.state.pc = jmp_inst.address;
-                    }
+                    const should_jump = if (jmp_inst.source) |vs| blk: {
+                        const val = try self.getSource(frame.state, vs);
+                        const b = switch (val) {
+                            .bool => |b| b,
+                            else => return error.UnexpectedType,
+                        };
+                        break :blk (b != jmp_inst.negate);
+                    } else true;
+                    if (should_jump) frame.state.pc = jmp_inst.address;
                 },
                 .begin_build => |vector| {
                     frame.state.pc += 1;
@@ -497,7 +506,7 @@ pub const Runtime = struct {
                 .push_build => |info| {
                     frame.state.pc += 1;
                     const build = try if (frame.state.build) |b| b else error.InvalidBuildConstruction;
-                    const value = self.getSource(frame.state, info.source).clone();
+                    const value = (try self.getSource(frame.state, info.source)).clone();
                     switch (build) {
                         .record => |rc| {
                             const name = try if (info.name) |n| n else error.InvalidBuildConstruction;

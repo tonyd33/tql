@@ -1,5 +1,5 @@
 /**
- * @file TQL (Tree Query Language) - Option B Grammar
+ * @file TQL (Tree Query Language)
  * @author Tony Du
  * @license MIT
  */
@@ -12,11 +12,12 @@ const PREC = {
   descendant: 18,
   field: 17,
 
-  not: 10,
-  and: 9,
-  or: 8,
-
-  comparison: 7,
+  pipe: 11,
+  comparison: 10,
+  not: 9,
+  and: 8,
+  or: 7,
+  bind: 3,
 };
 
 module.exports = grammar({
@@ -26,7 +27,7 @@ module.exports = grammar({
 
   rules: {
     source_file: $ =>
-      repeat(choice($.directive, $.query_definition, $.query_body)),
+      repeat(choice($.directive, $.function_definition, $.expression)),
 
     comment: _ => token(seq("--", /.*/)),
 
@@ -38,43 +39,70 @@ module.exports = grammar({
 
     import_directive: $ => seq("import", field("path", $.string_literal)),
 
-    // Query definitions
-    query_definition: $ =>
+    // Function definitions: def name(@a; @b): expr;
+    function_definition: $ =>
       seq(
-        "query",
+        "def",
         field("name", $.identifier),
-        optional($.parameters),
-        optional($.return_type_annotation),
-        "{",
-        field("body", $.query_body),
-        "}",
+        optional(field("parameters", $.def_parameters)),
+        ":",
+        field("body", $.expression),
+        ";",
       ),
 
-    parameters: $ => seq("(", optional(comma_sep1($.parameter)), ")"),
+    def_parameters: $ => seq("(", optional(semicolon_sep1($.variable)), ")"),
 
-    parameter: $ =>
-      seq(field("name", $.variable), optional(seq(":", field("type", $.type)))),
-
-    return_type_annotation: $ => seq(":", field("type", $.type)),
-
-    query_body: $ =>
-      seq(
-        optional(field("with_clause", $.with_clause)),
-        optional(field("where_clause", $.where_clause)),
-        field("select_clause", $.select_clause),
+    expression: $ =>
+      choice(
+        $.identity,
+        $.dot_field_access,
+        $.variable,
+        $.string_literal,
+        $.regex_literal,
+        $.number_literal,
+        $.null_literal,
+        $.field_access,
+        $.child_navigation,
+        $.descendant_navigation,
+        $.function_call,
+        $.object_literal,
+        $.array_literal,
+        $.collect_expression,
+        $.tuple_literal,
+        $.parenthesized,
+        $.bind_expression,
+        $.pipe_expression,
+        $.comparison,
+        $.is_null_expr,
+        $.logical_and,
+        $.logical_or,
+        $.logical_not,
       ),
 
-    with_clause: $ => seq("with", comma_sep1($.binding)),
-
-    binding: $ =>
-      seq(
-        field("expression", $.expression),
-        "as",
-        field("variable", $.variable),
-        optional(field("optional", "?")),
+    bind_expression: $ =>
+      prec.right(
+        PREC.bind,
+        seq(
+          field("expression", $.expression),
+          "as",
+          field("variable", $.variable),
+          optional(field("optional", "?")),
+        ),
       ),
 
-    node_selector: $ => $.identifier,
+    pipe_expression: $ =>
+      prec.left(
+        PREC.pipe,
+        seq(field("left", $.expression), "|", field("right", $.expression)),
+      ),
+
+    identity: _ => token("."),
+
+    // TODO: Get rid of this
+    dot_field_access: $ =>
+      prec.left(PREC.field, seq(".", field("field", $.identifier))),
+
+    node_selector: $ => prec(-1, $.identifier),
 
     field_access: $ =>
       prec.left(
@@ -85,7 +113,11 @@ module.exports = grammar({
     child_navigation: $ =>
       prec.left(
         PREC.child,
-        seq(field("parent", $.expression), ">", field("child", $.expression)),
+        seq(
+          field("parent", $.expression),
+          ">",
+          field("child", $.node_selector),
+        ),
       ),
 
     descendant_navigation: $ =>
@@ -93,27 +125,12 @@ module.exports = grammar({
         PREC.descendant,
         seq(
           field("parent", $.expression),
-          choice("descendant::", ">>"),
-          field("descendant", $.expression),
+          ">>",
+          field("descendant", $.node_selector),
         ),
       ),
 
-    parenthesized_expression: $ => seq("(", $.expression, ")"),
-
-    where_clause: $ => seq("where", field("predicate", $.predicate)),
-
-    predicate: $ =>
-      choice(
-        $.comparison,
-        $.is_null_predicate,
-        $.logical_and,
-        $.logical_or,
-        $.logical_not,
-        $.quantified_expression,
-        $.parenthesized_predicate,
-      ),
-
-    is_null_predicate: $ =>
+    is_null_expr: $ =>
       prec.left(
         PREC.comparison,
         seq(
@@ -129,9 +146,7 @@ module.exports = grammar({
         PREC.comparison,
         seq(
           field("left", $.expression),
-          // maybe these should have first class distinction to support syntax
-          // like 'foo' not like /regex/ or @bar is not null
-          field("operator", choice("=", "!=", "~", "!~", ">", "<", ">=", "<=")),
+          field("operator", choice("=", "!=", "~", "!~")),
           field("right", $.expression),
         ),
       ),
@@ -139,80 +154,49 @@ module.exports = grammar({
     logical_and: $ =>
       prec.left(
         PREC.and,
-        seq(field("left", $.predicate), "and", field("right", $.predicate)),
+        seq(field("left", $.expression), "and", field("right", $.expression)),
       ),
 
     logical_or: $ =>
       prec.left(
         PREC.or,
-        seq(field("left", $.predicate), "or", field("right", $.predicate)),
+        seq(field("left", $.expression), "or", field("right", $.expression)),
       ),
 
     logical_not: $ =>
-      prec.right(PREC.not, seq("not", field("predicate", $.predicate))),
+      prec.right(PREC.not, seq("not", field("predicate", $.expression))),
 
-    quantified_expression: $ =>
-      seq(
-        field("quantifier", choice("any", "all")),
-        field("variable", $.variable),
-        "in",
-        field("source", $.expression),
-        ":",
-        field("predicate", $.predicate),
+    function_call: $ =>
+      choice(
+        prec(
+          1,
+          seq(
+            field("name", $.identifier),
+            "(",
+            optional(semicolon_sep1(field("argument", $.expression))),
+            ")",
+          ),
+        ),
+        field("name", $.identifier),
       ),
-
-    parenthesized_predicate: $ => seq("(", $.predicate, ")"),
-
-    select_clause: $ => seq("select", field("projection", $.projection)),
-
-    projection: $ => $.expression,
 
     object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
 
     object_field: $ =>
       choice(
-        // Shorthand: @variable
         $.variable,
-        // Full form: field: expression
         seq(field("key", $.identifier), ":", field("value", $.expression)),
       ),
 
     array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
 
+    collect_expression: $ => prec(1, seq("[", $.expression, "]")),
+
     tuple_literal: $ =>
       seq("(", $.expression, ",", comma_sep1($.expression), ")"),
 
-    subquery: $ => $.query_body,
+    parenthesized: $ => seq("(", $.expression, ")"),
 
-    // Expressions
-    expression: $ =>
-      choice(
-        $.node_selector,
-        $.variable,
-        $.string_literal,
-        $.regex_literal,
-        $.number_literal,
-        $.null_literal,
-        $.field_access,
-        $.child_navigation,
-        $.descendant_navigation,
-        $.function_call,
-        $.object_literal,
-        $.array_literal,
-        $.tuple_literal,
-        $.subquery,
-        $.parenthesized_expression,
-      ),
-
-    function_call: $ =>
-      seq(
-        field("name", $.identifier),
-        "(",
-        optional(comma_sep1(field("argument", $.expression))),
-        ")",
-      ),
-
-    // Types
     type: $ =>
       choice(
         $.identifier,
@@ -234,7 +218,6 @@ module.exports = grammar({
 
     optional_type: $ => seq(field("base_type", $.type), "?"),
 
-    // Literals
     string_literal: $ =>
       seq(
         "'",
@@ -288,4 +271,8 @@ module.exports = grammar({
 
 function comma_sep1(rule) {
   return seq(rule, repeat(seq(",", rule)));
+}
+
+function semicolon_sep1(rule) {
+  return seq(rule, repeat(seq(";", rule)));
 }

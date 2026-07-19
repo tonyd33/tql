@@ -26,7 +26,7 @@ test "build: record" {
         },
         .{ .end_build = 1 },
         .{ .yield = .{ .source = .{ .variable_id = 1 } } },
-        .{ .halt = .{} },
+        .halt,
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -66,7 +66,7 @@ test "build: list" {
         },
         .{ .end_build = 7 },
         .{ .yield = .{ .source = .{ .variable_id = 7 } } },
-        .{ .halt = .{} },
+        .{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -109,7 +109,7 @@ test "build: nested list of list" {
         },
         .{ .end_build = 2 },
         .{ .yield = .{ .source = .{ .variable_id = 2 } } },
-        .{ .halt = .{} },
+        .{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });

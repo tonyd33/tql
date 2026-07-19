@@ -13,9 +13,9 @@ test "jmp: basic forward jump" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .jmp = .{ .address = 2 } }, // Jump to instruction 2
-        Instruction{ .panic = {} }, // Landmine
-        Instruction{ .halt = .{} }, // Land here
+        Instruction{ .jmp = .{ .address = 2 } }, // unconditional jump to instruction 2
+        Instruction{ .panic = {} }, // landmine
+        Instruction{ .halt = {} }, // land here
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -27,28 +27,16 @@ test "jmp: basic forward jump" {
 test "jmp: conditional jump when relation succeeds" {
     const source = "int x;";
 
-    // Test jumping when flag is true (relation succeeded)
+    // Strings equal → rel → bool true stored in var 2 (dest=2, state.value stays as node).
+    // jmp(addr=5, source=var2, negate=false): jump when true → taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        // Jump to yield if flag is true (relation succeeded)
-        Instruction{ .jmp = .{ .address = 5, .mode = .relates } },
-        // Should not reach here
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .panic = {} },
-        // Should land here
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -60,28 +48,16 @@ test "jmp: conditional jump when relation succeeds" {
 test "jmp: conditional jump when relation fails" {
     const source = "int x;";
 
-    // Test jumping when flag is false (relation failed)
+    // Strings differ → rel → bool false stored in var 2.
+    // jmp(addr=5, source=var2, negate=true): jump when false → taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "world" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        // Jump to yield if flag is false (relation failed)
-        Instruction{ .jmp = .{ .address = 5, .mode = .not_relates } },
-        // Should not reach here
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .panic = {} },
-        // Should land here
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -93,27 +69,15 @@ test "jmp: conditional jump when relation fails" {
 test "jmp: conditional jump not taken when condition not met" {
     const source = "int x;";
 
-    // Test that jump is skipped when condition is not met
+    // Strings equal → bool true in var 2.
+    // jmp(addr=6, source=var2, negate=true): jump when false → NOT taken (value is true) → fall through to yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{
-            .variable_id = 0,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .asn = .{
-            .variable_id = 1,
-            .source = .{ .literal = Value{ .string = "hello" } },
-        } },
-        Instruction{ .rel = .{
-            .relation = Relation.equals,
-            .a = .{ .variable_id = 0 },
-            .b = .{ .variable_id = 1 },
-        } },
-        // Try to jump if flag is false (but it's true, so skip)
-        Instruction{ .jmp = .{ .address = 6, .mode = .not_relates } },
-        // Should continue here
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
+        Instruction{ .jmp = .{ .address = 6, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .yield = .{} },
-        Instruction{ .halt = .{} },
-        // Should not reach here
+        Instruction{ .halt = {} },
         Instruction{ .panic = {} },
     };
 

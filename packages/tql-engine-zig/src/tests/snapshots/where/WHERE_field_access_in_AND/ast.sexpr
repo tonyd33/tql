@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) c)) (where (and (eq (field c name) (string "Service")) (any m (child (field c body) (node method_definition)) (eq (field m name) (string "foo"))))) (select c)))
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Service")) (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo")))))) c))

@@ -1,397 +1,329 @@
 ========================================
-select variable
+emit variable
 ========================================
 
-query main() {
-  with class_declaration as @class
-  select @class
-}
+class_declaration as @class | @class
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (function_call
+              name: (identifier)))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+emit object literal
+========================================
+
+class_declaration as @class | @class.name as @name | { class: @class, name: @name }
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (object_literal
+          (object_field
+            key: (identifier)
+            value: (expression
+              (variable
+                (identifier))))
+          (object_field
+            key: (identifier)
+            value: (expression
+              (variable
+                (identifier)))))))))
+
+========================================
+emit object with shorthand
+========================================
+
+class_declaration as @class | @class.name as @name | { @class, @name }
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (object_literal
+          (object_field
+            (variable
+              (identifier)))
+          (object_field
+            (variable
+              (identifier))))))))
+
+========================================
+emit array literal
+========================================
+
+class_declaration as @class | @class.name as @name | [@class, @name]
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (array_literal
+          (expression
+            (variable
+              (identifier)))
           (expression
             (variable
               (identifier))))))))
 
 ========================================
-select object literal
+emit tuple
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  select {
-    class: @class,
-    name: @name
-  }
-}
+class_declaration as @class | @class.name as @name | (@class, @name)
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (object_literal
-              (object_field
-                (identifier)
-                (expression
-                  (variable
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
                     (identifier))))
-              (object_field
-                (identifier)
-                (expression
+              right: (expression
+                (field_access
+                  base: (expression
+                    (variable
+                      (identifier)))
+                  field: (identifier)))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (tuple_literal
+          (expression
+            (variable
+              (identifier)))
+          (expression
+            (variable
+              (identifier))))))))
+
+========================================
+emit with function call
+========================================
+
+class_declaration as @class | @class.body > method_definition as @method | { class: @class, method_count: count(@method) }
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (child_navigation
+                  parent: (expression
+                    (field_access
+                      base: (expression
+                        (variable
+                          (identifier)))
+                      field: (identifier)))
+                  child: (node_selector
+                    (identifier))))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (object_literal
+          (object_field
+            key: (identifier)
+            value: (expression
+              (variable
+                (identifier))))
+          (object_field
+            key: (identifier)
+            value: (expression
+              (function_call
+                name: (identifier)
+                argument: (expression
                   (variable
                     (identifier)))))))))))
 
 ========================================
-select object with shorthand
+emit with array collect subquery
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  select {
-    @class,
-    @name
-  }
-}
+class_declaration as @class | @class.name as @class_name | { class: @class_name, methods: [@class.body > method_definition as @method | @method.name as @method_name | @method_name] }
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (object_literal
-              (object_field
-                (variable
-                  (identifier)))
-              (object_field
-                (variable
-                  (identifier))))))))))
-
-========================================
-select array
-========================================
-
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  select [@class, @name]
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (array_literal
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (variable
-                  (identifier))))))))))
-
-========================================
-select tuple
-========================================
-
-query main() {
-  with class_declaration as @class,
-       @class.name as @name
-  select (@class, @name)
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (tuple_literal
-              (expression
-                (variable
-                  (identifier)))
-              (expression
-                (variable
-                  (identifier))))))))))
-
-========================================
-select with function call
-========================================
-
-query main() {
-  with class_declaration as @class,
-       @class.body > method_definition as @method
-  select {
-    class: @class,
-    method_count: count(@method)
-  }
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (child_navigation
-              (expression
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
                 (field_access
-                  (expression
+                  base: (expression
                     (variable
                       (identifier)))
-                  (identifier)))
-              (expression
-                (node_selector
-                  (identifier)))))
-          (variable
+                  field: (identifier)))))
+          variable: (variable
             (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (object_literal
-              (object_field
-                (identifier)
+      right: (expression
+        (object_literal
+          (object_field
+            key: (identifier)
+            value: (expression
+              (variable
+                (identifier))))
+          (object_field
+            key: (identifier)
+            value: (expression
+              (collect_expression
                 (expression
-                  (variable
-                    (identifier))))
-              (object_field
-                (identifier)
-                (expression
-                  (function_call
-                    (identifier)
-                    (expression
+                  (pipe_expression
+                    left: (expression
+                      (bind_expression
+                        expression: (expression
+                          (pipe_expression
+                            left: (expression
+                              (bind_expression
+                                expression: (expression
+                                  (child_navigation
+                                    parent: (expression
+                                      (field_access
+                                        base: (expression
+                                          (variable
+                                            (identifier)))
+                                        field: (identifier)))
+                                    child: (node_selector
+                                      (identifier))))
+                                variable: (variable
+                                  (identifier))))
+                            right: (expression
+                              (field_access
+                                base: (expression
+                                  (variable
+                                    (identifier)))
+                                field: (identifier)))))
+                        variable: (variable
+                          (identifier))))
+                    right: (expression
                       (variable
                         (identifier)))))))))))))
 
 ========================================
-select with subquery
+emit string literal
 ========================================
 
-query main() {
-  with class_declaration as @class,
-       @class.name as @class_name
-  select {
-    class: @class_name,
-    methods:
-      with @class.body > method_definition as @method,
-           @method.name as @method_name
-      select @method_name
-  }
-}
+'hello'
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (with_clause
-        (binding
-          (expression
-            (node_selector
-              (identifier)))
-          (variable
-            (identifier)))
-        (binding
-          (expression
-            (field_access
-              (expression
-                (variable
-                  (identifier)))
-              (identifier)))
-          (variable
-            (identifier))))
-      (select_clause
-        (projection
-          (expression
-            (object_literal
-              (object_field
-                (identifier)
-                (expression
-                  (variable
-                    (identifier))))
-              (object_field
-                (identifier)
-                (expression
-                  (subquery
-                    (query_body
-                      (with_clause
-                        (binding
-                          (expression
-                            (child_navigation
-                              (expression
-                                (field_access
-                                  (expression
-                                    (variable
-                                      (identifier)))
-                                  (identifier)))
-                              (expression
-                                (node_selector
-                                  (identifier)))))
-                          (variable
-                            (identifier)))
-                        (binding
-                          (expression
-                            (field_access
-                              (expression
-                                (variable
-                                  (identifier)))
-                              (identifier)))
-                          (variable
-                            (identifier))))
-                      (select_clause
-                        (projection
-                          (expression
-                            (variable
-                              (identifier))))))))))))))))
+  (expression
+    (string_literal
+      content: (string_fragment))))
 
 ========================================
-select string literal
+emit number
 ========================================
 
-query main() {
-  select 'hello'
-}
+42
 
 ---
 
 (source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (string_literal
-              (string_fragment))))))))
-
-========================================
-select number
-========================================
-
-query main() {
-  select 42
-}
-
----
-
-(source_file
-  (query_definition
-    (identifier)
-    (parameters)
-    (query_body
-      (select_clause
-        (projection
-          (expression
-            (number_literal)))))))
+  (expression
+    (number_literal)))

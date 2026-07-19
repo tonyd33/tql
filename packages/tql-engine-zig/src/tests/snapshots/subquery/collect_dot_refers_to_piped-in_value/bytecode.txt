@@ -1,0 +1,26 @@
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: probe aggregate 20 3 list
+0010: trv value_source ((current value) value)
+0011: trv descendant
+0012: rel equals ((current value) kind) (literal kind_id 260) -> 4
+0013: jmp 15 if (variable_id 4)
+0014: halt
+0015: asn 5 ((current value) value)
+0016: trv value_source (variable_id 5)
+0017: asn 6 ((current value) value)
+0018: yield
+0019: halt
+0020: begin_build record
+0021: push_build fn ((current value) value)
+0022: push_build params (variable_id 3)
+0023: end_build 7
+0024: yield
+0025: halt

@@ -5,5 +5,6 @@ pub const CompilerError = error{
     InvalidLabelReference,
     InvalidVariableReference,
     InvalidUnnestArgument,
+    InvalidGuardExpression,
     ProgrammerDumb,
 };

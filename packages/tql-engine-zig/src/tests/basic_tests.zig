@@ -3,8 +3,7 @@ const Snapshotter = @import("snapshotter.zig");
 test "node selector" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @class
-        \\select @class
+        \\. > class_declaration as @class | @class
         ,
         .target =
         \\class Service {}
@@ -17,9 +16,30 @@ test "node selector" {
 test "field access" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration as @c,
-        \\     @c.name as @n
-        \\select @n
+        \\. > class_declaration as @c | @c.name as @n | @n
+        ,
+        .target =
+        \\class Service {}
+        \\class Controller {}
+        ,
+    });
+}
+
+test "identity is root" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
+        \\.
+        ,
+        .target =
+        \\class Service {}
+        ,
+    });
+}
+
+test "identity after transform" {
+    try Snapshotter.snapshotQuery(@src(), .{
+        .query =
+        \\. > class_declaration as @c | @c | .
         ,
         .target =
         \\class Service {}
@@ -31,9 +51,7 @@ test "field access" {
 test "child navigation" {
     try Snapshotter.snapshotQuery(@src(), .{
         .query =
-        \\with @root > class_declaration > class_body as @body,
-        \\     @body > method_definition as @m
-        \\select @m
+        \\. > class_declaration > class_body as @body | @body > method_definition as @m | @m
         ,
         .target =
         \\class Service {

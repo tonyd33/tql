@@ -58,6 +58,7 @@ pub const Value = union(enum) {
             .record => |rc| .{ .record = try Record.fromRuntime(gpa, &rc.value, source) },
             .list => |rc| .{ .list = try List.fromRuntime(gpa, &rc.value, source) },
             .uint => |u| .{ .uint = u },
+            .bool => |b| .{ .uint = if (b) 1 else 0 },
             .kind_id, .field_id, .regex => @panic("TODO"),
         };
     }

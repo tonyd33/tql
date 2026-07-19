@@ -1,9 +1,9 @@
-with @root > function_definition as @fn,
-     @fn > function_declarator as @fn_decl,
-     @fn_decl > identifier as @name,
-     @fn.body as @body
-where any @c in @body >> call_expression:
-          any @callee in @c.function: @callee ~ /^(k|v|kv)(z|m|c|re)?alloc/ and
-      any @g in @body >> goto_statement:
-          any @lbl in @g.label: @lbl ~ /^(err|out)(_\w+)?$/
-select { @name }
+. > function_definition as @fn
+| @fn > function_declarator as @fn_decl
+| @fn_decl > identifier as @name
+| @fn.body as @body
+| select(
+    any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+    any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+)
+| { @name }

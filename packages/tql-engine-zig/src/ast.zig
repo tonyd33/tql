@@ -63,13 +63,13 @@ pub const SourceFile = struct {
 pub const SourceItem = union(enum) {
     directive: Directive,
     query: QueryDefinition,
-    query_body: QueryBody,
+    expression: Expression,
 
     pub fn deinit(self: SourceItem, allocator: std.mem.Allocator) void {
         switch (self) {
             .directive => |d| d.deinit(allocator),
             .query => |q| q.deinit(allocator),
-            .query_body => |q| q.deinit(allocator),
+            .expression => |e| e.deinit(allocator),
         }
     }
 
@@ -77,7 +77,7 @@ pub const SourceItem = union(enum) {
         switch (self) {
             .directive => |d| try d.sexpr(w),
             .query => |q| try q.sexpr(w),
-            .query_body => |qb| try qb.sexpr(w),
+            .expression => |e| try e.sexpr(w),
         }
     }
 };
@@ -86,7 +86,7 @@ pub const QueryDefinition = struct {
     name: Identifier,
     parameters: []const Parameter,
     return_type: ?Type,
-    body: QueryBody,
+    body: Expression,
 
     pub fn deinit(self: QueryDefinition, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -139,75 +139,41 @@ pub const Parameter = struct {
     }
 };
 
-pub const QueryBody = struct {
-    with_clause: ?WithClause,
-    where_clause: ?WhereClause,
-    select_clause: SelectClause,
-
-    pub fn deinit(self: QueryBody, allocator: std.mem.Allocator) void {
-        if (self.with_clause) |fc| {
-            fc.deinit(allocator);
-        }
-        if (self.where_clause) |wc| {
-            wc.deinit(allocator);
-        }
-        self.select_clause.deinit(allocator);
-    }
-
-    pub fn sexpr(self: QueryBody, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(query_body");
-        if (self.with_clause) |fc| {
-            try w.writeByte(' ');
-            try fc.sexpr(w);
-        }
-        if (self.where_clause) |wc| {
-            try w.writeByte(' ');
-            try wc.sexpr(w);
-        }
-        try w.writeByte(' ');
-        try self.select_clause.sexpr(w);
-        try w.writeByte(')');
-    }
-};
-
-pub const WithClause = struct {
-    bindings: []const Binding,
-
-    pub fn deinit(self: WithClause, allocator: std.mem.Allocator) void {
-        for (self.bindings) |binding| {
-            binding.deinit(allocator);
-        }
-        allocator.free(self.bindings);
-    }
-
-    pub fn sexpr(self: WithClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(with");
-        for (self.bindings) |b| {
-            try w.writeByte(' ');
-            try b.sexpr(w);
-        }
-        try w.writeByte(')');
-    }
-};
-
-pub const Binding = struct {
+pub const BindExpression = struct {
     expression: Expression,
     variable: Variable,
     optional: bool,
 
-    pub fn deinit(self: Binding, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: BindExpression, allocator: std.mem.Allocator) void {
         self.expression.deinit(allocator);
         allocator.free(self.variable.name);
     }
 
-    pub fn sexpr(self: Binding, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(binding ");
+    pub fn sexpr(self: BindExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(bind ");
         try self.expression.sexpr(w);
         try w.print(" {s}", .{self.variable.name});
         if (self.optional) try w.writeAll(" optional");
         try w.writeByte(')');
     }
 };
+
+pub const PipeExpression = struct {
+    left: Expression,
+    right: Expression,
+
+    pub fn sexpr(self: PipeExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(pipe ");
+        try self.left.sexpr(w);
+        try w.writeByte(' ');
+        try self.right.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+// ============================================================================
+// Navigation
+// ============================================================================
 
 pub const NodeSelector = struct {
     node_type: Identifier,
@@ -250,113 +216,9 @@ pub const DescendantNavigation = struct {
     }
 };
 
-pub const WhereClause = struct {
-    predicate: Predicate,
-
-    pub fn deinit(self: WhereClause, allocator: std.mem.Allocator) void {
-        self.predicate.deinit(allocator);
-    }
-
-    pub fn sexpr(self: WhereClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(where ");
-        try self.predicate.sexpr(w);
-        try w.writeByte(')');
-    }
-};
-
-pub const Predicate = union(enum) {
-    comparison: Comparison,
-    is_null: IsNullPredicate,
-    logical_and: *LogicalAnd,
-    logical_or: *LogicalOr,
-    logical_not: *LogicalNot,
-    quantified: QuantifiedExpression,
-    parenthesized: *Predicate,
-
-    pub fn deinit(self: Predicate, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .comparison => |c| {
-                c.left.deinit(allocator);
-                c.right.deinit(allocator);
-            },
-            .is_null => |p| {
-                p.expression.deinit(allocator);
-            },
-            .logical_and => |la| {
-                la.left.deinit(allocator);
-                la.right.deinit(allocator);
-                allocator.destroy(la);
-            },
-            .logical_or => |lo| {
-                lo.left.deinit(allocator);
-                lo.right.deinit(allocator);
-                allocator.destroy(lo);
-            },
-            .logical_not => |ln| {
-                ln.predicate.deinit(allocator);
-                allocator.destroy(ln);
-            },
-            .quantified => |q| {
-                allocator.free(q.variable.name);
-                q.source.deinit(allocator);
-                q.predicate.deinit(allocator);
-                allocator.destroy(q.predicate);
-            },
-            .parenthesized => |p| {
-                p.deinit(allocator);
-                allocator.destroy(p);
-            },
-        }
-    }
-
-    pub fn sexpr(self: Predicate, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
-            .comparison => |c| {
-                try w.print("({s} ", .{@tagName(c.operator)});
-                try c.left.sexpr(w);
-                try w.writeByte(' ');
-                try c.right.sexpr(w);
-                try w.writeByte(')');
-            },
-            .is_null => |p| {
-                try w.writeAll(if (p.negated) "(is-not-null " else "(is-null ");
-                try p.expression.sexpr(w);
-                try w.writeByte(')');
-            },
-            .logical_and => |la| {
-                try w.writeAll("(and ");
-                try la.left.sexpr(w);
-                try w.writeByte(' ');
-                try la.right.sexpr(w);
-                try w.writeByte(')');
-            },
-            .logical_or => |lo| {
-                try w.writeAll("(or ");
-                try lo.left.sexpr(w);
-                try w.writeByte(' ');
-                try lo.right.sexpr(w);
-                try w.writeByte(')');
-            },
-            .logical_not => |ln| {
-                try w.writeAll("(not ");
-                try ln.predicate.sexpr(w);
-                try w.writeByte(')');
-            },
-            .quantified => |q| {
-                try w.print("({s} {s} ", .{ @tagName(q.quantifier), q.variable.name });
-                try q.source.sexpr(w);
-                try w.writeByte(' ');
-                try q.predicate.sexpr(w);
-                try w.writeByte(')');
-            },
-            .parenthesized => |p| {
-                try w.writeAll("(paren ");
-                try p.sexpr(w);
-                try w.writeByte(')');
-            },
-        }
-    }
-};
+// ============================================================================
+// Boolean / guard expressions (formerly Predicate)
+// ============================================================================
 
 pub const Comparison = struct {
     left: Expression,
@@ -364,7 +226,7 @@ pub const Comparison = struct {
     right: Expression,
 };
 
-pub const IsNullPredicate = struct {
+pub const IsNullExpr = struct {
     expression: Expression,
     negated: bool,
 };
@@ -374,53 +236,25 @@ pub const ComparisonOperator = enum {
     ne,
     regex_match,
     regex_not_match,
-    gt,
-    lt,
-    gte,
-    lte,
 };
 
 pub const LogicalAnd = struct {
-    left: Predicate,
-    right: Predicate,
+    left: Expression,
+    right: Expression,
 };
 
 pub const LogicalOr = struct {
-    left: Predicate,
-    right: Predicate,
+    left: Expression,
+    right: Expression,
 };
 
 pub const LogicalNot = struct {
-    predicate: Predicate,
+    predicate: Expression,
 };
 
-pub const QuantifiedExpression = struct {
-    quantifier: Quantifier,
-    variable: Variable,
-    source: Expression,
-    predicate: *Predicate,
-};
-
-pub const Quantifier = enum {
-    any,
-    all,
-};
-
-pub const Projection = Expression;
-
-pub const SelectClause = struct {
-    projection: Projection,
-
-    pub fn deinit(self: SelectClause, allocator: std.mem.Allocator) void {
-        self.projection.deinit(allocator);
-    }
-
-    pub fn sexpr(self: SelectClause, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll("(select ");
-        try self.projection.sexpr(w);
-        try w.writeByte(')');
-    }
-};
+// ============================================================================
+// Expressions
+// ============================================================================
 
 pub const ObjectLiteral = struct {
     fields: []const ObjectField,
@@ -490,13 +324,23 @@ pub const TupleLiteral = struct {
     }
 };
 
+pub const DotFieldAccess = struct {
+    field: Identifier,
+
+    pub fn sexpr(self: DotFieldAccess, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(dot-field {s})", .{self.field});
+    }
+};
+
 pub const Expression = union(enum) {
     node_selector: NodeSelector,
     variable: Variable,
+    dot_field_access: DotFieldAccess,
     string_literal: []const u8,
     regex_literal: []const u8,
     number_literal: u64,
     null_literal,
+    identity,
     field_access: *FieldAccess,
     child_navigation: *ChildNavigation,
     descendant_navigation: *DescendantNavigation,
@@ -504,17 +348,27 @@ pub const Expression = union(enum) {
     object_literal: ObjectLiteral,
     array_literal: ArrayLiteral,
     tuple_literal: TupleLiteral,
-    subquery: *QueryBody,
     parenthesized: *Expression,
+    collect_expression: *Expression,
+    bind_expression: *BindExpression,
+    pipe_expression: *PipeExpression,
+    // Boolean/guard expressions (formerly Predicate variants)
+    comparison: *Comparison,
+    is_null: *IsNullExpr,
+    logical_and: *LogicalAnd,
+    logical_or: *LogicalOr,
+    logical_not: *LogicalNot,
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
         switch (self) {
             .node_selector => |ns| allocator.free(ns.node_type),
             .variable => |v| allocator.free(v.name),
+            .dot_field_access => |dfa| allocator.free(dfa.field),
             .string_literal => |s| allocator.free(s),
             .regex_literal => |r| allocator.free(r),
             .number_literal => {},
             .null_literal => {},
+            .identity => {},
             .field_access => |fa| {
                 fa.base.deinit(allocator);
                 allocator.free(fa.field);
@@ -547,13 +401,45 @@ pub const Expression = union(enum) {
                 for (tl.elements) |elem| elem.deinit(allocator);
                 allocator.free(tl.elements);
             },
-            .subquery => |sq| {
-                sq.deinit(allocator);
-                allocator.destroy(sq);
-            },
             .parenthesized => |p| {
                 p.deinit(allocator);
                 allocator.destroy(p);
+            },
+            .collect_expression => |p| {
+                p.deinit(allocator);
+                allocator.destroy(p);
+            },
+            .bind_expression => |be| {
+                be.deinit(allocator);
+                allocator.destroy(be);
+            },
+            .pipe_expression => |pe| {
+                pe.left.deinit(allocator);
+                pe.right.deinit(allocator);
+                allocator.destroy(pe);
+            },
+            .comparison => |c| {
+                c.left.deinit(allocator);
+                c.right.deinit(allocator);
+                allocator.destroy(c);
+            },
+            .is_null => |p| {
+                p.expression.deinit(allocator);
+                allocator.destroy(p);
+            },
+            .logical_and => |la| {
+                la.left.deinit(allocator);
+                la.right.deinit(allocator);
+                allocator.destroy(la);
+            },
+            .logical_or => |lo| {
+                lo.left.deinit(allocator);
+                lo.right.deinit(allocator);
+                allocator.destroy(lo);
+            },
+            .logical_not => |ln| {
+                ln.predicate.deinit(allocator);
+                allocator.destroy(ln);
             },
         }
     }
@@ -562,10 +448,12 @@ pub const Expression = union(enum) {
         switch (self) {
             .node_selector => |ns| try w.print("(node {s})", .{ns.node_type}),
             .variable => |v| try w.print("{s}", .{v.name}),
+            .dot_field_access => |dfa| try dfa.sexpr(w),
             .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
             .regex_literal => |r| try w.print("(regex \"{s}\")", .{r}),
             .number_literal => |n| try w.print("(number {d})", .{n}),
             .null_literal => try w.writeAll("null"),
+            .identity => try w.writeAll("."),
             .field_access => |fa| try fa.sexpr(w),
             .child_navigation => |cn| try cn.sexpr(w),
             .descendant_navigation => |dn| try dn.sexpr(w),
@@ -573,14 +461,47 @@ pub const Expression = union(enum) {
             .object_literal => |ol| try ol.sexpr(w),
             .array_literal => |al| try al.sexpr(w),
             .tuple_literal => |tl| try tl.sexpr(w),
-            .subquery => |sq| {
-                try w.writeAll("(subquery ");
-                try sq.sexpr(w);
-                try w.writeByte(')');
-            },
             .parenthesized => |pe| {
                 try w.writeAll("(paren ");
                 try pe.sexpr(w);
+                try w.writeByte(')');
+            },
+            .collect_expression => |pe| {
+                try w.writeAll("(collect ");
+                try pe.sexpr(w);
+                try w.writeByte(')');
+            },
+            .bind_expression => |be| try be.sexpr(w),
+            .pipe_expression => |pe| try pe.sexpr(w),
+            .comparison => |c| {
+                try w.print("({s} ", .{@tagName(c.operator)});
+                try c.left.sexpr(w);
+                try w.writeByte(' ');
+                try c.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .is_null => |p| {
+                try w.writeAll(if (p.negated) "(is-not-null " else "(is-null ");
+                try p.expression.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_and => |la| {
+                try w.writeAll("(and ");
+                try la.left.sexpr(w);
+                try w.writeByte(' ');
+                try la.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_or => |lo| {
+                try w.writeAll("(or ");
+                try lo.left.sexpr(w);
+                try w.writeByte(' ');
+                try lo.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .logical_not => |ln| {
+                try w.writeAll("(not ");
+                try ln.predicate.sexpr(w);
                 try w.writeByte(')');
             },
         }
@@ -600,6 +521,10 @@ pub const FunctionCall = struct {
         try w.writeByte(')');
     }
 };
+
+// ============================================================================
+// Types
+// ============================================================================
 
 pub const Type = union(enum) {
     identifier: Identifier,

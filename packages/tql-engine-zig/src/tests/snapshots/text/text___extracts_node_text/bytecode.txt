@@ -1,0 +1,11 @@
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: yield
+0010: halt

@@ -1,1 +1,1 @@
-(source_file (query_body (with (binding (child root (node class_declaration)) class) (binding (field class name) name)) (select (object class name))))
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) class) (field class name)) name) (object class name)))
