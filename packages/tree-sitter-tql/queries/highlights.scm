@@ -1,8 +1,6 @@
 [ "def"
   "as"
   "is"
-  "any"
-  "all"
   "and"
   "or"
   "not"

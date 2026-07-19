@@ -8,13 +8,14 @@
   import Editor from "$lib/Editor.svelte";
   const parser = new Parser();
 
-  let query = $state(`@root > function_definition.declarator as @func_decl
-| (
-  @func_decl.parameters > parameter_declaration as @param
-  | select(@param.type = 'int')
-  | @param.declarator
-) as @int_param_names
-| { func_name: @func_decl.declarator, @int_param_names }`);
+  let query = $state(`. > function_definition.declarator as @func_decl
+| [
+  .parameters > parameter_declaration
+  | select(.type | text = 'int')
+  | .declarator
+  | text
+] as @int_param_names
+| { func: @func_decl.declarator, @int_param_names }`);
   let target = $state(`#include <stddef.h>
 #include <stdio.h>
 
