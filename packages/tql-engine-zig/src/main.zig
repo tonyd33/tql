@@ -53,12 +53,30 @@ const main_cmds = .{
             .install_dir = Opt{ .names = .{ .long = "install-dir" }, .has_arg = .required_argument, .meta = "dir", .description = "Grammar install directory" },
         },
     },
+    .debug = .{
+        .aliases = &[_][]const u8{},
+        .description = @as(?[]const u8, null),
+        .hidden = true,
+        .opts = .{
+            .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
+            .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
+            .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
+        },
+    },
 };
 
 const grammar_subcmds = .{
     .list = .{ .aliases = &[_][]const u8{"ls"}, .description = @as(?[]const u8, "List installed grammars") },
     .add = .{ .aliases = &[_][]const u8{}, .description = @as(?[]const u8, "Install grammars") },
     .remove = .{ .aliases = &[_][]const u8{"rm"}, .description = @as(?[]const u8, "Remove grammars") },
+};
+
+const debug_subcmds = .{
+    .@"dump-instructions" = .{
+        .aliases = &[_][]const u8{},
+        .description = @as(?[]const u8, null),
+        .hidden = true,
+    },
 };
 
 const main_cmd = .{
@@ -114,7 +132,7 @@ pub fn main(init: std.process.Init) !u8 {
                 subcmd = p;
                 break;
             },
-            .named_arg => unreachable,
+            .named_arg => |kv| switch (kv.field) {},
         }
     }
 
@@ -139,6 +157,14 @@ pub fn main(init: std.process.Init) !u8 {
                 &iter,
             ),
             .grammar => return runGrammar(
+                init.io,
+                init.gpa,
+                stdout,
+                stderr,
+                init.environ_map,
+                &iter,
+            ),
+            .debug => return runDebug(
                 init.io,
                 init.gpa,
                 stdout,
@@ -186,7 +212,6 @@ fn runMain(
             .flag => |f| switch (f) {
                 .help => show_help = true,
                 .progress => progress = true,
-                .from_file, .workers, .grammar => unreachable,
             },
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
@@ -198,7 +223,6 @@ fn runMain(
                     try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
                     return @intFromEnum(ExitCode.invalid_args);
                 },
-                .help, .progress => unreachable,
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -272,11 +296,9 @@ fn runGrammar(
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
-                .install_dir => unreachable,
             },
             .named_arg => |kv| switch (kv.field) {
                 .install_dir => install_dir = kv.value,
-                .help => unreachable,
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -338,6 +360,110 @@ fn listGrammars(
         try stderr.writeAll("  (none)\n");
     } else {
         for (dyn) |d| try stderr.print("  {s}  {s}\n", .{ d.name, d.dir });
+    }
+
+    return @intFromEnum(ExitCode.success);
+}
+
+fn runDebug(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    environ_map: *const std.process.Environ.Map,
+    iter: *std.process.Args.Iterator,
+) !u8 {
+    var tokenizer = ArgTokenizer(main_cmds.debug.opts).init(iter);
+
+    var from_file: ?[]const u8 = null;
+    var grammar_name: ?[]const u8 = null;
+    var positionals: std.ArrayList([]const u8) = .empty;
+    defer positionals.deinit(gpa);
+
+    while (try tokenizer.next()) |tok| {
+        switch (tok) {
+            .flag => |f| switch (f) {
+                .help => {},
+            },
+            .named_arg => |kv| switch (kv.field) {
+                .from_file => from_file = kv.value,
+                .grammar => grammar_name = kv.value,
+            },
+            .positional => |p| try positionals.append(gpa, p),
+        }
+    }
+
+    if (positionals.items.len == 0) {
+        try stderr.print("Error: debug subcommand required\n", .{});
+        return @intFromEnum(ExitCode.invalid_args);
+    }
+
+    switch (SubcmdResolver(debug_subcmds).match(positionals.items[0])) {
+        .subcmd => |s| switch (s) {
+            .@"dump-instructions" => return runDumpInstructions(io, gpa, stdout, stderr, environ_map, from_file, grammar_name, positionals.items[1..]),
+        },
+        .unknown => |w| {
+            try stderr.print("Error: unknown debug subcommand '{s}'\n", .{w});
+            return @intFromEnum(ExitCode.invalid_args);
+        },
+    }
+}
+
+fn runDumpInstructions(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    environ_map: *const std.process.Environ.Map,
+    from_file: ?[]const u8,
+    grammar_name: ?[]const u8,
+    positionals: []const []const u8,
+) !u8 {
+    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
+    defer {
+        for (search_paths) |p| gpa.free(p);
+        gpa.free(search_paths);
+    }
+    var registry = tql.GrammarRegistry.init(gpa, search_paths);
+    defer registry.deinit();
+
+    const query: []const u8 = if (from_file) |query_file| blk: {
+        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
+        defer file.close(io);
+        var file_reader = file.reader(io, &.{});
+        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+    } else blk: {
+        if (positionals.len == 0) {
+            try stderr.print("Error: query is required\n", .{});
+            return @intFromEnum(ExitCode.invalid_args);
+        }
+        break :blk try gpa.dupe(u8, positionals[0]);
+    };
+    defer gpa.free(query);
+
+    const gname = grammar_name orelse {
+        try stderr.print("Error: --grammar is required\n", .{});
+        return @intFromEnum(ExitCode.invalid_args);
+    };
+
+    const grammar = registry.get(gname) catch |err| {
+        try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ gname, err });
+        return @intFromEnum(ExitCode.invalid_args);
+    };
+
+    var engine = try Engine.init(.{ .allocator = gpa, .io = io });
+    defer engine.deinit();
+
+    var compiled = engine.compile(query, grammar) catch |err| {
+        try stderr.print("Error: {}\n", .{err});
+        return @intFromEnum(ExitCode.compilation_error);
+    };
+    defer compiled.deinit();
+
+    for (compiled.instructions(), 0..) |instr, i| {
+        try stdout.print("{d:4}: ", .{i});
+        try instr.print(stdout);
+        try stdout.writeAll("\n");
     }
 
     return @intFromEnum(ExitCode.success);
