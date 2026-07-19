@@ -9,7 +9,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class ServiceProvider {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -67,6 +69,7 @@ class ServiceProvider {}
     }
   }
 ]
+
 ================================================================================
 regex match anchored
 ================================================================================
@@ -78,7 +81,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class ServiceProvider {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "^Service$")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -122,6 +127,7 @@ class ServiceProvider {}
     }
   }
 ]
+
 ================================================================================
 regex not match
 ================================================================================
@@ -133,7 +139,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class ServiceProvider {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_not_match (pipe n (call text)) (regex "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -181,6 +189,7 @@ class ServiceProvider {}
     }
   }
 ]
+
 ================================================================================
 regex match character class
 ================================================================================
@@ -192,7 +201,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "[A-Z][a-z]+")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)

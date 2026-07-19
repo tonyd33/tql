@@ -7,7 +7,9 @@ grammar: typescript
 . > class_declaration as @class | ('class', @class)
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (tuple (string "class") class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -46,6 +48,7 @@ class Foo {}
     }
   ]
 ]
+
 ================================================================================
 triple
 ================================================================================
@@ -55,7 +58,9 @@ grammar: typescript
 . > class_declaration as @class | @class.name as @name | ('class', @name, @class)
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) class) (field class name)) name) (tuple (string "class") name class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)

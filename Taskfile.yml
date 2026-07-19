@@ -1,5 +1,8 @@
 version: "3"
 
+vars:
+  NPX: pnpm exec
+
 includes:
   engine:
     taskfile: ./packages/tql-engine-zig
@@ -7,6 +10,9 @@ includes:
   grammar:
     taskfile: ./packages/tree-sitter-tql
     dir: ./packages/tree-sitter-tql
+  goz:
+    taskfile: ./packages/goz
+    dir: ./packages/goz
   js:
     taskfile: ./packages/tql-js
     dir: ./packages/tql-js
@@ -15,22 +21,21 @@ includes:
     dir: ./packages/playground
 
 tasks:
-  default:
-    cmds: [task --list]
+  default: task --list
 
   install:
-    desc: pnpm install (frozen lockfile)
-    cmds: [pnpm install --frozen-lockfile]
+    desc: install
+    cmd: pnpm install --frozen-lockfile
 
   fmt:
     desc: Format everything
-    deps: [engine:fmt]
-    cmds: [pnpm exec biome check --write .]
+    deps: [engine:fmt, goz:fmt]
+    cmd: "{{.NPX}} biome check --write ."
 
   check:
     desc: Lint + type check
     deps: [playground:check]
-    cmds: [pnpm exec biome check .]
+    cmd: "{{.NPX}} biome check ."
 
   build:
     desc: Build grammar, engine, js, playground
@@ -41,9 +46,9 @@ tasks:
 
   test:
     desc: Run all tests
-    deps: [grammar:test, engine:test]
+    deps: [grammar:test, engine:test, goz:test]
 
   clean:
     desc: Clean all build artifacts + node_modules
-    deps: [grammar:clean, js:clean, playground:clean, engine:clean]
-    cmds: [rm -rf node_modules]
+    deps: [grammar:clean, js:clean, playground:clean, engine:clean, goz:clean]
+    cmd: rm -rf node_modules

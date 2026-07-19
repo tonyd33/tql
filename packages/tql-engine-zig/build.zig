@@ -419,6 +419,7 @@ pub fn build(b: *std.Build) !void {
 
     const test_build_options = b.addOptions();
     test_build_options.addOption([]const u8, "version", VERSION);
+    test_build_options.addOption([]const []const u8, "static_grammars", &.{ "c", "typescript" });
 
     const test_mod = b.addModule("tql_engine_zig_test", .{
         .root_source_file = b.path("src/root.zig"),
@@ -430,7 +431,6 @@ pub fn build(b: *std.Build) !void {
 
     const mod_tests = b.addTest(.{
         .root_module = test_mod,
-        .test_runner = .{ .path = b.path("tests/test_runner.zig"), .mode = .simple },
     });
 
     // A run step that will run the test executable.
@@ -459,6 +459,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     snapshot_runner_mod.addImport("engine", test_mod);
+    snapshot_runner_mod.addImport("goz", b.dependency("goz", .{}).module("goz"));
     const snapshot_runner_exe = b.addExecutable(.{
         .name = "snapshot-runner",
         .root_module = snapshot_runner_mod,

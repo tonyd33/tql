@@ -8,7 +8,9 @@ grammar: typescript
 --- source ---
 class Service {}
 class Controller {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (eq (pipe n (call text)) (string "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -52,6 +54,7 @@ class Controller {}
     }
   }
 ]
+
 ================================================================================
 WHERE with OR logic
 ================================================================================
@@ -63,7 +66,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class Repository {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (or (eq (pipe n (call text)) (string "Service")) (eq (pipe n (call text)) (string "Controller"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -129,6 +134,7 @@ class Repository {}
     }
   }
 ]
+
 ================================================================================
 WHERE with AND logic
 ================================================================================
@@ -145,7 +151,9 @@ select(@class_name | text = 'Service' and @method_name | text = 'foo') |
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { foo() {}; bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (pipe (bind (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (field c body)) body) (child body (node method_definition))) method_def) (field method_def name)) method_name) (call select (and (eq (pipe class_name (call text)) (string "Service")) (eq (pipe method_name (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -214,6 +222,7 @@ class Controller { foo() {}; bar() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE with any quantifier - matches
 ================================================================================
@@ -224,7 +233,9 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -281,6 +292,7 @@ class Controller { baz() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE with any quantifier - no matches
 ================================================================================
@@ -291,7 +303,9 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "nonexistent"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -333,6 +347,7 @@ class Controller { baz() {}; }
 0036: halt
 --- values ---
 []
+
 ================================================================================
 WHERE any matches second method only
 ================================================================================
@@ -343,7 +358,9 @@ grammar: typescript
 --- source ---
 class A { bar() {}; foo() {}; }
 class B { bar() {}; baz() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -400,6 +417,7 @@ class B { bar() {}; baz() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE with all quantifier
 ================================================================================
@@ -410,7 +428,9 @@ grammar: typescript
 --- source ---
 class A { foo() {}; foo() {}; }
 class B { foo() {}; bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call all (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -467,6 +487,7 @@ class B { foo() {}; bar() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE field access on outer row
 ================================================================================
@@ -477,7 +498,9 @@ grammar: typescript
 --- source ---
 class Service {}
 class Controller {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq (pipe (field c name) (call text)) (string "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -519,6 +542,7 @@ class Controller {}
     }
   }
 ]
+
 ================================================================================
 WHERE optional binding is null
 ================================================================================
@@ -530,7 +554,9 @@ grammar: typescript
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- ast ---
+--- source ast ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (eq rt null))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -558,6 +584,7 @@ function c(): string { return 'x'; }
 0022: halt
 --- values ---
 []
+
 ================================================================================
 WHERE optional binding is not null
 ================================================================================
@@ -569,7 +596,9 @@ grammar: typescript
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- ast ---
+--- source ast ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (ne rt null))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -630,6 +659,7 @@ function c(): string { return 'x'; }
     }
   }
 ]
+
 ================================================================================
 WHERE expression is null
 ================================================================================
@@ -641,7 +671,9 @@ grammar: typescript
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- ast ---
+--- source ast ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-null (field f return_type)))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -684,6 +716,7 @@ function c(): string { return 'x'; }
     }
   }
 ]
+
 ================================================================================
 WHERE expression is not null
 ================================================================================
@@ -695,7 +728,9 @@ grammar: typescript
 function a(): number { return 1; }
 function b() { return 2; }
 function c(): string { return 'x'; }
---- ast ---
+--- source ast ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-not-null (field f return_type)))) f))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -752,6 +787,7 @@ function c(): string { return 'x'; }
     }
   }
 ]
+
 ================================================================================
 WHERE field access with regex match
 ================================================================================
@@ -762,7 +798,9 @@ grammar: typescript
 --- source ---
 class A { foobar() {}; }
 class B { bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (regex_match (pipe (dot-field name) (call text)) (regex "^foo.*"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -819,6 +857,7 @@ class B { bar() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE field access with not equal
 ================================================================================
@@ -830,7 +869,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class Repository {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (ne (pipe (field c name) (call text)) (string "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -890,6 +931,7 @@ class Repository {}
     }
   }
 ]
+
 ================================================================================
 WHERE field access in AND
 ================================================================================
@@ -901,7 +943,9 @@ grammar: typescript
 class Service { foo() {}; }
 class Service { bar() {}; }
 class Other { foo() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Service")) (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo")))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -966,6 +1010,7 @@ class Other { foo() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE same field accessed twice
 ================================================================================
@@ -977,7 +1022,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 class Repository {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (or (eq (pipe (field c name) (call text)) (string "Service")) (eq (pipe (field c name) (call text)) (string "Controller"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1044,6 +1091,7 @@ class Repository {}
     }
   }
 ]
+
 ================================================================================
 WHERE quantified regression for double yield
 ================================================================================
@@ -1066,7 +1114,9 @@ class Foo2 {}
 class Foo3 {
   m3() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (call select (and (regex_match (pipe class_name (call text)) (regex "Foo.*")) (call any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1141,6 +1191,7 @@ class Foo3 {
     }
   }
 ]
+
 ================================================================================
 WHERE descendant nav in quantifier source
 ================================================================================
@@ -1151,7 +1202,9 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; }
 class Controller { bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1205,6 +1258,7 @@ class Controller { bar() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE child nav in comparison body
 ================================================================================
@@ -1215,7 +1269,9 @@ grammar: typescript
 --- source ---
 class A { foo() { return 1; } }
 class B { bar() {} }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (child (dot-field body) (node return_statement)) null)))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1283,6 +1339,7 @@ class B { bar() {} }
     }
   }
 ]
+
 ================================================================================
 WHERE field access in OR with anonymous lift
 ================================================================================
@@ -1294,7 +1351,9 @@ grammar: typescript
 class A { foo() {}; }
 class B { bar() {}; }
 class C { baz() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (or (eq (pipe (dot-field name) (call text)) (string "foo")) (eq (pipe (dot-field name) (call text)) (string "bar")))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1375,6 +1434,7 @@ class C { baz() {}; }
     }
   }
 ]
+
 ================================================================================
 WHERE any with not-null body
 ================================================================================
@@ -1385,7 +1445,9 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -1459,3 +1521,75 @@ class Controller { baz() {}; }
     }
   }
 ]
+
+================================================================================
+WHERE with nested any over two sources
+================================================================================
+grammar: typescript
+
+--- query ---
+. > class_declaration as @c | select(any(@c.body > method_definition; any(@c.body > method_definition; .name = .name))) | @c
+--- source ---
+class A { foo() {}; bar() {}; }
+class B {}
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (call any (child (field c body) (node method_definition)) (eq (dot-field name) (dot-field name)))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 48
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: probe exists 45
+0025: trv value_source (variable_id 0)
+0026: trv field 5
+0027: asn 9 ((current value) value)
+0028: trv value_source (variable_id 9)
+0029: trv child
+0030: rel equals ((current value) kind) (literal kind_id 261) -> 10
+0031: jmp 33 if (variable_id 10)
+0032: halt
+0033: asn 11 ((current value) value)
+0034: trv value_source (variable_id 11)
+0035: asn 12 ((current value) value)
+0036: trv value_source (variable_id 12)
+0037: trv field 25
+0038: asn 13 ((current value) value)
+0039: trv field 25
+0040: asn 14 ((current value) value)
+0041: rel equals (variable_id 13) (variable_id 14) -> 15
+0042: jmp 44 if not (variable_id 15)
+0043: yield
+0044: halt
+0045: jmp 47 if not (literal bool true)
+0046: yield
+0047: halt
+0048: trv value_source (variable_id 4)
+0049: jmp 51 if (literal bool true)
+0050: halt
+0051: trv value_source ((current value) value)
+0052: yield
+0053: halt
+--- values ---
+[]

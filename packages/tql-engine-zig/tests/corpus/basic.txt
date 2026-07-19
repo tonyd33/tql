@@ -9,7 +9,9 @@ grammar: typescript
 class Service {}
 class Controller {}
 function foo() {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- tql ast ---
 (source_file (pipe (bind (child . (node class_declaration)) class) class))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -55,6 +57,7 @@ function foo() {}
     }
   }
 ]
+
 ================================================================================
 field access
 ================================================================================
@@ -65,7 +68,9 @@ grammar: typescript
 --- source ---
 class Service {}
 class Controller {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) n))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -116,6 +121,7 @@ class Controller {}
     }
   }
 ]
+
 ================================================================================
 identity is root
 ================================================================================
@@ -125,7 +131,9 @@ grammar: typescript
 .
 --- source ---
 class Service {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file .)
 --- bytecode ---
 0000: yield
@@ -147,6 +155,7 @@ class Service {}
     }
   }
 ]
+
 ================================================================================
 identity after transform
 ================================================================================
@@ -157,7 +166,9 @@ grammar: typescript
 --- source ---
 class Service {}
 class Controller {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -204,6 +215,7 @@ class Controller {}
     }
   }
 ]
+
 ================================================================================
 child navigation
 ================================================================================
@@ -216,7 +228,9 @@ class Service {
   foo() {}
   bar() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (child body (node method_definition))) m) m))
 --- bytecode ---
 0000: trv value_source ((current value) value)

@@ -7,7 +7,9 @@ grammar: typescript
 . > class_declaration as @class | [ @class ]
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (collect class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -44,6 +46,7 @@ class Foo {}
     }
   ]
 ]
+
 ================================================================================
 mixed
 ================================================================================
@@ -53,7 +56,9 @@ grammar: typescript
 . > class_declaration as @class | [ 'class', @class ]
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (array (string "class") class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -92,6 +97,7 @@ class Foo {}
     }
   ]
 ]
+
 ================================================================================
 multiple matches
 ================================================================================
@@ -102,7 +108,9 @@ grammar: typescript
 --- source ---
 class A {}
 class B {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (child . (node class_declaration)) class) (collect class)))
 --- bytecode ---
 0000: trv value_source ((current value) value)

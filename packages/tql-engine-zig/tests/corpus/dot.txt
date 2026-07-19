@@ -7,7 +7,9 @@ grammar: typescript
 . | .
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe . .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -30,6 +32,7 @@ class Foo {}
     }
   }
 ]
+
 ================================================================================
 dot identity in middle of pipeline
 ================================================================================
@@ -39,7 +42,9 @@ grammar: typescript
 . > class_declaration as @c | @c | . | .name as @n | @n
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) .) (dot-field name)) n) n))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -77,6 +82,7 @@ class Foo {}
     }
   }
 ]
+
 ================================================================================
 dot identity after variable transform
 ================================================================================
@@ -87,7 +93,9 @@ grammar: typescript
 --- source ---
 class Foo {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -134,6 +142,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 dot identity after field access transform
 ================================================================================
@@ -144,7 +153,9 @@ grammar: typescript
 --- source ---
 class Foo {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (field c name)) .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -194,6 +205,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 chained dot identity
 ================================================================================
@@ -204,7 +216,9 @@ grammar: typescript
 --- source ---
 class Foo {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) .) .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -252,6 +266,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 dot bind to variable
 ================================================================================
@@ -262,7 +277,9 @@ grammar: typescript
 --- source ---
 class Foo {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (pipe (pipe (bind (child . (node class_declaration)) c) c) .) snap) snap))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -311,6 +328,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 dot field access on current value
 ================================================================================
@@ -321,7 +339,9 @@ grammar: typescript
 --- source ---
 class Foo {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) (dot-field name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -370,6 +390,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 dot field access after function transform
 ================================================================================
@@ -380,7 +401,9 @@ grammar: typescript
 --- source ---
 function foo() {}
 function bar() {}
---- ast ---
+--- source ast ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node function_declaration)) f) f) (dot-field name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -429,6 +452,7 @@ function bar() {}
     }
   }
 ]
+
 ================================================================================
 dot in any quantifier predicate
 ================================================================================
@@ -439,7 +463,9 @@ grammar: typescript
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -496,6 +522,7 @@ class B { bar() {}; }
     }
   }
 ]
+
 ================================================================================
 dot field in any predicate
 ================================================================================
@@ -506,7 +533,9 @@ grammar: typescript
 --- source ---
 class A { foobar() {}; }
 class B { bar() {}; }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (regex_match (pipe (dot-field name) (call text)) (regex "^foo"))))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -563,6 +592,7 @@ class B { bar() {}; }
     }
   }
 ]
+
 ================================================================================
 bare dot in any predicate
 ================================================================================
@@ -573,7 +603,9 @@ grammar: typescript
 --- source ---
 class A { foo() {}; }
 class B {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne . null)))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -631,6 +663,7 @@ class B {}
     }
   }
 ]
+
 ================================================================================
 dot in object literal projection
 ================================================================================
@@ -640,7 +673,9 @@ grammar: typescript
 . > class_declaration as @c | @c | { name: .name }
 --- source ---
 class Foo {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) (object (name (dot-field name)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -680,6 +715,7 @@ class Foo {}
     }
   }
 ]
+
 ================================================================================
 dot field in select predicate after transform
 ================================================================================
@@ -690,7 +726,9 @@ grammar: typescript
 --- source ---
 class FooController {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) (call select (regex_match (pipe (dot-field name) (call text)) (regex "Controller")))) .))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -732,6 +770,7 @@ class Bar {}
     }
   }
 ]
+
 ================================================================================
 dot field select then dot field project
 ================================================================================
@@ -742,7 +781,9 @@ grammar: typescript
 --- source ---
 class FooController {}
 class Bar {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) (call select (regex_match (pipe (dot-field name) (call text)) (regex "Controller")))) (dot-field name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)

@@ -9,7 +9,9 @@ grammar: typescript
 class Service {
   foo() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field (child (field c body) (node method_definition)) name)) nested_name) nested_name))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -57,6 +59,7 @@ class Service {
     }
   }
 ]
+
 ================================================================================
 field access on node selector
 ================================================================================
@@ -67,7 +70,9 @@ grammar: typescript
 --- source ---
 class Service {}
 class Controller {}
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql ast ---
 (source_file (pipe (bind (field (child . (node class_declaration)) name) name) name))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -116,6 +121,7 @@ class Controller {}
     }
   }
 ]
+
 ================================================================================
 child navigation with field access parent
 ================================================================================
@@ -128,7 +134,9 @@ class Service {
   foo() {}
   bar() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (child (field c body) (node method_definition))) method) method))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -187,6 +195,7 @@ class Service {
     }
   }
 ]
+
 ================================================================================
 child navigation on node selector
 ================================================================================
@@ -202,7 +211,9 @@ class Service {
 class Controller {
   baz() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (child (field (child . (node class_declaration)) body) (node method_definition)) method) method))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -273,6 +284,7 @@ class Controller {
     }
   }
 ]
+
 ================================================================================
 descendant navigation with field access parent
 ================================================================================
@@ -285,7 +297,9 @@ class Service {
   foo() {}
   bar() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (descendant (field c body) (node property_identifier))) id) id))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -344,6 +358,7 @@ class Service {
     }
   }
 ]
+
 ================================================================================
 descendant navigation on node selector
 ================================================================================
@@ -358,7 +373,9 @@ class Service {
 class Controller {
   bar() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (descendant (child . (node class_declaration)) (node property_identifier)) id) id))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -412,6 +429,7 @@ class Controller {
     }
   }
 ]
+
 ================================================================================
 nested child navigation
 ================================================================================
@@ -424,7 +442,9 @@ class Service {
   foo() {}
   bar() {}
 }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (child (child c (node class_body)) (node method_definition))) method) method))
 --- bytecode ---
 0000: trv value_source ((current value) value)

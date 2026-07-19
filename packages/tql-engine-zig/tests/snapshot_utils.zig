@@ -1,10 +1,15 @@
 const std = @import("std");
 const engine_mod = @import("engine");
+const ts = engine_mod.ts;
 const RuntimeMod = engine_mod.Runtime;
 const Value = engine_mod.Value;
 
 pub fn formatAst(allocator: std.mem.Allocator, ast: anytype) ![]const u8 {
     return ast.sexprAlloc(allocator);
+}
+
+pub fn formatSourceAst(allocator: std.mem.Allocator, tree: *ts.Tree) ![]const u8 {
+    return tree.rootNode().toSexp(allocator);
 }
 
 pub fn formatBytecode(allocator: std.mem.Allocator, instructions: []const RuntimeMod.Instruction) ![]const u8 {

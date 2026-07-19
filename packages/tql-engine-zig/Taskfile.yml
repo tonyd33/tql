@@ -1,29 +1,40 @@
 version: "3"
 
 tasks:
-  default:
-    cmds: [task --list]
+  default: task --list
+
+  build-cli:
+    vars:
+      ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
+    cmd: zig build {{.ARGS}}
+
+  build-wasm:
+    vars:
+      ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
+    cmd: zig build wasm {{.ARGS}}
 
   build:
     vars:
       ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
-    cmds:
-      - zig build {{.ARGS}}
-      - zig build wasm {{.ARGS}}
+    deps:
+      - task: build-cli
+        vars:
+          ARGS: "{{.ARGS}}"
+      - task: build-wasm
+        vars:
+          ARGS: "{{.ARGS}}"
 
-  release:
-    cmds: ["zig build -Doptimize=ReleaseFast --release=fast"]
+  release: zig build -Doptimize=ReleaseFast --release=fast
+
+  snapshot-test: zig build snapshot-test
+
+  root-test: zig build test
 
   test:
-    vars:
-      UPDATE_SNAPSHOT: '{{.UPDATE_SNAPSHOT | default "false"}}'
-    cmds: ["zig build test -Dupdate-snapshots={{.UPDATE_SNAPSHOT}}"]
+    deps: [root-test, snapshot-test]
 
-  run:
-    cmds: ["zig build run -- {{.CLI_ARGS}}"]
+  run: zig build run -- {{.CLI_ARGS}}
 
-  fmt:
-    cmds: [zig fmt src build.zig]
+  fmt: zig fmt src tests build.zig
 
-  clean:
-    cmds: [rm -rf zig-out .zig-cache]
+  clean: rm -rf zig-out .zig-cache

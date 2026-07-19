@@ -7,7 +7,9 @@ grammar: typescript
 . >> property_identifier | text()
 --- source ---
 class Foo { bar() {} }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (descendant . (node property_identifier)) (call text)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -25,6 +27,7 @@ class Foo { bar() {} }
 [
   "bar"
 ]
+
 ================================================================================
 bare text extracts node text
 ================================================================================
@@ -34,7 +37,9 @@ grammar: typescript
 . >> property_identifier | text
 --- source ---
 class Foo { bar() {} }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (descendant . (node property_identifier)) (call text)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -52,6 +57,7 @@ class Foo { bar() {} }
 [
   "bar"
 ]
+
 ================================================================================
 text via variable
 ================================================================================
@@ -61,7 +67,9 @@ grammar: typescript
 . >> property_identifier as @id | @id | text
 --- source ---
 class Foo { bar() {} }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (descendant . (node property_identifier)) id) id) (call text)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
@@ -81,6 +89,7 @@ class Foo { bar() {} }
 [
   "bar"
 ]
+
 ================================================================================
 string comparison still works after text() added
 ================================================================================
@@ -90,7 +99,9 @@ grammar: typescript
 . >> property_identifier as @id | select(@id | text = 'bar') | @id
 --- source ---
 class Foo { bar() {} }
---- ast ---
+--- source ast ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql ast ---
 (source_file (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (eq (pipe id (call text)) (string "bar")))) id))
 --- bytecode ---
 0000: trv value_source ((current value) value)
