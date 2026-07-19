@@ -1,17 +1,17 @@
 const std = @import("std");
 const tql = @import("tql_engine_zig");
+const goz = @import("goz");
 const Engine = tql.Engine;
 const Grammar = tql.Grammar;
 const Value = tql.Value;
 
 const VERSION = tql.VERSION;
 
-// IMPROVE: split arg parser
-const ArgTokenizer = tql.arg_parser.ArgTokenizer;
-const SubcmdResolver = tql.arg_parser.SubcmdResolver;
-const Opt = tql.arg_parser.Opt;
-const Positional = tql.arg_parser.Positional;
-const printUsage = tql.arg_parser.printUsage;
+const ArgTokenizer = goz.ArgTokenizer;
+const SubcmdResolver = goz.SubcmdResolver;
+const Opt = goz.Opt;
+const Positional = goz.Positional;
+const printUsage = goz.printUsage;
 
 const OutputFormat = enum {
     // IMPROVE: actually implement these

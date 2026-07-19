@@ -26,8 +26,6 @@ pub const Engine = engine.Engine;
 pub const Query = engine.Query;
 pub const RunResult = engine.RunResult;
 pub const RunStats = engine.RunStats;
-pub const arg_parser = @import("arg_parser.zig");
-
 test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
@@ -39,5 +37,4 @@ test {
     refAllDecls(grammar);
     refAllDecls(engine);
     refAllDecls(@import("tests.zig"));
-    refAllDecls(@import("arg_parser.zig"));
 }
