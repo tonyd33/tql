@@ -64,6 +64,18 @@ jobs:
           | { @name }
           ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
 
+      - name: Check query time
+        working-directory: tql
+        run: |
+          query_time_ns=$(jq '.query_time_ns' results.json)
+          query_time_s=$(jq -n "$query_time_ns / 1000000000")
+          limit_ns=35000000000
+          echo "Query time: ${query_time_s}s (limit: 35s)"
+          if [ "$query_time_ns" -ge "$limit_ns" ]; then
+            echo "Query time ${query_time_s}s exceeds 35s limit"
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
     steps:
