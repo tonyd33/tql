@@ -345,11 +345,15 @@ pub fn build(b: *std.Build) !void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
-    const grammars_str = b.option([]const u8, "grammars", "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)") orelse "none";
+    const grammars_str = b.option(
+        []const u8,
+        "grammars",
+        "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)",
+    ) orelse "none";
     const selection = try parseGrammarNames(b, grammars_str);
     const selected = try selectedGrammars(b, selection);
 
-    const lib_build_options = try addLibBuildOptions(b, .none);
+    const lib_build_options = try addLibBuildOptions(b, selection);
     lib_mod.addOptions("build_options", lib_build_options);
 
     try addEngineDeps(b, lib_mod, selected, target, optimize);

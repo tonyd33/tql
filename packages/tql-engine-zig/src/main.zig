@@ -35,7 +35,7 @@ const main_opts = .{
 
 const main_cmds = .{
     .query = .{
-        .aliases = &[_][]const u8{},
+        .aliases = &[_][]const u8{"run"},
         .description = @as(?[]const u8, "Run a query against files"),
         .opts = .{
             .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
