@@ -1,0 +1,14 @@
+version: "3"
+
+tasks:
+  default: task --list
+
+  build: zig build
+
+  test: zig build test
+
+  run: zig build run -- {{.CLI_ARGS}}
+
+  fmt: zig fmt src build.zig
+
+  clean: rm -rf zig-out .zig-cache

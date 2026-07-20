@@ -1,1 +1,0 @@
-(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (child (field func_decl parameters) (node parameter_declaration))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))

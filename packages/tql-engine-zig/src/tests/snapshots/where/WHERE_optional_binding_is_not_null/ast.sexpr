@@ -1,1 +1,0 @@
-(source_file (pipe (pipe (bind (pipe (bind (child . (node function_declaration)) f) (field f return_type)) rt optional) (call select (ne rt null))) f))

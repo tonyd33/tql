@@ -7,7 +7,7 @@ pub const VERSION = build_options.version;
 pub const ts = @import("tree-sitter");
 pub const runtime = @import("runtime.zig");
 const pcre2 = @import("regex.zig");
-const ast = @import("ast.zig");
+pub const ast = @import("ast.zig");
 const parser = @import("parser.zig");
 const compiler = @import("compiler.zig");
 const grammar = @import("grammar.zig");
@@ -36,5 +36,4 @@ test {
     refAllDecls(compiler);
     refAllDecls(grammar);
     refAllDecls(engine);
-    refAllDecls(@import("tests.zig"));
 }

@@ -5,6 +5,7 @@ pub const Opt = struct {
     has_arg: enum {
         no_argument,
         required_argument,
+        optional_argument,
     } = .no_argument,
     meta: ?[]const u8 = null,
     description: ?[]const u8 = null,
@@ -236,6 +237,15 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
         break :blk n;
     };
 
+    const opt_count = comptime blk: {
+        var n: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .optional_argument) n += 1;
+        }
+        break :blk n;
+    };
+
     const FlagFields = blk: {
         var names: [flag_count][]const u8 = undefined;
         var vals: [flag_count]u16 = undefined;
@@ -266,10 +276,34 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
         break :blk @Enum(u16, .exhaustive, &names, &vals);
     };
 
+    const has_opt = opt_count > 0;
+
+    const OptFields = if (has_opt) blk: {
+        var names: [opt_count][]const u8 = undefined;
+        var vals: [opt_count]u16 = undefined;
+        var i: usize = 0;
+        for (std.meta.fields(T)) |f| {
+            const opt: Opt = @field(opts, f.name);
+            if (opt.has_arg == .optional_argument) {
+                names[i] = f.name;
+                vals[i] = i;
+                i += 1;
+            }
+        }
+        break :blk @Enum(u16, .exhaustive, &names, &vals);
+    } else void;
+
+    const NamedOptPayload = if (has_opt) struct { field: OptFields, value: ?[]const u8 } else void;
+
     return struct {
         const Self = @This();
 
-        pub const Token = union(enum) {
+        pub const Token = if (has_opt) union(enum) {
+            flag: FlagFields,
+            named_arg: struct { field: ArgFields, value: []const u8 },
+            named_opt: NamedOptPayload,
+            positional: []const u8,
+        } else union(enum) {
             flag: FlagFields,
             named_arg: struct { field: ArgFields, value: []const u8 },
             positional: []const u8,
@@ -308,6 +342,20 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
                                     self.continuation = null;
                                     const val = self.iter.next() orelse return error.MissingArg;
                                     return .{ .named_arg = .{ .field = field, .value = val } };
+                                }
+                            },
+                            .optional_argument => {
+                                const field = @field(OptFields, f.name);
+                                self.continuation = null;
+                                if (rest.len > 1) {
+                                    if (rest[1] == '=') {
+                                        if (rest.len == 2) return error.InvalidArgSyntax;
+                                        return .{ .named_opt = .{ .field = field, .value = rest[2..] } };
+                                    } else {
+                                        return .{ .named_opt = .{ .field = field, .value = rest[1..] } };
+                                    }
+                                } else {
+                                    return .{ .named_opt = .{ .field = field, .value = null } };
                                 }
                             },
                         }
@@ -350,6 +398,15 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
                                     } else {
                                         const val = self.iter.next() orelse return error.MissingArg;
                                         return .{ .named_arg = .{ .field = field, .value = val } };
+                                    }
+                                },
+                                .optional_argument => {
+                                    const field = @field(OptFields, f.name);
+                                    if (rest.len == long.len) {
+                                        return .{ .named_opt = .{ .field = field, .value = null } };
+                                    } else if (rest[long.len] == '=') {
+                                        if (rest.len == long.len + 1) return error.InvalidArgSyntax;
+                                        return .{ .named_opt = .{ .field = field, .value = rest[long.len + 1 ..] } };
                                     }
                                 },
                             }
@@ -414,4 +471,75 @@ test "tokenize" {
     try testing.expectEqualDeep(try tokenizer.next(), null);
 
     iterator.deinit();
+}
+
+test "optional_argument" {
+    const opts = .{
+        .update = Opt{ .names = .{ .long = "update", .short = 'u' }, .has_arg = .optional_argument },
+        .flag = Opt{ .names = .{ .long = "flag" } },
+        .req = Opt{ .names = .{ .long = "req" }, .has_arg = .required_argument },
+    };
+    const T = ArgTokenizer(opts).Token;
+
+    {
+        var args = std.process.Args{ .vector = &.{"--update"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = null } });
+        try testing.expectEqualDeep(try tok.next(), null);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"--update=ast"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
+        try testing.expectEqualDeep(try tok.next(), null);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"--update="} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectError(error.InvalidArgSyntax, tok.next());
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"-u"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = null } });
+        try testing.expectEqualDeep(try tok.next(), null);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"-uast"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
+        try testing.expectEqualDeep(try tok.next(), null);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"-u=ast"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
+        try testing.expectEqualDeep(try tok.next(), null);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"--flag=x"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectError(error.ExtraArg, tok.next());
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"--req"} };
+        var it = args.iterate();
+        var tok = ArgTokenizer(opts).init(&it);
+        try testing.expectError(error.MissingArg, tok.next());
+        it.deinit();
+    }
 }

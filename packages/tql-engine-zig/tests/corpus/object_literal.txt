@@ -1,0 +1,251 @@
+================================================================================
+shorthand
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @class | { @class }
+--- source ---
+class Foo {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) class) (object class)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: begin_build record
+0011: push_build class (variable_id 0)
+0012: end_build 4
+0013: yield
+0014: halt
+--- values ---
+[
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class Foo {}",
+      "start_byte": 0,
+      "end_byte": 12,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 12
+      }
+    }
+  }
+]
+
+================================================================================
+two shorthand fields
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @class | @class.name as @name | { @class, @name }
+--- source ---
+class Foo {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) class) (field class name)) name) (object class name)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: begin_build record
+0016: push_build class (variable_id 1)
+0017: push_build name (variable_id 0)
+0018: end_build 6
+0019: yield
+0020: halt
+--- values ---
+[
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class Foo {}",
+      "start_byte": 0,
+      "end_byte": 12,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 12
+      }
+    },
+    "name": {
+      "kind": "type_identifier",
+      "text": "Foo",
+      "start_byte": 6,
+      "end_byte": 9,
+      "start_point": {
+        "row": 0,
+        "column": 6
+      },
+      "end_point": {
+        "row": 0,
+        "column": 9
+      }
+    }
+  }
+]
+
+================================================================================
+key value
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @class | { kind: 'class', node: @class }
+--- source ---
+class Foo {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) class) (object (kind (string "class")) (node class))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: begin_build record
+0011: push_build kind (literal string "class")
+0012: push_build node (variable_id 0)
+0013: end_build 4
+0014: yield
+0015: halt
+--- values ---
+[
+  {
+    "kind": "class",
+    "node": {
+      "kind": "class_declaration",
+      "text": "class Foo {}",
+      "start_byte": 0,
+      "end_byte": 12,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 12
+      }
+    }
+  }
+]
+
+================================================================================
+multiple matches
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @class | { @class }
+--- source ---
+class A {}
+class B {}
+class C {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) class) (object class)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: begin_build record
+0011: push_build class (variable_id 0)
+0012: end_build 4
+0013: yield
+0014: halt
+--- values ---
+[
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class A {}",
+      "start_byte": 0,
+      "end_byte": 10,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 10
+      }
+    }
+  },
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class B {}",
+      "start_byte": 11,
+      "end_byte": 21,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 10
+      }
+    }
+  },
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class C {}",
+      "start_byte": 22,
+      "end_byte": 32,
+      "start_point": {
+        "row": 2,
+        "column": 0
+      },
+      "end_point": {
+        "row": 2,
+        "column": 10
+      }
+    }
+  }
+]

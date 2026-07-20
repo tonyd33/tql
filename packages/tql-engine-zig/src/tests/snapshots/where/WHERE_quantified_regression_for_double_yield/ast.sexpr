@@ -1,1 +1,0 @@
-(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (call select (and (regex_match (pipe class_name (call text)) (regex "Foo.*")) (call any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))

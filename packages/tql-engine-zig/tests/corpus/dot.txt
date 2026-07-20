@@ -1,0 +1,290 @@
+================================================================================
+dot identity in middle of pipeline
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c | . | .name as @n | @n
+--- source ---
+class Foo {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) .) (dot-field name)) n) n))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv value_source ((current value) value)
+0012: trv field 25
+0013: asn 5 ((current value) value)
+0014: asn 0 (variable_id 5)
+0015: trv value_source (variable_id 0)
+0016: yield
+0017: halt
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Foo",
+    "start_byte": 6,
+    "end_byte": 9,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 9
+    }
+  }
+]
+
+================================================================================
+dot bind to variable
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c | . as @snap | @snap
+--- source ---
+class Foo {}
+class Bar {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (bind (pipe (pipe (bind (child . (node class_declaration)) c) c) .) snap) snap))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: asn 0 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: yield
+0014: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Foo {}",
+    "start_byte": 0,
+    "end_byte": 12,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 12
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Bar {}",
+    "start_byte": 13,
+    "end_byte": 25,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 12
+    }
+  }
+]
+
+================================================================================
+dot in any quantifier predicate
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+--- source ---
+class A { foo() {}; }
+class B { bar() {}; }
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: trv field 25
+0025: asn 9 ((current value) value)
+0026: trv value_source (variable_id 9)
+0027: rel equals ((current value) text) (literal string "foo") -> 10
+0028: jmp 30 if not (variable_id 10)
+0029: yield
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 21,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 21
+    }
+  }
+]
+
+================================================================================
+dot in object literal projection
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c | { name: .name }
+--- source ---
+class Foo {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) (object (name (dot-field name)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
+0011: trv field 25
+0012: asn 4 ((current value) value)
+0013: begin_build record
+0014: push_build name (variable_id 4)
+0015: end_build 5
+0016: yield
+0017: halt
+--- values ---
+[
+  {
+    "name": {
+      "kind": "type_identifier",
+      "text": "Foo",
+      "start_byte": 6,
+      "end_byte": 9,
+      "start_point": {
+        "row": 0,
+        "column": 6
+      },
+      "end_point": {
+        "row": 0,
+        "column": 9
+      }
+    }
+  }
+]
+
+================================================================================
+dot field select then dot field project
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c | select(.name | text ~ /Controller/) | .name
+--- source ---
+class FooController {}
+class Bar {}
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- tql tree ---
+(source_file (pipe (pipe (pipe (bind (child . (node class_declaration)) c) c) (call select (regex_match (pipe (dot-field name) (call text)) (regex "Controller")))) (dot-field name)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
+0011: asn 4 ((current value) value)
+0012: trv field 25
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: rel like ((current value) text) (literal regex ...) -> 6
+0016: trv value_source (variable_id 4)
+0017: jmp 19 if (variable_id 6)
+0018: halt
+0019: trv value_source ((current value) value)
+0020: trv field 25
+0021: asn 7 ((current value) value)
+0022: yield
+0023: halt
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "FooController",
+    "start_byte": 6,
+    "end_byte": 19,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 19
+    }
+  }
+]
