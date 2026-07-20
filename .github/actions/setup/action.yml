@@ -1,5 +1,5 @@
 name: Setup
-description: Install Nix + load flake devShell into the job env via direnv.
+description: Install Nix + load flake devenv into the job env via direnv.
 
 inputs:
   path:
@@ -35,9 +35,14 @@ runs:
       shell: bash
       run: nix profile install nixpkgs#direnv
 
+    - name: Initialize shell
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      run: devenv test
+
     - name: Load shell into env
       shell: bash
       working-directory: ${{ inputs.path }}
       run: |
         direnv allow .
-        direnv export gha >> "$GITHUB_ENV"
+        direnv export gha | tee -a "$GITHUB_ENV"

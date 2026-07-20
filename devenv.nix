@@ -21,8 +21,9 @@
     };
     javascript = {
       enable = true;
-      lsp.enable = false;
+      package = pkgs.nodejs-slim_22;
 
+      lsp.enable = true;
       nodejs.enable = true;
       npm.enable = false;
       pnpm.enable = true;
