@@ -19,10 +19,6 @@ runs:
 
     - uses: cachix/cachix-action@v17
       with:
-        name: devenv
-
-    - uses: cachix/cachix-action@v17
-      with:
         name: tql
         authToken: ${{ inputs.cachix-auth-token }}
 
