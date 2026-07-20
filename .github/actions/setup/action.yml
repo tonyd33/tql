@@ -19,12 +19,11 @@ runs:
 
     - uses: cachix/cachix-action@v17
       with:
-        name: tql
-        authToken: ${{ inputs.cachix-auth-token }}
+        name: devenv
 
     - uses: cachix/cachix-action@v17
       with:
-        name: devenv
+        name: tql
         authToken: ${{ inputs.cachix-auth-token }}
 
     - name: Install devenv.sh
