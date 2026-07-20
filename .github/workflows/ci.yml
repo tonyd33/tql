@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
 jobs:
   benchmark:
     runs-on: ubuntu-latest
@@ -32,10 +36,10 @@ jobs:
           mkdir -p "$HOME/.local/bin" &&
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Build optimized engine
+      - name: Build optimized cli
         working-directory: tql
         run: >
-          task engine:build --
+          task engine:build-cli --
           --prefix "$HOME/.local"
           -Dgrammars=c
           -Doptimize=ReleaseFast
@@ -51,7 +55,6 @@ jobs:
       - name: Run query
         working-directory: tql
         run: |
-          set -euo pipefail
           tql query --grammar c '
           . > function_definition as @fn
           | @fn > function_declarator as @fn_decl

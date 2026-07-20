@@ -1,9 +1,9 @@
 name: Setup
-description: Install Nix + load flake devShell into the job env via direnv.
+description: Install Nix + load flake devenv into the job env via direnv.
 
 inputs:
   path:
-    description: Directory containing .envrc / flake.nix
+    description: Directory containing devenv
     required: false
     default: .
   cachix-auth-token:
@@ -22,10 +22,22 @@ runs:
         name: tql
         authToken: ${{ inputs.cachix-auth-token }}
 
-    - name: Load devShell into env
+    - name: Install devenv.sh
+      shell: bash
+      run: nix profile add nixpkgs#devenv
+
+    - name: Install direnv
+      shell: bash
+      run: nix profile install nixpkgs#direnv
+
+    - name: Initialize shell
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      run: devenv test
+
+    - name: Load shell into env
       shell: bash
       working-directory: ${{ inputs.path }}
       run: |
-        nix profile install nixpkgs#direnv
         direnv allow .
-        direnv export gha >> "$GITHUB_ENV"
+        direnv export gha | tee -a "$GITHUB_ENV"
