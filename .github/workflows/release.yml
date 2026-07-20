@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
 jobs:
   draft-release:
     name: draft-release
@@ -86,7 +90,6 @@ jobs:
       - name: Stage archive
         id: stage
         run: |
-          set -euo pipefail
           version="${{ needs.draft-release.outputs.version }}"
           mkdir -p dist/tql
           cp "packages/tql-engine-zig/zig-out/bin/tql" dist/tql/
@@ -97,7 +100,6 @@ jobs:
         id: archive-tar
         if: matrix.archive == 'tar.gz'
         run: |
-          set -euo pipefail
           base="${{ steps.stage.outputs.archive-base }}"
           tar -C dist -czf "$base.tar.gz" tql
           shasum -a 256 "$base.tar.gz" > "$base.tar.gz.sha256"
@@ -108,7 +110,6 @@ jobs:
         id: archive-zip
         if: matrix.archive == 'zip'
         run: |
-          set -euo pipefail
           base="${{ steps.stage.outputs.archive-base }}"
           (cd dist && zip -r9 "../$base.zip" tql)
           shasum -a 256 "$base.zip" > "$base.zip.sha256"
