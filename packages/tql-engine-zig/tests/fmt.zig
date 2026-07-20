@@ -1,8 +1,7 @@
 const std = @import("std");
-const engine_mod = @import("engine");
-const ts = engine_mod.ts;
-const RuntimeMod = engine_mod.Runtime;
-const Value = engine_mod.Value;
+const tql = @import("tql");
+const ts = tql.ts;
+const Value = tql.Value;
 
 pub const ansi = struct {
     pub const reset = "\x1b[0m";
@@ -17,7 +16,7 @@ pub const ansi = struct {
     pub const yellow_bold = "\x1b[1;33m";
 };
 
-pub fn formatAst(allocator: std.mem.Allocator, ast: engine_mod.ast.SourceFile) ![]const u8 {
+pub fn formatAst(allocator: std.mem.Allocator, ast: tql.ast.SourceFile) ![]const u8 {
     return ast.sexprAlloc(allocator);
 }
 
@@ -25,7 +24,7 @@ pub fn formatSourceAst(allocator: std.mem.Allocator, tree: *ts.Tree) ![]const u8
     return tree.rootNode().toSexp(allocator);
 }
 
-pub fn formatBytecode(allocator: std.mem.Allocator, instructions: []const RuntimeMod.Instruction) ![]const u8 {
+pub fn formatBytecode(allocator: std.mem.Allocator, instructions: []const tql.ir.Instruction) ![]const u8 {
     var buf = try std.Io.Writer.Allocating.initCapacity(allocator, 10 * 1024 * 1024);
     defer buf.deinit();
 

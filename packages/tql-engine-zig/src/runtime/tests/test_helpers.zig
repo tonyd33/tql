@@ -5,10 +5,12 @@ const ts = @import("tree-sitter");
 const pcre2 = @import("../../regex.zig");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
 const Value = types.Value;
 
-const Runtime = @import("../core.zig").Runtime;
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+
+const Runtime = @import("../../runtime.zig").Runtime;
 
 extern fn tree_sitter_c() callconv(.c) *ts.Language;
 extern fn tree_sitter_typescript() callconv(.c) *ts.Language;

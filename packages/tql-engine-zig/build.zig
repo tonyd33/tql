@@ -333,7 +333,7 @@ pub fn build(b: *std.Build) !void {
                 // repeated because you are allowed to rename your imports, which
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
-                .{ .name = "tql_engine_zig", .module = lib_mod },
+                .{ .name = "tql", .module = lib_mod },
                 .{ .name = "goz", .module = goz.module("goz") },
             },
         }),
@@ -420,7 +420,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "engine", .module = test_lib_mod },
+                .{ .name = "tql", .module = test_lib_mod },
                 .{ .name = "goz", .module = goz.module("goz") },
             },
         }),

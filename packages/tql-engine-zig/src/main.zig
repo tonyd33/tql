@@ -1,5 +1,5 @@
 const std = @import("std");
-const tql = @import("tql_engine_zig");
+const tql = @import("tql");
 const goz = @import("goz");
 const Engine = tql.Engine;
 const Grammar = tql.Grammar;

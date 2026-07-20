@@ -1,10 +1,13 @@
 const std = @import("std");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
-const Axis = types.Axis;
-const ValueSource = types.ValueSource;
 const Value = types.Value;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Axis = ir.Axis;
+const ValueSource = ir.ValueSource;
+const Literal = ir.Literal;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -112,15 +115,15 @@ test "call/ret: preserves environment correctly" {
     ;
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "original" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "original" } } } },
         Instruction{ .call = 7 },
-        Instruction{ .asn = .{ .variable_id = 2, .source = .{ .literal = Value{ .string = "after" } } } },
+        Instruction{ .asn = .{ .variable_id = 2, .source = .{ .literal = Literal{ .string = "after" } } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 2 } } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 3 } } },
         Instruction{ .halt = {} },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "modified" } } } },
-        Instruction{ .asn = .{ .variable_id = 3, .source = .{ .literal = Value{ .string = "local" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "modified" } } } },
+        Instruction{ .asn = .{ .variable_id = 3, .source = .{ .literal = Literal{ .string = "local" } } } },
         Instruction{ .ret = {} },
     };
 
