@@ -2,14 +2,14 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ts = @import("tree-sitter");
 
-const runtime = @import("runtime.zig");
-const Instruction = runtime.Instruction;
-const VariableId = runtime.VariableId;
-const NodeKindId = runtime.NodeKindId;
-const FieldId = runtime.FieldId;
-const Address = runtime.Address;
-const Relation = runtime.Relation;
-const ProgramImage = runtime.ProgramImage;
+const ir = @import("ir.zig");
+const Instruction = ir.Instruction;
+const VariableId = ir.VariableId;
+const NodeKindId = ir.NodeKindId;
+const FieldId = ir.FieldId;
+const Address = ir.Address;
+const Relation = ir.Relation;
+const ProgramImage = ir.ProgramImage;
 
 const ast = @import("ast.zig");
 const pcre2 = @import("regex.zig");
@@ -78,7 +78,7 @@ pub const Compiler = struct {
         return id;
     }
 
-    fn bindValue(self: *Compiler) CompilerError!runtime.ValueSource {
+    fn bindValue(self: *Compiler) CompilerError!ir.ValueSource {
         const tmp = try self.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = tmp, .source = .{ .current = .value } } });
         return .{ .variable_id = tmp };
@@ -114,7 +114,7 @@ pub const Compiler = struct {
             }
         }
 
-        var variable_map = std.hash_map.AutoHashMap(runtime.VariableId, []const u8).init(allocator);
+        var variable_map = std.hash_map.AutoHashMap(ir.VariableId, []const u8).init(allocator);
         var variable_iterator = self.variables.iterator();
         while (variable_iterator.next()) |entry| {
             const slice = try self.addString(entry.key_ptr.*);
@@ -150,7 +150,7 @@ pub const Compiler = struct {
     /// - no top-level yields have been emitted (yields behind probes are
     ///   permitted)
     ///
-    fn compileExpression(self: *Compiler, expr: ast.Expression) CompilerError!runtime.ValueSource {
+    fn compileExpression(self: *Compiler, expr: ast.Expression) CompilerError!ir.ValueSource {
         switch (expr) {
             .variable => |variable| {
                 const var_id = self.variables.get(variable.name) orelse return error.InvalidVariableReference;
@@ -213,7 +213,7 @@ pub const Compiler = struct {
                 return try self.bindValue();
             },
             .object_literal => |obj| {
-                const FieldSource = struct { key: []const u8, source: runtime.ValueSource };
+                const FieldSource = struct { key: []const u8, source: ir.ValueSource };
                 var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
                 defer self.allocator.free(sources);
 
@@ -307,7 +307,7 @@ pub const Compiler = struct {
             .is_null => |is_null| {
                 const probe_resume_label = self.instruction_builder.createLabel();
 
-                const probe_data: runtime.ProbeData = if (is_null.negated) .exists else .nexists;
+                const probe_data: ir.ProbeData = if (is_null.negated) .exists else .nexists;
                 try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
                 _ = try self.compileExpression(is_null.expression);
@@ -378,7 +378,7 @@ pub const Compiler = struct {
 
         const probe_resume_label = self.instruction_builder.createLabel();
 
-        const probe_data: runtime.ProbeData = if (probe_negated) .nexists else .exists;
+        const probe_data: ir.ProbeData = if (probe_negated) .nexists else .exists;
         try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
         const source_vs = try self.compileExpression(fc.arguments[0]);
@@ -414,7 +414,7 @@ pub const Compiler = struct {
     /// Precondition:
     /// - vs refers to a boolean typed value
     ///
-    fn compileNegateValue(self: *Compiler, vs: runtime.ValueSource) CompilerError!runtime.ValueSource {
+    fn compileNegateValue(self: *Compiler, vs: ir.ValueSource) CompilerError!ir.ValueSource {
         const result_tmp = try self.allocateAnonymous();
         const true_label = self.instruction_builder.createLabel();
         const end_label = self.instruction_builder.createLabel();
@@ -427,7 +427,7 @@ pub const Compiler = struct {
         return .{ .variable_id = result_tmp };
     }
 
-    fn compileBuiltinSelect(self: *Compiler, fc: ast.FunctionCall) CompilerError!runtime.ValueSource {
+    fn compileBuiltinSelect(self: *Compiler, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidGuardExpression;
         const saved_node = try self.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
@@ -440,7 +440,7 @@ pub const Compiler = struct {
         return .{ .current = .value };
     }
 
-    fn compileBuiltinUnnest(self: *Compiler, fc: ast.FunctionCall) CompilerError!runtime.ValueSource {
+    fn compileBuiltinUnnest(self: *Compiler, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidUnnestArgument;
         var arg = fc.arguments[0];
         while (arg == .parenthesized) arg = arg.parenthesized.*;
@@ -450,8 +450,8 @@ pub const Compiler = struct {
         return try self.bindValue();
     }
 
-    fn compileListValue(self: *Compiler, elements: []const ast.Expression) CompilerError!runtime.ValueSource {
-        const sources = try self.allocator.alloc(runtime.ValueSource, elements.len);
+    fn compileListValue(self: *Compiler, elements: []const ast.Expression) CompilerError!ir.ValueSource {
+        const sources = try self.allocator.alloc(ir.ValueSource, elements.len);
         defer self.allocator.free(sources);
 
         for (elements, 0..) |elem, i| {

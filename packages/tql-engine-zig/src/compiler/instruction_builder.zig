@@ -1,17 +1,13 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ts = @import("tree-sitter");
 
-const runtime = @import("../runtime.zig");
-const Instruction = runtime.Instruction;
-const VariableId = runtime.VariableId;
-const NodeKindId = runtime.NodeKindId;
-const FieldId = runtime.FieldId;
-const Address = runtime.Address;
-const Relation = runtime.Relation;
-
-const ast = @import("../ast.zig");
-const pcre2 = @import("../regex.zig");
+const ir = @import("../ir.zig");
+const Instruction = ir.Instruction;
+const VariableId = ir.VariableId;
+const NodeKindId = ir.NodeKindId;
+const FieldId = ir.FieldId;
+const Address = ir.Address;
+const Relation = ir.Relation;
 
 const LabelId = u32;
 
@@ -69,7 +65,7 @@ pub const InstructionBuilder = struct {
         try result.value_ptr.append(self.allocator, inst_index);
     }
 
-    pub fn emitJumpCnd(self: *InstructionBuilder, source: runtime.ValueSource, label_id: u32, negate: bool) Allocator.Error!void {
+    pub fn emitJumpCnd(self: *InstructionBuilder, source: ir.ValueSource, label_id: u32, negate: bool) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
         try self.instructions.append(self.allocator, Instruction{ .jmp = .{ .address = 0, .source = source, .negate = negate } });
         const result = try self.pending_labels.getOrPut(label_id);
@@ -79,7 +75,7 @@ pub const InstructionBuilder = struct {
         try result.value_ptr.append(self.allocator, inst_index);
     }
 
-    pub fn emitProbe(self: *InstructionBuilder, data: runtime.ProbeData, resume_label: u32) Allocator.Error!void {
+    pub fn emitProbe(self: *InstructionBuilder, data: ir.ProbeData, resume_label: u32) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
 
         try self.instructions.append(self.allocator, Instruction{ .probe = .{
@@ -160,8 +156,8 @@ test "InstructionBuilder: createLabel and markLabel" {
     defer testing.allocator.free(instructions);
 
     // Verify labels were marked at correct addresses
-    try testing.expectEqual(@as(runtime.Address, 1), builder.resolved_labels.get(label1).?);
-    try testing.expectEqual(@as(runtime.Address, 2), builder.resolved_labels.get(label2).?);
+    try testing.expectEqual(@as(ir.Address, 1), builder.resolved_labels.get(label1).?);
+    try testing.expectEqual(@as(ir.Address, 2), builder.resolved_labels.get(label2).?);
 }
 
 test "InstructionBuilder: emitJump with forward reference" {
@@ -181,7 +177,7 @@ test "InstructionBuilder: emitJump with forward reference" {
 
     // Jump should be resolved to address 2 (the halt instruction)
     try testing.expectEqual(@as(usize, 3), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 2), instructions[0].jmp.address);
+    try testing.expectEqual(@as(ir.Address, 2), instructions[0].jmp.address);
     try testing.expectEqual(instructions[0].jmp.source, null);
 }
 
@@ -201,7 +197,7 @@ test "InstructionBuilder: emitJumpCnd with backward reference" {
 
     // Jump should be resolved to address 0 (the yield instruction)
     try testing.expectEqual(@as(usize, 2), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 0), instructions[1].jmp.address);
+    try testing.expectEqual(@as(ir.Address, 0), instructions[1].jmp.address);
     try testing.expectEqual(instructions[1].jmp.negate, false);
 }
 
@@ -223,8 +219,8 @@ test "InstructionBuilder: emitProbe with forward reference" {
 
     // Probe should be resolved to address 3 (the second yield)
     try testing.expectEqual(@as(usize, 4), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 3), instructions[0].probe.resume_address);
-    try testing.expectEqual(runtime.ProbeData.exists, instructions[0].probe.data);
+    try testing.expectEqual(@as(ir.Address, 3), instructions[0].probe.resume_address);
+    try testing.expectEqual(ir.ProbeData.exists, instructions[0].probe.data);
 }
 
 test "InstructionBuilder: multiple jumps to same label" {
@@ -246,8 +242,8 @@ test "InstructionBuilder: multiple jumps to same label" {
 
     // Both jumps should be resolved to address 4 (the halt instruction)
     try testing.expectEqual(@as(usize, 5), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 4), instructions[0].jmp.address);
-    try testing.expectEqual(@as(runtime.Address, 4), instructions[2].jmp.address);
+    try testing.expectEqual(@as(ir.Address, 4), instructions[0].jmp.address);
+    try testing.expectEqual(@as(ir.Address, 4), instructions[2].jmp.address);
 }
 
 test "InstructionBuilder: unresolved label returns error" {
@@ -287,7 +283,7 @@ test "InstructionBuilder: complex control flow with multiple labels" {
     defer testing.allocator.free(instructions);
 
     try testing.expectEqual(@as(usize, 6), instructions.len);
-    try testing.expectEqual(@as(runtime.Address, 3), instructions[1].jmp.address); // Jump to success (addr 3)
-    try testing.expectEqual(@as(runtime.Address, 0), instructions[2].jmp.address); // Jump to loop_start (addr 0)
-    try testing.expectEqual(@as(runtime.Address, 5), instructions[4].jmp.address); // Jump to end (addr 5)
+    try testing.expectEqual(@as(ir.Address, 3), instructions[1].jmp.address); // Jump to success (addr 3)
+    try testing.expectEqual(@as(ir.Address, 0), instructions[2].jmp.address); // Jump to loop_start (addr 0)
+    try testing.expectEqual(@as(ir.Address, 5), instructions[4].jmp.address); // Jump to end (addr 5)
 }

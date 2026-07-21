@@ -1,9 +1,12 @@
 const std = @import("std");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
 const Value = types.Value;
-const Relation = types.Relation;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Relation = ir.Relation;
+const Literal = ir.Literal;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -30,8 +33,8 @@ test "jmp: conditional jump when relation succeeds" {
     // Strings equal → rel → bool true stored in var 2 (dest=2, state.value stays as node).
     // jmp(addr=5, source=var2, negate=false): jump when true → taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "hello" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .panic = {} },
@@ -51,8 +54,8 @@ test "jmp: conditional jump when relation fails" {
     // Strings differ → rel → bool false stored in var 2.
     // jmp(addr=5, source=var2, negate=true): jump when false → taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "world" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .panic = {} },
@@ -72,8 +75,8 @@ test "jmp: conditional jump not taken when condition not met" {
     // Strings equal → bool true in var 2.
     // jmp(addr=6, source=var2, negate=true): jump when false → NOT taken (value is true) → fall through to yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "hello" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 6, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .yield = .{} },

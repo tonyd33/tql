@@ -1,15 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ts = @import("tree-sitter");
 
-const runtime = @import("../runtime.zig");
+const ir = @import("../ir.zig");
 
-const VariableTable = std.StringHashMap(runtime.VariableId);
+const VariableTable = std.StringHashMap(ir.VariableId);
 
 pub const ScopeStack = struct {
     allocator: std.mem.Allocator,
     variable_tables: std.ArrayList(VariableTable),
-    next_id: runtime.VariableId,
+    next_id: ir.VariableId,
 
     pub fn init(allocator: std.mem.Allocator) ScopeStack {
         return .{
@@ -43,7 +42,7 @@ pub const ScopeStack = struct {
     pub fn getOrPut(self: *ScopeStack, name: []const u8) error{
         OutOfMemory,
         ProgrammerDumb,
-    }!runtime.VariableId {
+    }!ir.VariableId {
         const curr = try self.currentScope();
         const result = try curr.getOrPut(name);
         if (!result.found_existing) {
@@ -53,7 +52,7 @@ pub const ScopeStack = struct {
         return result.value_ptr.*;
     }
 
-    pub fn get(self: ScopeStack, name: []const u8) ?runtime.VariableId {
+    pub fn get(self: ScopeStack, name: []const u8) ?ir.VariableId {
         var i = self.variable_tables.items.len;
         while (i > 0) {
             i -= 1;
@@ -65,7 +64,7 @@ pub const ScopeStack = struct {
         return null;
     }
 
-    pub fn allocateAnonymous(self: *ScopeStack) !runtime.VariableId {
+    pub fn allocateAnonymous(self: *ScopeStack) !ir.VariableId {
         const id = self.next_id;
         self.next_id += 1;
         return id;
@@ -83,9 +82,9 @@ test "ScopeStack: getOrPut creates new variables" {
     const id2 = try stack.getOrPut("@name");
     const id3 = try stack.getOrPut("@method");
 
-    try testing.expectEqual(@as(runtime.VariableId, 0), id1);
-    try testing.expectEqual(@as(runtime.VariableId, 1), id2);
-    try testing.expectEqual(@as(runtime.VariableId, 2), id3);
+    try testing.expectEqual(@as(ir.VariableId, 0), id1);
+    try testing.expectEqual(@as(ir.VariableId, 1), id2);
+    try testing.expectEqual(@as(ir.VariableId, 2), id3);
 }
 
 test "ScopeStack: getOrPut returns existing variable" {
@@ -100,8 +99,8 @@ test "ScopeStack: getOrPut returns existing variable" {
 
     try testing.expectEqual(id1, id2);
     try testing.expectEqual(id1, id4);
-    try testing.expectEqual(@as(runtime.VariableId, 0), id1);
-    try testing.expectEqual(@as(runtime.VariableId, 1), id3);
+    try testing.expectEqual(@as(ir.VariableId, 0), id1);
+    try testing.expectEqual(@as(ir.VariableId, 1), id3);
 }
 
 test "ScopeStack: get returns null for non-existent variable" {
@@ -109,7 +108,7 @@ test "ScopeStack: get returns null for non-existent variable" {
     defer stack.deinit();
     try stack.enterScope();
 
-    try testing.expectEqual(@as(?runtime.VariableId, null), stack.get("@class"));
+    try testing.expectEqual(@as(?ir.VariableId, null), stack.get("@class"));
 }
 
 test "ScopeStack: ids are globally unique across nested scopes" {
@@ -125,5 +124,5 @@ test "ScopeStack: ids are globally unique across nested scopes" {
 
     try testing.expect(outer != inner);
     try testing.expectEqual(outer, outer_seen);
-    try testing.expectEqual(@as(?runtime.VariableId, null), stack.get("@inner"));
+    try testing.expectEqual(@as(?ir.VariableId, null), stack.get("@inner"));
 }

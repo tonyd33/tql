@@ -3,12 +3,15 @@ const expect = std.testing.expect;
 const ts = @import("tree-sitter");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
-const Axis = types.Axis;
-const ValueSource = types.ValueSource;
 const Value = types.Value;
-const CurrentValueSource = types.CurrentValueSource;
 const Range = types.Range;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Axis = ir.Axis;
+const ValueSource = ir.ValueSource;
+const CurrentValueSource = ir.CurrentValueSource;
+const Literal = ir.Literal;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -22,7 +25,7 @@ test "asn: literal" {
     const instructions = [_]Instruction{
         Instruction{ .asn = .{
             .variable_id = 1,
-            .source = ValueSource{ .literal = Value{ .string = "hi" } },
+            .source = ValueSource{ .literal = Literal{ .string = "hi" } },
         } },
         Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
         Instruction{ .halt = {} },
@@ -100,7 +103,7 @@ test "asn: variable" {
     const instructions = [_]Instruction{
         Instruction{ .asn = .{
             .variable_id = 1,
-            .source = ValueSource{ .literal = Value{ .string = "hi" } },
+            .source = ValueSource{ .literal = Literal{ .string = "hi" } },
         } },
         Instruction{ .asn = .{
             .variable_id = 2,

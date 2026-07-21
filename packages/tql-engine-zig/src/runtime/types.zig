@@ -4,27 +4,19 @@ const ds = @import("../ds.zig");
 const OverlayMap = ds.OverlayMap;
 const Rc = ds.Rc;
 const pcre2 = @import("../regex.zig");
+const public = @import("../value.zig");
+const ir = @import("../ir.zig");
 
 const Allocator = std.mem.Allocator;
 
-pub const FieldId = u16;
-pub const Address = u32;
-pub const Symbol = u32;
-pub const VariableId = u32;
-pub const NodeKindId = u16;
+pub const FieldId = ir.FieldId;
+pub const Address = ir.Address;
+pub const Symbol = ir.Symbol;
+pub const VariableId = ir.VariableId;
+pub const NodeKindId = ir.NodeKindId;
 
-pub const Point = struct {
-    row: u32,
-    column: u32,
-};
-
-// NOTE: Consider trimming, this is a pretty huge struct
-pub const Range = struct {
-    start_point: Point,
-    end_point: Point,
-    start_byte: u32,
-    end_byte: u32,
-};
+pub const Point = public.Point;
+pub const Range = public.Range;
 
 pub const Value = union(enum) {
     nothing,
@@ -101,7 +93,57 @@ pub const Value = union(enum) {
             .list => try writer.print("list ...", .{}),
         }
     }
+
+    pub fn toPublic(self: Value, gpa: Allocator, source: []const u8) error{OutOfMemory}!public.Value {
+        return switch (self) {
+            .nothing => .nothing,
+            .bool => |b| .{ .bool = b },
+            .uint => |u| .{ .uint = u },
+            .string => |s| .{ .string = try gpa.dupe(u8, s) },
+            .range => |r| .{ .range = r },
+            .node => |n| blk: {
+                const sp = n.startPoint();
+                const ep = n.endPoint();
+                const kind = try gpa.dupe(u8, n.kind());
+                errdefer gpa.free(kind);
+                const text = try gpa.dupe(u8, source[n.startByte()..n.endByte()]);
+                break :blk .{ .node = .{
+                    .kind = kind,
+                    .text = text,
+                    .start_byte = n.startByte(),
+                    .end_byte = n.endByte(),
+                    .start_point = .{ .row = sp.row, .column = sp.column },
+                    .end_point = .{ .row = ep.row, .column = ep.column },
+                } };
+            },
+            .record => |rc| blk: {
+                const entries = try gpa.alloc(public.RecordEntry, rc.value.map.count());
+                errdefer gpa.free(entries);
+                var it = rc.value.map.iterator();
+                var i: usize = 0;
+                while (it.next()) |e| : (i += 1) {
+                    entries[i] = .{
+                        .key = try gpa.dupe(u8, e.key_ptr.*),
+                        .value = try e.value_ptr.*.toPublic(gpa, source),
+                    };
+                }
+                std.mem.sort(public.RecordEntry, entries, {}, lessThanEntry);
+                break :blk .{ .record = .{ ._entries = entries } };
+            },
+            .list => |rc| blk: {
+                const items = try gpa.alloc(public.Value, rc.value.items.items.len);
+                errdefer gpa.free(items);
+                for (rc.value.items.items, 0..) |v, i| items[i] = try v.toPublic(gpa, source);
+                break :blk .{ .list = .{ ._items = items } };
+            },
+            .kind_id, .field_id, .regex => @panic("TODO"),
+        };
+    }
 };
+
+fn lessThanEntry(_: void, a: public.RecordEntry, b: public.RecordEntry) bool {
+    return std.mem.order(u8, a.key, b.key) == .lt;
+}
 
 pub const Record = struct {
     map: std.StringHashMap(Value),
@@ -134,13 +176,6 @@ pub const List = struct {
 // standard hash map if we do more copies than lookups. But we probably do? May need to benchmark.
 pub const Environment = OverlayMap(VariableId, Value);
 
-pub const AggregatingValue = enum { list };
-
-pub const AggregationSpec = struct {
-    variable: VariableId,
-    kind: AggregatingValue,
-};
-
 /// A boundary is part of a stack frame. Its purpose is to embed otherwise
 /// difficult-to-express control flow within the stack.
 pub const Boundary = union(enum) {
@@ -149,13 +184,13 @@ pub const Boundary = union(enum) {
     passthrough,
     /// Probe boundaries handle control flow of yield and branch termination.
     probe: struct {
-        resume_address: Address,
+        resume_address: ir.Address,
         data: union(enum) {
             exists,
             nexists,
             aggregate: struct {
-                variable: VariableId,
-                value: union(AggregatingValue) {
+                variable: ir.VariableId,
+                value: union(ir.AggregatingValue) {
                     list: *Rc(List),
                 },
             },
@@ -164,16 +199,11 @@ pub const Boundary = union(enum) {
     call,
 };
 
-pub const Vector = enum {
-    record,
-    list,
-};
-
 pub const State = struct {
     pc: u32,
     value: Value,
     environment: Environment.Cell,
-    build: ?union(Vector) {
+    build: ?union(ir.Vector) {
         record: *Rc(Record),
         list: *Rc(List),
     } = null,
@@ -427,167 +457,6 @@ pub const SplitIterator = union(enum) {
             .descendant => |*iter| iter.deinit(),
             .field => |*iter| iter.deinit(),
             .singleton => |*iter| iter.deinit(),
-        }
-    }
-};
-
-pub const Axis = union(enum) {
-    child,
-    descendant,
-    // NOTE: Consider removing this since it's accomplishable with cmp on child
-    // and likely not much more efficient
-    field: FieldId,
-    value_source: ValueSource,
-};
-
-pub const CurrentValueSource = enum {
-    value,
-    text,
-    kind,
-    range,
-};
-
-pub const ValueSource = union(enum) {
-    literal: Value,
-    current: CurrentValueSource,
-    variable_id: VariableId,
-
-    pub fn print(self: ValueSource, writer: *std.Io.Writer) !void {
-        switch (self) {
-            .literal => |l| {
-                try writer.print("literal ", .{});
-                switch (l) {
-                    .nothing => try writer.print("nothing", .{}),
-                    .bool => |bv| try writer.print("bool {}", .{bv}),
-                    .uint => |uint| try writer.print("uint {}", .{uint}),
-                    .string => |s| try writer.print("string \"{s}\"", .{s}),
-                    .kind_id => |k| try writer.print("kind_id {}", .{k}),
-                    .field_id => |f| try writer.print("field_id {}", .{f}),
-                    .range => try writer.print("range ...", .{}),
-                    .node => try writer.print("node ...", .{}),
-                    .regex => try writer.print("regex ...", .{}),
-                    .record => try writer.print("record ...", .{}),
-                    .list => try writer.print("list ...", .{}),
-                }
-            },
-            .current => |c| try writer.print("(current value) {s}", .{@tagName(c)}),
-            .variable_id => |v| try writer.print("variable_id {}", .{v}),
-        }
-    }
-};
-
-pub const ProbeData = union(enum) {
-    exists,
-    nexists,
-    aggregate: AggregationSpec,
-};
-
-pub const Relation = enum {
-    equals,
-    like,
-    lt,
-    gt,
-};
-
-pub const Instruction = union(enum) {
-    noop,
-    halt,
-    trv: Axis,
-    asn: struct {
-        variable_id: VariableId,
-        source: ValueSource,
-    },
-    rel: struct {
-        relation: Relation,
-        a: ValueSource,
-        b: ValueSource,
-        /// If set, write the bool result into this variable; else write into state.value.
-        dest: ?VariableId = null,
-    },
-    yield: struct {
-        source: ValueSource = .{ .current = .value },
-    },
-    probe: struct {
-        resume_address: Address,
-        data: ProbeData,
-    },
-    call: Address,
-    ret,
-    jmp: struct {
-        address: Address,
-        /// When set, jump is conditional: taken iff source resolves to Value.bool == !negate.
-        source: ?ValueSource = null,
-        negate: bool = false,
-    },
-    begin_build: Vector,
-    push_build: struct {
-        source: ValueSource,
-        // only applicable for records
-        name: ?[]const u8,
-    },
-    end_build: VariableId,
-    panic, // debug, probably remove
-
-    pub fn print(self: Instruction, writer: *std.Io.Writer) !void {
-        switch (self) {
-            .noop => try writer.print("noop", .{}),
-            .yield => try writer.print("yield", .{}),
-            .halt => try writer.print("halt", .{}),
-            .trv => |t| {
-                try writer.print("trv ", .{});
-                switch (t) {
-                    .child => try writer.print("child", .{}),
-                    .descendant => try writer.print("descendant", .{}),
-                    .field => |f| try writer.print("field {}", .{f}),
-                    .value_source => |vs| {
-                        try writer.print("value_source (", .{});
-                        try vs.print(writer);
-                        try writer.print(")", .{});
-                    },
-                }
-            },
-            .asn => |a| {
-                try writer.print("asn {} (", .{a.variable_id});
-                try a.source.print(writer);
-                try writer.print(")", .{});
-            },
-            .rel => |r| {
-                try writer.print("rel {s} (", .{@tagName(r.relation)});
-                try r.a.print(writer);
-                try writer.print(") (", .{});
-                try r.b.print(writer);
-                if (r.dest) |d| {
-                    try writer.print(") -> {}", .{d});
-                } else {
-                    try writer.print(")", .{});
-                }
-            },
-            .probe => |p| switch (p.data) {
-                .exists => try writer.print("probe exists {}", .{p.resume_address}),
-                .nexists => try writer.print("probe nexists {}", .{p.resume_address}),
-                .aggregate => |a| try writer.print("probe aggregate {} {} {s}", .{ p.resume_address, a.variable, @tagName(a.kind) }),
-            },
-            .call => |c| try writer.print("call {}", .{c}),
-            .ret => try writer.print("ret", .{}),
-            .jmp => |j| if (j.source) |vs| {
-                try writer.print("jmp {} if{s} (", .{ j.address, if (j.negate) " not" else "" });
-                try vs.print(writer);
-                try writer.print(")", .{});
-            } else {
-                try writer.print("jmp {}", .{j.address});
-            },
-            .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
-            .push_build => |i| {
-                if (i.name) |name| {
-                    try writer.print("push_build {s} (", .{name});
-                } else {
-                    try writer.print("push_build (", .{});
-                }
-                try i.source.print(writer);
-                try writer.print(")", .{});
-            },
-            .end_build => |v| try writer.print("end_build {}", .{v}),
-            .panic => try writer.print("panic", .{}),
         }
     }
 };

@@ -1,10 +1,12 @@
 const std = @import("std");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
-const Axis = types.Axis;
-const ValueSource = types.ValueSource;
 const Value = types.Value;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Axis = ir.Axis;
+const ValueSource = ir.ValueSource;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 

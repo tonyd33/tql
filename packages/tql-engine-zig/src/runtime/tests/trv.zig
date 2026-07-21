@@ -2,10 +2,12 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
-const Axis = types.Axis;
-const ValueSource = types.ValueSource;
-const CurrentValueSource = types.CurrentValueSource;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Axis = ir.Axis;
+const ValueSource = ir.ValueSource;
+const CurrentValueSource = ir.CurrentValueSource;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 

@@ -1,15 +1,13 @@
 const std = @import("std");
-const engine_mod = @import("engine");
+const tql = @import("tql");
 const goz = @import("goz");
-const ts = engine_mod.ts;
+const ts = tql.ts;
 const corpus_parser = @import("corpus_parser.zig");
 const fmt = @import("fmt.zig");
 
-const Parser = engine_mod.Parser;
-const Compiler = engine_mod.Compiler;
-const Runtime = engine_mod.Runtime.Runtime;
-const GrammarRegistry = engine_mod.GrammarRegistry;
-const Value = engine_mod.Value;
+const Engine = tql.Engine;
+const GrammarRegistry = tql.GrammarRegistry;
+const Value = tql.Value;
 
 const SectionKind = corpus_parser.SectionKind;
 
@@ -344,7 +342,7 @@ fn testFile(
         var section_updates: std.ArrayList(corpus_parser.SectionUpdate) = .empty;
         defer section_updates.deinit(gpa);
 
-        const case_result = try testCase(ctx, tc, &section_updates, group);
+        const case_result = try testCase(ctx, io, tc, &section_updates, group);
         switch (case_result) {
             .passed, .modified => result.passed += 1,
             .failed => result.failed += 1,
@@ -376,6 +374,7 @@ fn testFile(
 
 fn testCase(
     ctx: *TestRunContext,
+    io: std.Io,
     tc: corpus_parser.TestCase,
     updates: *std.ArrayList(corpus_parser.SectionUpdate),
     group: []const u8,
@@ -383,7 +382,7 @@ fn testCase(
     const gpa = ctx.gpa;
     var test_gpa: std.heap.DebugAllocator(.{}) = .init;
     const test_alloc = test_gpa.allocator();
-    const actual = runTestCase(test_alloc, tc) catch |err| {
+    const actual = runTestCase(test_alloc, io, tc) catch |err| {
         _ = test_gpa.deinit();
         if (ctx.opts.color) {
             try ctx.stdout.print(
@@ -475,51 +474,28 @@ fn testCase(
     }
 }
 
-fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !TestOutputs {
+fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestCase) !TestOutputs {
     var registry = GrammarRegistry.init(allocator, &.{});
     defer registry.deinit();
-    const language = (try registry.get(tc.grammar)).language;
+    const grammar = try registry.get(tc.grammar);
 
-    var tql_parser = try Parser.init(allocator);
-    defer tql_parser.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = io });
+    defer engine.deinit();
 
-    var ast = try tql_parser.parse(tc.query.content);
+    var ast = try engine.parseQuery(tc.query.content);
     defer ast.deinit(allocator);
 
-    var compiler = Compiler.init(allocator, language);
-    defer compiler.deinit();
-
-    var program = try compiler.compile(allocator, ast);
-    defer program.deinit();
+    var query = try engine.compile(tc.query.content, grammar);
+    defer query.deinit();
 
     const ts_parser = ts.Parser.create();
     defer ts_parser.destroy();
-
-    try ts_parser.setLanguage(language);
+    try ts_parser.setLanguage(grammar.language);
     const tree = ts_parser.parseString(tc.target.content, null) orelse return error.ParseFailed;
     defer tree.destroy();
 
-    var rt = Runtime.init(.{
-        .tree = tree,
-        .source = tc.target.content,
-        .instructions = program.instructions,
-        .regexes = program.regexes,
-        .allocator = allocator,
-    });
-    defer rt.deinit();
-
-    try rt.exec();
-
-    var values: std.ArrayList(Value) = .empty;
-    defer {
-        for (values.items) |*v| v.deinit(allocator);
-        values.deinit(allocator);
-    }
-
-    while (try rt.next()) |value| {
-        const enriched = try Value.fromRuntimeValue(allocator, value, tc.target.content);
-        try values.append(allocator, enriched);
-    }
+    var run_result = try query.run(tc.target.content, allocator, allocator);
+    defer run_result.deinit();
 
     const source_tree_raw = try fmt.formatSourceAst(allocator, tree);
     defer allocator.free(source_tree_raw);
@@ -531,12 +507,12 @@ fn runTestCase(allocator: std.mem.Allocator, tc: corpus_parser.TestCase) !TestOu
     const tql_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, tql_tree_raw, "\n"));
     errdefer allocator.free(tql_tree);
 
-    const bytecode_raw = try fmt.formatBytecode(allocator, program.instructions);
+    const bytecode_raw = try fmt.formatBytecode(allocator, query.instructions());
     defer allocator.free(bytecode_raw);
     const bytecode = try allocator.dupe(u8, std.mem.trimEnd(u8, bytecode_raw, "\n"));
     errdefer allocator.free(bytecode);
 
-    const values_raw = try fmt.formatValues(allocator, values.items);
+    const values_raw = try fmt.formatValues(allocator, run_result.values.items);
     defer allocator.free(values_raw);
     const actual_values = try allocator.dupe(u8, std.mem.trimEnd(u8, values_raw, "\n"));
     errdefer allocator.free(actual_values);

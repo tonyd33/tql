@@ -4,10 +4,13 @@ const ts = @import("tree-sitter");
 const pcre2 = @import("../../regex.zig");
 
 const types = @import("../types.zig");
-const Instruction = types.Instruction;
-const Axis = types.Axis;
 const Value = types.Value;
-const Relation = types.Relation;
+
+const ir = @import("../../ir.zig");
+const Instruction = ir.Instruction;
+const Axis = ir.Axis;
+const Relation = ir.Relation;
+const Literal = ir.Literal;
 
 const TestContext = @import("./test_helpers.zig").TestContext;
 
@@ -34,8 +37,8 @@ test "rel: equals with matching strings" {
     const source = "int x;";
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "hello" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .halt = {} },
@@ -54,8 +57,8 @@ test "rel: not equals with matching strings" {
 
     // Strings equal → bool true in dest=2. "halt if true": jmp(skip, negate=true) skips halt when false; true → fall to halt.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "hello" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .halt = {} },
@@ -74,8 +77,8 @@ test "rel: not equals with different strings" {
 
     // Strings differ → false in dest=2. "halt if true": jmp(yield, negate=true) → taken (value==false) → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "world" } } } },
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .halt = {} },
@@ -96,8 +99,8 @@ test "rel: like with regex matching" {
     defer regex.deinit();
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .regex = regex } } } },
         Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .halt = {} },
@@ -118,8 +121,8 @@ test "rel: like with regex not matching" {
     defer regex.deinit();
 
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "bar baz" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "bar baz" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .regex = regex } } } },
         Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .halt = {} },
@@ -141,8 +144,8 @@ test "rel: not like with regex matching" {
 
     // Match → true in dest=2. "halt if true": jmp(yield, negate=true) NOT taken → halt.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .regex = regex } } } },
         Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .halt = {} },
@@ -164,8 +167,8 @@ test "rel: not like with regex not matching" {
 
     // No match → false in dest=2. "halt if true": jmp(yield, negate=true) taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello world" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .regex = regex } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello world" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .regex = regex } } } },
         Instruction{ .rel = .{ .relation = Relation.like, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = true } },
         Instruction{ .halt = {} },
@@ -188,8 +191,8 @@ test "rel: halt inside nexists probe should succeed" {
         // 0: nexists probe
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 9 } },
         // 1-2: assign different values
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "world" } } } },
         // 3: rel → false, store in var 3
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 3 } },
         // 4: jmp to 6 if true; false → not taken → fall to halt
@@ -221,8 +224,8 @@ test "rel: halt inside exists probe should fail" {
         // 0: exists probe
         Instruction{ .probe = .{ .data = .exists, .resume_address = 8 } },
         // 1-2: assign different values
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .string = "hello" } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .string = "world" } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .string = "hello" } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .string = "world" } } } },
         // 3: rel → false, store in var 3
         Instruction{ .rel = .{ .relation = Relation.equals, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 3 } },
         // 4: jmp past halt if true; false → not taken → halt
@@ -247,8 +250,8 @@ test "rel: numeric comparisons" {
 
     // 1 < 2 → true in dest=2. jmp(yield, negate=false) taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Value{ .uint = 1 } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Value{ .uint = 2 } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .uint = 1 } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .uint = 2 } } } },
         Instruction{ .rel = .{ .relation = Relation.lt, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .halt = {} },
