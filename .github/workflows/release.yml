@@ -85,7 +85,12 @@ jobs:
 
       - name: Build release binary
         working-directory: packages/tql-engine-zig
-        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseFast --release=fast
+        run: >
+          zig build
+          -Dtarget=${{ matrix.target }}
+          -Doptimize=ReleaseFast
+          -Dgrammars=available
+          --release=fast
 
       - name: Stage archive
         id: stage
