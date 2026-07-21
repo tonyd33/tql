@@ -133,7 +133,6 @@ tql grammar list
 Example output:
 
 ```
-packages/tql-engine-zig $ ./zig-out/bin/tql grammar list
 Built-in grammars:
   c
 
