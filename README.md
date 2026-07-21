@@ -1,83 +1,167 @@
 # TQL
 
-TQL is a query DSL over ASTs. A query selects nodes by traversing
-the tree, binds them to variables, filters them, and projects each surviving
-binding into a result value.
+## Usage
 
-```tql
-@root > function_definition.declarator as @func_decl
-| @func_decl.parameters > parameter_declaration as @param_decl
-| @func_decl.declarator as @func_name
-| { name: @func_name, parameter: @param_decl }
-```
-*For every function in the tree, pair its name with each of its parameters.*
-
-## Denotational model
-
-A query evaluates against an `Env` — a current value `.` plus a map of named
-variable bindings — and produces a list of result values.
-
-```haskell
-type Env = (TQLValue, Map Variable TQLValue)   -- (current '.', named @vars)
-
-data TQLValue
-  = TNothing
-  | TString String
-  | TNode   Node
-  | TList   [TQLValue]
-  | TRecord (Map String TQLValue)
-  | ... -- omitted for brevity
-
-type Eval = Env -> [TQLValue]
+```sh
+tql --help
+tql version
 ```
 
-A pipeline is a sequence of steps chained with `|`. There are three step kinds:
+### Queries
 
-| Step | Syntax | Semantics |
-|---|---|---|
-| Bind (fan-out) | `expr as @v` | extends `Map` with `@v`, fans over matches |
-| Guard (filter) | `select(pred)` | keeps env only if `pred` holds |
-| Transform | `expr` (not last) | replaces `.` with result of `expr` |
+Example C source file:
 
-The whole pipeline is a list-monad fold:
+```c
+#include <stddef.h>
+#include <stdio.h>
 
-```haskell
-env0 >>= step_1 >>= ... >>= step_n >>= return . project
+int add(int a, int b) {
+  return a + b;
+}
+
+size_t strlen(const char *s) {
+  const char *p = s;
+  while (*p++) {}
+  return p - s;
+}
+
+int main(int argc, char **argv) {
+  printf("Hello world\n");
+  printf("strlen(\"Hello world\") = %lu\n", strlen("Hello world"));
+  printf("add(1, 2) = %d\n", add(1, 2));
+  return 0;
+}
 ```
 
-### Example
+Find all function names
 
-The query above has three bind steps and a final projection. Each bind step
-`e as @v` is `\env -> [ insert "@v" x env | x <- eval e env ]`:
-
-```haskell
-b_func_decl, b_param_decl, b_func_name :: Env -> [Env]
-b_func_decl  env = [ insert "func_decl"  x env
-                   | x <- eval $ Field "declarator"
-                                  (Child (Var "root") "function_definition") env ]
-b_param_decl env = [ insert "param_decl" x env
-                   | x <- eval $ Child (Field "parameters" (Var "func_decl"))
-                                      "parameter_declaration" env ]
-b_func_name  env = [ insert "func_name"  x env
-                   | x <- eval $ Field "declarator" (Var "func_decl") env ]
-
-proj :: Env -> TQLValue
-proj env = TRecord (Map.fromList
-  [ ("name",      env Map.! "func_name")
-  , ("parameter", env Map.! "param_decl") ])
+```sh
+tql query --grammar=c ". > function_definition.declarator.declarator | text" main.c
 ```
 
-Each binding fans the env out over its matching nodes. On a file with two
-functions where the first has two parameters and the second has one, the stream
-after `b_param_decl` carries three envs, and `proj` emits three records.
+Output:
 
-### Quantifiers
+```
+main.c: add
+main.c: strlen
+main.c: main
+```
 
-`any(gen; cond)` and `all(gen; cond)` iterate over the results of `gen`,
-binding each element to `.` for evaluation of `cond`:
+Find all function argument names
 
-```tql
-@root > class_declaration as @c
-| select(any(@c.body > method_definition; .name ~ /^test/))
-| @c
+```sh
+tql query --grammar=c ". > function_definition.declarator > parameter_list >> identifier | text" main.c
+```
+
+Output:
+
+```
+main.c: a
+main.c: b
+main.c: s
+main.c: argc
+main.c: argv
+```
+
+Find all function argument names with type int
+
+```sh
+tql query --grammar=c "
+. > function_definition.declarator
+| .parameters > parameter_declaration
+| select(.type | text = 'int')
+| .declarator
+| text
+" main.c
+
+```
+
+Output:
+
+```
+main.c: a
+main.c: b
+main.c: argc
+```
+
+Find all function names with an argument with type int
+
+```sh
+tql query --grammar=c "
+. > function_definition.declarator as @func_decl
+| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
+| @func_decl.declarator
+| text
+" main.c
+```
+
+Output:
+
+```
+main.c: add
+main.c: main
+```
+
+Find all function names with an argument with type int, along with that function's parameters
+
+```sh
+tql query --grammar=c "
+. > function_definition.declarator as @func_decl
+| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
+| {
+    name: @func_decl.declarator | text,
+    params: [@func_decl.parameters > parameter_declaration | text]
+  }
+" main.c
+```
+
+Output:
+
+```
+main.c: {"name": "add", "params": ["int a", "int b"]}
+main.c: {"name": "main", "params": ["int argc", "char **argv"]}
+```
+
+### Grammars
+
+List available grammars
+
+```sh
+tql grammar list
+```
+
+Example output:
+
+```
+Built-in grammars:
+  c
+
+Dynamic grammars:
+  javascript  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  zig  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  rust  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  tsx  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  python  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  typescript  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  go  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  cpp  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  c  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+```
+
+## Installation
+
+### Build from source
+
+Requirements:
+
+* Zig 0.16.0
+
+```sh
+cd packages/tql-engine-zig
+
+# build with available grammars
+zig build -Dgrammars=available
+
+# build with only c grammar
+zig build -Dgrammars=c
 ```
