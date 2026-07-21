@@ -43,6 +43,7 @@ const main_cmds = .{
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
+            .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: json)" },
         },
     },
     .version = .{
@@ -217,6 +218,7 @@ fn runQuery(
     var workers: usize = 1;
     var grammar: ?*const Grammar = null;
     var progress = false;
+    var format: OutputFormat = .text;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -234,6 +236,10 @@ fn runQuery(
                 },
                 .grammar => grammar = registry.get(kv.value) catch |err| {
                     try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
+                    return @intFromEnum(ExitCode.invalid_args);
+                },
+                .format => format = std.meta.stringToEnum(OutputFormat, kv.value) orelse {
+                    try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
                     return @intFromEnum(ExitCode.invalid_args);
                 },
             },
@@ -278,7 +284,7 @@ fn runQuery(
     return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_target_paths = files,
-        .format = .json,
+        .format = format,
         .grammar = grammar_resolved,
         .workers = workers,
         .stats = false,
@@ -569,6 +575,7 @@ const SharedContext = struct {
     grammar: *const Grammar,
     progress: *Progress,
     io: std.Io,
+    format: OutputFormat,
 };
 
 fn pushFile(ctx: *SharedContext, path: []const u8) !void {
@@ -615,7 +622,18 @@ fn walkerThread(ctx: *SharedContext) !void {
     try ctx.path_queue.close();
 }
 
-fn writerThread(ctx: *SharedContext, jws: *std.json.Stringify) !void {
+fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer) !void {
+    while (try ctx.result_queue.pop()) |result| {
+        defer result.deinit();
+        for (result.values.items) |v| {
+            try stdout.print("{s}: ", .{result.filename});
+            try v.toString(stdout);
+            try stdout.writeByte('\n');
+        }
+    }
+}
+
+fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     var totals: FileStats = .{};
     try jws.beginObject();
     try jws.objectField("results");
@@ -724,11 +742,15 @@ fn run(
         .grammar = config.grammar,
         .progress = &progress,
         .io = io,
+        .format = config.format,
     };
 
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
-    const writer_thread = try std.Thread.spawn(.{}, writerThread, .{ &ctx, &jws });
+    const writer_thread = switch (config.format) {
+        .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout }),
+        .json, .locations => try std.Thread.spawn(.{}, writerThreadJson, .{ &ctx, &jws }),
+    };
     const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
 
