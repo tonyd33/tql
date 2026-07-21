@@ -112,6 +112,35 @@ pub const Value = union(enum) {
         }
     }
 
+    pub fn toString(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        // FIXME: should print on a single line
+        switch (self) {
+            .nothing => try writer.writeAll("nothing"),
+            .bool => |b| try writer.print("{}", .{b}),
+            .uint => |u| try writer.print("{d}", .{u}),
+            .string => |s| try writer.writeAll(s),
+            .range => |r| try writer.print("{d}:{d}-{d}:{d}", .{ r.start_point.row, r.start_point.column, r.end_point.row, r.end_point.column }),
+            .node => |n| try writer.print("{s} [{d}:{d}-{d}:{d}]", .{ n.kind, n.start_point.row, n.start_point.column, n.end_point.row, n.end_point.column }),
+            .record => |rv| {
+                try writer.writeByte('{');
+                for (rv._entries, 0..) |e, i| {
+                    if (i > 0) try writer.writeAll(", ");
+                    try writer.print("{s}: ", .{e.key});
+                    try e.value.toString(writer);
+                }
+                try writer.writeByte('}');
+            },
+            .list => |lv| {
+                try writer.writeByte('[');
+                for (lv._items, 0..) |v, i| {
+                    if (i > 0) try writer.writeAll(", ");
+                    try v.toString(writer);
+                }
+                try writer.writeByte(']');
+            },
+        }
+    }
+
     pub fn jsonStringify(self: Value, jws: *std.json.Stringify) std.json.Stringify.Error!void {
         switch (self) {
             .nothing => try jws.write(null),
