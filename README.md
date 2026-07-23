@@ -1,5 +1,10 @@
 # TQL
 
+## Documentation
+
+* Coming soon
+* Try TQL online: https://tonyd33.github.io/tql/
+
 ## Usage
 
 ```sh
@@ -149,6 +154,11 @@ Dynamic grammars:
 ```
 
 ## Installation
+
+
+### Prebuilt binaries
+
+Download from [releases](https://github.com/tonyd33/tql/releases)
 
 ### Build from source
 
