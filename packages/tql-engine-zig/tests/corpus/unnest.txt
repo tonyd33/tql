@@ -11,55 +11,6 @@ unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
---- tql tree ---
-(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (child (field func_decl parameters) (node parameter_declaration))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
-0003: jmp 5 if (variable_id 3)
-0004: halt
-0005: asn 4 ((current value) value)
-0006: trv value_source (variable_id 4)
-0007: asn 5 ((current value) value)
-0008: trv value_source (variable_id 5)
-0009: trv field 10
-0010: asn 6 ((current value) value)
-0011: asn 2 (variable_id 6)
-0012: trv value_source (variable_id 2)
-0013: trv value_source (variable_id 2)
-0014: trv field 28
-0015: asn 7 ((current value) value)
-0016: trv value_source (variable_id 7)
-0017: trv child
-0018: rel equals ((current value) kind) (literal kind_id 260) -> 8
-0019: jmp 21 if (variable_id 8)
-0020: halt
-0021: asn 9 ((current value) value)
-0022: trv value_source (variable_id 9)
-0023: asn 10 ((current value) value)
-0024: trv value_source (variable_id 10)
-0025: asn 11 ((current value) value)
-0026: asn 1 (variable_id 11)
-0027: trv value_source (variable_id 1)
-0028: trv value_source (variable_id 2)
-0029: trv field 10
-0030: asn 12 ((current value) value)
-0031: asn 0 (variable_id 12)
-0032: trv value_source (variable_id 0)
-0033: asn 13 ((current value) value)
-0034: trv value_source (variable_id 13)
-0035: asn 14 (variable_id 0)
-0036: trv value_source (variable_id 13)
-0037: asn 15 (variable_id 1)
-0038: begin_build record
-0039: push_build name (variable_id 14)
-0040: push_build param (variable_id 15)
-0041: end_build 16
-0042: yield
-0043: halt
 --- values ---
 [
   {
@@ -153,6 +104,55 @@ int main(void) { return 0; }
     }
   }
 ]
+--- tql tree ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (child (field func_decl parameters) (node parameter_declaration))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 3
+0003: jmp 5 if (variable_id 3)
+0004: halt
+0005: asn 4 ((current value) value)
+0006: trv value_source (variable_id 4)
+0007: asn 5 ((current value) value)
+0008: trv value_source (variable_id 5)
+0009: trv field 10
+0010: asn 6 ((current value) value)
+0011: asn 2 (variable_id 6)
+0012: trv value_source (variable_id 2)
+0013: trv value_source (variable_id 2)
+0014: trv field 28
+0015: asn 7 ((current value) value)
+0016: trv value_source (variable_id 7)
+0017: trv child
+0018: rel equals ((current value) kind) (literal kind_id 260) -> 8
+0019: jmp 21 if (variable_id 8)
+0020: halt
+0021: asn 9 ((current value) value)
+0022: trv value_source (variable_id 9)
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
+0025: asn 11 ((current value) value)
+0026: asn 1 (variable_id 11)
+0027: trv value_source (variable_id 1)
+0028: trv value_source (variable_id 2)
+0029: trv field 10
+0030: asn 12 ((current value) value)
+0031: asn 0 (variable_id 12)
+0032: trv value_source (variable_id 0)
+0033: asn 13 ((current value) value)
+0034: trv value_source (variable_id 13)
+0035: asn 14 (variable_id 0)
+0036: trv value_source (variable_id 13)
+0037: asn 15 (variable_id 1)
+0038: begin_build record
+0039: push_build name (variable_id 14)
+0040: push_build param (variable_id 15)
+0041: end_build 16
+0042: yield
+0043: halt
 ================================================================================
 unnest restores fanout from subquery binding with inner binds
 ================================================================================
@@ -169,10 +169,103 @@ unnest([
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
+--- values ---
+[
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int a",
+      "start_byte": 8,
+      "end_byte": 13,
+      "start_point": {
+        "row": 0,
+        "column": 8
+      },
+      "end_point": {
+        "row": 0,
+        "column": 13
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "int b",
+      "start_byte": 15,
+      "end_byte": 20,
+      "start_point": {
+        "row": 0,
+        "column": 15
+      },
+      "end_point": {
+        "row": 0,
+        "column": 20
+      }
+    }
+  },
+  {
+    "name": {
+      "kind": "identifier",
+      "text": "main",
+      "start_byte": 44,
+      "end_byte": 48,
+      "start_point": {
+        "row": 1,
+        "column": 4
+      },
+      "end_point": {
+        "row": 1,
+        "column": 8
+      }
+    },
+    "param": {
+      "kind": "parameter_declaration",
+      "text": "void",
+      "start_byte": 49,
+      "end_byte": 53,
+      "start_point": {
+        "row": 1,
+        "column": 9
+      },
+      "end_point": {
+        "row": 1,
+        "column": 13
+      }
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (call unnest (collect (pipe (bind (field func_decl parameters) params) (child params (node parameter_declaration)))))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -220,99 +313,6 @@ int main(void) { return 0; }
 0043: end_build 17
 0044: yield
 0045: halt
---- values ---
-[
-  {
-    "name": {
-      "kind": "identifier",
-      "text": "add",
-      "start_byte": 4,
-      "end_byte": 7,
-      "start_point": {
-        "row": 0,
-        "column": 4
-      },
-      "end_point": {
-        "row": 0,
-        "column": 7
-      }
-    },
-    "param": {
-      "kind": "parameter_declaration",
-      "text": "int a",
-      "start_byte": 8,
-      "end_byte": 13,
-      "start_point": {
-        "row": 0,
-        "column": 8
-      },
-      "end_point": {
-        "row": 0,
-        "column": 13
-      }
-    }
-  },
-  {
-    "name": {
-      "kind": "identifier",
-      "text": "add",
-      "start_byte": 4,
-      "end_byte": 7,
-      "start_point": {
-        "row": 0,
-        "column": 4
-      },
-      "end_point": {
-        "row": 0,
-        "column": 7
-      }
-    },
-    "param": {
-      "kind": "parameter_declaration",
-      "text": "int b",
-      "start_byte": 15,
-      "end_byte": 20,
-      "start_point": {
-        "row": 0,
-        "column": 15
-      },
-      "end_point": {
-        "row": 0,
-        "column": 20
-      }
-    }
-  },
-  {
-    "name": {
-      "kind": "identifier",
-      "text": "main",
-      "start_byte": 44,
-      "end_byte": 48,
-      "start_point": {
-        "row": 1,
-        "column": 4
-      },
-      "end_point": {
-        "row": 1,
-        "column": 8
-      }
-    },
-    "param": {
-      "kind": "parameter_declaration",
-      "text": "void",
-      "start_byte": 49,
-      "end_byte": 53,
-      "start_point": {
-        "row": 1,
-        "column": 9
-      },
-      "end_point": {
-        "row": 1,
-        "column": 13
-      }
-    }
-  }
-]
 ================================================================================
 unnest on empty subquery drops branch
 ================================================================================
@@ -324,10 +324,12 @@ unnest([@func > goto_statement]) as @g |
 { fn: @func, g: @g }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[]
 --- tql tree ---
 (source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (child func (node goto_statement))))) g) (object (fn func) (g g))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -362,8 +364,6 @@ int add(int a, int b) { return a + b; }
 0030: end_build 12
 0031: yield
 0032: halt
---- values ---
-[]
 ================================================================================
 unnest of singleton list yields one fanout
 ================================================================================
@@ -375,35 +375,6 @@ unnest([@func.declarator]) as @d |
 { @func, @d }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql tree ---
-(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 196) -> 2
-0003: jmp 5 if (variable_id 2)
-0004: halt
-0005: asn 3 ((current value) value)
-0006: trv value_source (variable_id 3)
-0007: asn 4 ((current value) value)
-0008: asn 1 (variable_id 4)
-0009: trv value_source (variable_id 1)
-0010: trv value_source (variable_id 1)
-0011: trv field 10
-0012: asn 5 ((current value) value)
-0013: trv value_source (variable_id 5)
-0014: asn 6 ((current value) value)
-0015: asn 0 (variable_id 6)
-0016: trv value_source (variable_id 0)
-0017: asn 7 ((current value) value)
-0018: begin_build record
-0019: push_build func (variable_id 1)
-0020: push_build d (variable_id 0)
-0021: end_build 8
-0022: yield
-0023: halt
 --- values ---
 [
   {
@@ -437,3 +408,33 @@ int add(int a, int b) { return a + b; }
     }
   }
 ]
+
+--- tql tree ---
+(source_file (pipe (bind (pipe (bind (child . (node function_definition)) func) (call unnest (collect (field func declarator)))) d) (object func d)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 10
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: asn 6 ((current value) value)
+0015: asn 0 (variable_id 6)
+0016: trv value_source (variable_id 0)
+0017: asn 7 ((current value) value)
+0018: begin_build record
+0019: push_build func (variable_id 1)
+0020: push_build d (variable_id 0)
+0021: end_build 8
+0022: yield
+0023: halt

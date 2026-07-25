@@ -13,10 +13,28 @@ class Service {
   foo() {}
 }
 
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  }
+]
+
 --- tql tree ---
 (source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field (child (field c body) (node method_definition)) name)) nested_name) nested_name))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -46,24 +64,6 @@ class Service {
 0025: trv value_source (variable_id 0)
 0026: yield
 0027: halt
---- values ---
-[
-  {
-    "kind": "property_identifier",
-    "text": "foo",
-    "start_byte": 18,
-    "end_byte": 21,
-    "start_point": {
-      "row": 1,
-      "column": 2
-    },
-    "end_point": {
-      "row": 1,
-      "column": 5
-    }
-  }
-]
-
 ================================================================================
 field access on node selector
 ================================================================================
@@ -76,24 +76,6 @@ grammar: typescript
 class Service {}
 class Controller {}
 
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql tree ---
-(source_file (field (child . (node class_declaration)) name))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
-0003: jmp 5 if (variable_id 0)
-0004: halt
-0005: asn 1 ((current value) value)
-0006: trv value_source (variable_id 1)
-0007: asn 2 ((current value) value)
-0008: trv value_source (variable_id 2)
-0009: trv field 25
-0010: asn 3 ((current value) value)
-0011: yield
-0012: halt
 --- values ---
 [
   {
@@ -126,6 +108,24 @@ class Controller {}
   }
 ]
 
+--- tql tree ---
+(source_file (field (child . (node class_declaration)) name))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv field 25
+0010: asn 3 ((current value) value)
+0011: yield
+0012: halt
 ================================================================================
 child navigation with field access parent
 ================================================================================
@@ -139,34 +139,6 @@ class Service {
   foo() {}
   bar() {}
 }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (pipe (bind (child . (node class_declaration)) c) (child (field c body) (node method_definition))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: trv value_source (variable_id 0)
-0011: trv field 5
-0012: asn 4 ((current value) value)
-0013: trv value_source (variable_id 4)
-0014: trv child
-0015: rel equals ((current value) kind) (literal kind_id 261) -> 5
-0016: jmp 18 if (variable_id 5)
-0017: halt
-0018: asn 6 ((current value) value)
-0019: trv value_source (variable_id 6)
-0020: asn 7 ((current value) value)
-0021: yield
-0022: halt
 --- values ---
 [
   {
@@ -199,6 +171,34 @@ class Service {
   }
 ]
 
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) c) (child (field c body) (node method_definition))))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
+0011: trv field 5
+0012: asn 4 ((current value) value)
+0013: trv value_source (variable_id 4)
+0014: trv child
+0015: rel equals ((current value) kind) (literal kind_id 261) -> 5
+0016: jmp 18 if (variable_id 5)
+0017: halt
+0018: asn 6 ((current value) value)
+0019: trv value_source (variable_id 6)
+0020: asn 7 ((current value) value)
+0021: yield
+0022: halt
 ================================================================================
 child navigation on node selector
 ================================================================================
@@ -216,32 +216,6 @@ class Controller {
   baz() {}
 }
 
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (child (field (child . (node class_declaration)) body) (node method_definition)))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
-0003: jmp 5 if (variable_id 0)
-0004: halt
-0005: asn 1 ((current value) value)
-0006: trv value_source (variable_id 1)
-0007: asn 2 ((current value) value)
-0008: trv value_source (variable_id 2)
-0009: trv field 5
-0010: asn 3 ((current value) value)
-0011: trv value_source (variable_id 3)
-0012: trv child
-0013: rel equals ((current value) kind) (literal kind_id 261) -> 4
-0014: jmp 16 if (variable_id 4)
-0015: halt
-0016: asn 5 ((current value) value)
-0017: trv value_source (variable_id 5)
-0018: asn 6 ((current value) value)
-0019: yield
-0020: halt
 --- values ---
 [
   {
@@ -288,6 +262,32 @@ class Controller {
   }
 ]
 
+--- tql tree ---
+(source_file (child (field (child . (node class_declaration)) body) (node method_definition)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv field 5
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: trv child
+0013: rel equals ((current value) kind) (literal kind_id 261) -> 4
+0014: jmp 16 if (variable_id 4)
+0015: halt
+0016: asn 5 ((current value) value)
+0017: trv value_source (variable_id 5)
+0018: asn 6 ((current value) value)
+0019: yield
+0020: halt
 ================================================================================
 descendant navigation with field access parent
 ================================================================================
@@ -301,34 +301,6 @@ class Service {
   foo() {}
   bar() {}
 }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (pipe (bind (child . (node class_declaration)) c) (descendant (field c body) (node property_identifier))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: trv value_source (variable_id 0)
-0011: trv field 5
-0012: asn 4 ((current value) value)
-0013: trv value_source (variable_id 4)
-0014: trv descendant
-0015: rel equals ((current value) kind) (literal kind_id 377) -> 5
-0016: jmp 18 if (variable_id 5)
-0017: halt
-0018: asn 6 ((current value) value)
-0019: trv value_source (variable_id 6)
-0020: asn 7 ((current value) value)
-0021: yield
-0022: halt
 --- values ---
 [
   {
@@ -361,6 +333,34 @@ class Service {
   }
 ]
 
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) c) (descendant (field c body) (node property_identifier))))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
+0011: trv field 5
+0012: asn 4 ((current value) value)
+0013: trv value_source (variable_id 4)
+0014: trv descendant
+0015: rel equals ((current value) kind) (literal kind_id 377) -> 5
+0016: jmp 18 if (variable_id 5)
+0017: halt
+0018: asn 6 ((current value) value)
+0019: trv value_source (variable_id 6)
+0020: asn 7 ((current value) value)
+0021: yield
+0022: halt
 ================================================================================
 descendant navigation on node selector
 ================================================================================
@@ -376,29 +376,6 @@ class Service {
 class Controller {
   bar() {}
 }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (descendant (child . (node class_declaration)) (node property_identifier)))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
-0003: jmp 5 if (variable_id 0)
-0004: halt
-0005: asn 1 ((current value) value)
-0006: trv value_source (variable_id 1)
-0007: asn 2 ((current value) value)
-0008: trv value_source (variable_id 2)
-0009: trv descendant
-0010: rel equals ((current value) kind) (literal kind_id 377) -> 3
-0011: jmp 13 if (variable_id 3)
-0012: halt
-0013: asn 4 ((current value) value)
-0014: trv value_source (variable_id 4)
-0015: asn 5 ((current value) value)
-0016: yield
-0017: halt
 --- values ---
 [
   {
@@ -431,6 +408,29 @@ class Controller {
   }
 ]
 
+--- tql tree ---
+(source_file (descendant (child . (node class_declaration)) (node property_identifier)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv descendant
+0010: rel equals ((current value) kind) (literal kind_id 377) -> 3
+0011: jmp 13 if (variable_id 3)
+0012: halt
+0013: asn 4 ((current value) value)
+0014: trv value_source (variable_id 4)
+0015: asn 5 ((current value) value)
+0016: yield
+0017: halt
 ================================================================================
 nested child navigation
 ================================================================================
@@ -446,39 +446,6 @@ class Service {
   bar() {}
 }
 
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (pipe (bind (child . (node class_declaration)) c) (child (child . (node class_body)) (node method_definition))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: trv value_source ((current value) value)
-0011: trv child
-0012: rel equals ((current value) kind) (literal kind_id 256) -> 4
-0013: jmp 15 if (variable_id 4)
-0014: halt
-0015: asn 5 ((current value) value)
-0016: trv value_source (variable_id 5)
-0017: asn 6 ((current value) value)
-0018: trv value_source (variable_id 6)
-0019: trv child
-0020: rel equals ((current value) kind) (literal kind_id 261) -> 7
-0021: jmp 23 if (variable_id 7)
-0022: halt
-0023: asn 8 ((current value) value)
-0024: trv value_source (variable_id 8)
-0025: asn 9 ((current value) value)
-0026: yield
-0027: halt
 --- values ---
 [
   {
@@ -510,3 +477,37 @@ class Service {
     }
   }
 ]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) c) (child (child . (node class_body)) (node method_definition))))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source ((current value) value)
+0011: trv child
+0012: rel equals ((current value) kind) (literal kind_id 256) -> 4
+0013: jmp 15 if (variable_id 4)
+0014: halt
+0015: asn 5 ((current value) value)
+0016: trv value_source (variable_id 5)
+0017: asn 6 ((current value) value)
+0018: trv value_source (variable_id 6)
+0019: trv child
+0020: rel equals ((current value) kind) (literal kind_id 261) -> 7
+0021: jmp 23 if (variable_id 7)
+0022: halt
+0023: asn 8 ((current value) value)
+0024: trv value_source (variable_id 8)
+0025: asn 9 ((current value) value)
+0026: yield
+0027: halt

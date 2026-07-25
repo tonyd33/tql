@@ -8,10 +8,28 @@ grammar: typescript
 --- source ---
 class A { foo() {}; foo() {}; }
 class B { foo() {}; bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call all (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -53,20 +71,3 @@ class B { foo() {}; bar() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 31,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 31
-    }
-  }
-]

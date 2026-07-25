@@ -8,10 +8,27 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -53,23 +70,6 @@ class Controller { baz() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Service { foo() {}; bar() {}; }",
-    "start_byte": 0,
-    "end_byte": 37,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 37
-    }
-  }
-]
 ================================================================================
 no match when predicate false for all elements
 ================================================================================
@@ -80,10 +80,12 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "nonexistent"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -125,8 +127,6 @@ class Controller { baz() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
---- values ---
-[]
 ================================================================================
 matches when predicate true for later element only
 ================================================================================
@@ -137,10 +137,27 @@ grammar: typescript
 --- source ---
 class A { bar() {}; foo() {}; }
 class B { bar() {}; baz() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { bar() {}; foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -182,23 +199,6 @@ class B { bar() {}; baz() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { bar() {}; foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 31,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 31
-    }
-  }
-]
 ================================================================================
 predicate with regex match
 ================================================================================
@@ -209,10 +209,27 @@ grammar: typescript
 --- source ---
 class A { foobar() {}; }
 class B { bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foobar() {}; }",
+    "start_byte": 0,
+    "end_byte": 24,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 24
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (regex_match (pipe (dot-field name) (call text)) (regex "^foo.*"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -254,23 +271,6 @@ class B { bar() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foobar() {}; }",
-    "start_byte": 0,
-    "end_byte": 24,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 24
-    }
-  }
-]
 ================================================================================
 combined with and outside predicate
 ================================================================================
@@ -282,10 +282,27 @@ grammar: typescript
 class Service { foo() {}; }
 class Service { bar() {}; }
 class Other { foo() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Service")) (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo")))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -340,23 +357,6 @@ class Other { foo() {}; }
 0050: trv value_source ((current value) value)
 0051: yield
 0052: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Service { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 27,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 27
-    }
-  }
-]
 ================================================================================
 regression for double yield with and and regex
 ================================================================================
@@ -379,10 +379,29 @@ class Foo2 {}
 class Foo3 {
   m3() {}
 }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "class_name": {
+      "kind": "type_identifier",
+      "text": "Foo1",
+      "start_byte": 6,
+      "end_byte": 10,
+      "start_point": {
+        "row": 0,
+        "column": 6
+      },
+      "end_point": {
+        "row": 0,
+        "column": 10
+      }
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (call select (and (regex_match (pipe class_name (call text)) (regex "Foo.*")) (call any (child (field c body) (node method_definition)) (ne (dot-field return_type) null))))) (object class_name)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -446,25 +465,6 @@ class Foo3 {
 0059: end_build 22
 0060: yield
 0061: halt
---- values ---
-[
-  {
-    "class_name": {
-      "kind": "type_identifier",
-      "text": "Foo1",
-      "start_byte": 6,
-      "end_byte": 10,
-      "start_point": {
-        "row": 0,
-        "column": 6
-      },
-      "end_point": {
-        "row": 0,
-        "column": 10
-      }
-    }
-  }
-]
 ================================================================================
 descendant navigation as source
 ================================================================================
@@ -475,10 +475,27 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; }
 class Controller { bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -517,23 +534,6 @@ class Controller { bar() {}; }
 0034: trv value_source ((current value) value)
 0035: yield
 0036: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Service { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 27,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 27
-    }
-  }
-]
 ================================================================================
 child navigation in predicate comparison
 ================================================================================
@@ -544,10 +544,27 @@ grammar: typescript
 --- source ---
 class A { foo() { return 1; } }
 class B { bar() {} }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() { return 1; } }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (child (dot-field body) (node return_statement)) null)))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -600,23 +617,6 @@ class B { bar() {} }
 0048: trv value_source ((current value) value)
 0049: yield
 0050: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() { return 1; } }",
-    "start_byte": 0,
-    "end_byte": 31,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 31
-    }
-  }
-]
 ================================================================================
 predicate with or over dot field access
 ================================================================================
@@ -628,10 +628,41 @@ grammar: typescript
 class A { foo() {}; }
 class B { bar() {}; }
 class C { baz() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 21,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 21
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class B { bar() {}; }",
+    "start_byte": 22,
+    "end_byte": 43,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 21
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (or (eq (pipe (dot-field name) (call text)) (string "foo")) (eq (pipe (dot-field name) (call text)) (string "bar")))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -686,37 +717,6 @@ class C { baz() {}; }
 0050: trv value_source ((current value) value)
 0051: yield
 0052: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 21,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 21
-    }
-  },
-  {
-    "kind": "class_declaration",
-    "text": "class B { bar() {}; }",
-    "start_byte": 22,
-    "end_byte": 43,
-    "start_point": {
-      "row": 1,
-      "column": 0
-    },
-    "end_point": {
-      "row": 1,
-      "column": 21
-    }
-  }
-]
 ================================================================================
 predicate with not equal null comparison
 ================================================================================
@@ -727,10 +727,41 @@ grammar: typescript
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Controller { baz() {}; }",
+    "start_byte": 38,
+    "end_byte": 68,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 30
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (dot-field name) null)))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -775,37 +806,6 @@ class Controller { baz() {}; }
 0040: trv value_source ((current value) value)
 0041: yield
 0042: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Service { foo() {}; bar() {}; }",
-    "start_byte": 0,
-    "end_byte": 37,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 37
-    }
-  },
-  {
-    "kind": "class_declaration",
-    "text": "class Controller { baz() {}; }",
-    "start_byte": 38,
-    "end_byte": 68,
-    "start_point": {
-      "row": 1,
-      "column": 0
-    },
-    "end_point": {
-      "row": 1,
-      "column": 30
-    }
-  }
-]
 ================================================================================
 nested any over two sources
 ================================================================================
@@ -816,10 +816,28 @@ grammar: typescript
 --- source ---
 class A { foo() {}; bar() {}; }
 class B {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (call any (child (field c body) (node method_definition)) (eq (dot-field name) (dot-field name)))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -878,24 +896,6 @@ class B {}
 0054: trv value_source ((current value) value)
 0055: yield
 0056: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; bar() {}; }",
-    "start_byte": 0,
-    "end_byte": 31,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 31
-    }
-  }
-]
-
 ================================================================================
 matches when any method lacks a return type annotation
 ================================================================================
@@ -915,10 +915,28 @@ class Foo2 {
 }
 
 class Foo3 {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Foo2 {\n  m1(): string {}\n  m2() {}\n}",
+    "start_byte": 52,
+    "end_byte": 94,
+    "start_point": {
+      "row": 5,
+      "column": 0
+    },
+    "end_point": {
+      "row": 8,
+      "column": 1
+    }
+  }
+]
+
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (is-null (dot-field return_type))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -958,20 +976,3 @@ class Foo3 {}
 0035: trv value_source ((current value) value)
 0036: yield
 0037: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Foo2 {\n  m1(): string {}\n  m2() {}\n}",
-    "start_byte": 52,
-    "end_byte": 94,
-    "start_point": {
-      "row": 5,
-      "column": 0
-    },
-    "end_point": {
-      "row": 8,
-      "column": 1
-    }
-  }
-]

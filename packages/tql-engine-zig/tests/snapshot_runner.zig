@@ -16,10 +16,10 @@ const DEFAULT_CORPUS_DIR = "tests/corpus";
 const ansi = fmt.ansi;
 
 const COMPARABLE_SECTIONS = [_]SectionKind{
+    .values,
     .tql_tree,
     .source_tree,
     .bytecode,
-    .values,
 };
 
 const CompareSections = struct {

@@ -7,10 +7,15 @@ grammar: typescript
 . >> property_identifier | text()
 --- source ---
 class Foo { bar() {} }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  "bar"
+]
+
 --- tql tree ---
 (source_file (pipe (descendant . (node property_identifier)) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv descendant
@@ -23,11 +28,6 @@ class Foo { bar() {} }
 0008: trv value_source (variable_id 2)
 0009: yield
 0010: halt
---- values ---
-[
-  "bar"
-]
-
 ================================================================================
 text via variable
 ================================================================================
@@ -37,10 +37,16 @@ grammar: typescript
 . >> property_identifier as @id | @id | text
 --- source ---
 class Foo { bar() {} }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  "bar"
+]
+
+
 --- tql tree ---
 (source_file (pipe (pipe (bind (descendant . (node property_identifier)) id) id) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv descendant
@@ -55,8 +61,3 @@ class Foo { bar() {} }
 0010: trv value_source (variable_id 0)
 0011: yield
 0012: halt
---- values ---
-[
-  "bar"
-]
-

@@ -7,29 +7,6 @@ grammar: c
 . > function_definition as @fn | { fn: . }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql tree ---
-(source_file (pipe (bind (child . (node function_definition)) fn) (object (fn .))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 4)
-0012: asn 5 ((current value) value)
-0013: begin_build record
-0014: push_build fn (variable_id 5)
-0015: end_build 6
-0016: yield
-0017: halt
 --- values ---
 [
   {
@@ -49,6 +26,29 @@ int add(int a, int b) { return a + b; }
     }
   }
 ]
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) fn) (object (fn .))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: asn 5 ((current value) value)
+0013: begin_build record
+0014: push_build fn (variable_id 5)
+0015: end_build 6
+0016: yield
+0017: halt
 ================================================================================
 object literal: dot in second field after first field's field access
 ================================================================================
@@ -58,10 +58,43 @@ grammar: c
 . > function_definition as @fn | { decl: @fn.declarator, whole: . }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  {
+    "decl": {
+      "kind": "function_declarator",
+      "text": "add(int a, int b)",
+      "start_byte": 4,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
+    },
+    "whole": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) fn) (object (decl (field fn declarator)) (whole .))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -87,6 +120,15 @@ int add(int a, int b) { return a + b; }
 0021: end_build 8
 0022: yield
 0023: halt
+================================================================================
+object literal: dot in first field, field access in second
+================================================================================
+grammar: c
+
+--- tql ---
+. > function_definition as @fn | { whole: ., decl: @fn.declarator }
+--- source ---
+int add(int a, int b) { return a + b; }
 --- values ---
 [
   {
@@ -120,19 +162,10 @@ int add(int a, int b) { return a + b; }
     }
   }
 ]
-================================================================================
-object literal: dot in first field, field access in second
-================================================================================
-grammar: c
-
---- tql ---
-. > function_definition as @fn | { whole: ., decl: @fn.declarator }
---- source ---
-int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- tql tree ---
 (source_file (pipe (bind (child . (node function_definition)) fn) (object (whole .) (decl (field fn declarator)))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -158,39 +191,6 @@ int add(int a, int b) { return a + b; }
 0021: end_build 8
 0022: yield
 0023: halt
---- values ---
-[
-  {
-    "decl": {
-      "kind": "function_declarator",
-      "text": "add(int a, int b)",
-      "start_byte": 4,
-      "end_byte": 21,
-      "start_point": {
-        "row": 0,
-        "column": 4
-      },
-      "end_point": {
-        "row": 0,
-        "column": 21
-      }
-    },
-    "whole": {
-      "kind": "function_definition",
-      "text": "int add(int a, int b) { return a + b; }",
-      "start_byte": 0,
-      "end_byte": 39,
-      "start_point": {
-        "row": 0,
-        "column": 0
-      },
-      "end_point": {
-        "row": 0,
-        "column": 39
-      }
-    }
-  }
-]
 ================================================================================
 object literal: three fields, dot in middle after field access
 ================================================================================
@@ -200,41 +200,6 @@ grammar: c
 . > function_definition as @fn | { type: @fn.type, whole: ., body: @fn.body }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql tree ---
-(source_file (pipe (bind (child . (node function_definition)) fn) (object (type (field fn type)) (whole .) (body (field fn body)))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 4)
-0012: trv value_source (variable_id 0)
-0013: trv field 36
-0014: asn 5 ((current value) value)
-0015: asn 6 (variable_id 5)
-0016: trv value_source (variable_id 4)
-0017: asn 7 ((current value) value)
-0018: trv value_source (variable_id 4)
-0019: trv value_source (variable_id 0)
-0020: trv field 5
-0021: asn 8 ((current value) value)
-0022: asn 9 (variable_id 8)
-0023: begin_build record
-0024: push_build type (variable_id 6)
-0025: push_build whole (variable_id 7)
-0026: push_build body (variable_id 9)
-0027: end_build 10
-0028: yield
-0029: halt
 --- values ---
 [
   {
@@ -282,6 +247,41 @@ int add(int a, int b) { return a + b; }
     }
   }
 ]
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) fn) (object (type (field fn type)) (whole .) (body (field fn body)))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: trv value_source (variable_id 0)
+0013: trv field 36
+0014: asn 5 ((current value) value)
+0015: asn 6 (variable_id 5)
+0016: trv value_source (variable_id 4)
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 4)
+0019: trv value_source (variable_id 0)
+0020: trv field 5
+0021: asn 8 ((current value) value)
+0022: asn 9 (variable_id 8)
+0023: begin_build record
+0024: push_build type (variable_id 6)
+0025: push_build whole (variable_id 7)
+0026: push_build body (variable_id 9)
+0027: end_build 10
+0028: yield
+0029: halt
 ================================================================================
 object literal: each field reads distinct text via pipe
 ================================================================================
@@ -291,10 +291,17 @@ grammar: c
 . > function_definition | { t: .type | text, b: .body | text }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  {
+    "b": "{ return a + b; }",
+    "t": "int"
+  }
+]
 --- tql tree ---
 (source_file (pipe (child . (node function_definition)) (object (t (pipe (dot-field type) (call text))) (b (pipe (dot-field body) (call text))))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -322,13 +329,6 @@ int add(int a, int b) { return a + b; }
 0023: end_build 8
 0024: yield
 0025: halt
---- values ---
-[
-  {
-    "b": "{ return a + b; }",
-    "t": "int"
-  }
-]
 ================================================================================
 object literal: shorthand-bound list variable alongside dot field
 ================================================================================
@@ -345,10 +345,33 @@ grammar: c
 | { func: @func_decl.declarator, @int_param_names }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  {
+    "func": {
+      "kind": "identifier",
+      "text": "add",
+      "start_byte": 4,
+      "end_byte": 7,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 7
+      }
+    },
+    "int_param_names": [
+      "a",
+      "b"
+    ]
+  }
+]
 --- tql tree ---
 (source_file (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (pipe (pipe (pipe (child (dot-field parameters) (node parameter_declaration)) (call select (eq (pipe (dot-field type) (call text)) (string "int")))) (dot-field declarator)) (call text)))) int_param_names) (object (func (field func_decl declarator)) int_param_names)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -406,6 +429,22 @@ int add(int a, int b) { return a + b; }
 0053: end_build 20
 0054: yield
 0055: halt
+================================================================================
+object literal: key-value dot referring to bound list variable
+================================================================================
+grammar: c
+
+--- tql ---
+. > function_definition.declarator as @func_decl
+| [
+  .parameters > parameter_declaration
+  | select(.type | text = 'int')
+  | .declarator
+  | text
+] as @int_param_names
+| { func: @func_decl.declarator, int_param_names: . }
+--- source ---
+int add(int a, int b) { return a + b; }
 --- values ---
 [
   {
@@ -429,26 +468,10 @@ int add(int a, int b) { return a + b; }
     ]
   }
 ]
-================================================================================
-object literal: key-value dot referring to bound list variable
-================================================================================
-grammar: c
-
---- tql ---
-. > function_definition.declarator as @func_decl
-| [
-  .parameters > parameter_declaration
-  | select(.type | text = 'int')
-  | .declarator
-  | text
-] as @int_param_names
-| { func: @func_decl.declarator, int_param_names: . }
---- source ---
-int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- tql tree ---
 (source_file (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (pipe (pipe (pipe (child (dot-field parameters) (node parameter_declaration)) (call select (eq (pipe (dot-field type) (call text)) (string "int")))) (dot-field declarator)) (call text)))) int_param_names) (object (func (field func_decl declarator)) (int_param_names .))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -508,29 +531,6 @@ int add(int a, int b) { return a + b; }
 0055: end_build 21
 0056: yield
 0057: halt
---- values ---
-[
-  {
-    "func": {
-      "kind": "identifier",
-      "text": "add",
-      "start_byte": 4,
-      "end_byte": 7,
-      "start_point": {
-        "row": 0,
-        "column": 4
-      },
-      "end_point": {
-        "row": 0,
-        "column": 7
-      }
-    },
-    "int_param_names": [
-      "a",
-      "b"
-    ]
-  }
-]
 ================================================================================
 array literal: dot in second element after field access in first
 ================================================================================
@@ -541,10 +541,43 @@ grammar: c
 | [@decl.parameters, .]
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  [
+    {
+      "kind": "parameter_list",
+      "text": "(int a, int b)",
+      "start_byte": 7,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 7
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
+    },
+    {
+      "kind": "function_declarator",
+      "text": "add(int a, int b)",
+      "start_byte": 4,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 4
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
+    }
+  ]
+]
 --- tql tree ---
 (source_file (pipe (bind (field (child . (node function_definition)) declarator) decl) (array (field decl parameters) .)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -573,23 +606,19 @@ int add(int a, int b) { return a + b; }
 0024: end_build 9
 0025: yield
 0026: halt
+================================================================================
+array literal: dot in first element, field access in second
+================================================================================
+grammar: c
+
+--- tql ---
+. > function_definition.declarator as @decl
+| [., @decl.parameters]
+--- source ---
+int add(int a, int b) { return a + b; }
 --- values ---
 [
   [
-    {
-      "kind": "parameter_list",
-      "text": "(int a, int b)",
-      "start_byte": 7,
-      "end_byte": 21,
-      "start_point": {
-        "row": 0,
-        "column": 7
-      },
-      "end_point": {
-        "row": 0,
-        "column": 21
-      }
-    },
     {
       "kind": "function_declarator",
       "text": "add(int a, int b)",
@@ -603,23 +632,27 @@ int add(int a, int b) { return a + b; }
         "row": 0,
         "column": 21
       }
+    },
+    {
+      "kind": "parameter_list",
+      "text": "(int a, int b)",
+      "start_byte": 7,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 7
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
     }
   ]
 ]
-================================================================================
-array literal: dot in first element, field access in second
-================================================================================
-grammar: c
-
---- tql ---
-. > function_definition.declarator as @decl
-| [., @decl.parameters]
---- source ---
-int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- tql tree ---
 (source_file (pipe (bind (field (child . (node function_definition)) declarator) decl) (array . (field decl parameters))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -648,9 +681,33 @@ int add(int a, int b) { return a + b; }
 0024: end_build 9
 0025: yield
 0026: halt
+================================================================================
+array literal: three elements, dot in middle after field access
+================================================================================
+grammar: c
+
+--- tql ---
+. > function_definition.declarator as @decl
+| [@decl.parameters, ., @decl.parameters]
+--- source ---
+int add(int a, int b) { return a + b; }
 --- values ---
 [
   [
+    {
+      "kind": "parameter_list",
+      "text": "(int a, int b)",
+      "start_byte": 7,
+      "end_byte": 21,
+      "start_point": {
+        "row": 0,
+        "column": 7
+      },
+      "end_point": {
+        "row": 0,
+        "column": 21
+      }
+    },
     {
       "kind": "function_declarator",
       "text": "add(int a, int b)",
@@ -681,20 +738,10 @@ int add(int a, int b) { return a + b; }
     }
   ]
 ]
-================================================================================
-array literal: three elements, dot in middle after field access
-================================================================================
-grammar: c
-
---- tql ---
-. > function_definition.declarator as @decl
-| [@decl.parameters, ., @decl.parameters]
---- source ---
-int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- tql tree ---
 (source_file (pipe (bind (field (child . (node function_definition)) declarator) decl) (array (field decl parameters) . (field decl parameters))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -729,53 +776,6 @@ int add(int a, int b) { return a + b; }
 0030: end_build 11
 0031: yield
 0032: halt
---- values ---
-[
-  [
-    {
-      "kind": "parameter_list",
-      "text": "(int a, int b)",
-      "start_byte": 7,
-      "end_byte": 21,
-      "start_point": {
-        "row": 0,
-        "column": 7
-      },
-      "end_point": {
-        "row": 0,
-        "column": 21
-      }
-    },
-    {
-      "kind": "function_declarator",
-      "text": "add(int a, int b)",
-      "start_byte": 4,
-      "end_byte": 21,
-      "start_point": {
-        "row": 0,
-        "column": 4
-      },
-      "end_point": {
-        "row": 0,
-        "column": 21
-      }
-    },
-    {
-      "kind": "parameter_list",
-      "text": "(int a, int b)",
-      "start_byte": 7,
-      "end_byte": 21,
-      "start_point": {
-        "row": 0,
-        "column": 7
-      },
-      "end_point": {
-        "row": 0,
-        "column": 21
-      }
-    }
-  ]
-]
 ================================================================================
 tuple literal: each element reads distinct text via pipe
 ================================================================================
@@ -785,10 +785,17 @@ grammar: c
 . > function_definition | (.type | text, .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  [
+    "int",
+    "{ return a + b; }"
+  ]
+]
 --- tql tree ---
 (source_file (pipe (child . (node function_definition)) (tuple (pipe (dot-field type) (call text)) (pipe (dot-field body) (call text)))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -816,13 +823,6 @@ int add(int a, int b) { return a + b; }
 0023: end_build 8
 0024: yield
 0025: halt
---- values ---
-[
-  [
-    "int",
-    "{ return a + b; }"
-  ]
-]
 ================================================================================
 tuple literal: dot alongside field access, three elements
 ================================================================================
@@ -832,10 +832,31 @@ grammar: c
 . > function_definition | (.type | text, ., .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  [
+    "int",
+    {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "{ return a + b; }"
+  ]
+]
 --- tql tree ---
 (source_file (pipe (child . (node function_definition)) (tuple (pipe (dot-field type) (call text)) . (pipe (dot-field body) (call text)))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -866,27 +887,6 @@ int add(int a, int b) { return a + b; }
 0026: end_build 9
 0027: yield
 0028: halt
---- values ---
-[
-  [
-    "int",
-    {
-      "kind": "function_definition",
-      "text": "int add(int a, int b) { return a + b; }",
-      "start_byte": 0,
-      "end_byte": 39,
-      "start_point": {
-        "row": 0,
-        "column": 0
-      },
-      "end_point": {
-        "row": 0,
-        "column": 39
-      }
-    },
-    "{ return a + b; }"
-  ]
-]
 ================================================================================
 comparison: both sides read distinct field text (not-equal)
 ================================================================================
@@ -896,10 +896,27 @@ grammar: c
 . > function_definition | select(.type | text != .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- values ---
+[
+  {
+    "kind": "function_definition",
+    "text": "int add(int a, int b) { return a + b; }",
+    "start_byte": 0,
+    "end_byte": 39,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 39
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (child . (node function_definition)) (call select (ne (pipe (dot-field type) (call text)) (pipe (dot-field body) (call text))))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -930,23 +947,6 @@ int add(int a, int b) { return a + b; }
 0026: halt
 0027: yield
 0028: halt
---- values ---
-[
-  {
-    "kind": "function_definition",
-    "text": "int add(int a, int b) { return a + b; }",
-    "start_byte": 0,
-    "end_byte": 39,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 39
-    }
-  }
-]
 ================================================================================
 comparison: both sides start from dot with different field access
 ================================================================================
@@ -956,10 +956,12 @@ grammar: c
 . > parameter_declaration | select(.declarator | text = .type | text)
 --- source ---
 int add(int a, char a) { return a; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (identifier)))))
+--- values ---
+[]
 --- tql tree ---
 (source_file (pipe (child . (node parameter_declaration)) (call select (eq (pipe (dot-field declarator) (call text)) (pipe (dot-field type) (call text))))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (identifier)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -986,8 +988,6 @@ int add(int a, char a) { return a; }
 0022: halt
 0023: yield
 0024: halt
---- values ---
-[]
 ================================================================================
 comparison: right side dot after left side field access
 ================================================================================
@@ -997,10 +997,12 @@ grammar: typescript
 . > class_declaration as @c | select(@c.name = .) | @c
 --- source ---
 class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
+--- values ---
+[]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq (field c name) .))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1026,8 +1028,6 @@ class Foo {}
 0021: trv value_source ((current value) value)
 0022: yield
 0023: halt
---- values ---
-[]
 ================================================================================
 comparison: left side dot, right side field access
 ================================================================================
@@ -1037,10 +1037,12 @@ grammar: typescript
 . > class_declaration as @c | select(. = @c.name) | @c
 --- source ---
 class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
+--- values ---
+[]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq . (field c name)))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1066,8 +1068,6 @@ class Foo {}
 0021: trv value_source ((current value) value)
 0022: yield
 0023: halt
---- values ---
-[]
 ================================================================================
 comparison: dot equals itself is always true
 ================================================================================
@@ -1077,10 +1077,27 @@ grammar: typescript
 . > class_declaration as @c | select(. = .) | @c
 --- source ---
 class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Foo {}",
+    "start_byte": 0,
+    "end_byte": 12,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 12
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (eq . .))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1103,6 +1120,15 @@ class Foo {}
 0018: trv value_source ((current value) value)
 0019: yield
 0020: halt
+================================================================================
+logical and: right side dot after left side field access
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | select(@c.name | text = 'Foo' and . | text = 'class Foo {}') | @c
+--- source ---
+class Foo {}
 --- values ---
 [
   {
@@ -1120,19 +1146,10 @@ class Foo {}
     }
   }
 ]
-================================================================================
-logical and: right side dot after left side field access
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Foo' and . | text = 'class Foo {}') | @c
---- source ---
-class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe (field c name) (call text)) (string "Foo")) (eq (pipe . (call text)) (string "class Foo {}"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1169,6 +1186,15 @@ class Foo {}
 0032: trv value_source ((current value) value)
 0033: yield
 0034: halt
+================================================================================
+logical and: left side dot, right side field access
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | select(. | text = 'class Foo {}' and @c.name | text = 'Foo') | @c
+--- source ---
+class Foo {}
 --- values ---
 [
   {
@@ -1186,19 +1212,10 @@ class Foo {}
     }
   }
 ]
-================================================================================
-logical and: left side dot, right side field access
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | select(. | text = 'class Foo {}' and @c.name | text = 'Foo') | @c
---- source ---
-class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe . (call text)) (string "class Foo {}")) (eq (pipe (field c name) (call text)) (string "Foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1235,6 +1252,15 @@ class Foo {}
 0032: trv value_source ((current value) value)
 0033: yield
 0034: halt
+================================================================================
+logical or: right side dot after left side field access
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | select(@c.name | text = 'Nope' or . | text = 'class Foo {}') | @c
+--- source ---
+class Foo {}
 --- values ---
 [
   {
@@ -1252,19 +1278,10 @@ class Foo {}
     }
   }
 ]
-================================================================================
-logical or: right side dot after left side field access
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Nope' or . | text = 'class Foo {}') | @c
---- source ---
-class Foo {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (or (eq (pipe (field c name) (call text)) (string "Nope")) (eq (pipe . (call text)) (string "class Foo {}"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1302,23 +1319,6 @@ class Foo {}
 0033: trv value_source ((current value) value)
 0034: yield
 0035: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class Foo {}",
-    "start_byte": 0,
-    "end_byte": 12,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 12
-    }
-  }
-]
 ================================================================================
 any quantifier: dot in predicate after outer field access source
 ================================================================================
@@ -1329,10 +1329,27 @@ grammar: typescript
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 21,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 21
+    }
+  }
+]
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1374,6 +1391,16 @@ class B { bar() {}; }
 0037: trv value_source ((current value) value)
 0038: yield
 0039: halt
+================================================================================
+all quantifier: dot in predicate compared against field access on same source
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | select(all(@c.body > method_definition; .name | text != 'bar')) | @c
+--- source ---
+class A { foo() {}; }
+class B { bar() {}; }
 --- values ---
 [
   {
@@ -1391,20 +1418,10 @@ class B { bar() {}; }
     }
   }
 ]
-================================================================================
-all quantifier: dot in predicate compared against field access on same source
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | select(all(@c.body > method_definition; .name | text != 'bar')) | @c
---- source ---
-class A { foo() {}; }
-class B { bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- tql tree ---
 (source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call all (child (field c body) (node method_definition)) (ne (pipe (dot-field name) (call text)) (string "bar"))))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1450,23 +1467,6 @@ class B { bar() {}; }
 0041: trv value_source ((current value) value)
 0042: yield
 0043: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 21,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 21
-    }
-  }
-]
 ================================================================================
 nested object literal: inner object field dot after outer field access
 ================================================================================
@@ -1476,41 +1476,6 @@ grammar: c
 . > function_definition as @fn | { outer: @fn.type, inner: { whole: . } }
 --- source ---
 int add(int a, int b) { return a + b; }
---- source tree ---
-(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql tree ---
-(source_file (pipe (bind (child . (node function_definition)) fn) (object (outer (field fn type)) (inner (object (whole .))))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 4)
-0012: trv value_source (variable_id 0)
-0013: trv field 36
-0014: asn 5 ((current value) value)
-0015: asn 6 (variable_id 5)
-0016: trv value_source (variable_id 4)
-0017: asn 7 ((current value) value)
-0018: trv value_source (variable_id 7)
-0019: asn 8 ((current value) value)
-0020: begin_build record
-0021: push_build whole (variable_id 8)
-0022: end_build 9
-0023: asn 10 (variable_id 9)
-0024: begin_build record
-0025: push_build outer (variable_id 6)
-0026: push_build inner (variable_id 10)
-0027: end_build 11
-0028: yield
-0029: halt
 --- values ---
 [
   {
@@ -1546,19 +1511,10 @@ int add(int a, int b) { return a + b; }
     }
   }
 ]
-================================================================================
-collect expression: dot inside collect body after object literal field access
-================================================================================
-grammar: c
-
---- tql ---
-. > function_definition as @fn | { decl: @fn.declarator, params: [. >> parameter_declaration] }
---- source ---
-int add(int a, int b) { return a + b; }
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) fn) (object (outer (field fn type)) (inner (object (whole .))))))
 --- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
---- tql tree ---
-(source_file (pipe (bind (child . (node function_definition)) fn) (object (decl (field fn declarator)) (params (collect (descendant . (node parameter_declaration)))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -1573,28 +1529,32 @@ int add(int a, int b) { return a + b; }
 0010: asn 4 ((current value) value)
 0011: trv value_source (variable_id 4)
 0012: trv value_source (variable_id 0)
-0013: trv field 10
+0013: trv field 36
 0014: asn 5 ((current value) value)
 0015: asn 6 (variable_id 5)
 0016: trv value_source (variable_id 4)
-0017: probe aggregate 28 7 list
-0018: trv value_source ((current value) value)
-0019: trv descendant
-0020: rel equals ((current value) kind) (literal kind_id 260) -> 8
-0021: jmp 23 if (variable_id 8)
-0022: halt
-0023: asn 9 ((current value) value)
-0024: trv value_source (variable_id 9)
-0025: asn 10 ((current value) value)
-0026: yield
-0027: halt
-0028: asn 11 (variable_id 7)
-0029: begin_build record
-0030: push_build decl (variable_id 6)
-0031: push_build params (variable_id 11)
-0032: end_build 12
-0033: yield
-0034: halt
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: asn 8 ((current value) value)
+0020: begin_build record
+0021: push_build whole (variable_id 8)
+0022: end_build 9
+0023: asn 10 (variable_id 9)
+0024: begin_build record
+0025: push_build outer (variable_id 6)
+0026: push_build inner (variable_id 10)
+0027: end_build 11
+0028: yield
+0029: halt
+================================================================================
+collect expression: dot inside collect body after object literal field access
+================================================================================
+grammar: c
+
+--- tql ---
+. > function_definition as @fn | { decl: @fn.declarator, params: [. >> parameter_declaration] }
+--- source ---
+int add(int a, int b) { return a + b; }
 --- values ---
 [
   {
@@ -1644,3 +1604,44 @@ int add(int a, int b) { return a + b; }
     ]
   }
 ]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) fn) (object (decl (field fn declarator)) (params (collect (descendant . (node parameter_declaration)))))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: trv value_source (variable_id 0)
+0013: trv field 10
+0014: asn 5 ((current value) value)
+0015: asn 6 (variable_id 5)
+0016: trv value_source (variable_id 4)
+0017: probe aggregate 28 7 list
+0018: trv value_source ((current value) value)
+0019: trv descendant
+0020: rel equals ((current value) kind) (literal kind_id 260) -> 8
+0021: jmp 23 if (variable_id 8)
+0022: halt
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
+0025: asn 10 ((current value) value)
+0026: yield
+0027: halt
+0028: asn 11 (variable_id 7)
+0029: begin_build record
+0030: push_build decl (variable_id 6)
+0031: push_build params (variable_id 11)
+0032: end_build 12
+0033: yield
+0034: halt
