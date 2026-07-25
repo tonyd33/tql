@@ -26,6 +26,17 @@ pub const SectionKind = enum {
             .values => "values",
         };
     }
+
+    pub fn marker(self: SectionKind) []const u8 {
+        return switch (self) {
+            .query => SECTION_QUERY,
+            .source => SECTION_SOURCE,
+            .source_tree => SECTION_SOURCE_TREE,
+            .tql_tree => SECTION_TQL_TREE,
+            .bytecode => SECTION_BYTECODE,
+            .values => SECTION_VALUES,
+        };
+    }
 };
 
 /// A parsed section body. `content` is the trimmed text used for comparisons.
@@ -164,6 +175,16 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
     };
 }
 
+fn dupeSection(allocator: std.mem.Allocator, s: Section) !Section {
+    return .{
+        .content = try allocator.dupe(u8, s.content),
+        .start = s.start,
+        .end = s.end,
+        .content_start = s.content_start,
+        .content_end = s.content_end,
+    };
+}
+
 fn parseCase(
     allocator: std.mem.Allocator,
     p: *Parser,
@@ -175,33 +196,51 @@ fn parseCase(
         if (std.mem.eql(u8, line, SECTION_QUERY)) break;
     }
 
-    const query = try extractSection(allocator, p, SECTION_SOURCE);
-    errdefer query.deinit(allocator);
+    var query: ?Section = null;
+    errdefer if (query) |s| s.deinit(allocator);
+    var target: ?Section = null;
+    errdefer if (target) |s| s.deinit(allocator);
+    var source_tree: ?Section = null;
+    errdefer if (source_tree) |s| s.deinit(allocator);
+    var tql_tree: ?Section = null;
+    errdefer if (tql_tree) |s| s.deinit(allocator);
+    var bytecode: ?Section = null;
+    errdefer if (bytecode) |s| s.deinit(allocator);
+    var values: ?Section = null;
+    errdefer if (values) |s| s.deinit(allocator);
 
-    const target = try extractSection(allocator, p, SECTION_SOURCE_TREE);
-    errdefer target.deinit(allocator);
+    query = try extractSection(allocator, p);
 
-    const source_tree = try extractSection(allocator, p, SECTION_TQL_TREE);
-    errdefer source_tree.deinit(allocator);
+    while (p.peekLine()) |line| {
+        if (std.mem.eql(u8, line, SEP)) break;
+        _ = p.nextLine(); // consume the marker line just peeked
 
-    const tql_tree = try extractSection(allocator, p, SECTION_BYTECODE);
-    errdefer tql_tree.deinit(allocator);
+        if (std.mem.eql(u8, line, SECTION_SOURCE)) {
+            target = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_SOURCE_TREE)) {
+            source_tree = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_TQL_TREE)) {
+            tql_tree = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_BYTECODE)) {
+            bytecode = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_VALUES)) {
+            values = try extractSection(allocator, p);
+        } else {
+            return error.UnexpectedMarker;
+        }
+    }
 
-    const bytecode = try extractSection(allocator, p, SECTION_VALUES);
-    errdefer bytecode.deinit(allocator);
-
-    const values = try extractUntilSepOrEof(allocator, p);
-    errdefer values.deinit(allocator);
+    const here: Section = .{ .content = &.{}, .start = p.pos, .end = p.pos, .content_start = p.pos, .content_end = p.pos };
 
     return .{
         .name = try allocator.dupe(u8, name),
         .grammar = try allocator.dupe(u8, grammar),
-        .query = query,
-        .target = target,
-        .source_tree = source_tree,
-        .tql_tree = tql_tree,
-        .bytecode = bytecode,
-        .values = values,
+        .query = query.?,
+        .target = target orelse try dupeSection(allocator, here),
+        .source_tree = source_tree orelse try dupeSection(allocator, here),
+        .tql_tree = tql_tree orelse try dupeSection(allocator, here),
+        .bytecode = bytecode orelse try dupeSection(allocator, here),
+        .values = values orelse try dupeSection(allocator, here),
     };
 }
 
@@ -222,24 +261,18 @@ fn isSectionMarker(line: []const u8) bool {
     return false;
 }
 
-/// Extracts section body up to (and consuming) `end_marker`, or any other
-/// section marker. Records exact byte positions in the source for whitespace
+/// Extracts section body up to (and not consuming) the next section marker
+/// or SEP. Records exact byte positions in the source for whitespace
 /// preservation. Returns a `Section` with allocated `content` (trimmed).
 fn extractSection(
     allocator: std.mem.Allocator,
     p: *Parser,
-    end_marker: []const u8,
 ) !Section {
     const body_start = p.pos;
 
     // find end of body by peeking ahead
     var body_end = body_start;
     while (p.peekLine()) |line| {
-        if (std.mem.eql(u8, line, end_marker)) {
-            body_end = p.pos;
-            _ = p.nextLine(); // consume end marker
-            break;
-        }
         if (isSectionMarker(line)) {
             body_end = p.pos;
             break;
@@ -253,40 +286,6 @@ fn extractSection(
     const body = p.src[body_start..body_end];
 
     // find trimmed content bounds within body
-    const trimmed = std.mem.trim(u8, body, "\n");
-    const content_start = if (trimmed.len > 0)
-        body_start + (std.mem.indexOf(u8, body, trimmed) orelse 0)
-    else
-        body_start;
-    const content_end = content_start + trimmed.len;
-
-    return .{
-        .content = try allocator.dupe(u8, trimmed),
-        .start = body_start,
-        .end = body_end,
-        .content_start = content_start,
-        .content_end = content_end,
-    };
-}
-
-/// Like extractSection but stops at SEP or EOF (used for the values section,
-/// which is the last section before the next test case or EOF).
-fn extractUntilSepOrEof(allocator: std.mem.Allocator, p: *Parser) !Section {
-    const body_start = p.pos;
-    var body_end = body_start;
-
-    while (p.peekLine()) |line| {
-        if (std.mem.eql(u8, line, SEP)) {
-            body_end = p.pos;
-            break;
-        }
-        _ = p.nextLine();
-        body_end = p.pos;
-    } else {
-        body_end = p.pos;
-    }
-
-    const body = p.src[body_start..body_end];
     const trimmed = std.mem.trim(u8, body, "\n");
     const content_start = if (trimmed.len > 0)
         body_start + (std.mem.indexOf(u8, body, trimmed) orelse 0)
@@ -332,12 +331,12 @@ pub fn applyUpdates(
         // Emit everything from cursor up through each section body.
         // The gaps between bodies (marker lines, grammar line, blank lines)
         // are copied verbatim as part of source[cursor..section.start].
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.query, null, cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.target, null, cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.source_tree, findUpdate(case_updates, .source_tree), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.tql_tree, findUpdate(case_updates, .tql_tree), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.bytecode, findUpdate(case_updates, .bytecode), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, tc.values, findUpdate(case_updates, .values), cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .query, tc.query, null, cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source, tc.target, null, cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .values, tc.values, findUpdate(case_updates, .values), cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .tql_tree, tc.tql_tree, findUpdate(case_updates, .tql_tree), cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source_tree, tc.source_tree, findUpdate(case_updates, .source_tree), cursor);
+        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .bytecode, tc.bytecode, findUpdate(case_updates, .bytecode), cursor);
     }
 
     // emit trailing content (inter-case gaps, EOF)
@@ -357,20 +356,32 @@ fn findUpdate(updates: ?[]const SectionUpdate, kind: SectionKind) ?[]const u8 {
 /// Emits source[cursor..section.start] (the gap = marker line) verbatim, then
 /// emits the section body either verbatim or with substituted content.
 /// When section.content is empty and new_content is provided, the new content
-/// is injected (with a trailing newline) in place of the empty body.
+/// is injected (with a trailing newline) in place of the empty body. If the
+/// section's own marker never appeared in the source (a brand-new optional
+/// section on a freshly-authored test case), the marker line is synthesized.
 fn emitSectionWithGap(
     allocator: std.mem.Allocator,
     buf: *std.ArrayList(u8),
     source: []const u8,
+    kind: SectionKind,
     section: Section,
     new_content: ?[]const u8,
     cursor: usize,
 ) !usize {
     // emit the gap (marker line + any inter-section bytes)
-    try buf.appendSlice(allocator, source[cursor..section.start]);
+    const gap = source[cursor..section.start];
+    try buf.appendSlice(allocator, gap);
+    const marker_present = std.mem.endsWith(u8, source[0..section.start], kind.marker());
     if (new_content) |nc| {
         if (section.content.len == 0) {
-            // empty body: inject new content with newline
+            if (!marker_present) {
+                try buf.appendSlice(allocator, kind.marker());
+                try buf.appendSlice(allocator, "\n");
+            } else if (gap.len > 0 and !std.mem.endsWith(u8, gap, "\n")) {
+                // empty body: inject new content with newline. The marker's own
+                // newline may be absent if it was the last line in the file.
+                try buf.appendSlice(allocator, "\n");
+            }
             try buf.appendSlice(allocator, nc);
             try buf.appendSlice(allocator, "\n");
         } else {
@@ -401,14 +412,14 @@ const FULL_CASE =
     \\. > foo
     \\--- source ---
     \\let x = 1;
-    \\--- source tree ---
-    \\(program)
-    \\--- tql tree ---
-    \\(source_file .)
-    \\--- bytecode ---
-    \\0000: yield
     \\--- values ---
     \\["hello"]
+    \\--- tql tree ---
+    \\(source_file .)
+    \\--- source tree ---
+    \\(program)
+    \\--- bytecode ---
+    \\0000: yield
 ;
 
 test "SectionKind.name returns correct strings" {
@@ -662,16 +673,16 @@ test "applyUpdates preserves whitespace in unchanged sections" {
         \\. > foo
         \\--- source ---
         \\x
+        \\--- values ---
+        \\["x"]
+        \\--- tql tree ---
+        \\(source_file .)
         \\--- source tree ---
         \\
         \\(program)
         \\
-        \\--- tql tree ---
-        \\(source_file .)
         \\--- bytecode ---
         \\0000: yield
-        \\--- values ---
-        \\["x"]
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
@@ -711,14 +722,15 @@ test "applyUpdates updating section content preserves its own surrounding whites
         \\. > foo
         \\--- source ---
         \\x
-        \\--- source tree ---
+        \\--- values ---
+        \\["x"]
         \\--- tql tree ---
+        \\--- source tree ---
         \\--- bytecode ---
         \\
         \\0000: old
         \\
-        \\--- values ---
-        \\["x"]
+        \\
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
@@ -756,10 +768,10 @@ test "applyUpdates populating a null section uses newline terminator" {
         \\. > foo
         \\--- source ---
         \\x
-        \\--- source tree ---
-        \\--- tql tree ---
-        \\--- bytecode ---
         \\--- values ---
+        \\--- tql tree ---
+        \\--- source tree ---
+        \\--- bytecode ---
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();

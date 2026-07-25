@@ -9,35 +9,6 @@ grammar: typescript
 class Service {}
 class Controller {}
 class ServiceProvider {}
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql tree ---
-(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "Service")))) c))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
-0003: jmp 5 if (variable_id 2)
-0004: halt
-0005: asn 3 ((current value) value)
-0006: trv value_source (variable_id 3)
-0007: asn 4 ((current value) value)
-0008: asn 1 (variable_id 4)
-0009: trv value_source (variable_id 1)
-0010: trv value_source (variable_id 1)
-0011: trv field 25
-0012: asn 5 ((current value) value)
-0013: asn 0 (variable_id 5)
-0014: trv value_source (variable_id 0)
-0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 0)
-0017: rel like ((current value) text) (literal regex ...) -> 7
-0018: trv value_source (variable_id 6)
-0019: jmp 21 if (variable_id 7)
-0020: halt
-0021: trv value_source ((current value) value)
-0022: yield
-0023: halt
 --- values ---
 [
   {
@@ -70,21 +41,10 @@ class ServiceProvider {}
   }
 ]
 
-================================================================================
-regex match anchored
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text ~ /^Service$/) | @c
---- source ---
-class Service {}
-class Controller {}
-class ServiceProvider {}
+--- tql tree ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "Service")))) c))
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql tree ---
-(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "^Service$")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -102,14 +62,28 @@ class ServiceProvider {}
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 0)
-0017: rel like ((current value) text) (literal regex ...) -> 7
-0018: trv value_source (variable_id 6)
-0019: jmp 21 if (variable_id 7)
-0020: halt
-0021: trv value_source ((current value) value)
-0022: yield
+0016: asn 7 ((current value) value)
+0017: trv value_source (variable_id 0)
+0018: asn 8 ((current value) text)
+0019: trv value_source (variable_id 7)
+0020: rel like (variable_id 8) (literal regex ...) -> 9
+0021: trv value_source (variable_id 6)
+0022: jmp 24 if (variable_id 9)
 0023: halt
+0024: trv value_source ((current value) value)
+0025: yield
+0026: halt
+================================================================================
+regex match anchored
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c.name as @n | select(@n | text ~ /^Service$/) | @c
+--- source ---
+class Service {}
+class Controller {}
+class ServiceProvider {}
 --- values ---
 [
   {
@@ -128,21 +102,10 @@ class ServiceProvider {}
   }
 ]
 
-================================================================================
-regex not match
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text !~ /Service/) | @c
---- source ---
-class Service {}
-class Controller {}
-class ServiceProvider {}
+--- tql tree ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_match (pipe n (call text)) (regex "^Service$")))) c))
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
---- tql tree ---
-(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_not_match (pipe n (call text)) (regex "Service")))) c))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -160,18 +123,28 @@ class ServiceProvider {}
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 0)
-0017: rel like ((current value) text) (literal regex ...) -> 7
-0018: jmp 21 if (variable_id 7)
-0019: asn 8 (literal bool true)
-0020: jmp 22
-0021: asn 8 (literal bool false)
-0022: trv value_source (variable_id 6)
-0023: jmp 25 if (variable_id 8)
-0024: halt
-0025: trv value_source ((current value) value)
-0026: yield
-0027: halt
+0016: asn 7 ((current value) value)
+0017: trv value_source (variable_id 0)
+0018: asn 8 ((current value) text)
+0019: trv value_source (variable_id 7)
+0020: rel like (variable_id 8) (literal regex ...) -> 9
+0021: trv value_source (variable_id 6)
+0022: jmp 24 if (variable_id 9)
+0023: halt
+0024: trv value_source ((current value) value)
+0025: yield
+0026: halt
+================================================================================
+regex not match
+================================================================================
+grammar: typescript
+
+--- tql ---
+. > class_declaration as @c | @c.name as @n | select(@n | text !~ /Service/) | @c
+--- source ---
+class Service {}
+class Controller {}
+class ServiceProvider {}
 --- values ---
 [
   {
@@ -190,3 +163,40 @@ class ServiceProvider {}
   }
 ]
 
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) (call select (regex_not_match (pipe n (call text)) (regex "Service")))) c))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: asn 7 ((current value) value)
+0017: trv value_source (variable_id 0)
+0018: asn 8 ((current value) text)
+0019: trv value_source (variable_id 7)
+0020: rel like (variable_id 8) (literal regex ...) -> 9
+0021: jmp 24 if (variable_id 9)
+0022: asn 10 (literal bool true)
+0023: jmp 25
+0024: asn 10 (literal bool false)
+0025: trv value_source (variable_id 6)
+0026: jmp 28 if (variable_id 10)
+0027: halt
+0028: trv value_source ((current value) value)
+0029: yield
+0030: halt

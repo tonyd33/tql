@@ -139,12 +139,10 @@ pub const Compiler = struct {
     /// Stability of the returned ValueSource is only guaranteed right after
     /// function execution. Callers must bind it to preserve it.
     ///
-    /// This function makes no guarantees on cursor stability, so caller is
-    /// responsible for saving cursor pre-call if necessary.
-    ///
     /// Postconditions:
     /// - fanout may have occurred
-    /// - cursor is not well-defined
+    /// - cursor is well-defined: it is the value of the compiled expression
+    ///   itself (i.e. equivalent to the returned ValueSource)
     /// - environment is mutated in a way that shouldn't be observable by
     ///   callers
     /// - no top-level yields have been emitted (yields behind probes are
@@ -217,6 +215,9 @@ pub const Compiler = struct {
                 var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
                 defer self.allocator.free(sources);
 
+                const input_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
+
                 for (obj.fields, 0..) |field, i| {
                     switch (field) {
                         .variable => |variable| {
@@ -228,9 +229,13 @@ pub const Compiler = struct {
                             };
                         },
                         .key_value => |kv| {
+                            try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
+                            const vs = try self.compileExpression(kv.value);
+                            const field_tmp = try self.allocateAnonymous();
+                            try self.instruction_builder.emit(.{ .asn = .{ .variable_id = field_tmp, .source = vs } });
                             sources[i] = .{
                                 .key = try self.addString(kv.key),
-                                .source = try self.compileExpression(kv.value),
+                                .source = .{ .variable_id = field_tmp },
                             };
                         },
                     }
@@ -281,7 +286,13 @@ pub const Compiler = struct {
                 return try self.bindValue();
             },
             .comparison => |comparison| {
-                const left_source = try self.compileExpression(comparison.left);
+                const input_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
+                const left_vs = try self.compileExpression(comparison.left);
+                const left_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = left_tmp, .source = left_vs } });
+                const left_source: ir.ValueSource = .{ .variable_id = left_tmp };
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
                 const right_source = try self.compileExpression(comparison.right);
                 const bool_tmp = try self.allocateAnonymous();
 
@@ -320,9 +331,12 @@ pub const Compiler = struct {
             .logical_and => |la| {
                 const result_tmp = try self.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = .{ .literal = .{ .bool = false } } } });
+                const input_tmp = try self.allocateAnonymous();
+                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
                 const end_label = self.instruction_builder.createLabel();
                 const left_vs = try self.compileExpression(la.left);
                 try self.instruction_builder.emitJumpCnd(left_vs, end_label, true);
+                try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
                 const right_vs = try self.compileExpression(la.right);
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = right_vs } });
                 try self.instruction_builder.markLabel(end_label);
@@ -454,8 +468,15 @@ pub const Compiler = struct {
         const sources = try self.allocator.alloc(ir.ValueSource, elements.len);
         defer self.allocator.free(sources);
 
+        const input_tmp = try self.allocateAnonymous();
+        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
+
         for (elements, 0..) |elem, i| {
-            sources[i] = try self.compileExpression(elem);
+            try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
+            const vs = try self.compileExpression(elem);
+            const elem_tmp = try self.allocateAnonymous();
+            try self.instruction_builder.emit(.{ .asn = .{ .variable_id = elem_tmp, .source = vs } });
+            sources[i] = .{ .variable_id = elem_tmp };
         }
 
         try self.instruction_builder.emit(.{ .begin_build = .list });
