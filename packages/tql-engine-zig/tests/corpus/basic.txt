@@ -4,7 +4,7 @@ node selector
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | @class
+. > class_declaration
 --- source ---
 class Service {}
 class Controller {}
@@ -12,20 +12,18 @@ function foo() {}
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
 --- tql tree ---
-(source_file (pipe (bind (child . (node class_declaration)) class) class))
+(source_file (child . (node class_declaration)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
+0003: jmp 5 if (variable_id 0)
 0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: yield
-0011: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: yield
+0009: halt
 --- values ---
 [
   {
@@ -64,32 +62,30 @@ field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | @n
+. > class_declaration as @c | @c.name
 --- source ---
 class Service {}
 class Controller {}
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
 --- tql tree ---
-(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) n) n))
+(source_file (pipe (bind (child . (node class_declaration)) c) (field c name)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
-0003: jmp 5 if (variable_id 2)
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
 0004: halt
-0005: asn 3 ((current value) value)
-0006: trv value_source (variable_id 3)
-0007: asn 4 ((current value) value)
-0008: asn 1 (variable_id 4)
-0009: trv value_source (variable_id 1)
-0010: trv value_source (variable_id 1)
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
 0011: trv field 25
-0012: asn 5 ((current value) value)
-0013: asn 0 (variable_id 5)
-0014: trv value_source (variable_id 0)
-0015: yield
-0016: halt
+0012: asn 4 ((current value) value)
+0013: yield
+0014: halt
 --- values ---
 [
   {
@@ -222,7 +218,7 @@ child navigation
 grammar: typescript
 
 --- tql ---
-. > class_declaration > class_body as @body | @body > method_definition as @m | @m
+. > class_declaration > class_body as @body | @body > method_definition
 --- source ---
 class Service {
   foo() {}
@@ -231,38 +227,36 @@ class Service {
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- tql tree ---
-(source_file (pipe (bind (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (child body (node method_definition))) m) m))
+(source_file (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (child body (node method_definition))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
-0003: jmp 5 if (variable_id 2)
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
 0004: halt
-0005: asn 3 ((current value) value)
-0006: trv value_source (variable_id 3)
-0007: asn 4 ((current value) value)
-0008: trv value_source (variable_id 4)
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
 0009: trv child
-0010: rel equals ((current value) kind) (literal kind_id 256) -> 5
-0011: jmp 13 if (variable_id 5)
+0010: rel equals ((current value) kind) (literal kind_id 256) -> 4
+0011: jmp 13 if (variable_id 4)
 0012: halt
-0013: asn 6 ((current value) value)
-0014: trv value_source (variable_id 6)
-0015: asn 7 ((current value) value)
-0016: asn 1 (variable_id 7)
-0017: trv value_source (variable_id 1)
-0018: trv value_source (variable_id 1)
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: asn 6 ((current value) value)
+0016: asn 0 (variable_id 6)
+0017: trv value_source (variable_id 0)
+0018: trv value_source (variable_id 0)
 0019: trv child
-0020: rel equals ((current value) kind) (literal kind_id 261) -> 8
-0021: jmp 23 if (variable_id 8)
+0020: rel equals ((current value) kind) (literal kind_id 261) -> 7
+0021: jmp 23 if (variable_id 7)
 0022: halt
-0023: asn 9 ((current value) value)
-0024: trv value_source (variable_id 9)
-0025: asn 10 ((current value) value)
-0026: asn 0 (variable_id 10)
-0027: trv value_source (variable_id 0)
-0028: yield
-0029: halt
+0023: asn 8 ((current value) value)
+0024: trv value_source (variable_id 8)
+0025: asn 9 ((current value) value)
+0026: yield
+0027: halt
 --- values ---
 [
   {

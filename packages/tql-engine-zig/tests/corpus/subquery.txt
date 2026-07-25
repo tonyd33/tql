@@ -270,7 +270,7 @@ grammar: c
 --- tql ---
 . > function_definition.declarator as @func_decl | {
   name: @func_decl.declarator,
-  params: [@func_decl.parameters > parameter_declaration as @p | @p]
+  params: [@func_decl.parameters > parameter_declaration]
 }
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -278,7 +278,7 @@ int main(void) { return 0; }
 --- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
 --- tql tree ---
-(source_file (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (object (name (field func_decl declarator)) (params (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))))))
+(source_file (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (object (name (field func_decl declarator)) (params (collect (child (field func_decl parameters) (node parameter_declaration)))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -300,29 +300,27 @@ int main(void) { return 0; }
 0017: asn 6 ((current value) value)
 0018: asn 7 (variable_id 6)
 0019: trv value_source (variable_id 5)
-0020: probe aggregate 36 8 list
+0020: probe aggregate 34 8 list
 0021: trv value_source (variable_id 0)
 0022: trv field 28
-0023: asn 10 ((current value) value)
-0024: trv value_source (variable_id 10)
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
 0025: trv child
-0026: rel equals ((current value) kind) (literal kind_id 260) -> 11
-0027: jmp 29 if (variable_id 11)
+0026: rel equals ((current value) kind) (literal kind_id 260) -> 10
+0027: jmp 29 if (variable_id 10)
 0028: halt
-0029: asn 12 ((current value) value)
-0030: trv value_source (variable_id 12)
-0031: asn 13 ((current value) value)
-0032: asn 9 (variable_id 13)
-0033: trv value_source (variable_id 9)
-0034: yield
-0035: halt
-0036: asn 14 (variable_id 8)
-0037: begin_build record
-0038: push_build name (variable_id 7)
-0039: push_build params (variable_id 14)
-0040: end_build 15
-0041: yield
-0042: halt
+0029: asn 11 ((current value) value)
+0030: trv value_source (variable_id 11)
+0031: asn 12 ((current value) value)
+0032: yield
+0033: halt
+0034: asn 13 (variable_id 8)
+0035: begin_build record
+0036: push_build name (variable_id 7)
+0037: push_build params (variable_id 13)
+0038: end_build 14
+0039: yield
+0040: halt
 --- values ---
 [
   {
@@ -415,7 +413,7 @@ grammar: c
   fn: @func,
   param_lists: [
     @func.declarator as @decl |
-    [@decl.parameters > parameter_declaration as @p | @p]
+    [@decl.parameters > parameter_declaration]
   ]
 }
 --- source ---
@@ -423,7 +421,7 @@ int add(int a, int b) { return a + b; }
 --- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
 --- tql tree ---
-(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (param_lists (collect (pipe (bind (field func declarator) decl) (collect (pipe (bind (child (field decl parameters) (node parameter_declaration)) p) p))))))))
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (param_lists (collect (pipe (bind (field func declarator) decl) (collect (child (field decl parameters) (node parameter_declaration)))))))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -439,37 +437,35 @@ int add(int a, int b) { return a + b; }
 0011: trv value_source (variable_id 4)
 0012: asn 5 (variable_id 0)
 0013: trv value_source (variable_id 4)
-0014: probe aggregate 38 6 list
+0014: probe aggregate 36 6 list
 0015: trv value_source (variable_id 0)
 0016: trv field 10
 0017: asn 8 ((current value) value)
 0018: asn 7 (variable_id 8)
 0019: trv value_source (variable_id 7)
-0020: probe aggregate 36 9 list
+0020: probe aggregate 34 9 list
 0021: trv value_source (variable_id 7)
 0022: trv field 28
-0023: asn 11 ((current value) value)
-0024: trv value_source (variable_id 11)
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
 0025: trv child
-0026: rel equals ((current value) kind) (literal kind_id 260) -> 12
-0027: jmp 29 if (variable_id 12)
+0026: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0027: jmp 29 if (variable_id 11)
 0028: halt
-0029: asn 13 ((current value) value)
-0030: trv value_source (variable_id 13)
-0031: asn 14 ((current value) value)
-0032: asn 10 (variable_id 14)
-0033: trv value_source (variable_id 10)
+0029: asn 12 ((current value) value)
+0030: trv value_source (variable_id 12)
+0031: asn 13 ((current value) value)
+0032: yield
+0033: halt
 0034: yield
 0035: halt
-0036: yield
-0037: halt
-0038: asn 15 (variable_id 6)
-0039: begin_build record
-0040: push_build fn (variable_id 5)
-0041: push_build param_lists (variable_id 15)
-0042: end_build 16
-0043: yield
-0044: halt
+0036: asn 14 (variable_id 6)
+0037: begin_build record
+0038: push_build fn (variable_id 5)
+0039: push_build param_lists (variable_id 14)
+0040: end_build 15
+0041: yield
+0042: halt
 --- values ---
 [
   {
@@ -674,7 +670,7 @@ grammar: c
 
 --- tql ---
 . > function_definition.declarator as @func_decl |
-[@func_decl.parameters > parameter_declaration as @p | @p] as @param_decl |
+[@func_decl.parameters > parameter_declaration] as @param_decl |
 @func_decl.declarator as @func_name |
 { name: @func_name, param: @param_decl }
 --- source ---
@@ -683,7 +679,7 @@ int main(void) { return 0; }
 --- source tree ---
 (translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
 --- tql tree ---
-(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (pipe (bind (child (field func_decl parameters) (node parameter_declaration)) p) p))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
+(source_file (pipe (bind (pipe (bind (pipe (bind (field (child . (node function_definition)) declarator) func_decl) (collect (child (field func_decl parameters) (node parameter_declaration)))) param_decl) (field func_decl declarator)) func_name) (object (name func_name) (param param_decl))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -698,40 +694,38 @@ int main(void) { return 0; }
 0010: asn 6 ((current value) value)
 0011: asn 2 (variable_id 6)
 0012: trv value_source (variable_id 2)
-0013: probe aggregate 29 7 list
+0013: probe aggregate 27 7 list
 0014: trv value_source (variable_id 2)
 0015: trv field 28
-0016: asn 9 ((current value) value)
-0017: trv value_source (variable_id 9)
+0016: asn 8 ((current value) value)
+0017: trv value_source (variable_id 8)
 0018: trv child
-0019: rel equals ((current value) kind) (literal kind_id 260) -> 10
-0020: jmp 22 if (variable_id 10)
+0019: rel equals ((current value) kind) (literal kind_id 260) -> 9
+0020: jmp 22 if (variable_id 9)
 0021: halt
-0022: asn 11 ((current value) value)
-0023: trv value_source (variable_id 11)
-0024: asn 12 ((current value) value)
-0025: asn 8 (variable_id 12)
-0026: trv value_source (variable_id 8)
-0027: yield
-0028: halt
-0029: asn 1 (variable_id 7)
-0030: trv value_source (variable_id 1)
-0031: trv value_source (variable_id 2)
-0032: trv field 10
-0033: asn 13 ((current value) value)
-0034: asn 0 (variable_id 13)
-0035: trv value_source (variable_id 0)
-0036: asn 14 ((current value) value)
-0037: trv value_source (variable_id 14)
-0038: asn 15 (variable_id 0)
-0039: trv value_source (variable_id 14)
-0040: asn 16 (variable_id 1)
-0041: begin_build record
-0042: push_build name (variable_id 15)
-0043: push_build param (variable_id 16)
-0044: end_build 17
-0045: yield
-0046: halt
+0022: asn 10 ((current value) value)
+0023: trv value_source (variable_id 10)
+0024: asn 11 ((current value) value)
+0025: yield
+0026: halt
+0027: asn 1 (variable_id 7)
+0028: trv value_source (variable_id 1)
+0029: trv value_source (variable_id 2)
+0030: trv field 10
+0031: asn 12 ((current value) value)
+0032: asn 0 (variable_id 12)
+0033: trv value_source (variable_id 0)
+0034: asn 13 ((current value) value)
+0035: trv value_source (variable_id 13)
+0036: asn 14 (variable_id 0)
+0037: trv value_source (variable_id 13)
+0038: asn 15 (variable_id 1)
+0039: begin_build record
+0040: push_build name (variable_id 14)
+0041: push_build param (variable_id 15)
+0042: end_build 16
+0043: yield
+0044: halt
 --- values ---
 [
   {
