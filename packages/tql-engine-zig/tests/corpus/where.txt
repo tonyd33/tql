@@ -29,14 +29,17 @@ class Controller {}
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 0)
-0017: rel equals ((current value) text) (literal string "Service") -> 7
-0018: trv value_source (variable_id 6)
-0019: jmp 21 if (variable_id 7)
-0020: halt
-0021: trv value_source ((current value) value)
-0022: yield
+0016: asn 7 ((current value) value)
+0017: trv value_source (variable_id 0)
+0018: asn 8 ((current value) text)
+0019: trv value_source (variable_id 7)
+0020: rel equals (variable_id 8) (literal string "Service") -> 9
+0021: trv value_source (variable_id 6)
+0022: jmp 24 if (variable_id 9)
 0023: halt
+0024: trv value_source ((current value) value)
+0025: yield
+0026: halt
 --- values ---
 [
   {
@@ -88,21 +91,27 @@ class Repository {}
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
 0016: asn 8 ((current value) value)
-0017: trv value_source (variable_id 0)
-0018: rel equals ((current value) text) (literal string "Service") -> 9
-0019: jmp 25 if (variable_id 9)
-0020: trv value_source (variable_id 8)
-0021: trv value_source (variable_id 0)
-0022: rel equals ((current value) text) (literal string "Controller") -> 10
-0023: asn 7 (variable_id 10)
-0024: jmp 26
-0025: asn 7 (variable_id 9)
-0026: trv value_source (variable_id 6)
-0027: jmp 29 if (variable_id 7)
-0028: halt
-0029: trv value_source ((current value) value)
-0030: yield
-0031: halt
+0017: asn 9 ((current value) value)
+0018: trv value_source (variable_id 0)
+0019: asn 10 ((current value) text)
+0020: trv value_source (variable_id 9)
+0021: rel equals (variable_id 10) (literal string "Service") -> 11
+0022: jmp 31 if (variable_id 11)
+0023: trv value_source (variable_id 8)
+0024: asn 12 ((current value) value)
+0025: trv value_source (variable_id 0)
+0026: asn 13 ((current value) text)
+0027: trv value_source (variable_id 12)
+0028: rel equals (variable_id 13) (literal string "Controller") -> 14
+0029: asn 7 (variable_id 14)
+0030: jmp 32
+0031: asn 7 (variable_id 11)
+0032: trv value_source (variable_id 6)
+0033: jmp 35 if (variable_id 7)
+0034: halt
+0035: trv value_source ((current value) value)
+0036: yield
+0037: halt
 --- values ---
 [
   {
@@ -193,18 +202,26 @@ class Controller { foo() {}; bar() {}; }
 0034: trv value_source (variable_id 0)
 0035: asn 14 ((current value) value)
 0036: asn 15 (literal bool false)
-0037: trv value_source (variable_id 3)
-0038: rel equals ((current value) text) (literal string "Service") -> 16
-0039: jmp 43 if not (variable_id 16)
-0040: trv value_source (variable_id 0)
-0041: rel equals ((current value) text) (literal string "foo") -> 17
-0042: asn 15 (variable_id 17)
-0043: trv value_source (variable_id 14)
-0044: jmp 46 if (variable_id 15)
-0045: halt
-0046: trv value_source ((current value) value)
-0047: yield
-0048: halt
+0037: asn 16 ((current value) value)
+0038: asn 17 ((current value) value)
+0039: trv value_source (variable_id 3)
+0040: asn 18 ((current value) text)
+0041: trv value_source (variable_id 17)
+0042: rel equals (variable_id 18) (literal string "Service") -> 19
+0043: jmp 51 if not (variable_id 19)
+0044: trv value_source (variable_id 16)
+0045: asn 20 ((current value) value)
+0046: trv value_source (variable_id 0)
+0047: asn 21 ((current value) text)
+0048: trv value_source (variable_id 20)
+0049: rel equals (variable_id 21) (literal string "foo") -> 22
+0050: asn 15 (variable_id 22)
+0051: trv value_source (variable_id 14)
+0052: jmp 54 if (variable_id 15)
+0053: halt
+0054: trv value_source ((current value) value)
+0055: yield
+0056: halt
 --- values ---
 [
   {
@@ -249,7 +266,7 @@ class Controller { baz() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 31
+0011: probe exists 34
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -262,19 +279,22 @@ class Controller { baz() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel equals ((current value) text) (literal string "foo") -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: yield
-0030: halt
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: asn 11 ((current value) text)
+0029: trv value_source (variable_id 9)
+0030: rel equals (variable_id 11) (literal string "foo") -> 12
+0031: jmp 33 if not (variable_id 12)
+0032: yield
 0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
 0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
 --- values ---
 [
   {
@@ -319,7 +339,7 @@ class Controller { baz() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 31
+0011: probe exists 34
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -332,19 +352,22 @@ class Controller { baz() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel equals ((current value) text) (literal string "nonexistent") -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: yield
-0030: halt
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: asn 11 ((current value) text)
+0029: trv value_source (variable_id 9)
+0030: rel equals (variable_id 11) (literal string "nonexistent") -> 12
+0031: jmp 33 if not (variable_id 12)
+0032: yield
 0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
 0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
 --- values ---
 []
 
@@ -374,7 +397,7 @@ class B { bar() {}; baz() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 31
+0011: probe exists 34
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -387,19 +410,22 @@ class B { bar() {}; baz() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel equals ((current value) text) (literal string "foo") -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: yield
-0030: halt
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: asn 11 ((current value) text)
+0029: trv value_source (variable_id 9)
+0030: rel equals (variable_id 11) (literal string "foo") -> 12
+0031: jmp 33 if not (variable_id 12)
+0032: yield
 0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
 0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
 --- values ---
 [
   {
@@ -444,7 +470,7 @@ class B { foo() {}; bar() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe nexists 31
+0011: probe nexists 34
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -457,19 +483,22 @@ class B { foo() {}; bar() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel equals ((current value) text) (literal string "foo") -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: halt
-0030: yield
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
-0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: asn 11 ((current value) text)
+0029: trv value_source (variable_id 9)
+0030: rel equals (variable_id 11) (literal string "foo") -> 12
+0031: jmp 33 if not (variable_id 12)
+0032: halt
+0033: yield
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
 0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
 --- values ---
 [
   {
@@ -520,13 +549,16 @@ function c(): string { return 'x'; }
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: rel equals (variable_id 0) (literal nothing) -> 7
-0017: trv value_source (variable_id 6)
-0018: jmp 20 if (variable_id 7)
-0019: halt
-0020: trv value_source ((current value) value)
-0021: yield
+0016: asn 7 ((current value) value)
+0017: asn 8 (variable_id 0)
+0018: trv value_source (variable_id 7)
+0019: rel equals (variable_id 8) (literal nothing) -> 9
+0020: trv value_source (variable_id 6)
+0021: jmp 23 if (variable_id 9)
 0022: halt
+0023: trv value_source ((current value) value)
+0024: yield
+0025: halt
 --- values ---
 []
 
@@ -562,17 +594,20 @@ function c(): string { return 'x'; }
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: rel equals (variable_id 0) (literal nothing) -> 7
-0017: jmp 20 if (variable_id 7)
-0018: asn 8 (literal bool true)
-0019: jmp 21
-0020: asn 8 (literal bool false)
-0021: trv value_source (variable_id 6)
-0022: jmp 24 if (variable_id 8)
-0023: halt
-0024: trv value_source ((current value) value)
-0025: yield
+0016: asn 7 ((current value) value)
+0017: asn 8 (variable_id 0)
+0018: trv value_source (variable_id 7)
+0019: rel equals (variable_id 8) (literal nothing) -> 9
+0020: jmp 23 if (variable_id 9)
+0021: asn 10 (literal bool true)
+0022: jmp 24
+0023: asn 10 (literal bool false)
+0024: trv value_source (variable_id 6)
+0025: jmp 27 if (variable_id 10)
 0026: halt
+0027: trv value_source ((current value) value)
+0028: yield
+0029: halt
 --- values ---
 [
   {
@@ -759,7 +794,7 @@ class B { bar() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 31
+0011: probe exists 34
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -772,19 +807,22 @@ class B { bar() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel like ((current value) text) (literal regex ...) -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: yield
-0030: halt
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: asn 11 ((current value) text)
+0029: trv value_source (variable_id 9)
+0030: rel like (variable_id 11) (literal regex ...) -> 12
+0031: jmp 33 if not (variable_id 12)
+0032: yield
 0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
+0034: trv value_source (variable_id 4)
+0035: jmp 37 if (literal bool true)
 0036: halt
+0037: trv value_source ((current value) value)
+0038: yield
+0039: halt
 --- values ---
 [
   {
@@ -830,21 +868,24 @@ class Repository {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 0)
-0012: trv field 25
-0013: asn 5 ((current value) value)
-0014: trv value_source (variable_id 5)
-0015: rel equals ((current value) text) (literal string "Service") -> 6
-0016: jmp 19 if (variable_id 6)
-0017: asn 7 (literal bool true)
-0018: jmp 20
-0019: asn 7 (literal bool false)
-0020: trv value_source (variable_id 4)
-0021: jmp 23 if (variable_id 7)
-0022: halt
-0023: trv value_source ((current value) value)
-0024: yield
+0011: asn 5 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv field 25
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 6)
+0016: asn 7 ((current value) text)
+0017: trv value_source (variable_id 5)
+0018: rel equals (variable_id 7) (literal string "Service") -> 8
+0019: jmp 22 if (variable_id 8)
+0020: asn 9 (literal bool true)
+0021: jmp 23
+0022: asn 9 (literal bool false)
+0023: trv value_source (variable_id 4)
+0024: jmp 26 if (variable_id 9)
 0025: halt
+0026: trv value_source ((current value) value)
+0027: yield
+0028: halt
 --- values ---
 [
   {
@@ -905,39 +946,47 @@ class Other { foo() {}; }
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
 0011: asn 5 (literal bool false)
-0012: trv value_source (variable_id 0)
-0013: trv field 25
-0014: asn 6 ((current value) value)
-0015: trv value_source (variable_id 6)
-0016: rel equals ((current value) text) (literal string "Service") -> 7
-0017: jmp 39 if not (variable_id 7)
-0018: probe exists 38
-0019: trv value_source (variable_id 0)
-0020: trv field 5
-0021: asn 8 ((current value) value)
-0022: trv value_source (variable_id 8)
-0023: trv child
-0024: rel equals ((current value) kind) (literal kind_id 261) -> 9
-0025: jmp 27 if (variable_id 9)
-0026: halt
-0027: asn 10 ((current value) value)
-0028: trv value_source (variable_id 10)
-0029: asn 11 ((current value) value)
-0030: trv value_source (variable_id 11)
-0031: trv field 25
-0032: asn 12 ((current value) value)
-0033: trv value_source (variable_id 12)
-0034: rel equals ((current value) text) (literal string "foo") -> 13
-0035: jmp 37 if not (variable_id 13)
-0036: yield
-0037: halt
-0038: asn 5 (literal bool true)
-0039: trv value_source (variable_id 4)
-0040: jmp 42 if (variable_id 5)
-0041: halt
-0042: trv value_source ((current value) value)
-0043: yield
-0044: halt
+0012: asn 6 ((current value) value)
+0013: asn 7 ((current value) value)
+0014: trv value_source (variable_id 0)
+0015: trv field 25
+0016: asn 8 ((current value) value)
+0017: trv value_source (variable_id 8)
+0018: asn 9 ((current value) text)
+0019: trv value_source (variable_id 7)
+0020: rel equals (variable_id 9) (literal string "Service") -> 10
+0021: jmp 47 if not (variable_id 10)
+0022: trv value_source (variable_id 6)
+0023: probe exists 46
+0024: trv value_source (variable_id 0)
+0025: trv field 5
+0026: asn 11 ((current value) value)
+0027: trv value_source (variable_id 11)
+0028: trv child
+0029: rel equals ((current value) kind) (literal kind_id 261) -> 12
+0030: jmp 32 if (variable_id 12)
+0031: halt
+0032: asn 13 ((current value) value)
+0033: trv value_source (variable_id 13)
+0034: asn 14 ((current value) value)
+0035: trv value_source (variable_id 14)
+0036: asn 15 ((current value) value)
+0037: trv field 25
+0038: asn 16 ((current value) value)
+0039: trv value_source (variable_id 16)
+0040: asn 17 ((current value) text)
+0041: trv value_source (variable_id 15)
+0042: rel equals (variable_id 17) (literal string "foo") -> 18
+0043: jmp 45 if not (variable_id 18)
+0044: yield
+0045: halt
+0046: asn 5 (literal bool true)
+0047: trv value_source (variable_id 4)
+0048: jmp 50 if (variable_id 5)
+0049: halt
+0050: trv value_source ((current value) value)
+0051: yield
+0052: halt
 --- values ---
 [
   {
@@ -984,27 +1033,33 @@ class Repository {}
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
 0011: asn 6 ((current value) value)
-0012: trv value_source (variable_id 0)
-0013: trv field 25
-0014: asn 7 ((current value) value)
-0015: trv value_source (variable_id 7)
-0016: rel equals ((current value) text) (literal string "Service") -> 8
-0017: jmp 26 if (variable_id 8)
-0018: trv value_source (variable_id 6)
-0019: trv value_source (variable_id 0)
-0020: trv field 25
-0021: asn 9 ((current value) value)
-0022: trv value_source (variable_id 9)
-0023: rel equals ((current value) text) (literal string "Controller") -> 10
-0024: asn 5 (variable_id 10)
-0025: jmp 27
-0026: asn 5 (variable_id 8)
-0027: trv value_source (variable_id 4)
-0028: jmp 30 if (variable_id 5)
-0029: halt
-0030: trv value_source ((current value) value)
-0031: yield
-0032: halt
+0012: asn 7 ((current value) value)
+0013: trv value_source (variable_id 0)
+0014: trv field 25
+0015: asn 8 ((current value) value)
+0016: trv value_source (variable_id 8)
+0017: asn 9 ((current value) text)
+0018: trv value_source (variable_id 7)
+0019: rel equals (variable_id 9) (literal string "Service") -> 10
+0020: jmp 32 if (variable_id 10)
+0021: trv value_source (variable_id 6)
+0022: asn 11 ((current value) value)
+0023: trv value_source (variable_id 0)
+0024: trv field 25
+0025: asn 12 ((current value) value)
+0026: trv value_source (variable_id 12)
+0027: asn 13 ((current value) text)
+0028: trv value_source (variable_id 11)
+0029: rel equals (variable_id 13) (literal string "Controller") -> 14
+0030: asn 5 (variable_id 14)
+0031: jmp 33
+0032: asn 5 (variable_id 10)
+0033: trv value_source (variable_id 4)
+0034: jmp 36 if (variable_id 5)
+0035: halt
+0036: trv value_source ((current value) value)
+0037: yield
+0038: halt
 --- values ---
 [
   {
@@ -1081,42 +1136,51 @@ class Foo3 {
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
 0016: asn 7 (literal bool false)
-0017: trv value_source (variable_id 0)
-0018: rel like ((current value) text) (literal regex ...) -> 8
-0019: jmp 44 if not (variable_id 8)
-0020: probe exists 43
-0021: trv value_source (variable_id 1)
-0022: trv field 5
-0023: asn 9 ((current value) value)
-0024: trv value_source (variable_id 9)
-0025: trv child
-0026: rel equals ((current value) kind) (literal kind_id 261) -> 10
-0027: jmp 29 if (variable_id 10)
-0028: halt
-0029: asn 11 ((current value) value)
-0030: trv value_source (variable_id 11)
-0031: asn 12 ((current value) value)
-0032: trv value_source (variable_id 12)
-0033: trv field 33
-0034: asn 13 ((current value) value)
-0035: rel equals (variable_id 13) (literal nothing) -> 14
-0036: jmp 39 if (variable_id 14)
-0037: asn 15 (literal bool true)
-0038: jmp 40
-0039: asn 15 (literal bool false)
-0040: jmp 42 if not (variable_id 15)
-0041: yield
-0042: halt
-0043: asn 7 (literal bool true)
-0044: trv value_source (variable_id 6)
-0045: jmp 47 if (variable_id 7)
-0046: halt
-0047: trv value_source ((current value) value)
-0048: begin_build record
-0049: push_build class_name (variable_id 0)
-0050: end_build 16
-0051: yield
-0052: halt
+0017: asn 8 ((current value) value)
+0018: asn 9 ((current value) value)
+0019: trv value_source (variable_id 0)
+0020: asn 10 ((current value) text)
+0021: trv value_source (variable_id 9)
+0022: rel like (variable_id 10) (literal regex ...) -> 11
+0023: jmp 52 if not (variable_id 11)
+0024: trv value_source (variable_id 8)
+0025: probe exists 51
+0026: trv value_source (variable_id 1)
+0027: trv field 5
+0028: asn 12 ((current value) value)
+0029: trv value_source (variable_id 12)
+0030: trv child
+0031: rel equals ((current value) kind) (literal kind_id 261) -> 13
+0032: jmp 34 if (variable_id 13)
+0033: halt
+0034: asn 14 ((current value) value)
+0035: trv value_source (variable_id 14)
+0036: asn 15 ((current value) value)
+0037: trv value_source (variable_id 15)
+0038: asn 16 ((current value) value)
+0039: trv field 33
+0040: asn 17 ((current value) value)
+0041: asn 18 (variable_id 17)
+0042: trv value_source (variable_id 16)
+0043: rel equals (variable_id 18) (literal nothing) -> 19
+0044: jmp 47 if (variable_id 19)
+0045: asn 20 (literal bool true)
+0046: jmp 48
+0047: asn 20 (literal bool false)
+0048: jmp 50 if not (variable_id 20)
+0049: yield
+0050: halt
+0051: asn 7 (literal bool true)
+0052: trv value_source (variable_id 6)
+0053: jmp 55 if (variable_id 7)
+0054: halt
+0055: trv value_source ((current value) value)
+0056: asn 21 ((current value) value)
+0057: begin_build record
+0058: push_build class_name (variable_id 0)
+0059: end_build 22
+0060: yield
+0061: halt
 --- values ---
 [
   {
@@ -1163,7 +1227,7 @@ class Controller { bar() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 28
+0011: probe exists 31
 0012: trv value_source (variable_id 0)
 0013: trv descendant
 0014: rel equals ((current value) kind) (literal kind_id 261) -> 5
@@ -1173,19 +1237,22 @@ class Controller { bar() {}; }
 0018: trv value_source (variable_id 6)
 0019: asn 7 ((current value) value)
 0020: trv value_source (variable_id 7)
-0021: trv field 25
-0022: asn 8 ((current value) value)
-0023: trv value_source (variable_id 8)
-0024: rel equals ((current value) text) (literal string "foo") -> 9
-0025: jmp 27 if not (variable_id 9)
-0026: yield
-0027: halt
-0028: trv value_source (variable_id 4)
-0029: jmp 31 if (literal bool true)
+0021: asn 8 ((current value) value)
+0022: trv field 25
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
+0025: asn 10 ((current value) text)
+0026: trv value_source (variable_id 8)
+0027: rel equals (variable_id 10) (literal string "foo") -> 11
+0028: jmp 30 if not (variable_id 11)
+0029: yield
 0030: halt
-0031: trv value_source ((current value) value)
-0032: yield
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
 0033: halt
+0034: trv value_source ((current value) value)
+0035: yield
+0036: halt
 --- values ---
 [
   {
@@ -1230,7 +1297,7 @@ class B { bar() {} }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 42
+0011: probe exists 45
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -1243,30 +1310,33 @@ class B { bar() {} }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 5
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: trv child
-0028: rel equals ((current value) kind) (literal kind_id 200) -> 10
-0029: jmp 31 if (variable_id 10)
-0030: halt
-0031: asn 11 ((current value) value)
-0032: trv value_source (variable_id 11)
-0033: asn 12 ((current value) value)
-0034: rel equals (variable_id 12) (literal nothing) -> 13
-0035: jmp 38 if (variable_id 13)
-0036: asn 14 (literal bool true)
-0037: jmp 39
-0038: asn 14 (literal bool false)
-0039: jmp 41 if not (variable_id 14)
-0040: yield
-0041: halt
-0042: trv value_source (variable_id 4)
-0043: jmp 45 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 5
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: trv child
+0029: rel equals ((current value) kind) (literal kind_id 200) -> 11
+0030: jmp 32 if (variable_id 11)
+0031: halt
+0032: asn 12 ((current value) value)
+0033: trv value_source (variable_id 12)
+0034: asn 13 ((current value) value)
+0035: asn 14 (variable_id 13)
+0036: trv value_source (variable_id 9)
+0037: rel equals (variable_id 14) (literal nothing) -> 15
+0038: jmp 41 if (variable_id 15)
+0039: asn 16 (literal bool true)
+0040: jmp 42
+0041: asn 16 (literal bool false)
+0042: jmp 44 if not (variable_id 16)
+0043: yield
 0044: halt
-0045: trv value_source ((current value) value)
-0046: yield
+0045: trv value_source (variable_id 4)
+0046: jmp 48 if (literal bool true)
 0047: halt
+0048: trv value_source ((current value) value)
+0049: yield
+0050: halt
 --- values ---
 [
   {
@@ -1312,7 +1382,7 @@ class C { baz() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 41
+0011: probe exists 47
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -1326,28 +1396,34 @@ class C { baz() {}; }
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
 0024: asn 10 ((current value) value)
-0025: trv field 25
-0026: asn 11 ((current value) value)
-0027: trv value_source (variable_id 11)
-0028: rel equals ((current value) text) (literal string "foo") -> 12
-0029: jmp 37 if (variable_id 12)
-0030: trv value_source (variable_id 10)
-0031: trv field 25
-0032: asn 13 ((current value) value)
-0033: trv value_source (variable_id 13)
-0034: rel equals ((current value) text) (literal string "bar") -> 14
-0035: asn 9 (variable_id 14)
-0036: jmp 38
-0037: asn 9 (variable_id 12)
-0038: jmp 40 if not (variable_id 9)
-0039: yield
-0040: halt
-0041: trv value_source (variable_id 4)
-0042: jmp 44 if (literal bool true)
-0043: halt
-0044: trv value_source ((current value) value)
+0025: asn 11 ((current value) value)
+0026: trv field 25
+0027: asn 12 ((current value) value)
+0028: trv value_source (variable_id 12)
+0029: asn 13 ((current value) text)
+0030: trv value_source (variable_id 11)
+0031: rel equals (variable_id 13) (literal string "foo") -> 14
+0032: jmp 43 if (variable_id 14)
+0033: trv value_source (variable_id 10)
+0034: asn 15 ((current value) value)
+0035: trv field 25
+0036: asn 16 ((current value) value)
+0037: trv value_source (variable_id 16)
+0038: asn 17 ((current value) text)
+0039: trv value_source (variable_id 15)
+0040: rel equals (variable_id 17) (literal string "bar") -> 18
+0041: asn 9 (variable_id 18)
+0042: jmp 44
+0043: asn 9 (variable_id 14)
+0044: jmp 46 if not (variable_id 9)
 0045: yield
 0046: halt
+0047: trv value_source (variable_id 4)
+0048: jmp 50 if (literal bool true)
+0049: halt
+0050: trv value_source ((current value) value)
+0051: yield
+0052: halt
 --- values ---
 [
   {
@@ -1406,7 +1482,7 @@ class Controller { baz() {}; }
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 34
+0011: probe exists 37
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -1419,22 +1495,25 @@ class Controller { baz() {}; }
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: rel equals (variable_id 9) (literal nothing) -> 10
-0027: jmp 30 if (variable_id 10)
-0028: asn 11 (literal bool true)
-0029: jmp 31
-0030: asn 11 (literal bool false)
-0031: jmp 33 if not (variable_id 11)
-0032: yield
-0033: halt
-0034: trv value_source (variable_id 4)
-0035: jmp 37 if (literal bool true)
+0024: asn 9 ((current value) value)
+0025: trv field 25
+0026: asn 10 ((current value) value)
+0027: asn 11 (variable_id 10)
+0028: trv value_source (variable_id 9)
+0029: rel equals (variable_id 11) (literal nothing) -> 12
+0030: jmp 33 if (variable_id 12)
+0031: asn 13 (literal bool true)
+0032: jmp 34
+0033: asn 13 (literal bool false)
+0034: jmp 36 if not (variable_id 13)
+0035: yield
 0036: halt
-0037: trv value_source ((current value) value)
-0038: yield
+0037: trv value_source (variable_id 4)
+0038: jmp 40 if (literal bool true)
 0039: halt
+0040: trv value_source ((current value) value)
+0041: yield
+0042: halt
 --- values ---
 [
   {
@@ -1493,7 +1572,7 @@ class B {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: probe exists 48
+0011: probe exists 51
 0012: trv value_source (variable_id 0)
 0013: trv field 5
 0014: asn 5 ((current value) value)
@@ -1506,7 +1585,7 @@ class B {}
 0021: trv value_source (variable_id 7)
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
-0024: probe exists 45
+0024: probe exists 48
 0025: trv value_source (variable_id 0)
 0026: trv field 5
 0027: asn 9 ((current value) value)
@@ -1519,22 +1598,40 @@ class B {}
 0034: trv value_source (variable_id 11)
 0035: asn 12 ((current value) value)
 0036: trv value_source (variable_id 12)
-0037: trv field 25
-0038: asn 13 ((current value) value)
-0039: trv field 25
-0040: asn 14 ((current value) value)
-0041: rel equals (variable_id 13) (variable_id 14) -> 15
-0042: jmp 44 if not (variable_id 15)
-0043: yield
-0044: halt
-0045: jmp 47 if not (literal bool true)
+0037: asn 13 ((current value) value)
+0038: trv field 25
+0039: asn 14 ((current value) value)
+0040: asn 15 (variable_id 14)
+0041: trv value_source (variable_id 13)
+0042: trv field 25
+0043: asn 16 ((current value) value)
+0044: rel equals (variable_id 15) (variable_id 16) -> 17
+0045: jmp 47 if not (variable_id 17)
 0046: yield
 0047: halt
-0048: trv value_source (variable_id 4)
-0049: jmp 51 if (literal bool true)
+0048: jmp 50 if not (literal bool true)
+0049: yield
 0050: halt
-0051: trv value_source ((current value) value)
-0052: yield
+0051: trv value_source (variable_id 4)
+0052: jmp 54 if (literal bool true)
 0053: halt
+0054: trv value_source ((current value) value)
+0055: yield
+0056: halt
 --- values ---
-[]
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]

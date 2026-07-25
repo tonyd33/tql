@@ -158,23 +158,28 @@ int main(void) { return 0; }
 0006: trv value_source (variable_id 1)
 0007: asn 2 ((current value) value)
 0008: trv value_source (variable_id 2)
-0009: probe aggregate 20 3 list
-0010: trv value_source ((current value) value)
-0011: trv descendant
-0012: rel equals ((current value) kind) (literal kind_id 260) -> 4
-0013: jmp 15 if (variable_id 4)
-0014: halt
-0015: asn 5 ((current value) value)
-0016: trv value_source (variable_id 5)
-0017: asn 6 ((current value) value)
-0018: yield
-0019: halt
-0020: begin_build record
-0021: push_build fn ((current value) value)
-0022: push_build params (variable_id 3)
-0023: end_build 7
-0024: yield
-0025: halt
+0009: asn 3 ((current value) value)
+0010: trv value_source (variable_id 3)
+0011: asn 4 ((current value) value)
+0012: trv value_source (variable_id 3)
+0013: probe aggregate 24 5 list
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 260) -> 6
+0017: jmp 19 if (variable_id 6)
+0018: halt
+0019: asn 7 ((current value) value)
+0020: trv value_source (variable_id 7)
+0021: asn 8 ((current value) value)
+0022: yield
+0023: halt
+0024: asn 9 (variable_id 5)
+0025: begin_build record
+0026: push_build fn (variable_id 4)
+0027: push_build params (variable_id 9)
+0028: end_build 10
+0029: yield
+0030: halt
 --- values ---
 [
   {
@@ -288,31 +293,36 @@ int main(void) { return 0; }
 0010: asn 4 ((current value) value)
 0011: asn 0 (variable_id 4)
 0012: trv value_source (variable_id 0)
-0013: trv value_source (variable_id 0)
-0014: trv field 10
-0015: asn 5 ((current value) value)
-0016: probe aggregate 32 6 list
-0017: trv value_source (variable_id 0)
-0018: trv field 28
-0019: asn 8 ((current value) value)
-0020: trv value_source (variable_id 8)
-0021: trv child
-0022: rel equals ((current value) kind) (literal kind_id 260) -> 9
-0023: jmp 25 if (variable_id 9)
-0024: halt
-0025: asn 10 ((current value) value)
-0026: trv value_source (variable_id 10)
-0027: asn 11 ((current value) value)
-0028: asn 7 (variable_id 11)
-0029: trv value_source (variable_id 7)
-0030: yield
-0031: halt
-0032: begin_build record
-0033: push_build name (variable_id 5)
-0034: push_build params (variable_id 6)
-0035: end_build 12
-0036: yield
-0037: halt
+0013: asn 5 ((current value) value)
+0014: trv value_source (variable_id 5)
+0015: trv value_source (variable_id 0)
+0016: trv field 10
+0017: asn 6 ((current value) value)
+0018: asn 7 (variable_id 6)
+0019: trv value_source (variable_id 5)
+0020: probe aggregate 36 8 list
+0021: trv value_source (variable_id 0)
+0022: trv field 28
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
+0025: trv child
+0026: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0027: jmp 29 if (variable_id 11)
+0028: halt
+0029: asn 12 ((current value) value)
+0030: trv value_source (variable_id 12)
+0031: asn 13 ((current value) value)
+0032: asn 9 (variable_id 13)
+0033: trv value_source (variable_id 9)
+0034: yield
+0035: halt
+0036: asn 14 (variable_id 8)
+0037: begin_build record
+0038: push_build name (variable_id 7)
+0039: push_build params (variable_id 14)
+0040: end_build 15
+0041: yield
+0042: halt
 --- values ---
 [
   {
@@ -425,36 +435,41 @@ int add(int a, int b) { return a + b; }
 0007: asn 3 ((current value) value)
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
-0010: probe aggregate 34 4 list
-0011: trv value_source (variable_id 0)
-0012: trv field 10
-0013: asn 6 ((current value) value)
-0014: asn 5 (variable_id 6)
-0015: trv value_source (variable_id 5)
-0016: probe aggregate 32 7 list
-0017: trv value_source (variable_id 5)
-0018: trv field 28
-0019: asn 9 ((current value) value)
-0020: trv value_source (variable_id 9)
-0021: trv child
-0022: rel equals ((current value) kind) (literal kind_id 260) -> 10
-0023: jmp 25 if (variable_id 10)
-0024: halt
-0025: asn 11 ((current value) value)
-0026: trv value_source (variable_id 11)
-0027: asn 12 ((current value) value)
-0028: asn 8 (variable_id 12)
-0029: trv value_source (variable_id 8)
-0030: yield
-0031: halt
-0032: yield
-0033: halt
-0034: begin_build record
-0035: push_build fn (variable_id 0)
-0036: push_build param_lists (variable_id 4)
-0037: end_build 13
-0038: yield
-0039: halt
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: asn 5 (variable_id 0)
+0013: trv value_source (variable_id 4)
+0014: probe aggregate 38 6 list
+0015: trv value_source (variable_id 0)
+0016: trv field 10
+0017: asn 8 ((current value) value)
+0018: asn 7 (variable_id 8)
+0019: trv value_source (variable_id 7)
+0020: probe aggregate 36 9 list
+0021: trv value_source (variable_id 7)
+0022: trv field 28
+0023: asn 11 ((current value) value)
+0024: trv value_source (variable_id 11)
+0025: trv child
+0026: rel equals ((current value) kind) (literal kind_id 260) -> 12
+0027: jmp 29 if (variable_id 12)
+0028: halt
+0029: asn 13 ((current value) value)
+0030: trv value_source (variable_id 13)
+0031: asn 14 ((current value) value)
+0032: asn 10 (variable_id 14)
+0033: trv value_source (variable_id 10)
+0034: yield
+0035: halt
+0036: yield
+0037: halt
+0038: asn 15 (variable_id 6)
+0039: begin_build record
+0040: push_build fn (variable_id 5)
+0041: push_build param_lists (variable_id 15)
+0042: end_build 16
+0043: yield
+0044: halt
 --- values ---
 [
   {
@@ -540,43 +555,51 @@ int main(void) { return 0; }
 0007: asn 3 ((current value) value)
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
-0010: probe aggregate 41 4 list
-0011: trv value_source (variable_id 0)
-0012: trv field 10
-0013: asn 7 ((current value) value)
-0014: trv value_source (variable_id 7)
-0015: trv field 28
-0016: asn 8 ((current value) value)
-0017: trv value_source (variable_id 8)
-0018: trv child
-0019: rel equals ((current value) kind) (literal kind_id 260) -> 9
-0020: jmp 22 if (variable_id 9)
-0021: halt
-0022: asn 10 ((current value) value)
-0023: trv value_source (variable_id 10)
-0024: asn 11 ((current value) value)
-0025: asn 6 (variable_id 11)
-0026: trv value_source (variable_id 6)
-0027: trv value_source (variable_id 6)
-0028: trv field 36
-0029: asn 12 ((current value) value)
-0030: asn 5 (variable_id 12)
-0031: trv value_source (variable_id 5)
-0032: asn 13 ((current value) value)
-0033: trv value_source (variable_id 5)
-0034: rel equals ((current value) text) (literal string "int") -> 14
-0035: trv value_source (variable_id 13)
-0036: jmp 38 if (variable_id 14)
-0037: halt
-0038: trv value_source ((current value) value)
-0039: yield
-0040: halt
-0041: begin_build record
-0042: push_build fn (variable_id 0)
-0043: push_build int_params (variable_id 4)
-0044: end_build 15
-0045: yield
-0046: halt
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: asn 5 (variable_id 0)
+0013: trv value_source (variable_id 4)
+0014: probe aggregate 48 6 list
+0015: trv value_source (variable_id 0)
+0016: trv field 10
+0017: asn 9 ((current value) value)
+0018: trv value_source (variable_id 9)
+0019: trv field 28
+0020: asn 10 ((current value) value)
+0021: trv value_source (variable_id 10)
+0022: trv child
+0023: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0024: jmp 26 if (variable_id 11)
+0025: halt
+0026: asn 12 ((current value) value)
+0027: trv value_source (variable_id 12)
+0028: asn 13 ((current value) value)
+0029: asn 8 (variable_id 13)
+0030: trv value_source (variable_id 8)
+0031: trv value_source (variable_id 8)
+0032: trv field 36
+0033: asn 14 ((current value) value)
+0034: asn 7 (variable_id 14)
+0035: trv value_source (variable_id 7)
+0036: asn 15 ((current value) value)
+0037: asn 16 ((current value) value)
+0038: trv value_source (variable_id 7)
+0039: asn 17 ((current value) text)
+0040: trv value_source (variable_id 16)
+0041: rel equals (variable_id 17) (literal string "int") -> 18
+0042: trv value_source (variable_id 15)
+0043: jmp 45 if (variable_id 18)
+0044: halt
+0045: trv value_source ((current value) value)
+0046: yield
+0047: halt
+0048: asn 19 (variable_id 6)
+0049: begin_build record
+0050: push_build fn (variable_id 5)
+0051: push_build int_params (variable_id 19)
+0052: end_build 20
+0053: yield
+0054: halt
 --- values ---
 [
   {
@@ -698,12 +721,17 @@ int main(void) { return 0; }
 0033: asn 13 ((current value) value)
 0034: asn 0 (variable_id 13)
 0035: trv value_source (variable_id 0)
-0036: begin_build record
-0037: push_build name (variable_id 0)
-0038: push_build param (variable_id 1)
-0039: end_build 14
-0040: yield
-0041: halt
+0036: asn 14 ((current value) value)
+0037: trv value_source (variable_id 14)
+0038: asn 15 (variable_id 0)
+0039: trv value_source (variable_id 14)
+0040: asn 16 (variable_id 1)
+0041: begin_build record
+0042: push_build name (variable_id 15)
+0043: push_build param (variable_id 16)
+0044: end_build 17
+0045: yield
+0046: halt
 --- values ---
 [
   {
@@ -835,12 +863,17 @@ int main(void) { return 0; }
 0028: asn 11 ((current value) value)
 0029: asn 0 (variable_id 11)
 0030: trv value_source (variable_id 0)
-0031: begin_build record
-0032: push_build name (variable_id 0)
-0033: push_build param (variable_id 1)
-0034: end_build 12
-0035: yield
-0036: halt
+0031: asn 12 ((current value) value)
+0032: trv value_source (variable_id 12)
+0033: asn 13 (variable_id 0)
+0034: trv value_source (variable_id 12)
+0035: asn 14 (variable_id 1)
+0036: begin_build record
+0037: push_build name (variable_id 13)
+0038: push_build param (variable_id 14)
+0039: end_build 15
+0040: yield
+0041: halt
 --- values ---
 [
   {
@@ -986,12 +1019,17 @@ int main(void) { return 0; }
 0030: asn 12 ((current value) value)
 0031: asn 0 (variable_id 12)
 0032: trv value_source (variable_id 0)
-0033: begin_build record
-0034: push_build name (variable_id 0)
-0035: push_build param (variable_id 1)
-0036: end_build 13
-0037: yield
-0038: halt
+0033: asn 13 ((current value) value)
+0034: trv value_source (variable_id 13)
+0035: asn 14 (variable_id 0)
+0036: trv value_source (variable_id 13)
+0037: asn 15 (variable_id 1)
+0038: begin_build record
+0039: push_build name (variable_id 14)
+0040: push_build param (variable_id 15)
+0041: end_build 16
+0042: yield
+0043: halt
 --- values ---
 [
   {
@@ -1142,12 +1180,17 @@ int main(void) { return 0; }
 0032: asn 13 ((current value) value)
 0033: asn 0 (variable_id 13)
 0034: trv value_source (variable_id 0)
-0035: begin_build record
-0036: push_build name (variable_id 0)
-0037: push_build param (variable_id 1)
-0038: end_build 14
-0039: yield
-0040: halt
+0035: asn 14 ((current value) value)
+0036: trv value_source (variable_id 14)
+0037: asn 15 (variable_id 0)
+0038: trv value_source (variable_id 14)
+0039: asn 16 (variable_id 1)
+0040: begin_build record
+0041: push_build name (variable_id 15)
+0042: push_build param (variable_id 16)
+0043: end_build 17
+0044: yield
+0045: halt
 --- values ---
 [
   {
@@ -1280,12 +1323,17 @@ int add(int a, int b) { return a + b; }
 0019: asn 8 ((current value) value)
 0020: asn 0 (variable_id 8)
 0021: trv value_source (variable_id 0)
-0022: begin_build record
-0023: push_build fn (variable_id 1)
-0024: push_build g (variable_id 0)
-0025: end_build 9
-0026: yield
-0027: halt
+0022: asn 9 ((current value) value)
+0023: trv value_source (variable_id 9)
+0024: asn 10 (variable_id 1)
+0025: trv value_source (variable_id 9)
+0026: asn 11 (variable_id 0)
+0027: begin_build record
+0028: push_build fn (variable_id 10)
+0029: push_build g (variable_id 11)
+0030: end_build 12
+0031: yield
+0032: halt
 --- values ---
 []
 
@@ -1322,12 +1370,13 @@ int add(int a, int b) { return a + b; }
 0014: asn 6 ((current value) value)
 0015: asn 0 (variable_id 6)
 0016: trv value_source (variable_id 0)
-0017: begin_build record
-0018: push_build func (variable_id 1)
-0019: push_build d (variable_id 0)
-0020: end_build 7
-0021: yield
-0022: halt
+0017: asn 7 ((current value) value)
+0018: begin_build record
+0019: push_build func (variable_id 1)
+0020: push_build d (variable_id 0)
+0021: end_build 8
+0022: yield
+0023: halt
 --- values ---
 [
   {

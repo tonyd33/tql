@@ -111,76 +111,6 @@ class Bar {}
 ]
 
 ================================================================================
-dot in any quantifier predicate
-================================================================================
-grammar: typescript
-
---- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
---- source ---
-class A { foo() {}; }
-class B { bar() {}; }
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- tql tree ---
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: asn 4 ((current value) value)
-0011: probe exists 31
-0012: trv value_source (variable_id 0)
-0013: trv field 5
-0014: asn 5 ((current value) value)
-0015: trv value_source (variable_id 5)
-0016: trv child
-0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
-0018: jmp 20 if (variable_id 6)
-0019: halt
-0020: asn 7 ((current value) value)
-0021: trv value_source (variable_id 7)
-0022: asn 8 ((current value) value)
-0023: trv value_source (variable_id 8)
-0024: trv field 25
-0025: asn 9 ((current value) value)
-0026: trv value_source (variable_id 9)
-0027: rel equals ((current value) text) (literal string "foo") -> 10
-0028: jmp 30 if not (variable_id 10)
-0029: yield
-0030: halt
-0031: trv value_source (variable_id 4)
-0032: jmp 34 if (literal bool true)
-0033: halt
-0034: trv value_source ((current value) value)
-0035: yield
-0036: halt
---- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A { foo() {}; }",
-    "start_byte": 0,
-    "end_byte": 21,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 21
-    }
-  }
-]
-
-================================================================================
 dot in object literal projection
 ================================================================================
 grammar: typescript
@@ -205,13 +135,16 @@ class Foo {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: trv value_source (variable_id 0)
-0011: trv field 25
-0012: asn 4 ((current value) value)
-0013: begin_build record
-0014: push_build name (variable_id 4)
-0015: end_build 5
-0016: yield
-0017: halt
+0011: asn 4 ((current value) value)
+0012: trv value_source (variable_id 4)
+0013: trv field 25
+0014: asn 5 ((current value) value)
+0015: asn 6 (variable_id 5)
+0016: begin_build record
+0017: push_build name (variable_id 6)
+0018: end_build 7
+0019: yield
+0020: halt
 --- values ---
 [
   {
@@ -259,18 +192,21 @@ class Bar {}
 0009: trv value_source (variable_id 0)
 0010: trv value_source (variable_id 0)
 0011: asn 4 ((current value) value)
-0012: trv field 25
-0013: asn 5 ((current value) value)
-0014: trv value_source (variable_id 5)
-0015: rel like ((current value) text) (literal regex ...) -> 6
-0016: trv value_source (variable_id 4)
-0017: jmp 19 if (variable_id 6)
-0018: halt
-0019: trv value_source ((current value) value)
-0020: trv field 25
-0021: asn 7 ((current value) value)
-0022: yield
-0023: halt
+0012: asn 5 ((current value) value)
+0013: trv field 25
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 6)
+0016: asn 7 ((current value) text)
+0017: trv value_source (variable_id 5)
+0018: rel like (variable_id 7) (literal regex ...) -> 8
+0019: trv value_source (variable_id 4)
+0020: jmp 22 if (variable_id 8)
+0021: halt
+0022: trv value_source ((current value) value)
+0023: trv field 25
+0024: asn 9 ((current value) value)
+0025: yield
+0026: halt
 --- values ---
 [
   {
