@@ -44,7 +44,6 @@ jobs:
           name: tql-cli
           path: ~/.local/bin/tql
           retention-days: 1
-          archive: false
 
   benchmark-run:
     needs: benchmark-build
@@ -61,13 +60,13 @@ jobs:
           path: linux
 
       - name: Download cli binary
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v7
         with:
           name: tql-cli
           path: .
 
       - name: Setup bin
-        run: ls -al && chmod +x tql && ls -al && file tql && ldd tql
+        run: ls -al && chmod +x tql && ls -al && file tql
 
       - name: Run query
         run: |
@@ -95,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: benchmark-results-*
           path: results
