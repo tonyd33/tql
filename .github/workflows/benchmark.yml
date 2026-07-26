@@ -33,6 +33,7 @@ jobs:
         run: >
           task engine:build-cli --
           --prefix "$HOME/.local"
+          -Dtarget=x86_64-linux-musl
           -Dgrammars=c
           -Doptimize=ReleaseFast
           --release=fast
