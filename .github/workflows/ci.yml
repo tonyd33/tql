@@ -15,7 +15,7 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,17 +36,6 @@ jobs:
 
       - name: Check
         run: task check
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup
-
-      - name: Install
-        run: task install
 
       - name: Test
         run: task test
