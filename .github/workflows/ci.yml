@@ -93,6 +93,9 @@ jobs:
           name: tql-cli
           path: .
 
+      - name: Setup binary
+        run: chmod +x tql
+
       - name: Run query
         run: |
           ./tql query --grammar c --format json '
@@ -131,33 +134,60 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const fs = require("fs");
+            const fs = require("fs/promises");
             const path = require("path");
 
             const limitS = 35;
-            const dirs = fs.readdirSync("results");
-            const times = dirs
-              .map((d) => JSON.parse(fs.readFileSync(path.join("results", d, "results.json"), "utf8")).query_time_ns)
-              .sort((a, b) => a - b);
+            const fields = [
+              ["read_time_ns", "Read"],
+              ["parse_time_ns", "Parse"],
+              ["query_time_ns", "Query"],
+            ];
 
-            const n = times.length;
-            const mean = times.reduce((a, b) => a + b, 0) / n;
-            const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
-            const median = n % 2 === 1 ? times[(n - 1) / 2] : (times[n / 2 - 1] + times[n / 2]) / 2;
+            const dirs = await fs.readdir("results");
+            const runs = await Promise.all(
+              dirs.map(async (d) =>
+                JSON.parse(await fs.readFile(path.join("results", d, "results.json"), "utf8")),
+              ),
+            );
+            const n = runs.length;
 
-            const toS = (ns) => Math.round(ns / 1e9 * 100) / 100;
-            const medianS = toS(median);
-            const meanS = toS(mean);
-            const stddevS = toS(stddev);
-            const exceeded = median >= limitS * 1e9;
+            const toS = (ns) => Math.round((ns / 1e9) * 100) / 100;
 
-            console.log(`Query times (s): ${times.map(toS).join(", ")}`);
-            console.log(`median=${medianS}s mean=${meanS}s stddev=${stddevS}s limit=${limitS}s`);
+            const stats = Object.fromEntries(
+              fields.map(([key]) => {
+                const times = runs.map((r) => r[key]).sort((a, b) => a - b);
+                const mean = times.reduce((a, b) => a + b, 0) / n;
+                const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
+                const median = n % 2 === 1 ? times[(n - 1) / 2] : (times[n / 2 - 1] + times[n / 2]) / 2;
+                return [key, { times, mean, stddev, median }];
+              }),
+            );
+
+            const queryMedianS = toS(stats.query_time_ns.median);
+            const exceeded = stats.query_time_ns.median >= limitS * 1e9;
+
+            for (const [key, label] of fields) {
+              const s = stats[key];
+              console.log(
+                `${label} times (s): ${s.times.map(toS).join(", ")}`,
+              );
+              console.log(
+                `${label}: median=${toS(s.median)}s mean=${toS(s.mean)}s stddev=${toS(s.stddev)}s`,
+              );
+            }
+            console.log(`Query limit: ${limitS}s`);
 
             if (context.eventName === "pull_request") {
               const marker = "<!-- benchmark-result -->";
               const status = exceeded ? "⚠️ **Benchmark limit exceeded**" : "✅ **Benchmark passed**";
-              const body = `${marker}\n${status}\n\nQuery time over ${n} runs: median **${medianS}s**, mean ${meanS}s, stddev ${stddevS}s (limit ${limitS}s).`;
+              const rows = fields
+                .map(([key, label]) => {
+                  const s = stats[key];
+                  return `| ${label} | ${toS(s.median)}s | ${toS(s.mean)}s | ${toS(s.stddev)}s |`;
+                })
+                .join("\n");
+              const body = `${marker}\n${status}\n\nQuery time (limit ${limitS}s) over ${n} runs.\n\n| Stage | Median | Mean | Stddev |\n| --- | --- | --- | --- |\n${rows}`;
 
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
@@ -184,5 +214,5 @@ jobs:
             }
 
             if (exceeded) {
-              core.setFailed(`Median query time ${medianS}s exceeds ${limitS}s limit`);
+              core.setFailed(`Median query time ${queryMedianS}s exceeds ${limitS}s limit`);
             }
