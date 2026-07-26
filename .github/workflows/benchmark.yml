@@ -66,7 +66,7 @@ jobs:
           path: .
 
       - name: Setup bin
-        run: ls -al && chmod +x tql && ls -al
+        run: ls -al && chmod +x tql && ls -al && file tql && ldd tql
 
       - name: Run query
         run: |
