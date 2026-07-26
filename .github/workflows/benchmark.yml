@@ -1,0 +1,153 @@
+on:
+  pull_request:
+
+name: Benchmark
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql
+
+      - uses: ./tql/.github/actions/setup
+        with:
+          path: tql
+
+      - name: Install
+        working-directory: tql
+        run: task install
+
+      - name: Build optimized cli
+        working-directory: tql
+        run: >
+          task engine:build-cli --
+          --prefix "$HOME/.local"
+          -Dtarget=x86_64-linux-musl
+          -Dgrammars=c
+          -Doptimize=ReleaseFast
+          --release=fast
+
+      - name: Checkout Linux source tree
+        uses: actions/checkout@v7
+        with:
+          repository: torvalds/linux
+          ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+          path: linux
+
+      - name: Run query
+        run: |
+          mkdir -p results
+          for i in $(seq 1 7); do
+            "$HOME/.local/bin/tql" query --grammar c --format json '
+            . > function_definition as @fn
+            | @fn > function_declarator as @fn_decl
+            | @fn_decl > identifier as @name
+            | @fn.body as @body
+            | select(
+              any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+              any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+            )
+            | { @name }
+            ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee "results/$i.json"
+          done
+
+      - name: Aggregate, comment, and check query time
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require("fs/promises");
+            const path = require("path");
+
+            const limitS = 35;
+            const fields = [
+              ["read_time_ns", "Read"],
+              ["parse_time_ns", "Parse"],
+              ["query_time_ns", "Query"],
+            ];
+
+            const files = await fs.readdir("results");
+            const runs = await Promise.all(
+              files.map(async (f) =>
+                JSON.parse(await fs.readFile(path.join("results", f), "utf8")),
+              ),
+            );
+            const n = runs.length;
+
+            const toS = (ns) => Math.round((ns / 1e9) * 100) / 100;
+
+            const stats = Object.fromEntries(
+              fields.map(([key]) => {
+                const times = runs.map((r) => r[key]).sort((a, b) => a - b);
+                const mean = times.reduce((a, b) => a + b, 0) / n;
+                const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
+                const median = n % 2 === 1 ? times[(n - 1) / 2] : (times[n / 2 - 1] + times[n / 2]) / 2;
+                return [key, { times, mean, stddev, median }];
+              }),
+            );
+
+            const queryMedianS = toS(stats.query_time_ns.median);
+            const exceeded = stats.query_time_ns.median >= limitS * 1e9;
+
+            for (const [key, label] of fields) {
+              const s = stats[key];
+              console.log(
+                `${label} times (s): ${s.times.map(toS).join(", ")}`,
+              );
+              console.log(
+                `${label}: median=${toS(s.median)}s mean=${toS(s.mean)}s stddev=${toS(s.stddev)}s`,
+              );
+            }
+            console.log(`Query limit: ${limitS}s`);
+
+            if (context.eventName === "pull_request") {
+              const marker = "<!-- benchmark-result -->";
+              const status = exceeded ? "⚠️ **Benchmark limit exceeded**" : "✅ **Benchmark passed**";
+              const rows = fields
+                .map(([key, label]) => {
+                  const s = stats[key];
+                  return `| ${label} | ${toS(s.median)}s | ${toS(s.mean)}s | ${toS(s.stddev)}s |`;
+                })
+                .join("\n");
+              const body = `${marker}\n${status}\n\nQuery time (limit ${limitS}s) over ${n} runs.\n\n| Stage | Median | Mean | Stddev |\n| --- | --- | --- | --- |\n${rows}`;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+              const existing = comments.find((c) => c.body.includes(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body,
+                });
+              }
+            }
+
+            if (exceeded) {
+              core.setFailed(`Median query time ${queryMedianS}s exceeds ${limitS}s limit`);
+            }
+
