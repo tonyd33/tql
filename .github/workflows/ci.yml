@@ -31,11 +31,11 @@ jobs:
       - name: Build
         run: task build
 
+      - name: Test
+        run: task test
+
       - name: Ensure tree-sitter generation up to date
         run: git diff --exit-code -- packages/tree-sitter-tql/src
 
       - name: Check
         run: task check
-
-      - name: Test
-        run: task test

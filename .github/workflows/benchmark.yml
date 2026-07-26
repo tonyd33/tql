@@ -28,11 +28,6 @@ jobs:
         working-directory: tql
         run: task install
 
-      - name: Setup bin
-        run: >
-          mkdir -p "$HOME/.local/bin" &&
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Build optimized cli
         working-directory: tql
         run: >
@@ -67,17 +62,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: tql-cli
-          path: ~/.local/bin
+          path: .
 
       - name: Setup bin
-        run: >
-          ls -al "$HOME/.local/bin/" &&
-          chmod +x "$HOME/.local/bin/tql" &&
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: ls -al && chmod +x tql && ls -al
 
       - name: Run query
         run: |
-          tql query --grammar c --format json '
+          ./tql query --grammar c --format json '
           . > function_definition as @fn
           | @fn > function_declarator as @fn_decl
           | @fn_decl > identifier as @name
