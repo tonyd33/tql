@@ -44,6 +44,7 @@ jobs:
           name: tql-cli
           path: ~/.local/bin/tql
           retention-days: 1
+          archive: false
 
   benchmark-run:
     needs: benchmark-build
