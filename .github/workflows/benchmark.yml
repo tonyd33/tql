@@ -43,7 +43,7 @@ jobs:
           --release=fast
 
       - name: Upload cli binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tql-cli
           path: ~/.local/bin/tql
@@ -64,13 +64,14 @@ jobs:
           path: linux
 
       - name: Download cli binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tql-cli
           path: ~/.local/bin
 
       - name: Setup bin
         run: >
+          ls -al "$HOME/.local/bin/" &&
           chmod +x "$HOME/.local/bin/tql" &&
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
@@ -89,7 +90,7 @@ jobs:
           ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-${{ matrix.run }}
           path: results.json
@@ -108,17 +109,36 @@ jobs:
 
       - name: Aggregate and check query time
         run: |
-          times_ns=$(jq '.query_time_ns' results/*/results.json | sort -n)
-          echo "Query times (ns):"
-          echo "$times_ns"
+          stats=$(jq -s '
+            [.[].query_time_ns] | sort as $t
+            | ($t | length) as $n
+            | (add / $n) as $mean
+            | (map((. - $mean) * (. - $mean)) | add / $n | sqrt) as $stddev
+            | (if $n % 2 == 1 then $t[($n - 1) / 2]
+               else ($t[$n / 2 - 1] + $t[$n / 2]) / 2
+               end) as $median
+            | {
+                count: $n,
+                times_ns: $t,
+                mean_ns: $mean,
+                median_ns: $median,
+                stddev_ns: $stddev,
+                limit_ns: 35000000000
+              }
+          ' results/*/results.json)
 
-          count=$(echo "$times_ns" | wc -l)
-          median_ns=$(echo "$times_ns" | sed -n "$(( (count + 1) / 2 ))p")
-          median_s=$(jq -n "$median_ns / 1000000000")
-          limit_ns=35000000000
+          echo "$stats" | jq '{
+            count,
+            times_s: (.times_ns | map(. / 1000000000)),
+            mean_s: (.mean_ns / 1000000000),
+            median_s: (.median_ns / 1000000000),
+            stddev_s: (.stddev_ns / 1000000000)
+          }'
 
-          echo "Median query time: ${median_s}s (limit: 35s) over $count runs"
-          if [ "$median_ns" -ge "$limit_ns" ]; then
+          median_ns=$(echo "$stats" | jq '.median_ns')
+          limit_ns=$(echo "$stats" | jq '.limit_ns')
+          if [ "$(echo "$stats" | jq '.median_ns >= .limit_ns')" = "true" ]; then
+            median_s=$(jq -n "$median_ns / 1000000000")
             echo "Median query time ${median_s}s exceeds 35s limit"
             exit 1
           fi
