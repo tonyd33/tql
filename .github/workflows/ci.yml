@@ -40,8 +40,10 @@ jobs:
       - name: Check
         run: task check
 
-  benchmark-build:
+  benchmark:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -66,20 +68,6 @@ jobs:
           -Doptimize=ReleaseFast
           --release=fast
 
-      - name: Upload cli binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: tql-cli
-          path: ~/.local/bin/tql
-          retention-days: 1
-
-  benchmark-run:
-    needs: benchmark-build
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        run: [1, 2, 3, 4, 5]
-    steps:
       - name: Checkout Linux source tree
         uses: actions/checkout@v7
         with:
@@ -87,48 +75,22 @@ jobs:
           ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
           path: linux
 
-      - name: Download cli binary
-        uses: actions/download-artifact@v7
-        with:
-          name: tql-cli
-          path: .
-
-      - name: Setup binary
-        run: chmod +x tql
-
       - name: Run query
         run: |
-          ./tql query --grammar c --format json '
-          . > function_definition as @fn
-          | @fn > function_declarator as @fn_decl
-          | @fn_decl > identifier as @name
-          | @fn.body as @body
-          | select(
-            any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-            any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
-          )
-          | { @name }
-          ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
-
-      - name: Upload results
-        uses: actions/upload-artifact@v7
-        with:
-          name: benchmark-results-${{ matrix.run }}
-          path: results.json
-          retention-days: 1
-
-  benchmark-check:
-    needs: benchmark-run
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Download results
-        uses: actions/download-artifact@v7
-        with:
-          pattern: benchmark-results-*
-          path: results
-          merge-multiple: false
+          mkdir -p results
+          for i in $(seq 1 7); do
+            "$HOME/.local/bin/tql" query --grammar c --format json '
+            . > function_definition as @fn
+            | @fn > function_declarator as @fn_decl
+            | @fn_decl > identifier as @name
+            | @fn.body as @body
+            | select(
+              any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+              any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+            )
+            | { @name }
+            ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee "results/$i.json"
+          done
 
       - name: Aggregate, comment, and check query time
         uses: actions/github-script@v9
@@ -144,10 +106,10 @@ jobs:
               ["query_time_ns", "Query"],
             ];
 
-            const dirs = await fs.readdir("results");
+            const files = await fs.readdir("results");
             const runs = await Promise.all(
-              dirs.map(async (d) =>
-                JSON.parse(await fs.readFile(path.join("results", d, "results.json"), "utf8")),
+              files.map(async (f) =>
+                JSON.parse(await fs.readFile(path.join("results", f), "utf8")),
               ),
             );
             const n = runs.length;
