@@ -39,3 +39,150 @@ jobs:
 
       - name: Check
         run: task check
+
+  benchmark-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql
+
+      - uses: ./tql/.github/actions/setup
+        with:
+          path: tql
+
+      - name: Install
+        working-directory: tql
+        run: task install
+
+      - name: Build optimized cli
+        working-directory: tql
+        run: >
+          task engine:build-cli --
+          --prefix "$HOME/.local"
+          -Dtarget=x86_64-linux-musl
+          -Dgrammars=c
+          -Doptimize=ReleaseFast
+          --release=fast
+
+      - name: Upload cli binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: tql-cli
+          path: ~/.local/bin/tql
+          retention-days: 1
+
+  benchmark-run:
+    needs: benchmark-build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        run: [1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout Linux source tree
+        uses: actions/checkout@v7
+        with:
+          repository: torvalds/linux
+          ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+          path: linux
+
+      - name: Download cli binary
+        uses: actions/download-artifact@v7
+        with:
+          name: tql-cli
+          path: .
+
+      - name: Run query
+        run: |
+          ./tql query --grammar c --format json '
+          . > function_definition as @fn
+          | @fn > function_declarator as @fn_decl
+          | @fn_decl > identifier as @name
+          | @fn.body as @body
+          | select(
+            any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+            any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+          )
+          | { @name }
+          ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results-${{ matrix.run }}
+          path: results.json
+          retention-days: 1
+
+  benchmark-check:
+    needs: benchmark-run
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: benchmark-results-*
+          path: results
+          merge-multiple: false
+
+      - name: Aggregate, comment, and check query time
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+
+            const limitS = 35;
+            const dirs = fs.readdirSync("results");
+            const times = dirs
+              .map((d) => JSON.parse(fs.readFileSync(path.join("results", d, "results.json"), "utf8")).query_time_ns)
+              .sort((a, b) => a - b);
+
+            const n = times.length;
+            const mean = times.reduce((a, b) => a + b, 0) / n;
+            const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
+            const median = n % 2 === 1 ? times[(n - 1) / 2] : (times[n / 2 - 1] + times[n / 2]) / 2;
+
+            const toS = (ns) => Math.round(ns / 1e9 * 100) / 100;
+            const medianS = toS(median);
+            const meanS = toS(mean);
+            const stddevS = toS(stddev);
+            const exceeded = median >= limitS * 1e9;
+
+            console.log(`Query times (s): ${times.map(toS).join(", ")}`);
+            console.log(`median=${medianS}s mean=${meanS}s stddev=${stddevS}s limit=${limitS}s`);
+
+            if (context.eventName === "pull_request") {
+              const marker = "<!-- benchmark-result -->";
+              const status = exceeded ? "⚠️ **Benchmark limit exceeded**" : "✅ **Benchmark passed**";
+              const body = `${marker}\n${status}\n\nQuery time over ${n} runs: median **${medianS}s**, mean ${meanS}s, stddev ${stddevS}s (limit ${limitS}s).`;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+              const existing = comments.find((c) => c.body.includes(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body,
+                });
+              }
+            }
+
+            if (exceeded) {
+              core.setFailed(`Median query time ${medianS}s exceeds ${limitS}s limit`);
+            }
