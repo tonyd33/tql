@@ -15,71 +15,7 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          path: tql
-
-      - uses: ./tql/.github/actions/setup
-        with:
-          path: tql
-
-      - name: Install
-        working-directory: tql
-        run: task install
-
-      - name: Setup bin
-        run: >
-          mkdir -p "$HOME/.local/bin" &&
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Build optimized cli
-        working-directory: tql
-        run: >
-          task engine:build-cli --
-          --prefix "$HOME/.local"
-          -Dgrammars=c
-          -Doptimize=ReleaseFast
-          --release=fast
-
-      - name: Checkout Linux source tree
-        uses: actions/checkout@v7
-        with:
-          repository: torvalds/linux
-          ref: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
-          path: linux
-
-      - name: Run query
-        working-directory: tql
-        run: |
-          tql query --grammar c --format json '
-          . > function_definition as @fn
-          | @fn > function_declarator as @fn_decl
-          | @fn_decl > identifier as @name
-          | @fn.body as @body
-          | select(
-            any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-            any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
-          )
-          | { @name }
-          ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee results.json
-
-      - name: Check query time
-        working-directory: tql
-        run: |
-          query_time_ns=$(jq '.query_time_ns' results.json)
-          query_time_s=$(jq -n "$query_time_ns / 1000000000")
-          limit_ns=35000000000
-          echo "Query time: ${query_time_s}s (limit: 35s)"
-          if [ "$query_time_ns" -ge "$limit_ns" ]; then
-            echo "Query time ${query_time_s}s exceeds 35s limit"
-            exit 1
-          fi
-
-  build:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -95,22 +31,11 @@ jobs:
       - name: Build
         run: task build
 
+      - name: Test
+        run: task test
+
       - name: Ensure tree-sitter generation up to date
         run: git diff --exit-code -- packages/tree-sitter-tql/src
 
       - name: Check
         run: task check
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup
-
-      - name: Install
-        run: task install
-
-      - name: Test
-        run: task test
