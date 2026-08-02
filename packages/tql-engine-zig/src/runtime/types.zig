@@ -432,11 +432,31 @@ pub const SingletonIterator = struct {
     pub fn deinit(_: *SingletonIterator) void {}
 };
 
+pub const ListIterator = struct {
+    list: *Rc(List),
+    index: usize = 0,
+
+    pub fn value(self: *const ListIterator) Value {
+        return self.list.value.items.items[self.index - 1];
+    }
+
+    pub fn next(self: *ListIterator) bool {
+        if (self.index >= self.list.value.items.items.len) return false;
+        self.index += 1;
+        return true;
+    }
+
+    pub fn deinit(self: *ListIterator, gpa: Allocator) void {
+        self.list.dereference(gpa);
+    }
+};
+
 pub const SplitIterator = union(enum) {
     child: ChildIterator,
     descendant: DescendantIterator,
     field: FieldIterator,
     singleton: SingletonIterator,
+    list: ListIterator,
 
     pub fn value(self: *const SplitIterator) Value {
         return switch (self.*) {
@@ -444,6 +464,7 @@ pub const SplitIterator = union(enum) {
             .descendant => |*iter| iter.value(),
             .field => |*iter| iter.value(),
             .singleton => |*iter| iter.value(),
+            .list => |*iter| iter.value(),
         };
     }
 
@@ -453,15 +474,17 @@ pub const SplitIterator = union(enum) {
             .descendant => |*iter| iter.next(),
             .field => |*iter| iter.next(),
             .singleton => |*iter| iter.next(),
+            .list => |*iter| iter.next(),
         };
     }
 
-    pub fn deinit(self: *SplitIterator) void {
+    pub fn deinit(self: *SplitIterator, gpa: Allocator) void {
         switch (self.*) {
             .child => |*iter| iter.deinit(),
             .descendant => |*iter| iter.deinit(),
             .field => |*iter| iter.deinit(),
             .singleton => |*iter| iter.deinit(),
+            .list => |*iter| iter.deinit(gpa),
         }
     }
 };

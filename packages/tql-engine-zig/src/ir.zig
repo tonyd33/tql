@@ -69,6 +69,7 @@ pub const Axis = union(enum) {
     // and likely not much more efficient
     field: FieldId,
     value_source: ValueSource,
+    elements: ValueSource,
 };
 
 pub const ProbeData = union(enum) {
@@ -129,6 +130,11 @@ pub const Instruction = union(enum) {
                     .field => |f| try writer.print("field {}", .{f}),
                     .value_source => |vs| {
                         try writer.print("value_source (", .{});
+                        try vs.print(writer);
+                        try writer.print(")", .{});
+                    },
+                    .elements => |vs| {
+                        try writer.print("elements (", .{});
                         try vs.print(writer);
                         try writer.print(")", .{});
                     },

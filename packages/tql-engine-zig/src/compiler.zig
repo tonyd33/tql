@@ -464,9 +464,8 @@ pub const Compiler = struct {
         if (fc.arguments.len != 1) return error.InvalidUnnestArgument;
         var arg = fc.arguments[0];
         while (arg == .parenthesized) arg = arg.parenthesized.*;
-        if (arg == .collect_expression) arg = arg.collect_expression.*;
         const uv = try self.compileExpression(arg);
-        try self.instruction_builder.emit(.{ .trv = .{ .value_source = uv } });
+        try self.instruction_builder.emit(.{ .trv = .{ .elements = uv } });
         return try self.bindValue();
     }
 
