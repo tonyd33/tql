@@ -460,11 +460,12 @@ class Foo3 {
 0054: halt
 0055: trv value_source ((current value) value)
 0056: asn 21 ((current value) value)
-0057: begin_build record
-0058: push_build class_name (variable_id 0)
-0059: end_build 22
-0060: yield
-0061: halt
+0057: probe aggregate 61 22 record
+0058: yield
+0059: yield
+0060: halt
+0061: yield
+0062: halt
 ================================================================================
 descendant navigation as source
 ================================================================================

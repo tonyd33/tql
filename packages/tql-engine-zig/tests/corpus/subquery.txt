@@ -256,12 +256,14 @@ int main(void) { return 0; }
 0022: yield
 0023: halt
 0024: asn 9 (variable_id 5)
-0025: begin_build record
-0026: push_build fn (variable_id 4)
-0027: push_build params (variable_id 9)
-0028: end_build 10
+0025: probe aggregate 31 10 record
+0026: yield
+0027: yield
+0028: yield
 0029: yield
 0030: halt
+0031: yield
+0032: halt
 ================================================================================
 subquery captures outer binding
 ================================================================================
@@ -397,12 +399,14 @@ int main(void) { return 0; }
 0032: yield
 0033: halt
 0034: asn 13 (variable_id 8)
-0035: begin_build record
-0036: push_build name (variable_id 7)
-0037: push_build params (variable_id 13)
-0038: end_build 14
+0035: probe aggregate 41 14 record
+0036: yield
+0037: yield
+0038: yield
 0039: yield
 0040: halt
+0041: yield
+0042: halt
 ================================================================================
 nested subquery
 ================================================================================
@@ -512,12 +516,14 @@ int add(int a, int b) { return a + b; }
 0034: yield
 0035: halt
 0036: asn 14 (variable_id 6)
-0037: begin_build record
-0038: push_build fn (variable_id 5)
-0039: push_build param_lists (variable_id 14)
-0040: end_build 15
+0037: probe aggregate 43 15 record
+0038: yield
+0039: yield
+0040: yield
 0041: yield
 0042: halt
+0043: yield
+0044: halt
 ================================================================================
 subquery with where clause filters inner stream
 ================================================================================
@@ -657,12 +663,14 @@ int main(void) { return 0; }
 0046: yield
 0047: halt
 0048: asn 19 (variable_id 6)
-0049: begin_build record
-0050: push_build fn (variable_id 5)
-0051: push_build int_params (variable_id 19)
-0052: end_build 20
+0049: probe aggregate 55 20 record
+0050: yield
+0051: yield
+0052: yield
 0053: yield
 0054: halt
+0055: yield
+0056: halt
 ================================================================================
 subquery as binding produces list per outer fanout
 ================================================================================
@@ -802,12 +810,14 @@ int main(void) { return 0; }
 0036: asn 14 (variable_id 0)
 0037: trv value_source (variable_id 13)
 0038: asn 15 (variable_id 1)
-0039: begin_build record
-0040: push_build name (variable_id 14)
-0041: push_build param (variable_id 15)
-0042: end_build 16
+0039: probe aggregate 45 16 record
+0040: yield
+0041: yield
+0042: yield
 0043: yield
 0044: halt
+0045: yield
+0046: halt
 ================================================================================
 subquery binding without rebinding fans out (baseline)
 ================================================================================
@@ -956,9 +966,11 @@ int main(void) { return 0; }
 0033: asn 13 (variable_id 0)
 0034: trv value_source (variable_id 12)
 0035: asn 14 (variable_id 1)
-0036: begin_build record
-0037: push_build name (variable_id 13)
-0038: push_build param (variable_id 14)
-0039: end_build 15
+0036: probe aggregate 42 15 record
+0037: yield
+0038: yield
+0039: yield
 0040: yield
 0041: halt
+0042: yield
+0043: halt

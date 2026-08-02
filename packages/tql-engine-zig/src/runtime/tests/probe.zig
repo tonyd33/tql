@@ -208,7 +208,7 @@ test "probe: nexists with traversal that fails" {
     try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
 }
 
-test "probe: call inside exists probe" {
+test "probe: call is not transparent to yield - exists probe body sees no yield" {
     const source =
         \\ void foo() {}
     ;
@@ -216,28 +216,32 @@ test "probe: call inside exists probe" {
     // Program:
     // 0: probe exists on_success=6    // Start exists probe
     // 1: call 4                       // Call function
-    // 2: halt                         // After return from call
+    // 2: halt                         // After call returns (only reached if call yields)
     // 3: panic                        // Landmine
-    // 4: yield                        // Function: yield (signals success for exists)
-    // 5: ret                          // Return from function
-    // 6: yield                        // After probe succeeds
-    // 7: halt
+    // 4: yield                        // Function: this is the call's return value,
+    //                                 // NOT visible to the enclosing probe
+    // 5: halt                         // Function exhausted (call produces exactly one value)
+    // 6: panic                        // Landmine (would be probe's success address)
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
         Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
-        Instruction{ .ret = {} },
-        Instruction{ .yield = .{} },
         Instruction{ .halt = {} },
+        Instruction{ .panic = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
     defer ctx.deinit();
 
-    // Should yield once (probe succeeds via call that yields)
-    try ctx.expectMatchKinds(&[_][]const u8{"translation_unit"});
+    // Unlike the old ret-based call, a call boundary now intercepts yields
+    // from its callee -- they become the call's return values, consumed by
+    // the caller's continuation, never visible to a probe wrapping the call
+    // site. The callee's yield resumes the continuation (halt at pc 2), the
+    // call is then exhausted, and the probe body terminates having never
+    // seen a yield itself: the exists probe fails.
+    try ctx.expectMatchKinds(&[_][]const u8{});
 }
 
 test "probe: halt across boundary" {
@@ -275,12 +279,15 @@ test "probe: exists inside call" {
 
     // Program:
     // 0: call 3                      // Call function
-    // 1: yield                       // After return
+    // 1: yield                       // Caller continuation: yield the call's value
     // 2: halt
     // 3: probe exists on_success=6   // Function: start exists probe
-    // 4: yield                       // Yield inside probe (signals success)
+    // 4: yield                       // Yield inside probe (signals success);
+    //                                // this yield is caught by the probe,
+    //                                // which is nearer than the call boundary
     // 5: halt
-    // 6: ret                         // Return from function
+    // 6: yield                       // Function's return value (the call's value)
+    // 7: halt                        // Function exhausted
     const instructions = [_]Instruction{
         Instruction{ .call = 3 },
         Instruction{ .yield = .{} },
@@ -288,7 +295,8 @@ test "probe: exists inside call" {
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .yield = .{} },
         Instruction{ .halt = {} },
-        Instruction{ .ret = {} },
+        Instruction{ .yield = .{} },
+        Instruction{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -379,7 +387,6 @@ test "probe: halt inside call inside nexists probe" {
     // 3: panic                        // Landmine (should not reach)
     // 4: yield                        // After probe succeeds
     // 5: halt                         // Function: halt (call exits, returns to PC 2)
-    // 6: ret                          // Should not reach here
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .nexists, .resume_address = 4 } },
         Instruction{ .call = 5 },
@@ -387,7 +394,6 @@ test "probe: halt inside call inside nexists probe" {
         Instruction{ .panic = {} },
         Instruction{ .yield = .{} },
         Instruction{ .halt = {} },
-        Instruction{ .ret = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -410,15 +416,13 @@ test "probe: halt inside call inside exists probe" {
     // 2: halt                         // After call returns
     // 3: panic                        // Landmine
     // 4: halt                         // Function: halt (should signal failure for exists)
-    // 5: ret                          // Go back
-    // 6: panic                        // Landmine
+    // 5: panic                        // Landmine
     const instructions = [_]Instruction{
         Instruction{ .probe = .{ .data = .exists, .resume_address = 6 } },
         Instruction{ .call = 4 },
         Instruction{ .halt = {} },
         Instruction{ .panic = {} },
         Instruction{ .halt = {} },
-        Instruction{ .ret = {} },
         Instruction{ .panic = {} },
     };
 
@@ -426,7 +430,6 @@ test "probe: halt inside call inside exists probe" {
     defer ctx.deinit();
 
     // Should have no matches (exists probe fails because halt in call doesn't yield)
-    // Currently this test will FAIL because halt doesn't search for the exists boundary
     try ctx.expectMatchKinds(&[_][]const u8{});
 }
 
@@ -458,6 +461,76 @@ test "probe: trv fails inside call inside exists probe" {
 
     // Should have no matches (exists probe fails: no yield inside body).
     try ctx.expectMatchKinds(&[_][]const u8{});
+}
+
+test "probe: aggregate list collects yielded values" {
+    const source =
+        \\ void foo() {}
+    ;
+
+    // Program:
+    // 0: probe aggregate(var=1, list) on_success=4
+    // 1: yield "a"
+    // 2: yield "b"
+    // 3: halt
+    // 4: yield var 1   // the collected list
+    // 5: halt
+    const instructions = [_]Instruction{
+        Instruction{ .probe = .{ .data = .{ .aggregate = .{ .variable = 1, .kind = .list } }, .resume_address = 4 } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "a" } } } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "b" } } } },
+        Instruction{ .halt = {} },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        Instruction{ .halt = {} },
+    };
+
+    var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
+    defer ctx.deinit();
+    try ctx.runtime.exec();
+
+    const lst = (try ctx.runtime.next()).?.list;
+    try std.testing.expectEqual(lst.value.items.items.len, 2);
+    try std.testing.expectEqualStrings(lst.value.items.items[0].string, "a");
+    try std.testing.expectEqualStrings(lst.value.items.items[1].string, "b");
+
+    try std.testing.expectEqual(try ctx.runtime.next(), null);
+}
+
+test "probe: aggregate record collects alternating key/value yields" {
+    const source =
+        \\ void foo() {}
+    ;
+
+    // Program:
+    // 0: probe aggregate(var=1, record) on_success=6
+    // 1: yield "name"
+    // 2: yield "alice"
+    // 3: yield "role"
+    // 4: yield "admin"
+    // 5: halt
+    // 6: yield var 1   // the collected record
+    // 7: halt
+    const instructions = [_]Instruction{
+        Instruction{ .probe = .{ .data = .{ .aggregate = .{ .variable = 1, .kind = .record } }, .resume_address = 6 } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "name" } } } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "alice" } } } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "role" } } } },
+        Instruction{ .yield = .{ .source = .{ .literal = .{ .string = "admin" } } } },
+        Instruction{ .halt = {} },
+        Instruction{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        Instruction{ .halt = {} },
+    };
+
+    var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
+    defer ctx.deinit();
+    try ctx.runtime.exec();
+
+    const rec = (try ctx.runtime.next()).?.record;
+    try std.testing.expectEqual(rec.value.map.count(), 2);
+    try std.testing.expectEqualStrings(rec.value.map.get("name").?.string, "alice");
+    try std.testing.expectEqualStrings(rec.value.map.get("role").?.string, "admin");
+
+    try std.testing.expectEqual(try ctx.runtime.next(), null);
 }
 
 test "probe: trv fails inside call inside nexists probe" {
