@@ -177,41 +177,46 @@ pub const List = struct {
 pub const Environment = OverlayMap(VariableId, Value);
 
 /// A boundary is part of a stack frame. Its purpose is to embed otherwise
-/// difficult-to-express control flow within the stack.
+/// difficult-to-express control flow within the stack by modifying yield and
+/// termination semantics.
 pub const Boundary = union(enum) {
-    root,
     // IMPROVE: maybe better named split? But it's _above_ a split...
     passthrough,
     /// Probe boundaries handle control flow of yield and branch termination.
-    probe: struct {
+    exists: struct {
         resume_address: ir.Address,
-        data: union(enum) {
-            exists,
-            nexists,
-            aggregate: struct {
-                variable: ir.VariableId,
-                value: union(ir.AggregatingValue) {
-                    list: *Rc(List),
-                },
+    },
+    nexists: struct {
+        resume_address: ir.Address,
+    },
+    aggregate: struct {
+        resume_address: ir.Address,
+        variable: ir.VariableId,
+        value: union(ir.AggregatingValue) {
+            list: *Rc(List),
+            record: struct {
+                rc: *Rc(Record),
+                pending_key: ?[]const u8 = null,
             },
         },
     },
-    call,
+    call: struct {
+        resume_address: ir.Address,
+    },
+    call_return: struct {
+        call_boundary_idx: usize,
+    },
 };
 
 pub const State = struct {
     pc: u32,
     value: Value,
     environment: Environment.Cell,
-    build: ?union(ir.Vector) {
-        record: *Rc(Record),
-        list: *Rc(List),
-    } = null,
 };
 
 /// Frame represents a single execution context on the stack.
 /// Each frame pairs an execution state with a boundary that defines
-/// the frame's continuation semantics (how yield/halt behave).
+/// the frame's continuation semantics (how yield/termination behave).
 pub const Frame = struct {
     state: State,
     boundary: Boundary,

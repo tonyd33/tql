@@ -241,13 +241,19 @@ pub const Compiler = struct {
                     }
                 }
 
-                try self.instruction_builder.emit(.{ .begin_build = .record });
+                const resume_label = self.instruction_builder.createLabel();
+                const anon_var = try self.allocateAnonymous();
+                try self.instruction_builder.emitProbe(.{
+                    .aggregate = .{ .variable = anon_var, .kind = .record },
+                }, resume_label);
+
                 for (sources) |fs| {
-                    try self.instruction_builder.emit(.{ .push_build = .{ .source = fs.source, .name = fs.key } });
+                    try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .literal = .{ .string = fs.key } } } });
+                    try self.instruction_builder.emit(.{ .yield = .{ .source = fs.source } });
                 }
-                const tmp = try self.allocateAnonymous();
-                try self.instruction_builder.emit(.{ .end_build = tmp });
-                return .{ .variable_id = tmp };
+                try self.instruction_builder.emit(.halt);
+                try self.instruction_builder.markLabel(resume_label);
+                return .{ .variable_id = anon_var };
             },
             .array_literal => |arr| return try self.compileListValue(arr.elements),
             .tuple_literal => |tup| return try self.compileListValue(tup.elements),
@@ -465,26 +471,22 @@ pub const Compiler = struct {
     }
 
     fn compileListValue(self: *Compiler, elements: []const ast.Expression) CompilerError!ir.ValueSource {
-        const sources = try self.allocator.alloc(ir.ValueSource, elements.len);
-        defer self.allocator.free(sources);
-
         const input_tmp = try self.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
 
-        for (elements, 0..) |elem, i| {
+        const resume_label = self.instruction_builder.createLabel();
+        const anon_var = try self.allocateAnonymous();
+        try self.instruction_builder.emitProbe(.{
+            .aggregate = .{ .variable = anon_var, .kind = .list },
+        }, resume_label);
+
+        for (elements) |elem| {
             try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
             const vs = try self.compileExpression(elem);
-            const elem_tmp = try self.allocateAnonymous();
-            try self.instruction_builder.emit(.{ .asn = .{ .variable_id = elem_tmp, .source = vs } });
-            sources[i] = .{ .variable_id = elem_tmp };
+            try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
         }
-
-        try self.instruction_builder.emit(.{ .begin_build = .list });
-        for (sources) |s| {
-            try self.instruction_builder.emit(.{ .push_build = .{ .source = s, .name = null } });
-        }
-        const tmp = try self.allocateAnonymous();
-        try self.instruction_builder.emit(.{ .end_build = tmp });
-        return .{ .variable_id = tmp };
+        try self.instruction_builder.emit(.halt);
+        try self.instruction_builder.markLabel(resume_label);
+        return .{ .variable_id = anon_var };
     }
 };

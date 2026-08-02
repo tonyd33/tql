@@ -75,7 +75,7 @@ pub const Runtime = struct {
                     .value = .{ .node = self.tree.rootNode() },
                     .environment = env,
                 },
-                .boundary = Boundary{ .root = {} },
+                .boundary = Boundary{ .passthrough = {} },
             },
         );
     }
@@ -89,35 +89,43 @@ pub const Runtime = struct {
             split.iterator.deinit();
         }
 
-        if (frame.state.build) |build| {
-            switch (build) {
-                .record => |rc| rc.dereference(self.allocator),
-                .list => |rc| rc.dereference(self.allocator),
-            }
-        }
-
         switch (frame.boundary) {
-            .probe => |probe| switch (probe.data) {
-                .exists, .nexists => {},
-                .aggregate => |agg| switch (agg.value) {
-                    .list => |list| list.dereference(self.allocator),
-                },
+            .exists, .nexists => {},
+            .aggregate => |agg| switch (agg.value) {
+                .list => |list| list.dereference(self.allocator),
+                .record => |rec| rec.rc.dereference(self.allocator),
             },
-            .root, .passthrough, .call => {},
+            .passthrough, .call, .call_return => {},
         }
 
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
     }
 
-    fn getActiveProbeBoundaryIndex(self: *Self) ?usize {
+    /// Find the nearest frame that handles the yield effect.
+    fn getActiveYieldHandlerIndex(self: *Self) ?usize {
+        // NOTE: Consider maintaining stack(s) for effect handling to eliminate
+        // linear searches while handling effects.
         var i: usize = self.stack.items.len;
         while (i > 0) {
             i -= 1;
             const search_frame = self.stack.items[i];
 
             switch (search_frame.boundary) {
-                .probe => return i,
-                else => {},
+                // Regular yield effect handlers
+                .exists, .nexists, .aggregate, .call => return i,
+                // Special yield effect handling.
+                // The call_return frame had set up the index of the
+                // boundary that should handle the next effect.
+                // cf. `handleYield`
+                .call_return => |cr| {
+                    // call_boundary_idx is the index of the original call
+                    // frame. We want to jump to call_boundary_idx - 1, and the
+                    // beginning of the loop decrements i, so we have to set i
+                    // to call_boundary_idx here.
+                    i = cr.call_boundary_idx;
+                },
+                // No yield effect handling
+                .passthrough => {},
             }
         }
         return null;
@@ -129,47 +137,56 @@ pub const Runtime = struct {
         while (self.stack.items.len > 0) {
             const boundary = self.stack.items[self.stack.items.len - 1].boundary;
             switch (boundary) {
-                // Probe boundaries conditionally handle branch end.
-                .probe => |probe| switch (probe.data) {
-                    .exists => {
-                        // Child terminated without yielding: probe failed.
-                        // Propagate termination to the caller.
-                        self.deinitFrame();
-                        continue;
-                    },
-                    .nexists => {
-                        // Child terminated without yielding: probe succeeded.
-                        // Resume the caller at the success address.
-                        self.deinitFrame();
-                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                        parent_frame.state.pc = probe.resume_address;
-                        return;
-                    },
-                    .aggregate => |agg| {
-                        const list_ref = switch (agg.value) {
-                            .list => |list| list.reference(),
-                        };
-                        self.deinitFrame();
-                        const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                        const old_env = parent_frame.state.environment;
-                        const value = rt.Value{ .list = list_ref };
-                        const new_env = try old_env.copyPut(self.allocator, agg.variable, value);
-                        parent_frame.state.environment = new_env;
-                        old_env.dereference(self.allocator);
-                        parent_frame.state.pc = probe.resume_address;
-                        return;
-                    },
-                },
                 // root and passthrough boundaries unconditionally handle
                 // branch ends.
-                .root, .passthrough => {
+                .passthrough => {
                     self.deinitFrame();
                     return;
                 },
+                .exists => {
+                    // Child terminated without yielding: probe failed.
+                    // Propagate termination to the caller.
+                    self.deinitFrame();
+                    continue;
+                },
+                .nexists => |nexists| {
+                    // Child terminated without yielding: probe succeeded.
+                    // Resume the caller at the success address.
+                    self.deinitFrame();
+                    const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                    parent_frame.state.pc = nexists.resume_address;
+                    return;
+                },
+                .aggregate => |agg| {
+                    const value: rt.Value = switch (agg.value) {
+                        .list => |list| .{ .list = list.reference() },
+                        .record => |rec| blk: {
+                            std.debug.assert(rec.pending_key == null);
+                            break :blk .{ .record = rec.rc.reference() };
+                        },
+                    };
+                    self.deinitFrame();
+                    const parent_frame = &self.stack.items[self.stack.items.len - 1];
+                    const old_env = parent_frame.state.environment;
+                    const new_env = try old_env.copyPut(self.allocator, agg.variable, value);
+                    parent_frame.state.environment = new_env;
+                    old_env.dereference(self.allocator);
+                    parent_frame.state.pc = agg.resume_address;
+                    return;
+                },
                 // call boundaries unconditionally propagate branch ends.
+                // the callee is exhausted, so the call produced no values.
                 .call => {
                     self.deinitFrame();
                     continue;
+                },
+                // A caller's continuation after a call/yield terminated.
+                // The frame now exposed below did not itself terminate and may
+                // continue generating frames that may yield.
+                // cf. `handleYield`
+                .call_return => {
+                    self.deinitFrame();
+                    return;
                 },
             }
         }
@@ -178,22 +195,21 @@ pub const Runtime = struct {
     /// Handle yield by propagating up the stack. Returns true if the yield was
     /// handled.
     fn handleYield(self: *Self, value: rt.Value) !bool {
-        const idx = self.getActiveProbeBoundaryIndex() orelse return false;
-        const probe = self.stack.items[idx].boundary.probe;
+        const idx = self.getActiveYieldHandlerIndex() orelse return false;
 
-        switch (probe.data) {
-            .exists => {
-                // Child yielded: probe succeeded. Resume the caller at the
-                // success address.
+        switch (self.stack.items[idx].boundary) {
+            .exists => |exists| {
+                // Child yielded: probe succeeded. Resume the caller
+                // at the success address.
                 while (self.stack.items.len > idx) {
                     self.deinitFrame();
                 }
                 const parent_frame = &self.stack.items[self.stack.items.len - 1];
-                parent_frame.state.pc = probe.resume_address;
+                parent_frame.state.pc = exists.resume_address;
             },
             .nexists => {
-                // Child yielded: probe failed. Propagate termination to the
-                // caller.
+                // Child yielded: probe failed. Propagate termination
+                // to the caller.
                 while (self.stack.items.len > idx) {
                     self.deinitFrame();
                 }
@@ -201,7 +217,108 @@ pub const Runtime = struct {
             },
             .aggregate => |agg| switch (agg.value) {
                 .list => |list| try list.value.items.append(self.allocator, value.clone()),
+                .record => |rec| {
+                    const rec_ptr = &self.stack.items[idx].boundary.aggregate.value.record;
+                    if (rec.pending_key) |key| {
+                        try rec.rc.value.map.put(key, value.clone());
+                        rec_ptr.pending_key = null;
+                    } else {
+                        const key = switch (value) {
+                            .string => |s| s,
+                            else => return error.InvalidArguments,
+                        };
+                        rec_ptr.pending_key = key;
+                    }
+                },
             },
+            // The yield should resume at the continuation of the caller, with
+            // the environment of the caller intact, but with the cursor set to
+            // the yielded value.
+            //
+            // Naively, we may unwind all the way down to the caller's frame
+            // and replace it, but this ends up destroying
+            // continuation-generating frames in between. For example, consider
+            // the following instructions:
+            //
+            // call N
+            // trv X
+            // yield
+            //
+            // Which may generate the following stack:
+            //
+            // | - | ------------ |
+            // | . |  GENERATOR   | <- yield
+            // | - | ------------ |
+            // | . | .call        |
+            // | - | ------------ |
+            // | . |      ...     |
+            // | - | ------------ |
+            //
+            // If trv X generated multiple continuations, unwinding to the call
+            // frame would destroy the iterator on the first yield invocation,
+            // which violates the semantics of the generator frame.
+            //
+            // We may consider allocating a separate stack to store yielded
+            // values and collapse to the call frame once generation has
+            // completed. The difficulty is that such a stack must live
+            // orthogonal to the regular stack, which defeats purpose of the
+            // stack altogether. (Though in cases like aggregation, we fall
+            // back to this strategy)
+            //
+            // We instead place a frame representing the caller's continuation
+            // on the stack such that yields "jump back" past the caller's
+            // frame. Observe:
+            //
+            // | - | ------------ |
+            // | . |      CUR     | <- 2. yield
+            // | - | ------------ |
+            // | . |      ...     |
+            // | - | ------------ |
+            // | . | .call_return | <- 1b. place this frame now
+            // | - | ------------ |
+            // | . |  GENERATOR   | <- 1a. yield
+            // | - | ------------ |
+            // | . | .call        |
+            // | - | ------------ |
+            // | i |      ...     | <- 3. continue handling yield here
+            // | - | ------------ |
+            //
+            // Upon the second yield and searching down the stack for a yield
+            // effect handler, the call_return frame is discovered and tells us
+            // to jump right underneath the call frame.
+            //
+            // Now we consider branch termination:
+            //
+            // | - | ------------ |
+            // | . |      CUR     | <- 2. terminate
+            // | - | ------------ |
+            // | . |      ...     |
+            // | - | ------------ |
+            // | . | .call_return | <- 1b. place this frame now
+            // | - | ------------ |
+            // | . |  GENERATOR   | <- 1a. yield; 3. resume here, continue generating
+            // | - | ------------ |
+            // | . | .call        |
+            // | - | ------------ |
+            // | . |      ...     |
+            // | - | ------------ |
+            //
+            // This concludes a rough sketch demonstrating this strategy
+            // achieves the desired semantics.
+            .call => |call| {
+                const caller_env = self.stack.items[idx - 1].state.environment;
+                const continuation_env = try caller_env.copy(self.allocator);
+
+                try self.stack.append(self.allocator, Frame{
+                    .state = State{
+                        .pc = call.resume_address,
+                        .value = value.clone(),
+                        .environment = continuation_env,
+                    },
+                    .boundary = Boundary{ .call_return = .{ .call_boundary_idx = idx } },
+                });
+            },
+            else => unreachable,
         }
         return true;
     }
@@ -275,28 +392,12 @@ pub const Runtime = struct {
                             .value = split.iterator.value(),
                             .environment = env_copy_new_frame,
                         },
-                        .boundary = Boundary{ .passthrough = {} },
+                        .boundary = .passthrough,
                     });
                 } else {
                     try self.handleBranchEnd();
                 }
                 continue;
-            }
-
-            if (frame.state.build != null) {
-                switch (self.instructions[frame.state.pc]) {
-                    .push_build, .end_build => {},
-                    // The only valid syntax is:
-                    // begin_build
-                    // (zero or more push_build)
-                    // end_build
-                    // We may choose to expand, but the difficulty lies in if
-                    // the frame changes while building or in cases of nested
-                    // builds.
-                    else => {
-                        return error.InvalidBuildConstruction;
-                    },
-                }
             }
 
             switch (self.instructions[frame.state.pc]) {
@@ -411,24 +512,31 @@ pub const Runtime = struct {
                     old_env.dereference(self.allocator);
 
                     const boundary = switch (probe_inst.data) {
-                        .exists => Boundary{ .probe = .{
+                        .exists => Boundary{ .exists = .{
                             .resume_address = probe_inst.resume_address,
-                            .data = .exists,
                         } },
-                        .nexists => Boundary{ .probe = .{
+                        .nexists => Boundary{ .nexists = .{
                             .resume_address = probe_inst.resume_address,
-                            .data = .nexists,
                         } },
                         .aggregate => |spec| switch (spec.kind) {
                             .list => Boundary{
-                                .probe = .{
+                                .aggregate = .{
                                     .resume_address = probe_inst.resume_address,
-                                    .data = .{ .aggregate = .{
-                                        .variable = spec.variable,
-                                        .value = .{
-                                            .list = try ds.Rc(List).create(self.allocator, List.init()),
+                                    .variable = spec.variable,
+                                    .value = .{
+                                        .list = try ds.Rc(List).create(self.allocator, List.init()),
+                                    },
+                                },
+                            },
+                            .record => Boundary{
+                                .aggregate = .{
+                                    .resume_address = probe_inst.resume_address,
+                                    .variable = spec.variable,
+                                    .value = .{
+                                        .record = .{
+                                            .rc = try ds.Rc(Record).create(self.allocator, Record.init(self.allocator)),
                                         },
-                                    } },
+                                    },
                                 },
                             },
                         },
@@ -445,6 +553,7 @@ pub const Runtime = struct {
                 },
                 .call => |target_address| {
                     frame.state.pc += 1;
+                    const resume_address = frame.state.pc;
 
                     const old_env = frame.state.environment;
                     const env_copy_old_frame = try old_env.copy(self.allocator);
@@ -458,28 +567,8 @@ pub const Runtime = struct {
                             .value = frame.state.value,
                             .environment = env_copy_new_frame,
                         },
-                        .boundary = Boundary{ .call = {} },
+                        .boundary = Boundary{ .call = .{ .resume_address = resume_address } },
                     });
-                },
-                .ret => {
-                    frame.state.pc += 1;
-                    var i: usize = self.stack.items.len;
-                    while (i > 0) {
-                        i -= 1;
-                        const search_frame = &self.stack.items[i];
-
-                        // NOTE: I'm not confident this is right... what's supposed to happen
-                        // when piercing a probe boundary through a ret?
-                        if (search_frame.boundary == .call) {
-                            while (self.stack.items.len > i) {
-                                self.deinitFrame();
-                            }
-
-                            break;
-                        }
-                    } else {
-                        return error.StackCorruption;
-                    }
                 },
                 .jmp => |jmp_inst| {
                     frame.state.pc += 1;
@@ -492,46 +581,6 @@ pub const Runtime = struct {
                         break :blk (b != jmp_inst.negate);
                     } else true;
                     if (should_jump) frame.state.pc = jmp_inst.address;
-                },
-                .begin_build => |vector| {
-                    frame.state.pc += 1;
-                    switch (vector) {
-                        .record => {
-                            const rc = try ds.Rc(Record).create(self.allocator, Record.init(self.allocator));
-                            frame.state.build = .{ .record = rc };
-                        },
-                        .list => {
-                            const rc = try ds.Rc(List).create(self.allocator, List.init());
-                            frame.state.build = .{ .list = rc };
-                        },
-                    }
-                },
-                .push_build => |info| {
-                    frame.state.pc += 1;
-                    const build = try if (frame.state.build) |b| b else error.InvalidBuildConstruction;
-                    const value = (try self.getSource(frame.state, info.source)).clone();
-                    switch (build) {
-                        .record => |rc| {
-                            const name = try if (info.name) |n| n else error.InvalidBuildConstruction;
-                            try rc.value.map.put(name, value);
-                        },
-                        .list => |rc| {
-                            try rc.value.items.append(self.allocator, value);
-                        },
-                    }
-                },
-                .end_build => |variable_id| {
-                    frame.state.pc += 1;
-                    const build = try if (frame.state.build) |b| b else error.InvalidBuildConstruction;
-                    frame.state.build = null;
-                    const value: rt.Value = switch (build) {
-                        .record => |rc| .{ .record = rc },
-                        .list => |rc| .{ .list = rc },
-                    };
-                    const old_env = frame.state.environment;
-                    const new_env = try old_env.copyPut(self.allocator, variable_id, value);
-                    frame.state.environment = new_env;
-                    old_env.dereference(self.allocator);
                 },
                 .panic => {
                     return error.PanicInstruction;

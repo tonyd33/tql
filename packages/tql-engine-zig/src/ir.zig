@@ -8,15 +8,13 @@ pub const Symbol = u32;
 pub const VariableId = u32;
 pub const NodeKindId = u16;
 
-pub const AggregatingValue = enum { list };
+pub const AggregatingValue = enum { list, record };
 
 pub const AggregationSpec = struct {
     variable: VariableId,
     kind: AggregatingValue,
 };
 
-/// A value that can appear as a literal in the IR. Restricted to variants the
-/// compiler can construct — no heap types (record, list, node, range).
 pub const Literal = union(enum) {
     nothing,
     bool: bool,
@@ -86,11 +84,6 @@ pub const Relation = enum {
     gt,
 };
 
-pub const Vector = enum {
-    record,
-    list,
-};
-
 pub const Instruction = union(enum) {
     noop,
     halt,
@@ -109,25 +102,18 @@ pub const Instruction = union(enum) {
     yield: struct {
         source: ValueSource = .{ .current = .value },
     },
+    // TODO: consolidate probe and call into single trap instruction
     probe: struct {
         resume_address: Address,
         data: ProbeData,
     },
     call: Address,
-    ret,
     jmp: struct {
         address: Address,
         /// When set, jump is conditional: taken iff source resolves to Value.bool == !negate.
         source: ?ValueSource = null,
         negate: bool = false,
     },
-    begin_build: Vector,
-    push_build: struct {
-        source: ValueSource,
-        // only applicable for records
-        name: ?[]const u8,
-    },
-    end_build: VariableId,
     panic, // debug, probably remove
 
     pub fn print(self: Instruction, writer: *std.Io.Writer) !void {
@@ -170,7 +156,6 @@ pub const Instruction = union(enum) {
                 .aggregate => |a| try writer.print("probe aggregate {} {} {s}", .{ p.resume_address, a.variable, @tagName(a.kind) }),
             },
             .call => |c| try writer.print("call {}", .{c}),
-            .ret => try writer.print("ret", .{}),
             .jmp => |j| if (j.source) |vs| {
                 try writer.print("jmp {} if{s} (", .{ j.address, if (j.negate) " not" else "" });
                 try vs.print(writer);
@@ -178,17 +163,6 @@ pub const Instruction = union(enum) {
             } else {
                 try writer.print("jmp {}", .{j.address});
             },
-            .begin_build => |v| try writer.print("begin_build {s}", .{@tagName(v)}),
-            .push_build => |i| {
-                if (i.name) |name| {
-                    try writer.print("push_build {s} (", .{name});
-                } else {
-                    try writer.print("push_build (", .{});
-                }
-                try i.source.print(writer);
-                try writer.print(")", .{});
-            },
-            .end_build => |v| try writer.print("end_build {}", .{v}),
             .panic => try writer.print("panic", .{}),
         }
     }

@@ -44,16 +44,14 @@ class Foo {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 4)
-0012: asn 5 (literal string "class")
-0013: trv value_source (variable_id 4)
-0014: asn 6 (variable_id 0)
-0015: begin_build list
-0016: push_build (variable_id 5)
-0017: push_build (variable_id 6)
-0018: end_build 7
-0019: yield
-0020: halt
+0011: probe aggregate 17 5 list
+0012: trv value_source (variable_id 4)
+0013: yield
+0014: trv value_source (variable_id 4)
+0015: yield
+0016: halt
+0017: yield
+0018: halt
 ================================================================================
 triple
 ================================================================================
@@ -119,19 +117,16 @@ class Foo {}
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 6)
-0017: asn 7 (literal string "class")
-0018: trv value_source (variable_id 6)
-0019: asn 8 (variable_id 0)
-0020: trv value_source (variable_id 6)
-0021: asn 9 (variable_id 1)
-0022: begin_build list
-0023: push_build (variable_id 7)
-0024: push_build (variable_id 8)
-0025: push_build (variable_id 9)
-0026: end_build 10
-0027: yield
-0028: halt
+0016: probe aggregate 24 7 list
+0017: trv value_source (variable_id 6)
+0018: yield
+0019: trv value_source (variable_id 6)
+0020: yield
+0021: trv value_source (variable_id 6)
+0022: yield
+0023: halt
+0024: yield
+0025: halt
 ================================================================================
 array literal single element
 ================================================================================
@@ -290,16 +285,14 @@ class Foo {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: trv value_source (variable_id 4)
-0012: asn 5 (literal string "class")
-0013: trv value_source (variable_id 4)
-0014: asn 6 (variable_id 0)
-0015: begin_build list
-0016: push_build (variable_id 5)
-0017: push_build (variable_id 6)
-0018: end_build 7
-0019: yield
-0020: halt
+0011: probe aggregate 17 5 list
+0012: trv value_source (variable_id 4)
+0013: yield
+0014: trv value_source (variable_id 4)
+0015: yield
+0016: halt
+0017: yield
+0018: halt
 ================================================================================
 object literal shorthand
 ================================================================================
@@ -344,11 +337,12 @@ class Foo {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: begin_build record
-0012: push_build class (variable_id 0)
-0013: end_build 5
-0014: yield
-0015: halt
+0011: probe aggregate 15 5 record
+0012: yield
+0013: yield
+0014: halt
+0015: yield
+0016: halt
 ================================================================================
 object literal two shorthand fields
 ================================================================================
@@ -412,12 +406,14 @@ class Foo {}
 0013: asn 0 (variable_id 5)
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
-0016: begin_build record
-0017: push_build class (variable_id 1)
-0018: push_build name (variable_id 0)
-0019: end_build 7
+0016: probe aggregate 22 7 record
+0017: yield
+0018: yield
+0019: yield
 0020: yield
 0021: halt
+0022: yield
+0023: halt
 ================================================================================
 object literal key value
 ================================================================================
@@ -467,12 +463,14 @@ class Foo {}
 0012: asn 5 (literal string "class")
 0013: trv value_source (variable_id 4)
 0014: asn 6 (variable_id 0)
-0015: begin_build record
-0016: push_build kind (variable_id 5)
-0017: push_build node (variable_id 6)
-0018: end_build 7
+0015: probe aggregate 21 7 record
+0016: yield
+0017: yield
+0018: yield
 0019: yield
 0020: halt
+0021: yield
+0022: halt
 ================================================================================
 object literal multiple matches
 ================================================================================
@@ -552,8 +550,9 @@ class C {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
-0011: begin_build record
-0012: push_build class (variable_id 0)
-0013: end_build 5
-0014: yield
-0015: halt
+0011: probe aggregate 15 5 record
+0012: yield
+0013: yield
+0014: halt
+0015: yield
+0016: halt

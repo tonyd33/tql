@@ -147,12 +147,14 @@ int main(void) { return 0; }
 0035: asn 14 (variable_id 0)
 0036: trv value_source (variable_id 13)
 0037: asn 15 (variable_id 1)
-0038: begin_build record
-0039: push_build name (variable_id 14)
-0040: push_build param (variable_id 15)
-0041: end_build 16
+0038: probe aggregate 44 16 record
+0039: yield
+0040: yield
+0041: yield
 0042: yield
 0043: halt
+0044: yield
+0045: halt
 ================================================================================
 unnest restores fanout from subquery binding with inner binds
 ================================================================================
@@ -307,12 +309,14 @@ int main(void) { return 0; }
 0037: asn 15 (variable_id 0)
 0038: trv value_source (variable_id 14)
 0039: asn 16 (variable_id 1)
-0040: begin_build record
-0041: push_build name (variable_id 15)
-0042: push_build param (variable_id 16)
-0043: end_build 17
+0040: probe aggregate 46 17 record
+0041: yield
+0042: yield
+0043: yield
 0044: yield
 0045: halt
+0046: yield
+0047: halt
 ================================================================================
 unnest on empty subquery drops branch
 ================================================================================
@@ -358,12 +362,14 @@ int add(int a, int b) { return a + b; }
 0024: asn 10 (variable_id 1)
 0025: trv value_source (variable_id 9)
 0026: asn 11 (variable_id 0)
-0027: begin_build record
-0028: push_build fn (variable_id 10)
-0029: push_build g (variable_id 11)
-0030: end_build 12
+0027: probe aggregate 33 12 record
+0028: yield
+0029: yield
+0030: yield
 0031: yield
 0032: halt
+0033: yield
+0034: halt
 ================================================================================
 unnest of singleton list yields one fanout
 ================================================================================
@@ -432,9 +438,11 @@ int add(int a, int b) { return a + b; }
 0015: asn 0 (variable_id 6)
 0016: trv value_source (variable_id 0)
 0017: asn 7 ((current value) value)
-0018: begin_build record
-0019: push_build func (variable_id 1)
-0020: push_build d (variable_id 0)
-0021: end_build 8
+0018: probe aggregate 24 8 record
+0019: yield
+0020: yield
+0021: yield
 0022: yield
 0023: halt
+0024: yield
+0025: halt

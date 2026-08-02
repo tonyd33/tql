@@ -13,22 +13,14 @@ const TestContext = @import("./test_helpers.zig").TestContext;
 test "build: record" {
     const source = "void foo() {}";
     const instructions = [_]Instruction{
-        .{ .begin_build = .record },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .string = "alice" } },
-                .name = "name",
-            },
-        },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .kind_id = 42 } },
-                .name = "kind",
-            },
-        },
-        .{ .end_build = 1 },
+        .{ .probe = .{ .data = .{ .aggregate = .{ .variable = 1, .kind = .record } }, .resume_address = 6 } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "name" } } } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "alice" } } } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "kind" } } } },
+        .{ .yield = .{ .source = .{ .literal = .{ .kind_id = 42 } } } },
+        .{ .halt = {} },
         .{ .yield = .{ .source = .{ .variable_id = 1 } } },
-        .halt,
+        .{ .halt = {} },
     };
 
     var ctx = try TestContext.init(.{ .source = source, .instructions = &instructions });
@@ -47,26 +39,11 @@ test "build: record" {
 test "build: list" {
     const source = "void foo() {}";
     const instructions = [_]Instruction{
-        .{ .begin_build = .list },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .string = "a" } },
-                .name = null,
-            },
-        },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .string = "b" } },
-                .name = null,
-            },
-        },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .string = "c" } },
-                .name = null,
-            },
-        },
-        .{ .end_build = 7 },
+        .{ .probe = .{ .data = .{ .aggregate = .{ .variable = 7, .kind = .list } }, .resume_address = 5 } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "a" } } } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "b" } } } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "c" } } } },
+        .{ .halt = {} },
         .{ .yield = .{ .source = .{ .variable_id = 7 } } },
         .{ .halt = {} },
     };
@@ -87,29 +64,17 @@ test "build: list" {
 test "build: nested list of list" {
     const source = "void foo() {}";
     const instructions = [_]Instruction{
-        .{ .begin_build = .list },
-        .{
-            .push_build = .{
-                .source = .{ .literal = .{ .string = "inner-elem" } },
-                .name = null,
-            },
-        },
-        .{ .end_build = 1 },
+        // Build inner list into var 1
+        .{ .probe = .{ .data = .{ .aggregate = .{ .variable = 1, .kind = .list } }, .resume_address = 3 } },
+        .{ .yield = .{ .source = .{ .literal = .{ .string = "inner-elem" } } } },
+        .{ .halt = {} },
 
-        .{ .begin_build = .list },
-        .{
-            .push_build = .{
-                .source = .{ .variable_id = 1 },
-                .name = null,
-            },
-        },
-        .{
-            .push_build = .{
-                .source = .{ .variable_id = 1 },
-                .name = null,
-            },
-        },
-        .{ .end_build = 2 },
+        // Build outer list into var 2, pushing var 1 twice
+        .{ .probe = .{ .data = .{ .aggregate = .{ .variable = 2, .kind = .list } }, .resume_address = 7 } },
+        .{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        .{ .yield = .{ .source = .{ .variable_id = 1 } } },
+        .{ .halt = {} },
+
         .{ .yield = .{ .source = .{ .variable_id = 2 } } },
         .{ .halt = {} },
     };
