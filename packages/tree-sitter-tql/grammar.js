@@ -101,11 +101,7 @@ module.exports = grammar({
     union_expression: $ =>
       prec.left(
         PREC.union,
-        seq(
-          field("left", $.expression),
-          "<|>",
-          field("right", $.expression),
-        ),
+        seq(field("left", $.expression), "<|>", field("right", $.expression)),
       ),
 
     identity: _ => token("."),
