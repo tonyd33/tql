@@ -75,6 +75,16 @@ pub const InstructionBuilder = struct {
         try result.value_ptr.append(self.allocator, inst_index);
     }
 
+    pub fn emitCall(self: *InstructionBuilder, label_id: u32) Allocator.Error!void {
+        const inst_index = self.instructions.items.len;
+        try self.instructions.append(self.allocator, Instruction{ .call = 0 });
+        const result = try self.pending_labels.getOrPut(label_id);
+        if (!result.found_existing) {
+            result.value_ptr.* = std.ArrayList(usize).empty;
+        }
+        try result.value_ptr.append(self.allocator, inst_index);
+    }
+
     pub fn emitProbe(self: *InstructionBuilder, data: ir.ProbeData, resume_label: u32) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
 
@@ -110,6 +120,7 @@ pub const InstructionBuilder = struct {
                 switch (inst.*) {
                     .jmp => |*jmp| jmp.address = address,
                     .probe => |*probe| probe.resume_address = address,
+                    .call => |*call| call.* = address,
                     else => return error.InvalidLabelReference,
                 }
             }

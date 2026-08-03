@@ -16,17 +16,25 @@ const pcre2 = @import("regex.zig");
 
 pub const InstructionBuilder = @import("compiler/instruction_builder.zig").InstructionBuilder;
 const CompilerError = @import("compiler/types.zig").CompilerError;
+const variables = @import("compiler/variables.zig");
+const VariableTable = variables.VariableTable;
+const Namespace = variables.Namespace;
 
 const LabelId = u32;
-const VariableTable = std.StringHashMap(VariableId);
+
+const FunctionDeclaration = struct {
+    entry_label: LabelId,
+    param_vars: []const VariableId,
+};
 
 pub const Compiler = struct {
     language: *const ts.Language,
 
     allocator: Allocator,
     instruction_builder: InstructionBuilder,
+    functions: std.StringHashMap(FunctionDeclaration),
+
     variables: VariableTable,
-    next_id: VariableId,
 
     regexes: std.ArrayList(pcre2.Regex),
     strings: std.ArrayList([]const u8),
@@ -39,7 +47,7 @@ pub const Compiler = struct {
         return .{
             .allocator = allocator,
             .variables = VariableTable.init(allocator),
-            .next_id = 0,
+            .functions = std.StringHashMap(FunctionDeclaration).init(allocator),
             .language = language,
             .regexes = regexes,
             .strings = strings,
@@ -52,6 +60,12 @@ pub const Compiler = struct {
 
         self.variables.deinit();
 
+        var fn_iter = self.functions.valueIterator();
+        while (fn_iter.next()) |info| {
+            self.allocator.free(info.param_vars);
+        }
+        self.functions.deinit();
+
         for (self.regexes.items) |*regex| {
             regex.deinit();
         }
@@ -63,23 +77,8 @@ pub const Compiler = struct {
         self.strings.deinit(self.allocator);
     }
 
-    fn putVariable(self: *Compiler, name: []const u8) CompilerError!VariableId {
-        const result = try self.variables.getOrPut(name);
-        if (!result.found_existing) {
-            result.value_ptr.* = self.next_id;
-            self.next_id += 1;
-        }
-        return result.value_ptr.*;
-    }
-
-    fn allocateAnonymous(self: *Compiler) CompilerError!VariableId {
-        const id = self.next_id;
-        self.next_id += 1;
-        return id;
-    }
-
     fn bindValue(self: *Compiler) CompilerError!ir.ValueSource {
-        const tmp = try self.allocateAnonymous();
+        const tmp = self.variables.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = tmp, .source = .{ .current = .value } } });
         return .{ .variable_id = tmp };
     }
@@ -98,15 +97,35 @@ pub const Compiler = struct {
     }
 
     pub fn compile(self: *Compiler, allocator: std.mem.Allocator, source: ast.SourceFile) CompilerError!ProgramImage {
+        var top_level_ns = self.variables.newNamespace();
+        defer top_level_ns.deinit();
+
+        // 1st pass: collect function declarations
         for (source.items) |item| {
             switch (item) {
                 .query => |query| {
-                    const vs = try self.compileExpression(query.body);
-                    try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
-                    try self.instruction_builder.emit(.halt);
+                    if (self.functions.contains(query.name)) return error.DuplicateFunctionDefinition;
+                    const entry_label = self.instruction_builder.createLabel();
+                    const param_vars = try self.allocator.alloc(VariableId, query.parameters.len);
+                    for (param_vars) |*param_var| {
+                        param_var.* = self.variables.allocateAnonymous();
+                    }
+                    try self.functions.put(query.name, .{
+                        .entry_label = entry_label,
+                        .param_vars = param_vars,
+                    });
                 },
+                .expression => {},
+                else => @panic("Not implemented"),
+            }
+        }
+
+        // 2nd pass: compile expressions
+        for (source.items) |item| {
+            switch (item) {
+                .query => {},
                 .expression => |expr| {
-                    const vs = try self.compileExpression(expr);
+                    const vs = try self.compileExpression(&top_level_ns, expr);
                     try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
                     try self.instruction_builder.emit(.halt);
                 },
@@ -114,11 +133,28 @@ pub const Compiler = struct {
             }
         }
 
-        var variable_map = std.hash_map.AutoHashMap(ir.VariableId, []const u8).init(allocator);
-        var variable_iterator = self.variables.iterator();
-        while (variable_iterator.next()) |entry| {
-            const slice = try self.addString(entry.key_ptr.*);
-            try variable_map.put(entry.value_ptr.*, slice);
+        // 3rd pass: compile function bodies
+        // we do this on the third pass instead of the second because the
+        // function bodies should not be emitted as the first instruction
+        // this is weird and we should come up with a better solution
+        for (source.items) |item| {
+            switch (item) {
+                .query => |query| {
+                    const info = self.functions.get(query.name).?;
+                    var def_ns = self.variables.newNamespace();
+                    defer def_ns.deinit();
+                    for (query.parameters, info.param_vars) |param, var_id| {
+                        const owned_name = try self.addString(param.name.name);
+                        try self.variables.bind(&def_ns, owned_name, var_id);
+                    }
+                    try self.instruction_builder.markLabel(info.entry_label);
+                    const vs = try self.compileExpression(&def_ns, query.body);
+                    try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
+                    try self.instruction_builder.emit(.halt);
+                },
+                .expression => {},
+                else => @panic("Not implemented"),
+            }
         }
 
         const instructions = try self.instruction_builder.patch(allocator);
@@ -129,7 +165,7 @@ pub const Compiler = struct {
             .instructions = instructions,
             .regexes = regexes,
             .strings = strings,
-            .variable_map = variable_map,
+            .variable_map = self.variables.moveNames(),
             .allocator = allocator,
         };
     }
@@ -145,13 +181,13 @@ pub const Compiler = struct {
     ///   itself (i.e. equivalent to the returned ValueSource)
     /// - environment is mutated in a way that shouldn't be observable by
     ///   callers
-    /// - no top-level yields have been emitted (yields behind probes are
-    ///   permitted)
+    /// - no top-level yields have been emitted (yields behind effect handling
+    ///   frames are permitted)
     ///
-    fn compileExpression(self: *Compiler, expr: ast.Expression) CompilerError!ir.ValueSource {
+    fn compileExpression(self: *Compiler, ns: *Namespace, expr: ast.Expression) CompilerError!ir.ValueSource {
         switch (expr) {
             .variable => |variable| {
-                const var_id = self.variables.get(variable.name) orelse return error.InvalidVariableReference;
+                const var_id = self.variables.resolve(ns, variable.name) orelse return error.InvalidVariableReference;
                 return .{ .variable_id = var_id };
             },
             .string_literal => |str| {
@@ -166,22 +202,31 @@ pub const Compiler = struct {
                 return .{ .literal = .{ .regex = self.regexes.items[regex_index] } };
             },
             .function_call => |fc| {
-                if (std.mem.eql(u8, fc.name, "text")) {
-                    if (fc.arguments.len != 0) return error.InvalidGuardExpression;
+                if (self.functions.get(fc.name)) |info| {
+                    // TODO: what to do about shadowing builtins?
+                    if (fc.arguments.len != info.param_vars.len) return error.InvalidArguments;
+                    for (fc.arguments, info.param_vars) |arg_expr, param_var| {
+                        const arg_vs = try self.compileExpression(ns, arg_expr);
+                        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = param_var, .source = arg_vs } });
+                    }
+                    try self.instruction_builder.emitCall(info.entry_label);
+                    return try self.bindValue();
+                } else if (std.mem.eql(u8, fc.name, "text")) {
+                    if (fc.arguments.len != 0) return error.InvalidArguments;
                     return .{ .current = .text };
                 } else if (std.mem.eql(u8, fc.name, "select")) {
-                    return self.compileBuiltinSelect(fc);
+                    return self.compileBuiltinSelect(ns, fc);
                 } else if (std.mem.eql(u8, fc.name, "unnest")) {
-                    return self.compileBuiltinUnnest(fc);
+                    return self.compileBuiltinUnnest(ns, fc);
                 } else if (std.mem.eql(u8, fc.name, "any") or std.mem.eql(u8, fc.name, "all")) {
-                    try self.compileBuiltinQuantified(fc, false);
+                    try self.compileBuiltinQuantified(ns, fc, false);
                     return .{ .literal = .{ .bool = true } };
                 } else {
                     return error.InvalidVariableReference;
                 }
             },
             .field_access => |fa| {
-                const base = try self.compileExpression(fa.base);
+                const base = try self.compileExpression(ns, fa.base);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = base } });
                 const field_id = self.language.fieldIdForName(fa.field);
                 try self.instruction_builder.emit(.{ .trv = .{ .field = field_id } });
@@ -197,7 +242,7 @@ pub const Compiler = struct {
             },
             .node_selector => |node_selector| {
                 const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
-                const bool_tmp = try self.allocateAnonymous();
+                const bool_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .rel = .{
                     .relation = .equals,
                     .a = .{ .current = .kind },
@@ -215,13 +260,13 @@ pub const Compiler = struct {
                 var sources = try self.allocator.alloc(FieldSource, obj.fields.len);
                 defer self.allocator.free(sources);
 
-                const input_tmp = try self.allocateAnonymous();
+                const input_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
 
                 for (obj.fields, 0..) |field, i| {
                     switch (field) {
                         .variable => |variable| {
-                            const var_id = self.variables.get(variable.name) orelse
+                            const var_id = self.variables.resolve(ns, variable.name) orelse
                                 return error.InvalidVariableReference;
                             sources[i] = .{
                                 .key = try self.addString(variable.name),
@@ -230,8 +275,8 @@ pub const Compiler = struct {
                         },
                         .key_value => |kv| {
                             try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
-                            const vs = try self.compileExpression(kv.value);
-                            const field_tmp = try self.allocateAnonymous();
+                            const vs = try self.compileExpression(ns, kv.value);
+                            const field_tmp = self.variables.allocateAnonymous();
                             try self.instruction_builder.emit(.{ .asn = .{ .variable_id = field_tmp, .source = vs } });
                             sources[i] = .{
                                 .key = try self.addString(kv.key),
@@ -242,7 +287,7 @@ pub const Compiler = struct {
                 }
 
                 const resume_label = self.instruction_builder.createLabel();
-                const anon_var = try self.allocateAnonymous();
+                const anon_var = self.variables.allocateAnonymous();
                 try self.instruction_builder.emitProbe(.{
                     .aggregate = .{ .variable = anon_var, .kind = .record },
                 }, resume_label);
@@ -255,52 +300,52 @@ pub const Compiler = struct {
                 try self.instruction_builder.markLabel(resume_label);
                 return .{ .variable_id = anon_var };
             },
-            .array_literal => |arr| return try self.compileListValue(arr.elements),
-            .tuple_literal => |tup| return try self.compileListValue(tup.elements),
-            .parenthesized => |p| return try self.compileExpression(p.*),
+            .array_literal => |arr| return try self.compileListValue(ns, arr.elements),
+            .tuple_literal => |tup| return try self.compileListValue(ns, tup.elements),
+            .parenthesized => |p| return try self.compileExpression(ns, p.*),
             .collect_expression => |p| {
                 const resume_label = self.instruction_builder.createLabel();
-                const anon_var = try self.allocateAnonymous();
+                const anon_var = self.variables.allocateAnonymous();
                 try self.instruction_builder.emitProbe(.{
                     .aggregate = .{ .variable = anon_var, .kind = .list },
                 }, resume_label);
-                const pv = try self.compileExpression(p.*);
+                const pv = try self.compileExpression(ns, p.*);
                 try self.instruction_builder.emit(.{ .yield = .{ .source = pv } });
                 try self.instruction_builder.emit(.halt);
                 try self.instruction_builder.markLabel(resume_label);
                 return .{ .variable_id = anon_var };
             },
             .pipe_expression => |pe| {
-                const lv = try self.compileExpression(pe.left);
+                const lv = try self.compileExpression(ns, pe.left);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = lv } });
-                return self.compileExpression(pe.right);
+                return self.compileExpression(ns, pe.right);
             },
             .child_navigation => |cn| {
-                const parent = try self.compileExpression(cn.parent);
+                const parent = try self.compileExpression(ns, cn.parent);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = parent } });
                 try self.instruction_builder.emit(.{ .trv = .{ .child = {} } });
-                const cv = try self.compileExpression(cn.child);
+                const cv = try self.compileExpression(ns, cn.child);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = cv } });
                 return try self.bindValue();
             },
             .descendant_navigation => |dn| {
-                const parent = try self.compileExpression(dn.parent);
+                const parent = try self.compileExpression(ns, dn.parent);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = parent } });
                 try self.instruction_builder.emit(.{ .trv = .{ .descendant = {} } });
-                const dv = try self.compileExpression(dn.descendant);
+                const dv = try self.compileExpression(ns, dn.descendant);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = dv } });
                 return try self.bindValue();
             },
             .comparison => |comparison| {
-                const input_tmp = try self.allocateAnonymous();
+                const input_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
-                const left_vs = try self.compileExpression(comparison.left);
-                const left_tmp = try self.allocateAnonymous();
+                const left_vs = try self.compileExpression(ns, comparison.left);
+                const left_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = left_tmp, .source = left_vs } });
                 const left_source: ir.ValueSource = .{ .variable_id = left_tmp };
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
-                const right_source = try self.compileExpression(comparison.right);
-                const bool_tmp = try self.allocateAnonymous();
+                const right_source = try self.compileExpression(ns, comparison.right);
+                const bool_tmp = self.variables.allocateAnonymous();
 
                 switch (comparison.operator) {
                     .eq => {
@@ -327,7 +372,7 @@ pub const Compiler = struct {
                 const probe_data: ir.ProbeData = if (is_null.negated) .exists else .nexists;
                 try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
-                _ = try self.compileExpression(is_null.expression);
+                _ = try self.compileExpression(ns, is_null.expression);
                 try self.instruction_builder.emit(.{ .yield = .{ .source = .{ .current = .value } } });
                 try self.instruction_builder.emit(.halt);
 
@@ -335,29 +380,29 @@ pub const Compiler = struct {
                 return .{ .literal = .{ .bool = true } };
             },
             .logical_and => |la| {
-                const result_tmp = try self.allocateAnonymous();
+                const result_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = .{ .literal = .{ .bool = false } } } });
-                const input_tmp = try self.allocateAnonymous();
+                const input_tmp = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
                 const end_label = self.instruction_builder.createLabel();
-                const left_vs = try self.compileExpression(la.left);
+                const left_vs = try self.compileExpression(ns, la.left);
                 try self.instruction_builder.emitJumpCnd(left_vs, end_label, true);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
-                const right_vs = try self.compileExpression(la.right);
+                const right_vs = try self.compileExpression(ns, la.right);
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = right_vs } });
                 try self.instruction_builder.markLabel(end_label);
                 return .{ .variable_id = result_tmp };
             },
             .logical_or => |lo| {
-                const result_tmp = try self.allocateAnonymous();
-                const saved_node = try self.allocateAnonymous();
+                const result_tmp = self.variables.allocateAnonymous();
+                const saved_node = self.variables.allocateAnonymous();
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
                 const true_label = self.instruction_builder.createLabel();
                 const end_label = self.instruction_builder.createLabel();
-                const left_vs = try self.compileExpression(lo.left);
+                const left_vs = try self.compileExpression(ns, lo.left);
                 try self.instruction_builder.emitJumpCnd(left_vs, true_label, false);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = saved_node } } });
-                const right_vs = try self.compileExpression(lo.right);
+                const right_vs = try self.compileExpression(ns, lo.right);
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = result_tmp, .source = right_vs } });
                 try self.instruction_builder.emitJump(end_label);
                 try self.instruction_builder.markLabel(true_label);
@@ -371,15 +416,16 @@ pub const Compiler = struct {
                     (std.mem.eql(u8, ln.predicate.function_call.name, "any") or
                         std.mem.eql(u8, ln.predicate.function_call.name, "all")))
                 {
-                    try self.compileBuiltinQuantified(ln.predicate.function_call, true);
+                    try self.compileBuiltinQuantified(ns, ln.predicate.function_call, true);
                     return .{ .literal = .{ .bool = true } };
                 }
-                const inner_vs = try self.compileExpression(ln.predicate);
+                const inner_vs = try self.compileExpression(ns, ln.predicate);
                 return try self.compileNegateValue(inner_vs);
             },
             .bind_expression => |be| {
-                const var_id = try self.putVariable(be.variable.name);
-                const vs = try self.compileExpression(be.expression);
+                const owned_name = try self.addString(be.variable.name);
+                const var_id = try self.variables.declare(ns, owned_name);
+                const vs = try self.compileExpression(ns, be.expression);
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
                 return .{ .variable_id = var_id };
             },
@@ -388,6 +434,7 @@ pub const Compiler = struct {
 
     fn compileBuiltinQuantified(
         self: *Compiler,
+        ns: *Namespace,
         fc: ast.FunctionCall,
         negated: bool,
     ) CompilerError!void {
@@ -401,11 +448,11 @@ pub const Compiler = struct {
         const probe_data: ir.ProbeData = if (probe_negated) .nexists else .exists;
         try self.instruction_builder.emitProbe(probe_data, probe_resume_label);
 
-        const source_vs = try self.compileExpression(fc.arguments[0]);
+        const source_vs = try self.compileExpression(ns, fc.arguments[0]);
         try self.instruction_builder.emit(.{ .trv = .{ .value_source = source_vs } });
 
         const inner_failure_label = self.instruction_builder.createLabel();
-        const pred_vs = try self.compileExpression(fc.arguments[1]);
+        const pred_vs = try self.compileExpression(ns, fc.arguments[1]);
         if (body_negated) {
             try self.instruction_builder.emitJumpCnd(pred_vs, inner_failure_label, true);
             try self.instruction_builder.emit(.halt);
@@ -435,7 +482,7 @@ pub const Compiler = struct {
     /// - vs refers to a boolean typed value
     ///
     fn compileNegateValue(self: *Compiler, vs: ir.ValueSource) CompilerError!ir.ValueSource {
-        const result_tmp = try self.allocateAnonymous();
+        const result_tmp = self.variables.allocateAnonymous();
         const true_label = self.instruction_builder.createLabel();
         const end_label = self.instruction_builder.createLabel();
         try self.instruction_builder.emitJumpCnd(vs, true_label, false);
@@ -447,11 +494,11 @@ pub const Compiler = struct {
         return .{ .variable_id = result_tmp };
     }
 
-    fn compileBuiltinSelect(self: *Compiler, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
+    fn compileBuiltinSelect(self: *Compiler, ns: *Namespace, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidGuardExpression;
-        const saved_node = try self.allocateAnonymous();
+        const saved_node = self.variables.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
-        const vs = try self.compileExpression(fc.arguments[0]);
+        const vs = try self.compileExpression(ns, fc.arguments[0]);
         try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = saved_node } } });
         const end_label = self.instruction_builder.createLabel();
         try self.instruction_builder.emitJumpCnd(vs, end_label, false);
@@ -460,28 +507,28 @@ pub const Compiler = struct {
         return .{ .current = .value };
     }
 
-    fn compileBuiltinUnnest(self: *Compiler, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
-        if (fc.arguments.len != 1) return error.InvalidUnnestArgument;
+    fn compileBuiltinUnnest(self: *Compiler, ns: *Namespace, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
+        if (fc.arguments.len != 1) return error.InvalidArguments;
         var arg = fc.arguments[0];
         while (arg == .parenthesized) arg = arg.parenthesized.*;
-        const uv = try self.compileExpression(arg);
+        const uv = try self.compileExpression(ns, arg);
         try self.instruction_builder.emit(.{ .trv = .{ .elements = uv } });
         return try self.bindValue();
     }
 
-    fn compileListValue(self: *Compiler, elements: []const ast.Expression) CompilerError!ir.ValueSource {
-        const input_tmp = try self.allocateAnonymous();
+    fn compileListValue(self: *Compiler, ns: *Namespace, elements: []const ast.Expression) CompilerError!ir.ValueSource {
+        const input_tmp = self.variables.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
 
         const resume_label = self.instruction_builder.createLabel();
-        const anon_var = try self.allocateAnonymous();
+        const anon_var = self.variables.allocateAnonymous();
         try self.instruction_builder.emitProbe(.{
             .aggregate = .{ .variable = anon_var, .kind = .list },
         }, resume_label);
 
         for (elements) |elem| {
             try self.instruction_builder.emit(.{ .trv = .{ .value_source = .{ .variable_id = input_tmp } } });
-            const vs = try self.compileExpression(elem);
+            const vs = try self.compileExpression(ns, elem);
             try self.instruction_builder.emit(.{ .yield = .{ .source = vs } });
         }
         try self.instruction_builder.emit(.halt);

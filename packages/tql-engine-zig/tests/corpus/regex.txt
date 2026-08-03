@@ -71,7 +71,7 @@ class ServiceProvider {}
 0022: jmp 24 if (variable_id 9)
 0023: halt
 0024: trv value_source ((current value) value)
-0025: yield
+0025: yield variable_id 1
 0026: halt
 ================================================================================
 regex match anchored
@@ -132,7 +132,7 @@ class ServiceProvider {}
 0022: jmp 24 if (variable_id 9)
 0023: halt
 0024: trv value_source ((current value) value)
-0025: yield
+0025: yield variable_id 1
 0026: halt
 ================================================================================
 regex not match
@@ -198,5 +198,5 @@ class ServiceProvider {}
 0026: jmp 28 if (variable_id 10)
 0027: halt
 0028: trv value_source ((current value) value)
-0029: yield
+0029: yield variable_id 1
 0030: halt

@@ -46,11 +46,11 @@ class Foo {}
 0010: asn 4 ((current value) value)
 0011: probe aggregate 17 5 list
 0012: trv value_source (variable_id 4)
-0013: yield
+0013: yield literal string "class"
 0014: trv value_source (variable_id 4)
-0015: yield
+0015: yield variable_id 0
 0016: halt
-0017: yield
+0017: yield variable_id 5
 0018: halt
 ================================================================================
 triple
@@ -119,13 +119,13 @@ class Foo {}
 0015: asn 6 ((current value) value)
 0016: probe aggregate 24 7 list
 0017: trv value_source (variable_id 6)
-0018: yield
+0018: yield literal string "class"
 0019: trv value_source (variable_id 6)
-0020: yield
+0020: yield variable_id 0
 0021: trv value_source (variable_id 6)
-0022: yield
+0022: yield variable_id 1
 0023: halt
-0024: yield
+0024: yield variable_id 7
 0025: halt
 ================================================================================
 array literal single element
@@ -171,9 +171,9 @@ class Foo {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: probe aggregate 13 4 list
-0011: yield
+0011: yield variable_id 0
 0012: halt
-0013: yield
+0013: yield variable_id 4
 0014: halt
 ================================================================================
 array literal multiple matches
@@ -236,9 +236,9 @@ class B {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: probe aggregate 13 4 list
-0011: yield
+0011: yield variable_id 0
 0012: halt
-0013: yield
+0013: yield variable_id 4
 0014: halt
 ================================================================================
 array literal mixed literal and variable
@@ -287,11 +287,11 @@ class Foo {}
 0010: asn 4 ((current value) value)
 0011: probe aggregate 17 5 list
 0012: trv value_source (variable_id 4)
-0013: yield
+0013: yield literal string "class"
 0014: trv value_source (variable_id 4)
-0015: yield
+0015: yield variable_id 0
 0016: halt
-0017: yield
+0017: yield variable_id 5
 0018: halt
 ================================================================================
 object literal shorthand
@@ -338,10 +338,10 @@ class Foo {}
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
 0011: probe aggregate 15 5 record
-0012: yield
-0013: yield
+0012: yield literal string "class"
+0013: yield variable_id 0
 0014: halt
-0015: yield
+0015: yield variable_id 5
 0016: halt
 ================================================================================
 object literal two shorthand fields
@@ -407,12 +407,12 @@ class Foo {}
 0014: trv value_source (variable_id 0)
 0015: asn 6 ((current value) value)
 0016: probe aggregate 22 7 record
-0017: yield
-0018: yield
-0019: yield
-0020: yield
+0017: yield literal string "class"
+0018: yield variable_id 1
+0019: yield literal string "name"
+0020: yield variable_id 0
 0021: halt
-0022: yield
+0022: yield variable_id 7
 0023: halt
 ================================================================================
 object literal key value
@@ -464,12 +464,12 @@ class Foo {}
 0013: trv value_source (variable_id 4)
 0014: asn 6 (variable_id 0)
 0015: probe aggregate 21 7 record
-0016: yield
-0017: yield
-0018: yield
-0019: yield
+0016: yield literal string "kind"
+0017: yield variable_id 5
+0018: yield literal string "node"
+0019: yield variable_id 6
 0020: halt
-0021: yield
+0021: yield variable_id 7
 0022: halt
 ================================================================================
 object literal multiple matches
@@ -551,8 +551,8 @@ class C {}
 0009: trv value_source (variable_id 0)
 0010: asn 4 ((current value) value)
 0011: probe aggregate 15 5 record
-0012: yield
-0013: yield
+0012: yield literal string "class"
+0013: yield variable_id 0
 0014: halt
-0015: yield
+0015: yield variable_id 5
 0016: halt

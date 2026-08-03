@@ -1,0 +1,597 @@
+================================================================================
+def with no params, zero-arg call
+================================================================================
+grammar: typescript
+
+--- tql ---
+def any_property_identifier(): . >> property_identifier;
+
+. | any_property_identifier()
+--- source ---
+class Foo { bar() {} }
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "bar",
+    "start_byte": 12,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 12
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (query any_property_identifier (parameters) (descendant . (node property_identifier))) (pipe . (call any_property_identifier)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: call 5
+0002: asn 0 ((current value) value)
+0003: yield variable_id 0
+0004: halt
+0005: trv value_source ((current value) value)
+0006: trv descendant
+0007: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0008: jmp 10 if (variable_id 1)
+0009: halt
+0010: asn 2 ((current value) value)
+0011: trv value_source (variable_id 2)
+0012: asn 3 ((current value) value)
+0013: yield variable_id 3
+0014: halt
+================================================================================
+def with one parameter used inside a larger pipe
+================================================================================
+grammar: typescript
+
+--- tql ---
+def is_hook(@ident): @ident | text ~ /^use[A-Z][a-zA-Z]+/;
+
+. >> identifier | is_hook(.)
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (query is_hook (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use[A-Z][a-zA-Z]+"))) (pipe (descendant . (node identifier)) (call is_hook .)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: asn 0 ((current value) value)
+0010: call 14
+0011: asn 4 ((current value) value)
+0012: yield variable_id 4
+0013: halt
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 6 ((current value) text)
+0017: trv value_source (variable_id 5)
+0018: rel like (variable_id 6) (literal regex ...) -> 7
+0019: yield variable_id 7
+0020: halt
+================================================================================
+is_hook def matches equivalent to inlined predicate
+================================================================================
+grammar: typescript
+
+--- tql ---
+. >> identifier | (. | text ~ /^use[A-Z][a-zA-Z]+/)
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (pipe (descendant . (node identifier)) (paren (regex_match (pipe . (call text)) (regex "^use[A-Z][a-zA-Z]+")))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: asn 3 ((current value) value)
+0010: trv value_source ((current value) value)
+0011: asn 4 ((current value) text)
+0012: trv value_source (variable_id 3)
+0013: rel like (variable_id 4) (literal regex ...) -> 5
+0014: yield variable_id 5
+0015: halt
+================================================================================
+def calling another def
+================================================================================
+grammar: typescript
+
+--- tql ---
+def starts_with_use(@ident): @ident | text ~ /^use/;
+def is_hook(@ident): starts_with_use(@ident);
+
+. >> identifier | is_hook(.)
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (query starts_with_use (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use"))) (query is_hook (parameters (param ident)) (call starts_with_use ident)) (pipe (descendant . (node identifier)) (call is_hook .)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: trv value_source (variable_id 4)
+0009: asn 1 ((current value) value)
+0010: call 21
+0011: asn 5 ((current value) value)
+0012: yield variable_id 5
+0013: halt
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 7 ((current value) text)
+0017: trv value_source (variable_id 6)
+0018: rel like (variable_id 7) (literal regex ...) -> 8
+0019: yield variable_id 8
+0020: halt
+0021: asn 0 (variable_id 1)
+0022: call 14
+0023: asn 9 ((current value) value)
+0024: yield variable_id 9
+0025: halt
+================================================================================
+def parameter name shadows caller's own binding of the same name
+================================================================================
+grammar: typescript
+
+--- tql ---
+def is_hook(@ident): @ident | text ~ /^use/;
+
+. >> identifier as @ident | is_hook(@ident)
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  true,
+  false
+]
+--- tql tree ---
+(source_file (query is_hook (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use"))) (pipe (bind (descendant . (node identifier)) ident) (call is_hook ident)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: asn 0 (variable_id 1)
+0011: call 15
+0012: asn 5 ((current value) value)
+0013: yield variable_id 5
+0014: halt
+0015: asn 6 ((current value) value)
+0016: trv value_source (variable_id 0)
+0017: asn 7 ((current value) text)
+0018: trv value_source (variable_id 6)
+0019: rel like (variable_id 7) (literal regex ...) -> 8
+0020: yield variable_id 8
+0021: halt
+================================================================================
+same def called twice in one pipe with different arguments does not leak state
+================================================================================
+grammar: typescript
+
+--- tql ---
+def starts_with(@ident; @prefix): @ident | text ~ @prefix;
+
+. >> identifier as @first | starts_with(@first; /^use/) as @a | starts_with(@first; /^bar/) as @b | { a: @a, b: @b }
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  {
+    "a": true,
+    "b": false
+  },
+  {
+    "a": false,
+    "b": true
+  }
+]
+--- tql tree ---
+(source_file (query starts_with (parameters (param ident) (param prefix)) (regex_match (pipe ident (call text)) prefix)) (pipe (bind (pipe (bind (pipe (bind (descendant . (node identifier)) first) (call starts_with first (regex "^use"))) a) (call starts_with first (regex "^bar"))) b) (object (a a) (b b))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 5
+0003: jmp 5 if (variable_id 5)
+0004: halt
+0005: asn 6 ((current value) value)
+0006: trv value_source (variable_id 6)
+0007: asn 7 ((current value) value)
+0008: asn 4 (variable_id 7)
+0009: trv value_source (variable_id 4)
+0010: asn 0 (variable_id 4)
+0011: asn 1 (literal regex ...)
+0012: call 35
+0013: asn 8 ((current value) value)
+0014: asn 3 (variable_id 8)
+0015: trv value_source (variable_id 3)
+0016: asn 0 (variable_id 4)
+0017: asn 1 (literal regex ...)
+0018: call 35
+0019: asn 9 ((current value) value)
+0020: asn 2 (variable_id 9)
+0021: trv value_source (variable_id 2)
+0022: asn 10 ((current value) value)
+0023: trv value_source (variable_id 10)
+0024: asn 11 (variable_id 3)
+0025: trv value_source (variable_id 10)
+0026: asn 12 (variable_id 2)
+0027: probe aggregate 33 13 record
+0028: yield literal string "a"
+0029: yield variable_id 11
+0030: yield literal string "b"
+0031: yield variable_id 12
+0032: halt
+0033: yield variable_id 13
+0034: halt
+0035: asn 14 ((current value) value)
+0036: trv value_source (variable_id 0)
+0037: asn 15 ((current value) text)
+0038: trv value_source (variable_id 14)
+0039: rel like (variable_id 15) (variable_id 1) -> 16
+0040: yield variable_id 16
+0041: halt
+================================================================================
+body fan-out
+================================================================================
+grammar: typescript
+
+--- tql ---
+def all_identifiers(@root): @root >> identifier;
+
+. | all_identifiers(.)
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  {
+    "kind": "identifier",
+    "text": "useFoo",
+    "start_byte": 9,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 9
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  },
+  {
+    "kind": "identifier",
+    "text": "bar",
+    "start_byte": 30,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 9
+    },
+    "end_point": {
+      "row": 1,
+      "column": 12
+    }
+  }
+]
+--- tql tree ---
+(source_file (query all_identifiers (parameters (param root)) (descendant root (node identifier))) (pipe . (call all_identifiers .)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: asn 0 ((current value) value)
+0002: call 6
+0003: asn 1 ((current value) value)
+0004: yield variable_id 1
+0005: halt
+0006: trv value_source (variable_id 0)
+0007: trv descendant
+0008: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0009: jmp 11 if (variable_id 2)
+0010: halt
+0011: asn 3 ((current value) value)
+0012: trv value_source (variable_id 3)
+0013: asn 4 ((current value) value)
+0014: yield variable_id 4
+0015: halt
+================================================================================
+forward reference
+================================================================================
+grammar: typescript
+
+--- tql ---
+. >> identifier | is_hook(.)
+
+def is_hook(@ident): @ident | text ~ /^use/;
+--- source ---
+function useFoo() {}
+function bar() {}
+--- values ---
+[
+  true,
+  false
+]
+--- tql tree ---
+(source_file (pipe (descendant . (node identifier)) (call is_hook .)) (query is_hook (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use"))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: asn 0 ((current value) value)
+0010: call 14
+0011: asn 4 ((current value) value)
+0012: yield variable_id 4
+0013: halt
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 6 ((current value) text)
+0017: trv value_source (variable_id 5)
+0018: rel like (variable_id 6) (literal regex ...) -> 7
+0019: yield variable_id 7
+0020: halt
+================================================================================
+def used as both caller and callee (A calls B) in the same program
+================================================================================
+grammar: typescript
+
+--- tql ---
+def starts_with_use(@ident): @ident | text ~ /^use/;
+def is_hook(@ident): starts_with_use(@ident) and (@ident | text ~ /^[a-z]/);
+
+. >> identifier | is_hook(.)
+--- source ---
+function useFoo() {}
+function Bar() {}
+--- values ---
+[
+  true,
+  false
+]
+--- tql tree ---
+(source_file (query starts_with_use (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use"))) (query is_hook (parameters (param ident)) (and (call starts_with_use ident) (paren (regex_match (pipe ident (call text)) (regex "^[a-z]"))))) (pipe (descendant . (node identifier)) (call is_hook .)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: trv value_source (variable_id 4)
+0009: asn 1 ((current value) value)
+0010: call 21
+0011: asn 5 ((current value) value)
+0012: yield variable_id 5
+0013: halt
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 7 ((current value) text)
+0017: trv value_source (variable_id 6)
+0018: rel like (variable_id 7) (literal regex ...) -> 8
+0019: yield variable_id 8
+0020: halt
+0021: asn 9 (literal bool false)
+0022: asn 10 ((current value) value)
+0023: asn 0 (variable_id 1)
+0024: call 14
+0025: asn 11 ((current value) value)
+0026: jmp 34 if not (variable_id 11)
+0027: trv value_source (variable_id 10)
+0028: asn 12 ((current value) value)
+0029: trv value_source (variable_id 1)
+0030: asn 13 ((current value) text)
+0031: trv value_source (variable_id 12)
+0032: rel like (variable_id 13) (literal regex ...) -> 14
+0033: asn 9 (variable_id 14)
+0034: yield variable_id 9
+0035: halt
+================================================================================
+shadows a builtin
+================================================================================
+grammar: typescript
+
+--- tql ---
+def text(@ident): @ident;
+
+. >> identifier | text(.)
+--- source ---
+function useFoo() {}
+--- values ---
+[
+  {
+    "kind": "identifier",
+    "text": "useFoo",
+    "start_byte": 9,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 9
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  }
+]
+--- tql tree ---
+(source_file (query text (parameters (param ident)) ident) (pipe (descendant . (node identifier)) (call text .)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: asn 0 ((current value) value)
+0010: call 14
+0011: asn 4 ((current value) value)
+0012: yield variable_id 4
+0013: halt
+0014: yield variable_id 0
+0015: halt
+================================================================================
+def cursor boundary
+================================================================================
+grammar: typescript
+
+--- tql ---
+def fn(): . >> identifier;
+
+. as @root
+| @root >> identifier as @out_def
+| @root | fn() as @in_def
+| { @out_def, @in_def }
+--- source ---
+function useFoo() {}
+--- values ---
+[
+  {
+    "in_def": {
+      "kind": "identifier",
+      "text": "useFoo",
+      "start_byte": 9,
+      "end_byte": 15,
+      "start_point": {
+        "row": 0,
+        "column": 9
+      },
+      "end_point": {
+        "row": 0,
+        "column": 15
+      }
+    },
+    "out_def": {
+      "kind": "identifier",
+      "text": "useFoo",
+      "start_byte": 9,
+      "end_byte": 15,
+      "start_point": {
+        "row": 0,
+        "column": 9
+      },
+      "end_point": {
+        "row": 0,
+        "column": 15
+      }
+    }
+  }
+]
+--- tql tree ---
+(source_file (query fn (parameters) (descendant . (node identifier))) (pipe (bind (pipe (pipe (bind (pipe (bind . root) (descendant root (node identifier))) out_def) root) (call fn)) in_def) (object out_def in_def)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: asn 2 ((current value) value)
+0001: trv value_source (variable_id 2)
+0002: trv value_source (variable_id 2)
+0003: trv descendant
+0004: rel equals ((current value) kind) (literal kind_id 1) -> 3
+0005: jmp 7 if (variable_id 3)
+0006: halt
+0007: asn 4 ((current value) value)
+0008: trv value_source (variable_id 4)
+0009: asn 5 ((current value) value)
+0010: asn 1 (variable_id 5)
+0011: trv value_source (variable_id 1)
+0012: trv value_source (variable_id 2)
+0013: call 26
+0014: asn 6 ((current value) value)
+0015: asn 0 (variable_id 6)
+0016: trv value_source (variable_id 0)
+0017: asn 7 ((current value) value)
+0018: probe aggregate 24 8 record
+0019: yield literal string "out_def"
+0020: yield variable_id 1
+0021: yield literal string "in_def"
+0022: yield variable_id 0
+0023: halt
+0024: yield variable_id 8
+0025: halt
+0026: trv value_source ((current value) value)
+0027: trv descendant
+0028: rel equals ((current value) kind) (literal kind_id 1) -> 9
+0029: jmp 31 if (variable_id 9)
+0030: halt
+0031: asn 10 ((current value) value)
+0032: trv value_source (variable_id 10)
+0033: asn 11 ((current value) value)
+0034: yield variable_id 11
+0035: halt

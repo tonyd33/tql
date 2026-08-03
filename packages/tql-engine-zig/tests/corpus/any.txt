@@ -62,13 +62,13 @@ class Controller { baz() {}; }
 0029: trv value_source (variable_id 9)
 0030: rel equals (variable_id 11) (literal string "foo") -> 12
 0031: jmp 33 if not (variable_id 12)
-0032: yield
+0032: yield (current value) value
 0033: halt
 0034: trv value_source (variable_id 4)
 0035: jmp 37 if (literal bool true)
 0036: halt
 0037: trv value_source ((current value) value)
-0038: yield
+0038: yield variable_id 0
 0039: halt
 ================================================================================
 no match when predicate false for all elements
@@ -119,13 +119,13 @@ class Controller { baz() {}; }
 0029: trv value_source (variable_id 9)
 0030: rel equals (variable_id 11) (literal string "nonexistent") -> 12
 0031: jmp 33 if not (variable_id 12)
-0032: yield
+0032: yield (current value) value
 0033: halt
 0034: trv value_source (variable_id 4)
 0035: jmp 37 if (literal bool true)
 0036: halt
 0037: trv value_source ((current value) value)
-0038: yield
+0038: yield variable_id 0
 0039: halt
 ================================================================================
 matches when predicate true for later element only
@@ -191,13 +191,13 @@ class B { bar() {}; baz() {}; }
 0029: trv value_source (variable_id 9)
 0030: rel equals (variable_id 11) (literal string "foo") -> 12
 0031: jmp 33 if not (variable_id 12)
-0032: yield
+0032: yield (current value) value
 0033: halt
 0034: trv value_source (variable_id 4)
 0035: jmp 37 if (literal bool true)
 0036: halt
 0037: trv value_source ((current value) value)
-0038: yield
+0038: yield variable_id 0
 0039: halt
 ================================================================================
 predicate with regex match
@@ -263,13 +263,13 @@ class B { bar() {}; }
 0029: trv value_source (variable_id 9)
 0030: rel like (variable_id 11) (literal regex ...) -> 12
 0031: jmp 33 if not (variable_id 12)
-0032: yield
+0032: yield (current value) value
 0033: halt
 0034: trv value_source (variable_id 4)
 0035: jmp 37 if (literal bool true)
 0036: halt
 0037: trv value_source ((current value) value)
-0038: yield
+0038: yield variable_id 0
 0039: halt
 ================================================================================
 combined with and outside predicate
@@ -348,14 +348,14 @@ class Other { foo() {}; }
 0041: trv value_source (variable_id 15)
 0042: rel equals (variable_id 17) (literal string "foo") -> 18
 0043: jmp 45 if not (variable_id 18)
-0044: yield
+0044: yield (current value) value
 0045: halt
 0046: asn 5 (literal bool true)
 0047: trv value_source (variable_id 4)
 0048: jmp 50 if (variable_id 5)
 0049: halt
 0050: trv value_source ((current value) value)
-0051: yield
+0051: yield variable_id 0
 0052: halt
 ================================================================================
 regression for double yield with and and regex
@@ -452,7 +452,7 @@ class Foo3 {
 0046: jmp 48
 0047: asn 20 (literal bool false)
 0048: jmp 50 if not (variable_id 20)
-0049: yield
+0049: yield (current value) value
 0050: halt
 0051: asn 7 (literal bool true)
 0052: trv value_source (variable_id 6)
@@ -461,10 +461,10 @@ class Foo3 {
 0055: trv value_source ((current value) value)
 0056: asn 21 ((current value) value)
 0057: probe aggregate 61 22 record
-0058: yield
-0059: yield
+0058: yield literal string "class_name"
+0059: yield variable_id 0
 0060: halt
-0061: yield
+0061: yield variable_id 22
 0062: halt
 ================================================================================
 descendant navigation as source
@@ -527,13 +527,13 @@ class Controller { bar() {}; }
 0026: trv value_source (variable_id 8)
 0027: rel equals (variable_id 10) (literal string "foo") -> 11
 0028: jmp 30 if not (variable_id 11)
-0029: yield
+0029: yield (current value) value
 0030: halt
 0031: trv value_source (variable_id 4)
 0032: jmp 34 if (literal bool true)
 0033: halt
 0034: trv value_source ((current value) value)
-0035: yield
+0035: yield variable_id 0
 0036: halt
 ================================================================================
 child navigation in predicate comparison
@@ -610,13 +610,13 @@ class B { bar() {} }
 0040: jmp 42
 0041: asn 16 (literal bool false)
 0042: jmp 44 if not (variable_id 16)
-0043: yield
+0043: yield (current value) value
 0044: halt
 0045: trv value_source (variable_id 4)
 0046: jmp 48 if (literal bool true)
 0047: halt
 0048: trv value_source ((current value) value)
-0049: yield
+0049: yield variable_id 0
 0050: halt
 ================================================================================
 predicate with or over dot field access
@@ -710,13 +710,13 @@ class C { baz() {}; }
 0042: jmp 44
 0043: asn 9 (variable_id 14)
 0044: jmp 46 if not (variable_id 9)
-0045: yield
+0045: yield (current value) value
 0046: halt
 0047: trv value_source (variable_id 4)
 0048: jmp 50 if (literal bool true)
 0049: halt
 0050: trv value_source ((current value) value)
-0051: yield
+0051: yield variable_id 0
 0052: halt
 ================================================================================
 predicate with not equal null comparison
@@ -799,13 +799,13 @@ class Controller { baz() {}; }
 0032: jmp 34
 0033: asn 13 (literal bool false)
 0034: jmp 36 if not (variable_id 13)
-0035: yield
+0035: yield (current value) value
 0036: halt
 0037: trv value_source (variable_id 4)
 0038: jmp 40 if (literal bool true)
 0039: halt
 0040: trv value_source ((current value) value)
-0041: yield
+0041: yield variable_id 0
 0042: halt
 ================================================================================
 nested any over two sources
@@ -886,16 +886,16 @@ class B {}
 0043: asn 16 ((current value) value)
 0044: rel equals (variable_id 15) (variable_id 16) -> 17
 0045: jmp 47 if not (variable_id 17)
-0046: yield
+0046: yield (current value) value
 0047: halt
 0048: jmp 50 if not (literal bool true)
-0049: yield
+0049: yield (current value) value
 0050: halt
 0051: trv value_source (variable_id 4)
 0052: jmp 54 if (literal bool true)
 0053: halt
 0054: trv value_source ((current value) value)
-0055: yield
+0055: yield variable_id 0
 0056: halt
 ================================================================================
 matches when any method lacks a return type annotation
@@ -966,14 +966,14 @@ class Foo3 {}
 0024: probe nexists 29
 0025: trv field 33
 0026: asn 9 ((current value) value)
-0027: yield
+0027: yield (current value) value
 0028: halt
 0029: jmp 31 if not (literal bool true)
-0030: yield
+0030: yield (current value) value
 0031: halt
 0032: trv value_source (variable_id 4)
 0033: jmp 35 if (literal bool true)
 0034: halt
 0035: trv value_source ((current value) value)
-0036: yield
+0036: yield variable_id 0
 0037: halt

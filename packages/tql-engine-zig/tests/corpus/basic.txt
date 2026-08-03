@@ -54,7 +54,7 @@ function foo() {}
 0005: asn 1 ((current value) value)
 0006: trv value_source (variable_id 1)
 0007: asn 2 ((current value) value)
-0008: yield
+0008: yield variable_id 2
 0009: halt
 ================================================================================
 field access
@@ -116,7 +116,7 @@ class Controller {}
 0010: trv value_source (variable_id 0)
 0011: trv field 25
 0012: asn 4 ((current value) value)
-0013: yield
+0013: yield variable_id 4
 0014: halt
 ================================================================================
 identity is root
@@ -150,7 +150,7 @@ class Service {}
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)))
 --- bytecode ---
-0000: yield
+0000: yield (current value) value
 0001: halt
 ================================================================================
 identity after transform
@@ -210,7 +210,7 @@ class Controller {}
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
 0010: trv value_source (variable_id 0)
-0011: yield
+0011: yield (current value) value
 0012: halt
 ================================================================================
 child navigation
@@ -287,5 +287,5 @@ class Service {
 0023: asn 8 ((current value) value)
 0024: trv value_source (variable_id 8)
 0025: asn 9 ((current value) value)
-0026: yield
+0026: yield variable_id 9
 0027: halt

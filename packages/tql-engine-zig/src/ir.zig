@@ -120,7 +120,10 @@ pub const Instruction = union(enum) {
     pub fn print(self: Instruction, writer: *std.Io.Writer) !void {
         switch (self) {
             .noop => try writer.print("noop", .{}),
-            .yield => try writer.print("yield", .{}),
+            .yield => |y| {
+                try writer.print("yield ", .{});
+                try y.source.print(writer);
+            },
             .halt => try writer.print("halt", .{}),
             .trv => |t| {
                 try writer.print("trv ", .{});
