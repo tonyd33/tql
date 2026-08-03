@@ -1,0 +1,184 @@
+========================================
+simple union
+========================================
+
+@a <|> @b
+
+---
+
+(source_file
+  (expression
+    (union_expression
+      left: (expression
+        (variable
+          (identifier)))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+union is left associative
+========================================
+
+@a <|> @b <|> @c
+
+---
+
+(source_file
+  (expression
+    (union_expression
+      left: (expression
+        (union_expression
+          left: (expression
+            (variable
+              (identifier)))
+          right: (expression
+            (variable
+              (identifier)))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+union binds looser than pipe on the right
+========================================
+
+@a | @b <|> @c
+
+---
+
+(source_file
+  (expression
+    (union_expression
+      left: (expression
+        (pipe_expression
+          left: (expression
+            (variable
+              (identifier)))
+          right: (expression
+            (variable
+              (identifier)))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+union binds looser than pipe on the left
+========================================
+
+@a <|> @b | @c
+
+---
+
+(source_file
+  (expression
+    (union_expression
+      left: (expression
+        (variable
+          (identifier)))
+      right: (expression
+        (pipe_expression
+          left: (expression
+            (variable
+              (identifier)))
+          right: (expression
+            (variable
+              (identifier))))))))
+
+========================================
+union of navigations
+========================================
+
+. >> function_declaration <|> . >> variable_declarator
+
+---
+
+(source_file
+  (expression
+    (union_expression
+      left: (expression
+        (descendant_navigation
+          parent: (expression
+            (identity))
+          descendant: (node_selector
+            (identifier))))
+      right: (expression
+        (descendant_navigation
+          parent: (expression
+            (identity))
+          descendant: (node_selector
+            (identifier)))))))
+
+========================================
+parenthesized union
+========================================
+
+(@a <|> @b)
+
+---
+
+(source_file
+  (expression
+    (parenthesized
+      (expression
+        (union_expression
+          left: (expression
+            (variable
+              (identifier)))
+          right: (expression
+            (variable
+              (identifier))))))))
+
+========================================
+parenthesized union bound to a variable
+========================================
+
+(@a <|> @b) as @x
+
+---
+
+(source_file
+  (expression
+    (bind_expression
+      expression: (expression
+        (parenthesized
+          (expression
+            (union_expression
+              left: (expression
+                (variable
+                  (identifier)))
+              right: (expression
+                (variable
+                  (identifier)))))))
+      variable: (variable
+        (identifier)))))
+
+
+========================================
+union inside a function definition body
+========================================
+
+def f(@x): @x.name <|> @x.value;
+
+---
+
+(source_file
+  (function_definition
+    name: (identifier)
+    parameters: (def_parameters
+      (variable
+        (identifier)))
+    body: (expression
+      (union_expression
+        left: (expression
+          (field_access
+            base: (expression
+              (variable
+                (identifier)))
+            field: (identifier)))
+        right: (expression
+          (field_access
+            base: (expression
+              (variable
+                (identifier)))
+            field: (identifier)))))))

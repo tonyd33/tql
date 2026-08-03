@@ -312,6 +312,10 @@
           "named": true
         },
         {
+          "type": "union_expression",
+          "named": true
+        },
+        {
           "type": "variable",
           "named": true
         }
@@ -734,6 +738,32 @@
     }
   },
   {
+    "type": "union_expression",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "variable",
     "named": true,
     "fields": {},
@@ -790,6 +820,10 @@
   },
   {
     "type": ";",
+    "named": false
+  },
+  {
+    "type": "<|>",
     "named": false
   },
   {

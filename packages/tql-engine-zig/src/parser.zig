@@ -376,6 +376,10 @@ pub const Parser = struct {
             const pe = try self.allocator.create(ast.PipeExpression);
             pe.* = try self.parsePipeExpression(node, source);
             return .{ .pipe_expression = pe };
+        } else if (std.mem.eql(u8, node_type, "union_expression")) {
+            const ue = try self.allocator.create(ast.UnionExpression);
+            ue.* = try self.parseUnionExpression(node, source);
+            return .{ .union_expression = ue };
         } else if (std.mem.eql(u8, node_type, "comparison")) {
             const cmp = try self.allocator.create(ast.Comparison);
             cmp.* = try self.parseComparison(node, source);
@@ -598,6 +602,19 @@ pub const Parser = struct {
         const right = try self.parseExpression(right_node, source);
 
         return ast.PipeExpression{
+            .left = left,
+            .right = right,
+        };
+    }
+
+    fn parseUnionExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.UnionExpression {
+        const left_node = try expectChildByFieldName(node, "left");
+        const left = try self.parseExpression(left_node, source);
+
+        const right_node = try expectChildByFieldName(node, "right");
+        const right = try self.parseExpression(right_node, source);
+
+        return ast.UnionExpression{
             .left = left,
             .right = right,
         };

@@ -96,7 +96,7 @@ pub const Runtime = struct {
                 .list => |list| list.dereference(self.allocator),
                 .record => |rec| rec.rc.dereference(self.allocator),
             },
-            .passthrough, .call, .call_return => {},
+            .passthrough, .call, .yield_return, .alt => {},
         }
 
         self.stack.shrinkRetainingCapacity(self.stack.items.len - 1);
@@ -113,17 +113,17 @@ pub const Runtime = struct {
 
             switch (search_frame.boundary) {
                 // Regular yield effect handlers
-                .exists, .nexists, .aggregate, .call => return i,
+                .exists, .nexists, .aggregate, .call, .alt => return i,
                 // Special yield effect handling.
-                // The call_return frame had set up the index of the
+                // The yield_return frame had set up the index of the
                 // boundary that should handle the next effect.
                 // cf. `handleYield`
-                .call_return => |cr| {
-                    // call_boundary_idx is the index of the original call
-                    // frame. We want to jump to call_boundary_idx - 1, and the
+                .yield_return => |yr| {
+                    // boundary_idx is the index of the original generator
+                    // frame. We want to jump to boundary_idx - 1, and the
                     // beginning of the loop decrements i, so we have to set i
-                    // to call_boundary_idx here.
-                    i = cr.call_boundary_idx;
+                    // to boundary_idx here.
+                    i = yr.boundary_idx;
                 },
                 // No yield effect handling
                 .passthrough => {},
@@ -181,13 +181,40 @@ pub const Runtime = struct {
                     self.deinitFrame();
                     continue;
                 },
-                // A caller's continuation after a call/yield terminated.
+                // A caller's continuation after a generator yield terminated.
                 // The frame now exposed below did not itself terminate and may
                 // continue generating frames that may yield.
                 // cf. `handleYield`
-                .call_return => {
+                .yield_return => {
                     self.deinitFrame();
                     return;
+                },
+                .alt => |alt| switch (alt.phase) {
+                    .left => {
+                        const idx = self.stack.items.len - 1;
+                        const frame = &self.stack.items[idx];
+                        const caller = self.stack.items[idx - 1].state;
+
+                        frame.state.value.deinit(self.allocator);
+                        frame.state.environment.dereference(self.allocator);
+                        frame.state.value = caller.value.clone();
+                        frame.state.environment = try caller.environment.copy(self.allocator);
+                        frame.state.pc = alt.right_entry;
+                        if (frame.split) |*split| {
+                            split.iterator.deinit(self.allocator);
+                            frame.split = null;
+                        }
+                        frame.boundary = .{ .alt = .{
+                            .resume_address = alt.resume_address,
+                            .right_entry = alt.right_entry,
+                            .phase = .right,
+                        } };
+                        return;
+                    },
+                    .right => {
+                        self.deinitFrame();
+                        continue;
+                    },
                 },
             }
         }
@@ -275,7 +302,7 @@ pub const Runtime = struct {
             // | - | ------------ |
             // | . |      ...     |
             // | - | ------------ |
-            // | . | .call_return | <- 1b. place this frame now
+            // | . | .yield_return | <- 1b. place this frame now
             // | - | ------------ |
             // | . |  GENERATOR   | <- 1a. yield
             // | - | ------------ |
@@ -285,8 +312,8 @@ pub const Runtime = struct {
             // | - | ------------ |
             //
             // Upon the second yield and searching down the stack for a yield
-            // effect handler, the call_return frame is discovered and tells us
-            // to jump right underneath the call frame.
+            // effect handler, the yield_return frame is discovered and tells us
+            // to jump right underneath the generator frame.
             //
             // Now we consider branch termination:
             //
@@ -295,7 +322,7 @@ pub const Runtime = struct {
             // | - | ------------ |
             // | . |      ...     |
             // | - | ------------ |
-            // | . | .call_return | <- 1b. place this frame now
+            // | . | .yield_return | <- 1b. place this frame now
             // | - | ------------ |
             // | . |  GENERATOR   | <- 1a. yield; 3. resume here, continue generating
             // | - | ------------ |
@@ -316,7 +343,20 @@ pub const Runtime = struct {
                         .value = value.clone(),
                         .environment = continuation_env,
                     },
-                    .boundary = Boundary{ .call_return = .{ .call_boundary_idx = idx } },
+                    .boundary = Boundary{ .yield_return = .{ .boundary_idx = idx } },
+                });
+            },
+            .alt => |alt| {
+                const caller_env = self.stack.items[idx - 1].state.environment;
+                const continuation_env = try caller_env.copy(self.allocator);
+
+                try self.stack.append(self.allocator, Frame{
+                    .state = State{
+                        .pc = alt.resume_address,
+                        .value = value.clone(),
+                        .environment = continuation_env,
+                    },
+                    .boundary = Boundary{ .yield_return = .{ .boundary_idx = idx } },
                 });
             },
             else => unreachable,
@@ -577,6 +617,29 @@ pub const Runtime = struct {
                             .environment = env_copy_new_frame,
                         },
                         .boundary = Boundary{ .call = .{ .resume_address = resume_address } },
+                    });
+                },
+                .alt => |alt_inst| {
+                    frame.state.pc += 1;
+                    const resume_address = frame.state.pc;
+
+                    const old_env = frame.state.environment;
+                    const env_copy_old_frame = try old_env.copy(self.allocator);
+                    const env_copy_new_frame = try old_env.copy(self.allocator);
+                    frame.state.environment = env_copy_old_frame;
+                    old_env.dereference(self.allocator);
+
+                    try self.stack.append(self.allocator, Frame{
+                        .state = State{
+                            .pc = alt_inst.left_entry,
+                            .value = frame.state.value,
+                            .environment = env_copy_new_frame,
+                        },
+                        .boundary = Boundary{ .alt = .{
+                            .resume_address = resume_address,
+                            .right_entry = alt_inst.right_entry,
+                            .phase = .left,
+                        } },
                     });
                 },
                 .jmp => |jmp_inst| {
