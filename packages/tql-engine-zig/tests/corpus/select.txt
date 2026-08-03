@@ -55,7 +55,7 @@ class Controller {}
 0022: jmp 24 if (variable_id 9)
 0023: halt
 0024: trv value_source ((current value) value)
-0025: yield
+0025: yield variable_id 1
 0026: halt
 ================================================================================
 or logic
@@ -140,7 +140,7 @@ class Repository {}
 0033: jmp 35 if (variable_id 7)
 0034: halt
 0035: trv value_source ((current value) value)
-0036: yield
+0036: yield variable_id 1
 0037: halt
 ================================================================================
 and logic
@@ -235,7 +235,7 @@ class Controller { foo() {}; bar() {}; }
 0052: jmp 54 if (variable_id 15)
 0053: halt
 0054: trv value_source ((current value) value)
-0055: yield
+0055: yield variable_id 4
 0056: halt
 ================================================================================
 field access is null
@@ -285,13 +285,13 @@ function c(): string { return 'x'; }
 0012: trv value_source (variable_id 0)
 0013: trv field 33
 0014: asn 5 ((current value) value)
-0015: yield
+0015: yield (current value) value
 0016: halt
 0017: trv value_source (variable_id 4)
 0018: jmp 20 if (literal bool true)
 0019: halt
 0020: trv value_source ((current value) value)
-0021: yield
+0021: yield variable_id 0
 0022: halt
 ================================================================================
 field access is not null
@@ -355,13 +355,13 @@ function c(): string { return 'x'; }
 0012: trv value_source (variable_id 0)
 0013: trv field 33
 0014: asn 5 ((current value) value)
-0015: yield
+0015: yield (current value) value
 0016: halt
 0017: trv value_source (variable_id 4)
 0018: jmp 20 if (literal bool true)
 0019: halt
 0020: trv value_source ((current value) value)
-0021: yield
+0021: yield variable_id 0
 0022: halt
 ================================================================================
 not equal comparison
@@ -437,7 +437,7 @@ class Repository {}
 0024: jmp 26 if (variable_id 9)
 0025: halt
 0026: trv value_source ((current value) value)
-0027: yield
+0027: yield variable_id 0
 0028: halt
 ================================================================================
 same field accessed twice in or
@@ -524,5 +524,5 @@ class Repository {}
 0034: jmp 36 if (variable_id 5)
 0035: halt
 0036: trv value_source ((current value) value)
-0037: yield
+0037: yield variable_id 0
 0038: halt

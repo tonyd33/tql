@@ -64,10 +64,10 @@ class B { foo() {}; bar() {}; }
 0030: rel equals (variable_id 11) (literal string "foo") -> 12
 0031: jmp 33 if not (variable_id 12)
 0032: halt
-0033: yield
+0033: yield (current value) value
 0034: trv value_source (variable_id 4)
 0035: jmp 37 if (literal bool true)
 0036: halt
 0037: trv value_source ((current value) value)
-0038: yield
+0038: yield variable_id 0
 0039: halt

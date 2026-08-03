@@ -88,9 +88,9 @@ int main(void) { return 0; }
 0022: asn 8 ((current value) value)
 0023: trv value_source (variable_id 8)
 0024: asn 9 ((current value) value)
-0025: yield
+0025: yield variable_id 9
 0026: halt
-0027: yield
+0027: yield variable_id 4
 0028: halt
 ================================================================================
 subquery empty produces empty list
@@ -130,9 +130,9 @@ int add(int a, int b) { return a + b; }
 0016: asn 6 ((current value) value)
 0017: trv value_source (variable_id 6)
 0018: asn 7 ((current value) value)
-0019: yield
+0019: yield variable_id 7
 0020: halt
-0021: yield
+0021: yield variable_id 4
 0022: halt
 ================================================================================
 collect dot refers to piped-in value
@@ -253,16 +253,16 @@ int main(void) { return 0; }
 0019: asn 7 ((current value) value)
 0020: trv value_source (variable_id 7)
 0021: asn 8 ((current value) value)
-0022: yield
+0022: yield variable_id 8
 0023: halt
 0024: asn 9 (variable_id 5)
 0025: probe aggregate 31 10 record
-0026: yield
-0027: yield
-0028: yield
-0029: yield
+0026: yield literal string "fn"
+0027: yield variable_id 4
+0028: yield literal string "params"
+0029: yield variable_id 9
 0030: halt
-0031: yield
+0031: yield variable_id 10
 0032: halt
 ================================================================================
 subquery captures outer binding
@@ -396,16 +396,16 @@ int main(void) { return 0; }
 0029: asn 11 ((current value) value)
 0030: trv value_source (variable_id 11)
 0031: asn 12 ((current value) value)
-0032: yield
+0032: yield variable_id 12
 0033: halt
 0034: asn 13 (variable_id 8)
 0035: probe aggregate 41 14 record
-0036: yield
-0037: yield
-0038: yield
-0039: yield
+0036: yield literal string "name"
+0037: yield variable_id 7
+0038: yield literal string "params"
+0039: yield variable_id 13
 0040: halt
-0041: yield
+0041: yield variable_id 14
 0042: halt
 ================================================================================
 nested subquery
@@ -511,18 +511,18 @@ int add(int a, int b) { return a + b; }
 0029: asn 12 ((current value) value)
 0030: trv value_source (variable_id 12)
 0031: asn 13 ((current value) value)
-0032: yield
+0032: yield variable_id 13
 0033: halt
-0034: yield
+0034: yield variable_id 9
 0035: halt
 0036: asn 14 (variable_id 6)
 0037: probe aggregate 43 15 record
-0038: yield
-0039: yield
-0040: yield
-0041: yield
+0038: yield literal string "fn"
+0039: yield variable_id 5
+0040: yield literal string "param_lists"
+0041: yield variable_id 14
 0042: halt
-0043: yield
+0043: yield variable_id 15
 0044: halt
 ================================================================================
 subquery with where clause filters inner stream
@@ -660,16 +660,16 @@ int main(void) { return 0; }
 0043: jmp 45 if (variable_id 18)
 0044: halt
 0045: trv value_source ((current value) value)
-0046: yield
+0046: yield variable_id 8
 0047: halt
 0048: asn 19 (variable_id 6)
 0049: probe aggregate 55 20 record
-0050: yield
-0051: yield
-0052: yield
-0053: yield
+0050: yield literal string "fn"
+0051: yield variable_id 5
+0052: yield literal string "int_params"
+0053: yield variable_id 19
 0054: halt
-0055: yield
+0055: yield variable_id 20
 0056: halt
 ================================================================================
 subquery as binding produces list per outer fanout
@@ -796,7 +796,7 @@ int main(void) { return 0; }
 0022: asn 10 ((current value) value)
 0023: trv value_source (variable_id 10)
 0024: asn 11 ((current value) value)
-0025: yield
+0025: yield variable_id 11
 0026: halt
 0027: asn 1 (variable_id 7)
 0028: trv value_source (variable_id 1)
@@ -811,12 +811,12 @@ int main(void) { return 0; }
 0037: trv value_source (variable_id 13)
 0038: asn 15 (variable_id 1)
 0039: probe aggregate 45 16 record
-0040: yield
-0041: yield
-0042: yield
-0043: yield
+0040: yield literal string "name"
+0041: yield variable_id 14
+0042: yield literal string "param"
+0043: yield variable_id 15
 0044: halt
-0045: yield
+0045: yield variable_id 16
 0046: halt
 ================================================================================
 subquery binding without rebinding fans out (baseline)
@@ -967,10 +967,10 @@ int main(void) { return 0; }
 0034: trv value_source (variable_id 12)
 0035: asn 14 (variable_id 1)
 0036: probe aggregate 42 15 record
-0037: yield
-0038: yield
-0039: yield
-0040: yield
+0037: yield literal string "name"
+0038: yield variable_id 13
+0039: yield literal string "param"
+0040: yield variable_id 14
 0041: halt
-0042: yield
+0042: yield variable_id 15
 0043: halt

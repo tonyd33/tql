@@ -2,7 +2,6 @@ const re = @cImport({
     @cDefine("PCRE2_CODE_UNIT_WIDTH", "8");
     @cInclude("pcre2.h");
 });
-const PCRE2_ZERO_TERMINATED = ~@as(re.PCRE2_SIZE, 0);
 const std = @import("std");
 
 const PCRE2Error = error{PCRE2Unknown};
@@ -21,7 +20,7 @@ pub const Regex = struct {
         var errornumber: c_int = undefined;
         var erroroffset: re.PCRE2_SIZE = undefined;
 
-        const maybe_regex: ?*re.pcre2_code_8 = re.pcre2_compile_8(pattern, PCRE2_ZERO_TERMINATED, 0, &errornumber, &erroroffset, null);
+        const maybe_regex: ?*re.pcre2_code_8 = re.pcre2_compile_8(pattern, needle.len, 0, &errornumber, &erroroffset, null);
 
         // IMPROVE: Better error
         return if (maybe_regex) |regex| Self{ .regex = regex } else error.PCRE2Unknown;

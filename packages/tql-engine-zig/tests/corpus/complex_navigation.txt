@@ -62,7 +62,7 @@ class Service {
 0023: asn 9 ((current value) value)
 0024: asn 0 (variable_id 9)
 0025: trv value_source (variable_id 0)
-0026: yield
+0026: yield variable_id 0
 0027: halt
 ================================================================================
 field access on node selector
@@ -124,7 +124,7 @@ class Controller {}
 0008: trv value_source (variable_id 2)
 0009: trv field 25
 0010: asn 3 ((current value) value)
-0011: yield
+0011: yield variable_id 3
 0012: halt
 ================================================================================
 child navigation with field access parent
@@ -197,7 +197,7 @@ class Service {
 0018: asn 6 ((current value) value)
 0019: trv value_source (variable_id 6)
 0020: asn 7 ((current value) value)
-0021: yield
+0021: yield variable_id 7
 0022: halt
 ================================================================================
 child navigation on node selector
@@ -286,7 +286,7 @@ class Controller {
 0016: asn 5 ((current value) value)
 0017: trv value_source (variable_id 5)
 0018: asn 6 ((current value) value)
-0019: yield
+0019: yield variable_id 6
 0020: halt
 ================================================================================
 descendant navigation with field access parent
@@ -359,7 +359,7 @@ class Service {
 0018: asn 6 ((current value) value)
 0019: trv value_source (variable_id 6)
 0020: asn 7 ((current value) value)
-0021: yield
+0021: yield variable_id 7
 0022: halt
 ================================================================================
 descendant navigation on node selector
@@ -429,7 +429,7 @@ class Controller {
 0013: asn 4 ((current value) value)
 0014: trv value_source (variable_id 4)
 0015: asn 5 ((current value) value)
-0016: yield
+0016: yield variable_id 5
 0017: halt
 ================================================================================
 nested child navigation
@@ -509,5 +509,5 @@ class Service {
 0023: asn 8 ((current value) value)
 0024: trv value_source (variable_id 8)
 0025: asn 9 ((current value) value)
-0026: yield
+0026: yield variable_id 9
 0027: halt

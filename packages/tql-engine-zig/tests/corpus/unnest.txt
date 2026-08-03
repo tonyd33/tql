@@ -134,7 +134,7 @@ int main(void) { return 0; }
 0022: asn 10 ((current value) value)
 0023: trv value_source (variable_id 10)
 0024: asn 11 ((current value) value)
-0025: yield
+0025: yield variable_id 11
 0026: halt
 0027: trv elements (variable_id 7)
 0028: asn 12 ((current value) value)
@@ -151,12 +151,12 @@ int main(void) { return 0; }
 0039: trv value_source (variable_id 14)
 0040: asn 16 (variable_id 1)
 0041: probe aggregate 47 17 record
-0042: yield
-0043: yield
-0044: yield
-0045: yield
+0042: yield literal string "name"
+0043: yield variable_id 15
+0044: yield literal string "param"
+0045: yield variable_id 16
 0046: halt
-0047: yield
+0047: yield variable_id 17
 0048: halt
 ================================================================================
 unnest restores fanout from subquery binding with inner binds
@@ -299,7 +299,7 @@ int main(void) { return 0; }
 0024: asn 11 ((current value) value)
 0025: trv value_source (variable_id 11)
 0026: asn 12 ((current value) value)
-0027: yield
+0027: yield variable_id 12
 0028: halt
 0029: trv elements (variable_id 7)
 0030: asn 13 ((current value) value)
@@ -316,12 +316,12 @@ int main(void) { return 0; }
 0041: trv value_source (variable_id 15)
 0042: asn 17 (variable_id 1)
 0043: probe aggregate 49 18 record
-0044: yield
-0045: yield
-0046: yield
-0047: yield
+0044: yield literal string "name"
+0045: yield variable_id 16
+0046: yield literal string "param"
+0047: yield variable_id 17
 0048: halt
-0049: yield
+0049: yield variable_id 18
 0050: halt
 ================================================================================
 unnest on empty subquery drops branch
@@ -360,7 +360,7 @@ int add(int a, int b) { return a + b; }
 0016: asn 7 ((current value) value)
 0017: trv value_source (variable_id 7)
 0018: asn 8 ((current value) value)
-0019: yield
+0019: yield variable_id 8
 0020: halt
 0021: trv elements (variable_id 5)
 0022: asn 9 ((current value) value)
@@ -372,12 +372,12 @@ int add(int a, int b) { return a + b; }
 0028: trv value_source (variable_id 10)
 0029: asn 12 (variable_id 0)
 0030: probe aggregate 36 13 record
-0031: yield
-0032: yield
-0033: yield
-0034: yield
+0031: yield literal string "fn"
+0032: yield variable_id 11
+0033: yield literal string "g"
+0034: yield variable_id 12
 0035: halt
-0036: yield
+0036: yield variable_id 13
 0037: halt
 ================================================================================
 unnest of singleton list yields one fanout
@@ -443,7 +443,7 @@ int add(int a, int b) { return a + b; }
 0011: trv value_source (variable_id 1)
 0012: trv field 10
 0013: asn 6 ((current value) value)
-0014: yield
+0014: yield variable_id 6
 0015: halt
 0016: trv elements (variable_id 5)
 0017: asn 7 ((current value) value)
@@ -451,12 +451,12 @@ int add(int a, int b) { return a + b; }
 0019: trv value_source (variable_id 0)
 0020: asn 8 ((current value) value)
 0021: probe aggregate 27 9 record
-0022: yield
-0023: yield
-0024: yield
-0025: yield
+0022: yield literal string "func"
+0023: yield variable_id 1
+0024: yield literal string "d"
+0025: yield variable_id 0
 0026: halt
-0027: yield
+0027: yield variable_id 9
 0028: halt
 ================================================================================
 unnest chained twice over same bound list produces cross product
@@ -607,7 +607,7 @@ int main(void) { return 0; }
 0006: asn 5 ((current value) value)
 0007: trv value_source (variable_id 5)
 0008: asn 6 ((current value) value)
-0009: yield
+0009: yield variable_id 6
 0010: halt
 0011: asn 2 (variable_id 3)
 0012: trv value_source (variable_id 2)
@@ -625,10 +625,10 @@ int main(void) { return 0; }
 0024: trv value_source (variable_id 9)
 0025: asn 11 (variable_id 0)
 0026: probe aggregate 32 12 record
-0027: yield
-0028: yield
-0029: yield
-0030: yield
+0027: yield literal string "first"
+0028: yield variable_id 10
+0029: yield literal string "second"
+0030: yield variable_id 11
 0031: halt
-0032: yield
+0032: yield variable_id 12
 0033: halt

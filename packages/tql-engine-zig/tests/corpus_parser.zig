@@ -371,7 +371,7 @@ fn emitSectionWithGap(
     // emit the gap (marker line + any inter-section bytes)
     const gap = source[cursor..section.start];
     try buf.appendSlice(allocator, gap);
-    const marker_present = std.mem.endsWith(u8, source[0..section.start], kind.marker());
+    const marker_present = std.mem.endsWith(u8, std.mem.trimEnd(u8, gap, "\n"), kind.marker());
     if (new_content) |nc| {
         if (section.content.len == 0) {
             if (!marker_present) {

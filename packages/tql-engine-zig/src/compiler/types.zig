@@ -4,7 +4,8 @@ pub const CompilerError = error{
     UnresolvedLabel,
     InvalidLabelReference,
     InvalidVariableReference,
-    InvalidUnnestArgument,
+    InvalidArguments,
     InvalidGuardExpression,
     ProgrammerDumb,
+    DuplicateFunctionDefinition,
 };
