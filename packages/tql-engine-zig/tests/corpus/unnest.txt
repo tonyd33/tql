@@ -122,39 +122,42 @@ int main(void) { return 0; }
 0010: asn 6 ((current value) value)
 0011: asn 2 (variable_id 6)
 0012: trv value_source (variable_id 2)
-0013: trv value_source (variable_id 2)
-0014: trv field 28
-0015: asn 7 ((current value) value)
-0016: trv value_source (variable_id 7)
-0017: trv child
-0018: rel equals ((current value) kind) (literal kind_id 260) -> 8
-0019: jmp 21 if (variable_id 8)
-0020: halt
-0021: asn 9 ((current value) value)
-0022: trv value_source (variable_id 9)
-0023: asn 10 ((current value) value)
-0024: trv value_source (variable_id 10)
-0025: asn 11 ((current value) value)
-0026: asn 1 (variable_id 11)
-0027: trv value_source (variable_id 1)
-0028: trv value_source (variable_id 2)
-0029: trv field 10
-0030: asn 12 ((current value) value)
-0031: asn 0 (variable_id 12)
-0032: trv value_source (variable_id 0)
+0013: probe aggregate 27 7 list
+0014: trv value_source (variable_id 2)
+0015: trv field 28
+0016: asn 8 ((current value) value)
+0017: trv value_source (variable_id 8)
+0018: trv child
+0019: rel equals ((current value) kind) (literal kind_id 260) -> 9
+0020: jmp 22 if (variable_id 9)
+0021: halt
+0022: asn 10 ((current value) value)
+0023: trv value_source (variable_id 10)
+0024: asn 11 ((current value) value)
+0025: yield
+0026: halt
+0027: trv elements (variable_id 7)
+0028: asn 12 ((current value) value)
+0029: asn 1 (variable_id 12)
+0030: trv value_source (variable_id 1)
+0031: trv value_source (variable_id 2)
+0032: trv field 10
 0033: asn 13 ((current value) value)
-0034: trv value_source (variable_id 13)
-0035: asn 14 (variable_id 0)
-0036: trv value_source (variable_id 13)
-0037: asn 15 (variable_id 1)
-0038: probe aggregate 44 16 record
-0039: yield
-0040: yield
-0041: yield
+0034: asn 0 (variable_id 13)
+0035: trv value_source (variable_id 0)
+0036: asn 14 ((current value) value)
+0037: trv value_source (variable_id 14)
+0038: asn 15 (variable_id 0)
+0039: trv value_source (variable_id 14)
+0040: asn 16 (variable_id 1)
+0041: probe aggregate 47 17 record
 0042: yield
-0043: halt
+0043: yield
 0044: yield
-0045: halt
+0045: yield
+0046: halt
+0047: yield
+0048: halt
 ================================================================================
 unnest restores fanout from subquery binding with inner binds
 ================================================================================
@@ -282,41 +285,44 @@ int main(void) { return 0; }
 0010: asn 6 ((current value) value)
 0011: asn 2 (variable_id 6)
 0012: trv value_source (variable_id 2)
-0013: trv value_source (variable_id 2)
-0014: trv field 28
-0015: asn 8 ((current value) value)
-0016: asn 7 (variable_id 8)
-0017: trv value_source (variable_id 7)
-0018: trv value_source (variable_id 7)
-0019: trv child
-0020: rel equals ((current value) kind) (literal kind_id 260) -> 9
-0021: jmp 23 if (variable_id 9)
-0022: halt
-0023: asn 10 ((current value) value)
-0024: trv value_source (variable_id 10)
-0025: asn 11 ((current value) value)
-0026: trv value_source (variable_id 11)
-0027: asn 12 ((current value) value)
-0028: asn 1 (variable_id 12)
-0029: trv value_source (variable_id 1)
-0030: trv value_source (variable_id 2)
-0031: trv field 10
-0032: asn 13 ((current value) value)
-0033: asn 0 (variable_id 13)
-0034: trv value_source (variable_id 0)
+0013: probe aggregate 29 7 list
+0014: trv value_source (variable_id 2)
+0015: trv field 28
+0016: asn 9 ((current value) value)
+0017: asn 8 (variable_id 9)
+0018: trv value_source (variable_id 8)
+0019: trv value_source (variable_id 8)
+0020: trv child
+0021: rel equals ((current value) kind) (literal kind_id 260) -> 10
+0022: jmp 24 if (variable_id 10)
+0023: halt
+0024: asn 11 ((current value) value)
+0025: trv value_source (variable_id 11)
+0026: asn 12 ((current value) value)
+0027: yield
+0028: halt
+0029: trv elements (variable_id 7)
+0030: asn 13 ((current value) value)
+0031: asn 1 (variable_id 13)
+0032: trv value_source (variable_id 1)
+0033: trv value_source (variable_id 2)
+0034: trv field 10
 0035: asn 14 ((current value) value)
-0036: trv value_source (variable_id 14)
-0037: asn 15 (variable_id 0)
-0038: trv value_source (variable_id 14)
-0039: asn 16 (variable_id 1)
-0040: probe aggregate 46 17 record
-0041: yield
-0042: yield
-0043: yield
+0036: asn 0 (variable_id 14)
+0037: trv value_source (variable_id 0)
+0038: asn 15 ((current value) value)
+0039: trv value_source (variable_id 15)
+0040: asn 16 (variable_id 0)
+0041: trv value_source (variable_id 15)
+0042: asn 17 (variable_id 1)
+0043: probe aggregate 49 18 record
 0044: yield
-0045: halt
+0045: yield
 0046: yield
-0047: halt
+0047: yield
+0048: halt
+0049: yield
+0050: halt
 ================================================================================
 unnest on empty subquery drops branch
 ================================================================================
@@ -345,31 +351,34 @@ int add(int a, int b) { return a + b; }
 0007: asn 4 ((current value) value)
 0008: asn 1 (variable_id 4)
 0009: trv value_source (variable_id 1)
-0010: trv value_source (variable_id 1)
-0011: trv child
-0012: rel equals ((current value) kind) (literal kind_id 278) -> 5
-0013: jmp 15 if (variable_id 5)
-0014: halt
-0015: asn 6 ((current value) value)
-0016: trv value_source (variable_id 6)
-0017: asn 7 ((current value) value)
-0018: trv value_source (variable_id 7)
-0019: asn 8 ((current value) value)
-0020: asn 0 (variable_id 8)
-0021: trv value_source (variable_id 0)
+0010: probe aggregate 21 5 list
+0011: trv value_source (variable_id 1)
+0012: trv child
+0013: rel equals ((current value) kind) (literal kind_id 278) -> 6
+0014: jmp 16 if (variable_id 6)
+0015: halt
+0016: asn 7 ((current value) value)
+0017: trv value_source (variable_id 7)
+0018: asn 8 ((current value) value)
+0019: yield
+0020: halt
+0021: trv elements (variable_id 5)
 0022: asn 9 ((current value) value)
-0023: trv value_source (variable_id 9)
-0024: asn 10 (variable_id 1)
-0025: trv value_source (variable_id 9)
-0026: asn 11 (variable_id 0)
-0027: probe aggregate 33 12 record
-0028: yield
-0029: yield
-0030: yield
+0023: asn 0 (variable_id 9)
+0024: trv value_source (variable_id 0)
+0025: asn 10 ((current value) value)
+0026: trv value_source (variable_id 10)
+0027: asn 11 (variable_id 1)
+0028: trv value_source (variable_id 10)
+0029: asn 12 (variable_id 0)
+0030: probe aggregate 36 13 record
 0031: yield
-0032: halt
+0032: yield
 0033: yield
-0034: halt
+0034: yield
+0035: halt
+0036: yield
+0037: halt
 ================================================================================
 unnest of singleton list yields one fanout
 ================================================================================
@@ -430,19 +439,196 @@ int add(int a, int b) { return a + b; }
 0007: asn 4 ((current value) value)
 0008: asn 1 (variable_id 4)
 0009: trv value_source (variable_id 1)
-0010: trv value_source (variable_id 1)
-0011: trv field 10
-0012: asn 5 ((current value) value)
-0013: trv value_source (variable_id 5)
-0014: asn 6 ((current value) value)
-0015: asn 0 (variable_id 6)
-0016: trv value_source (variable_id 0)
+0010: probe aggregate 16 5 list
+0011: trv value_source (variable_id 1)
+0012: trv field 10
+0013: asn 6 ((current value) value)
+0014: yield
+0015: halt
+0016: trv elements (variable_id 5)
 0017: asn 7 ((current value) value)
-0018: probe aggregate 24 8 record
-0019: yield
-0020: yield
-0021: yield
+0018: asn 0 (variable_id 7)
+0019: trv value_source (variable_id 0)
+0020: asn 8 ((current value) value)
+0021: probe aggregate 27 9 record
 0022: yield
-0023: halt
+0023: yield
 0024: yield
-0025: halt
+0025: yield
+0026: halt
+0027: yield
+0028: halt
+================================================================================
+unnest chained twice over same bound list produces cross product
+================================================================================
+grammar: c
+--- tql ---
+[. > function_definition] as @fns |
+unnest(@fns) as @a |
+unnest(@fns) as @b |
+{ first: @a, second: @b }
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+--- values ---
+[
+  {
+    "first": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "second": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    }
+  },
+  {
+    "first": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "second": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    }
+  },
+  {
+    "first": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    },
+    "second": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    }
+  },
+  {
+    "first": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    },
+    "second": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    }
+  }
+]
+--- tql tree ---
+(source_file (pipe (bind (pipe (bind (pipe (bind (collect (child . (node function_definition))) fns) (call unnest fns)) a) (call unnest fns)) b) (object (first a) (second b))))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
+--- bytecode ---
+0000: probe aggregate 11 3 list
+0001: trv value_source ((current value) value)
+0002: trv child
+0003: rel equals ((current value) kind) (literal kind_id 196) -> 4
+0004: jmp 6 if (variable_id 4)
+0005: halt
+0006: asn 5 ((current value) value)
+0007: trv value_source (variable_id 5)
+0008: asn 6 ((current value) value)
+0009: yield
+0010: halt
+0011: asn 2 (variable_id 3)
+0012: trv value_source (variable_id 2)
+0013: trv elements (variable_id 2)
+0014: asn 7 ((current value) value)
+0015: asn 1 (variable_id 7)
+0016: trv value_source (variable_id 1)
+0017: trv elements (variable_id 2)
+0018: asn 8 ((current value) value)
+0019: asn 0 (variable_id 8)
+0020: trv value_source (variable_id 0)
+0021: asn 9 ((current value) value)
+0022: trv value_source (variable_id 9)
+0023: asn 10 (variable_id 1)
+0024: trv value_source (variable_id 9)
+0025: asn 11 (variable_id 0)
+0026: probe aggregate 32 12 record
+0027: yield
+0028: yield
+0029: yield
+0030: yield
+0031: halt
+0032: yield
+0033: halt

@@ -23,6 +23,7 @@ const FieldIterator = rt.FieldIterator;
 const DescendantIterator = rt.DescendantIterator;
 const SplitIterator = rt.SplitIterator;
 const SingletonIterator = rt.SingletonIterator;
+const ListIterator = rt.ListIterator;
 const Record = rt.Record;
 const List = rt.List;
 const Environment = rt.Environment;
@@ -86,7 +87,7 @@ pub const Runtime = struct {
         frame.state.environment.dereference(self.allocator);
 
         if (frame.split) |*split| {
-            split.iterator.deinit();
+            split.iterator.deinit(self.allocator);
         }
 
         switch (frame.boundary) {
@@ -429,6 +430,14 @@ pub const Runtime = struct {
                             break :blk .{ .singleton = SingletonIterator.init(
                                 if (value == .nothing) null else value,
                             ) };
+                        },
+                        .elements => |vs| blk: {
+                            const value = try self.getSource(frame.state, vs);
+                            break :blk switch (value) {
+                                .list => |l| .{ .list = ListIterator{ .list = l.reference() } },
+                                .nothing => .{ .singleton = SingletonIterator.init(null) },
+                                else => return error.UnexpectedType,
+                            };
                         },
                     };
 
