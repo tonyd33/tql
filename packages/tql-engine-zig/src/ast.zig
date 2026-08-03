@@ -171,6 +171,19 @@ pub const PipeExpression = struct {
     }
 };
 
+pub const UnionExpression = struct {
+    left: Expression,
+    right: Expression,
+
+    pub fn sexpr(self: UnionExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(union ");
+        try self.left.sexpr(w);
+        try w.writeByte(' ');
+        try self.right.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
 // ============================================================================
 // Navigation
 // ============================================================================
@@ -352,6 +365,7 @@ pub const Expression = union(enum) {
     collect_expression: *Expression,
     bind_expression: *BindExpression,
     pipe_expression: *PipeExpression,
+    union_expression: *UnionExpression,
     // Boolean/guard expressions (formerly Predicate variants)
     comparison: *Comparison,
     is_null: *IsNullExpr,
@@ -418,6 +432,11 @@ pub const Expression = union(enum) {
                 pe.right.deinit(allocator);
                 allocator.destroy(pe);
             },
+            .union_expression => |ue| {
+                ue.left.deinit(allocator);
+                ue.right.deinit(allocator);
+                allocator.destroy(ue);
+            },
             .comparison => |c| {
                 c.left.deinit(allocator);
                 c.right.deinit(allocator);
@@ -473,6 +492,7 @@ pub const Expression = union(enum) {
             },
             .bind_expression => |be| try be.sexpr(w),
             .pipe_expression => |pe| try pe.sexpr(w),
+            .union_expression => |ue| try ue.sexpr(w),
             .comparison => |c| {
                 try w.print("({s} ", .{@tagName(c.operator)});
                 try c.left.sexpr(w);

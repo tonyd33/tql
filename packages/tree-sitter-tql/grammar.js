@@ -13,11 +13,12 @@ const PREC = {
   field: 17,
 
   pipe: 11,
-  comparison: 10,
-  not: 9,
-  and: 8,
-  or: 7,
+  comparison: 9,
+  not: 8,
+  and: 7,
+  or: 6,
   bind: 3,
+  union: 2,
 };
 
 module.exports = grammar({
@@ -72,6 +73,7 @@ module.exports = grammar({
         $.parenthesized,
         $.bind_expression,
         $.pipe_expression,
+        $.union_expression,
         $.comparison,
         $.is_null_expr,
         $.logical_and,
@@ -94,6 +96,12 @@ module.exports = grammar({
       prec.left(
         PREC.pipe,
         seq(field("left", $.expression), "|", field("right", $.expression)),
+      ),
+
+    union_expression: $ =>
+      prec.left(
+        PREC.union,
+        seq(field("left", $.expression), "<|>", field("right", $.expression)),
       ),
 
     identity: _ => token("."),

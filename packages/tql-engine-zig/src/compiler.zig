@@ -320,6 +320,28 @@ pub const Compiler = struct {
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = lv } });
                 return self.compileExpression(ns, pe.right);
             },
+            .union_expression => |ue| {
+                const left_label = self.instruction_builder.createLabel();
+                const right_label = self.instruction_builder.createLabel();
+                const end_label = self.instruction_builder.createLabel();
+
+                try self.instruction_builder.emitAlt(left_label, right_label);
+                const vs = try self.bindValue();
+                try self.instruction_builder.emitJump(end_label);
+
+                try self.instruction_builder.markLabel(left_label);
+                const lv = try self.compileExpression(ns, ue.left);
+                try self.instruction_builder.emit(.{ .yield = .{ .source = lv } });
+                try self.instruction_builder.emit(.halt);
+
+                try self.instruction_builder.markLabel(right_label);
+                const rv = try self.compileExpression(ns, ue.right);
+                try self.instruction_builder.emit(.{ .yield = .{ .source = rv } });
+                try self.instruction_builder.emit(.halt);
+
+                try self.instruction_builder.markLabel(end_label);
+                return vs;
+            },
             .child_navigation => |cn| {
                 const parent = try self.compileExpression(ns, cn.parent);
                 try self.instruction_builder.emit(.{ .trv = .{ .value_source = parent } });

@@ -109,6 +109,10 @@ pub const Instruction = union(enum) {
         data: ProbeData,
     },
     call: Address,
+    alt: struct {
+        left_entry: Address,
+        right_entry: Address,
+    },
     jmp: struct {
         address: Address,
         /// When set, jump is conditional: taken iff source resolves to Value.bool == !negate.
@@ -165,6 +169,7 @@ pub const Instruction = union(enum) {
                 .aggregate => |a| try writer.print("probe aggregate {} {} {s}", .{ p.resume_address, a.variable, @tagName(a.kind) }),
             },
             .call => |c| try writer.print("call {}", .{c}),
+            .alt => |a| try writer.print("alt {} {}", .{ a.left_entry, a.right_entry }),
             .jmp => |j| if (j.source) |vs| {
                 try writer.print("jmp {} if{s} (", .{ j.address, if (j.negate) " not" else "" });
                 try vs.print(writer);

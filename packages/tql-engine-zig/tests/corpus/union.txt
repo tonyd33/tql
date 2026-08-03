@@ -1,0 +1,425 @@
+================================================================================
+union of two literals
+================================================================================
+grammar: typescript
+
+--- tql ---
+1 <|> 2
+--- source ---
+const x = 1;
+--- values ---
+[
+  1,
+  2
+]
+
+--- tql tree ---
+(source_file (union (number 1) (number 2)))
+--- source tree ---
+(program (lexical_declaration (variable_declarator name: (identifier) value: (number))))
+--- bytecode ---
+0000: alt 3 5
+0001: asn 0 ((current value) value)
+0002: jmp 7
+0003: yield literal uint 1
+0004: halt
+0005: yield literal uint 2
+0006: halt
+0007: yield variable_id 0
+0008: halt
+================================================================================
+union of two disjoint navigations, both non-empty
+================================================================================
+grammar: typescript
+
+--- tql ---
+(. >> function_declaration | text) <|> (. >> class_declaration | text)
+--- source ---
+function foo() {}
+class Bar {}
+--- values ---
+[
+  "function foo() {}",
+  "class Bar {}"
+]
+
+--- tql tree ---
+(source_file (union (paren (pipe (descendant . (node function_declaration)) (call text))) (paren (pipe (descendant . (node class_declaration)) (call text)))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 221) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt
+================================================================================
+union left branch empty, right branch fans out
+================================================================================
+grammar: typescript
+
+--- tql ---
+. >> interface_declaration | text <|> . >> function_declaration | text
+--- source ---
+function foo() {}
+function bar() {}
+--- values ---
+[
+  "function foo() {}",
+  "function bar() {}"
+]
+
+--- tql tree ---
+(source_file (union (pipe (descendant . (node interface_declaration)) (call text)) (pipe (descendant . (node function_declaration)) (call text))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 288) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 224) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt
+================================================================================
+union right branch empty, left branch fans out
+================================================================================
+grammar: typescript
+
+--- tql ---
+(. >> function_declaration | text) <|> (. >> interface_declaration | text)
+--- source ---
+function foo() {}
+function bar() {}
+--- values ---
+[
+  "function foo() {}",
+  "function bar() {}"
+]
+
+--- tql tree ---
+(source_file (union (paren (pipe (descendant . (node function_declaration)) (call text))) (paren (pipe (descendant . (node interface_declaration)) (call text)))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 288) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt
+================================================================================
+union both branches empty
+================================================================================
+grammar: typescript
+
+--- tql ---
+(. >> interface_declaration | text) <|> (. >> type_alias_declaration | text)
+--- source ---
+function foo() {}
+--- values ---
+[]
+
+--- tql tree ---
+(source_file (union (paren (pipe (descendant . (node interface_declaration)) (call text))) (paren (pipe (descendant . (node type_alias_declaration)) (call text)))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 288) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 293) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt
+================================================================================
+chained union is left associative and flattens
+================================================================================
+grammar: typescript
+
+--- tql ---
+1 <|> 2 <|> 3
+--- source ---
+const x = 1;
+--- values ---
+[
+  1,
+  2,
+  3
+]
+
+--- tql tree ---
+(source_file (union (union (number 1) (number 2)) (number 3)))
+--- source tree ---
+(program (lexical_declaration (variable_declarator name: (identifier) value: (number))))
+--- bytecode ---
+0000: alt 3 12
+0001: asn 0 ((current value) value)
+0002: jmp 14
+0003: alt 6 8
+0004: asn 1 ((current value) value)
+0005: jmp 10
+0006: yield literal uint 1
+0007: halt
+0008: yield literal uint 2
+0009: halt
+0010: yield variable_id 1
+0011: halt
+0012: yield literal uint 3
+0013: halt
+0014: yield variable_id 0
+0015: halt
+================================================================================
+union nested inside select(any(...))
+================================================================================
+grammar: typescript
+
+--- tql ---
+. >> function_declaration as @f | select(any(@f >> identifier; (text = 'foo') <|> (text = 'bar'))) | text
+--- source ---
+function foo() {}
+function bar() {}
+function baz() {}
+--- values ---
+[
+  "function foo() {}",
+  "function bar() {}"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (descendant . (node function_declaration)) f) (call select (call any (descendant f (node identifier)) (union (paren (eq (call text) (string "foo"))) (paren (eq (call text) (string "bar"))))))) (call text)))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 39
+0012: trv value_source (variable_id 0)
+0013: trv descendant
+0014: rel equals ((current value) kind) (literal kind_id 1) -> 5
+0015: jmp 17 if (variable_id 5)
+0016: halt
+0017: asn 6 ((current value) value)
+0018: trv value_source (variable_id 6)
+0019: asn 7 ((current value) value)
+0020: trv value_source (variable_id 7)
+0021: alt 24 30
+0022: asn 8 ((current value) value)
+0023: jmp 36
+0024: asn 9 ((current value) value)
+0025: asn 10 ((current value) text)
+0026: trv value_source (variable_id 9)
+0027: rel equals (variable_id 10) (literal string "foo") -> 11
+0028: yield variable_id 11
+0029: halt
+0030: asn 12 ((current value) value)
+0031: asn 13 ((current value) text)
+0032: trv value_source (variable_id 12)
+0033: rel equals (variable_id 13) (literal string "bar") -> 14
+0034: yield variable_id 14
+0035: halt
+0036: jmp 38 if not (variable_id 8)
+0037: yield (current value) value
+0038: halt
+0039: trv value_source (variable_id 4)
+0040: jmp 42 if (literal bool true)
+0041: halt
+0042: trv value_source ((current value) value)
+0043: yield (current value) text
+0044: halt
+================================================================================
+union nested inside collect_expression
+================================================================================
+grammar: typescript
+
+--- tql ---
+[(. >> function_declaration | text) <|> (. >> class_declaration | text)]
+--- source ---
+function foo() {}
+class Bar {}
+--- values ---
+[
+  [
+    "function foo() {}",
+    "class Bar {}"
+  ]
+]
+
+--- tql tree ---
+(source_file (collect (union (paren (pipe (descendant . (node function_declaration)) (call text))) (paren (pipe (descendant . (node class_declaration)) (call text))))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: probe aggregate 28 0 list
+0001: alt 4 15
+0002: asn 1 ((current value) value)
+0003: jmp 26
+0004: trv value_source ((current value) value)
+0005: trv descendant
+0006: rel equals ((current value) kind) (literal kind_id 224) -> 2
+0007: jmp 9 if (variable_id 2)
+0008: halt
+0009: asn 3 ((current value) value)
+0010: trv value_source (variable_id 3)
+0011: asn 4 ((current value) value)
+0012: trv value_source (variable_id 4)
+0013: yield (current value) text
+0014: halt
+0015: trv value_source ((current value) value)
+0016: trv descendant
+0017: rel equals ((current value) kind) (literal kind_id 221) -> 5
+0018: jmp 20 if (variable_id 5)
+0019: halt
+0020: asn 6 ((current value) value)
+0021: trv value_source (variable_id 6)
+0022: asn 7 ((current value) value)
+0023: trv value_source (variable_id 7)
+0024: yield (current value) text
+0025: halt
+0026: yield variable_id 1
+0027: halt
+0028: yield variable_id 0
+0029: halt
+================================================================================
+union of fanning-out branches produces cross-flattened results
+================================================================================
+grammar: typescript
+
+--- tql ---
+(. >> function_declaration | text) <|> (. >> variable_declarator | text)
+--- source ---
+function foo() {}
+function bar() {}
+const x = 1;
+const y = 2;
+--- values ---
+[
+  "function foo() {}",
+  "function bar() {}",
+  "x = 1",
+  "y = 2"
+]
+--- tql tree ---
+(source_file (union (paren (pipe (descendant . (node function_declaration)) (call text))) (paren (pipe (descendant . (node variable_declarator)) (call text)))))
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (lexical_declaration (variable_declarator name: (identifier) value: (number))) (lexical_declaration (variable_declarator name: (identifier) value: (number))))
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 185) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt

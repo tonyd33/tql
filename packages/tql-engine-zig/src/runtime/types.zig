@@ -203,8 +203,13 @@ pub const Boundary = union(enum) {
     call: struct {
         resume_address: ir.Address,
     },
-    call_return: struct {
-        call_boundary_idx: usize,
+    yield_return: struct {
+        boundary_idx: usize,
+    },
+    alt: struct {
+        resume_address: ir.Address,
+        right_entry: ir.Address,
+        phase: enum { left, right },
     },
 };
 

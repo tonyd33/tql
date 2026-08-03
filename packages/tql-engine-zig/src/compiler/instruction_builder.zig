@@ -11,10 +11,18 @@ const Relation = ir.Relation;
 
 const LabelId = u32;
 
+// FIXME: this is scuffed and only exists because alt has two things to patch
+const PatchField = enum { first, second };
+
+const PendingPatch = struct {
+    inst_index: usize,
+    field: PatchField,
+};
+
 pub const InstructionBuilder = struct {
     instructions: std.ArrayList(Instruction),
     allocator: Allocator,
-    pending_labels: std.AutoHashMap(u32, std.ArrayList(usize)),
+    pending_labels: std.AutoHashMap(u32, std.ArrayList(PendingPatch)),
     resolved_labels: std.AutoHashMap(u32, Address),
     next_label_id: u32,
 
@@ -22,7 +30,7 @@ pub const InstructionBuilder = struct {
         return .{
             .instructions = std.ArrayList(Instruction).empty,
             .allocator = allocator,
-            .pending_labels = std.AutoHashMap(u32, std.ArrayList(usize)).init(allocator),
+            .pending_labels = std.AutoHashMap(u32, std.ArrayList(PendingPatch)).init(allocator),
             .resolved_labels = std.AutoHashMap(u32, Address).init(allocator),
             .next_label_id = 0,
         };
@@ -43,7 +51,7 @@ pub const InstructionBuilder = struct {
     pub fn createLabel(self: *InstructionBuilder) LabelId {
         const label_id = self.next_label_id;
         self.next_label_id += 1;
-        return @as(LabelId, label_id);
+        return label_id;
     }
 
     pub fn markLabel(self: *InstructionBuilder, label_id: LabelId) error{OutOfMemory}!void {
@@ -55,37 +63,33 @@ pub const InstructionBuilder = struct {
         try self.instructions.append(self.allocator, instruction);
     }
 
-    pub fn emitJump(self: *InstructionBuilder, label_id: u32) Allocator.Error!void {
+    fn registerPatch(self: *InstructionBuilder, label_id: LabelId, inst_index: usize, field: PatchField) Allocator.Error!void {
+        const result = try self.pending_labels.getOrPut(label_id);
+        if (!result.found_existing) {
+            result.value_ptr.* = std.ArrayList(PendingPatch).empty;
+        }
+        try result.value_ptr.append(self.allocator, .{ .inst_index = inst_index, .field = field });
+    }
+
+    pub fn emitJump(self: *InstructionBuilder, label_id: LabelId) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
         try self.instructions.append(self.allocator, Instruction{ .jmp = .{ .address = 0 } });
-        const result = try self.pending_labels.getOrPut(label_id);
-        if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize).empty;
-        }
-        try result.value_ptr.append(self.allocator, inst_index);
+        try self.registerPatch(label_id, inst_index, .first);
     }
 
-    pub fn emitJumpCnd(self: *InstructionBuilder, source: ir.ValueSource, label_id: u32, negate: bool) Allocator.Error!void {
+    pub fn emitJumpCnd(self: *InstructionBuilder, source: ir.ValueSource, label_id: LabelId, negate: bool) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
         try self.instructions.append(self.allocator, Instruction{ .jmp = .{ .address = 0, .source = source, .negate = negate } });
-        const result = try self.pending_labels.getOrPut(label_id);
-        if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize).empty;
-        }
-        try result.value_ptr.append(self.allocator, inst_index);
+        try self.registerPatch(label_id, inst_index, .first);
     }
 
-    pub fn emitCall(self: *InstructionBuilder, label_id: u32) Allocator.Error!void {
+    pub fn emitCall(self: *InstructionBuilder, label_id: LabelId) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
         try self.instructions.append(self.allocator, Instruction{ .call = 0 });
-        const result = try self.pending_labels.getOrPut(label_id);
-        if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize).empty;
-        }
-        try result.value_ptr.append(self.allocator, inst_index);
+        try self.registerPatch(label_id, inst_index, .first);
     }
 
-    pub fn emitProbe(self: *InstructionBuilder, data: ir.ProbeData, resume_label: u32) Allocator.Error!void {
+    pub fn emitProbe(self: *InstructionBuilder, data: ir.ProbeData, resume_label: LabelId) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
 
         try self.instructions.append(self.allocator, Instruction{ .probe = .{
@@ -93,11 +97,19 @@ pub const InstructionBuilder = struct {
             .resume_address = 0,
         } });
 
-        const result = try self.pending_labels.getOrPut(resume_label);
-        if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(usize).empty;
-        }
-        try result.value_ptr.append(self.allocator, inst_index);
+        try self.registerPatch(resume_label, inst_index, .first);
+    }
+
+    pub fn emitAlt(self: *InstructionBuilder, left_label: LabelId, right_label: LabelId) Allocator.Error!void {
+        const inst_index = self.instructions.items.len;
+
+        try self.instructions.append(self.allocator, Instruction{ .alt = .{
+            .left_entry = 0,
+            .right_entry = 0,
+        } });
+
+        try self.registerPatch(left_label, inst_index, .first);
+        try self.registerPatch(right_label, inst_index, .second);
     }
 
     pub fn patch(self: *InstructionBuilder, allocator: std.mem.Allocator) error{
@@ -109,18 +121,22 @@ pub const InstructionBuilder = struct {
         // maybe don't mutate?
         while (pending_iter.next()) |entry| {
             const label_id = entry.key_ptr.*;
-            const indices = entry.value_ptr.*;
+            const patches = entry.value_ptr.*;
 
             const address = self.resolved_labels.get(label_id) orelse {
                 return error.UnresolvedLabel;
             };
 
-            for (indices.items) |inst_index| {
-                const inst = &self.instructions.items[inst_index];
+            for (patches.items) |pending| {
+                const inst = &self.instructions.items[pending.inst_index];
                 switch (inst.*) {
                     .jmp => |*jmp| jmp.address = address,
                     .probe => |*probe| probe.resume_address = address,
                     .call => |*call| call.* = address,
+                    .alt => |*alt| switch (pending.field) {
+                        .first => alt.left_entry = address,
+                        .second => alt.right_entry = address,
+                    },
                     else => return error.InvalidLabelReference,
                 }
             }
@@ -143,7 +159,7 @@ test "InstructionBuilder: emit basic instructions" {
     const instructions = try builder.patch(testing.allocator);
     defer testing.allocator.free(instructions);
 
-    try testing.expectEqual(@as(usize, 2), instructions.len);
+    try testing.expectEqual(2, instructions.len);
     try testing.expect(instructions[0] == .yield);
     try testing.expect(instructions[1] == .halt);
 }
@@ -155,8 +171,8 @@ test "InstructionBuilder: createLabel and markLabel" {
     const label1 = builder.createLabel();
     const label2 = builder.createLabel();
 
-    try testing.expectEqual(@as(u32, 0), label1);
-    try testing.expectEqual(@as(u32, 1), label2);
+    try testing.expectEqual(0, label1);
+    try testing.expectEqual(1, label2);
 
     try builder.emit(.{ .yield = .{ .source = .{ .current = .value } } });
     try builder.markLabel(label1);
@@ -167,8 +183,8 @@ test "InstructionBuilder: createLabel and markLabel" {
     defer testing.allocator.free(instructions);
 
     // Verify labels were marked at correct addresses
-    try testing.expectEqual(@as(ir.Address, 1), builder.resolved_labels.get(label1).?);
-    try testing.expectEqual(@as(ir.Address, 2), builder.resolved_labels.get(label2).?);
+    try testing.expectEqual(1, builder.resolved_labels.get(label1).?);
+    try testing.expectEqual(2, builder.resolved_labels.get(label2).?);
 }
 
 test "InstructionBuilder: emitJump with forward reference" {
@@ -187,8 +203,8 @@ test "InstructionBuilder: emitJump with forward reference" {
     defer testing.allocator.free(instructions);
 
     // Jump should be resolved to address 2 (the halt instruction)
-    try testing.expectEqual(@as(usize, 3), instructions.len);
-    try testing.expectEqual(@as(ir.Address, 2), instructions[0].jmp.address);
+    try testing.expectEqual(3, instructions.len);
+    try testing.expectEqual(2, instructions[0].jmp.address);
     try testing.expectEqual(instructions[0].jmp.source, null);
 }
 
@@ -207,8 +223,8 @@ test "InstructionBuilder: emitJumpCnd with backward reference" {
     defer testing.allocator.free(instructions);
 
     // Jump should be resolved to address 0 (the yield instruction)
-    try testing.expectEqual(@as(usize, 2), instructions.len);
-    try testing.expectEqual(@as(ir.Address, 0), instructions[1].jmp.address);
+    try testing.expectEqual(2, instructions.len);
+    try testing.expectEqual(0, instructions[1].jmp.address);
     try testing.expectEqual(instructions[1].jmp.negate, false);
 }
 
@@ -229,8 +245,8 @@ test "InstructionBuilder: emitProbe with forward reference" {
     defer testing.allocator.free(instructions);
 
     // Probe should be resolved to address 3 (the second yield)
-    try testing.expectEqual(@as(usize, 4), instructions.len);
-    try testing.expectEqual(@as(ir.Address, 3), instructions[0].probe.resume_address);
+    try testing.expectEqual(4, instructions.len);
+    try testing.expectEqual(3, instructions[0].probe.resume_address);
     try testing.expectEqual(ir.ProbeData.exists, instructions[0].probe.data);
 }
 
@@ -252,9 +268,9 @@ test "InstructionBuilder: multiple jumps to same label" {
     defer testing.allocator.free(instructions);
 
     // Both jumps should be resolved to address 4 (the halt instruction)
-    try testing.expectEqual(@as(usize, 5), instructions.len);
-    try testing.expectEqual(@as(ir.Address, 4), instructions[0].jmp.address);
-    try testing.expectEqual(@as(ir.Address, 4), instructions[2].jmp.address);
+    try testing.expectEqual(5, instructions.len);
+    try testing.expectEqual(4, instructions[0].jmp.address);
+    try testing.expectEqual(4, instructions[2].jmp.address);
 }
 
 test "InstructionBuilder: unresolved label returns error" {
@@ -293,8 +309,8 @@ test "InstructionBuilder: complex control flow with multiple labels" {
     const instructions = try builder.patch(testing.allocator);
     defer testing.allocator.free(instructions);
 
-    try testing.expectEqual(@as(usize, 6), instructions.len);
-    try testing.expectEqual(@as(ir.Address, 3), instructions[1].jmp.address); // Jump to success (addr 3)
-    try testing.expectEqual(@as(ir.Address, 0), instructions[2].jmp.address); // Jump to loop_start (addr 0)
-    try testing.expectEqual(@as(ir.Address, 5), instructions[4].jmp.address); // Jump to end (addr 5)
+    try testing.expectEqual(6, instructions.len);
+    try testing.expectEqual(3, instructions[1].jmp.address); // Jump to success (addr 3)
+    try testing.expectEqual(0, instructions[2].jmp.address); // Jump to loop_start (addr 0)
+    try testing.expectEqual(5, instructions[4].jmp.address); // Jump to end (addr 5)
 }
