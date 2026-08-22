@@ -154,7 +154,7 @@ module.exports = grammar({
         PREC.comparison,
         seq(
           field("left", $.expression),
-          field("operator", choice("=", "!=", "~", "!~")),
+          field("operator", choice("=", "!=", "~", "!~", "<=", ">=", "<", ">")),
           field("right", $.expression),
         ),
       ),

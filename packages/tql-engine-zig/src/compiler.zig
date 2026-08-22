@@ -194,7 +194,7 @@ pub const Compiler = struct {
                 const owned_str = try self.addString(str);
                 return .{ .literal = .{ .string = owned_str } };
             },
-            .number_literal => |number| return .{ .literal = .{ .uint = number } },
+            .number_literal => |number| return .{ .literal = .{ .int = number } },
             .null_literal => return .{ .literal = .{ .nothing = {} } },
             .regex_literal => |pattern| {
                 const regex = try pcre2.Regex.compile(pattern);
@@ -214,6 +214,9 @@ pub const Compiler = struct {
                 } else if (std.mem.eql(u8, fc.name, "text")) {
                     if (fc.arguments.len != 0) return error.InvalidArguments;
                     return .{ .current = .text };
+                } else if (std.mem.eql(u8, fc.name, "length")) {
+                    if (fc.arguments.len != 0) return error.InvalidArguments;
+                    return .{ .current = .length };
                 } else if (std.mem.eql(u8, fc.name, "select")) {
                     return self.compileBuiltinSelect(ns, fc);
                 } else if (std.mem.eql(u8, fc.name, "unnest")) {
@@ -384,6 +387,22 @@ pub const Compiler = struct {
                     },
                     .regex_not_match => {
                         try self.instruction_builder.emit(.{ .rel = .{ .relation = .like, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return try self.compileNegateValue(.{ .variable_id = bool_tmp });
+                    },
+                    .lt => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .lt, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return .{ .variable_id = bool_tmp };
+                    },
+                    .gt => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .gt, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return .{ .variable_id = bool_tmp };
+                    },
+                    .lte => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .gt, .a = left_source, .b = right_source, .dest = bool_tmp } });
+                        return try self.compileNegateValue(.{ .variable_id = bool_tmp });
+                    },
+                    .gte => {
+                        try self.instruction_builder.emit(.{ .rel = .{ .relation = .lt, .a = left_source, .b = right_source, .dest = bool_tmp } });
                         return try self.compileNegateValue(.{ .variable_id = bool_tmp });
                     },
                 }
