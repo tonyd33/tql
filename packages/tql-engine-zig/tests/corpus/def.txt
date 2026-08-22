@@ -4,7 +4,7 @@ def with no params, zero-arg call
 grammar: typescript
 
 --- tql ---
-def any_property_identifier(): . >> property_identifier;
+def any_property_identifier(): . // property_identifier;
 
 . | any_property_identifier()
 --- source ---
@@ -55,7 +55,7 @@ grammar: typescript
 --- tql ---
 def is_hook(@ident): @ident | text ~ /^use[A-Z][a-zA-Z]+/;
 
-. >> identifier | is_hook(.)
+. // identifier | is_hook(.)
 --- source ---
 function useFoo() {}
 function bar() {}
@@ -97,7 +97,7 @@ is_hook def matches equivalent to inlined predicate
 grammar: typescript
 
 --- tql ---
-. >> identifier | (. | text ~ /^use[A-Z][a-zA-Z]+/)
+. // identifier | (. | text ~ /^use[A-Z][a-zA-Z]+/)
 --- source ---
 function useFoo() {}
 function bar() {}
@@ -137,7 +137,7 @@ grammar: typescript
 def starts_with_use(@ident): @ident | text ~ /^use/;
 def is_hook(@ident): starts_with_use(@ident);
 
-. >> identifier | is_hook(.)
+. // identifier | is_hook(.)
 --- source ---
 function useFoo() {}
 function bar() {}
@@ -186,7 +186,7 @@ grammar: typescript
 --- tql ---
 def is_hook(@ident): @ident | text ~ /^use/;
 
-. >> identifier as @ident | is_hook(@ident)
+. // identifier as @ident | is_hook(@ident)
 --- source ---
 function useFoo() {}
 function bar() {}
@@ -230,7 +230,7 @@ grammar: typescript
 --- tql ---
 def starts_with(@ident; @prefix): @ident | text ~ @prefix;
 
-. >> identifier as @first | starts_with(@first; /^use/) as @a | starts_with(@first; /^bar/) as @b | { a: @a, b: @b }
+. // identifier as @first | starts_with(@first; /^use/) as @a | starts_with(@first; /^bar/) as @b | { a: @a, b: @b }
 --- source ---
 function useFoo() {}
 function bar() {}
@@ -298,7 +298,7 @@ body fan-out
 grammar: typescript
 
 --- tql ---
-def all_identifiers(@root): @root >> identifier;
+def all_identifiers(@root): @root // identifier;
 
 . | all_identifiers(.)
 --- source ---
@@ -362,7 +362,7 @@ forward reference
 grammar: typescript
 
 --- tql ---
-. >> identifier | is_hook(.)
+. // identifier | is_hook(.)
 
 def is_hook(@ident): @ident | text ~ /^use/;
 --- source ---
@@ -408,7 +408,7 @@ grammar: typescript
 def starts_with_use(@ident): @ident | text ~ /^use/;
 def is_hook(@ident): starts_with_use(@ident) and (@ident | text ~ /^[a-z]/);
 
-. >> identifier | is_hook(.)
+. // identifier | is_hook(.)
 --- source ---
 function useFoo() {}
 function Bar() {}
@@ -466,7 +466,7 @@ grammar: typescript
 --- tql ---
 def text(@ident): @ident;
 
-. >> identifier | text(.)
+. // identifier | text(.)
 --- source ---
 function useFoo() {}
 --- values ---
@@ -513,10 +513,10 @@ def cursor boundary
 grammar: typescript
 
 --- tql ---
-def fn(): . >> identifier;
+def fn(): . // identifier;
 
 . as @root
-| @root >> identifier as @out_def
+| @root // identifier as @out_def
 | @root | fn() as @in_def
 | { @out_def, @in_def }
 --- source ---

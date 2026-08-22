@@ -4,8 +4,8 @@ nested field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c
-| @c.body > method_definition.name as @nested_name
+. / class_declaration as @c
+| @c.body / method_definition.name as @nested_name
 | @nested_name
 
 --- source ---
@@ -70,7 +70,7 @@ field access on node selector
 grammar: typescript
 
 --- tql ---
-. > class_declaration.name
+. / class_declaration.name
 
 --- source ---
 class Service {}
@@ -132,7 +132,7 @@ child navigation with field access parent
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.body > method_definition
+. / class_declaration as @c | @c.body / method_definition
 
 --- source ---
 class Service {
@@ -205,7 +205,7 @@ child navigation on node selector
 grammar: typescript
 
 --- tql ---
-. > class_declaration.body > method_definition
+. / class_declaration.body / method_definition
 
 --- source ---
 class Service {
@@ -294,8 +294,8 @@ descendant navigation with field access parent
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c
-| @c.body >> property_identifier
+. / class_declaration as @c
+| @c.body // property_identifier
 --- source ---
 class Service {
   foo() {}
@@ -367,7 +367,7 @@ descendant navigation on node selector
 grammar: typescript
 
 --- tql ---
-. > class_declaration >> property_identifier
+. / class_declaration // property_identifier
 
 --- source ---
 class Service {
@@ -437,8 +437,8 @@ nested child navigation
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c
-| . > class_body > method_definition
+. / class_declaration as @c
+| . / class_body / method_definition
 
 --- source ---
 class Service {

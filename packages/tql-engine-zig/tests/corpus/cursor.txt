@@ -4,7 +4,7 @@ baseline: dot in single object literal field
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { fn: . }
+. / function_definition as @fn | { fn: . }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -56,7 +56,7 @@ object literal: dot in second field after first field's field access
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { decl: @fn.declarator, whole: . }
+. / function_definition as @fn | { decl: @fn.declarator, whole: . }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -129,7 +129,7 @@ object literal: dot in first field, field access in second
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { whole: ., decl: @fn.declarator }
+. / function_definition as @fn | { whole: ., decl: @fn.declarator }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -202,7 +202,7 @@ object literal: three fields, dot in middle after field access
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { type: @fn.type, whole: ., body: @fn.body }
+. / function_definition as @fn | { type: @fn.type, whole: ., body: @fn.body }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -296,7 +296,7 @@ object literal: each field reads distinct text via pipe
 grammar: c
 
 --- tql ---
-. > function_definition | { t: .type | text, b: .body | text }
+. / function_definition | { t: .type | text, b: .body | text }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -345,9 +345,9 @@ object literal: shorthand-bound list variable alongside dot field
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl
+. / function_definition.declarator as @func_decl
 | [
-  .parameters > parameter_declaration
+  .parameters / parameter_declaration
   | select(.type | text = 'int')
   | .declarator
   | text
@@ -447,9 +447,9 @@ object literal: key-value dot referring to bound list variable
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl
+. / function_definition.declarator as @func_decl
 | [
-  .parameters > parameter_declaration
+  .parameters / parameter_declaration
   | select(.type | text = 'int')
   | .declarator
   | text
@@ -551,7 +551,7 @@ array literal: dot in second element after field access in first
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @decl
+. / function_definition.declarator as @decl
 | [@decl.parameters, .]
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -624,7 +624,7 @@ array literal: dot in first element, field access in second
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @decl
+. / function_definition.declarator as @decl
 | [., @decl.parameters]
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -697,7 +697,7 @@ array literal: three elements, dot in middle after field access
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @decl
+. / function_definition.declarator as @decl
 | [@decl.parameters, ., @decl.parameters]
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -789,7 +789,7 @@ tuple literal: each element reads distinct text via pipe
 grammar: c
 
 --- tql ---
-. > function_definition | (.type | text, .body | text)
+. / function_definition | (.type | text, .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -834,7 +834,7 @@ tuple literal: dot alongside field access, three elements
 grammar: c
 
 --- tql ---
-. > function_definition | (.type | text, ., .body | text)
+. / function_definition | (.type | text, ., .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -895,7 +895,7 @@ comparison: both sides read distinct field text (not-equal)
 grammar: c
 
 --- tql ---
-. > function_definition | select(.type | text != .body | text)
+. / function_definition | select(.type | text != .body | text)
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -955,7 +955,7 @@ comparison: both sides start from dot with different field access
 grammar: c
 
 --- tql ---
-. > parameter_declaration | select(.declarator | text = .type | text)
+. / parameter_declaration | select(.declarator | text = .type | text)
 --- source ---
 int add(int a, char a) { return a; }
 --- values ---
@@ -996,7 +996,7 @@ comparison: right side dot after left side field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name = .) | @c
+. / class_declaration as @c | select(@c.name = .) | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1036,7 +1036,7 @@ comparison: left side dot, right side field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(. = @c.name) | @c
+. / class_declaration as @c | select(. = @c.name) | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1076,7 +1076,7 @@ comparison: dot equals itself is always true
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(. = .) | @c
+. / class_declaration as @c | select(. = .) | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1128,7 +1128,7 @@ logical and: right side dot after left side field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Foo' and . | text = 'class Foo {}') | @c
+. / class_declaration as @c | select(@c.name | text = 'Foo' and . | text = 'class Foo {}') | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1194,7 +1194,7 @@ logical and: left side dot, right side field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(. | text = 'class Foo {}' and @c.name | text = 'Foo') | @c
+. / class_declaration as @c | select(. | text = 'class Foo {}' and @c.name | text = 'Foo') | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1260,7 +1260,7 @@ logical or: right side dot after left side field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Nope' or . | text = 'class Foo {}') | @c
+. / class_declaration as @c | select(@c.name | text = 'Nope' or . | text = 'class Foo {}') | @c
 --- source ---
 class Foo {}
 --- values ---
@@ -1327,7 +1327,7 @@ any quantifier: dot in predicate after outer field access source
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text = 'foo')) | @c
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
@@ -1399,7 +1399,7 @@ all quantifier: dot in predicate compared against field access on same source
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(all(@c.body > method_definition; .name | text != 'bar')) | @c
+. / class_declaration as @c | select(all(@c.body / method_definition; .name | text != 'bar')) | @c
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
@@ -1475,7 +1475,7 @@ nested object literal: inner object field dot after outer field access
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { outer: @fn.type, inner: { whole: . } }
+. / function_definition as @fn | { outer: @fn.type, inner: { whole: . } }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -1557,7 +1557,7 @@ collect expression: dot inside collect body after object literal field access
 grammar: c
 
 --- tql ---
-. > function_definition as @fn | { decl: @fn.declarator, params: [. >> parameter_declaration] }
+. / function_definition as @fn | { decl: @fn.declarator, params: [. // parameter_declaration] }
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---

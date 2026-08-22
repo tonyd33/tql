@@ -4,8 +4,8 @@ unnest restores fanout from subquery binding
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl |
-unnest([@func_decl.parameters > parameter_declaration]) as @param_decl |
+. / function_definition.declarator as @func_decl |
+unnest([@func_decl.parameters / parameter_declaration]) as @param_decl |
 @func_decl.declarator as @func_name |
 { name: @func_name, param: @param_decl }
 --- source ---
@@ -164,10 +164,10 @@ unnest restores fanout from subquery binding with inner binds
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl |
+. / function_definition.declarator as @func_decl |
 unnest([
   @func_decl.parameters as @params |
-  @params > parameter_declaration
+  @params / parameter_declaration
 ]) as @param_decl |
 @func_decl.declarator as @func_name |
 { name: @func_name, param: @param_decl }
@@ -329,8 +329,8 @@ unnest on empty subquery drops branch
 grammar: c
 
 --- tql ---
-. > function_definition as @func |
-unnest([@func > goto_statement]) as @g |
+. / function_definition as @func |
+unnest([@func / goto_statement]) as @g |
 { fn: @func, g: @g }
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -385,7 +385,7 @@ unnest of singleton list yields one fanout
 grammar: c
 
 --- tql ---
-. > function_definition as @func |
+. / function_definition as @func |
 unnest([@func.declarator]) as @d |
 { @func, @d }
 --- source ---
@@ -463,7 +463,7 @@ unnest chained twice over same bound list produces cross product
 ================================================================================
 grammar: c
 --- tql ---
-[. > function_definition] as @fns |
+[. / function_definition] as @fns |
 unnest(@fns) as @a |
 unnest(@fns) as @b |
 { first: @a, second: @b }

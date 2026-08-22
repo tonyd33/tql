@@ -4,7 +4,7 @@ matches when predicate true for one element
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
@@ -76,7 +76,7 @@ no match when predicate false for all elements
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'nonexistent')) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text = 'nonexistent')) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
@@ -133,7 +133,7 @@ matches when predicate true for later element only
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text = 'foo')) | @c
 --- source ---
 class A { bar() {}; foo() {}; }
 class B { bar() {}; baz() {}; }
@@ -205,7 +205,7 @@ predicate with regex match
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text ~ /^foo.*/)) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text ~ /^foo.*/)) | @c
 --- source ---
 class A { foobar() {}; }
 class B { bar() {}; }
@@ -277,7 +277,7 @@ combined with and outside predicate
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Service' and any(@c.body > method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(@c.name | text = 'Service' and any(@c.body / method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; }
 class Service { bar() {}; }
@@ -363,9 +363,9 @@ regression for double yield with and and regex
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c |
+. / class_declaration as @c |
 @c.name as @class_name |
-select(@class_name | text ~ /Foo.*/ and any(@c.body > method_definition; .return_type != null)) |
+select(@class_name | text ~ /Foo.*/ and any(@c.body / method_definition; .return_type != null)) |
 { @class_name }
 --- source ---
 class Foo1 {
@@ -472,7 +472,7 @@ descendant navigation as source
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c >> method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(any(@c // method_definition; .name | text = 'foo')) | @c
 --- source ---
 class Service { foo() {}; }
 class Controller { bar() {}; }
@@ -541,7 +541,7 @@ child navigation in predicate comparison
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .body > return_statement != null)) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .body / return_statement != null)) | @c
 --- source ---
 class A { foo() { return 1; } }
 class B { bar() {} }
@@ -624,7 +624,7 @@ predicate with or over dot field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name | text = 'foo' or .name | text = 'bar')) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name | text = 'foo' or .name | text = 'bar')) | @c
 --- source ---
 class A { foo() {}; }
 class B { bar() {}; }
@@ -724,7 +724,7 @@ predicate with not equal null comparison
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .name != null)) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .name != null)) | @c
 --- source ---
 class Service { foo() {}; bar() {}; }
 class Controller { baz() {}; }
@@ -813,7 +813,7 @@ nested any over two sources
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; any(@c.body > method_definition; .name = .name))) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; any(@c.body / method_definition; .name = .name))) | @c
 --- source ---
 class A { foo() {}; bar() {}; }
 class B {}
@@ -903,7 +903,7 @@ matches when any method lacks a return type annotation
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(any(@c.body > method_definition; .return_type is null)) | @c
+. / class_declaration as @c | select(any(@c.body / method_definition; .return_type is null)) | @c
 --- source ---
 class Foo1 {
   m1(): string {}

@@ -4,7 +4,7 @@ node selector
 grammar: typescript
 
 --- tql ---
-. > class_declaration
+. / class_declaration
 --- source ---
 class Service {}
 class Controller {}
@@ -62,7 +62,7 @@ field access
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name
+. / class_declaration as @c | @c.name
 --- source ---
 class Service {}
 class Controller {}
@@ -158,7 +158,7 @@ identity after transform
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c | .
+. / class_declaration as @c | @c | .
 --- source ---
 class Service {}
 class Controller {}
@@ -218,7 +218,7 @@ child navigation
 grammar: typescript
 
 --- tql ---
-. > class_declaration > class_body as @body | @body > method_definition
+. / class_declaration / class_body as @body | @body / method_definition
 --- source ---
 class Service {
   foo() {}
