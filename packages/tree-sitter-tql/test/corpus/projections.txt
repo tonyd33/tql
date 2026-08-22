@@ -184,7 +184,7 @@ class_declaration as @class | @class.name as @name | (@class, @name)
 emit with function call
 ========================================
 
-class_declaration as @class | @class.body > method_definition as @method | { class: @class, method_count: count(@method) }
+class_declaration as @class | @class.body / method_definition as @method | { class: @class, method_count: count(@method) }
 
 ---
 
@@ -234,7 +234,7 @@ class_declaration as @class | @class.body > method_definition as @method | { cla
 emit with array collect subquery
 ========================================
 
-class_declaration as @class | @class.name as @class_name | { class: @class_name, methods: [@class.body > method_definition as @method | @method.name as @method_name | @method_name] }
+class_declaration as @class | @class.name as @class_name | { class: @class_name, methods: [@class.body / method_definition as @method | @method.name as @method_name | @method_name] }
 
 ---
 

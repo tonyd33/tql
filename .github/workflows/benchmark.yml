@@ -52,13 +52,13 @@ jobs:
           mkdir -p results
           for i in $(seq 1 7); do
             "$HOME/.local/bin/tql" query --grammar c --format json '
-            . > function_definition as @fn
-            | @fn > function_declarator as @fn_decl
-            | @fn_decl > identifier as @name
+            . / function_definition as @fn
+            | @fn / function_declarator as @fn_decl
+            | @fn_decl / identifier as @name
             | @fn.body as @body
             | select(
-              any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-              any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+              any(@body // call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+              any(@body // goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
             )
             | { @name }
             ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee "results/$i.json"

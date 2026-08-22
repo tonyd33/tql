@@ -33,7 +33,7 @@ union of two disjoint navigations, both non-empty
 grammar: typescript
 
 --- tql ---
-(. >> function_declaration | text) <|> (. >> class_declaration | text)
+(. // function_declaration | text) <|> (. // class_declaration | text)
 --- source ---
 function foo() {}
 class Bar {}
@@ -81,7 +81,7 @@ union left branch empty, right branch fans out
 grammar: typescript
 
 --- tql ---
-. >> interface_declaration | text <|> . >> function_declaration | text
+. // interface_declaration | text <|> . // function_declaration | text
 --- source ---
 function foo() {}
 function bar() {}
@@ -129,7 +129,7 @@ union right branch empty, left branch fans out
 grammar: typescript
 
 --- tql ---
-(. >> function_declaration | text) <|> (. >> interface_declaration | text)
+(. // function_declaration | text) <|> (. // interface_declaration | text)
 --- source ---
 function foo() {}
 function bar() {}
@@ -177,7 +177,7 @@ union both branches empty
 grammar: typescript
 
 --- tql ---
-(. >> interface_declaration | text) <|> (. >> type_alias_declaration | text)
+(. // interface_declaration | text) <|> (. // type_alias_declaration | text)
 --- source ---
 function foo() {}
 --- values ---
@@ -258,7 +258,7 @@ union nested inside select(any(...))
 grammar: typescript
 
 --- tql ---
-. >> function_declaration as @f | select(any(@f >> identifier; (text = 'foo') <|> (text = 'bar'))) | text
+. // function_declaration as @f | select(any(@f // identifier; (text = 'foo') <|> (text = 'bar'))) | text
 --- source ---
 function foo() {}
 function bar() {}
@@ -325,7 +325,7 @@ union nested inside collect_expression
 grammar: typescript
 
 --- tql ---
-[(. >> function_declaration | text) <|> (. >> class_declaration | text)]
+[(. // function_declaration | text) <|> (. // class_declaration | text)]
 --- source ---
 function foo() {}
 class Bar {}
@@ -378,7 +378,7 @@ union of fanning-out branches produces cross-flattened results
 grammar: typescript
 
 --- tql ---
-(. >> function_declaration | text) <|> (. >> variable_declarator | text)
+(. // function_declaration | text) <|> (. // variable_declarator | text)
 --- source ---
 function foo() {}
 function bar() {}

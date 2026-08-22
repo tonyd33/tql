@@ -4,7 +4,7 @@ matches only when predicate true for every element
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(all(@c.body > method_definition; .name | text = 'foo')) | @c
+. / class_declaration as @c | select(all(@c.body / method_definition; .name | text = 'foo')) | @c
 --- source ---
 class A { foo() {}; foo() {}; }
 class B { foo() {}; bar() {}; }

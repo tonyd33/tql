@@ -71,7 +71,7 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
 function definition
 ========================================
 
-def find_methods(@class): @class.body > method_definition;
+def find_methods(@class): @class.body / method_definition;
 
 ---
 

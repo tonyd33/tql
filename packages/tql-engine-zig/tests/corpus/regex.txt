@@ -4,7 +4,7 @@ regex match simple
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text ~ /Service/) | @c
+. / class_declaration as @c | @c.name as @n | select(@n | text ~ /Service/) | @c
 --- source ---
 class Service {}
 class Controller {}
@@ -79,7 +79,7 @@ regex match anchored
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text ~ /^Service$/) | @c
+. / class_declaration as @c | @c.name as @n | select(@n | text ~ /^Service$/) | @c
 --- source ---
 class Service {}
 class Controller {}
@@ -140,7 +140,7 @@ regex not match
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text !~ /Service/) | @c
+. / class_declaration as @c | @c.name as @n | select(@n | text !~ /Service/) | @c
 --- source ---
 class Service {}
 class Controller {}

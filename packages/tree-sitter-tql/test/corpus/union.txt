@@ -89,7 +89,7 @@ union binds looser than pipe on the left
 union of navigations
 ========================================
 
-. >> function_declaration <|> . >> variable_declarator
+. // function_declaration <|> . // variable_declarator
 
 ---
 

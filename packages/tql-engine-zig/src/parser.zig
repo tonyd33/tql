@@ -876,7 +876,7 @@ test "parse quantified expression" {
     var parser = try Parser.init(allocator);
     defer parser.deinit();
 
-    const source = "class_declaration as @class | select(any(@class.body > method_definition; .name != null)) | @class";
+    const source = "class_declaration as @class | select(any(@class.body / method_definition; .name != null)) | @class";
 
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);

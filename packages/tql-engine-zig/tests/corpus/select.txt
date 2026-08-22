@@ -4,7 +4,7 @@ simple comparison
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text = 'Service') | @c
+. / class_declaration as @c | @c.name as @n | select(@n | text = 'Service') | @c
 --- source ---
 class Service {}
 class Controller {}
@@ -63,7 +63,7 @@ or logic
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | @c.name as @n | select(@n | text = 'Service' or @n | text = 'Controller') | @c
+. / class_declaration as @c | @c.name as @n | select(@n | text = 'Service' or @n | text = 'Controller') | @c
 --- source ---
 class Service {}
 class Controller {}
@@ -148,10 +148,10 @@ and logic
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c |
+. / class_declaration as @c |
 @c.name as @class_name |
 @c.body as @body |
-@body > method_definition as @method_def |
+@body / method_definition as @method_def |
 @method_def.name as @method_name |
 select(@class_name | text = 'Service' and @method_name | text = 'foo') |
 @c
@@ -243,7 +243,7 @@ field access is null
 grammar: typescript
 
 --- tql ---
-. > function_declaration as @f | select(@f.return_type is null) | @f
+. / function_declaration as @f | select(@f.return_type is null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
@@ -299,7 +299,7 @@ field access is not null
 grammar: typescript
 
 --- tql ---
-. > function_declaration as @f | select(@f.return_type is not null) | @f
+. / function_declaration as @f | select(@f.return_type is not null) | @f
 --- source ---
 function a(): number { return 1; }
 function b() { return 2; }
@@ -369,7 +369,7 @@ not equal comparison
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name | text != 'Service') | @c
+. / class_declaration as @c | select(@c.name | text != 'Service') | @c
 --- source ---
 class Service {}
 class Controller {}
@@ -445,7 +445,7 @@ same field accessed twice in or
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @c | select(@c.name | text = 'Service' or @c.name | text = 'Controller') | @c
+. / class_declaration as @c | select(@c.name | text = 'Service' or @c.name | text = 'Controller') | @c
 --- source ---
 class Service {}
 class Controller {}

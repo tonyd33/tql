@@ -4,7 +4,7 @@ text() extracts node text
 grammar: typescript
 
 --- tql ---
-. >> property_identifier | text()
+. // property_identifier | text()
 --- source ---
 class Foo { bar() {} }
 --- values ---
@@ -34,7 +34,7 @@ text via variable
 grammar: typescript
 
 --- tql ---
-. >> property_identifier as @id | @id | text
+. // property_identifier as @id | @id | text
 --- source ---
 class Foo { bar() {} }
 --- values ---

@@ -2,7 +2,7 @@
 function definition single param
 ========================================
 
-def find_methods(@class): @class.body > method_definition;
+def find_methods(@class): @class.body / method_definition;
 
 ---
 
@@ -27,7 +27,7 @@ def find_methods(@class): @class.body > method_definition;
 function definition multiple params
 ========================================
 
-def methods_named(@class; @name): @class.body > method_definition as @m | select(@m.name = @name) | @m;
+def methods_named(@class; @name): @class.body / method_definition as @m | select(@m.name = @name) | @m;
 
 ---
 

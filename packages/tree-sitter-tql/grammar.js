@@ -123,7 +123,7 @@ module.exports = grammar({
         PREC.child,
         seq(
           field("parent", $.expression),
-          ">",
+          "/",
           field("child", $.node_selector),
         ),
       ),
@@ -133,7 +133,7 @@ module.exports = grammar({
         PREC.descendant,
         seq(
           field("parent", $.expression),
-          ">>",
+          "//",
           field("descendant", $.node_selector),
         ),
       ),
