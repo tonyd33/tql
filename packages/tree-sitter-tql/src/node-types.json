@@ -578,6 +578,10 @@
         {
           "type": "identifier",
           "named": true
+        },
+        {
+          "type": "wildcard",
+          "named": true
         }
       ]
     }
@@ -945,6 +949,10 @@
   },
   {
     "type": "string_fragment",
+    "named": true
+  },
+  {
+    "type": "wildcard",
     "named": true
   },
   {

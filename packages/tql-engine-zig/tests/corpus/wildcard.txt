@@ -1,0 +1,204 @@
+================================================================================
+wildcard child navigation matches any child
+================================================================================
+grammar: typescript
+
+--- tql ---
+. / *
+
+--- source ---
+class Service {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (child . (node *)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: asn 0 ((current value) value)
+0003: trv value_source (variable_id 0)
+0004: asn 1 ((current value) value)
+0005: yield variable_id 1
+0006: halt
+================================================================================
+wildcard descendant navigation matches any descendant
+================================================================================
+grammar: typescript
+
+--- tql ---
+. / class_declaration as @c | @c // *
+
+--- source ---
+class Service {
+  foo() {}
+}
+
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "class_body",
+    "text": "{\n  foo() {}\n}",
+    "start_byte": 14,
+    "end_byte": 28,
+    "start_point": {
+      "row": 0,
+      "column": 14
+    },
+    "end_point": {
+      "row": 2,
+      "column": 1
+    }
+  },
+  {
+    "kind": "method_definition",
+    "text": "foo() {}",
+    "start_byte": 18,
+    "end_byte": 26,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 10
+    }
+  },
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  },
+  {
+    "kind": "formal_parameters",
+    "text": "()",
+    "start_byte": 21,
+    "end_byte": 23,
+    "start_point": {
+      "row": 1,
+      "column": 5
+    },
+    "end_point": {
+      "row": 1,
+      "column": 7
+    }
+  },
+  {
+    "kind": "statement_block",
+    "text": "{}",
+    "start_byte": 24,
+    "end_byte": 26,
+    "start_point": {
+      "row": 1,
+      "column": 8
+    },
+    "end_point": {
+      "row": 1,
+      "column": 10
+    }
+  }
+]
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) c) (descendant c (node *))))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv value_source (variable_id 0)
+0011: trv descendant
+0012: asn 4 ((current value) value)
+0013: trv value_source (variable_id 4)
+0014: asn 5 ((current value) value)
+0015: yield variable_id 5
+0016: halt
+================================================================================
+wildcard child navigation binds matched node
+================================================================================
+grammar: typescript
+
+--- tql ---
+. / * as @n | @n
+
+--- source ---
+class Service {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (pipe (bind (child . (node *)) n) n))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: asn 1 ((current value) value)
+0003: trv value_source (variable_id 1)
+0004: asn 2 ((current value) value)
+0005: asn 0 (variable_id 2)
+0006: trv value_source (variable_id 0)
+0007: yield variable_id 0
+0008: halt

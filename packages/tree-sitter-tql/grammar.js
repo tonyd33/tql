@@ -110,7 +110,7 @@ module.exports = grammar({
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
-    node_selector: $ => prec(-1, $.identifier),
+    node_selector: $ => prec(-1, choice($.identifier, alias("*", $.wildcard))),
 
     field_access: $ =>
       prec.left(
