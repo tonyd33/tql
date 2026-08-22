@@ -1,16 +1,29 @@
 { pkgs, lib, config, inputs, ... }:
 
+let
+  package_groups = {
+    essential = with pkgs; [
+      git
+      jq
+      go-task
+      wasmtime
+    ];
+    query_languages = with pkgs; [
+      semgrep
+      ast-grep
+      gritql
+    ];
+  };
+in
 {
   # https://devenv.sh/basics/
   # env.GREET = "devenv";
 
+  # https://devenv.sh/overlays/
+  overlays = [ (import ./overlays/gritql.nix) ];
+
   # https://devenv.sh/packages/
-  packages = with pkgs; [
-    git
-    jq
-    go-task
-    wasmtime
-  ];
+  packages = lib.flatten (lib.attrValues package_groups);
 
   # https://devenv.sh/languages/
   languages = {
@@ -33,7 +46,6 @@
   cachix = {
     enable = true;
     pull = [ "devenv" "tql" ];
-    push = "tql";
   };
 
   # https://devenv.sh/processes/
