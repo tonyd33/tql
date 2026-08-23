@@ -158,6 +158,44 @@ pub const BindExpression = struct {
     }
 };
 
+pub const LetBinding = struct {
+    variable: Variable,
+    value: Expression,
+
+    pub fn deinit(self: LetBinding, allocator: std.mem.Allocator) void {
+        allocator.free(self.variable.name);
+        self.value.deinit(allocator);
+    }
+
+    pub fn sexpr(self: LetBinding, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("({s} ", .{self.variable.name});
+        try self.value.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+pub const LetExpression = struct {
+    bindings: []const LetBinding,
+    body: Expression,
+
+    pub fn deinit(self: LetExpression, allocator: std.mem.Allocator) void {
+        for (self.bindings) |b| b.deinit(allocator);
+        allocator.free(self.bindings);
+        self.body.deinit(allocator);
+    }
+
+    pub fn sexpr(self: LetExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(let (");
+        for (self.bindings, 0..) |b, i| {
+            if (i > 0) try w.writeByte(' ');
+            try b.sexpr(w);
+        }
+        try w.writeAll(") ");
+        try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
 pub const PipeExpression = struct {
     left: Expression,
     right: Expression,
@@ -369,6 +407,7 @@ pub const Expression = union(enum) {
     parenthesized: *Expression,
     collect_expression: *Expression,
     bind_expression: *BindExpression,
+    let_expression: *LetExpression,
     pipe_expression: *PipeExpression,
     union_expression: *UnionExpression,
     // Boolean/guard expressions (formerly Predicate variants)
@@ -434,6 +473,10 @@ pub const Expression = union(enum) {
             .bind_expression => |be| {
                 be.deinit(allocator);
                 allocator.destroy(be);
+            },
+            .let_expression => |le| {
+                le.deinit(allocator);
+                allocator.destroy(le);
             },
             .pipe_expression => |pe| {
                 pe.left.deinit(allocator);
@@ -502,6 +545,7 @@ pub const Expression = union(enum) {
                 try w.writeByte(')');
             },
             .bind_expression => |be| try be.sexpr(w),
+            .let_expression => |le| try le.sexpr(w),
             .pipe_expression => |pe| try pe.sexpr(w),
             .union_expression => |ue| try ue.sexpr(w),
             .comparison => |c| {

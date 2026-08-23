@@ -386,6 +386,10 @@ pub const Parser = struct {
             const be = try self.allocator.create(ast.BindExpression);
             be.* = try self.parseBindExpression(node, source);
             return .{ .bind_expression = be };
+        } else if (std.mem.eql(u8, node_type, "let_expression")) {
+            const le = try self.allocator.create(ast.LetExpression);
+            le.* = try self.parseLetExpression(node, source);
+            return .{ .let_expression = le };
         } else if (std.mem.eql(u8, node_type, "pipe_expression")) {
             const pe = try self.allocator.create(ast.PipeExpression);
             pe.* = try self.parsePipeExpression(node, source);
@@ -605,6 +609,39 @@ pub const Parser = struct {
             .expression = expression,
             .variable = variable,
             .optional = optional,
+        };
+    }
+
+    fn parseLetExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.LetExpression {
+        var bindings = std.ArrayList(ast.LetBinding).empty;
+        defer bindings.deinit(self.allocator);
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (cursor.fieldName() != null and std.mem.eql(u8, cursor.fieldName().?, "binding")) {
+                    const var_node = try expectChildByFieldName(child, "variable");
+                    const variable = try self.parseVariable(var_node, source);
+
+                    const value_node = try expectChildByFieldName(child, "value");
+                    const value = try self.parseExpression(value_node, source);
+
+                    try bindings.append(self.allocator, .{ .variable = variable, .value = value });
+                }
+
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        const body_node = try expectChildByFieldName(node, "body");
+        const body = try self.parseExpression(body_node, source);
+
+        return ast.LetExpression{
+            .bindings = try bindings.toOwnedSlice(self.allocator),
+            .body = body,
         };
     }
 

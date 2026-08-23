@@ -72,6 +72,7 @@ module.exports = grammar({
         $.tuple_literal,
         $.parenthesized,
         $.bind_expression,
+        $.let_expression,
         $.pipe_expression,
         $.union_expression,
         $.comparison,
@@ -89,6 +90,20 @@ module.exports = grammar({
           "as",
           field("variable", $.variable),
           optional(field("optional", "?")),
+        ),
+      ),
+
+    let_binding: $ =>
+      seq(field("variable", $.variable), "=", field("value", $.expression)),
+
+    let_expression: $ =>
+      prec.right(
+        PREC.bind,
+        seq(
+          "let",
+          comma_sep1(field("binding", $.let_binding)),
+          "in",
+          field("body", $.expression),
         ),
       ),
 
