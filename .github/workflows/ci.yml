@@ -39,3 +39,32 @@ jobs:
 
       - name: Check
         run: task check
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v16
+        with:
+          name: tql
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Flake check
+        run: nix flake check --no-pure-eval
+
+      - name: Build package
+        run: nix build .#
+
+      - name: Smoke test app
+        run: nix run .# -- --help
+
+      - name: Smoke test grammar
+        run: |
+          printf 'int main(void) { return 0; }\n' > test.c
+          nix run .# -- query --grammar=c '. / function_definition.declarator.declarator | text' test.c
