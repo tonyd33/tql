@@ -125,7 +125,7 @@ module.exports = grammar({
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
-    node_selector: $ => prec(-1, $.identifier),
+    node_selector: $ => prec(-1, choice($.identifier, alias("*", $.wildcard))),
 
     field_access: $ =>
       prec.left(
@@ -169,7 +169,7 @@ module.exports = grammar({
         PREC.comparison,
         seq(
           field("left", $.expression),
-          field("operator", choice("=", "!=", "~", "!~")),
+          field("operator", choice("=", "!=", "~", "!~", "<=", ">=", "<", ">")),
           field("right", $.expression),
         ),
       ),

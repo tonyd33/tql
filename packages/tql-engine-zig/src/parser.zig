@@ -183,8 +183,18 @@ pub const Parser = struct {
     // ========================================================================
 
     fn parseNodeSelector(self: *Parser, node: ts.Node, source: []const u8) !ast.NodeSelector {
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (!cursor.gotoFirstChild()) return error.MalformedTree;
+        const child = cursor.node();
+
+        if (std.mem.eql(u8, getNodeType(child), "wildcard")) {
+            return ast.NodeSelector.wildcard;
+        }
+
         const node_type = try self.allocator.dupe(u8, nodeText(node, source));
-        return ast.NodeSelector{ .node_type = node_type };
+        return ast.NodeSelector{ .kind = node_type };
     }
 
     fn parseFieldAccess(self: *Parser, node: ts.Node, source: []const u8) !ast.FieldAccess {
@@ -269,6 +279,10 @@ pub const Parser = struct {
         if (std.mem.eql(u8, text, "!=")) return .ne;
         if (std.mem.eql(u8, text, "~")) return .regex_match;
         if (std.mem.eql(u8, text, "!~")) return .regex_not_match;
+        if (std.mem.eql(u8, text, "<")) return .lt;
+        if (std.mem.eql(u8, text, ">")) return .gt;
+        if (std.mem.eql(u8, text, "<=")) return .lte;
+        if (std.mem.eql(u8, text, ">=")) return .gte;
         // FIXME: Should error
         return .eq;
     }
@@ -779,9 +793,9 @@ pub const Parser = struct {
         return try self.allocator.dupe(u8, pattern);
     }
 
-    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !u64 {
+    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !i64 {
         const text = nodeText(node, source);
-        return std.fmt.parseUnsigned(u64, text, 10) catch return error.InvalidNumberLiteral;
+        return std.fmt.parseInt(i64, text, 10) catch return error.InvalidNumberLiteral;
     }
 };
 
@@ -855,7 +869,7 @@ test "parse function definition" {
     var parser = try Parser.init(allocator);
     defer parser.deinit();
 
-    const source = "def find_methods(@class): @class.body > method_definition | @class;";
+    const source = "def find_methods(@class): @class.body / method_definition | @class;";
 
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);

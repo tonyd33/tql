@@ -250,8 +250,8 @@ test "rel: numeric comparisons" {
 
     // 1 < 2 → true in dest=2. jmp(yield, negate=false) taken → yield.
     const instructions = [_]Instruction{
-        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .uint = 1 } } } },
-        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .uint = 2 } } } },
+        Instruction{ .asn = .{ .variable_id = 0, .source = .{ .literal = Literal{ .int = 1 } } } },
+        Instruction{ .asn = .{ .variable_id = 1, .source = .{ .literal = Literal{ .int = 2 } } } },
         Instruction{ .rel = .{ .relation = Relation.lt, .a = .{ .variable_id = 0 }, .b = .{ .variable_id = 1 }, .dest = 2 } },
         Instruction{ .jmp = .{ .address = 5, .source = .{ .variable_id = 2 }, .negate = false } },
         Instruction{ .halt = {} },

@@ -18,7 +18,7 @@ pub const AggregationSpec = struct {
 pub const Literal = union(enum) {
     nothing,
     bool: bool,
-    uint: u64,
+    int: i64,
     string: []const u8,
     kind_id: NodeKindId,
     field_id: FieldId,
@@ -29,7 +29,7 @@ pub const Literal = union(enum) {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
             .bool => |bv| try writer.print("bool {}", .{bv}),
-            .uint => |uint| try writer.print("uint {}", .{uint}),
+            .int => |int| try writer.print("int {}", .{int}),
             .string => |s| try writer.print("string \"{s}\"", .{s}),
             .kind_id => |k| try writer.print("kind_id {}", .{k}),
             .field_id => |f| try writer.print("field_id {}", .{f}),
@@ -43,6 +43,7 @@ pub const CurrentValueSource = enum {
     text,
     kind,
     range,
+    length,
 };
 
 pub const ValueSource = union(enum) {
