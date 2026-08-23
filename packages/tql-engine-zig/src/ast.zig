@@ -446,7 +446,10 @@ pub const Expression = union(enum) {
                 allocator.destroy(dn);
             },
             .function_call => |fc| {
-                allocator.free(fc.name);
+                switch (fc.callee) {
+                    .name => |name| allocator.free(name),
+                    .variable => |name| allocator.free(name),
+                }
                 for (fc.arguments) |arg| arg.deinit(allocator);
                 allocator.free(fc.arguments);
             },
@@ -583,12 +586,20 @@ pub const Expression = union(enum) {
     }
 };
 
-pub const FunctionCall = struct {
+pub const FunctionCallCallee = union(enum) {
     name: Identifier,
+    variable: Identifier,
+};
+
+pub const FunctionCall = struct {
+    callee: FunctionCallCallee,
     arguments: []const Expression,
 
     pub fn sexpr(self: FunctionCall, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(call {s}", .{self.name});
+        switch (self.callee) {
+            .name => |name| try w.print("(call {s}", .{name}),
+            .variable => |name| try w.print("(call @{s}", .{name}),
+        }
         for (self.arguments) |arg| {
             try w.writeByte(' ');
             try arg.sexpr(w);

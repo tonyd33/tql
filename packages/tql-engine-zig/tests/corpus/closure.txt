@@ -1,0 +1,243 @@
+================================================================================
+bare def reference compiles to a closure, called through a variable
+================================================================================
+grammar: c
+
+--- tql ---
+def is_int(@n): @n.type | text = 'int';
+
+. as @root
+| is_int as @f
+| @root / function_definition.declarator
+| .parameters / parameter_declaration as @p
+| select(@f(@p))
+| @p.declarator
+| text
+--- source ---
+int add(int a, int b) { return a + b; }
+void noop(char c) {}
+--- values ---
+[
+  "a",
+  "b"
+]
+--- tql tree ---
+(source_file (query is_int (parameters (param n)) (eq (pipe (field n type) (call text)) (string "int"))) (pipe (pipe (pipe (bind (pipe (pipe (bind (pipe (bind . root) (call is_int)) f) (field (child root (node function_definition)) declarator)) (child (dot-field parameters) (node parameter_declaration))) p) (call select (call @f p))) (field p declarator)) (call text)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement)))
+--- bytecode ---
+0000: asn 3 ((current value) value)
+0001: trv value_source (variable_id 3)
+0002: make_closure entry=42 arity=1 param_vars_offset=0 -> 4
+0003: asn 2 (variable_id 4)
+0004: trv value_source (variable_id 2)
+0005: trv value_source (variable_id 3)
+0006: trv child
+0007: rel equals ((current value) kind) (literal kind_id 196) -> 5
+0008: jmp 10 if (variable_id 5)
+0009: halt
+0010: asn 6 ((current value) value)
+0011: trv value_source (variable_id 6)
+0012: asn 7 ((current value) value)
+0013: trv value_source (variable_id 7)
+0014: trv field 10
+0015: asn 8 ((current value) value)
+0016: trv value_source (variable_id 8)
+0017: trv field 28
+0018: asn 9 ((current value) value)
+0019: trv value_source (variable_id 9)
+0020: trv child
+0021: rel equals ((current value) kind) (literal kind_id 260) -> 10
+0022: jmp 24 if (variable_id 10)
+0023: halt
+0024: asn 11 ((current value) value)
+0025: trv value_source (variable_id 11)
+0026: asn 12 ((current value) value)
+0027: asn 1 (variable_id 12)
+0028: trv value_source (variable_id 1)
+0029: asn 13 ((current value) value)
+0030: apply (variable_id 2) (variable_id 1)
+0031: asn 14 ((current value) value)
+0032: trv value_source (variable_id 13)
+0033: jmp 35 if (variable_id 14)
+0034: halt
+0035: trv value_source ((current value) value)
+0036: trv value_source (variable_id 1)
+0037: trv field 10
+0038: asn 15 ((current value) value)
+0039: trv value_source (variable_id 15)
+0040: yield (current value) text
+0041: halt
+0042: asn 16 ((current value) value)
+0043: trv value_source (variable_id 0)
+0044: trv field 36
+0045: asn 17 ((current value) value)
+0046: trv value_source (variable_id 17)
+0047: asn 18 ((current value) text)
+0048: trv value_source (variable_id 16)
+0049: rel equals (variable_id 18) (literal string "int") -> 19
+0050: yield variable_id 19
+0051: halt
+================================================================================
+call through a variable with multiple arguments (no partial application)
+================================================================================
+grammar: c
+
+--- tql ---
+def type_is(@n; @kind): @n.type | text = @kind;
+
+. as @root
+| type_is as @f
+| @root / function_definition.declarator
+| .parameters / parameter_declaration as @p
+| select(@f(@p; 'int'))
+| @p.declarator
+| text
+--- source ---
+int add(int a, char b) { return a; }
+--- values ---
+[
+  "a"
+]
+--- tql tree ---
+(source_file (query type_is (parameters (param n) (param kind)) (eq (pipe (field n type) (call text)) kind)) (pipe (pipe (pipe (bind (pipe (pipe (bind (pipe (bind . root) (call type_is)) f) (field (child root (node function_definition)) declarator)) (child (dot-field parameters) (node parameter_declaration))) p) (call select (call @f p (string "int")))) (field p declarator)) (call text)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (identifier)))))
+--- bytecode ---
+0000: asn 4 ((current value) value)
+0001: trv value_source (variable_id 4)
+0002: make_closure entry=44 arity=2 param_vars_offset=0 -> 5
+0003: asn 3 (variable_id 5)
+0004: trv value_source (variable_id 3)
+0005: trv value_source (variable_id 4)
+0006: trv child
+0007: rel equals ((current value) kind) (literal kind_id 196) -> 6
+0008: jmp 10 if (variable_id 6)
+0009: halt
+0010: asn 7 ((current value) value)
+0011: trv value_source (variable_id 7)
+0012: asn 8 ((current value) value)
+0013: trv value_source (variable_id 8)
+0014: trv field 10
+0015: asn 9 ((current value) value)
+0016: trv value_source (variable_id 9)
+0017: trv field 28
+0018: asn 10 ((current value) value)
+0019: trv value_source (variable_id 10)
+0020: trv child
+0021: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0022: jmp 24 if (variable_id 11)
+0023: halt
+0024: asn 12 ((current value) value)
+0025: trv value_source (variable_id 12)
+0026: asn 13 ((current value) value)
+0027: asn 2 (variable_id 13)
+0028: trv value_source (variable_id 2)
+0029: asn 14 ((current value) value)
+0030: apply (variable_id 3) (variable_id 2)
+0031: asn 15 ((current value) value)
+0032: apply (variable_id 15) (literal string "int")
+0033: asn 16 ((current value) value)
+0034: trv value_source (variable_id 14)
+0035: jmp 37 if (variable_id 16)
+0036: halt
+0037: trv value_source ((current value) value)
+0038: trv value_source (variable_id 2)
+0039: trv field 10
+0040: asn 17 ((current value) value)
+0041: trv value_source (variable_id 17)
+0042: yield (current value) text
+0043: halt
+0044: asn 18 ((current value) value)
+0045: trv value_source (variable_id 0)
+0046: trv field 36
+0047: asn 19 ((current value) value)
+0048: trv value_source (variable_id 19)
+0049: asn 20 ((current value) text)
+0050: trv value_source (variable_id 18)
+0051: rel equals (variable_id 20) (variable_id 1) -> 21
+0052: yield variable_id 21
+0053: halt
+================================================================================
+under-saturating call expression binds the resulting partial closure, not a stale value
+================================================================================
+grammar: c
+
+--- tql ---
+def type_is(@n; @kind): @n.type | text = @kind;
+
+. as @root
+| type_is as @f
+| @root / function_definition.declarator
+| .parameters / parameter_declaration as @p
+| @f(@p) as @partial
+| select(@partial('int'))
+| @p.declarator
+| text
+--- source ---
+int add(int a, char b) { return a; }
+--- values ---
+[
+  "a"
+]
+--- tql tree ---
+(source_file (query type_is (parameters (param n) (param kind)) (eq (pipe (field n type) (call text)) kind)) (pipe (pipe (pipe (bind (pipe (bind (pipe (pipe (bind (pipe (bind . root) (call type_is)) f) (field (child root (node function_definition)) declarator)) (child (dot-field parameters) (node parameter_declaration))) p) (call @f p)) partial) (call select (call @partial (string "int")))) (field p declarator)) (call text)))
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (identifier)))))
+--- bytecode ---
+0000: asn 5 ((current value) value)
+0001: trv value_source (variable_id 5)
+0002: make_closure entry=46 arity=2 param_vars_offset=0 -> 6
+0003: asn 4 (variable_id 6)
+0004: trv value_source (variable_id 4)
+0005: trv value_source (variable_id 5)
+0006: trv child
+0007: rel equals ((current value) kind) (literal kind_id 196) -> 7
+0008: jmp 10 if (variable_id 7)
+0009: halt
+0010: asn 8 ((current value) value)
+0011: trv value_source (variable_id 8)
+0012: asn 9 ((current value) value)
+0013: trv value_source (variable_id 9)
+0014: trv field 10
+0015: asn 10 ((current value) value)
+0016: trv value_source (variable_id 10)
+0017: trv field 28
+0018: asn 11 ((current value) value)
+0019: trv value_source (variable_id 11)
+0020: trv child
+0021: rel equals ((current value) kind) (literal kind_id 260) -> 12
+0022: jmp 24 if (variable_id 12)
+0023: halt
+0024: asn 13 ((current value) value)
+0025: trv value_source (variable_id 13)
+0026: asn 14 ((current value) value)
+0027: asn 3 (variable_id 14)
+0028: trv value_source (variable_id 3)
+0029: apply (variable_id 4) (variable_id 3)
+0030: asn 15 ((current value) value)
+0031: asn 2 (variable_id 15)
+0032: trv value_source (variable_id 2)
+0033: asn 16 ((current value) value)
+0034: apply (variable_id 2) (literal string "int")
+0035: asn 17 ((current value) value)
+0036: trv value_source (variable_id 16)
+0037: jmp 39 if (variable_id 17)
+0038: halt
+0039: trv value_source ((current value) value)
+0040: trv value_source (variable_id 3)
+0041: trv field 10
+0042: asn 18 ((current value) value)
+0043: trv value_source (variable_id 18)
+0044: yield (current value) text
+0045: halt
+0046: asn 19 ((current value) value)
+0047: trv value_source (variable_id 0)
+0048: trv field 36
+0049: asn 20 ((current value) value)
+0050: trv value_source (variable_id 20)
+0051: asn 21 ((current value) text)
+0052: trv value_source (variable_id 19)
+0053: rel equals (variable_id 21) (variable_id 1) -> 22
+0054: yield variable_id 22
+0055: halt

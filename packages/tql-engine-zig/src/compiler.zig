@@ -38,11 +38,13 @@ pub const Compiler = struct {
 
     regexes: std.ArrayList(pcre2.Regex),
     strings: std.ArrayList([]const u8),
+    param_var_arena: std.ArrayList(VariableId),
 
     // FIXME: we're supposed to detect the language
     pub fn init(allocator: Allocator, language: *const ts.Language) Compiler {
         const strings = std.ArrayList([]const u8).empty;
         const regexes = std.ArrayList(pcre2.Regex).empty;
+        const param_var_arena = std.ArrayList(VariableId).empty;
         const instruction_builder = InstructionBuilder.init(allocator);
         return .{
             .allocator = allocator,
@@ -51,6 +53,7 @@ pub const Compiler = struct {
             .language = language,
             .regexes = regexes,
             .strings = strings,
+            .param_var_arena = param_var_arena,
             .instruction_builder = instruction_builder,
         };
     }
@@ -75,6 +78,8 @@ pub const Compiler = struct {
             self.allocator.free(str);
         }
         self.strings.deinit(self.allocator);
+
+        self.param_var_arena.deinit(self.allocator);
     }
 
     fn bindValue(self: *Compiler) CompilerError!ir.ValueSource {
@@ -94,6 +99,12 @@ pub const Compiler = struct {
         const owned = try self.allocator.dupe(u8, str);
         try self.strings.append(self.allocator, owned);
         return owned;
+    }
+
+    pub fn addParamVarList(self: *Compiler, list: []const VariableId) CompilerError!u32 {
+        const offset: u32 = @intCast(self.param_var_arena.items.len);
+        try self.param_var_arena.appendSlice(self.allocator, list);
+        return offset;
     }
 
     pub fn compile(self: *Compiler, allocator: std.mem.Allocator, source: ast.SourceFile) CompilerError!ProgramImage {
@@ -160,11 +171,13 @@ pub const Compiler = struct {
         const instructions = try self.instruction_builder.patch(allocator);
         const regexes = try self.regexes.toOwnedSlice(allocator);
         const strings = try self.strings.toOwnedSlice(allocator);
+        const param_var_arena = try self.param_var_arena.toOwnedSlice(allocator);
 
         return .{
             .instructions = instructions,
             .regexes = regexes,
             .strings = strings,
+            .param_var_arena = param_var_arena,
             .variable_map = self.variables.moveNames(),
             .allocator = allocator,
         };
@@ -202,30 +215,63 @@ pub const Compiler = struct {
                 return .{ .literal = .{ .regex = self.regexes.items[regex_index] } };
             },
             .function_call => |fc| {
-                if (self.functions.get(fc.name)) |info| {
-                    // TODO: what to do about shadowing builtins?
-                    if (fc.arguments.len != info.param_vars.len) return error.InvalidArguments;
-                    for (fc.arguments, info.param_vars) |arg_expr, param_var| {
-                        const arg_vs = try self.compileExpression(ns, arg_expr);
-                        try self.instruction_builder.emit(.{ .asn = .{ .variable_id = param_var, .source = arg_vs } });
-                    }
-                    try self.instruction_builder.emitCall(info.entry_label);
-                    return try self.bindValue();
-                } else if (std.mem.eql(u8, fc.name, "text")) {
-                    if (fc.arguments.len != 0) return error.InvalidArguments;
-                    return .{ .current = .text };
-                } else if (std.mem.eql(u8, fc.name, "length")) {
-                    if (fc.arguments.len != 0) return error.InvalidArguments;
-                    return .{ .current = .length };
-                } else if (std.mem.eql(u8, fc.name, "select")) {
-                    return self.compileBuiltinSelect(ns, fc);
-                } else if (std.mem.eql(u8, fc.name, "unnest")) {
-                    return self.compileBuiltinUnnest(ns, fc);
-                } else if (std.mem.eql(u8, fc.name, "any") or std.mem.eql(u8, fc.name, "all")) {
-                    try self.compileBuiltinQuantified(ns, fc, false);
-                    return .{ .literal = .{ .bool = true } };
-                } else {
-                    return error.InvalidVariableReference;
+                switch (fc.callee) {
+                    .name => |name| {
+                        if (self.functions.get(name)) |info| {
+                            // TODO: what to do about shadowing builtins?
+                            if (fc.arguments.len == 0 and info.param_vars.len != 0) {
+                                // Function currying
+                                // We need to think about how we want to support this in the first place.
+                                // Doing `def f(@a; @b)` and then `f(@a)` to make a curried function is not
+                                // obvious
+                                const param_vars_offset = try self.addParamVarList(info.param_vars);
+                                const dest = self.variables.allocateAnonymous();
+                                try self.instruction_builder.emitMakeClosure(
+                                    info.entry_label,
+                                    @intCast(info.param_vars.len),
+                                    param_vars_offset,
+                                    dest,
+                                );
+                                return .{ .variable_id = dest };
+                            }
+                            if (fc.arguments.len != info.param_vars.len) return error.InvalidArguments;
+                            for (fc.arguments, info.param_vars) |arg_expr, param_var| {
+                                const arg_vs = try self.compileExpression(ns, arg_expr);
+                                try self.instruction_builder.emit(.{ .asn = .{ .variable_id = param_var, .source = arg_vs } });
+                            }
+                            try self.instruction_builder.emitCall(info.entry_label);
+                            return try self.bindValue();
+                        } else if (std.mem.eql(u8, name, "text")) {
+                            if (fc.arguments.len != 0) return error.InvalidArguments;
+                            return .{ .current = .text };
+                        } else if (std.mem.eql(u8, name, "length")) {
+                            if (fc.arguments.len != 0) return error.InvalidArguments;
+                            return .{ .current = .length };
+                        } else if (std.mem.eql(u8, name, "select")) {
+                            return self.compileBuiltinSelect(ns, fc);
+                        } else if (std.mem.eql(u8, name, "unnest")) {
+                            return self.compileBuiltinUnnest(ns, fc);
+                        } else if (std.mem.eql(u8, name, "any") or std.mem.eql(u8, name, "all")) {
+                            try self.compileBuiltinQuantified(ns, fc, false);
+                            return .{ .literal = .{ .bool = true } };
+                        } else {
+                            return error.InvalidVariableReference;
+                        }
+                    },
+                    .variable => |name| {
+                        const var_id = self.variables.resolve(ns, name) orelse return error.InvalidVariableReference;
+                        var closure_vs: ir.ValueSource = .{ .variable_id = var_id };
+                        if (fc.arguments.len == 0) return closure_vs;
+                        for (fc.arguments) |arg_expr| {
+                            const arg_vs = try self.compileExpression(ns, arg_expr);
+                            try self.instruction_builder.emit(.{ .apply = .{
+                                .closure = closure_vs,
+                                .argument = arg_vs,
+                            } });
+                            closure_vs = try self.bindValue();
+                        }
+                        return closure_vs;
+                    },
                 }
             },
             .field_access => |fa| {
@@ -459,8 +505,9 @@ pub const Compiler = struct {
             .logical_not => |ln| {
                 // TODO: Figure out how to unify the model such that this "special" case isn't necessary
                 if (ln.predicate == .function_call and
-                    (std.mem.eql(u8, ln.predicate.function_call.name, "any") or
-                        std.mem.eql(u8, ln.predicate.function_call.name, "all")))
+                    ln.predicate.function_call.callee == .name and
+                    (std.mem.eql(u8, ln.predicate.function_call.callee.name, "any") or
+                        std.mem.eql(u8, ln.predicate.function_call.callee.name, "all")))
                 {
                     try self.compileBuiltinQuantified(ns, ln.predicate.function_call, true);
                     return .{ .literal = .{ .bool = true } };
@@ -494,7 +541,7 @@ pub const Compiler = struct {
         negated: bool,
     ) CompilerError!void {
         if (fc.arguments.len != 2) return error.InvalidGuardExpression;
-        const is_all = std.mem.eql(u8, fc.name, "all");
+        const is_all = fc.callee == .name and std.mem.eql(u8, fc.callee.name, "all");
         const body_negated = is_all;
         const probe_negated = negated != body_negated;
 

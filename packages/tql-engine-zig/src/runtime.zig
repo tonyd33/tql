@@ -30,6 +30,7 @@ const Environment = rt.Environment;
 
 const ValueSource = ir.ValueSource;
 const Instruction = ir.Instruction;
+const VariableId = ir.VariableId;
 
 pub const Runtime = struct {
     const Self = @This();
@@ -40,6 +41,7 @@ pub const Runtime = struct {
 
     instructions: []const Instruction,
     regexes: []const pcre2.Regex,
+    param_var_arena: []const VariableId,
 
     stack: Stack,
 
@@ -48,6 +50,7 @@ pub const Runtime = struct {
         source: []const u8,
         instructions: []const Instruction,
         regexes: []const pcre2.Regex,
+        param_var_arena: []const VariableId = &.{},
         allocator: std.mem.Allocator,
     }) Self {
         return Self{
@@ -55,6 +58,7 @@ pub const Runtime = struct {
             .source = x.source,
             .instructions = x.instructions,
             .regexes = x.regexes,
+            .param_var_arena = x.param_var_arena,
             .stack = Stack.empty,
             .allocator = x.allocator,
         };
@@ -84,6 +88,10 @@ pub const Runtime = struct {
     fn deinitFrame(self: *Self) void {
         const frame = &self.stack.items[self.stack.items.len - 1];
 
+        // IMPROVE: look for a memory model that doesn't involve
+        // cloning these in the first place. That might just be fundamentally
+        // imppossible with heap-allocated values though
+        frame.state.value.deinit(self.allocator);
         frame.state.environment.dereference(self.allocator);
 
         if (frame.split) |*split| {
@@ -472,7 +480,7 @@ pub const Runtime = struct {
                         .value_source => |vs| blk: {
                             const value = try self.getSource(frame.state, vs);
                             break :blk .{ .singleton = SingletonIterator.init(
-                                if (value == .nothing) null else value,
+                                if (value == .nothing) null else value.clone(),
                             ) };
                         },
                         .elements => |vs| blk: {
@@ -543,6 +551,7 @@ pub const Runtime = struct {
                         frame.state.environment = new_env;
                         old_env.dereference(self.allocator);
                     } else {
+                        frame.state.value.deinit(self.allocator);
                         frame.state.value = result;
                     }
                 },
@@ -598,7 +607,7 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = frame.state.pc,
-                            .value = frame.state.value,
+                            .value = frame.state.value.clone(),
                             .environment = env_copy_new_frame,
                         },
                         .boundary = boundary,
@@ -617,11 +626,86 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = target_address,
-                            .value = frame.state.value,
+                            .value = frame.state.value.clone(),
                             .environment = env_copy_new_frame,
                         },
                         .boundary = Boundary{ .call = .{ .resume_address = resume_address } },
                     });
+                },
+                .make_closure => |mc| {
+                    frame.state.pc += 1;
+
+                    const closure = try ds.Rc(rt.Closure).create(self.allocator, .{
+                        .entry = mc.entry,
+                        .arity = mc.arity,
+                        .param_vars_offset = mc.param_vars_offset,
+                        .applied = &.{},
+                        .captured_env = frame.state.environment.reference(),
+                    });
+
+                    const value = rt.Value{ .closure = closure };
+                    const old_env = frame.state.environment;
+                    const new_env = try old_env.copyPut(self.allocator, mc.dest, value);
+                    frame.state.environment = new_env;
+                    old_env.dereference(self.allocator);
+                },
+                .apply => |ap| {
+                    frame.state.pc += 1;
+
+                    const closure_value = try self.getSource(frame.state, ap.closure);
+                    const closure = switch (closure_value) {
+                        .closure => |c| c,
+                        else => return error.UnexpectedType,
+                    };
+                    const arg_value = try self.getSource(frame.state, ap.argument);
+
+                    const new_applied_len = closure.value.applied.len + 1;
+                    if (new_applied_len < closure.value.arity) {
+                        const new_applied = try self.allocator.alloc(rt.Value, new_applied_len);
+                        for (closure.value.applied, 0..) |v, i| new_applied[i] = v.clone();
+                        new_applied[new_applied_len - 1] = arg_value.clone();
+
+                        const new_closure = try ds.Rc(rt.Closure).create(self.allocator, .{
+                            .entry = closure.value.entry,
+                            .arity = closure.value.arity,
+                            .param_vars_offset = closure.value.param_vars_offset,
+                            .applied = new_applied,
+                            .captured_env = closure.value.captured_env.reference(),
+                        });
+
+                        var old_value = frame.state.value;
+                        frame.state.value = rt.Value{ .closure = new_closure };
+                        old_value.deinit(self.allocator);
+                    } else {
+                        const resume_address = frame.state.pc;
+
+                        var call_env = closure.value.captured_env.reference();
+                        for (closure.value.applied, 0..) |v, i| {
+                            const param_var = self.param_var_arena[closure.value.param_vars_offset + i];
+                            // IMPROVE: Is there a way we can avoid this allocation?
+                            // It may take completely changing how `make_closure` and `apply` works
+                            const next_env = try call_env.copyPut(self.allocator, param_var, v.clone());
+                            call_env.dereference(self.allocator);
+                            call_env = next_env;
+                        }
+                        const final_param_var = self.param_var_arena[closure.value.param_vars_offset + closure.value.applied.len];
+                        const final_env = try call_env.copyPut(self.allocator, final_param_var, arg_value.clone());
+                        call_env.dereference(self.allocator);
+
+                        const old_env = frame.state.environment;
+                        const env_copy_old_frame = try old_env.copy(self.allocator);
+                        frame.state.environment = env_copy_old_frame;
+                        old_env.dereference(self.allocator);
+
+                        try self.stack.append(self.allocator, Frame{
+                            .state = State{
+                                .pc = closure.value.entry,
+                                .value = frame.state.value.clone(),
+                                .environment = final_env,
+                            },
+                            .boundary = Boundary{ .call = .{ .resume_address = resume_address } },
+                        });
+                    }
                 },
                 .alt => |alt_inst| {
                     frame.state.pc += 1;
@@ -636,7 +720,7 @@ pub const Runtime = struct {
                     try self.stack.append(self.allocator, Frame{
                         .state = State{
                             .pc = alt_inst.left_entry,
-                            .value = frame.state.value,
+                            .value = frame.state.value.clone(),
                             .environment = env_copy_new_frame,
                         },
                         .boundary = Boundary{ .alt = .{
