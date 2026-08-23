@@ -13,7 +13,7 @@ importers:
         version: 2.4.16
       tree-sitter-cli:
         specifier: ^0.26.0
-        version: 0.26.9
+        version: 0.26.13
 
   packages/playground:
     dependencies:
@@ -68,7 +68,7 @@ importers:
         version: 0.24.1
       tree-sitter-cli:
         specifier: ^0.26.9
-        version: 0.26.9
+        version: 0.26.13
       tree-sitter-cpp:
         specifier: ^0.23.4
         version: 0.23.4
@@ -124,7 +124,7 @@ importers:
         version: 0.25.0
       tree-sitter-cli:
         specifier: ^0.26.0
-        version: 0.26.9
+        version: 0.26.13
 
 packages:
 
@@ -764,8 +764,8 @@ packages:
       tree-sitter:
         optional: true
 
-  tree-sitter-cli@0.26.9:
-    resolution: {integrity: sha512-7l+U1RmazPVe+yA/JiX80GFOILnL/j24GbawamIzNQC8UlINrcyECbaWGaG1wuq4j/m0DQTx7Uu4r0iW9Ao1BQ==}
+  tree-sitter-cli@0.26.13:
+    resolution: {integrity: sha512-SIC74lxT2jsygxaIGGb50Bpf8jtll24aXju98Y3eJienBTXCRQ+5k3YigwN31pASEUZKcKh98EPSZWky7ugUMA==}
     engines: {node: '>=12.0.0'}
     hasBin: true
 
@@ -1530,7 +1530,7 @@ snapshots:
       node-addon-api: 8.8.0
       node-gyp-build: 4.8.4
 
-  tree-sitter-cli@0.26.9: {}
+  tree-sitter-cli@0.26.13: {}
 
   tree-sitter-cpp@0.23.4:
     dependencies:
