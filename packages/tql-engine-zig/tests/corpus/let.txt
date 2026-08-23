@@ -1,0 +1,249 @@
+================================================================================
+single-binding let expression
+================================================================================
+grammar: typescript
+
+--- tql ---
+let @x = . / class_declaration in @x
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class Controller {}",
+    "start_byte": 17,
+    "end_byte": 36,
+    "start_point": {
+      "row": 1,
+      "column": 0
+    },
+    "end_point": {
+      "row": 1,
+      "column": 19
+    }
+  }
+]
+--- tql tree ---
+(source_file (let ((x (child . (node class_declaration)))) x))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: yield variable_id 0
+0010: halt
+================================================================================
+multi-binding let expression, later binding references earlier one
+================================================================================
+grammar: typescript
+
+--- tql ---
+let @class = . / class_declaration,
+    @name = @class.name
+in @name
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (let ((class (child . (node class_declaration))) (name (field class name))) name))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv field 25
+0011: asn 5 ((current value) value)
+0012: asn 4 (variable_id 5)
+0013: yield variable_id 4
+0014: halt
+================================================================================
+let-bound variable leaks past the in-body, matching `as` leak semantics
+================================================================================
+grammar: typescript
+
+--- tql ---
+let @class = . / class_declaration in select(@class.name | text = 'Controller') | @class.name
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (let ((class (child . (node class_declaration)))) (pipe (call select (eq (pipe (field class name) (call text)) (string "Controller"))) (field class name))))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: asn 4 ((current value) value)
+0010: asn 5 ((current value) value)
+0011: trv value_source (variable_id 0)
+0012: trv field 25
+0013: asn 6 ((current value) value)
+0014: trv value_source (variable_id 6)
+0015: asn 7 ((current value) text)
+0016: trv value_source (variable_id 5)
+0017: rel equals (variable_id 7) (literal string "Controller") -> 8
+0018: trv value_source (variable_id 4)
+0019: jmp 21 if (variable_id 8)
+0020: halt
+0021: trv value_source ((current value) value)
+0022: trv value_source (variable_id 0)
+0023: trv field 25
+0024: asn 9 ((current value) value)
+0025: yield variable_id 9
+0026: halt
+================================================================================
+nested let expressions compose
+================================================================================
+grammar: typescript
+
+--- tql ---
+let @a = . / class_declaration in
+let @b = @a.name in
+@b
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (let ((a (child . (node class_declaration)))) (let ((b (field a name))) b)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv field 25
+0011: asn 5 ((current value) value)
+0012: asn 4 (variable_id 5)
+0013: yield variable_id 4
+0014: halt

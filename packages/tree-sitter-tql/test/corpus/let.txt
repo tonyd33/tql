@@ -1,0 +1,169 @@
+========================================
+single-binding let expression
+========================================
+
+let @x = class_declaration in @x
+
+---
+
+(source_file
+  (expression
+    (let_expression
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      body: (expression
+        (variable
+          (identifier))))))
+
+========================================
+multi-binding let expression
+========================================
+
+let @a = x, @b = y in f(@a; @b)
+
+---
+
+(source_file
+  (expression
+    (let_expression
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      body: (expression
+        (function_call
+          name: (identifier)
+          argument: (expression
+            (variable
+              (identifier)))
+          argument: (expression
+            (variable
+              (identifier))))))))
+
+========================================
+let binding value referencing an earlier binding
+========================================
+
+let @a = x, @b = @a.foo in @b
+
+---
+
+(source_file
+  (expression
+    (let_expression
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (field_access
+            base: (expression
+              (variable
+                (identifier)))
+            field: (identifier))))
+      body: (expression
+        (variable
+          (identifier))))))
+
+========================================
+nested let expressions
+========================================
+
+let @x = a in let @y = b in f(@x; @y)
+
+---
+
+(source_file
+  (expression
+    (let_expression
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      body: (expression
+        (let_expression
+          binding: (let_binding
+            variable: (variable
+              (identifier))
+            value: (expression
+              (function_call
+                name: (identifier))))
+          body: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (variable
+                  (identifier)))
+              argument: (expression
+                (variable
+                  (identifier))))))))))
+
+========================================
+let expression composed with pipe as body
+========================================
+
+let @class = class_declaration in select(@class) | @class
+
+---
+
+(source_file
+  (expression
+    (let_expression
+      binding: (let_binding
+        variable: (variable
+          (identifier))
+        value: (expression
+          (function_call
+            name: (identifier))))
+      body: (expression
+        (pipe_expression
+          left: (expression
+            (function_call
+              name: (identifier)
+              argument: (expression
+                (variable
+                  (identifier)))))
+          right: (expression
+            (variable
+              (identifier))))))))
+
+========================================
+identifiers starting with let/in keywords are not swallowed
+========================================
+
+letter as @x | inner
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (function_call
+              name: (identifier)))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (function_call
+          name: (identifier))))))

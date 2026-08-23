@@ -451,6 +451,15 @@ pub const Compiler = struct {
                 try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = vs } });
                 return .{ .variable_id = var_id };
             },
+            .let_expression => |le| {
+                for (le.bindings) |binding| {
+                    const owned_name = try self.addString(binding.variable.name);
+                    const var_id = try self.variables.declare(ns, owned_name);
+                    const value_vs = try self.compileExpression(ns, binding.value);
+                    try self.instruction_builder.emit(.{ .asn = .{ .variable_id = var_id, .source = value_vs } });
+                }
+                return try self.compileExpression(ns, le.body);
+            },
         }
     }
 
