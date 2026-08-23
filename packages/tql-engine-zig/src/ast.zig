@@ -188,8 +188,9 @@ pub const UnionExpression = struct {
 // Navigation
 // ============================================================================
 
-pub const NodeSelector = struct {
-    node_type: Identifier,
+pub const NodeSelector = union(enum) {
+    kind: Identifier,
+    wildcard,
 };
 
 pub const FieldAccess = struct {
@@ -379,7 +380,10 @@ pub const Expression = union(enum) {
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
         switch (self) {
-            .node_selector => |ns| allocator.free(ns.node_type),
+            .node_selector => |ns| switch (ns) {
+                .kind => |k| allocator.free(k),
+                .wildcard => {},
+            },
             .variable => |v| allocator.free(v.name),
             .dot_field_access => |dfa| allocator.free(dfa.field),
             .string_literal => |s| allocator.free(s),
@@ -469,7 +473,10 @@ pub const Expression = union(enum) {
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
-            .node_selector => |ns| try w.print("(node {s})", .{ns.node_type}),
+            .node_selector => |ns| switch (ns) {
+                .kind => |k| try w.print("(node {s})", .{k}),
+                .wildcard => try w.writeAll("(node *)"),
+            },
             .variable => |v| try w.print("{s}", .{v.name}),
             .dot_field_access => |dfa| try dfa.sexpr(w),
             .string_literal => |s| try w.print("(string \"{s}\")", .{s}),

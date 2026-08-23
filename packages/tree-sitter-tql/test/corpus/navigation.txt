@@ -140,6 +140,76 @@ class_declaration as @class | @class // call_expression as @call | @call
           (identifier))))))
 
 ========================================
+wildcard child navigation
+========================================
+
+class_declaration as @class | @class / * as @child | @child
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (child_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  child: (node_selector
+                    (wildcard))))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
+wildcard descendant navigation
+========================================
+
+class_declaration as @class | @class // * as @descendant | @descendant
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (pipe_expression
+              left: (expression
+                (bind_expression
+                  expression: (expression
+                    (function_call
+                      name: (identifier)))
+                  variable: (variable
+                    (identifier))))
+              right: (expression
+                (descendant_navigation
+                  parent: (expression
+                    (variable
+                      (identifier)))
+                  descendant: (node_selector
+                    (wildcard))))))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (variable
+          (identifier))))))
+
+========================================
 complex navigation
 ========================================
 

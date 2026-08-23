@@ -244,19 +244,24 @@ pub const Compiler = struct {
                 return .{ .current = .value };
             },
             .node_selector => |node_selector| {
-                const kind_id = self.language.idForNodeKind(node_selector.node_type, true);
-                const bool_tmp = self.variables.allocateAnonymous();
-                try self.instruction_builder.emit(.{ .rel = .{
-                    .relation = .equals,
-                    .a = .{ .current = .kind },
-                    .b = .{ .literal = .{ .kind_id = kind_id } },
-                    .dest = bool_tmp,
-                } });
-                const skip_label = self.instruction_builder.createLabel();
-                try self.instruction_builder.emitJumpCnd(.{ .variable_id = bool_tmp }, skip_label, false);
-                try self.instruction_builder.emit(.halt);
-                try self.instruction_builder.markLabel(skip_label);
-                return try self.bindValue();
+                switch (node_selector) {
+                    .wildcard => return try self.bindValue(),
+                    .kind => |node_type| {
+                        const kind_id = self.language.idForNodeKind(node_type, true);
+                        const bool_tmp = self.variables.allocateAnonymous();
+                        try self.instruction_builder.emit(.{ .rel = .{
+                            .relation = .equals,
+                            .a = .{ .current = .kind },
+                            .b = .{ .literal = .{ .kind_id = kind_id } },
+                            .dest = bool_tmp,
+                        } });
+                        const skip_label = self.instruction_builder.createLabel();
+                        try self.instruction_builder.emitJumpCnd(.{ .variable_id = bool_tmp }, skip_label, false);
+                        try self.instruction_builder.emit(.halt);
+                        try self.instruction_builder.markLabel(skip_label);
+                        return try self.bindValue();
+                    },
+                }
             },
             .object_literal => |obj| {
                 const FieldSource = struct { key: []const u8, source: ir.ValueSource };

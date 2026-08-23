@@ -183,8 +183,18 @@ pub const Parser = struct {
     // ========================================================================
 
     fn parseNodeSelector(self: *Parser, node: ts.Node, source: []const u8) !ast.NodeSelector {
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (!cursor.gotoFirstChild()) return error.MalformedTree;
+        const child = cursor.node();
+
+        if (std.mem.eql(u8, getNodeType(child), "wildcard")) {
+            return ast.NodeSelector.wildcard;
+        }
+
         const node_type = try self.allocator.dupe(u8, nodeText(node, source));
-        return ast.NodeSelector{ .node_type = node_type };
+        return ast.NodeSelector{ .kind = node_type };
     }
 
     fn parseFieldAccess(self: *Parser, node: ts.Node, source: []const u8) !ast.FieldAccess {

@@ -425,8 +425,22 @@
       "type": "PREC",
       "value": -1,
       "content": {
-        "type": "SYMBOL",
-        "name": "identifier"
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "identifier"
+          },
+          {
+            "type": "ALIAS",
+            "content": {
+              "type": "STRING",
+              "value": "*"
+            },
+            "named": true,
+            "value": "wildcard"
+          }
+        ]
       }
     },
     "field_access": {
