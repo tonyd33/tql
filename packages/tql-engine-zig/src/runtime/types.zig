@@ -21,7 +21,7 @@ pub const Range = public.Range;
 pub const Value = union(enum) {
     nothing,
     bool: bool,
-    uint: u64,
+    int: i64,
     string: []const u8,
     range: Range,
     kind_id: NodeKindId,
@@ -58,7 +58,7 @@ pub const Value = union(enum) {
         return switch (a) {
             .nothing => true,
             .bool => |bv| bv == b.bool,
-            .uint => |uint| uint == b.uint,
+            .int => |int| int == b.int,
             .string => |a_str| std.mem.eql(u8, a_str, b.string),
             .range => |a_range| {
                 const b_range = b.range;
@@ -82,7 +82,7 @@ pub const Value = union(enum) {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
             .bool => |bv| try writer.print("bool {}", .{bv}),
-            .uint => |uint| try writer.print("uint {}", .{uint}),
+            .int => |int| try writer.print("int {}", .{int}),
             .string => |s| try writer.print("string \"{s}\"", .{s}),
             .kind_id => |k| try writer.print("kind_id {}", .{k}),
             .field_id => |f| try writer.print("field_id {}", .{f}),
@@ -98,7 +98,7 @@ pub const Value = union(enum) {
         return switch (self) {
             .nothing => .nothing,
             .bool => |b| .{ .bool = b },
-            .uint => |u| .{ .uint = u },
+            .int => |i| .{ .int = i },
             .string => |s| .{ .string = try gpa.dupe(u8, s) },
             .range => |r| .{ .range = r },
             .node => |n| blk: {

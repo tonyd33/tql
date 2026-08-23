@@ -369,7 +369,7 @@ pub const Runtime = struct {
             .literal => |v| switch (v) {
                 .nothing => .nothing,
                 .bool => |b| rt.Value{ .bool = b },
-                .uint => |u| rt.Value{ .uint = u },
+                .int => |i| rt.Value{ .int = i },
                 .string => |s| rt.Value{ .string = s },
                 .kind_id => |k| rt.Value{ .kind_id = k },
                 .field_id => |f| rt.Value{ .field_id = f },
@@ -398,6 +398,10 @@ pub const Runtime = struct {
                             .end_byte = range.end_byte,
                         } };
                     },
+                    else => error.UnexpectedType,
+                },
+                .length => switch (state.value) {
+                    .string => |s| rt.Value{ .int = @intCast(s.len) },
                     else => error.UnexpectedType,
                 },
             },
@@ -518,15 +522,15 @@ pub const Runtime = struct {
                             else => error.InvalidArguments,
                         },
                         .lt => switch (a_value) {
-                            .uint => |a_uint| switch (b_value) {
-                                .uint => |b_uint| a_uint < b_uint,
+                            .int => |a_int| switch (b_value) {
+                                .int => |b_int| a_int < b_int,
                                 else => error.InvalidArguments,
                             },
                             else => error.InvalidArguments,
                         },
                         .gt => switch (a_value) {
-                            .uint => |a_uint| switch (b_value) {
-                                .uint => |b_uint| a_uint > b_uint,
+                            .int => |a_int| switch (b_value) {
+                                .int => |b_int| a_int > b_int,
                                 else => error.InvalidArguments,
                             },
                             else => error.InvalidArguments,

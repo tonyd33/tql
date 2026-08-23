@@ -1,0 +1,62 @@
+================================================================================
+length() of extracted text
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier | text() | length()
+--- source ---
+class Foo { bar() {} }
+--- values ---
+[
+  3
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (descendant . (node property_identifier)) (call text)) (call length)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv value_source ((current value) text)
+0010: yield (current value) length
+0011: halt
+================================================================================
+length() on empty identifier text is zero
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier | text() | length()
+--- source ---
+class Foo { a() {} }
+--- values ---
+[
+  1
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (descendant . (node property_identifier)) (call text)) (call length)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv value_source ((current value) text)
+0010: yield (current value) length
+0011: halt

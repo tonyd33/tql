@@ -21,9 +21,9 @@ const x = 1;
 0000: alt 3 5
 0001: asn 0 ((current value) value)
 0002: jmp 7
-0003: yield literal uint 1
+0003: yield literal int 1
 0004: halt
-0005: yield literal uint 2
+0005: yield literal int 2
 0006: halt
 0007: yield variable_id 0
 0008: halt
@@ -242,13 +242,13 @@ const x = 1;
 0003: alt 6 8
 0004: asn 1 ((current value) value)
 0005: jmp 10
-0006: yield literal uint 1
+0006: yield literal int 1
 0007: halt
-0008: yield literal uint 2
+0008: yield literal int 2
 0009: halt
 0010: yield variable_id 1
 0011: halt
-0012: yield literal uint 3
+0012: yield literal int 3
 0013: halt
 0014: yield variable_id 0
 0015: halt

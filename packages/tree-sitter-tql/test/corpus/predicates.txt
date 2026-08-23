@@ -546,3 +546,50 @@ method_definition as @m | select(@m.return_type is not null) | @m
       right: (expression
         (variable
           (identifier))))))
+
+========================================
+numeric comparisons
+========================================
+
+select(length() < 10 and length() > 1 and length() <= 10 and length() >= 1)
+
+---
+
+(source_file
+  (expression
+    (function_call
+      name: (identifier)
+      argument: (expression
+        (logical_and
+          left: (expression
+            (logical_and
+              left: (expression
+                (logical_and
+                  left: (expression
+                    (comparison
+                      left: (expression
+                        (function_call
+                          name: (identifier)))
+                      right: (expression
+                        (number_literal))))
+                  right: (expression
+                    (comparison
+                      left: (expression
+                        (function_call
+                          name: (identifier)))
+                      right: (expression
+                        (number_literal))))))
+              right: (expression
+                (comparison
+                  left: (expression
+                    (function_call
+                      name: (identifier)))
+                  right: (expression
+                    (number_literal))))))
+          right: (expression
+            (comparison
+              left: (expression
+                (function_call
+                  name: (identifier)))
+              right: (expression
+                (number_literal)))))))))

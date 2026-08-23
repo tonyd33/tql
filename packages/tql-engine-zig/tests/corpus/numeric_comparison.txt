@@ -1,0 +1,182 @@
+================================================================================
+less than filters short identifiers
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier as @id | select((@id | text | length) < 3) | @id | text
+--- source ---
+class Foo { ab() {} bar() {} }
+--- values ---
+[
+  "ab"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (lt (paren (pipe (pipe id (call text)) (call length))) (number 3)))) id) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv value_source ((current value) text)
+0014: asn 6 ((current value) length)
+0015: trv value_source (variable_id 5)
+0016: rel lt (variable_id 6) (literal int 3) -> 7
+0017: trv value_source (variable_id 4)
+0018: jmp 20 if (variable_id 7)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: trv value_source (variable_id 0)
+0022: yield (current value) text
+0023: halt
+================================================================================
+greater than filters long identifiers
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier as @id | select((@id | text | length) > 3) | @id | text
+--- source ---
+class Foo { ab() {} barn() {} }
+--- values ---
+[
+  "barn"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (gt (paren (pipe (pipe id (call text)) (call length))) (number 3)))) id) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv value_source ((current value) text)
+0014: asn 6 ((current value) length)
+0015: trv value_source (variable_id 5)
+0016: rel gt (variable_id 6) (literal int 3) -> 7
+0017: trv value_source (variable_id 4)
+0018: jmp 20 if (variable_id 7)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: trv value_source (variable_id 0)
+0022: yield (current value) text
+0023: halt
+================================================================================
+less than or equal is inclusive
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier as @id | select((@id | text | length) <= 3) | @id | text
+--- source ---
+class Foo { ab() {} bar() {} barn() {} }
+--- values ---
+[
+  "ab",
+  "bar"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (lte (paren (pipe (pipe id (call text)) (call length))) (number 3)))) id) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv value_source ((current value) text)
+0014: asn 6 ((current value) length)
+0015: trv value_source (variable_id 5)
+0016: rel gt (variable_id 6) (literal int 3) -> 7
+0017: jmp 20 if (variable_id 7)
+0018: asn 8 (literal bool true)
+0019: jmp 21
+0020: asn 8 (literal bool false)
+0021: trv value_source (variable_id 4)
+0022: jmp 24 if (variable_id 8)
+0023: halt
+0024: trv value_source ((current value) value)
+0025: trv value_source (variable_id 0)
+0026: yield (current value) text
+0027: halt
+================================================================================
+greater than or equal is inclusive
+================================================================================
+grammar: typescript
+
+--- tql ---
+. // property_identifier as @id | select((@id | text | length) >= 3) | @id | text
+--- source ---
+class Foo { ab() {} bar() {} barn() {} }
+--- values ---
+[
+  "bar",
+  "barn"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (pipe (bind (descendant . (node property_identifier)) id) (call select (gte (paren (pipe (pipe id (call text)) (call length))) (number 3)))) id) (call text)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 ((current value) value)
+0012: trv value_source (variable_id 0)
+0013: trv value_source ((current value) text)
+0014: asn 6 ((current value) length)
+0015: trv value_source (variable_id 5)
+0016: rel lt (variable_id 6) (literal int 3) -> 7
+0017: jmp 20 if (variable_id 7)
+0018: asn 8 (literal bool true)
+0019: jmp 21
+0020: asn 8 (literal bool false)
+0021: trv value_source (variable_id 4)
+0022: jmp 24 if (variable_id 8)
+0023: halt
+0024: trv value_source ((current value) value)
+0025: trv value_source (variable_id 0)
+0026: yield (current value) text
+0027: halt

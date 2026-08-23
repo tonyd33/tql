@@ -249,6 +249,10 @@ pub const ComparisonOperator = enum {
     ne,
     regex_match,
     regex_not_match,
+    lt,
+    gt,
+    lte,
+    gte,
 };
 
 pub const LogicalAnd = struct {
@@ -351,7 +355,7 @@ pub const Expression = union(enum) {
     dot_field_access: DotFieldAccess,
     string_literal: []const u8,
     regex_literal: []const u8,
-    number_literal: u64,
+    number_literal: i64,
     null_literal,
     identity,
     field_access: *FieldAccess,
