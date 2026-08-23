@@ -389,6 +389,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "variable",
+            "named": true
           }
         ]
       }

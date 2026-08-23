@@ -89,6 +89,23 @@ pub const InstructionBuilder = struct {
         try self.registerPatch(label_id, inst_index, .first);
     }
 
+    pub fn emitMakeClosure(
+        self: *InstructionBuilder,
+        label_id: LabelId,
+        arity: u8,
+        param_vars_offset: u32,
+        dest: VariableId,
+    ) Allocator.Error!void {
+        const inst_index = self.instructions.items.len;
+        try self.instructions.append(self.allocator, Instruction{ .make_closure = .{
+            .entry = 0,
+            .arity = arity,
+            .param_vars_offset = param_vars_offset,
+            .dest = dest,
+        } });
+        try self.registerPatch(label_id, inst_index, .first);
+    }
+
     pub fn emitProbe(self: *InstructionBuilder, data: ir.ProbeData, resume_label: LabelId) Allocator.Error!void {
         const inst_index = self.instructions.items.len;
 
@@ -133,6 +150,7 @@ pub const InstructionBuilder = struct {
                     .jmp => |*jmp| jmp.address = address,
                     .probe => |*probe| probe.resume_address = address,
                     .call => |*call| call.* = address,
+                    .make_closure => |*mc| mc.entry = address,
                     .alt => |*alt| switch (pending.field) {
                         .first => alt.left_entry = address,
                         .second => alt.right_entry = address,

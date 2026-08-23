@@ -129,6 +129,7 @@ pub const Query = struct {
             .source = query_target,
             .instructions = self.program_image.instructions,
             .regexes = self.program_image.regexes,
+            .param_var_arena = self.program_image.param_var_arena,
             .allocator = scratch_allocator,
         });
         try rt.exec();

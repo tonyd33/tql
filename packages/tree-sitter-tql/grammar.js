@@ -194,7 +194,7 @@ module.exports = grammar({
         prec(
           1,
           seq(
-            field("name", $.identifier),
+            field("name", choice($.identifier, $.variable)),
             "(",
             optional(semicolon_sep1(field("argument", $.expression))),
             ")",

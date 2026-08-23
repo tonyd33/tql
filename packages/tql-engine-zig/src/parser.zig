@@ -425,7 +425,15 @@ pub const Parser = struct {
 
     fn parseFunctionCall(self: *Parser, node: ts.Node, source: []const u8) !ast.FunctionCall {
         const name_node = try expectChildByFieldName(node, "name");
-        const name = try self.allocator.dupe(u8, nodeText(name_node, source));
+        const callee: ast.FunctionCallCallee = if (std.mem.eql(u8, getNodeType(name_node), "variable")) blk: {
+            // `variable` nodes are `@` + identifier (grammar.js:
+            // `variable: $ => seq("@", $.identifier)`); strip the sigil so
+            // the stored name matches the bare-name convention used
+            // everywhere else (e.g. ast.Variable.name).
+            const text = nodeText(name_node, source);
+            const bare = if (text.len > 0 and text[0] == '@') text[1..] else text;
+            break :blk .{ .variable = try self.allocator.dupe(u8, bare) };
+        } else .{ .name = try self.allocator.dupe(u8, nodeText(name_node, source)) };
 
         var arguments = std.ArrayList(ast.Expression).empty;
         defer arguments.deinit(self.allocator);
@@ -446,7 +454,7 @@ pub const Parser = struct {
         }
 
         return ast.FunctionCall{
-            .name = name,
+            .callee = callee,
             .arguments = try arguments.toOwnedSlice(self.allocator),
         };
     }
@@ -861,7 +869,7 @@ test "parse pipeline with select filter" {
 
     const inner = expr.pipe_expression.left.pipe_expression;
     try std.testing.expect(inner.right == .function_call);
-    try std.testing.expectEqualStrings("select", inner.right.function_call.name);
+    try std.testing.expectEqualStrings("select", inner.right.function_call.callee.name);
 }
 
 test "parse function definition" {
@@ -938,6 +946,6 @@ test "parse quantified expression" {
     try std.testing.expect(select_expr == .function_call);
     const any_call = select_expr.function_call.arguments[0];
     try std.testing.expect(any_call == .function_call);
-    try std.testing.expectEqualStrings("any", any_call.function_call.name);
+    try std.testing.expectEqualStrings("any", any_call.function_call.callee.name);
     try std.testing.expect(any_call.function_call.arguments[0] == .child_navigation);
 }

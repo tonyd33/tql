@@ -32,14 +32,13 @@ pub const Value = union(enum) {
     regex: pcre2.Regex,
     record: *Rc(Record),
     list: *Rc(List),
+    closure: *Rc(Closure),
 
-    /// Bump refcounts on heap variants; no-op for inline ones. Producers
-    /// (asn, push_build, yield) call this before handing a Value to a new
-    /// owner.
     pub fn clone(self: Value) Value {
         return switch (self) {
             .record => |r| .{ .record = r.reference() },
             .list => |l| .{ .list = l.reference() },
+            .closure => |c| .{ .closure = c.reference() },
             else => self,
         };
     }
@@ -48,6 +47,7 @@ pub const Value = union(enum) {
         switch (self.*) {
             .record => |r| r.dereference(gpa),
             .list => |l| l.dereference(gpa),
+            .closure => |c| c.dereference(gpa),
             else => {},
         }
     }
@@ -75,6 +75,7 @@ pub const Value = union(enum) {
             .regex => |a_regex| a_regex.eql(b.regex),
             .record => |a_r| a_r == b.record,
             .list => |a_l| a_l == b.list,
+            .closure => |a_c| a_c == b.closure,
         };
     }
 
@@ -91,6 +92,7 @@ pub const Value = union(enum) {
             .regex => try writer.print("regex ...", .{}),
             .record => try writer.print("record ...", .{}),
             .list => try writer.print("list ...", .{}),
+            .closure => |c| try writer.print("closure entry={} arity={} applied={}", .{ c.value.entry, c.value.arity, c.value.applied.len }),
         }
     }
 
@@ -136,7 +138,7 @@ pub const Value = union(enum) {
                 for (rc.value.items.items, 0..) |v, i| items[i] = try v.toPublic(gpa, source);
                 break :blk .{ .list = .{ ._items = items } };
             },
-            .kind_id, .field_id, .regex => @panic("TODO"),
+            .kind_id, .field_id, .regex, .closure => @panic("TODO"),
         };
     }
 };
@@ -169,6 +171,25 @@ pub const List = struct {
     pub fn deinit(self: *List, gpa: Allocator) void {
         for (self.items.items) |*v| v.deinit(gpa);
         self.items.deinit(gpa);
+    }
+};
+
+/// A function value: an entry point plus a lexically captured environment,
+/// with zero or more arguments already applied (curried). `param_vars_offset`
+/// indexes into the owning ProgramImage's `param_var_arena` (not owned by
+/// the Closure); combined with `arity`, it resolves to the def's parameter
+/// VariableIds.
+pub const Closure = struct {
+    entry: Address,
+    arity: u8,
+    param_vars_offset: u32,
+    applied: []Value,
+    captured_env: Environment.Cell,
+
+    pub fn deinit(self: *Closure, gpa: Allocator) void {
+        for (self.applied) |*v| v.deinit(gpa);
+        gpa.free(self.applied);
+        self.captured_env.dereference(gpa);
     }
 };
 
@@ -442,7 +463,7 @@ pub const ListIterator = struct {
     index: usize = 0,
 
     pub fn value(self: *const ListIterator) Value {
-        return self.list.value.items.items[self.index - 1];
+        return self.list.value.items.items[self.index - 1].clone();
     }
 
     pub fn next(self: *ListIterator) bool {
