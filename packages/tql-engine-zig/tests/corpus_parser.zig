@@ -7,6 +7,8 @@ const SECTION_SOURCE_TREE = "--- source tree ---";
 const SECTION_TQL_TREE = "--- tql tree ---";
 const SECTION_BYTECODE = "--- bytecode ---";
 const SECTION_VALUES = "--- values ---";
+const SECTION_CORE = "--- core ---";
+const SECTION_ERROR = "--- error ---";
 
 pub const SectionKind = enum {
     query,
@@ -15,6 +17,8 @@ pub const SectionKind = enum {
     tql_tree,
     bytecode,
     values,
+    core,
+    @"error",
 
     pub fn name(self: SectionKind) []const u8 {
         return switch (self) {
@@ -24,6 +28,8 @@ pub const SectionKind = enum {
             .tql_tree => "tql tree",
             .bytecode => "bytecode",
             .values => "values",
+            .core => "core",
+            .@"error" => "error",
         };
     }
 
@@ -35,6 +41,8 @@ pub const SectionKind = enum {
             .tql_tree => SECTION_TQL_TREE,
             .bytecode => SECTION_BYTECODE,
             .values => SECTION_VALUES,
+            .core => SECTION_CORE,
+            .@"error" => SECTION_ERROR,
         };
     }
 };
@@ -66,6 +74,11 @@ pub const TestCase = struct {
     tql_tree: Section,
     bytecode: Section,
     values: Section,
+    core: Section,
+    /// Expected compile error, as `code at start:end: message` lines. When
+    /// present, the case asserts the query is rejected and the sections that
+    /// only exist for an accepted query are not compared.
+    @"error": Section,
 
     pub fn deinit(self: *TestCase, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -76,6 +89,8 @@ pub const TestCase = struct {
         self.tql_tree.deinit(allocator);
         self.bytecode.deinit(allocator);
         self.values.deinit(allocator);
+        self.core.deinit(allocator);
+        self.@"error".deinit(allocator);
     }
 };
 
@@ -208,6 +223,10 @@ fn parseCase(
     errdefer if (bytecode) |s| s.deinit(allocator);
     var values: ?Section = null;
     errdefer if (values) |s| s.deinit(allocator);
+    var core: ?Section = null;
+    errdefer if (core) |s| s.deinit(allocator);
+    var error_section: ?Section = null;
+    errdefer if (error_section) |s| s.deinit(allocator);
 
     query = try extractSection(allocator, p);
 
@@ -225,6 +244,10 @@ fn parseCase(
             bytecode = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_VALUES)) {
             values = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_CORE)) {
+            core = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
+            error_section = try extractSection(allocator, p);
         } else {
             return error.UnexpectedMarker;
         }
@@ -241,6 +264,8 @@ fn parseCase(
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
         .bytecode = bytecode orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
+        .core = core orelse try dupeSection(allocator, here),
+        .@"error" = error_section orelse try dupeSection(allocator, here),
     };
 }
 
@@ -251,6 +276,8 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_TQL_TREE,
     SECTION_BYTECODE,
     SECTION_VALUES,
+    SECTION_CORE,
+    SECTION_ERROR,
     SEP,
 };
 
@@ -333,10 +360,19 @@ pub fn applyUpdates(
         // are copied verbatim as part of source[cursor..section.start].
         cursor = try emitSectionWithGap(allocator, &buf, handle.source, .query, tc.query, null, cursor);
         cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source, tc.target, null, cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .values, tc.values, findUpdate(case_updates, .values), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .tql_tree, tc.tql_tree, findUpdate(case_updates, .tql_tree), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source_tree, tc.source_tree, findUpdate(case_updates, .source_tree), cursor);
-        cursor = try emitSectionWithGap(allocator, &buf, handle.source, .bytecode, tc.bytecode, findUpdate(case_updates, .bytecode), cursor);
+        if (tc.@"error".content.len > 0) {
+            // A rejected query has no runtime output, so only the parse-level
+            // sections accompany the hand-written error spec.
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .@"error", tc.@"error", null, cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .tql_tree, tc.tql_tree, findUpdate(case_updates, .tql_tree), cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source_tree, tc.source_tree, findUpdate(case_updates, .source_tree), cursor);
+        } else {
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .values, tc.values, findUpdate(case_updates, .values), cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .tql_tree, tc.tql_tree, findUpdate(case_updates, .tql_tree), cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .source_tree, tc.source_tree, findUpdate(case_updates, .source_tree), cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .bytecode, tc.bytecode, findUpdate(case_updates, .bytecode), cursor);
+            cursor = try emitSectionWithGap(allocator, &buf, handle.source, .core, tc.core, findUpdate(case_updates, .core), cursor);
+        }
     }
 
     // emit trailing content (inter-case gaps, EOF)
@@ -375,6 +411,11 @@ fn emitSectionWithGap(
     if (new_content) |nc| {
         if (section.content.len == 0) {
             if (!marker_present) {
+                // A synthesized marker must start its own line; the section it
+                // follows may have been emitted without a trailing newline.
+                if (buf.items.len > 0 and !std.mem.endsWith(u8, buf.items, "\n")) {
+                    try buf.append(allocator, '\n');
+                }
                 try buf.appendSlice(allocator, kind.marker());
                 try buf.appendSlice(allocator, "\n");
             } else if (gap.len > 0 and !std.mem.endsWith(u8, gap, "\n")) {
@@ -429,6 +470,8 @@ test "SectionKind.name returns correct strings" {
     try testing.expectEqualStrings("tql tree", SectionKind.tql_tree.name());
     try testing.expectEqualStrings("bytecode", SectionKind.bytecode.name());
     try testing.expectEqualStrings("values", SectionKind.values.name());
+    try testing.expectEqualStrings("core", SectionKind.core.name());
+    try testing.expectEqualStrings("error", SectionKind.@"error".name());
 }
 
 test "parse empty content yields zero cases" {
@@ -792,4 +835,66 @@ test "applyUpdates populating a null section uses newline terminator" {
     defer updated.deinit();
 
     try testing.expectEqualStrings("0000: yield", updated.cases[0].bytecode.content);
+}
+
+test "applyUpdates preserves an error section while adding parse trees" {
+    const input =
+        \\================================================================================
+        \\error case
+        \\================================================================================
+        \\grammar: typescript
+        \\
+        \\--- tql ---
+        \\@missing
+        \\--- source ---
+        \\class Foo {}
+        \\--- error ---
+        \\unbound_name at 0:8: unbound variable @missing
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const result = try applyUpdates(testing.allocator, corpus, &.{
+        .{
+            .case_name = "error case",
+            .sections = &.{
+                .{ .kind = .tql_tree, .new_content = "(source_file missing)" },
+                .{ .kind = .source_tree, .new_content = "(program)" },
+            },
+        },
+    });
+    defer testing.allocator.free(result);
+
+    var updated = try parse(testing.allocator, result);
+    defer updated.deinit();
+    try testing.expectEqualStrings(
+        "unbound_name at 0:8: unbound variable @missing",
+        updated.cases[0].@"error".content,
+    );
+    try testing.expectEqualStrings("(source_file missing)", updated.cases[0].tql_tree.content);
+    try testing.expectEqualStrings("(program)", updated.cases[0].source_tree.content);
+    try testing.expectEqualStrings("", updated.cases[0].values.content);
+}
+
+test "parse reads core and error sections" {
+    const input =
+        \\================================================================================
+        \\a case
+        \\================================================================================
+        \\grammar: typescript
+        \\
+        \\--- tql ---
+        \\.
+        \\--- source ---
+        \\class Foo {}
+        \\--- values ---
+        \\[]
+        \\--- core ---
+        \\(id)
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectEqualStrings("(id)", corpus.cases[0].core.content);
+    try testing.expectEqualStrings("", corpus.cases[0].@"error".content);
 }

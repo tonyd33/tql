@@ -198,7 +198,7 @@ pub const Compiler = struct {
     ///   frames are permitted)
     ///
     fn compileExpression(self: *Compiler, ns: *Namespace, expr: ast.Expression) CompilerError!ir.ValueSource {
-        switch (expr) {
+        switch (expr.kind) {
             .variable => |variable| {
                 const var_id = self.variables.resolve(ns, variable.name) orelse return error.InvalidVariableReference;
                 return .{ .variable_id = var_id };
@@ -504,12 +504,12 @@ pub const Compiler = struct {
             },
             .logical_not => |ln| {
                 // TODO: Figure out how to unify the model such that this "special" case isn't necessary
-                if (ln.predicate == .function_call and
-                    ln.predicate.function_call.callee == .name and
-                    (std.mem.eql(u8, ln.predicate.function_call.callee.name, "any") or
-                        std.mem.eql(u8, ln.predicate.function_call.callee.name, "all")))
+                if (ln.predicate.kind == .function_call and
+                    ln.predicate.kind.function_call.callee == .name and
+                    (std.mem.eql(u8, ln.predicate.kind.function_call.callee.name, "any") or
+                        std.mem.eql(u8, ln.predicate.kind.function_call.callee.name, "all")))
                 {
-                    try self.compileBuiltinQuantified(ns, ln.predicate.function_call, true);
+                    try self.compileBuiltinQuantified(ns, ln.predicate.kind.function_call, true);
                     return .{ .literal = .{ .bool = true } };
                 }
                 const inner_vs = try self.compileExpression(ns, ln.predicate);
@@ -612,7 +612,7 @@ pub const Compiler = struct {
     fn compileBuiltinUnnest(self: *Compiler, ns: *Namespace, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidArguments;
         var arg = fc.arguments[0];
-        while (arg == .parenthesized) arg = arg.parenthesized.*;
+        while (arg.kind == .parenthesized) arg = arg.kind.parenthesized.*;
         const uv = try self.compileExpression(ns, arg);
         try self.instruction_builder.emit(.{ .trv = .{ .elements = uv } });
         return try self.bindValue();

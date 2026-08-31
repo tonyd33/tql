@@ -2,6 +2,19 @@ const std = @import("std");
 
 pub const Identifier = []const u8;
 
+/// Byte range in the TQL source, half-open: `[start, end)`.
+pub const Span = struct {
+    start: u32,
+    end: u32,
+
+    /// For nodes that no source range corresponds to.
+    pub const unknown: Span = .{ .start = 0, .end = 0 };
+
+    pub fn sexpr(self: Span, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("{d}:{d}", .{ self.start, self.end });
+    }
+};
+
 pub const Variable = struct {
     name: Identifier,
 };
@@ -388,37 +401,41 @@ pub const DotFieldAccess = struct {
     }
 };
 
-pub const Expression = union(enum) {
-    node_selector: NodeSelector,
-    variable: Variable,
-    dot_field_access: DotFieldAccess,
-    string_literal: []const u8,
-    regex_literal: []const u8,
-    number_literal: i64,
-    null_literal,
-    identity,
-    field_access: *FieldAccess,
-    child_navigation: *ChildNavigation,
-    descendant_navigation: *DescendantNavigation,
-    function_call: FunctionCall,
-    object_literal: ObjectLiteral,
-    array_literal: ArrayLiteral,
-    tuple_literal: TupleLiteral,
-    parenthesized: *Expression,
-    collect_expression: *Expression,
-    bind_expression: *BindExpression,
-    let_expression: *LetExpression,
-    pipe_expression: *PipeExpression,
-    union_expression: *UnionExpression,
-    // Boolean/guard expressions (formerly Predicate variants)
-    comparison: *Comparison,
-    is_null: *IsNullExpr,
-    logical_and: *LogicalAnd,
-    logical_or: *LogicalOr,
-    logical_not: *LogicalNot,
+pub const Expression = struct {
+    kind: Kind,
+    span: Span = .unknown,
+
+    pub const Kind = union(enum) {
+        node_selector: NodeSelector,
+        variable: Variable,
+        dot_field_access: DotFieldAccess,
+        string_literal: []const u8,
+        regex_literal: []const u8,
+        number_literal: i64,
+        null_literal,
+        identity,
+        field_access: *FieldAccess,
+        child_navigation: *ChildNavigation,
+        descendant_navigation: *DescendantNavigation,
+        function_call: FunctionCall,
+        object_literal: ObjectLiteral,
+        array_literal: ArrayLiteral,
+        tuple_literal: TupleLiteral,
+        parenthesized: *Expression,
+        collect_expression: *Expression,
+        bind_expression: *BindExpression,
+        let_expression: *LetExpression,
+        pipe_expression: *PipeExpression,
+        union_expression: *UnionExpression,
+        comparison: *Comparison,
+        is_null: *IsNullExpr,
+        logical_and: *LogicalAnd,
+        logical_or: *LogicalOr,
+        logical_not: *LogicalNot,
+    };
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
-        switch (self) {
+        switch (self.kind) {
             .node_selector => |ns| switch (ns) {
                 .kind => |k| allocator.free(k),
                 .wildcard => {},
@@ -518,7 +535,7 @@ pub const Expression = union(enum) {
     }
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
+        switch (self.kind) {
             .node_selector => |ns| switch (ns) {
                 .kind => |k| try w.print("(node {s})", .{k}),
                 .wildcard => try w.writeAll("(node *)"),
