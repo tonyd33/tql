@@ -433,11 +433,7 @@ pub const Runtime = struct {
             if (frame.split) |*split| {
                 const has_next = split.iterator.next();
                 if (has_next) {
-                    const old_env = frame.state.environment;
-                    const env_copy_old_frame = try old_env.copy(self.allocator);
-                    const env_copy_new_frame = try old_env.copy(self.allocator);
-                    frame.state.environment = env_copy_old_frame;
-                    old_env.dereference(self.allocator);
+                    const env_copy_new_frame = try frame.state.environment.copy(self.allocator);
 
                     try self.stack.append(self.allocator, Frame{
                         .state = State{

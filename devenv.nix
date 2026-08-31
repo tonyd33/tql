@@ -7,6 +7,7 @@ let
       jq
       go-task
       wasmtime
+      python3
     ];
     query_languages = with pkgs; [
       semgrep

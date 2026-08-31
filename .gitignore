@@ -25,3 +25,5 @@ devenv.local.yaml
 .pre-commit-config.yaml
 
 /work
+
+__pycache__

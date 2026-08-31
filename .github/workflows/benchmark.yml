@@ -16,7 +16,7 @@ jobs:
     name: Setup
     runs-on: ubuntu-latest
     env:
-      MACHINES: 4
+      MACHINES: 6
       ITERATIONS: 3
       LIMIT_S: 35
       REGRESSION_PCT: 10
@@ -91,7 +91,7 @@ jobs:
       MACHINE: ${{ matrix.machine }}
     steps:
       - name: Download binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: tql-*
           path: bin
@@ -109,6 +109,7 @@ jobs:
       - name: Run query
         run: |
           mkdir -p results/head results/base
+          workers=2
           query='
           . / function_definition as @fn
           | @fn / function_declarator as @fn_decl
@@ -128,7 +129,7 @@ jobs:
               order="base head"
             fi
             for side in $order; do
-              "$GITHUB_WORKSPACE/bin/tql-$side/tql" query --grammar c --format json "$query" \
+              "$GITHUB_WORKSPACE/bin/tql-$side/tql" query --workers="$workers" --grammar=c --format=json "$query" \
                 "$GITHUB_WORKSPACE/linux" \
                 | jq --argjson m "$MACHINE" '.stats + {machine: $m}' \
                 | tee "results/$side/$MACHINE-$i.json"
@@ -149,156 +150,131 @@ jobs:
       pull-requests: write
     steps:
       - name: Download results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: benchmark-machine-*
           path: artifacts
           merge-multiple: true
 
-      - name: Aggregate, comment, and check query time
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql
+          sparse-checkout: scripts
+
+      - name: Paired statistics
+        id: stats
+        run: |
+          python3 tql/scripts/confidence_curve.py artifacts --json > stats.json
+          {
+            echo "json<<STATS_EOF"
+            cat stats.json
+            echo "STATS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render, comment, and check thresholds
         uses: actions/github-script@v9
         env:
+          STATS: ${{ steps.stats.outputs.json }}
           MACHINES: ${{ needs.setup.outputs.machines }}
           ITERATIONS: ${{ needs.setup.outputs.iterations }}
           LIMIT_S: ${{ needs.setup.outputs.limit_s }}
           REGRESSION_PCT: ${{ needs.setup.outputs.regression_pct }}
         with:
           script: |
-            const fs = require("fs/promises");
-            const path = require("path");
-
+            const stats = JSON.parse(process.env.STATS);
             const limitS = Number(process.env.LIMIT_S);
             const regressionPct = Number(process.env.REGRESSION_PCT);
             const machines = Number(process.env.MACHINES);
             const iterations = Number(process.env.ITERATIONS);
-            const fields = [
-              ["read_time_ns", "Read"],
-              ["parse_time_ns", "Parse"],
-              ["query_time_ns", "Query"],
-            ];
+
+            const labels = {
+              read_time_ns: "Read",
+              parse_time_ns: "Parse",
+              query_time_ns: "Query",
+            };
 
             const toS = (ns) => Math.round((ns / 1e9) * 100) / 100;
-            const median = (xs) => {
-              const s = [...xs].sort((a, b) => a - b);
-              const n = s.length;
-              return n % 2 === 1 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
-            };
+            const pct = (x) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
+            // `speedup` is positive when head is faster; a delta reads the
+            // other way round, so negate for display.
+            const delta = (x) => pct(-x);
+            const boundPhrase = (b) =>
+              b >= 0
+                ? `head is at least ${(b * 100).toFixed(1)}% faster`
+                : `head is no more than ${(-b * 100).toFixed(1)}% slower`;
 
-            const collect = async (side) => {
-              const dir = path.join("artifacts", side);
-              const files = await fs.readdir(dir);
-              return Promise.all(
-                files.map(async (f) =>
-                  JSON.parse(await fs.readFile(path.join(dir, f), "utf8")),
-                ),
-              );
-            };
+            const query = stats.fields.query_time_ns;
+            const exceeded = query.head_median_ns >= limitS * 1e9;
+            const regression = -query.speedup * 100;
+            const regressed = regression >= regressionPct;
 
-            const runs = {
-              head: await collect("head"),
-              base: await collect("base"),
-            };
-
-            const summarize = (rs, key) => {
-              const times = rs.map((r) => r[key]).sort((a, b) => a - b);
-              const n = times.length;
-              const mean = times.reduce((a, b) => a + b, 0) / n;
-              const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
-              return { times, n, mean, stddev, median: median(times) };
-            };
-
-            const stats = {
-              head: Object.fromEntries(fields.map(([k]) => [k, summarize(runs.head, k)])),
-              base: Object.fromEntries(fields.map(([k]) => [k, summarize(runs.base, k)])),
-            };
-
-            // compare head vs base per machine since cross-machine have variability
-            const machineIds = [...new Set(runs.head.map((r) => r.machine))].sort();
-            const pairedDelta = (key) => {
-              const perMachine = machineIds
-                .map((m) => {
-                  const h = runs.head.filter((r) => r.machine === m).map((r) => r[key]);
-                  const b = runs.base.filter((r) => r.machine === m).map((r) => r[key]);
-                  if (!h.length || !b.length) return null;
-                  const bm = median(b);
-                  if (!bm) return null;
-                  return { machine: m, pct: ((median(h) - bm) / bm) * 100 };
-                })
-                .filter(Boolean);
-              return { perMachine, pct: perMachine.length ? median(perMachine.map((d) => d.pct)) : null };
-            };
-
-            const deltas = Object.fromEntries(fields.map(([k]) => [k, pairedDelta(k)]));
-            const queryDelta = deltas.query_time_ns.pct;
-
-            const queryMedianS = toS(stats.head.query_time_ns.median);
-            const exceeded = stats.head.query_time_ns.median >= limitS * 1e9;
-            const regressed = queryDelta !== null && queryDelta >= regressionPct;
-
-            for (const side of ["head", "base"]) {
-              for (const [key, label] of fields) {
-                const s = stats[side][key];
-                console.log(`[${side}] ${label} times (s): ${s.times.map(toS).join(", ")}`);
-                console.log(
-                  `[${side}] ${label}: median=${toS(s.median)}s mean=${toS(s.mean)}s stddev=${toS(s.stddev)}s n=${s.n}`,
-                );
-              }
-            }
-            for (const [key, label] of fields) {
-              const d = deltas[key];
-              console.log(
-                `${label} paired delta: ${d.pct === null ? "n/a" : d.pct.toFixed(1) + "%"} (per machine: ${d.perMachine
-                  .map((p) => `m${p.machine}=${p.pct.toFixed(1)}%`)
-                  .join(", ")})`,
-              );
-            }
-            console.log(`Query limit: ${limitS}s`);
-
-            const marker = "<!-- benchmark-result -->";
             const problems = [];
             if (exceeded) problems.push("⚠️ **Benchmark limit exceeded**");
-            if (regressed) problems.push(`⚠️ **Query time regressed vs base by ${queryDelta.toFixed(1)}%**`);
-            const status = problems.length ? problems.join("\n") : "✅ **Benchmark passed**";
+            if (regressed)
+              problems.push(
+                `⚠️ **Query time regressed vs base by ${regression.toFixed(1)}%**`,
+              );
+            const status = problems.length
+              ? problems.join("\n")
+              : "✅ **Benchmark passed**";
 
-            const fmtPct = (d) => {
-              if (d === null) return "n/a";
-              const sign = d >= 0 ? "+" : "";
-              return `${sign}${d.toFixed(1)}%`;
-            };
-            const rows = fields
-              .map(([key, label]) => {
-                const h = stats.head[key];
-                const b = stats.base[key];
-                return `| ${label} | ${toS(h.median)}s | ${toS(b.median)}s | ${fmtPct(deltas[key].pct)} | ${toS(h.stddev)}s | ${toS(b.stddev)}s |`;
-              })
-              .join("\n");
-            const perMachineRows = deltas.query_time_ns.perMachine
-              .map((p) => `| ${p.machine} | ${fmtPct(p.pct)} |`)
-              .join("\n");
+            const rows = Object.entries(labels).map(([key, label]) => {
+              const f = stats.fields[key];
+              return `| ${label} | ${toS(f.head_median_ns)}s | ${toS(f.base_median_ns)}s | ${delta(f.speedup)} | ${boundPhrase(f.bound_95)} |`;
+            });
+
+            const perMachineRows = Object.entries(query.per_machine_speedup).map(
+              ([m, s]) => `| ${m} | ${delta(s)} |`,
+            );
+
+            const curveRows = query.curve.map(
+              (p) =>
+                `| ${p.x >= 0 ? "+" : ""}${(p.x * 100).toFixed(0)}% | ${(p.confidence * 100).toFixed(1)}% |`,
+            );
+
+            const marker = "<!-- benchmark-result -->";
             const body = [
               marker,
               status,
               "",
               `Query time (limit ${limitS}s, regression threshold ${regressionPct}%).`,
               `${machines} machines × ${iterations} iterations per side; head and base run interleaved on the same machine.`,
-              `Δ is the median of per-machine paired deltas, so cross-machine variance cancels.`,
+              "Δ is the paired per-machine estimate, so cross-machine variance cancels.",
               `Base: \`${context.payload.pull_request.base.sha.slice(0, 7)}\``,
               "",
-              "| Stage | Head median | Base median | Δ (paired) | Head stddev | Base stddev |",
-              "| --- | --- | --- | --- | --- | --- |",
-              rows,
+              "| Stage | Head median | Base median | Δ (paired) | 95% confidence |",
+              "| --- | --- | --- | --- | --- |",
+              ...rows,
               "",
               "<details><summary>Per-machine query delta</summary>",
               "",
               "| Machine | Δ |",
               "| --- | --- |",
-              perMachineRows,
+              ...perMachineRows,
+              "",
+              "</details>",
+              "",
+              "<details><summary>Confidence curve</summary>",
+              "",
+              `Paired across ${query.machines} machines (df=${query.df}); sample size is machines, not runs, since same-machine runs are correlated.`,
+              "",
+              `- 95% confident: ${boundPhrase(query.bound_95)}`,
+              `- 99% confident: ${boundPhrase(query.bound_99)}`,
+              "",
+              "| Head faster by at least | Confidence |",
+              "| --- | --- |",
+              ...curveRows,
+              "",
+              "Negative rows read as regressions: the +0% row is the confidence that head is faster at all.",
               "",
               "</details>",
             ].join("\n");
 
             await core.summary.addRaw(body).write();
 
+            // Forks get a read-only token, so commenting can fail while the
+            // job summary above still carries the report.
             try {
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
@@ -327,7 +303,11 @@ jobs:
             }
 
             if (exceeded) {
-              core.setFailed(`Median query time ${queryMedianS}s exceeds ${limitS}s limit`);
+              core.setFailed(
+                `Median query time ${toS(query.head_median_ns)}s exceeds ${limitS}s limit`,
+              );
             } else if (regressed) {
-              core.setFailed(`Median query time regressed ${queryDelta.toFixed(1)}% vs base (threshold ${regressionPct}%)`);
+              core.setFailed(
+                `Median query time regressed ${regression.toFixed(1)}% vs base (threshold ${regressionPct}%)`,
+              );
             }
