@@ -2,8 +2,8 @@
   import { Parser, type Tree } from "web-tree-sitter";
   import { EditorView } from "codemirror";
   import { EditorSelection } from "@codemirror/state";
-  import { grammars, Grammar, type QueryResult } from "tql";
-  import { engine, loadLanguage } from "$lib/boot";
+  import { Grammar, type QueryResult } from "tql";
+  import { engine, loadLanguage, availableGrammars } from "$lib/boot";
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
   const parser = new Parser();
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 }`);
 
   let selectedGrammar = $state<Grammar>(Grammar.c);
-  const grammarKey = $derived(grammars.find((l) => l.id === selectedGrammar)!.key);
+  const grammarKey = $derived(availableGrammars.find((l) => l.id === selectedGrammar)!.key);
 
   let targetView: EditorView | undefined;
   function highlightTarget(start: number, end: number) {
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
     <label class="field">
       <span>Grammar</span>
       <select bind:value={selectedGrammar}>
-        {#each grammars as grammar}
+        {#each availableGrammars as grammar}
           <option value={grammar.id}>{grammar.displayName}</option>
         {/each}
       </select>

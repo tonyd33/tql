@@ -28,6 +28,14 @@ const TreeSitterGrammar = struct {
 
 const grammars: []const TreeSitterGrammar = &.{
     .{
+        .dep_name = "tree-sitter-bash",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-cmake",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-cpp",
         .has_scanner = true,
     },
@@ -35,18 +43,108 @@ const grammars: []const TreeSitterGrammar = &.{
         .dep_name = "tree-sitter-c",
     },
     .{
+        .dep_name = "tree-sitter-c-sharp",
+        .has_scanner = true,
+        .out_name = "c_sharp",
+    },
+    .{
+        .dep_name = "tree-sitter-css",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-dockerfile",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-elixir",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-erlang",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-go",
+    },
+    .{
+        .dep_name = "tree-sitter-graphql",
+    },
+    .{
+        .dep_name = "tree-sitter-haskell",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-hcl",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-html",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-java",
     },
     .{
         .dep_name = "tree-sitter-javascript",
         .has_scanner = true,
     },
     .{
+        .dep_name = "tree-sitter-json",
+    },
+    .{
+        .dep_name = "tree-sitter-kotlin",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-lua",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-make",
+    },
+    .{
+        .dep_name = "tree-sitter-markdown",
+        .root = "tree-sitter-markdown",
+        .has_scanner = true,
+        .out_name = "markdown",
+    },
+    .{
+        .dep_name = "tree-sitter-nix",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-ocaml",
+        .root = "grammars/ocaml",
+        .has_scanner = true,
+        .out_name = "ocaml",
+    },
+    .{
+        .dep_name = "tree-sitter-php",
+        .root = "php",
+        .has_scanner = true,
+        .out_name = "php",
+    },
+    .{
         .dep_name = "tree-sitter-python",
         .has_scanner = true,
     },
     .{
+        .dep_name = "tree-sitter-ruby",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-rust",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-scala",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-solidity",
+    },
+    .{
+        .dep_name = "tree-sitter-toml",
         .has_scanner = true,
     },
     .{
@@ -60,6 +158,14 @@ const grammars: []const TreeSitterGrammar = &.{
         .root = "tsx",
         .has_scanner = true,
         .out_name = "tsx",
+    },
+    .{
+        .dep_name = "tree-sitter-vue",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-yaml",
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-zig",
@@ -80,12 +186,26 @@ fn addGrammar(
         .target = target,
         .optimize = optimize,
     });
-    mod.addIncludePath(tree_sitter_grammar.path(include));
-    mod.addCSourceFiles(.{
+
+    const grammar_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    grammar_mod.addIncludePath(tree_sitter_grammar.path(include));
+    grammar_mod.addCSourceFiles(.{
         .root = tree_sitter_grammar.path(grammar.root),
         .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
         .flags = grammar.flags,
     });
+
+    const name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()});
+    const lib = b.addLibrary(.{
+        .name = name,
+        .root_module = grammar_mod,
+        .linkage = .static,
+    });
+    mod.linkLibrary(lib);
 }
 
 fn buildGrammarSharedLib(

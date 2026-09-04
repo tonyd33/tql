@@ -5,12 +5,29 @@ vars:
   # output-name: source-dir (relative to node_modules/tree-sitter-)
   GRAMMARS:
     map:
+      bash: bash
       c: c
+      c_sharp: c-sharp
       cpp: cpp
+      css: css
+      elixir: elixir
       go: go
+      haskell: haskell
+      html: html
+      java: java
       javascript: javascript
+      json: json
+      kotlin: kotlin
+      lua: lua
+      make: make
+      nix: nix
+      ocaml: ocaml/grammars/ocaml
+      php: php/php
       python: python
+      ruby: ruby
       rust: rust
+      scala: scala
+      toml: toml
       typescript: typescript/typescript
       tsx: typescript/tsx
       zig: zig

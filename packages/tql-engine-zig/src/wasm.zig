@@ -20,6 +20,21 @@ export fn tql_free(ptr: [*]u8, len: usize) void {
     gpa.free(ptr[0..len]);
 }
 
+export fn tql_grammars(out: *Result) void {
+    var buf = std.Io.Writer.Allocating.init(gpa);
+    errdefer buf.deinit();
+
+    var jws: std.json.Stringify = .{ .writer = &buf.writer };
+    jws.beginArray() catch return fail(out);
+    for (tql.Grammar.static_grammars) |g| {
+        jws.write(g.name) catch return fail(out);
+    }
+    jws.endArray() catch return fail(out);
+
+    const slice = buf.toOwnedSlice() catch return fail(out);
+    out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
+}
+
 export fn tql_run(
     grammar_id: u32,
     query_ptr: [*]const u8,
@@ -31,18 +46,11 @@ export fn tql_run(
     var buf = std.Io.Writer.Allocating.init(gpa);
     errdefer buf.deinit();
 
-    const name: []const u8 = switch (grammar_id) {
-        0 => "cpp",
-        1 => "c",
-        2 => "go",
-        3 => "javascript",
-        4 => "python",
-        5 => "rust",
-        6 => "tsx",
-        7 => "typescript",
-        8 => "zig",
-        else => return finishErr(&buf, out, "invalid grammar id"),
-    };
+    const static_grammars = tql.Grammar.static_grammars;
+    if (grammar_id >= static_grammars.len) {
+        return finishErr(&buf, out, "invalid grammar id");
+    }
+    const name: []const u8 = static_grammars[grammar_id].name;
 
     var registry = tql.GrammarRegistry.init(gpa, &.{});
     defer registry.deinit();
