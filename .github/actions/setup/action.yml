@@ -28,7 +28,7 @@ runs:
 
     - name: Install direnv
       shell: bash
-      run: nix profile install nixpkgs#direnv
+      run: nix profile add nixpkgs#direnv
 
     - name: Initialize shell
       shell: bash

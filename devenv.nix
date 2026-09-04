@@ -17,14 +17,51 @@ let
   };
 in
 {
-  # https://devenv.sh/basics/
-  # env.GREET = "devenv";
-
   # https://devenv.sh/overlays/
   overlays = [ (import ./overlays/gritql.nix) ];
 
   # https://devenv.sh/packages/
   packages = lib.flatten (lib.attrValues package_groups);
+
+  # https://devenv.sh/outputs/
+  outputs.tql = pkgs.stdenv.mkDerivation (finalAttrs: {
+    pname = "tql";
+    version = "0.2.1";
+
+    src = ./.;
+    setSourceRoot = ''
+      sourceRoot=$(echo */packages/tql-engine-zig)
+    '';
+
+    nativeBuildInputs = [ pkgs.zig.hook ];
+
+    postConfigure = ''
+      cp -rLT ${finalAttrs.zigDeps} "$ZIG_GLOBAL_CACHE_DIR/p"
+      chmod -R u+w "$ZIG_GLOBAL_CACHE_DIR/p"
+    '';
+
+    zigBuildFlags = [
+      "-Doptimize=ReleaseFast"
+      "-Dgrammars=available"
+    ];
+
+    zigDeps = pkgs.zig.fetchDeps {
+      inherit (finalAttrs) pname version;
+      src = ./packages/tql-engine-zig;
+      hash = "sha256-PxRmXwRAbbRDtx2Mm8SPIRC36Wdq5Q485E0EXazoFqU=";
+    };
+
+    doCheck = true;
+    zigCheckFlags = [ "test" ];
+
+    meta = {
+      description = "Tree query language";
+      homepage = "https://github.com/tonyd33/tql";
+      license = pkgs.lib.licenses.mit;
+      mainProgram = "tql";
+      platforms = pkgs.lib.platforms.unix;
+    };
+  });
 
   # https://devenv.sh/languages/
   languages = {
@@ -49,37 +86,20 @@ in
     pull = [ "devenv" "tql" ];
   };
 
-  # https://devenv.sh/processes/
-  # processes.dev.exec = "${lib.getExe pkgs.watchexec} -n -- ls -la";
-
-  # https://devenv.sh/services/
-  # services.postgres.enable = true;
-
-  # https://devenv.sh/scripts/
-  # scripts.hello.exec = ''
-  #   echo hello from $GREET
-  # '';
-
-  # https://devenv.sh/basics/
-  # enterShell = ''
-  #   hello         # Run scripts directly
-  #   git --version # Use packages
-  # '';
-
-  # https://devenv.sh/tasks/
-  # tasks = {
-  #   "myproj:setup".exec = "mytool build";
-  #   "devenv:enterShell".after = [ "myproj:setup" ];
-  # };
-
-  # https://devenv.sh/tests/
-  # enterTest = ''
-  #   echo "Running tests"
-  #   git --version | grep --color=auto "${pkgs.git.version}"
-  # '';
-
   # https://devenv.sh/git-hooks/
-  # git-hooks.hooks.shellcheck.enable = true;
+  git-hooks.hooks = {
+    nixpkgs-fmt.enable = true;
+    actionlint.enable = true;
+    # zizmor.enable = true;
+
+    zig-fmt = {
+      enable = true;
+      name = "zig fmt";
+      entry = "${lib.getExe config.languages.zig.package} fmt --check";
+      files = "\\.zig$";
+    };
+
+  };
 
   # See full reference at https://devenv.sh/reference/options/
 }
