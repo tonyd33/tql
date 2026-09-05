@@ -44,6 +44,7 @@ pub const Runtime = struct {
     param_var_arena: []const VariableId,
 
     stack: Stack,
+    profile: rt.Profile = .{},
 
     pub fn init(x: struct {
         tree: *ts.Tree,
@@ -68,21 +69,40 @@ pub const Runtime = struct {
         self.stack.deinit(self.allocator);
     }
 
+    /// Every environment copy, put and lookup in the interpreter goes through
+    /// these three, so the counters cannot drift from the real operations.
+    fn envCopy(self: *Self, env: Environment.Cell) !Environment.Cell {
+        self.profile.countEnvCopy();
+        return env.copy(self.allocator);
+    }
+
+    fn envPut(self: *Self, env: Environment.Cell, key: VariableId, value: rt.Value) !Environment.Cell {
+        self.profile.countEnvPut();
+        return env.copyPut(self.allocator, key, value);
+    }
+
+    fn envGet(self: *Self, env: Environment.Cell, key: VariableId) ?rt.Value {
+        self.profile.countEnvLookup();
+        return env.get(key);
+    }
+
+    fn pushFrame(self: *Self, frame: Frame) !void {
+        self.profile.countFrame();
+        try self.stack.append(self.allocator, frame);
+    }
+
     // TODO: This can just be part of init probably
     pub fn exec(self: *Self) !void {
         const env = try Environment.Cell.create(self.allocator);
         self.stack.clearAndFree(self.allocator);
-        try self.stack.append(
-            self.allocator,
-            Frame{
-                .state = State{
-                    .pc = 0,
-                    .value = .{ .node = self.tree.rootNode() },
-                    .environment = env,
-                },
-                .boundary = Boundary{ .passthrough = {} },
+        try self.pushFrame(Frame{
+            .state = State{
+                .pc = 0,
+                .value = .{ .node = self.tree.rootNode() },
+                .environment = env,
             },
-        );
+            .boundary = Boundary{ .passthrough = {} },
+        });
     }
 
     fn deinitFrame(self: *Self) void {
@@ -177,7 +197,7 @@ pub const Runtime = struct {
                     self.deinitFrame();
                     const parent_frame = &self.stack.items[self.stack.items.len - 1];
                     const old_env = parent_frame.state.environment;
-                    const new_env = try old_env.copyPut(self.allocator, agg.variable, value);
+                    const new_env = try self.envPut(old_env, agg.variable, value);
                     parent_frame.state.environment = new_env;
                     old_env.dereference(self.allocator);
                     parent_frame.state.pc = agg.resume_address;
@@ -206,7 +226,7 @@ pub const Runtime = struct {
                         frame.state.value.deinit(self.allocator);
                         frame.state.environment.dereference(self.allocator);
                         frame.state.value = caller.value.clone();
-                        frame.state.environment = try caller.environment.copy(self.allocator);
+                        frame.state.environment = try self.envCopy(caller.environment);
                         frame.state.pc = alt.right_entry;
                         if (frame.split) |*split| {
                             split.iterator.deinit(self.allocator);
@@ -343,9 +363,9 @@ pub const Runtime = struct {
             // achieves the desired semantics.
             .call => |call| {
                 const caller_env = self.stack.items[idx - 1].state.environment;
-                const continuation_env = try caller_env.copy(self.allocator);
+                const continuation_env = try self.envCopy(caller_env);
 
-                try self.stack.append(self.allocator, Frame{
+                try self.pushFrame(Frame{
                     .state = State{
                         .pc = call.resume_address,
                         .value = value.clone(),
@@ -356,9 +376,9 @@ pub const Runtime = struct {
             },
             .alt => |alt| {
                 const caller_env = self.stack.items[idx - 1].state.environment;
-                const continuation_env = try caller_env.copy(self.allocator);
+                const continuation_env = try self.envCopy(caller_env);
 
-                try self.stack.append(self.allocator, Frame{
+                try self.pushFrame(Frame{
                     .state = State{
                         .pc = alt.resume_address,
                         .value = value.clone(),
@@ -413,7 +433,7 @@ pub const Runtime = struct {
                     else => error.UnexpectedType,
                 },
             },
-            .variable_id => |v| state.environment.get(v) orelse rt.Value{ .nothing = {} },
+            .variable_id => |v| self.envGet(state.environment, v) orelse rt.Value{ .nothing = {} },
         };
     }
 
@@ -433,9 +453,9 @@ pub const Runtime = struct {
             if (frame.split) |*split| {
                 const has_next = split.iterator.next();
                 if (has_next) {
-                    const env_copy_new_frame = try frame.state.environment.copy(self.allocator);
+                    const env_copy_new_frame = try self.envCopy(frame.state.environment);
 
-                    try self.stack.append(self.allocator, Frame{
+                    try self.pushFrame(Frame{
                         .state = State{
                             .pc = split.resume_pc,
                             .value = split.iterator.value(),
@@ -449,6 +469,7 @@ pub const Runtime = struct {
                 continue;
             }
 
+            self.profile.countInstruction();
             switch (self.instructions[frame.state.pc]) {
                 .noop => {
                     frame.state.pc += 1;
@@ -502,8 +523,8 @@ pub const Runtime = struct {
                         .nothing => {},
                         else => {
                             const old_env = frame.state.environment;
-                            const new_environment = try old_env.copyPut(
-                                self.allocator,
+                            const new_environment = try self.envPut(
+                                old_env,
                                 x.variable_id,
                                 value.clone(),
                             );
@@ -543,7 +564,7 @@ pub const Runtime = struct {
                     const result = rt.Value{ .bool = relates };
                     if (x.dest) |var_id| {
                         const old_env = frame.state.environment;
-                        const new_env = try old_env.copyPut(self.allocator, var_id, result);
+                        const new_env = try self.envPut(old_env, var_id, result);
                         frame.state.environment = new_env;
                         old_env.dereference(self.allocator);
                     } else {
@@ -564,8 +585,8 @@ pub const Runtime = struct {
                     frame.state.pc += 1;
 
                     const old_env = frame.state.environment;
-                    const env_copy_old_frame = try old_env.copy(self.allocator);
-                    const env_copy_new_frame = try old_env.copy(self.allocator);
+                    const env_copy_old_frame = try self.envCopy(old_env);
+                    const env_copy_new_frame = try self.envCopy(old_env);
                     frame.state.environment = env_copy_old_frame;
                     old_env.dereference(self.allocator);
 
@@ -600,7 +621,7 @@ pub const Runtime = struct {
                         },
                     };
 
-                    try self.stack.append(self.allocator, Frame{
+                    try self.pushFrame(Frame{
                         .state = State{
                             .pc = frame.state.pc,
                             .value = frame.state.value.clone(),
@@ -614,12 +635,12 @@ pub const Runtime = struct {
                     const resume_address = frame.state.pc;
 
                     const old_env = frame.state.environment;
-                    const env_copy_old_frame = try old_env.copy(self.allocator);
-                    const env_copy_new_frame = try old_env.copy(self.allocator);
+                    const env_copy_old_frame = try self.envCopy(old_env);
+                    const env_copy_new_frame = try self.envCopy(old_env);
                     frame.state.environment = env_copy_old_frame;
                     old_env.dereference(self.allocator);
 
-                    try self.stack.append(self.allocator, Frame{
+                    try self.pushFrame(Frame{
                         .state = State{
                             .pc = target_address,
                             .value = frame.state.value.clone(),
@@ -631,6 +652,7 @@ pub const Runtime = struct {
                 .make_closure => |mc| {
                     frame.state.pc += 1;
 
+                    self.profile.countClosure();
                     const closure = try ds.Rc(rt.Closure).create(self.allocator, .{
                         .entry = mc.entry,
                         .arity = mc.arity,
@@ -641,7 +663,7 @@ pub const Runtime = struct {
 
                     const value = rt.Value{ .closure = closure };
                     const old_env = frame.state.environment;
-                    const new_env = try old_env.copyPut(self.allocator, mc.dest, value);
+                    const new_env = try self.envPut(old_env, mc.dest, value);
                     frame.state.environment = new_env;
                     old_env.dereference(self.allocator);
                 },
@@ -661,6 +683,7 @@ pub const Runtime = struct {
                         for (closure.value.applied, 0..) |v, i| new_applied[i] = v.clone();
                         new_applied[new_applied_len - 1] = arg_value.clone();
 
+                        self.profile.countClosure();
                         const new_closure = try ds.Rc(rt.Closure).create(self.allocator, .{
                             .entry = closure.value.entry,
                             .arity = closure.value.arity,
@@ -680,20 +703,20 @@ pub const Runtime = struct {
                             const param_var = self.param_var_arena[closure.value.param_vars_offset + i];
                             // IMPROVE: Is there a way we can avoid this allocation?
                             // It may take completely changing how `make_closure` and `apply` works
-                            const next_env = try call_env.copyPut(self.allocator, param_var, v.clone());
+                            const next_env = try self.envPut(call_env, param_var, v.clone());
                             call_env.dereference(self.allocator);
                             call_env = next_env;
                         }
                         const final_param_var = self.param_var_arena[closure.value.param_vars_offset + closure.value.applied.len];
-                        const final_env = try call_env.copyPut(self.allocator, final_param_var, arg_value.clone());
+                        const final_env = try self.envPut(call_env, final_param_var, arg_value.clone());
                         call_env.dereference(self.allocator);
 
                         const old_env = frame.state.environment;
-                        const env_copy_old_frame = try old_env.copy(self.allocator);
+                        const env_copy_old_frame = try self.envCopy(old_env);
                         frame.state.environment = env_copy_old_frame;
                         old_env.dereference(self.allocator);
 
-                        try self.stack.append(self.allocator, Frame{
+                        try self.pushFrame(Frame{
                             .state = State{
                                 .pc = closure.value.entry,
                                 .value = frame.state.value.clone(),
@@ -708,12 +731,12 @@ pub const Runtime = struct {
                     const resume_address = frame.state.pc;
 
                     const old_env = frame.state.environment;
-                    const env_copy_old_frame = try old_env.copy(self.allocator);
-                    const env_copy_new_frame = try old_env.copy(self.allocator);
+                    const env_copy_old_frame = try self.envCopy(old_env);
+                    const env_copy_new_frame = try self.envCopy(old_env);
                     frame.state.environment = env_copy_old_frame;
                     old_env.dereference(self.allocator);
 
-                    try self.stack.append(self.allocator, Frame{
+                    try self.pushFrame(Frame{
                         .state = State{
                             .pc = alt_inst.left_entry,
                             .value = frame.state.value.clone(),

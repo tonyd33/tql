@@ -241,12 +241,14 @@ fn selectedGrammars(
 fn addLibBuildOptions(
     b: *std.Build,
     sel: GrammarSelection,
+    profile: bool,
 ) !*std.Build.Step.Options {
     const selected_names = try selectedGrammarNames(b, sel);
 
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", VERSION);
     build_options.addOption([]const []const u8, "static_grammars", selected_names);
+    build_options.addOption(bool, "profile", profile);
     return build_options;
 }
 
@@ -350,10 +352,16 @@ pub fn build(b: *std.Build) !void {
         "grammars",
         "Comma-separated grammar names to build into the binary, 'available' for all, or 'none' (default)",
     ) orelse "none";
+    const profile = b.option(
+        bool,
+        "profile",
+        "Collect runtime execution counters and report them in --json stats",
+    ) orelse false;
+
     const selection = try parseGrammarNames(b, grammars_str);
     const selected = try selectedGrammars(b, selection);
 
-    const lib_build_options = try addLibBuildOptions(b, selection);
+    const lib_build_options = try addLibBuildOptions(b, selection, profile);
     lib_mod.addOptions("build_options", lib_build_options);
 
     try addEngineDeps(b, lib_mod, selected, target, optimize);
@@ -405,7 +413,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    const test_lib_build_options = try addLibBuildOptions(b, test_grammar_selection);
+    const test_lib_build_options = try addLibBuildOptions(b, test_grammar_selection, profile);
     test_lib_mod.addOptions("build_options", test_lib_build_options);
     try addEngineDeps(b, test_lib_mod, test_grammars, target, optimize);
 
