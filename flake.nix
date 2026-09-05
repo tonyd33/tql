@@ -30,9 +30,13 @@
         default = devenv.lib.mkShell (mkArgs pkgs);
       });
 
-      packages = forAllSystems (_system: pkgs: {
-        default = (devenv.lib.mkConfig (mkArgs pkgs)).outputs.tql;
-      });
+      packages = forAllSystems (_system: pkgs:
+        let outputs = (devenv.lib.mkConfig (mkArgs pkgs)).outputs;
+        in {
+          default = outputs.tql;
+          inherit (outputs) tql tql-wasm tql-wasm-grammars tql-wasm-assets tql-js
+            tql-playground;
+        });
 
       apps = forAllSystems (system: _pkgs: {
         default = {

@@ -108,7 +108,6 @@ const grammar_meta = [_]struct {
     .{ .name = "json", .extensions = &.{".json"} },
     .{ .name = "html", .extensions = &.{ ".html", ".htm" } },
     .{ .name = "css", .extensions = &.{".css"} },
-    .{ .name = "cmake", .extensions = &.{".cmake"} },
     .{ .name = "dockerfile", .extensions = &.{"Dockerfile"} },
     .{ .name = "elixir", .extensions = &.{ ".ex", ".exs" } },
     .{ .name = "erlang", .extensions = &.{ ".erl", ".hrl" } },

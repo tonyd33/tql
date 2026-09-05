@@ -55,8 +55,8 @@
             .path = "../tree-sitter-tql",
         },
         .@"tree-sitter-zig" = .{
-            .url = "git+https://github.com/tonyd33/tree-sitter-zig/#3b2792dcbc4a7c28740b817464c9a09f225fd44e",
-            .hash = "tree_sitter_zig-1.1.2-KYTH1Hh4XABcptIfFB46twBm8M2MMaQlGW-pGDp_60Xj",
+            .url = "git+https://github.com/tonyd33/tree-sitter-zig/#8238695c71f7d0523aff2e92a822cb98b02134fc",
+            .hash = "tree_sitter_zig-1.1.2-KYTH1Hh4XABvDIl8upR1BbEnC8YZPlSYYec83PHQGlEw",
         },
         .@"tree-sitter-python" = .{
             .url = "git+https://github.com/tree-sitter/tree-sitter-python#26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",
@@ -161,10 +161,6 @@
         .@"tree-sitter-make" = .{
             .url = "git+https://github.com/alemuller/tree-sitter-make#a4b9187417d6be349ee5fd4b6e77b4172c6827dd",
             .hash = "N-V-__8AAB4iEgDn7PWAc-c9l9asJ3qCITVcj9KLYIOWJXLq",
-        },
-        .@"tree-sitter-cmake" = .{
-            .url = "git+https://github.com/uyha/tree-sitter-cmake#ca627bb5828616b6246aafdc3c3222789e728e37",
-            .hash = "tree_sitter_cmake-0.7.4-paqo3-1zCQBB2sa_lmQ0P0lhZEh4iOoXnFoCLu-l5VgQ",
         },
         .@"tree-sitter-nix" = .{
             .url = "git+https://github.com/cstrahan/tree-sitter-nix#3d0173d903e630b6e14d17f1cf79488791379ded",

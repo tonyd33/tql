@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { Parser, type Tree } from "web-tree-sitter";
   import { EditorView } from "codemirror";
   import { EditorSelection } from "@codemirror/state";
-  import { Grammar, type QueryResult } from "tql";
+  import { type QueryResult, type TreeRow, type Grammar } from "tql";
   import { engine, loadLanguage, availableGrammars } from "$lib/boot";
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
-  const parser = new Parser();
 
   let query = $state(`. > function_definition.declarator as @func_decl
 | [
@@ -36,8 +34,7 @@ int main(int argc, char **argv) {
   return 0;
 }`);
 
-  let selectedGrammar = $state<Grammar>(Grammar.c);
-  const grammarKey = $derived(availableGrammars.find((l) => l.id === selectedGrammar)!.key);
+  let grammarKey = $state("c");
 
   let targetView: EditorView | undefined;
   function highlightTarget(start: number, end: number) {
@@ -49,25 +46,26 @@ int main(int argc, char **argv) {
     });
   }
 
-  let tree = $state<Tree | null>(null);
+  let loaded = $state<Grammar | null>(null);
   $effect(() => {
     const key = grammarKey;
-    loadLanguage(key).then((lang) => {
+    loadLanguage(key).then((g) => {
       if (grammarKey !== key) return;
-      parser.setLanguage(lang);
-      tree = parser.parse(target);
+      loaded = g;
     });
   });
-  $effect(() => {
-    if (parser.language) tree = parser.parse(target);
-  });
+
+  const tree = $derived.by<TreeRow[] | null>(() =>
+    loaded ? engine.parseTree(loaded, target) : null,
+  );
 
   let result = $state<QueryResult | null>(null);
   function run() {
+    if (!loaded) return;
     result = engine.query({
       querySource: query,
       queryTarget: target,
-      grammar: selectedGrammar,
+      grammar: loaded,
     });
   }
 </script>
@@ -77,9 +75,9 @@ int main(int argc, char **argv) {
     <h1>tql</h1>
     <label class="field">
       <span>Grammar</span>
-      <select bind:value={selectedGrammar}>
+      <select bind:value={grammarKey}>
         {#each availableGrammars as grammar}
-          <option value={grammar.id}>{grammar.displayName}</option>
+          <option value={grammar.key}>{grammar.displayName}</option>
         {/each}
       </select>
     </label>
