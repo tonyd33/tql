@@ -20,7 +20,23 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .tql_tree,
     .source_tree,
     .bytecode,
+    .core,
+    .@"error",
 };
+
+/// Sections still compared for a case that expects a compile error. The query
+/// never reaches the runtime, so only the parse-level snapshots and the error
+/// itself remain meaningful.
+const ERROR_CASE_SECTIONS = [_]SectionKind{
+    .tql_tree,
+    .source_tree,
+    .@"error",
+};
+
+fn isErrorCaseSection(kind: SectionKind) bool {
+    for (ERROR_CASE_SECTIONS) |k| if (k == kind) return true;
+    return false;
+}
 
 const CompareSections = struct {
     const Fields = blk: {
@@ -38,7 +54,10 @@ const CompareSections = struct {
 
     fields: Fields = .{},
 
+    /// The `error` section is written by hand as the spec for a rejection, so
+    /// `--update` never regenerates it.
     fn get(self: CompareSections, comptime kind: SectionKind) bool {
+        if (kind == .@"error") return false;
         return @field(self.fields, @tagName(kind));
     }
 
@@ -49,6 +68,7 @@ const CompareSections = struct {
     }
 
     fn addSection(self: *CompareSections, s: []const u8) !void {
+        if (std.mem.eql(u8, s, @tagName(SectionKind.@"error"))) return error.SectionNotUpdatable;
         inline for (COMPARABLE_SECTIONS) |kind| {
             if (std.mem.eql(u8, s, @tagName(kind))) {
                 @field(self.fields, @tagName(kind)) = true;
@@ -398,7 +418,11 @@ fn testCase(
     var test_failed = false;
     var test_modified = false;
 
-    inline for (COMPARABLE_SECTIONS) |kind| {
+    const expects_error = tc.@"error".content.len > 0;
+
+    inline for (COMPARABLE_SECTIONS) |kind| skip: {
+        if (expects_error and !isErrorCaseSection(kind)) break :skip;
+
         const actual_val = @field(actual, @tagName(kind));
         const section: corpus_parser.Section = @field(tc, @tagName(kind));
         const exp = section.content;
@@ -420,6 +444,10 @@ fn testCase(
                     try ctx.addDiff(group, tc.name, kind.name(), exp, actual_val);
                 }
             }
+        } else if (actual_val.len == 0) {
+            // Neither side has content: the section has no producer yet, so
+            // there is nothing to assert.
+            break :skip;
         } else if (ctx.opts.update.get(kind)) {
             try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
             test_modified = true;
@@ -485,17 +513,11 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     var ast = try engine.parseQuery(tc.query.content);
     defer ast.deinit(allocator);
 
-    var query = try engine.compile(tc.query.content, grammar);
-    defer query.deinit();
-
     const ts_parser = ts.Parser.create();
     defer ts_parser.destroy();
     try ts_parser.setLanguage(grammar.language);
     const tree = ts_parser.parseString(tc.target.content, null) orelse return error.ParseFailed;
     defer tree.destroy();
-
-    var run_result = try query.run(tc.target.content, allocator, allocator);
-    defer run_result.deinit();
 
     const source_tree_raw = try fmt.formatSourceAst(allocator, tree);
     defer allocator.free(source_tree_raw);
@@ -506,6 +528,31 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     defer allocator.free(tql_tree_raw);
     const tql_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, tql_tree_raw, "\n"));
     errdefer allocator.free(tql_tree);
+
+    // A case carrying an `--- error ---` section asserts the query is
+    // rejected, so compilation failure is the expected outcome and every
+    // section downstream of it stays empty.
+    const expects_error = tc.@"error".content.len > 0;
+
+    var query = engine.compile(tc.query.content, grammar) catch |err| {
+        if (!expects_error) return err;
+        const message = try std.fmt.allocPrint(allocator, "{t}", .{err});
+        errdefer allocator.free(message);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = message,
+        };
+    };
+    defer query.deinit();
+
+    if (expects_error) return error.ExpectedCompileError;
+
+    var run_result = try query.run(tc.target.content, allocator, allocator);
+    defer run_result.deinit();
 
     const bytecode_raw = try fmt.formatBytecode(allocator, query.instructions());
     defer allocator.free(bytecode_raw);
@@ -522,6 +569,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         .tql_tree = tql_tree,
         .bytecode = bytecode,
         .values = actual_values,
+        // TODO: implement core
+        .core = try allocator.dupe(u8, ""),
+        .@"error" = try allocator.dupe(u8, ""),
     };
 }
 

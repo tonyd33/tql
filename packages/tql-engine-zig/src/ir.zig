@@ -18,7 +18,7 @@ pub const AggregationSpec = struct {
 pub const Literal = union(enum) {
     nothing,
     bool: bool,
-    uint: u64,
+    int: i64,
     string: []const u8,
     kind_id: NodeKindId,
     field_id: FieldId,
@@ -29,7 +29,7 @@ pub const Literal = union(enum) {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
             .bool => |bv| try writer.print("bool {}", .{bv}),
-            .uint => |uint| try writer.print("uint {}", .{uint}),
+            .int => |int| try writer.print("int {}", .{int}),
             .string => |s| try writer.print("string \"{s}\"", .{s}),
             .kind_id => |k| try writer.print("kind_id {}", .{k}),
             .field_id => |f| try writer.print("field_id {}", .{f}),
@@ -43,6 +43,7 @@ pub const CurrentValueSource = enum {
     text,
     kind,
     range,
+    length,
 };
 
 pub const ValueSource = union(enum) {
@@ -109,6 +110,16 @@ pub const Instruction = union(enum) {
         data: ProbeData,
     },
     call: Address,
+    make_closure: struct {
+        entry: Address,
+        arity: u8,
+        param_vars_offset: u32,
+        dest: VariableId,
+    },
+    apply: struct {
+        closure: ValueSource,
+        argument: ValueSource,
+    },
     alt: struct {
         left_entry: Address,
         right_entry: Address,
@@ -169,6 +180,14 @@ pub const Instruction = union(enum) {
                 .aggregate => |a| try writer.print("probe aggregate {} {} {s}", .{ p.resume_address, a.variable, @tagName(a.kind) }),
             },
             .call => |c| try writer.print("call {}", .{c}),
+            .make_closure => |mc| try writer.print("make_closure entry={} arity={} param_vars_offset={} -> {}", .{ mc.entry, mc.arity, mc.param_vars_offset, mc.dest }),
+            .apply => |a| {
+                try writer.print("apply (", .{});
+                try a.closure.print(writer);
+                try writer.print(") (", .{});
+                try a.argument.print(writer);
+                try writer.print(")", .{});
+            },
             .alt => |a| try writer.print("alt {} {}", .{ a.left_entry, a.right_entry }),
             .jmp => |j| if (j.source) |vs| {
                 try writer.print("jmp {} if{s} (", .{ j.address, if (j.negate) " not" else "" });
@@ -186,6 +205,7 @@ pub const ProgramImage = struct {
     instructions: []const Instruction,
     regexes: []pcre2.Regex,
     strings: []const []const u8,
+    param_var_arena: []const VariableId,
     // IMPROVE: array of entry (variable id, string index)
     variable_map: std.hash_map.AutoHashMap(VariableId, []const u8),
     allocator: Allocator,
@@ -197,5 +217,6 @@ pub const ProgramImage = struct {
         self.allocator.free(self.regexes);
         for (self.strings) |str| self.allocator.free(str);
         self.allocator.free(self.strings);
+        self.allocator.free(self.param_var_arena);
     }
 };

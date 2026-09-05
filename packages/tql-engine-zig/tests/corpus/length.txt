@@ -1,19 +1,19 @@
 ================================================================================
-text() extracts node text
+length() of extracted text
 ================================================================================
 grammar: typescript
 
 --- tql ---
-. // property_identifier | text()
+. // property_identifier | text() | length()
 --- source ---
 class Foo { bar() {} }
 --- values ---
 [
-  "bar"
+  3
 ]
 
 --- tql tree ---
-(source_file (pipe (descendant . (node property_identifier)) (call text)))
+(source_file (pipe (pipe (descendant . (node property_identifier)) (call text)) (call length)))
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
@@ -26,38 +26,37 @@ class Foo { bar() {} }
 0006: trv value_source (variable_id 1)
 0007: asn 2 ((current value) value)
 0008: trv value_source (variable_id 2)
-0009: yield (current value) text
-0010: halt
+0009: trv value_source ((current value) text)
+0010: yield (current value) length
+0011: halt
 ================================================================================
-text via variable
+length() on empty identifier text is zero
 ================================================================================
 grammar: typescript
 
 --- tql ---
-. // property_identifier as @id | @id | text
+. // property_identifier | text() | length()
 --- source ---
-class Foo { bar() {} }
+class Foo { a() {} }
 --- values ---
 [
-  "bar"
+  1
 ]
 
-
 --- tql tree ---
-(source_file (pipe (pipe (bind (descendant . (node property_identifier)) id) id) (call text)))
+(source_file (pipe (pipe (descendant . (node property_identifier)) (call text)) (call length)))
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv descendant
-0002: rel equals ((current value) kind) (literal kind_id 377) -> 1
-0003: jmp 5 if (variable_id 1)
+0002: rel equals ((current value) kind) (literal kind_id 377) -> 0
+0003: jmp 5 if (variable_id 0)
 0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: asn 0 (variable_id 3)
-0009: trv value_source (variable_id 0)
-0010: trv value_source (variable_id 0)
-0011: yield (current value) text
-0012: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv value_source ((current value) text)
+0010: yield (current value) length
+0011: halt

@@ -52,6 +52,10 @@ pub const Parser = struct {
         return node.childByFieldName(field_name) orelse error.MissingRequiredField;
     }
 
+    fn spanOf(node: ts.Node) ast.Span {
+        return .{ .start = @intCast(node.startByte()), .end = @intCast(node.endByte()) };
+    }
+
     fn getNodeType(node: ts.Node) []const u8 {
         return node.grammarKind();
     }
@@ -183,8 +187,18 @@ pub const Parser = struct {
     // ========================================================================
 
     fn parseNodeSelector(self: *Parser, node: ts.Node, source: []const u8) !ast.NodeSelector {
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (!cursor.gotoFirstChild()) return error.MalformedTree;
+        const child = cursor.node();
+
+        if (std.mem.eql(u8, getNodeType(child), "wildcard")) {
+            return ast.NodeSelector.wildcard;
+        }
+
         const node_type = try self.allocator.dupe(u8, nodeText(node, source));
-        return ast.NodeSelector{ .node_type = node_type };
+        return ast.NodeSelector{ .kind = node_type };
     }
 
     fn parseFieldAccess(self: *Parser, node: ts.Node, source: []const u8) !ast.FieldAccess {
@@ -269,6 +283,10 @@ pub const Parser = struct {
         if (std.mem.eql(u8, text, "!=")) return .ne;
         if (std.mem.eql(u8, text, "~")) return .regex_match;
         if (std.mem.eql(u8, text, "!~")) return .regex_not_match;
+        if (std.mem.eql(u8, text, "<")) return .lt;
+        if (std.mem.eql(u8, text, ">")) return .gt;
+        if (std.mem.eql(u8, text, "<=")) return .lte;
+        if (std.mem.eql(u8, text, ">=")) return .gte;
         // FIXME: Should error
         return .eq;
     }
@@ -313,13 +331,22 @@ pub const Parser = struct {
     // ========================================================================
 
     fn parseExpression(self: *Parser, node: ts.Node, source: []const u8) anyerror!ast.Expression {
+        return .{
+            .kind = try self.parseExpressionKind(node, source),
+            .span = spanOf(node),
+        };
+    }
+
+    /// Every branch returns the payload for one `Expression.Kind`; the span is
+    /// stamped by `parseExpression` from the same node.
+    fn parseExpressionKind(self: *Parser, node: ts.Node, source: []const u8) anyerror!ast.Expression.Kind {
         const node_type = getNodeType(node);
 
         if (std.mem.eql(u8, node_type, "expression")) {
             var cursor = node.walk();
             defer cursor.destroy();
             if (cursor.gotoFirstChild()) {
-                return try self.parseExpression(cursor.node(), source);
+                return try self.parseExpressionKind(cursor.node(), source);
             }
             return error.InvalidExpression;
         }
@@ -372,6 +399,10 @@ pub const Parser = struct {
             const be = try self.allocator.create(ast.BindExpression);
             be.* = try self.parseBindExpression(node, source);
             return .{ .bind_expression = be };
+        } else if (std.mem.eql(u8, node_type, "let_expression")) {
+            const le = try self.allocator.create(ast.LetExpression);
+            le.* = try self.parseLetExpression(node, source);
+            return .{ .let_expression = le };
         } else if (std.mem.eql(u8, node_type, "pipe_expression")) {
             const pe = try self.allocator.create(ast.PipeExpression);
             pe.* = try self.parsePipeExpression(node, source);
@@ -407,7 +438,15 @@ pub const Parser = struct {
 
     fn parseFunctionCall(self: *Parser, node: ts.Node, source: []const u8) !ast.FunctionCall {
         const name_node = try expectChildByFieldName(node, "name");
-        const name = try self.allocator.dupe(u8, nodeText(name_node, source));
+        const callee: ast.FunctionCallCallee = if (std.mem.eql(u8, getNodeType(name_node), "variable")) blk: {
+            // `variable` nodes are `@` + identifier (grammar.js:
+            // `variable: $ => seq("@", $.identifier)`); strip the sigil so
+            // the stored name matches the bare-name convention used
+            // everywhere else (e.g. ast.Variable.name).
+            const text = nodeText(name_node, source);
+            const bare = if (text.len > 0 and text[0] == '@') text[1..] else text;
+            break :blk .{ .variable = try self.allocator.dupe(u8, bare) };
+        } else .{ .name = try self.allocator.dupe(u8, nodeText(name_node, source)) };
 
         var arguments = std.ArrayList(ast.Expression).empty;
         defer arguments.deinit(self.allocator);
@@ -428,7 +467,7 @@ pub const Parser = struct {
         }
 
         return ast.FunctionCall{
-            .name = name,
+            .callee = callee,
             .arguments = try arguments.toOwnedSlice(self.allocator),
         };
     }
@@ -594,6 +633,39 @@ pub const Parser = struct {
         };
     }
 
+    fn parseLetExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.LetExpression {
+        var bindings = std.ArrayList(ast.LetBinding).empty;
+        defer bindings.deinit(self.allocator);
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (cursor.fieldName() != null and std.mem.eql(u8, cursor.fieldName().?, "binding")) {
+                    const var_node = try expectChildByFieldName(child, "variable");
+                    const variable = try self.parseVariable(var_node, source);
+
+                    const value_node = try expectChildByFieldName(child, "value");
+                    const value = try self.parseExpression(value_node, source);
+
+                    try bindings.append(self.allocator, .{ .variable = variable, .value = value });
+                }
+
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        const body_node = try expectChildByFieldName(node, "body");
+        const body = try self.parseExpression(body_node, source);
+
+        return ast.LetExpression{
+            .bindings = try bindings.toOwnedSlice(self.allocator),
+            .body = body,
+        };
+    }
+
     fn parsePipeExpression(self: *Parser, node: ts.Node, source: []const u8) !ast.PipeExpression {
         const left_node = try expectChildByFieldName(node, "left");
         const left = try self.parseExpression(left_node, source);
@@ -742,9 +814,9 @@ pub const Parser = struct {
         return try self.allocator.dupe(u8, pattern);
     }
 
-    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !u64 {
+    fn parseNumberLiteral(_: *Parser, node: ts.Node, source: []const u8) !i64 {
         const text = nodeText(node, source);
-        return std.fmt.parseUnsigned(u64, text, 10) catch return error.InvalidNumberLiteral;
+        return std.fmt.parseInt(i64, text, 10) catch return error.InvalidNumberLiteral;
     }
 };
 
@@ -785,9 +857,9 @@ test "parse simple pipeline" {
     try std.testing.expect(source_file.items[0] == .expression);
 
     const expr = source_file.items[0].expression;
-    try std.testing.expect(expr == .pipe_expression);
-    try std.testing.expect(expr.pipe_expression.left == .bind_expression);
-    try std.testing.expect(expr.pipe_expression.right == .variable);
+    try std.testing.expect(expr.kind == .pipe_expression);
+    try std.testing.expect(expr.kind.pipe_expression.left.kind == .bind_expression);
+    try std.testing.expect(expr.kind.pipe_expression.right.kind == .variable);
 }
 
 test "parse pipeline with select filter" {
@@ -805,12 +877,12 @@ test "parse pipeline with select filter" {
 
     // A | B | C | D parses as ((A | B) | C) | D
     const expr = source_file.items[0].expression;
-    try std.testing.expect(expr == .pipe_expression);
-    try std.testing.expect(expr.pipe_expression.right == .variable);
+    try std.testing.expect(expr.kind == .pipe_expression);
+    try std.testing.expect(expr.kind.pipe_expression.right.kind == .variable);
 
-    const inner = expr.pipe_expression.left.pipe_expression;
-    try std.testing.expect(inner.right == .function_call);
-    try std.testing.expectEqualStrings("select", inner.right.function_call.name);
+    const inner = expr.kind.pipe_expression.left.kind.pipe_expression;
+    try std.testing.expect(inner.right.kind == .function_call);
+    try std.testing.expectEqualStrings("select", inner.right.kind.function_call.callee.name);
 }
 
 test "parse function definition" {
@@ -818,7 +890,7 @@ test "parse function definition" {
     var parser = try Parser.init(allocator);
     defer parser.deinit();
 
-    const source = "def find_methods(@class): @class.body > method_definition | @class;";
+    const source = "def find_methods(@class): @class.body / method_definition | @class;";
 
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
@@ -831,7 +903,7 @@ test "parse function definition" {
     try std.testing.expect(query.parameters.len == 1);
     try std.testing.expectEqualStrings("class", query.parameters[0].name.name);
     try std.testing.expect(query.return_type == null);
-    try std.testing.expect(query.body == .pipe_expression);
+    try std.testing.expect(query.body.kind == .pipe_expression);
 }
 
 test "parse directives" {
@@ -866,9 +938,9 @@ test "parse logical and" {
 
     // ((A | B) | select(...)) | @class
     const expr = source_file.items[0].expression;
-    const select_expr = expr.pipe_expression.left.pipe_expression.right;
-    try std.testing.expect(select_expr == .function_call);
-    try std.testing.expect(select_expr.function_call.arguments[0] == .logical_and);
+    const select_expr = expr.kind.pipe_expression.left.kind.pipe_expression.right;
+    try std.testing.expect(select_expr.kind == .function_call);
+    try std.testing.expect(select_expr.kind.function_call.arguments[0].kind == .logical_and);
 }
 
 test "parse quantified expression" {
@@ -876,17 +948,67 @@ test "parse quantified expression" {
     var parser = try Parser.init(allocator);
     defer parser.deinit();
 
-    const source = "class_declaration as @class | select(any(@class.body > method_definition; .name != null)) | @class";
+    const source = "class_declaration as @class | select(any(@class.body / method_definition; .name != null)) | @class";
 
     const source_file = try parser.parse(source);
     defer source_file.deinit(allocator);
 
     // (A | select(...)) | @class
     const expr = source_file.items[0].expression;
-    const select_expr = expr.pipe_expression.left.pipe_expression.right;
-    try std.testing.expect(select_expr == .function_call);
-    const any_call = select_expr.function_call.arguments[0];
-    try std.testing.expect(any_call == .function_call);
-    try std.testing.expectEqualStrings("any", any_call.function_call.name);
-    try std.testing.expect(any_call.function_call.arguments[0] == .child_navigation);
+    const select_expr = expr.kind.pipe_expression.left.kind.pipe_expression.right;
+    try std.testing.expect(select_expr.kind == .function_call);
+    const any_call = select_expr.kind.function_call.arguments[0];
+    try std.testing.expect(any_call.kind == .function_call);
+    try std.testing.expectEqualStrings("any", any_call.kind.function_call.callee.name);
+    try std.testing.expect(any_call.kind.function_call.arguments[0].kind == .child_navigation);
+}
+
+test "expression spans cover their source text" {
+    const allocator = std.testing.allocator;
+    var parser = try Parser.init(allocator);
+    defer parser.deinit();
+
+    const source = "class_declaration as @class | @class";
+    const source_file = try parser.parse(source);
+    defer source_file.deinit(allocator);
+
+    const expr = source_file.items[0].expression;
+    try std.testing.expectEqualStrings(source, source[expr.span.start..expr.span.end]);
+
+    const pipe = expr.kind.pipe_expression;
+    try std.testing.expectEqualStrings(
+        "class_declaration as @class",
+        source[pipe.left.span.start..pipe.left.span.end],
+    );
+    try std.testing.expectEqualStrings(
+        "@class",
+        source[pipe.right.span.start..pipe.right.span.end],
+    );
+
+    const bind = pipe.left.kind.bind_expression;
+    try std.testing.expectEqualStrings(
+        "class_declaration",
+        source[bind.expression.span.start..bind.expression.span.end],
+    );
+}
+
+test "spans are populated for nested and literal expressions" {
+    const allocator = std.testing.allocator;
+    var parser = try Parser.init(allocator);
+    defer parser.deinit();
+
+    const source = "select(.name = 'foo')";
+    const source_file = try parser.parse(source);
+    defer source_file.deinit(allocator);
+
+    const call = source_file.items[0].expression.kind.function_call;
+    const cmp = call.arguments[0].kind.comparison;
+    try std.testing.expectEqualStrings(
+        ".name",
+        source[cmp.left.span.start..cmp.left.span.end],
+    );
+    try std.testing.expectEqualStrings(
+        "'foo'",
+        source[cmp.right.span.start..cmp.right.span.end],
+    );
 }

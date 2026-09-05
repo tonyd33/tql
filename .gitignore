@@ -25,3 +25,9 @@ devenv.local.yaml
 .pre-commit-config.yaml
 
 /work
+
+__pycache__
+
+# nix build outputs
+/result
+/result-*

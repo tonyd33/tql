@@ -1,14 +1,15 @@
 ================================================================================
-node selector
+single-binding let expression
 ================================================================================
 grammar: typescript
 
 --- tql ---
-. / class_declaration
+let @x = . / class_declaration in @x
 --- source ---
 class Service {}
 class Controller {}
 function foo() {}
+
 --- values ---
 [
   {
@@ -40,32 +41,36 @@ function foo() {}
     }
   }
 ]
-
 --- tql tree ---
-(source_file (child . (node class_declaration)))
+(source_file (let ((x (child . (node class_declaration)))) x))
 --- source tree ---
 (program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
-0003: jmp 5 if (variable_id 0)
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
 0004: halt
-0005: asn 1 ((current value) value)
-0006: trv value_source (variable_id 1)
-0007: asn 2 ((current value) value)
-0008: yield variable_id 2
-0009: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: yield variable_id 0
+0010: halt
 ================================================================================
-field access
+multi-binding let expression, later binding references earlier one
 ================================================================================
 grammar: typescript
 
 --- tql ---
-. / class_declaration as @c | @c.name
+let @class = . / class_declaration,
+    @name = @class.name
+in @name
 --- source ---
 class Service {}
 class Controller {}
+function foo() {}
+
 --- values ---
 [
   {
@@ -97,11 +102,10 @@ class Controller {}
     }
   }
 ]
-
 --- tql tree ---
-(source_file (pipe (bind (child . (node class_declaration)) c) (field c name)))
+(source_file (let ((class (child . (node class_declaration))) (name (field class name))) name))
 --- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -113,91 +117,120 @@ class Controller {}
 0007: asn 3 ((current value) value)
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
-0010: trv value_source (variable_id 0)
-0011: trv field 25
-0012: asn 4 ((current value) value)
+0010: trv field 25
+0011: asn 5 ((current value) value)
+0012: asn 4 (variable_id 5)
 0013: yield variable_id 4
 0014: halt
 ================================================================================
-identity is root
+let-bound variable leaks past the in-body, matching `as` leak semantics
 ================================================================================
 grammar: typescript
 
 --- tql ---
-.
---- source ---
-class Service {}
---- values ---
-[
-  {
-    "kind": "program",
-    "text": "class Service {}",
-    "start_byte": 0,
-    "end_byte": 16,
-    "start_point": {
-      "row": 0,
-      "column": 0
-    },
-    "end_point": {
-      "row": 0,
-      "column": 16
-    }
-  }
-]
-
---- tql tree ---
-(source_file .)
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)))
---- bytecode ---
-0000: yield (current value) value
-0001: halt
-================================================================================
-identity after transform
-================================================================================
-grammar: typescript
-
---- tql ---
-. / class_declaration as @c | @c | .
+let @class = . / class_declaration in select(@class.name | text = 'Controller') | @class.name
 --- source ---
 class Service {}
 class Controller {}
+function foo() {}
+
 --- values ---
 [
   {
-    "kind": "class_declaration",
-    "text": "class Service {}",
-    "start_byte": 0,
-    "end_byte": 16,
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
     "start_point": {
-      "row": 0,
-      "column": 0
+      "row": 1,
+      "column": 6
     },
     "end_point": {
-      "row": 0,
+      "row": 1,
       "column": 16
-    }
-  },
-  {
-    "kind": "class_declaration",
-    "text": "class Controller {}",
-    "start_byte": 17,
-    "end_byte": 36,
-    "start_point": {
-      "row": 1,
-      "column": 0
-    },
-    "end_point": {
-      "row": 1,
-      "column": 19
     }
   }
 ]
-
 --- tql tree ---
-(source_file (pipe (pipe (bind (child . (node class_declaration)) c) c) .))
+(source_file (let ((class (child . (node class_declaration)))) (pipe (call select (eq (pipe (field class name) (call text)) (string "Controller"))) (field class name))))
 --- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)))
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: asn 4 ((current value) value)
+0010: asn 5 ((current value) value)
+0011: trv value_source (variable_id 0)
+0012: trv field 25
+0013: asn 6 ((current value) value)
+0014: trv value_source (variable_id 6)
+0015: asn 7 ((current value) text)
+0016: trv value_source (variable_id 5)
+0017: rel equals (variable_id 7) (literal string "Controller") -> 8
+0018: trv value_source (variable_id 4)
+0019: jmp 21 if (variable_id 8)
+0020: halt
+0021: trv value_source ((current value) value)
+0022: trv value_source (variable_id 0)
+0023: trv field 25
+0024: asn 9 ((current value) value)
+0025: yield variable_id 9
+0026: halt
+================================================================================
+nested let expressions compose
+================================================================================
+grammar: typescript
+
+--- tql ---
+let @a = . / class_declaration in
+let @b = @a.name in
+@b
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+--- tql tree ---
+(source_file (let ((a (child . (node class_declaration)))) (let ((b (field a name))) b)))
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
 --- bytecode ---
 0000: trv value_source ((current value) value)
 0001: trv child
@@ -209,83 +242,8 @@ class Controller {}
 0007: asn 3 ((current value) value)
 0008: asn 0 (variable_id 3)
 0009: trv value_source (variable_id 0)
-0010: trv value_source (variable_id 0)
-0011: yield (current value) value
-0012: halt
-================================================================================
-child navigation
-================================================================================
-grammar: typescript
-
---- tql ---
-. / class_declaration / class_body as @body | @body / method_definition
---- source ---
-class Service {
-  foo() {}
-  bar() {}
-}
---- values ---
-[
-  {
-    "kind": "method_definition",
-    "text": "foo() {}",
-    "start_byte": 18,
-    "end_byte": 26,
-    "start_point": {
-      "row": 1,
-      "column": 2
-    },
-    "end_point": {
-      "row": 1,
-      "column": 10
-    }
-  },
-  {
-    "kind": "method_definition",
-    "text": "bar() {}",
-    "start_byte": 29,
-    "end_byte": 37,
-    "start_point": {
-      "row": 2,
-      "column": 2
-    },
-    "end_point": {
-      "row": 2,
-      "column": 10
-    }
-  }
-]
-
---- tql tree ---
-(source_file (pipe (bind (child (child . (node class_declaration)) (node class_body)) body) (child body (node method_definition))))
---- source tree ---
-(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
---- bytecode ---
-0000: trv value_source ((current value) value)
-0001: trv child
-0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
-0003: jmp 5 if (variable_id 1)
-0004: halt
-0005: asn 2 ((current value) value)
-0006: trv value_source (variable_id 2)
-0007: asn 3 ((current value) value)
-0008: trv value_source (variable_id 3)
-0009: trv child
-0010: rel equals ((current value) kind) (literal kind_id 256) -> 4
-0011: jmp 13 if (variable_id 4)
-0012: halt
-0013: asn 5 ((current value) value)
-0014: trv value_source (variable_id 5)
-0015: asn 6 ((current value) value)
-0016: asn 0 (variable_id 6)
-0017: trv value_source (variable_id 0)
-0018: trv value_source (variable_id 0)
-0019: trv child
-0020: rel equals ((current value) kind) (literal kind_id 261) -> 7
-0021: jmp 23 if (variable_id 7)
-0022: halt
-0023: asn 8 ((current value) value)
-0024: trv value_source (variable_id 8)
-0025: asn 9 ((current value) value)
-0026: yield variable_id 9
-0027: halt
+0010: trv field 25
+0011: asn 5 ((current value) value)
+0012: asn 4 (variable_id 5)
+0013: yield variable_id 4
+0014: halt

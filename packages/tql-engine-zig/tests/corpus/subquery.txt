@@ -4,7 +4,7 @@ subquery in select projects list per outer match
 grammar: c
 
 --- tql ---
-. > function_definition as @func | [@func.declarator.parameters > parameter_declaration]
+. / function_definition as @func | [@func.declarator.parameters / parameter_declaration]
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
@@ -98,7 +98,7 @@ subquery empty produces empty list
 grammar: c
 
 --- tql ---
-. > function_definition as @func | [@func > goto_statement]
+. / function_definition as @func | [@func / goto_statement]
 --- source ---
 int add(int a, int b) { return a + b; }
 --- values ---
@@ -140,7 +140,7 @@ collect dot refers to piped-in value
 grammar: c
 
 --- tql ---
-. > function_definition | { fn: ., params: [. >> parameter_declaration] }
+. / function_definition | { fn: ., params: [. // parameter_declaration] }
 --- source ---
 int add(int a, int b) { return a + b; }
 int main(void) { return 0; }
@@ -270,9 +270,9 @@ subquery captures outer binding
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl | {
+. / function_definition.declarator as @func_decl | {
   name: @func_decl.declarator,
-  params: [@func_decl.parameters > parameter_declaration]
+  params: [@func_decl.parameters / parameter_declaration]
 }
 --- source ---
 int add(int a, int b) { return a + b; }
@@ -413,11 +413,11 @@ nested subquery
 grammar: c
 
 --- tql ---
-. > function_definition as @func | {
+. / function_definition as @func | {
   fn: @func,
   param_lists: [
     @func.declarator as @decl |
-    [@decl.parameters > parameter_declaration]
+    [@decl.parameters / parameter_declaration]
   ]
 }
 --- source ---
@@ -530,10 +530,10 @@ subquery with where clause filters inner stream
 grammar: c
 
 --- tql ---
-. > function_definition as @func | {
+. / function_definition as @func | {
   fn: @func,
   int_params: [
-    @func.declarator.parameters > parameter_declaration as @p |
+    @func.declarator.parameters / parameter_declaration as @p |
     @p.type as @t |
     select(@t | text = 'int') |
     @p
@@ -677,8 +677,8 @@ subquery as binding produces list per outer fanout
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl |
-[@func_decl.parameters > parameter_declaration] as @param_decl |
+. / function_definition.declarator as @func_decl |
+[@func_decl.parameters / parameter_declaration] as @param_decl |
 @func_decl.declarator as @func_name |
 { name: @func_name, param: @param_decl }
 --- source ---
@@ -824,8 +824,8 @@ subquery binding without rebinding fans out (baseline)
 grammar: c
 
 --- tql ---
-. > function_definition.declarator as @func_decl |
-@func_decl.parameters > parameter_declaration as @param_decl |
+. / function_definition.declarator as @func_decl |
+@func_decl.parameters / parameter_declaration as @param_decl |
 @func_decl.declarator as @func_name |
 { name: @func_name, param: @param_decl }
 --- source ---

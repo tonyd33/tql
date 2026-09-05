@@ -2,6 +2,19 @@ const std = @import("std");
 
 pub const Identifier = []const u8;
 
+/// Byte range in the TQL source, half-open: `[start, end)`.
+pub const Span = struct {
+    start: u32,
+    end: u32,
+
+    /// For nodes that no source range corresponds to.
+    pub const unknown: Span = .{ .start = 0, .end = 0 };
+
+    pub fn sexpr(self: Span, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("{d}:{d}", .{ self.start, self.end });
+    }
+};
+
 pub const Variable = struct {
     name: Identifier,
 };
@@ -158,6 +171,44 @@ pub const BindExpression = struct {
     }
 };
 
+pub const LetBinding = struct {
+    variable: Variable,
+    value: Expression,
+
+    pub fn deinit(self: LetBinding, allocator: std.mem.Allocator) void {
+        allocator.free(self.variable.name);
+        self.value.deinit(allocator);
+    }
+
+    pub fn sexpr(self: LetBinding, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("({s} ", .{self.variable.name});
+        try self.value.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+pub const LetExpression = struct {
+    bindings: []const LetBinding,
+    body: Expression,
+
+    pub fn deinit(self: LetExpression, allocator: std.mem.Allocator) void {
+        for (self.bindings) |b| b.deinit(allocator);
+        allocator.free(self.bindings);
+        self.body.deinit(allocator);
+    }
+
+    pub fn sexpr(self: LetExpression, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll("(let (");
+        for (self.bindings, 0..) |b, i| {
+            if (i > 0) try w.writeByte(' ');
+            try b.sexpr(w);
+        }
+        try w.writeAll(") ");
+        try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
 pub const PipeExpression = struct {
     left: Expression,
     right: Expression,
@@ -188,8 +239,9 @@ pub const UnionExpression = struct {
 // Navigation
 // ============================================================================
 
-pub const NodeSelector = struct {
-    node_type: Identifier,
+pub const NodeSelector = union(enum) {
+    kind: Identifier,
+    wildcard,
 };
 
 pub const FieldAccess = struct {
@@ -249,6 +301,10 @@ pub const ComparisonOperator = enum {
     ne,
     regex_match,
     regex_not_match,
+    lt,
+    gt,
+    lte,
+    gte,
 };
 
 pub const LogicalAnd = struct {
@@ -345,37 +401,45 @@ pub const DotFieldAccess = struct {
     }
 };
 
-pub const Expression = union(enum) {
-    node_selector: NodeSelector,
-    variable: Variable,
-    dot_field_access: DotFieldAccess,
-    string_literal: []const u8,
-    regex_literal: []const u8,
-    number_literal: u64,
-    null_literal,
-    identity,
-    field_access: *FieldAccess,
-    child_navigation: *ChildNavigation,
-    descendant_navigation: *DescendantNavigation,
-    function_call: FunctionCall,
-    object_literal: ObjectLiteral,
-    array_literal: ArrayLiteral,
-    tuple_literal: TupleLiteral,
-    parenthesized: *Expression,
-    collect_expression: *Expression,
-    bind_expression: *BindExpression,
-    pipe_expression: *PipeExpression,
-    union_expression: *UnionExpression,
-    // Boolean/guard expressions (formerly Predicate variants)
-    comparison: *Comparison,
-    is_null: *IsNullExpr,
-    logical_and: *LogicalAnd,
-    logical_or: *LogicalOr,
-    logical_not: *LogicalNot,
+pub const Expression = struct {
+    kind: Kind,
+    span: Span = .unknown,
+
+    pub const Kind = union(enum) {
+        node_selector: NodeSelector,
+        variable: Variable,
+        dot_field_access: DotFieldAccess,
+        string_literal: []const u8,
+        regex_literal: []const u8,
+        number_literal: i64,
+        null_literal,
+        identity,
+        field_access: *FieldAccess,
+        child_navigation: *ChildNavigation,
+        descendant_navigation: *DescendantNavigation,
+        function_call: FunctionCall,
+        object_literal: ObjectLiteral,
+        array_literal: ArrayLiteral,
+        tuple_literal: TupleLiteral,
+        parenthesized: *Expression,
+        collect_expression: *Expression,
+        bind_expression: *BindExpression,
+        let_expression: *LetExpression,
+        pipe_expression: *PipeExpression,
+        union_expression: *UnionExpression,
+        comparison: *Comparison,
+        is_null: *IsNullExpr,
+        logical_and: *LogicalAnd,
+        logical_or: *LogicalOr,
+        logical_not: *LogicalNot,
+    };
 
     pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .node_selector => |ns| allocator.free(ns.node_type),
+        switch (self.kind) {
+            .node_selector => |ns| switch (ns) {
+                .kind => |k| allocator.free(k),
+                .wildcard => {},
+            },
             .variable => |v| allocator.free(v.name),
             .dot_field_access => |dfa| allocator.free(dfa.field),
             .string_literal => |s| allocator.free(s),
@@ -399,7 +463,10 @@ pub const Expression = union(enum) {
                 allocator.destroy(dn);
             },
             .function_call => |fc| {
-                allocator.free(fc.name);
+                switch (fc.callee) {
+                    .name => |name| allocator.free(name),
+                    .variable => |name| allocator.free(name),
+                }
                 for (fc.arguments) |arg| arg.deinit(allocator);
                 allocator.free(fc.arguments);
             },
@@ -426,6 +493,10 @@ pub const Expression = union(enum) {
             .bind_expression => |be| {
                 be.deinit(allocator);
                 allocator.destroy(be);
+            },
+            .let_expression => |le| {
+                le.deinit(allocator);
+                allocator.destroy(le);
             },
             .pipe_expression => |pe| {
                 pe.left.deinit(allocator);
@@ -464,8 +535,11 @@ pub const Expression = union(enum) {
     }
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (self) {
-            .node_selector => |ns| try w.print("(node {s})", .{ns.node_type}),
+        switch (self.kind) {
+            .node_selector => |ns| switch (ns) {
+                .kind => |k| try w.print("(node {s})", .{k}),
+                .wildcard => try w.writeAll("(node *)"),
+            },
             .variable => |v| try w.print("{s}", .{v.name}),
             .dot_field_access => |dfa| try dfa.sexpr(w),
             .string_literal => |s| try w.print("(string \"{s}\")", .{s}),
@@ -491,6 +565,7 @@ pub const Expression = union(enum) {
                 try w.writeByte(')');
             },
             .bind_expression => |be| try be.sexpr(w),
+            .let_expression => |le| try le.sexpr(w),
             .pipe_expression => |pe| try pe.sexpr(w),
             .union_expression => |ue| try ue.sexpr(w),
             .comparison => |c| {
@@ -528,12 +603,20 @@ pub const Expression = union(enum) {
     }
 };
 
-pub const FunctionCall = struct {
+pub const FunctionCallCallee = union(enum) {
     name: Identifier,
+    variable: Identifier,
+};
+
+pub const FunctionCall = struct {
+    callee: FunctionCallCallee,
     arguments: []const Expression,
 
     pub fn sexpr(self: FunctionCall, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(call {s}", .{self.name});
+        switch (self.callee) {
+            .name => |name| try w.print("(call {s}", .{name}),
+            .variable => |name| try w.print("(call @{s}", .{name}),
+        }
         for (self.arguments) |arg| {
             try w.writeByte(' ');
             try arg.sexpr(w);

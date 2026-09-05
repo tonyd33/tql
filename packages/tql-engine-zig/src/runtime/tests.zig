@@ -11,4 +11,5 @@ test {
     refAllDecls(@import("tests/call_ret.zig"));
     refAllDecls(@import("tests/probe.zig"));
     refAllDecls(@import("tests/build.zig"));
+    refAllDecls(@import("tests/closure.zig"));
 }

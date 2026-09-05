@@ -1,5 +1,6 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
+const build_options = @import("build_options");
 const ds = @import("../ds.zig");
 const OverlayMap = ds.OverlayMap;
 const Rc = ds.Rc;
@@ -21,7 +22,7 @@ pub const Range = public.Range;
 pub const Value = union(enum) {
     nothing,
     bool: bool,
-    uint: u64,
+    int: i64,
     string: []const u8,
     range: Range,
     kind_id: NodeKindId,
@@ -32,14 +33,13 @@ pub const Value = union(enum) {
     regex: pcre2.Regex,
     record: *Rc(Record),
     list: *Rc(List),
+    closure: *Rc(Closure),
 
-    /// Bump refcounts on heap variants; no-op for inline ones. Producers
-    /// (asn, push_build, yield) call this before handing a Value to a new
-    /// owner.
     pub fn clone(self: Value) Value {
         return switch (self) {
             .record => |r| .{ .record = r.reference() },
             .list => |l| .{ .list = l.reference() },
+            .closure => |c| .{ .closure = c.reference() },
             else => self,
         };
     }
@@ -48,6 +48,7 @@ pub const Value = union(enum) {
         switch (self.*) {
             .record => |r| r.dereference(gpa),
             .list => |l| l.dereference(gpa),
+            .closure => |c| c.dereference(gpa),
             else => {},
         }
     }
@@ -58,7 +59,7 @@ pub const Value = union(enum) {
         return switch (a) {
             .nothing => true,
             .bool => |bv| bv == b.bool,
-            .uint => |uint| uint == b.uint,
+            .int => |int| int == b.int,
             .string => |a_str| std.mem.eql(u8, a_str, b.string),
             .range => |a_range| {
                 const b_range = b.range;
@@ -75,6 +76,7 @@ pub const Value = union(enum) {
             .regex => |a_regex| a_regex.eql(b.regex),
             .record => |a_r| a_r == b.record,
             .list => |a_l| a_l == b.list,
+            .closure => |a_c| a_c == b.closure,
         };
     }
 
@@ -82,7 +84,7 @@ pub const Value = union(enum) {
         switch (self) {
             .nothing => try writer.print("nothing", .{}),
             .bool => |bv| try writer.print("bool {}", .{bv}),
-            .uint => |uint| try writer.print("uint {}", .{uint}),
+            .int => |int| try writer.print("int {}", .{int}),
             .string => |s| try writer.print("string \"{s}\"", .{s}),
             .kind_id => |k| try writer.print("kind_id {}", .{k}),
             .field_id => |f| try writer.print("field_id {}", .{f}),
@@ -91,6 +93,7 @@ pub const Value = union(enum) {
             .regex => try writer.print("regex ...", .{}),
             .record => try writer.print("record ...", .{}),
             .list => try writer.print("list ...", .{}),
+            .closure => |c| try writer.print("closure entry={} arity={} applied={}", .{ c.value.entry, c.value.arity, c.value.applied.len }),
         }
     }
 
@@ -98,7 +101,7 @@ pub const Value = union(enum) {
         return switch (self) {
             .nothing => .nothing,
             .bool => |b| .{ .bool = b },
-            .uint => |u| .{ .uint = u },
+            .int => |i| .{ .int = i },
             .string => |s| .{ .string = try gpa.dupe(u8, s) },
             .range => |r| .{ .range = r },
             .node => |n| blk: {
@@ -136,7 +139,7 @@ pub const Value = union(enum) {
                 for (rc.value.items.items, 0..) |v, i| items[i] = try v.toPublic(gpa, source);
                 break :blk .{ .list = .{ ._items = items } };
             },
-            .kind_id, .field_id, .regex => @panic("TODO"),
+            .kind_id, .field_id, .regex, .closure => @panic("TODO"),
         };
     }
 };
@@ -172,9 +175,86 @@ pub const List = struct {
     }
 };
 
+/// A function value: an entry point plus a lexically captured environment,
+/// with zero or more arguments already applied (curried). `param_vars_offset`
+/// indexes into the owning ProgramImage's `param_var_arena` (not owned by
+/// the Closure); combined with `arity`, it resolves to the def's parameter
+/// VariableIds.
+pub const Closure = struct {
+    entry: Address,
+    arity: u8,
+    param_vars_offset: u32,
+    applied: []Value,
+    captured_env: Environment.Cell,
+
+    pub fn deinit(self: *Closure, gpa: Allocator) void {
+        for (self.applied) |*v| v.deinit(gpa);
+        gpa.free(self.applied);
+        self.captured_env.dereference(gpa);
+    }
+};
+
 // Use an OverlayMap to map variable ids to values. This is probably only more efficient than a
 // standard hash map if we do more copies than lookups. But we probably do? May need to benchmark.
 pub const Environment = OverlayMap(VariableId, Value);
+
+pub const profiling_enabled = build_options.profile;
+
+/// Execution counters. With `-Dprofile` off this is an empty struct whose
+/// methods compile to nothing, so counting sites cost nothing to leave in.
+pub const Profile = if (profiling_enabled) Counters else NoCounters;
+
+pub const Counters = struct {
+    instructions: u64 = 0,
+    env_copies: u64 = 0,
+    env_puts: u64 = 0,
+    env_lookups: u64 = 0,
+    frames: u64 = 0,
+    closures: u64 = 0,
+
+    pub fn countInstruction(self: *Counters) void {
+        self.instructions += 1;
+    }
+
+    pub fn countEnvCopy(self: *Counters) void {
+        self.env_copies += 1;
+    }
+
+    pub fn countEnvPut(self: *Counters) void {
+        self.env_puts += 1;
+    }
+
+    pub fn countEnvLookup(self: *Counters) void {
+        self.env_lookups += 1;
+    }
+
+    pub fn countFrame(self: *Counters) void {
+        self.frames += 1;
+    }
+
+    pub fn countClosure(self: *Counters) void {
+        self.closures += 1;
+    }
+
+    pub fn add(self: *Counters, other: Counters) void {
+        self.instructions += other.instructions;
+        self.env_copies += other.env_copies;
+        self.env_puts += other.env_puts;
+        self.env_lookups += other.env_lookups;
+        self.frames += other.frames;
+        self.closures += other.closures;
+    }
+};
+
+const NoCounters = struct {
+    pub fn countInstruction(_: *NoCounters) void {}
+    pub fn countEnvCopy(_: *NoCounters) void {}
+    pub fn countEnvPut(_: *NoCounters) void {}
+    pub fn countEnvLookup(_: *NoCounters) void {}
+    pub fn countFrame(_: *NoCounters) void {}
+    pub fn countClosure(_: *NoCounters) void {}
+    pub fn add(_: *NoCounters, _: NoCounters) void {}
+};
 
 /// A boundary is part of a stack frame. Its purpose is to embed otherwise
 /// difficult-to-express control flow within the stack by modifying yield and
@@ -442,7 +522,7 @@ pub const ListIterator = struct {
     index: usize = 0,
 
     pub fn value(self: *const ListIterator) Value {
-        return self.list.value.items.items[self.index - 1];
+        return self.list.value.items.items[self.index - 1].clone();
     }
 
     pub fn next(self: *ListIterator) bool {
@@ -493,3 +573,9 @@ pub const SplitIterator = union(enum) {
         }
     }
 };
+
+test "profiling off costs no space in the runtime" {
+    if (!profiling_enabled) {
+        try std.testing.expectEqual(0, @sizeOf(Profile));
+    }
+}

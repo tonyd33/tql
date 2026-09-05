@@ -10,6 +10,7 @@ pub const ast = @import("ast.zig");
 pub const ir = @import("ir.zig");
 
 const runtime = @import("runtime.zig");
+const runtime_types = @import("runtime/types.zig");
 const pcre2 = @import("regex.zig");
 const parser = @import("parser.zig");
 const compiler = @import("compiler.zig");
@@ -36,9 +37,13 @@ pub const Config = struct {
     io: std.Io,
 };
 
+pub const Profile = runtime_types.Profile;
+pub const profiling_enabled = runtime_types.profiling_enabled;
+
 pub const RunStats = struct {
     parse_time: std.Io.Duration,
     query_time: std.Io.Duration,
+    profile: Profile = .{},
 };
 
 pub const RunResult = struct {
@@ -129,6 +134,7 @@ pub const Query = struct {
             .source = query_target,
             .instructions = self.program_image.instructions,
             .regexes = self.program_image.regexes,
+            .param_var_arena = self.program_image.param_var_arena,
             .allocator = scratch_allocator,
         });
         try rt.exec();
@@ -152,6 +158,7 @@ pub const Query = struct {
             .stats = .{
                 .parse_time = parse_time,
                 .query_time = query_time,
+                .profile = rt.profile,
             },
             .allocator = result_allocator,
         };

@@ -118,7 +118,23 @@
             "named": false
           },
           {
+            "type": "<",
+            "named": false
+          },
+          {
+            "type": "<=",
+            "named": false
+          },
+          {
             "type": "=",
+            "named": false
+          },
+          {
+            "type": ">",
+            "named": false
+          },
+          {
+            "type": ">=",
             "named": false
           },
           {
@@ -268,6 +284,10 @@
           "named": true
         },
         {
+          "type": "let_expression",
+          "named": true
+        },
+        {
           "type": "logical_and",
           "named": true
         },
@@ -368,6 +388,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "variable",
             "named": true
           }
         ]
@@ -484,6 +508,58 @@
     }
   },
   {
+    "type": "let_binding",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "variable": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "let_expression",
+    "named": true,
+    "fields": {
+      "binding": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "let_binding",
+            "named": true
+          }
+        ]
+      },
+      "body": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "logical_and",
     "named": true,
     "fields": {
@@ -561,6 +637,10 @@
       "types": [
         {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "wildcard",
           "named": true
         }
       ]
@@ -815,11 +895,23 @@
     "named": false
   },
   {
+    "type": "//",
+    "named": false
+  },
+  {
     "type": ":",
     "named": false
   },
   {
     "type": ";",
+    "named": false
+  },
+  {
+    "type": "<",
+    "named": false
+  },
+  {
+    "type": "<=",
     "named": false
   },
   {
@@ -835,7 +927,7 @@
     "named": false
   },
   {
-    "type": ">>",
+    "type": ">=",
     "named": false
   },
   {
@@ -884,11 +976,19 @@
     "named": false
   },
   {
+    "type": "in",
+    "named": false
+  },
+  {
     "type": "is",
     "named": false
   },
   {
     "type": "language",
+    "named": false
+  },
+  {
+    "type": "let",
     "named": false
   },
   {
@@ -917,6 +1017,10 @@
   },
   {
     "type": "string_fragment",
+    "named": true
+  },
+  {
+    "type": "wildcard",
     "named": true
   },
   {

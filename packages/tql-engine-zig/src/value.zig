@@ -86,7 +86,7 @@ pub const ListView = struct {
 pub const Value = union(enum) {
     nothing,
     bool: bool,
-    uint: u64,
+    int: i64,
     string: []const u8,
     range: Range,
     node: NodeSnapshot,
@@ -117,7 +117,7 @@ pub const Value = union(enum) {
         switch (self) {
             .nothing => try writer.writeAll("nothing"),
             .bool => |b| try writer.print("{}", .{b}),
-            .uint => |u| try writer.print("{d}", .{u}),
+            .int => |i| try writer.print("{d}", .{i}),
             .string => |s| try writer.writeAll(s),
             .range => |r| try writer.print("{d}:{d}-{d}:{d}", .{ r.start_point.row, r.start_point.column, r.end_point.row, r.end_point.column }),
             .node => |n| try writer.print("{s} [{d}:{d}-{d}:{d}]", .{ n.kind, n.start_point.row, n.start_point.column, n.end_point.row, n.end_point.column }),
@@ -145,7 +145,7 @@ pub const Value = union(enum) {
         switch (self) {
             .nothing => try jws.write(null),
             .bool => |b| try jws.write(b),
-            .uint => |u| try jws.write(u),
+            .int => |i| try jws.write(i),
             .string => |s| try jws.write(s),
             .range => |r| try jws.write(r),
             .node => |n| try jws.write(n),

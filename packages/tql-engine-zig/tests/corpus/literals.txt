@@ -4,7 +4,7 @@ pair
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | ('class', @class)
+. / class_declaration as @class | ('class', @class)
 --- source ---
 class Foo {}
 --- values ---
@@ -58,7 +58,7 @@ triple
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | @class.name as @name | ('class', @name, @class)
+. / class_declaration as @class | @class.name as @name | ('class', @name, @class)
 --- source ---
 class Foo {}
 --- values ---
@@ -133,7 +133,7 @@ array literal single element
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | [ @class ]
+. / class_declaration as @class | [ @class ]
 --- source ---
 class Foo {}
 --- values ---
@@ -181,7 +181,7 @@ array literal multiple matches
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | [ @class ]
+. / class_declaration as @class | [ @class ]
 --- source ---
 class A {}
 class B {}
@@ -246,7 +246,7 @@ array literal mixed literal and variable
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | [ 'class', @class ]
+. / class_declaration as @class | [ 'class', @class ]
 --- source ---
 class Foo {}
 --- values ---
@@ -299,7 +299,7 @@ object literal shorthand
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | { @class }
+. / class_declaration as @class | { @class }
 --- source ---
 class Foo {}
 --- values ---
@@ -349,7 +349,7 @@ object literal two shorthand fields
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | @class.name as @name | { @class, @name }
+. / class_declaration as @class | @class.name as @name | { @class, @name }
 --- source ---
 class Foo {}
 --- values ---
@@ -420,7 +420,7 @@ object literal key value
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | { kind: 'class', node: @class }
+. / class_declaration as @class | { kind: 'class', node: @class }
 --- source ---
 class Foo {}
 --- values ---
@@ -477,7 +477,7 @@ object literal multiple matches
 grammar: typescript
 
 --- tql ---
-. > class_declaration as @class | { @class }
+. / class_declaration as @class | { @class }
 --- source ---
 class A {}
 class B {}

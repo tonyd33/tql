@@ -72,6 +72,7 @@ module.exports = grammar({
         $.tuple_literal,
         $.parenthesized,
         $.bind_expression,
+        $.let_expression,
         $.pipe_expression,
         $.union_expression,
         $.comparison,
@@ -89,6 +90,20 @@ module.exports = grammar({
           "as",
           field("variable", $.variable),
           optional(field("optional", "?")),
+        ),
+      ),
+
+    let_binding: $ =>
+      seq(field("variable", $.variable), "=", field("value", $.expression)),
+
+    let_expression: $ =>
+      prec.right(
+        PREC.bind,
+        seq(
+          "let",
+          comma_sep1(field("binding", $.let_binding)),
+          "in",
+          field("body", $.expression),
         ),
       ),
 
@@ -110,7 +125,7 @@ module.exports = grammar({
     dot_field_access: $ =>
       prec.left(PREC.field, seq(".", field("field", $.identifier))),
 
-    node_selector: $ => prec(-1, $.identifier),
+    node_selector: $ => prec(-1, choice($.identifier, alias("*", $.wildcard))),
 
     field_access: $ =>
       prec.left(
@@ -123,7 +138,7 @@ module.exports = grammar({
         PREC.child,
         seq(
           field("parent", $.expression),
-          ">",
+          "/",
           field("child", $.node_selector),
         ),
       ),
@@ -133,7 +148,7 @@ module.exports = grammar({
         PREC.descendant,
         seq(
           field("parent", $.expression),
-          ">>",
+          "//",
           field("descendant", $.node_selector),
         ),
       ),
@@ -154,7 +169,7 @@ module.exports = grammar({
         PREC.comparison,
         seq(
           field("left", $.expression),
-          field("operator", choice("=", "!=", "~", "!~")),
+          field("operator", choice("=", "!=", "~", "!~", "<=", ">=", "<", ">")),
           field("right", $.expression),
         ),
       ),
@@ -179,7 +194,7 @@ module.exports = grammar({
         prec(
           1,
           seq(
-            field("name", $.identifier),
+            field("name", choice($.identifier, $.variable)),
             "(",
             optional(semicolon_sep1(field("argument", $.expression))),
             ")",

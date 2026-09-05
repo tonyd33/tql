@@ -71,7 +71,7 @@ class_declaration as @class | @class.name as @name | select(@name = 'Controller'
 function definition
 ========================================
 
-def find_methods(@class): @class.body > method_definition;
+def find_methods(@class): @class.body / method_definition;
 
 ---
 
@@ -167,6 +167,45 @@ pipeline without filter
 ========================================
 
 @result
+
+---
+
+(source_file
+  (expression
+    (variable
+      (identifier))))
+
+========================================
+call through a variable
+========================================
+
+class_declaration as @f | @f(class_declaration)
+
+---
+
+(source_file
+  (expression
+    (pipe_expression
+      left: (expression
+        (bind_expression
+          expression: (expression
+            (function_call
+              name: (identifier)))
+          variable: (variable
+            (identifier))))
+      right: (expression
+        (function_call
+          name: (variable
+            (identifier))
+          argument: (expression
+            (function_call
+              name: (identifier))))))))
+
+========================================
+bare variable is not ambiguous with call-through-variable
+========================================
+
+@f
 
 ---
 
