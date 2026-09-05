@@ -1,5 +1,6 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
+const build_options = @import("build_options");
 const ds = @import("../ds.zig");
 const OverlayMap = ds.OverlayMap;
 const Rc = ds.Rc;
@@ -196,6 +197,64 @@ pub const Closure = struct {
 // Use an OverlayMap to map variable ids to values. This is probably only more efficient than a
 // standard hash map if we do more copies than lookups. But we probably do? May need to benchmark.
 pub const Environment = OverlayMap(VariableId, Value);
+
+pub const profiling_enabled = build_options.profile;
+
+/// Execution counters. With `-Dprofile` off this is an empty struct whose
+/// methods compile to nothing, so counting sites cost nothing to leave in.
+pub const Profile = if (profiling_enabled) Counters else NoCounters;
+
+pub const Counters = struct {
+    instructions: u64 = 0,
+    env_copies: u64 = 0,
+    env_puts: u64 = 0,
+    env_lookups: u64 = 0,
+    frames: u64 = 0,
+    closures: u64 = 0,
+
+    pub fn countInstruction(self: *Counters) void {
+        self.instructions += 1;
+    }
+
+    pub fn countEnvCopy(self: *Counters) void {
+        self.env_copies += 1;
+    }
+
+    pub fn countEnvPut(self: *Counters) void {
+        self.env_puts += 1;
+    }
+
+    pub fn countEnvLookup(self: *Counters) void {
+        self.env_lookups += 1;
+    }
+
+    pub fn countFrame(self: *Counters) void {
+        self.frames += 1;
+    }
+
+    pub fn countClosure(self: *Counters) void {
+        self.closures += 1;
+    }
+
+    pub fn add(self: *Counters, other: Counters) void {
+        self.instructions += other.instructions;
+        self.env_copies += other.env_copies;
+        self.env_puts += other.env_puts;
+        self.env_lookups += other.env_lookups;
+        self.frames += other.frames;
+        self.closures += other.closures;
+    }
+};
+
+const NoCounters = struct {
+    pub fn countInstruction(_: *NoCounters) void {}
+    pub fn countEnvCopy(_: *NoCounters) void {}
+    pub fn countEnvPut(_: *NoCounters) void {}
+    pub fn countEnvLookup(_: *NoCounters) void {}
+    pub fn countFrame(_: *NoCounters) void {}
+    pub fn countClosure(_: *NoCounters) void {}
+    pub fn add(_: *NoCounters, _: NoCounters) void {}
+};
 
 /// A boundary is part of a stack frame. Its purpose is to embed otherwise
 /// difficult-to-express control flow within the stack by modifying yield and
@@ -514,3 +573,9 @@ pub const SplitIterator = union(enum) {
         }
     }
 };
+
+test "profiling off costs no space in the runtime" {
+    if (!profiling_enabled) {
+        try std.testing.expectEqual(0, @sizeOf(Profile));
+    }
+}
