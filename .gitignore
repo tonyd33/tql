@@ -27,3 +27,7 @@ devenv.local.yaml
 /work
 
 __pycache__
+
+# nix build outputs
+/result
+/result-*

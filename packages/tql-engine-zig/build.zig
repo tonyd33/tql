@@ -28,6 +28,10 @@ const TreeSitterGrammar = struct {
 
 const grammars: []const TreeSitterGrammar = &.{
     .{
+        .dep_name = "tree-sitter-bash",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-cpp",
         .has_scanner = true,
     },
@@ -35,18 +39,108 @@ const grammars: []const TreeSitterGrammar = &.{
         .dep_name = "tree-sitter-c",
     },
     .{
+        .dep_name = "tree-sitter-c-sharp",
+        .has_scanner = true,
+        .out_name = "c_sharp",
+    },
+    .{
+        .dep_name = "tree-sitter-css",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-dockerfile",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-elixir",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-erlang",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-go",
+    },
+    .{
+        .dep_name = "tree-sitter-graphql",
+    },
+    .{
+        .dep_name = "tree-sitter-haskell",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-hcl",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-html",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-java",
     },
     .{
         .dep_name = "tree-sitter-javascript",
         .has_scanner = true,
     },
     .{
+        .dep_name = "tree-sitter-json",
+    },
+    .{
+        .dep_name = "tree-sitter-kotlin",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-lua",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-make",
+    },
+    .{
+        .dep_name = "tree-sitter-markdown",
+        .root = "tree-sitter-markdown",
+        .has_scanner = true,
+        .out_name = "markdown",
+    },
+    .{
+        .dep_name = "tree-sitter-nix",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-ocaml",
+        .root = "grammars/ocaml",
+        .has_scanner = true,
+        .out_name = "ocaml",
+    },
+    .{
+        .dep_name = "tree-sitter-php",
+        .root = "php",
+        .has_scanner = true,
+        .out_name = "php",
+    },
+    .{
         .dep_name = "tree-sitter-python",
         .has_scanner = true,
     },
     .{
+        .dep_name = "tree-sitter-ruby",
+        .has_scanner = true,
+    },
+    .{
         .dep_name = "tree-sitter-rust",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-scala",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-solidity",
+    },
+    .{
+        .dep_name = "tree-sitter-toml",
         .has_scanner = true,
     },
     .{
@@ -60,6 +154,14 @@ const grammars: []const TreeSitterGrammar = &.{
         .root = "tsx",
         .has_scanner = true,
         .out_name = "tsx",
+    },
+    .{
+        .dep_name = "tree-sitter-vue",
+        .has_scanner = true,
+    },
+    .{
+        .dep_name = "tree-sitter-yaml",
+        .has_scanner = true,
     },
     .{
         .dep_name = "tree-sitter-zig",
@@ -80,12 +182,26 @@ fn addGrammar(
         .target = target,
         .optimize = optimize,
     });
-    mod.addIncludePath(tree_sitter_grammar.path(include));
-    mod.addCSourceFiles(.{
+
+    const grammar_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    grammar_mod.addIncludePath(tree_sitter_grammar.path(include));
+    grammar_mod.addCSourceFiles(.{
         .root = tree_sitter_grammar.path(grammar.root),
         .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
         .flags = grammar.flags,
     });
+
+    const name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()});
+    const lib = b.addLibrary(.{
+        .name = name,
+        .root_module = grammar_mod,
+        .linkage = .static,
+    });
+    mod.linkLibrary(lib);
 }
 
 fn buildGrammarSharedLib(
@@ -120,6 +236,50 @@ fn buildGrammarSharedLib(
         .root_module = mod,
         .linkage = .dynamic,
     });
+}
+
+/// Builds a grammar as a wasm side module: position-independent, importing the
+/// host's memory and table, exporting only `tree_sitter_<name>`. `-rdynamic`
+/// alone does not retain that symbol, so it is exported explicitly.
+fn buildGrammarWasmSideModule(
+    b: *std.Build,
+    grammar: TreeSitterGrammar,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) !*std.Build.Step.Compile {
+    var buf: [std.posix.PATH_MAX]u8 = undefined;
+    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
+
+    const dep = b.dependency(grammar.dep_name, .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .pic = true,
+    });
+    mod.addIncludePath(dep.path(include));
+    mod.addCSourceFiles(.{
+        .root = dep.path(grammar.root),
+        .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
+        .flags = grammar.flags,
+    });
+
+    const out_name = grammar.outName();
+    const lib = b.addLibrary(.{
+        .name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{out_name}),
+        .root_module = mod,
+        .linkage = .dynamic,
+    });
+    lib.rdynamic = true;
+    lib.root_module.export_symbol_names = b.allocator.dupe(
+        []const u8,
+        &.{try std.fmt.allocPrint(b.allocator, "tree_sitter_{s}", .{out_name})},
+    ) catch @panic("OOM");
+    return lib;
 }
 
 fn addEngineDeps(
@@ -393,10 +553,23 @@ pub fn build(b: *std.Build) !void {
     });
     wasm_exe.entry = .disabled;
     wasm_exe.rdynamic = true;
+    wasm_exe.import_table = true;
 
     const wasm_step = b.step("wasm", "Build the wasm artifact");
     const wasm_install = b.addInstallArtifact(wasm_exe, .{});
     wasm_step.dependOn(&wasm_install.step);
+
+    const wasm_grammars_step = b.step(
+        "wasm-grammars",
+        "Build each grammar as a wasm side module loadable at runtime",
+    );
+    for (grammars) |g| {
+        const lib = try buildGrammarWasmSideModule(b, g, wasm_target, wasm_optimize);
+        const install = b.addInstallArtifact(lib, .{
+            .dest_dir = .{ .override = .{ .custom = "wasm-grammars" } },
+        });
+        wasm_grammars_step.dependOn(&install.step);
+    }
 
     const test_grammar_selection = GrammarSelection.available;
     const test_grammars = try selectedGrammars(b, test_grammar_selection);
