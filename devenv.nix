@@ -232,7 +232,7 @@ in
     zig-fmt = {
       enable = true;
       name = "zig fmt";
-      entry = "${lib.getExe config.languages.zig.package} fmt --check";
+      entry = "${lib.getExe config.languages.zig.package} fmt";
       files = "\\.zig$";
     };
 
