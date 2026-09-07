@@ -1,0 +1,36 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+.
+
+--- source ---
+class Service {}
+
+--- values ---
+[
+  {
+    "kind": "program",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 16
+    }
+  }
+]
+
+--- tql tree ---
+(source_file .)
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+
+--- bytecode ---
+0000: yield (current value) value
+0001: halt

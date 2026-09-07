@@ -1,0 +1,86 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @c | select(any(@c.body / method_definition; .body / return_statement != null)) | @c
+
+--- source ---
+class A { foo() { return 1; } }
+class B { bar() {} }
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() { return 1; } }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (ne (child (dot-field body) (node return_statement)) null)))) c))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 45
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: asn 9 ((current value) value)
+0025: trv field 5
+0026: asn 10 ((current value) value)
+0027: trv value_source (variable_id 10)
+0028: trv child
+0029: rel equals ((current value) kind) (literal kind_id 200) -> 11
+0030: jmp 32 if (variable_id 11)
+0031: halt
+0032: asn 12 ((current value) value)
+0033: trv value_source (variable_id 12)
+0034: asn 13 ((current value) value)
+0035: asn 14 (variable_id 13)
+0036: trv value_source (variable_id 9)
+0037: rel equals (variable_id 14) (literal nothing) -> 15
+0038: jmp 41 if (variable_id 15)
+0039: asn 16 (literal bool true)
+0040: jmp 42
+0041: asn 16 (literal bool false)
+0042: jmp 44 if not (variable_id 16)
+0043: yield (current value) value
+0044: halt
+0045: trv value_source (variable_id 4)
+0046: jmp 48 if (literal bool true)
+0047: halt
+0048: trv value_source ((current value) value)
+0049: yield variable_id 0
+0050: halt

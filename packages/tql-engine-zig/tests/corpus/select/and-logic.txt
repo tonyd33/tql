@@ -1,0 +1,98 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @c |
+@c.name as @class_name |
+@c.body as @body |
+@body / method_definition as @method_def |
+@method_def.name as @method_name |
+select(@class_name | text = 'Service' and @method_name | text = 'foo') |
+@c
+
+--- source ---
+class Service { foo() {}; bar() {}; }
+class Controller { foo() {}; bar() {}; }
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 37,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 37
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (pipe (bind (pipe (bind (pipe (bind (pipe (bind (child . (node class_declaration)) c) (field c name)) class_name) (field c body)) body) (child body (node method_definition))) method_def) (field method_def name)) method_name) (call select (and (eq (pipe class_name (call text)) (string "Service")) (eq (pipe method_name (call text)) (string "foo"))))) c))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 5
+0003: jmp 5 if (variable_id 5)
+0004: halt
+0005: asn 6 ((current value) value)
+0006: trv value_source (variable_id 6)
+0007: asn 7 ((current value) value)
+0008: asn 4 (variable_id 7)
+0009: trv value_source (variable_id 4)
+0010: trv value_source (variable_id 4)
+0011: trv field 25
+0012: asn 8 ((current value) value)
+0013: asn 3 (variable_id 8)
+0014: trv value_source (variable_id 3)
+0015: trv value_source (variable_id 4)
+0016: trv field 5
+0017: asn 9 ((current value) value)
+0018: asn 2 (variable_id 9)
+0019: trv value_source (variable_id 2)
+0020: trv value_source (variable_id 2)
+0021: trv child
+0022: rel equals ((current value) kind) (literal kind_id 261) -> 10
+0023: jmp 25 if (variable_id 10)
+0024: halt
+0025: asn 11 ((current value) value)
+0026: trv value_source (variable_id 11)
+0027: asn 12 ((current value) value)
+0028: asn 1 (variable_id 12)
+0029: trv value_source (variable_id 1)
+0030: trv value_source (variable_id 1)
+0031: trv field 25
+0032: asn 13 ((current value) value)
+0033: asn 0 (variable_id 13)
+0034: trv value_source (variable_id 0)
+0035: asn 14 ((current value) value)
+0036: asn 15 (literal bool false)
+0037: asn 16 ((current value) value)
+0038: asn 17 ((current value) value)
+0039: trv value_source (variable_id 3)
+0040: asn 18 ((current value) text)
+0041: trv value_source (variable_id 17)
+0042: rel equals (variable_id 18) (literal string "Service") -> 19
+0043: jmp 51 if not (variable_id 19)
+0044: trv value_source (variable_id 16)
+0045: asn 20 ((current value) value)
+0046: trv value_source (variable_id 0)
+0047: asn 21 ((current value) text)
+0048: trv value_source (variable_id 20)
+0049: rel equals (variable_id 21) (literal string "foo") -> 22
+0050: asn 15 (variable_id 22)
+0051: trv value_source (variable_id 14)
+0052: jmp 54 if (variable_id 15)
+0053: halt
+0054: trv value_source ((current value) value)
+0055: yield variable_id 4
+0056: halt

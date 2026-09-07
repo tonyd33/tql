@@ -1,0 +1,91 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def fn(): . // identifier;
+
+. as @root
+| @root // identifier as @out_def
+| @root | fn() as @in_def
+| { @out_def, @in_def }
+
+--- source ---
+function useFoo() {}
+
+--- values ---
+[
+  {
+    "in_def": {
+      "kind": "identifier",
+      "text": "useFoo",
+      "start_byte": 9,
+      "end_byte": 15,
+      "start_point": {
+        "row": 0,
+        "column": 9
+      },
+      "end_point": {
+        "row": 0,
+        "column": 15
+      }
+    },
+    "out_def": {
+      "kind": "identifier",
+      "text": "useFoo",
+      "start_byte": 9,
+      "end_byte": 15,
+      "start_point": {
+        "row": 0,
+        "column": 9
+      },
+      "end_point": {
+        "row": 0,
+        "column": 15
+      }
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (query fn (parameters) (descendant . (node identifier))) (pipe (bind (pipe (pipe (bind (pipe (bind . root) (descendant root (node identifier))) out_def) root) (call fn)) in_def) (object out_def in_def)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: asn 2 ((current value) value)
+0001: trv value_source (variable_id 2)
+0002: trv value_source (variable_id 2)
+0003: trv descendant
+0004: rel equals ((current value) kind) (literal kind_id 1) -> 3
+0005: jmp 7 if (variable_id 3)
+0006: halt
+0007: asn 4 ((current value) value)
+0008: trv value_source (variable_id 4)
+0009: asn 5 ((current value) value)
+0010: asn 1 (variable_id 5)
+0011: trv value_source (variable_id 1)
+0012: trv value_source (variable_id 2)
+0013: call 26
+0014: asn 6 ((current value) value)
+0015: asn 0 (variable_id 6)
+0016: trv value_source (variable_id 0)
+0017: asn 7 ((current value) value)
+0018: probe aggregate 24 8 record
+0019: yield literal string "out_def"
+0020: yield variable_id 1
+0021: yield literal string "in_def"
+0022: yield variable_id 0
+0023: halt
+0024: yield variable_id 8
+0025: halt
+0026: trv value_source ((current value) value)
+0027: trv descendant
+0028: rel equals ((current value) kind) (literal kind_id 1) -> 9
+0029: jmp 31 if (variable_id 9)
+0030: halt
+0031: asn 10 ((current value) value)
+0032: trv value_source (variable_id 10)
+0033: asn 11 ((current value) value)
+0034: yield variable_id 11
+0035: halt

@@ -1,0 +1,31 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+1 <|> 2
+
+--- source ---
+const x = 1;
+
+--- values ---
+[
+  1,
+  2
+]
+
+--- tql tree ---
+(source_file (union (number 1) (number 2)))
+
+--- source tree ---
+(program (lexical_declaration (variable_declarator name: (identifier) value: (number))))
+
+--- bytecode ---
+0000: alt 3 5
+0001: asn 0 ((current value) value)
+0002: jmp 7
+0003: yield literal int 1
+0004: halt
+0005: yield literal int 2
+0006: halt
+0007: yield variable_id 0
+0008: halt

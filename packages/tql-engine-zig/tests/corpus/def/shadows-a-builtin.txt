@@ -1,0 +1,52 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def text(@ident): @ident;
+
+. // identifier | text(.)
+
+--- source ---
+function useFoo() {}
+
+--- values ---
+[
+  {
+    "kind": "identifier",
+    "text": "useFoo",
+    "start_byte": 9,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 9
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (query text (parameters (param ident)) ident) (pipe (descendant . (node identifier)) (call text .)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: asn 0 ((current value) value)
+0010: call 14
+0011: asn 4 ((current value) value)
+0012: yield variable_id 4
+0013: halt
+0014: yield variable_id 0
+0015: halt
