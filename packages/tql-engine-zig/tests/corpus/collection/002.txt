@@ -1,0 +1,14 @@
+title: `[]` is an empty list, not an empty query
+grammar: typescript
+pending: values
+
+`[]` yields one value. `empty` yields none. The distinction is the rule.
+
+--- tql ---
+main = [] | length;
+
+--- source ---
+class A {}
+
+--- values ---
+[0]

@@ -1,0 +1,15 @@
+title: node equality is identity-based
+grammar: typescript
+pending: values
+
+Both operands select the same single node, so the pair is that node against
+itself.
+
+--- tql ---
+main = (. / :class_declaration) = (. / :class_declaration);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

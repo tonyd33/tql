@@ -1,0 +1,15 @@
+title: `toint` rejects non-integer strings with the empty stream
+grammar: typescript
+pending: values
+
+Each rejected form is a separate reason: a plain word, a float, a leading plus,
+an internal space, and the empty string. None is an error.
+
+--- tql ---
+main = ("abc", "1.5", "+3", "1 2", "") | toint;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

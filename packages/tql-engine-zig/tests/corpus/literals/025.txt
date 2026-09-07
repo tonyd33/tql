@@ -1,0 +1,15 @@
+title: `toint` rejects a value that does not fit int
+grammar: typescript
+pending: values
+
+`9223372036854775807` is the largest `int`; one more does not fit and yields
+the empty stream rather than overflowing.
+
+--- tql ---
+main = ("9223372036854775807", "9223372036854775808") | toint;
+
+--- source ---
+class A {}
+
+--- values ---
+[9223372036854775807]

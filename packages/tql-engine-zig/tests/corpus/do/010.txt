@@ -1,0 +1,17 @@
+title: a `do` block with no statements is permitted
+grammar: typescript
+pending: values
+
+It simply evaluates its final expression against the current input.
+
+--- tql ---
+main =
+  do {
+    . / :class_declaration | .name | text
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

@@ -1,0 +1,17 @@
+title: `all` over an empty source is true
+grammar: typescript
+pending: values
+
+Vacuous truth, and the dual of PRE-06. No violating element exists, so the
+inner probe is false and `all` yields true. A definition with the branch arms
+in the wrong order would yield `false` here, so this fixture pins the arm
+ordering.
+
+--- tql ---
+main = . / :class_declaration | all (.body / :method_definition) (.name | text ~ r"^get");
+
+--- source ---
+class B {}
+
+--- values ---
+[true]

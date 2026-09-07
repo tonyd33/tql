@@ -1,0 +1,12 @@
+title: `or` runs its right operand only for a false left output
+grammar: typescript
+pending: values
+
+--- tql ---
+main = (true, false) or false;
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

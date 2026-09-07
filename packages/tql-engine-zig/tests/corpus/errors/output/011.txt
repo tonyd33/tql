@@ -1,0 +1,16 @@
+title: a signature that is not an instance of the inferred scheme
+grammar: typescript
+
+The body infers `Filter node string`. The annotation claims a more general
+scheme that the body does not support.
+
+--- tql ---
+f : Filter a a;
+f = kind;
+main = . | f;
+
+--- error ---
+category: signature-mismatch
+span: 1:1-1:15
+The annotation. Inferred `Filter node string` is not an instance of the
+declared `Filter a a`.

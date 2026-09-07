@@ -1,0 +1,13 @@
+title: a lambda used directly as a pipe stage argument
+grammar: typescript
+pending: values
+
+--- tql ---
+apply f x = f x;
+main = apply (\n -> n * 3) 5;
+
+--- source ---
+class A {}
+
+--- values ---
+[15]

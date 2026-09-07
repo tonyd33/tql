@@ -1,0 +1,12 @@
+title: a bare identifier is not a node-kind test
+grammar: typescript
+
+Node kinds are written `:kind`. A bare identifier resolves as a name and fails.
+
+--- tql ---
+main = . / class_declaration;
+
+--- error ---
+category: unresolved-name
+span: 1:12-1:29
+`class_declaration`.

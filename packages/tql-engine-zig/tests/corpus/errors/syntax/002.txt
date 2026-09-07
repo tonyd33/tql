@@ -1,0 +1,10 @@
+title: a binding with no right-hand side
+grammar: typescript
+
+--- tql ---
+main =
+
+--- error ---
+category: parse
+span: 1:1-1:7
+The incomplete declaration.

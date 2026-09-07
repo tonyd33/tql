@@ -1,0 +1,14 @@
+title: an empty field stream yields no records
+grammar: typescript
+pending: values
+
+One empty field annihilates the whole product, exactly as for scalar operators.
+
+--- tql ---
+main = { a = 1, b = (. / :interface_declaration | text) };
+
+--- source ---
+class A {}
+
+--- values ---
+[]

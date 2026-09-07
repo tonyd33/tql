@@ -1,0 +1,19 @@
+title: a `let` group is a recursive SCC
+grammar: typescript
+pending: values
+
+`countdown` refers to itself. The group is inferred as a recursive SCC, so a
+self-reference resolves without a forward declaration.
+
+--- tql ---
+main =
+  let {
+    countdown n = if n <= 0 then 0 else countdown (n - 1)
+  } in
+    countdown 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[0]

@@ -1,0 +1,10 @@
+title: navigation requires a node input
+grammar: typescript
+
+--- tql ---
+main = "text" / :class_declaration;
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:14
+The navigation input. Expected `node`, found `string`.

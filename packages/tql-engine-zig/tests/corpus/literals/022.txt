@@ -1,0 +1,12 @@
+title: `toint` parses a decimal string
+grammar: typescript
+pending: values
+
+--- tql ---
+main = "42" | toint;
+
+--- source ---
+class A {}
+
+--- values ---
+[42]

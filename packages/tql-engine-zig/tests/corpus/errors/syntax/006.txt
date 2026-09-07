@@ -1,0 +1,14 @@
+title: `def` is not a keyword
+grammar: typescript
+
+Legacy 0.2 syntax. `def` has no meaning; the line parses as an application of
+an unresolved name.
+
+--- tql ---
+def is_class = . / :class_declaration;
+main = is_class;
+
+--- error ---
+category: unresolved-name
+span: 1:1-1:4
+`def`.

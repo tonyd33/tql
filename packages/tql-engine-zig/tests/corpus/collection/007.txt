@@ -1,0 +1,13 @@
+title: `unnest` inverts collection
+grammar: typescript
+pending: values
+
+--- tql ---
+main = [. / :class_declaration | .name | text] | unnest;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

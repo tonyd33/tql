@@ -167,6 +167,14 @@ const TestRunContext = struct {
         }
     }
 
+    fn printCaseFailure(self: *TestRunContext, name: []const u8) !void {
+        if (self.opts.color) {
+            try self.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
+        } else {
+            try self.stdout.print("  FAIL {s}\n", .{name});
+        }
+    }
+
     fn addDiff(
         self: *TestRunContext,
         group: []const u8,
@@ -433,6 +441,8 @@ fn testFile(
         .failed => result.failed += 1,
         .skipped => result.skipped += 1,
     }
+    // `unassertable` sections are deliberately excluded: they never resolve, so
+    // counting them would put a permanent floor under the budget.
     result.pending = @intCast(corpus.case.pending.count());
 
     if (case_result == .modified) {
@@ -475,14 +485,16 @@ fn testCase(
     var test_failed = false;
     var test_modified = false;
 
-    const expects_error = tc.@"error".content.len > 0;
+    const expects_error = tc.expectsError();
 
     inline for (COMPARABLE_SECTIONS) |kind| skip: {
         if (expects_error and !isErrorCaseSection(kind)) break :skip;
+        // Diagnostics are compared field by field below, not as text.
+        if (kind == .@"error") break :skip;
         // The ratchet: a section is compared only while the case claims it.
         // Anything else populated was rejected at parse time as unasserted, so
-        // silence here can only mean a recorded `pending`.
-        if (kind != .@"error" and !tc.asserts.has(kind)) break :skip;
+        // silence here can only mean a recorded `pending` or `unassertable`.
+        if (!tc.asserts.has(kind)) break :skip;
 
         const actual_val = @field(actual, @tagName(kind));
         const section: corpus_parser.Section = tc.section(kind);
@@ -525,6 +537,12 @@ fn testCase(
         }
     }
 
+    if (expects_error and tc.asserts.has(.@"error")) {
+        if (try compareDiagnostics(ctx, tc, actual.@"error", name, group, test_failed)) {
+            test_failed = true;
+        }
+    }
+
     inline for (COMPARABLE_SECTIONS) |kind| test_alloc.free(@field(actual, @tagName(kind)));
     const leaked = test_gpa.deinit() == .leak;
 
@@ -563,6 +581,67 @@ fn testCase(
     }
 }
 
+/// Compares expected diagnostics against what the engine reported. Only the
+/// category and span are normative; the message is commentary, so rewording a
+/// diagnostic never breaks a fixture. Returns true if the case failed.
+///
+/// `actual` is one `category/span` pair per line, in report order.
+fn compareDiagnostics(
+    ctx: *TestRunContext,
+    tc: corpus_parser.TestCase,
+    actual: []const u8,
+    name: []const u8,
+    group: []const u8,
+    already_failed: bool,
+) !bool {
+    const gpa = ctx.gpa;
+    var failed = false;
+    var reported = false;
+
+    var actual_lines: std.ArrayList([]const u8) = .empty;
+    defer actual_lines.deinit(gpa);
+    var it = std.mem.splitScalar(u8, actual, '\n');
+    while (it.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len > 0) try actual_lines.append(gpa, trimmed);
+    }
+
+    if (actual_lines.items.len != tc.diagnostics.len) {
+        failed = true;
+        if (!already_failed and !reported) {
+            try ctx.printCaseFailure(name);
+            reported = true;
+        }
+        const expected = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{tc.diagnostics.len});
+        defer gpa.free(expected);
+        const got = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{actual_lines.items.len});
+        defer gpa.free(got);
+        try ctx.addDiff(group, name, "error count", expected, got);
+        return failed;
+    }
+
+    for (tc.diagnostics, actual_lines.items) |want, got| {
+        const slash = std.mem.indexOfScalar(u8, got, '/') orelse got.len;
+        const got_category = std.mem.trim(u8, got[0..slash], " \t");
+        const got_span = if (slash < got.len) std.mem.trim(u8, got[slash + 1 ..], " \t") else "";
+
+        const category_ok = std.mem.eql(u8, want.category, got_category);
+        const span_ok = want.spanMatches(got_span);
+        if (category_ok and span_ok) continue;
+
+        failed = true;
+        if (!already_failed and !reported) {
+            try ctx.printCaseFailure(name);
+            reported = true;
+        }
+        const expected = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ want.category, want.span });
+        defer gpa.free(expected);
+        try ctx.addDiff(group, name, "error", expected, got);
+    }
+
+    return failed;
+}
+
 fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestCase) !TestOutputs {
     var registry = GrammarRegistry.init(allocator, &.{});
     defer registry.deinit();
@@ -593,11 +672,22 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     // A case carrying an `--- error ---` section asserts the query is
     // rejected, so compilation failure is the expected outcome and every
     // section downstream of it stays empty.
-    const expects_error = tc.@"error".content.len > 0;
+    const expects_error = tc.expectsError();
 
     var query = engine.compile(tc.query.content, grammar) catch |err| {
         if (!expects_error) return err;
-        const message = try std.fmt.allocPrint(allocator, "{t}", .{err});
+        // One `category/span` line per diagnostic.
+        //
+        // `engine.compile` returns a bare Zig error, so there is one
+        // "diagnostic" carrying an error name where a category belongs and
+        // nothing where a span belongs. A fixture can therefore only match if
+        // it was written `span: any`, and a case expecting several diagnostics
+        // can never match at all.
+        //
+        // IMPROVE: The engine should report a structured diagnostic list
+        // (maybe category, span, message)
+        // Then, this should render that list instead of an error name.
+        const message = try std.fmt.allocPrint(allocator, "{t}/", .{err});
         errdefer allocator.free(message);
         return .{
             .source_tree = source_tree,

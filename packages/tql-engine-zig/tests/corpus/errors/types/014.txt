@@ -1,0 +1,12 @@
+title: a node is not a condition
+grammar: typescript
+
+A non-empty navigation result is not implicitly true.
+
+--- tql ---
+main = if . / :class_declaration then "yes" else "no";
+
+--- error ---
+category: type-mismatch
+span: 1:11-1:32
+The condition. Expected `Filter node bool`, found `Filter node node`.

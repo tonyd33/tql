@@ -1,0 +1,12 @@
+title: equality and inequality
+grammar: typescript
+pending: values
+
+--- tql ---
+main = 1 = 1, 1 != 1, "a" = "a", "a" = "b";
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false, true, false]

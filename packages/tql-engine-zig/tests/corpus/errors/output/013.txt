@@ -1,0 +1,18 @@
+title: a stream-bound value may not escape its input type
+grammar: typescript
+
+`Gen(Gamma, a, b)` excludes variables free in the bind's input type. A
+branch-local value cannot be polymorphic over the type of the input it came
+from, so `c` cannot be used at two different types.
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    { a = c | kind, b = c | length }
+  };
+
+--- error ---
+category: type-mismatch
+span: 4:25-4:35
+The second use of `c`. Expected `node`, found a use requiring `Sized`.

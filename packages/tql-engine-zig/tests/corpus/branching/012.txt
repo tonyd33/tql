@@ -1,0 +1,15 @@
+title: `not` binds looser than comparison but tighter than `and`
+grammar: typescript
+pending: values
+
+`not 1 = 2 and false` groups as `(not (1 = 2)) and false`. The `not` swallows
+the comparison to its right and stops before `and`.
+
+--- tql ---
+main = not 1 = 2 and false;
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

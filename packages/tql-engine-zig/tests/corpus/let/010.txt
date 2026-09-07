@@ -1,0 +1,23 @@
+title: a local binding shadows a global definition
+grammar: typescript
+pending: values
+
+Resolution is lexical first, then global. The local `label` wins inside the
+`let` body. The global `other`, defined after `main`, still resolves `label` to
+the global binding, so shadowing is lexical rather than dynamic. `other` being
+declared later also exercises forward reference.
+
+--- tql ---
+label = "global";
+main =
+  let {
+    label = "local"
+  } in
+    label, other;
+other = label;
+
+--- source ---
+class A {}
+
+--- values ---
+["local", "global"]

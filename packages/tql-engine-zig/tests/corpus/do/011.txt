@@ -1,0 +1,19 @@
+title: a bound node is lifted when it begins navigation
+grammar: typescript
+pending: values
+
+`c` is a node value, not a filter. Navigation requires a filter input, so the
+node is lifted to a one-result filter and navigation starts from it.
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    c // :property_identifier | text
+  };
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["m", "n"]

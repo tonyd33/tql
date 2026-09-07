@@ -1,0 +1,15 @@
+title: `not p and q` groups as `(not p) and q`
+grammar: typescript
+pending: values
+
+`and` binds looser than `not`. If it grouped as `not (p and q)`, the result
+would be `[true]`.
+
+--- tql ---
+main = not false and false;
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

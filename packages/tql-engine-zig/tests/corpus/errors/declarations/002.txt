@@ -1,0 +1,18 @@
+title: a `let`-bound name is not visible outside its group
+grammar: typescript
+
+`inner` is scoped to the `let` body. The reference after `in` closes is
+unresolved.
+
+--- tql ---
+main =
+  let {
+    inner = 1
+  } in
+    inner;
+outside = inner;
+
+--- error ---
+category: unresolved-name
+span: 6:11-6:16
+`inner` in `outside`.

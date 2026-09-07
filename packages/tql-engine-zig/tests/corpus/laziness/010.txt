@@ -1,0 +1,15 @@
+title: an infinite filter as program output does not terminate
+grammar: typescript
+expect: divergence
+
+The runner serializes every output. The program is well-typed and its output
+type is `Serial`, so it is accepted; it simply never finishes.
+
+--- tql ---
+from n = n, from (n + 1);
+main = from 0;
+
+--- source ---
+class A {}
+
+Well-typed and accepted. Output is unbounded.

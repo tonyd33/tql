@@ -1,0 +1,20 @@
+title: record fields form a cartesian product
+grammar: typescript
+pending: values
+
+Two values in `a` and two in `b` give four records. Enumeration is left-major
+in field order: `a` varies slowest.
+
+--- tql ---
+main = { a = (1, 2), b = ("x", "y") };
+
+--- source ---
+class A {}
+
+--- values ---
+[
+  { "a": 1, "b": "x" },
+  { "a": 1, "b": "y" },
+  { "a": 2, "b": "x" },
+  { "a": 2, "b": "y" }
+]

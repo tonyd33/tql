@@ -1,0 +1,14 @@
+title: an empty result stream encodes as an empty array
+grammar: typescript
+pending: values
+
+Absence is the empty stream, not `null`. No error is raised.
+
+--- tql ---
+main = . / :interface_declaration | .name | text;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

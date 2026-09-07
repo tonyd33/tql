@@ -1,0 +1,14 @@
+title: an unconstrained output type is an ambiguity error
+grammar: typescript
+
+`empty : Filter a b` leaves `b` free. Nothing in the program fixes it, so no
+`Serial` instance can be selected. This is the case named explicitly in
+`SEMANTICS.md` §1.
+
+--- tql ---
+main = empty;
+
+--- error ---
+category: ambiguous-output
+span: 1:8-1:13
+The output type variable is unresolved.

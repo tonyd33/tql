@@ -1,0 +1,12 @@
+title: negative integer literal
+grammar: typescript
+pending: values
+
+--- tql ---
+main = 0 - 7;
+
+--- source ---
+class A {}
+
+--- values ---
+[-7]

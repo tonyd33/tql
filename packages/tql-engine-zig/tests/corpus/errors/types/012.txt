@@ -1,0 +1,14 @@
+title: applying a non-function
+grammar: typescript
+
+--- tql ---
+main =
+  let {
+    n = 5
+  } in
+    n 1;
+
+--- error ---
+category: over-application
+span: 5:5-5:8
+The application. `n : int` has no arrow type.

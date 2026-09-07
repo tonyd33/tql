@@ -1,0 +1,17 @@
+title: a filter passed as an argument
+grammar: typescript
+pending: values
+
+`apply_to_classes` takes a filter and runs it as a pipe stage. The argument is
+already `Filter`-typed, so it is used directly rather than lifted.
+
+--- tql ---
+apply_to_classes f = . / :class_declaration | f;
+main = apply_to_classes (.name | text);
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

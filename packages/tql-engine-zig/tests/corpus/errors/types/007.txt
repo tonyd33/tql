@@ -1,0 +1,10 @@
+title: `~` requires a string and a regex
+grammar: typescript
+
+--- tql ---
+main = 1 ~ r"a";
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:9
+The left operand. Expected `string`, found `int`.

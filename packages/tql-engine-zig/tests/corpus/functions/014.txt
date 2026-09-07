@@ -1,0 +1,16 @@
+title: forward references between globals are valid
+grammar: typescript
+pending: values
+
+`main` refers to `helper`, which is declared after it. Declaration heads are
+collected before any body is resolved.
+
+--- tql ---
+main = helper 3;
+helper n = n * 2;
+
+--- source ---
+class A {}
+
+--- values ---
+[6]

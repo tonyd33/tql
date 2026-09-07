@@ -1,0 +1,20 @@
+title: bindings are order-independent
+grammar: typescript
+pending: values
+
+`first` refers to `second`, which is written after it. Declaration order has no
+semantic effect, so this resolves.
+
+--- tql ---
+main =
+  let {
+    first = second + 1;
+    second = 10
+  } in
+    first;
+
+--- source ---
+class A {}
+
+--- values ---
+[11]

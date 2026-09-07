@@ -1,0 +1,11 @@
+title: an argument of the wrong type is a compile error
+grammar: typescript
+
+--- tql ---
+double n = n * 2;
+main = double "text";
+
+--- error ---
+category: type-mismatch
+span: 1:15-1:21
+The argument. Expected `int`, found `string`.

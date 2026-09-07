@@ -1,0 +1,14 @@
+title: a filter nested in a list is not serializable
+grammar: typescript
+
+--- tql ---
+main =
+  let {
+    fs = [kind, text]
+  } in
+    fs;
+
+--- error ---
+category: unsatisfied-constraint
+span: 5:5-5:7
+`Serial [Filter node string]` is not satisfied.

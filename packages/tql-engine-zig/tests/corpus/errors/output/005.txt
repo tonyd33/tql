@@ -1,0 +1,12 @@
+title: a filter nested in a record is not serializable
+grammar: typescript
+
+`Serial` fails recursively through a record.
+
+--- tql ---
+main = { name = .name | text, f = kind };
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:31-1:39
+`Serial (Filter node string)` is not satisfied, reached through field `f`.

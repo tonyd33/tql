@@ -1,0 +1,14 @@
+title: static child navigation keeps only matching kinds
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | .name | text;
+
+--- source ---
+class A {}
+function f() {}
+class B {}
+
+--- values ---
+["A", "B"]

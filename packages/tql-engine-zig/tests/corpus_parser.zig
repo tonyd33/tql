@@ -102,18 +102,58 @@ pub const Section = struct {
     }
 };
 
+/// A single expected diagnostic. `category` and `span` are normative; the
+/// remaining lines of the section are commentary and are never compared, so a
+/// diagnostic may be reworded without touching the corpus.
+pub const Diagnostic = struct {
+    category: []const u8,
+    /// Source span as written, or `any` where the location is not a property of
+    /// the language.
+    span: []const u8,
+    commentary: []const u8,
+    section: Section,
+
+    pub const SPAN_ANY = "any";
+
+    pub fn spanMatches(self: Diagnostic, actual: []const u8) bool {
+        if (std.mem.eql(u8, self.span, SPAN_ANY)) return true;
+        return std.mem.eql(u8, self.span, actual);
+    }
+
+    pub fn deinit(self: Diagnostic, allocator: std.mem.Allocator) void {
+        allocator.free(self.category);
+        allocator.free(self.span);
+        allocator.free(self.commentary);
+        self.section.deinit(allocator);
+    }
+};
+
 /// One corpus case, which is one file. `name` is supplied by the runner from
 /// the file's path, not read from the file.
 pub const TestCase = struct {
+    /// One-line summary of what the case pins. The file's path is its identity;
+    /// this is what a reader sees next to it.
+    title: []const u8,
     grammar: []const u8,
+    /// Path the query is run against, for the queries that observe a filename.
+    /// Metadata only: no file is read, and `--- source ---` remains the text
+    /// parsed. Empty means the query sees no path at all, which is itself
+    /// specified behavior.
+    file: []const u8,
+    /// Prose between the header and the first section. Preserved on update and
+    /// never compared: it is where a case explains itself, including why any
+    /// section it carries cannot be asserted yet.
+    description: Section,
     /// Sections this case asserts today. A populated section outside this set
-    /// is a defect unless it is listed in `pending`.
+    /// is a defect unless it is listed in `pending` or `unassertable`.
     asserts: SectionSet,
-    /// Sections written but not yet assertable, each with the reason. These are
-    /// counted, not compared, so a hand-written expectation cannot sit inert
-    /// without being visible.
+    /// Sections written but not yet assertable. Counted, not compared, so a
+    /// hand-written expectation cannot sit inert without being visible.
     pending: SectionSet,
-    pending_reason: []const u8,
+    /// Sections no implementation can ever assert, because running the query
+    /// would not terminate. Excluded from the pending count: these never
+    /// resolve, so counting them would put a floor under the budget.
+    unassertable: SectionSet,
     query: Section,
     target: Section,
     /// Optional sections: content.len == 0 means not yet populated.
@@ -122,13 +162,15 @@ pub const TestCase = struct {
     bytecode: Section,
     values: Section,
     core: Section,
-    /// Expected compile error, as `code at start:end: message` lines. When
-    /// present, the case asserts the query is rejected and the sections that
+    /// Expected diagnostics, in the order the engine must report them. A case
+    /// with any diagnostic asserts the query is rejected, and the sections that
     /// only exist for an accepted query are not compared.
-    @"error": Section,
+    diagnostics: []Diagnostic,
 
     /// `.source` is stored as `target`, so section lookup cannot go through
-    /// `@field` by tag name alone.
+    /// `@field` by tag name alone. `.error` is a list rather than one section;
+    /// the first diagnostic stands in for it so callers keyed on `SectionKind`
+    /// still see whether the case expects a rejection.
     pub fn section(self: TestCase, kind: SectionKind) Section {
         return switch (kind) {
             .query => self.query,
@@ -138,13 +180,28 @@ pub const TestCase = struct {
             .bytecode => self.bytecode,
             .values => self.values,
             .core => self.core,
-            .@"error" => self.@"error",
+            .@"error" => if (self.diagnostics.len > 0)
+                self.diagnostics[0].section
+            else
+                .{ .content = &.{}, .start = 0, .end = 0, .content_start = 0, .content_end = 0 },
         };
     }
 
+    pub fn expectsError(self: TestCase) bool {
+        return self.diagnostics.len > 0;
+    }
+
+    /// A section is compared only when the case claims it. `pending` and
+    /// `unassertable` sections are written but deliberately unchecked.
+    pub fn isAsserted(self: TestCase, kind: SectionKind) bool {
+        return self.asserts.has(kind);
+    }
+
     pub fn deinit(self: *TestCase, allocator: std.mem.Allocator) void {
+        allocator.free(self.title);
         allocator.free(self.grammar);
-        allocator.free(self.pending_reason);
+        allocator.free(self.file);
+        self.description.deinit(allocator);
         self.query.deinit(allocator);
         self.target.deinit(allocator);
         self.source_tree.deinit(allocator);
@@ -152,7 +209,8 @@ pub const TestCase = struct {
         self.bytecode.deinit(allocator);
         self.values.deinit(allocator);
         self.core.deinit(allocator);
-        self.@"error".deinit(allocator);
+        for (self.diagnostics) |d| d.deinit(allocator);
+        allocator.free(self.diagnostics);
     }
 };
 
@@ -213,56 +271,68 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
 
     var p = Parser.init(source);
 
-    // `grammar` and `pending_reason` are owned here only until `parseSections`
-    // takes them; after that the case's own deinit covers them.
+    // `title` and `grammar` are owned here only until `parseSections` takes
+    // them; after that the case's own deinit covers them.
+    var title: ?[]const u8 = null;
     var grammar: ?[]const u8 = null;
-    var pending_reason: ?[]const u8 = null;
+    var file: ?[]const u8 = null;
     var header_owned = true;
     errdefer if (header_owned) {
+        if (title) |t| allocator.free(t);
         if (grammar) |g| allocator.free(g);
-        if (pending_reason) |r| allocator.free(r);
+        if (file) |f| allocator.free(f);
     };
     var asserts: SectionSet = .{};
     var pending: SectionSet = .{};
+    var unassertable: SectionSet = .{};
 
+    // The header runs to the first blank line or section marker; prose after it
+    // belongs to the description.
     while (p.peekLine()) |line| {
         if (isSectionMarker(line)) break;
-        _ = p.nextLine();
-
         const trimmed = std.mem.trim(u8, line, " \t");
-        if (trimmed.len == 0) continue;
+        if (trimmed.len == 0) break;
+        _ = p.nextLine();
 
         const colon = std.mem.indexOfScalar(u8, trimmed, ':') orelse return error.MalformedHeader;
         const key = std.mem.trim(u8, trimmed[0..colon], " \t");
         const value = std.mem.trim(u8, trimmed[colon + 1 ..], " \t");
 
-        if (std.mem.eql(u8, key, "grammar")) {
+        if (std.mem.eql(u8, key, "title")) {
+            if (title != null) return error.DuplicateHeader;
+            title = try allocator.dupe(u8, value);
+        } else if (std.mem.eql(u8, key, "grammar")) {
             if (grammar != null) return error.DuplicateHeader;
             grammar = try allocator.dupe(u8, value);
+        } else if (std.mem.eql(u8, key, "file")) {
+            if (file != null) return error.DuplicateHeader;
+            file = try allocator.dupe(u8, value);
         } else if (std.mem.eql(u8, key, "asserts")) {
             asserts = try SectionSet.parseList(value);
         } else if (std.mem.eql(u8, key, "pending")) {
-            // `pending: <sections> (<reason>)` — the reason is required so a
-            // deferred assertion always records what it is waiting on.
-            const open = std.mem.indexOfScalar(u8, value, '(') orelse return error.PendingMissingReason;
-            if (!std.mem.endsWith(u8, value, ")")) return error.PendingMissingReason;
-            pending = try SectionSet.parseList(value[0..open]);
-            const reason = std.mem.trim(u8, value[open + 1 .. value.len - 1], " \t");
-            if (reason.len == 0) return error.PendingMissingReason;
-            pending_reason = try allocator.dupe(u8, reason);
-        } else if (std.mem.eql(u8, key, "name") or std.mem.eql(u8, key, "file") or std.mem.eql(u8, key, "rules")) {
-            // `name` is legacy: the path is the name. `file` and `rules` are
-            // metadata the runner does not act on.
+            pending = try SectionSet.parseList(value);
+        } else if (std.mem.eql(u8, key, "expect")) {
+            // `divergence` is the only expectation that changes what can be
+            // asserted: the query never returns, so its outputs are unwitnessable
+            // rather than merely unimplemented.
+            if (!std.mem.eql(u8, value, "divergence")) return error.UnknownExpectation;
+            unassertable.add(.values);
         } else {
             return error.UnknownHeader;
         }
     }
 
     const g = grammar orelse return error.MissingGrammar;
-    if (pending_reason == null) pending_reason = try allocator.dupe(u8, "");
+    const t = title orelse try allocator.dupe(u8, "");
+    title = t;
+    const f = file orelse try allocator.dupe(u8, "");
+    file = f;
+
+    const description = try extractDescription(allocator, &p);
+    errdefer description.deinit(allocator);
 
     header_owned = false;
-    var case = try parseSections(allocator, &p, g, asserts, pending, pending_reason.?);
+    var case = try parseSections(allocator, &p, t, g, f, description, asserts, pending, unassertable);
     errdefer case.deinit(allocator);
 
     try validate(&case);
@@ -280,14 +350,30 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
 fn validate(case: *const TestCase) !void {
     inline for (comptime std.enums.values(SectionKind)) |kind| {
         if (kind == .query or kind == .source) continue;
+        // diagnostics escape the ratchet entirely right now. rejection is
+        // exempt from `asserts`/`pending`, so an error expectation cannot be
+        // counted as deferred the way a value can.
+        // IMPROVE: make the engine reports a category and span of its own.
+        // Then, `error` should become an ordinary section and this exemption
+        // can go.
+        if (kind == .@"error") continue;
+
         const populated = case.section(kind).content.len > 0;
-        if (populated and !case.asserts.has(kind) and !case.pending.has(kind)) {
-            return error.UnassertedSection;
-        }
-        if (case.asserts.has(kind) and case.pending.has(kind)) {
-            return error.SectionBothAssertedAndPending;
-        }
+        const claimed = case.asserts.has(kind) or case.pending.has(kind) or case.unassertable.has(kind);
+        if (populated and !claimed) return error.UnassertedSection;
+
+        var claims: usize = 0;
+        if (case.asserts.has(kind)) claims += 1;
+        if (case.pending.has(kind)) claims += 1;
+        if (case.unassertable.has(kind)) claims += 1;
+        if (claims > 1) return error.SectionClaimedTwice;
     }
+}
+
+/// Consumes everything between the header and the first section marker. This
+/// is the case's own explanation of itself and is reproduced verbatim.
+fn extractDescription(allocator: std.mem.Allocator, p: *Parser) !Section {
+    return extractSection(allocator, p);
 }
 
 fn dupeSection(allocator: std.mem.Allocator, s: Section) !Section {
@@ -303,15 +389,26 @@ fn dupeSection(allocator: std.mem.Allocator, s: Section) !Section {
 fn parseSections(
     allocator: std.mem.Allocator,
     p: *Parser,
+    title: []const u8,
     grammar: []const u8,
+    file: []const u8,
+    description: Section,
     asserts: SectionSet,
     pending: SectionSet,
-    pending_reason: []const u8,
+    unassertable: SectionSet,
 ) !TestCase {
     // Owned on entry: freed here if the sections fail to parse, since no case
     // exists yet to own them.
+    errdefer allocator.free(title);
     errdefer allocator.free(grammar);
-    errdefer allocator.free(pending_reason);
+    errdefer allocator.free(file);
+    errdefer description.deinit(allocator);
+
+    var diagnostics: std.ArrayList(Diagnostic) = .empty;
+    errdefer {
+        for (diagnostics.items) |d| d.deinit(allocator);
+        diagnostics.deinit(allocator);
+    }
 
     var query: ?Section = null;
     errdefer if (query) |s| s.deinit(allocator);
@@ -327,8 +424,6 @@ fn parseSections(
     errdefer if (values) |s| s.deinit(allocator);
     var core: ?Section = null;
     errdefer if (core) |s| s.deinit(allocator);
-    var error_section: ?Section = null;
-    errdefer if (error_section) |s| s.deinit(allocator);
 
     while (p.peekLine()) |line| {
         _ = p.nextLine(); // consume the marker line just peeked
@@ -348,7 +443,12 @@ fn parseSections(
         } else if (std.mem.eql(u8, line, SECTION_CORE)) {
             core = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
-            error_section = try extractSection(allocator, p);
+            // Repeatable: a case asserting several diagnostics writes one
+            // section each, and their order is the order the engine must
+            // report them in.
+            const s = try extractSection(allocator, p);
+            errdefer s.deinit(allocator);
+            try diagnostics.append(allocator, try parseDiagnostic(allocator, s));
         } else {
             return error.UnexpectedMarker;
         }
@@ -357,10 +457,13 @@ fn parseSections(
     const here: Section = .{ .content = &.{}, .start = p.pos, .end = p.pos, .content_start = p.pos, .content_end = p.pos };
 
     return .{
+        .title = title,
         .grammar = grammar,
+        .file = file,
+        .description = description,
         .asserts = asserts,
         .pending = pending,
-        .pending_reason = pending_reason,
+        .unassertable = unassertable,
         .query = query orelse return error.MissingQuery,
         .target = target orelse try dupeSection(allocator, here),
         .source_tree = source_tree orelse try dupeSection(allocator, here),
@@ -368,7 +471,45 @@ fn parseSections(
         .bytecode = bytecode orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
-        .@"error" = error_section orelse try dupeSection(allocator, here),
+        .diagnostics = try diagnostics.toOwnedSlice(allocator),
+    };
+}
+
+/// Splits an `--- error ---` body into its normative fields and its commentary.
+/// `category` and `span` must lead the section, in that order; everything after
+/// them is prose the runner never compares.
+fn parseDiagnostic(allocator: std.mem.Allocator, s: Section) !Diagnostic {
+    var category: ?[]const u8 = null;
+    errdefer if (category) |c| allocator.free(c);
+    var span: ?[]const u8 = null;
+    errdefer if (span) |v| allocator.free(v);
+
+    var rest: []const u8 = s.content;
+    while (rest.len > 0) {
+        const nl = std.mem.indexOfScalar(u8, rest, '\n');
+        const line = if (nl) |i| rest[0..i] else rest;
+        const trimmed = std.mem.trim(u8, line, " \t");
+
+        const colon = std.mem.indexOfScalar(u8, trimmed, ':') orelse break;
+        const key = std.mem.trim(u8, trimmed[0..colon], " \t");
+        const value = std.mem.trim(u8, trimmed[colon + 1 ..], " \t");
+
+        if (std.mem.eql(u8, key, "category") and category == null and span == null) {
+            category = try allocator.dupe(u8, value);
+        } else if (std.mem.eql(u8, key, "span") and category != null and span == null) {
+            span = try allocator.dupe(u8, value);
+        } else {
+            break;
+        }
+
+        rest = if (nl) |i| rest[i + 1 ..] else "";
+    }
+
+    return .{
+        .category = category orelse return error.DiagnosticMissingCategory,
+        .span = span orelse return error.DiagnosticMissingSpan,
+        .commentary = try allocator.dupe(u8, std.mem.trim(u8, rest, "\n")),
+        .section = s,
     };
 }
 
@@ -453,10 +594,11 @@ pub fn applyUpdates(
 
     // Emitted in source order so the byte gaps line up; a section absent from
     // the file has zero-width bounds at the point it would have appeared.
+    // `error` is omitted: it is never regenerated, so its bytes are copied as
+    // part of the gap preceding whatever follows it.
     const order = [_]SectionKind{
         .query,
         .source,
-        .@"error",
         .values,
         .tql_tree,
         .source_tree,
@@ -652,7 +794,10 @@ test "a populated section that is neither asserted nor pending is rejected" {
 test "a pending section is populated but not asserted" {
     const input =
         \\grammar: typescript
-        \\pending: values (no evaluator before stage 5)
+        \\pending: values
+        \\
+        \\The engine cannot run this query yet, so the values below are written
+        \\but unchecked.
         \\
         \\--- tql ---
         \\. > foo
@@ -666,25 +811,14 @@ test "a pending section is populated but not asserted" {
 
     try testing.expect(corpus.case.pending.has(.values));
     try testing.expect(!corpus.case.asserts.has(.values));
-    try testing.expectEqualStrings("no evaluator before stage 5", corpus.case.pending_reason);
-}
-
-test "pending without a reason is rejected" {
-    const input =
-        \\grammar: typescript
-        \\pending: values
-        \\
-        \\--- tql ---
-        \\. > foo
-    ;
-    try testing.expectError(error.PendingMissingReason, parse(testing.allocator, input));
+    try testing.expectEqualStrings("[\"x\"]", corpus.case.values.content);
 }
 
 test "a section cannot be both asserted and pending" {
     const input =
         \\grammar: typescript
         \\asserts: values
-        \\pending: values (contradiction)
+        \\pending: values
         \\
         \\--- tql ---
         \\. > foo
@@ -693,7 +827,204 @@ test "a section cannot be both asserted and pending" {
         \\--- values ---
         \\["x"]
     ;
-    try testing.expectError(error.SectionBothAssertedAndPending, parse(testing.allocator, input));
+    try testing.expectError(error.SectionClaimedTwice, parse(testing.allocator, input));
+}
+
+test "title and description are parsed and kept apart" {
+    const input =
+        \\title: `.` is the identity filter
+        \\grammar: typescript
+        \\asserts: values
+        \\
+        \\`.` yields its input unchanged. Every navigation chain starts
+        \\from it.
+        \\
+        \\--- tql ---
+        \\main = .;
+        \\--- source ---
+        \\x
+        \\--- values ---
+        \\["x"]
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectEqualStrings("`.` is the identity filter", corpus.case.title);
+    try testing.expectEqualStrings(
+        "`.` yields its input unchanged. Every navigation chain starts\nfrom it.",
+        corpus.case.description.content,
+    );
+    try testing.expectEqualStrings("main = .;", corpus.case.query.content);
+}
+
+test "a case needs no description" {
+    const input =
+        \\title: bare
+        \\grammar: typescript
+        \\
+        \\--- tql ---
+        \\main = .;
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectEqual(@as(usize, 0), corpus.case.description.content.len);
+}
+
+test "expect: divergence makes values unassertable rather than pending" {
+    const input =
+        \\title: collecting an infinite filter does not terminate
+        \\grammar: typescript
+        \\expect: divergence
+        \\
+        \\Collecting requires materializing every element, so this program does
+        \\not terminate. No implementation can assert the values below.
+        \\
+        \\--- tql ---
+        \\main = [nats];
+        \\--- source ---
+        \\x
+        \\--- values ---
+        \\["never"]
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expect(corpus.case.unassertable.has(.values));
+    try testing.expect(!corpus.case.pending.has(.values));
+    try testing.expect(!corpus.case.asserts.has(.values));
+}
+
+test "an unknown expectation is rejected" {
+    const input =
+        \\grammar: typescript
+        \\expect: someday
+        \\
+        \\--- tql ---
+        \\main = .;
+    ;
+    try testing.expectError(error.UnknownExpectation, parse(testing.allocator, input));
+}
+
+test "a diagnostic splits into category, span, and commentary" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = double "text";
+        \\--- error ---
+        \\category: type-mismatch
+        \\span: 1:15-1:21
+        \\The argument. Expected `int`, found `string`.
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectEqual(@as(usize, 1), corpus.case.diagnostics.len);
+    const d = corpus.case.diagnostics[0];
+    try testing.expectEqualStrings("type-mismatch", d.category);
+    try testing.expectEqualStrings("1:15-1:21", d.span);
+    try testing.expectEqualStrings("The argument. Expected `int`, found `string`.", d.commentary);
+    try testing.expect(corpus.case.expectsError());
+}
+
+test "span: any matches any reported span" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = .;
+        \\--- error ---
+        \\category: parse
+        \\span: any
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const d = corpus.case.diagnostics[0];
+    try testing.expect(d.spanMatches("1:1-1:2"));
+    try testing.expect(d.spanMatches(""));
+}
+
+test "an exact span matches only itself" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = .;
+        \\--- error ---
+        \\category: parse
+        \\span: 1:1-1:2
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const d = corpus.case.diagnostics[0];
+    try testing.expect(d.spanMatches("1:1-1:2"));
+    try testing.expect(!d.spanMatches("2:1-2:2"));
+}
+
+test "repeated error sections are kept in order" {
+    const input =
+        \\title: `as` binding is removed
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\Three names are unresolved, not one.
+        \\
+        \\--- tql ---
+        \\main = . / :class_declaration as c | c.name | text;
+        \\--- error ---
+        \\category: unresolved-name
+        \\span: 1:31-1:33
+        \\`as`.
+        \\--- error ---
+        \\category: unresolved-name
+        \\span: 1:34-1:35
+        \\`c` as an operand of `as`.
+        \\--- error ---
+        \\category: unresolved-name
+        \\span: 1:38-1:39
+        \\`c` in `c.name`.
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectEqual(@as(usize, 3), corpus.case.diagnostics.len);
+    try testing.expectEqualStrings("1:31-1:33", corpus.case.diagnostics[0].span);
+    try testing.expectEqualStrings("1:34-1:35", corpus.case.diagnostics[1].span);
+    try testing.expectEqualStrings("1:38-1:39", corpus.case.diagnostics[2].span);
+}
+
+test "a diagnostic without a category is rejected" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = .;
+        \\--- error ---
+        \\span: 1:1-1:2
+        \\no category above
+    ;
+    try testing.expectError(error.DiagnosticMissingCategory, parse(testing.allocator, input));
+}
+
+test "a diagnostic without a span is rejected" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = .;
+        \\--- error ---
+        \\category: parse
+        \\no span above
+    ;
+    try testing.expectError(error.DiagnosticMissingSpan, parse(testing.allocator, input));
 }
 
 test "unknown section name in a header is rejected" {

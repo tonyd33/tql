@@ -1,0 +1,17 @@
+title: a `let` group with a single binding
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  let {
+    target = "A"
+  } in
+    . / :class_declaration | .name | text = target;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]

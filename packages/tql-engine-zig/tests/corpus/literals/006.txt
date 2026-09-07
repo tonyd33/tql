@@ -1,0 +1,13 @@
+title: `!~` is the negated match
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | .name | text !~ r"^Ser";
+
+--- source ---
+class Service {}
+class Other {}
+
+--- values ---
+[false, true]

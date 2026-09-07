@@ -1,0 +1,14 @@
+title: a regex-match chain does not type
+grammar: typescript
+
+Well-formed syntax, rejected by typing, as in E-ASSOC-01. Parses as
+`("a" ~ r"a") ~ r"b"`, so the left operand of the second `~` is a `bool`
+where `~` requires a `string`.
+
+--- tql ---
+main = "a" ~ r"a" ~ r"b";
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:25
+The whole chain.

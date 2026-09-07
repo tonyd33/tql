@@ -1,0 +1,21 @@
+title: a `do`-local `let` sees bindings from earlier statements
+grammar: typescript
+pending: values
+
+`prefix` is computed from `c`, bound by the preceding statement, and is then
+used by the final expression.
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    let prefix = c.name | text;
+    m <- c.body / :method_definition;
+    prefix
+  };
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["A", "A"]

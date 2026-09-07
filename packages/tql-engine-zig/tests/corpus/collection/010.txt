@@ -1,0 +1,12 @@
+title: a record runs each field on the same input
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | { kind = kind, name = .name | text };
+
+--- source ---
+class Service {}
+
+--- values ---
+[{ "kind": "class_declaration", "name": "Service" }]

@@ -1,0 +1,16 @@
+title: `[a, b]` collects the union of `a` and `b`
+grammar: typescript
+pending: values
+
+`,` inside brackets is stream union, not an array separator. The bracket
+collects whatever the union yields, so a multi-output operand contributes every
+one of its values.
+
+--- tql ---
+main = [(1, 2), 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1, 2, 3]]

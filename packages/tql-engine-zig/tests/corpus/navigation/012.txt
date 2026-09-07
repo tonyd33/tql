@@ -1,0 +1,12 @@
+title: `parent` yields no result at the root
+grammar: typescript
+pending: values
+
+--- tql ---
+main = parent | kind;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

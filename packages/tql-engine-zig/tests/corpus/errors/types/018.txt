@@ -1,0 +1,12 @@
+title: `Ord` on a bool
+grammar: typescript
+
+Only `int` and `string` have `Ord`.
+
+--- tql ---
+main = true < false;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:8-1:20
+`Ord bool` is not satisfied.

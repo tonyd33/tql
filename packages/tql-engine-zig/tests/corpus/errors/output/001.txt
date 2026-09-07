@@ -1,0 +1,13 @@
+title: `main` must have type `Filter node _`
+grammar: typescript
+
+`main` is applied to the parsed root, so its input type is `node`. A filter
+over a different input type cannot be the entrypoint.
+
+--- tql ---
+main = unnest;
+
+--- error ---
+category: main-type
+span: 1:1-1:14
+The `main` definition. Expected `Filter node _`, found `Filter [a] a`.

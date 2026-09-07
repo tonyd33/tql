@@ -1,0 +1,13 @@
+title: an unknown static field is a compile error
+grammar: typescript
+
+A field unknown to the grammar is rejected. Contrast NAV-10, where a *known*
+field absent from a particular node yields the empty stream.
+
+--- tql ---
+main = . / :class_declaration | .nonexistent_field;
+
+--- error ---
+category: unknown-field
+span: 1:33-1:51
+The `.nonexistent_field` navigation.

@@ -1,0 +1,19 @@
+title: closures capture their lexical environment
+grammar: typescript
+pending: values
+
+`bump` captures `step` from the enclosing group, not from its call site.
+
+--- tql ---
+main =
+  let {
+    step = 10;
+    bump = \x -> x + step
+  } in
+    bump 1, bump 2;
+
+--- source ---
+class A {}
+
+--- values ---
+[11, 12]

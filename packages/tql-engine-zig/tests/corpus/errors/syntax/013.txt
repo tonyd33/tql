@@ -1,0 +1,15 @@
+title: user `type` declarations are deferred
+grammar: typescript
+
+0.3 exposes no user-defined algebraic data types. The Core reserves a
+compatible extension point, but the surface has no declaration form.
+
+--- tql ---
+type Option a = None | Some a;
+main = 1;
+
+--- error ---
+category: parse
+span: any
+No 0.3 surface form. Recovery splits the declaration into fragments; the
+exact span is not worth a grammar production for syntax that does not exist.

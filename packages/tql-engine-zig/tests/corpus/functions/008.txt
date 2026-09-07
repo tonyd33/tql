@@ -1,0 +1,13 @@
+title: a signature on `main` is permitted
+grammar: typescript
+pending: values
+
+--- tql ---
+main : Filter node string;
+main = . / :class_declaration | .name | text;
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

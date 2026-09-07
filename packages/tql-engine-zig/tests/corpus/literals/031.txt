@@ -1,0 +1,14 @@
+title: arithmetic precedence and left associativity
+grammar: typescript
+pending: values
+
+`2 + 3 * 4` is `2 + (3 * 4)`; `10 - 3 - 2` is `(10 - 3) - 2`.
+
+--- tql ---
+main = 2 + 3 * 4, 10 - 3 - 2;
+
+--- source ---
+class A {}
+
+--- values ---
+[14, 5]

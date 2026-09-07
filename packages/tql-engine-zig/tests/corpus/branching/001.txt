@@ -1,0 +1,13 @@
+title: `if` selects a branch per boolean output of the condition
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | if .name | text = "A" then "yes" else "no";
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["yes", "no"]

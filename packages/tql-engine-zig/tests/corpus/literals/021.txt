@@ -1,0 +1,12 @@
+title: an empty operand yields no pairs
+grammar: typescript
+pending: values
+
+--- tql ---
+main = (1, 2) + (. / :interface_declaration | 0);
+
+--- source ---
+class A {}
+
+--- values ---
+[]

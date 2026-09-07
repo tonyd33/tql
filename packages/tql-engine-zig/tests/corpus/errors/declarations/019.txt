@@ -1,0 +1,12 @@
+title: `main` may not take parameters
+grammar: typescript
+
+`main` is reserved and parameterless.
+
+--- tql ---
+main x = x;
+
+--- error ---
+category: main-parameters
+span: 1:1-1:12
+The `main` definition head.

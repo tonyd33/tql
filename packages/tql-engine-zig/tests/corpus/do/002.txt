@@ -1,0 +1,19 @@
+title: the body receives the bound value as its current input
+grammar: typescript
+pending: values
+
+The final expression is `kind`, which takes no explicit input. It reports the
+class node, so the bind rebased the current input onto the bound value.
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    kind
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+["class_declaration"]

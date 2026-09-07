@@ -1,0 +1,13 @@
+title: a duplicate signature is a compile error
+grammar: typescript
+
+--- tql ---
+f : Filter node string;
+f : Filter node string;
+f = kind;
+main = f;
+
+--- error ---
+category: duplicate-signature
+span: 2:1-2:24
+The second signature. The first is the accepted one.

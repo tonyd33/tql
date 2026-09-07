@@ -1,0 +1,15 @@
+title: a partial operation prunes only the offending pair
+grammar: typescript
+pending: values
+
+The right operand yields three moduli; only the zero pair is dropped, and the
+surviving pairs keep their left-major order.
+
+--- tql ---
+main = 12 % (5, 0, 7);
+
+--- source ---
+class A {}
+
+--- values ---
+[2, 5]

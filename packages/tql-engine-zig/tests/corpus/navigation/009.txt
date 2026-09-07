@@ -1,0 +1,12 @@
+title: named-field navigation selects children under that field
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | .name | text;
+
+--- source ---
+class Service {}
+
+--- values ---
+["Service"]
