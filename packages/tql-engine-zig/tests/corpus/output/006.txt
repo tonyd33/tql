@@ -6,7 +6,7 @@ The string node's text is `"héllo"` including both quote characters: 8 bytes,
 matching `end_byte - start_byte` from OUT-05.
 
 --- tql ---
-main = . // :string | text | length;
+main = descendants | is_kind :string | text | length;
 
 --- source ---
 let s = "héllo";

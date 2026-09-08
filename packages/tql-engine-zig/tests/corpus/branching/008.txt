@@ -6,7 +6,7 @@ The left `true` contributes the whole right stream; the left `false`
 contributes exactly one `false`.
 
 --- tql ---
-main = (true, false) and (true, false);
+main = (pure true, pure false) and (pure true, pure false);
 
 --- source ---
 class A {}

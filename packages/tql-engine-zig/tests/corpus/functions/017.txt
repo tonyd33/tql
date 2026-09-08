@@ -6,8 +6,8 @@ pending: values
 `. / :class_declaration | (name_of .)`.
 
 --- tql ---
-name_of n = n.name | text;
-main = . / :class_declaration | name_of .;
+name_of n = (.name | text) n;
+main = children | is_kind :class_declaration | name_of;
 
 --- source ---
 class A {}

@@ -1,5 +1,6 @@
 title: there is no null literal
 grammar: typescript
+asserts: error
 
 Absence is the empty stream.
 

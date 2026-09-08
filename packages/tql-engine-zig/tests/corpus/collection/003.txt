@@ -6,7 +6,7 @@ Collection observes absence: the inner query yields nothing, and the result is
 one `[]` rather than no output.
 
 --- tql ---
-main = [. / :interface_declaration | text];
+main = [children | is_kind :interface_declaration | text];
 
 --- source ---
 class A {}

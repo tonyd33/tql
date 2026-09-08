@@ -7,7 +7,7 @@ collects whatever the union yields, so a multi-output operand contributes every
 one of its values.
 
 --- tql ---
-main = [(1, 2), 3];
+main = [(pure 1, pure 2), pure 3];
 
 --- source ---
 class A {}

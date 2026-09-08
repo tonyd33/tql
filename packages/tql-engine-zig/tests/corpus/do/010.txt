@@ -5,9 +5,9 @@ pending: values
 It simply evaluates its final expression against the current input.
 
 --- tql ---
-main =
+main root =
   do {
-    . / :class_declaration | .name | text
+    (children | is_kind :class_declaration | .name | text) root
   };
 
 --- source ---

@@ -1,12 +1,13 @@
 title: a program with no `main` is rejected
 grammar: typescript
+asserts: error
 
 Source files never rely on an implicit trailing expression.
 
 --- tql ---
-helper = . / :class_declaration;
+helper = children | is_kind :class_declaration;
 
 --- error ---
 category: missing-main
-span: 1:1-1:33
+span: 1:1-1:48
 The program. The span is the whole file, since the error is an absence.

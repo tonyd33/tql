@@ -5,7 +5,10 @@ pending: values
 The source yields nothing, so the probe finds no first result.
 
 --- tql ---
-main = . / :class_declaration | any (.body / :method_definition) (.name | text ~ r"^get");
+main =
+  children | is_kind :class_declaration
+  | any (.body | children | is_kind :method_definition)
+        (\m -> [text m.name ~ r"^get"]);
 
 --- source ---
 class B {}

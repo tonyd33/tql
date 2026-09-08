@@ -1,5 +1,6 @@
 title: an invalid regex literal is a compile error
 grammar: typescript
+asserts: error
 
 The pattern is compiled when the query is compiled, so an unclosed group fails
 at compile time rather than producing a runtime branch failure.

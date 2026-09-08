@@ -6,7 +6,10 @@ pending: values
 `Filter a b -> Filter b bool -> Filter a bool`.
 
 --- tql ---
-main = . / :class_declaration | any (.body / :method_definition) (.name | text ~ r"^get");
+main =
+  children | is_kind :class_declaration
+  | any (.body | children | is_kind :method_definition)
+        (\m -> [text m.name ~ r"^get"]);
 
 --- source ---
 class A { getX() {} setY() {} }

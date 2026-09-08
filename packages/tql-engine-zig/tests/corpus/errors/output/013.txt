@@ -6,13 +6,13 @@ branch-local value cannot be polymorphic over the type of the input it came
 from, so `c` cannot be used at two different types.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    { a = c | kind, b = c | length }
+    c <- (children | is_kind :class_declaration) root;
+    [{ a = kind c, b = length c }]
   };
 
 --- error ---
 category: type-mismatch
-span: 4:25-4:35
+span: 4:24-4:32
 The second use of `c`. Expected `node`, found a use requiring `Sized`.

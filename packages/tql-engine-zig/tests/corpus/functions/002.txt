@@ -7,7 +7,7 @@ is what left-associativity means here.
 
 --- tql ---
 add x y = x + y;
-main = add 2 3, (add 2) 3;
+main = pure (add 2 3), pure ((add 2) 3);
 
 --- source ---
 class A {}

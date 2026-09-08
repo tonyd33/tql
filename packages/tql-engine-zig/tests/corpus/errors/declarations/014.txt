@@ -1,5 +1,6 @@
 title: duplicate `main` definitions
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = 1;

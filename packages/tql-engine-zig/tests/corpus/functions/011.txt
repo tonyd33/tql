@@ -7,7 +7,7 @@ arguments are `Filter node string`, which is what lets the union unify.
 
 --- tql ---
 both f g = f, g;
-main = . / :class_declaration | both (.name | text) (kind);
+main = children | is_kind :class_declaration | both (.name | text) kind;
 
 --- source ---
 class A {}

@@ -6,7 +6,9 @@ The output is the node itself, not the predicate's boolean, so the `identity`
 arm is what runs on success.
 
 --- tql ---
-main = . / :class_declaration | select (.name | text = "A") | kind;
+main =
+  children | is_kind :class_declaration
+  | select (\c -> [text c.name = "A"]) | kind;
 
 --- source ---
 class A {}

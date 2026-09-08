@@ -1,5 +1,6 @@
 title: a duplicate signature is a compile error
 grammar: typescript
+asserts: error
 
 --- tql ---
 f : Filter node string;

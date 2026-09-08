@@ -11,7 +11,7 @@ main =
     first = second + 1;
     second = 10
   } in
-    first;
+    pure first;
 
 --- source ---
 class A {}

@@ -2,12 +2,12 @@ title: `not a = b` groups as `not (a = b)`
 grammar: typescript
 pending: values
 
-Resolves D8 Q1. `not` binds looser than comparison, so its operand extends
-rightward through the comparison level. The rejected reading `(not 1) = 1` does
-not typecheck, since `not` requires `Filter a bool`.
+`not` binds looser than comparison, so its operand extends rightward through
+the comparison level. The rejected reading `(not 1) = 1` does not typecheck,
+since `not` requires `Filter a bool`.
 
 --- tql ---
-main = not 1 = 1;
+main = not (pure 1 = pure 1);
 
 --- source ---
 class A {}

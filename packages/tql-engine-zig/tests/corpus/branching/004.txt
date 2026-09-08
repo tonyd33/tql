@@ -1,12 +1,17 @@
 title: a condition yielding many booleans runs many branches in order
 grammar: typescript
+asserts: core
 pending: values
 
 --- tql ---
-main = if (true, false, true) then "y" else "n";
+main =
+  branch (pure true, pure false, pure true) (pure "y") (pure "n");
 
 --- source ---
 class A {}
 
 --- values ---
 ["y", "n", "y"]
+
+--- core ---
+main = branch (union (union (pure true) (pure false)) (pure true)) (pure "y") (pure "n")

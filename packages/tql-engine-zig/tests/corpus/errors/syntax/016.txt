@@ -1,5 +1,6 @@
 title: a declaration inside a right-hand side
 grammar: typescript
+asserts: error
 
 Declarations are top-level only. Inside a `do` block, `helper = 1` is not a
 binding — `<-` binds, and `=` is equality — so it reads as an expression and

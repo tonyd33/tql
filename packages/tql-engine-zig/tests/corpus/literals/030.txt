@@ -6,7 +6,7 @@ pending: values
 
 --- tql ---
 add x y = x + y;
-main = add 1 2 + add 3 4;
+main = pure (add 1 2 + add 3 4);
 
 --- source ---
 class A {}

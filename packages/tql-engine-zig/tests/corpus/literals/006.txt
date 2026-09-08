@@ -3,7 +3,9 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = . / :class_declaration | .name | text !~ r"^Ser";
+main =
+  children | is_kind :class_declaration
+  | \c -> text c.name !~ r"^Ser";
 
 --- source ---
 class Service {}

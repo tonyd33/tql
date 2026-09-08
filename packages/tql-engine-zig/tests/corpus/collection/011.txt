@@ -6,7 +6,7 @@ Two values in `a` and two in `b` give four records. Enumeration is left-major
 in field order: `a` varies slowest.
 
 --- tql ---
-main = { a = (1, 2), b = ("x", "y") };
+main = { a = (pure 1, pure 2), b = (pure "x", pure "y") };
 
 --- source ---
 class A {}

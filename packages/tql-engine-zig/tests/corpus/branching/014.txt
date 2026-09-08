@@ -6,7 +6,7 @@ pending: values
 grouping `false and (true or true)` would yield `false`.
 
 --- tql ---
-main = false and true or true;
+main = pure false and pure true or pure true;
 
 --- source ---
 class A {}

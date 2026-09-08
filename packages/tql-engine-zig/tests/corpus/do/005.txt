@@ -6,11 +6,10 @@ pending: values
 node after the current input has been rebased onto a class node.
 
 --- tql ---
-main =
+main root =
   do {
-    root <- .;
-    c <- root / :class_declaration;
-    { root = root | kind, class = c.name | text }
+    c <- (children | is_kind :class_declaration) root;
+    [{ root = kind root, class = text c.name }]
   };
 
 --- source ---

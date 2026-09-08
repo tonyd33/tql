@@ -6,7 +6,7 @@ pending: values
 such as `class`, `{`, and `}` are not visited.
 
 --- tql ---
-main = . / :class_declaration / * | kind;
+main = children | is_kind :class_declaration | children | kind;
 
 --- source ---
 class A {}

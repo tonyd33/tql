@@ -10,12 +10,11 @@ The outer input is retained as `root` because the inner bind rebases its body
 onto the yielded filter value, not onto the node.
 
 --- tql ---
-make_predicate = kind;
-main =
+make_predicate = pure kind;
+main root =
   do {
-    root <- .;
-    predicate <- make_predicate;
-    root | predicate
+    predicate <- make_predicate root;
+    predicate root
   };
 
 --- source ---

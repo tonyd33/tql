@@ -7,7 +7,7 @@ main =
   let {
     inc = \x -> x + 1
   } in
-    inc 4;
+    pure (inc 4);
 
 --- source ---
 class A {}

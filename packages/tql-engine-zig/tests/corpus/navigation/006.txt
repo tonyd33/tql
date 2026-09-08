@@ -7,7 +7,7 @@ precedes its nested `method_definition` m, which precedes the later sibling
 `class_declaration` B. A breadth-first or post-order walk would reorder these.
 
 --- tql ---
-main = . // * | kind;
+main = descendants | kind;
 
 --- source ---
 class A { m() {} }

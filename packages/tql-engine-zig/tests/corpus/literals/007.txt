@@ -6,7 +6,7 @@ pending: values
 literal, so it needs no escape; only `"` closes it.
 
 --- tql ---
-main = . // :string | text ~ r"a/b";
+main = descendants | is_kind :string | \s -> text s ~ r"a/b";
 
 --- source ---
 let p = "xa/by";

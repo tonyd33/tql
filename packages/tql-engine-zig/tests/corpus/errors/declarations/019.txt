@@ -1,12 +1,15 @@
-title: `main` may not take parameters
+title: `main` may not have a function type
 grammar: typescript
 
-`main` is reserved and parameterless.
+The output of a query is not a function. Two parameters on the head is one
+spelling of that error, and `main a = \b -> e` and `main = \a -> \b -> e` are
+the same function written differently — so the rejection is of the type, not of
+where the parameters were written.
 
 --- tql ---
-main x = x;
+main root extra = root;
 
 --- error ---
-category: main-parameters
-span: 1:1-1:12
-The `main` definition head.
+category: main-type
+span: 1:1-1:24
+The `main` definition.

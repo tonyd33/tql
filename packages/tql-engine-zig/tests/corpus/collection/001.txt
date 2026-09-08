@@ -1,11 +1,12 @@
 title: `[p]` collects every output of `p` into exactly one list
 grammar: typescript
+asserts: core
 pending: values
 
 The result is one value, not three: collection changes multiplicity.
 
 --- tql ---
-main = [. / :class_declaration | .name | text];
+main = [children | is_kind :class_declaration | .name | text];
 
 --- source ---
 class A {}
@@ -14,3 +15,6 @@ class C {}
 
 --- values ---
 [["A", "B", "C"]]
+
+--- core ---
+main = collect (compose (compose (compose children is_kind[class_declaration]) field[name]) text)

@@ -5,7 +5,7 @@ Legacy 0.2 syntax. `def` has no meaning; the line parses as an application of
 an unresolved name.
 
 --- tql ---
-def is_class = . / :class_declaration;
+def is_class = children | is_kind :class_declaration;
 main = is_class;
 
 --- error ---

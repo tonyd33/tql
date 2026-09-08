@@ -6,7 +6,7 @@ The runner serializes every output. The program is well-typed and its output
 type is `Serial`, so it is accepted; it simply never finishes.
 
 --- tql ---
-from n = n, from (n + 1);
+from n = pure n, from (n + 1);
 main = from 0;
 
 --- source ---

@@ -5,10 +5,10 @@ pending: values
 The body never runs.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :interface_declaration;
-    c.name | text
+    c <- (children | is_kind :interface_declaration) root;
+    (.name | text) c
   };
 
 --- source ---

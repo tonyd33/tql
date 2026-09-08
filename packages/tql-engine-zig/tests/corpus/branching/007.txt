@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = (true, false) or false;
+main = (pure true, pure false) or pure false;
 
 --- source ---
 class A {}

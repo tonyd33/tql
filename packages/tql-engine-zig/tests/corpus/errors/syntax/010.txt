@@ -1,5 +1,6 @@
 title: a bare identifier is not a node-kind test
 grammar: typescript
+asserts: error
 
 Node kinds are written `:kind`. A bare identifier resolves as a name and fails.
 

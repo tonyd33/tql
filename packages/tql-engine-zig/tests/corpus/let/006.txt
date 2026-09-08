@@ -10,7 +10,7 @@ main =
   let {
     names = .name | text
   } in
-    . / :class_declaration | names;
+    children | is_kind :class_declaration | names;
 
 --- source ---
 class A {}

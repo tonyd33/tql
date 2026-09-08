@@ -10,7 +10,7 @@ main =
     step = 10;
     bump = \x -> x + step
   } in
-    bump 1, bump 2;
+    pure (bump 1), pure (bump 2);
 
 --- source ---
 class A {}

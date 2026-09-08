@@ -3,7 +3,10 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = [. / :class_declaration | { name = .name | text, methods = [.body / :method_definition | .name | text] }];
+main =
+  [children | is_kind :class_declaration
+   | { name = .name | text,
+       methods = [.body | children | is_kind :method_definition | .name | text] }];
 
 --- source ---
 class A { m() {} }

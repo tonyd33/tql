@@ -1,9 +1,10 @@
 title: static child navigation keeps only matching kinds
 grammar: typescript
+asserts: core
 pending: values
 
 --- tql ---
-main = . / :class_declaration | .name | text;
+main = children | is_kind :class_declaration | .name | text;
 
 --- source ---
 class A {}
@@ -12,3 +13,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- core ---
+main = compose (compose (compose children is_kind[class_declaration]) field[name]) text

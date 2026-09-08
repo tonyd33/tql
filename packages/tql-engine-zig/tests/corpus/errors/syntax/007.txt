@@ -1,11 +1,12 @@
 title: `@` variables are removed
 grammar: typescript
+asserts: error
 
 `@name` is legacy 0.2 variable syntax. `@` is not a token in 0.3, so the line
 fails at the `@` itself.
 
 --- tql ---
-main = . / :class_declaration | @name;
+main = children | is_kind :class_declaration | @name;
 
 --- error ---
 category: parse

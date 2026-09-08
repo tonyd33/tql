@@ -5,7 +5,9 @@ pending: values
 `within p = exists (ancestors | select p)`.
 
 --- tql ---
-main = . // :property_identifier | within (kind = "class_declaration");
+main =
+  descendants | is_kind :property_identifier
+  | within (\n -> [kind n = "class_declaration"]);
 
 --- source ---
 class A { m() {} }

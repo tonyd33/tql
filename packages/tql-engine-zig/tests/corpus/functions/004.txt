@@ -4,7 +4,7 @@ pending: values
 
 --- tql ---
 limit = 7;
-main = limit + 1;
+main = pure (limit + 1);
 
 --- source ---
 class A {}

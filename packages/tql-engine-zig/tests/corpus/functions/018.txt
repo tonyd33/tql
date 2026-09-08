@@ -4,7 +4,7 @@ pending: values
 
 --- tql ---
 apply f x = f x;
-main = apply (\n -> n * 3) 5;
+main = pure (apply (\n -> n * 3) 5);
 
 --- source ---
 class A {}

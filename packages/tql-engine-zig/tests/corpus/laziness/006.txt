@@ -3,12 +3,12 @@ grammar: typescript
 pending: values
 
 `shared` is referenced twice. Memoization is not directly observable as a
-value, so the evidence here is only that both references agree; the timing
-claim is carried by CAL-ENV-5 as a `doc` rule.
+value, so the evidence here is only that both references agree; that a global
+is forced at most once is not something a value assertion can witness.
 
 --- tql ---
 shared = 6 * 7;
-main = shared, shared;
+main = pure shared, pure shared;
 
 --- source ---
 class A {}

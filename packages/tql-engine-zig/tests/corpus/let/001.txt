@@ -7,7 +7,7 @@ main =
   let {
     target = "A"
   } in
-    . / :class_declaration | .name | text = target;
+    children | is_kind :class_declaration | \c -> text c.name = target;
 
 --- source ---
 class A {}

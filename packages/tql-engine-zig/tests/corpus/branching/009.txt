@@ -3,7 +3,9 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = (true, false) and (. / :interface_declaration | true);
+main =
+  (pure true, pure false)
+  and (children | is_kind :interface_declaration | pure true);
 
 --- source ---
 class A {}

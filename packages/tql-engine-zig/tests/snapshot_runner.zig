@@ -642,6 +642,24 @@ fn compareDiagnostics(
     return failed;
 }
 
+/// One `category/span` line per diagnostic, in report order, which is the form
+/// `compareDiagnostics` reads. The message is deliberately omitted: fixtures
+/// never compare it.
+fn renderDiagnostics(
+    allocator: std.mem.Allocator,
+    diagnostics: []const tql.diagnostic.Diagnostic,
+) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    for (diagnostics, 0..) |d, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.writeAll(d.category.name());
+        try w.writer.writeByte('/');
+        try d.span.format(&w.writer);
+    }
+    return w.toOwnedSlice();
+}
+
 fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestCase) !TestOutputs {
     var registry = GrammarRegistry.init(allocator, &.{});
     defer registry.deinit();
@@ -650,8 +668,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     var engine = try Engine.init(.{ .allocator = allocator, .io = io });
     defer engine.deinit();
 
-    var ast = try engine.parseQuery(tc.query.content);
-    defer ast.deinit(allocator);
+    var parsed = try engine.parseQueryCollecting(tc.query.content);
+    defer parsed.deinit();
+    const query_cst = parsed.source_file;
 
     const ts_parser = ts.Parser.create();
     defer ts_parser.destroy();
@@ -664,7 +683,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     const source_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, source_tree_raw, "\n"));
     errdefer allocator.free(source_tree);
 
-    const tql_tree_raw = try fmt.formatAst(allocator, ast);
+    const tql_tree_raw = try fmt.formatCst(allocator, query_cst);
     defer allocator.free(tql_tree_raw);
     const tql_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, tql_tree_raw, "\n"));
     errdefer allocator.free(tql_tree);
@@ -674,19 +693,92 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     // section downstream of it stays empty.
     const expects_error = tc.expectsError();
 
+    // Syntax errors are decided by the parser alone, so they are reported
+    // before compilation is even attempted.
+    if (parsed.hasErrors()) {
+        if (!expects_error) return error.UnexpectedParseError;
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = try renderDiagnostics(allocator, parsed.diagnostics),
+        };
+    }
+
+    // Desugaring runs independently of the rest of compilation: a case may
+    // assert its Core term while its values are still pending.
+    var core_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(core_text);
+    var desugar_diagnostics: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(desugar_diagnostics);
+
+    if (tc.isAsserted(.core) or expects_error) {
+        var sink = tql.diagnostic.Sink.init(allocator);
+        defer sink.deinit();
+
+        // Through the Engine rather than `desugar.module` directly, so the
+        // corpus exercises the same link the compiler performs: the prelude
+        // beneath the query, with `main` resolved by the linker.
+        if (engine.desugarQuery(tc.query.content, grammar, &sink)) |desugared| {
+            var program = desugared;
+            defer program.deinit();
+            allocator.free(core_text);
+            core_text = try fmt.formatCore(allocator, &program);
+        } else |err| switch (err) {
+            error.DesugarFailed, error.LinkFailed => {
+                allocator.free(desugar_diagnostics);
+                desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
+            },
+            else => return err,
+        }
+    }
+
+    // A rejection found by desugaring is the case's expected outcome, and
+    // nothing downstream of it runs.
+    if (desugar_diagnostics.len > 0) {
+        if (!expects_error) return error.UnexpectedDesugarError;
+        allocator.free(core_text);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = desugar_diagnostics,
+        };
+    }
+
+    // Compilation is driven by what the case claims, not by what it contains.
+    // A case whose value-bearing sections are all `pending` has nothing for the
+    // compiler or the runtime to decide yet, so running them would be wasted
+    // work whose only effect is to fail on syntax the 0.2 compiler predates.
+    // As sections move from `pending` into `asserts`, this switches back on
+    // one fixture at a time.
+    const needs_compile = expects_error or
+        tc.isAsserted(.bytecode) or
+        tc.isAsserted(.values);
+
+    if (!needs_compile) {
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = core_text,
+            .@"error" = try allocator.dupe(u8, ""),
+        };
+    }
+
     var query = engine.compile(tc.query.content, grammar) catch |err| {
         if (!expects_error) return err;
-        // One `category/span` line per diagnostic.
+        // Compilation past the parser still reports a bare Zig error, with no
+        // category and no span, so a fixture only matches if it was written
+        // `span: any` and a multi-diagnostic case can never match.
         //
-        // `engine.compile` returns a bare Zig error, so there is one
-        // "diagnostic" carrying an error name where a category belongs and
-        // nothing where a span belongs. A fixture can therefore only match if
-        // it was written `span: any`, and a case expecting several diagnostics
-        // can never match at all.
-        //
-        // IMPROVE: The engine should report a structured diagnostic list
-        // (maybe category, span, message)
-        // Then, this should render that list instead of an error name.
+        // IMPROVE: desugaring, resolution and typing should report structured
+        // diagnostics the way the parser now does, and this should render them.
         const message = try std.fmt.allocPrint(allocator, "{t}/", .{err});
         errdefer allocator.free(message);
         return .{
@@ -694,7 +786,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .tql_tree = tql_tree,
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
-            .core = try allocator.dupe(u8, ""),
+            .core = core_text,
             .@"error" = message,
         };
     };
@@ -720,8 +812,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         .tql_tree = tql_tree,
         .bytecode = bytecode,
         .values = actual_values,
-        // TODO: implement core
-        .core = try allocator.dupe(u8, ""),
+        .core = core_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
 }

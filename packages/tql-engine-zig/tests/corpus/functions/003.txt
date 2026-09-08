@@ -1,5 +1,6 @@
 title: partial application yields a function value
 grammar: typescript
+asserts: core
 pending: values
 
 `add 10` is applied to two different arguments, so the partial application was
@@ -11,10 +12,14 @@ main =
   let {
     add10 = add 10
   } in
-    add10 1, add10 2;
+    pure (add10 1), pure (add10 2);
 
 --- source ---
 class A {}
 
 --- values ---
 [11, 12]
+
+--- core ---
+add = \x -> \y -> op[+] x y
+main = letrec { add10 = add 10 } in union (pure (add10 1)) (pure (add10 2))

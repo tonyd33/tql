@@ -7,7 +7,7 @@ only to know whether a first result exists. A strict implementation that
 materialized the stream would not terminate.
 
 --- tql ---
-from n = n, from (n + 1);
+from n = pure n, from (n + 1);
 nats = from 0;
 main = probe nats;
 

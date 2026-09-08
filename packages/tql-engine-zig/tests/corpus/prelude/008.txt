@@ -8,7 +8,10 @@ in the wrong order would yield `false` here, so this fixture pins the arm
 ordering.
 
 --- tql ---
-main = . / :class_declaration | all (.body / :method_definition) (.name | text ~ r"^get");
+main =
+  children | is_kind :class_declaration
+  | all (.body | children | is_kind :method_definition)
+        (\m -> [text m.name ~ r"^get"]);
 
 --- source ---
 class B {}

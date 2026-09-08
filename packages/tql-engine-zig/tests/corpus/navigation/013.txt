@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = . // :method_definition | parent | kind;
+main = descendants | is_kind :method_definition | parent | kind;
 
 --- source ---
 class A { m() {} }

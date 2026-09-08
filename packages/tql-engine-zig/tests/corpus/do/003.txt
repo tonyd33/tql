@@ -6,11 +6,11 @@ Both methods of A precede the method of B: the outer bind's order is preserved
 and the inner bind's results are concatenated within each branch.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    m <- c.body / :method_definition;
-    m.name | text
+    c <- (children | is_kind :class_declaration) root;
+    m <- (children | is_kind :method_definition) c.body;
+    (.name | text) m
   };
 
 --- source ---

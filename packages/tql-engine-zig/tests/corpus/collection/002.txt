@@ -5,7 +5,7 @@ pending: values
 `[]` yields one value. `empty` yields none. The distinction is the rule.
 
 --- tql ---
-main = [] | length;
+main = pure ([] | length);
 
 --- source ---
 class A {}

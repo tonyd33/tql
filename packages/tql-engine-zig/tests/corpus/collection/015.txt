@@ -3,7 +3,9 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = . / :class_declaration | { name = .name | text, meta = { k = kind, n = 1 } };
+main =
+  children | is_kind :class_declaration
+  | { name = .name | text, meta = { k = kind, n = pure 1 } };
 
 --- source ---
 class A {}

@@ -11,7 +11,8 @@ main =
   let {
     k = kind
   } in
-    . / :class_declaration | k, . // :property_identifier | k;
+    (children | is_kind :class_declaration | k),
+    (descendants | is_kind :property_identifier | k);
 
 --- source ---
 class A { m() {} }

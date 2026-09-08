@@ -2,11 +2,17 @@ title: distinct nodes with identical text are not equal
 grammar: typescript
 pending: values
 
-Two `class_declaration` nodes give four left-major pairs. Identity, not text,
-decides: only the diagonal pairs are equal.
+Two `class_declaration` nodes give four pairs, enumerated with the left operand
+outermost. Identity, not text, decides: only the diagonal pairs are equal.
+
+The cross product is written out. Operators take scalars, so the pairing is the
+`do` block's, not the operator's.
 
 --- tql ---
-main = (. / :class_declaration) = (. / :class_declaration);
+main root =
+  do { l <- (children | is_kind :class_declaration) root;
+       r <- (children | is_kind :class_declaration) root;
+       [l = r] };
 
 --- source ---
 class A {}

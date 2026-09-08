@@ -8,7 +8,7 @@ main =
     lo = 2;
     hi = 5
   } in
-    lo + hi;
+    pure (lo + hi);
 
 --- source ---
 class A {}

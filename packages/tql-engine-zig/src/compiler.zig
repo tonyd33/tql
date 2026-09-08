@@ -11,7 +11,7 @@ const Address = ir.Address;
 const Relation = ir.Relation;
 const ProgramImage = ir.ProgramImage;
 
-const ast = @import("ast.zig");
+const cst = @import("cst.zig");
 const pcre2 = @import("regex.zig");
 
 pub const InstructionBuilder = @import("compiler/instruction_builder.zig").InstructionBuilder;
@@ -107,7 +107,7 @@ pub const Compiler = struct {
         return offset;
     }
 
-    pub fn compile(self: *Compiler, allocator: std.mem.Allocator, source: ast.SourceFile) CompilerError!ProgramImage {
+    pub fn compile(self: *Compiler, allocator: std.mem.Allocator, source: cst.SourceFile) CompilerError!ProgramImage {
         var top_level_ns = self.variables.newNamespace();
         defer top_level_ns.deinit();
 
@@ -197,7 +197,7 @@ pub const Compiler = struct {
     /// - no top-level yields have been emitted (yields behind effect handling
     ///   frames are permitted)
     ///
-    fn compileExpression(self: *Compiler, ns: *Namespace, expr: ast.Expression) CompilerError!ir.ValueSource {
+    fn compileExpression(self: *Compiler, ns: *Namespace, expr: cst.Expression) CompilerError!ir.ValueSource {
         switch (expr.kind) {
             .variable => |variable| {
                 const var_id = self.variables.resolve(ns, variable.name) orelse return error.InvalidVariableReference;
@@ -537,7 +537,7 @@ pub const Compiler = struct {
     fn compileBuiltinQuantified(
         self: *Compiler,
         ns: *Namespace,
-        fc: ast.FunctionCall,
+        fc: cst.FunctionCall,
         negated: bool,
     ) CompilerError!void {
         if (fc.arguments.len != 2) return error.InvalidGuardExpression;
@@ -596,7 +596,7 @@ pub const Compiler = struct {
         return .{ .variable_id = result_tmp };
     }
 
-    fn compileBuiltinSelect(self: *Compiler, ns: *Namespace, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
+    fn compileBuiltinSelect(self: *Compiler, ns: *Namespace, fc: cst.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidGuardExpression;
         const saved_node = self.variables.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = saved_node, .source = .{ .current = .value } } });
@@ -609,7 +609,7 @@ pub const Compiler = struct {
         return .{ .current = .value };
     }
 
-    fn compileBuiltinUnnest(self: *Compiler, ns: *Namespace, fc: ast.FunctionCall) CompilerError!ir.ValueSource {
+    fn compileBuiltinUnnest(self: *Compiler, ns: *Namespace, fc: cst.FunctionCall) CompilerError!ir.ValueSource {
         if (fc.arguments.len != 1) return error.InvalidArguments;
         var arg = fc.arguments[0];
         while (arg.kind == .parenthesized) arg = arg.kind.parenthesized.*;
@@ -618,7 +618,7 @@ pub const Compiler = struct {
         return try self.bindValue();
     }
 
-    fn compileListValue(self: *Compiler, ns: *Namespace, elements: []const ast.Expression) CompilerError!ir.ValueSource {
+    fn compileListValue(self: *Compiler, ns: *Namespace, elements: []const cst.Expression) CompilerError!ir.ValueSource {
         const input_tmp = self.variables.allocateAnonymous();
         try self.instruction_builder.emit(.{ .asn = .{ .variable_id = input_tmp, .source = .{ .current = .value } } });
 

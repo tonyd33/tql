@@ -1,5 +1,6 @@
 title: dynamic kind tests are not part of 0.3
 grammar: typescript
+asserts: error
 
 A `:kind` selector is static syntax. A computed string cannot stand in for one.
 
@@ -8,10 +9,10 @@ main =
   let {
     k = "class_declaration"
   } in
-    . / :k;
+    (children | is_kind :k);
 
 --- error ---
 category: unknown-kind
-span: 5:9-5:11
+span: 5:25-5:27
 The `:k` selector. `k` is not a grammar kind, and the selector does not
 evaluate its operand.

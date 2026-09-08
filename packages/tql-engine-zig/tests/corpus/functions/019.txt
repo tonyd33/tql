@@ -5,7 +5,7 @@ pending: values
 --- tql ---
 n = 100;
 shadowed n = n + 1;
-main = shadowed 1, n;
+main = pure (shadowed 1), pure n;
 
 --- source ---
 class A {}

@@ -8,7 +8,7 @@ generator: 10 pairs with 1 then 2, then 20 pairs with 1 then 2, giving
 and give 11, 21, 12, 22.
 
 --- tql ---
-main = (10, 20) + (1, 2);
+main = \_root -> do { l <- [10, 20]; r <- [1, 2]; [l + r] };
 
 --- source ---
 class A {}

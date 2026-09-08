@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-from n = n, from (n + 1);
+from n = pure n, from (n + 1);
 main = exists (from 0);
 
 --- source ---
