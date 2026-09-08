@@ -1,5 +1,6 @@
 title: a `do` block with no final expression
 grammar: typescript
+asserts: error
 
 Every `do` block has exactly one final expression. This block ends after a
 statement, so the `}` arrives where the final expression was required.

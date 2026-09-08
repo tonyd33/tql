@@ -7,7 +7,8 @@ self-reference is under a binder and is not entered until the function is
 applied. This is well-defined only if the group's entries are lazy thunks over
 the group's own environment.
 
-The unguarded case `ones = 1, ones` is deliberately not used here; see D8 Q3.
+The unguarded case `ones = 1, ones` is deliberately not used here: it diverges
+rather than building a thunk, which is a different claim.
 
 --- tql ---
 main =

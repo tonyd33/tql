@@ -1,5 +1,6 @@
 title: a `let`-bound name is not visible outside its group
 grammar: typescript
+asserts: error
 
 `inner` is scoped to the `let` body. The reference after `in` closes is
 unresolved.

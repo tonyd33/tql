@@ -148,6 +148,14 @@ const Walker = struct {
         return self.allocator.dupe(u8, textOf(node, self.source));
     }
 
+    /// Releases a declaration head on a `null` return, which `errdefer` does
+    /// not cover.
+    fn releaseHead(self: *Walker, name: []const u8, params: []const cst.Parameter) void {
+        self.allocator.free(name);
+        for (params) |p| p.deinit(self.allocator);
+        self.allocator.free(params);
+    }
+
     fn boxed(self: *Walker, value: anytype) !*@TypeOf(value) {
         const ptr = try self.allocator.create(@TypeOf(value));
         ptr.* = value;
@@ -232,9 +240,13 @@ const Walker = struct {
 
         const body_node = node.childByFieldName("body") orelse {
             try self.missingField(node, "body");
+            self.releaseHead(name, params);
             return null;
         };
-        const body = try self.expression(body_node) orelse return null;
+        const body = try self.expression(body_node) orelse {
+            self.releaseHead(name, params);
+            return null;
+        };
 
         return .{
             .name = name,
@@ -288,9 +300,13 @@ const Walker = struct {
 
         const value_node = node.childByFieldName("value") orelse {
             try self.missingField(node, "value");
+            self.releaseHead(name, params);
             return null;
         };
-        const value = try self.expression(value_node) orelse return null;
+        const value = try self.expression(value_node) orelse {
+            self.releaseHead(name, params);
+            return null;
+        };
 
         return .{
             .name = name,
@@ -481,7 +497,10 @@ const Walker = struct {
         };
         const function = try self.expression(fn_node) orelse return null;
         errdefer function.deinit(self.allocator);
-        const argument = try self.expression(arg_node) orelse return null;
+        const argument = try self.expression(arg_node) orelse {
+            function.deinit(self.allocator);
+            return null;
+        };
         return .{
             .kind = .{ .apply = try self.boxed(cst.Apply{
                 .function = function,
@@ -516,7 +535,12 @@ const Walker = struct {
 
         const left = try self.expression(left_node) orelse return null;
         errdefer left.deinit(self.allocator);
-        const right = try self.expression(right_node) orelse return null;
+        // `errdefer` does not fire on the null return, so an unparsable right
+        // operand has to release the left one explicitly.
+        const right = try self.expression(right_node) orelse {
+            left.deinit(self.allocator);
+            return null;
+        };
         return .{
             .kind = .{ .binary = try self.boxed(cst.Binary{
                 .operator = operator,
@@ -554,9 +578,16 @@ const Walker = struct {
         };
         const condition = try self.expression(cond_node) orelse return null;
         errdefer condition.deinit(self.allocator);
-        const consequence = try self.expression(then_node) orelse return null;
+        const consequence = try self.expression(then_node) orelse {
+            condition.deinit(self.allocator);
+            return null;
+        };
         errdefer consequence.deinit(self.allocator);
-        const alternative = try self.expression(else_node) orelse return null;
+        const alternative = try self.expression(else_node) orelse {
+            condition.deinit(self.allocator);
+            consequence.deinit(self.allocator);
+            return null;
+        };
         return .{
             .kind = .{ .@"if" = try self.boxed(cst.If{
                 .condition = condition,
@@ -759,7 +790,10 @@ const Walker = struct {
             };
             const from = try self.typeExpr(from_node) orelse return null;
             errdefer from.deinit(self.allocator);
-            const to = try self.typeExpr(to_node) orelse return null;
+            const to = try self.typeExpr(to_node) orelse {
+                from.deinit(self.allocator);
+                return null;
+            };
             return cst.Type{
                 .kind = .{ .function = try self.boxed(cst.FunctionType{
                     .from = from,
@@ -779,7 +813,10 @@ const Walker = struct {
             };
             const input = try self.typeExpr(in_node) orelse return null;
             errdefer input.deinit(self.allocator);
-            const output = try self.typeExpr(out_node) orelse return null;
+            const output = try self.typeExpr(out_node) orelse {
+                input.deinit(self.allocator);
+                return null;
+            };
             return cst.Type{
                 .kind = .{ .filter = try self.boxed(cst.FilterType{
                     .input = input,

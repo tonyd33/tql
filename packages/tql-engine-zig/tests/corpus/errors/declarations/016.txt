@@ -1,5 +1,6 @@
 title: a user definition may not collide with a prelude symbol
 grammar: typescript
+asserts: error
 
 `select` is an ordinary prelude definition, but it is still a global symbol and
 may not be redefined at top level. A *local* binding of the same name is fine;

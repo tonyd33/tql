@@ -1,5 +1,6 @@
 title: a signature may not annotate a wired symbol
 grammar: typescript
+asserts: error
 
 Wired symbols are supplied by the implementation and need no source
 declaration.

@@ -1,5 +1,6 @@
 title: bool literals in filter position
 grammar: typescript
+asserts: core
 pending: values
 
 Union requires one element type, so this fixture unions bools only. LIT-01
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 [true, false, true]
+
+--- core ---
+main = union (union (pure true) (pure false)) (pure true)

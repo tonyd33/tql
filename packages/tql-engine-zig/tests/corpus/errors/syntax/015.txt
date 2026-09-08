@@ -1,5 +1,6 @@
 title: an unclosed `let` group
 grammar: typescript
+asserts: error
 
 `in` arrives where the binding group's `}` was required.
 

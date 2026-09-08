@@ -1,5 +1,6 @@
 title: dynamic kind tests are not part of 0.3
 grammar: typescript
+asserts: error
 
 A `:kind` selector is static syntax. A computed string cannot stand in for one.
 
