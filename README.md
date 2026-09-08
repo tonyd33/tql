@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 Find all function names
 
 ```sh
-tql query --grammar=c ". > function_definition.declarator.declarator | text" main.c
+tql query --grammar=c ". / function_definition.declarator.declarator | text" main.c
 ```
 
 Output:
@@ -55,7 +55,7 @@ main.c: main
 Find all function argument names
 
 ```sh
-tql query --grammar=c ". > function_definition.declarator > parameter_list >> identifier | text" main.c
+tql query --grammar=c ". / function_definition.declarator / parameter_list // identifier | text" main.c
 ```
 
 Output:
@@ -72,8 +72,8 @@ Find all function argument names with type int
 
 ```sh
 tql query --grammar=c "
-. > function_definition.declarator
-| .parameters > parameter_declaration
+. / function_definition.declarator
+| .parameters / parameter_declaration
 | select(.type | text = 'int')
 | .declarator
 | text
@@ -93,8 +93,8 @@ Find all function names with an argument with type int
 
 ```sh
 tql query --grammar=c "
-. > function_definition.declarator as @func_decl
-| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
+. / function_definition.declarator as @func_decl
+| select(any(@func_decl.parameters / parameter_declaration; .type | text = 'int'))
 | @func_decl.declarator
 | text
 " main.c
@@ -111,11 +111,11 @@ Find all function names with an argument with type int, along with that function
 
 ```sh
 tql query --grammar=c "
-. > function_definition.declarator as @func_decl
-| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
+. / function_definition.declarator as @func_decl
+| select(any(@func_decl.parameters / parameter_declaration; .type | text = 'int'))
 | {
     name: @func_decl.declarator | text,
-    params: [@func_decl.parameters > parameter_declaration | text]
+    params: [@func_decl.parameters / parameter_declaration | text]
   }
 " main.c
 ```

@@ -1,0 +1,12 @@
+title: comparison binds looser than arithmetic
+grammar: typescript
+pending: values
+
+--- tql ---
+main = pure (1 + 1 = 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

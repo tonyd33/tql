@@ -1,0 +1,15 @@
+title: `and` propagates a multi-output right operand
+grammar: typescript
+pending: values
+
+The left `true` contributes the whole right stream; the left `false`
+contributes exactly one `false`.
+
+--- tql ---
+main = (pure true, pure false) and (pure true, pure false);
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false, false]

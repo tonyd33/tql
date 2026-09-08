@@ -1,0 +1,12 @@
+title: parentheses override precedence
+grammar: typescript
+pending: values
+
+--- tql ---
+main = pure ((2 + 3) * 4);
+
+--- source ---
+class A {}
+
+--- values ---
+[20]

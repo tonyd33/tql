@@ -1,0 +1,26 @@
+title: stream binding preserves correlation between outputs
+grammar: typescript
+pending: values
+
+This is the case that motivated replacing `as`. Each method is paired with the
+class it came from, because the outer binding stays in scope inside the inner
+branch. A formulation that lost the outer node could not produce these pairs.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    m <- (children | is_kind :method_definition) c.body;
+    [{ class = text c.name, method = text m.name }]
+  };
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+[
+  { "class": "A", "method": "m" },
+  { "class": "A", "method": "n" },
+  { "class": "B", "method": "p" }
+]

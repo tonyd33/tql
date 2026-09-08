@@ -1,0 +1,15 @@
+title: a filter output is not serializable
+grammar: typescript
+
+`main` yields a filter value. Filters have no JSON encoding and fail `Serial`
+before the query runs.
+
+--- tql ---
+main = kind;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:8-1:12
+`Serial (Filter node string)` is not satisfied. Note the distinction from a
+correct program: `. | kind` yields strings and is accepted, while `kind` here
+is a bare filter *value* in a value position.

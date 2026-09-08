@@ -42,6 +42,20 @@ tasks:
     deps: [grammar:build, engine:build, js:build]
     cmds:
       - cp packages/tql-engine-zig/zig-out/bin/tql.wasm packages/playground/static/tql.wasm
+      - cp packages/tql-engine-zig/zig-out/wasm-grammars/*.wasm packages/playground/static/
+      - task: playground:build
+
+  build-nix:
+    desc: Build the playground entirely through nix
+    cmds:
+      - nix build .#tql-playground
+
+  build-nix-assets:
+    desc: Stage nix-built wasm assets for a local playground build
+    cmds:
+      - nix build .#tql-wasm-assets --out-link result-wasm
+      - install -m644 result-wasm/*.wasm packages/playground/static/
+      - task: js:build
       - task: playground:build
 
   test:

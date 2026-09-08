@@ -1,0 +1,16 @@
+title: field access binds tighter than application
+grammar: typescript
+pending: values
+
+`name_of .` applies `name_of` to `.`; inside, `n.name` is field access on the
+parameter before any application is considered.
+
+--- tql ---
+name_of n = n.name | text;
+main = children | is_kind :class_declaration | name_of;
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

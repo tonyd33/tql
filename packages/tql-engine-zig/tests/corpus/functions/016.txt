@@ -1,0 +1,16 @@
+title: a generalized global used at two types
+grammar: typescript
+pending: values
+
+`pick` is generalized after its SCC is checked, so it may be instantiated at
+`int` and at `string` in the same program.
+
+--- tql ---
+pick x y = x;
+main = pure (pick 1 2), pure (length (pick "ab" "cd"));
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2]

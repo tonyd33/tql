@@ -1,0 +1,15 @@
+title: field navigation and kind navigation compose
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | .body | children | is_kind :method_definition
+  | .name | text;
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["m", "n"]

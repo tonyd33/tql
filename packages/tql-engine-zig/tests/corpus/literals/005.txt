@@ -1,0 +1,15 @@
+title: regex match against node text
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | \c -> text c.name ~ r"^Ser";
+
+--- source ---
+class Service {}
+class Other {}
+
+--- values ---
+[true, false]

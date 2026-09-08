@@ -1,0 +1,46 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def is_hook(@ident): @ident | text ~ /^use[A-Z][a-zA-Z]+/;
+
+. // identifier | is_hook(.)
+
+--- source ---
+function useFoo() {}
+function bar() {}
+
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (query is_hook (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use[A-Z][a-zA-Z]+"))) (pipe (descendant . (node identifier)) (call is_hook .)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: trv value_source (variable_id 3)
+0009: asn 0 ((current value) value)
+0010: call 14
+0011: asn 4 ((current value) value)
+0012: yield variable_id 4
+0013: halt
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 6 ((current value) text)
+0017: trv value_source (variable_id 5)
+0018: rel like (variable_id 6) (literal regex ...) -> 7
+0019: yield variable_id 7
+0020: halt

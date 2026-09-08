@@ -1,0 +1,92 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @c | select(any(@c.body / method_definition; any(@c.body / method_definition; .name = .name))) | @c
+
+--- source ---
+class A { foo() {}; bar() {}; }
+class B {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { foo() {}; bar() {}; }",
+    "start_byte": 0,
+    "end_byte": 31,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 31
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (child (field c body) (node method_definition)) (call any (child (field c body) (node method_definition)) (eq (dot-field name) (dot-field name)))))) c))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)) (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 51
+0012: trv value_source (variable_id 0)
+0013: trv field 5
+0014: asn 5 ((current value) value)
+0015: trv value_source (variable_id 5)
+0016: trv child
+0017: rel equals ((current value) kind) (literal kind_id 261) -> 6
+0018: jmp 20 if (variable_id 6)
+0019: halt
+0020: asn 7 ((current value) value)
+0021: trv value_source (variable_id 7)
+0022: asn 8 ((current value) value)
+0023: trv value_source (variable_id 8)
+0024: probe exists 48
+0025: trv value_source (variable_id 0)
+0026: trv field 5
+0027: asn 9 ((current value) value)
+0028: trv value_source (variable_id 9)
+0029: trv child
+0030: rel equals ((current value) kind) (literal kind_id 261) -> 10
+0031: jmp 33 if (variable_id 10)
+0032: halt
+0033: asn 11 ((current value) value)
+0034: trv value_source (variable_id 11)
+0035: asn 12 ((current value) value)
+0036: trv value_source (variable_id 12)
+0037: asn 13 ((current value) value)
+0038: trv field 25
+0039: asn 14 ((current value) value)
+0040: asn 15 (variable_id 14)
+0041: trv value_source (variable_id 13)
+0042: trv field 25
+0043: asn 16 ((current value) value)
+0044: rel equals (variable_id 15) (variable_id 16) -> 17
+0045: jmp 47 if not (variable_id 17)
+0046: yield (current value) value
+0047: halt
+0048: jmp 50 if not (literal bool true)
+0049: yield (current value) value
+0050: halt
+0051: trv value_source (variable_id 4)
+0052: jmp 54 if (literal bool true)
+0053: halt
+0054: trv value_source ((current value) value)
+0055: yield variable_id 0
+0056: halt

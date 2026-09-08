@@ -1,0 +1,16 @@
+title: list equality is element-wise and order-sensitive
+grammar: typescript
+pending: values
+
+Lists are ordered, so a different order is a different value. Lists of
+different length are never equal.
+
+--- tql ---
+main =
+  (pure (["a", "b"] = ["a", "b"]), pure (["a"] = ["a", "b"]));
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

@@ -1,0 +1,16 @@
+title: a union is lazy in its right operand
+grammar: typescript
+pending: values
+
+The left operand alone satisfies the probe, so the infinite right operand is
+never forced.
+
+--- tql ---
+from n = pure n, from (n + 1);
+main = probe (pure 0, from 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

@@ -1,0 +1,19 @@
+title: a range encodes as the location subset without kind or text
+grammar: typescript
+pending: values
+
+--- tql ---
+main = children | is_kind :class_declaration | range;
+
+--- source ---
+class A {}
+
+--- values ---
+[
+  {
+    "start_byte": 0,
+    "end_byte": 10,
+    "start_point": { "row": 0, "column": 0 },
+    "end_point": { "row": 0, "column": 10 }
+  }
+]

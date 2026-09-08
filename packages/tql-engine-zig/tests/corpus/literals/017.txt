@@ -1,0 +1,18 @@
+title: node equality is identity-based
+grammar: typescript
+pending: values
+
+Both operands select the same single node, so the pair is that node against
+itself.
+
+--- tql ---
+main root =
+  do { l <- (children | is_kind :class_declaration) root;
+       r <- (children | is_kind :class_declaration) root;
+       [l = r] };
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

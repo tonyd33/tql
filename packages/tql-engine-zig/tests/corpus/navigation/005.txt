@@ -1,0 +1,12 @@
+title: static descendant navigation reaches nested nodes
+grammar: typescript
+pending: values
+
+--- tql ---
+main = descendants | is_kind :method_definition | .name | text;
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["m", "n"]

@@ -1,0 +1,18 @@
+title: `probe` forces at most the first result
+grammar: typescript
+pending: values
+
+`nats` is an infinite recursive filter. `probe` terminates because it needs
+only to know whether a first result exists. A strict implementation that
+materialized the stream would not terminate.
+
+--- tql ---
+from n = pure n, from (n + 1);
+nats = from 0;
+main = probe nats;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

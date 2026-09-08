@@ -1,0 +1,19 @@
+title: an outer input must be bound explicitly to survive a later bind
+grammar: typescript
+pending: values
+
+`root` is bound before the navigation so the body can still reach the program
+node after the current input has been rebased onto a class node.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    [{ root = kind root, class = text c.name }]
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "root": "program", "class": "A" }]

@@ -1,0 +1,67 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+let @a = . / class_declaration in
+let @b = @a.name in
+@b
+
+--- source ---
+class Service {}
+class Controller {}
+function foo() {}
+
+--- values ---
+[
+  {
+    "kind": "type_identifier",
+    "text": "Service",
+    "start_byte": 6,
+    "end_byte": 13,
+    "start_point": {
+      "row": 0,
+      "column": 6
+    },
+    "end_point": {
+      "row": 0,
+      "column": 13
+    }
+  },
+  {
+    "kind": "type_identifier",
+    "text": "Controller",
+    "start_byte": 23,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 6
+    },
+    "end_point": {
+      "row": 1,
+      "column": 16
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (let ((a (child . (node class_declaration)))) (let ((b (field a name))) b)))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)) (class_declaration name: (type_identifier) body: (class_body)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: trv field 25
+0011: asn 5 ((current value) value)
+0012: asn 4 (variable_id 5)
+0013: yield variable_id 4
+0014: halt

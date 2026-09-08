@@ -1,0 +1,18 @@
+title: a record runs each field on the same input
+grammar: typescript
+asserts: core
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | { kind = kind, name = .name | text };
+
+--- source ---
+class Service {}
+
+--- values ---
+[{ "kind": "class_declaration", "name": "Service" }]
+
+--- core ---
+main = compose (compose children is_kind[class_declaration]) (record_filter[kind,name] kind (compose field[name] text))

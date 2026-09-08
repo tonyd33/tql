@@ -1,0 +1,17 @@
+title: application still binds tighter than `not`
+grammar: typescript
+pending: values
+
+`not is_a .` is `not (is_a .)`. Application binds tighter than `not`, so the
+looser grouping of `not` over comparison does not reach it.
+
+--- tql ---
+is_a n = n.name | text = "A";
+main = children | is_kind :class_declaration | not is_a .;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[false, true]

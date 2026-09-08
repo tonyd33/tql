@@ -1,0 +1,10 @@
+title: navigation requires a node input
+grammar: typescript
+
+--- tql ---
+main = pure ("text" / 2);
+
+--- error ---
+category: type-mismatch
+span: 1:14-1:20
+The left operand of `/`. Expected `int`, found `string`.

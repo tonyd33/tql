@@ -1,0 +1,12 @@
+title: `Sized` on a node
+grammar: typescript
+
+A node is not sized; its text is.
+
+--- tql ---
+main = children | is_kind :class_declaration | length;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:48-1:54
+`Sized node` is not satisfied.

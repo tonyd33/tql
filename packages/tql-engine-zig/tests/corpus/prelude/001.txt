@@ -1,0 +1,20 @@
+title: `select` keeps inputs whose predicate holds
+grammar: typescript
+pending: values
+
+`select p = branch p identity empty`. Unifying `identity : Filter a a` against
+the sibling `empty` arm pins the result type, giving
+`select : Filter a bool -> Filter a a`.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | select (\c -> [text c.name ~ r"^S"]) | .name | text;
+
+--- source ---
+class Service {}
+class Other {}
+class Store {}
+
+--- values ---
+["Service", "Store"]

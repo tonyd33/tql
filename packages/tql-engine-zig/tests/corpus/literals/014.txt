@@ -1,0 +1,13 @@
+title: comparison operators on integers
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  (pure (1 < 2), pure (2 <= 2), pure (3 > 4), pure (3 >= 3));
+
+--- source ---
+class A {}
+
+--- values ---
+[true, true, false, true]

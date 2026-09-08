@@ -1,0 +1,18 @@
+title: a curried definition applied to all its arguments
+grammar: typescript
+asserts: core
+pending: values
+
+--- tql ---
+add x y = x + y;
+main = pure (add 2 3);
+
+--- source ---
+class A {}
+
+--- values ---
+[5]
+
+--- core ---
+add = \x -> \y -> op[+] x y
+main = pure (add 2 3)

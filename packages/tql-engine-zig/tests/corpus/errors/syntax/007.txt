@@ -1,0 +1,16 @@
+title: `@` variables are removed
+grammar: typescript
+asserts: error
+
+`@name` is legacy 0.2 variable syntax. `@` is not a token in 0.3, so the line
+fails at the `@` itself.
+
+--- tql ---
+main = children | is_kind :class_declaration | @name;
+
+--- error ---
+category: parse
+span: any
+Removed syntax. A generic parse error is enough; the exact span is not
+normative, because pinning it would mean teaching the grammar the shape of
+`@name` in order to report it as one token.

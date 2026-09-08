@@ -1,0 +1,17 @@
+title: a condition yielding no booleans yields no output
+grammar: typescript
+pending: values
+
+Neither branch runs. The empty condition stream produces an empty result even
+though both branches would succeed.
+
+--- tql ---
+main =
+  branch (children | is_kind :interface_declaration | pure true)
+         (pure "yes") (pure "no");
+
+--- source ---
+class A {}
+
+--- values ---
+[]

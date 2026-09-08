@@ -1,0 +1,12 @@
+title: modulo by zero yields the empty stream
+grammar: typescript
+pending: values
+
+--- tql ---
+main = 1 % 0;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

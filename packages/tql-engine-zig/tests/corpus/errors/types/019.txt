@@ -1,0 +1,15 @@
+title: `Ord` on a node
+grammar: typescript
+
+`node` has `Eq` but not `Ord`, so ordering two nodes is rejected even though
+comparing them for equality is not.
+
+--- tql ---
+main root =
+  pure ((children | is_kind :class_declaration) root
+        < (children | is_kind :class_declaration) root);
+
+--- error ---
+category: unsatisfied-constraint
+span: 2:9-3:56
+`Ord node` is not satisfied.

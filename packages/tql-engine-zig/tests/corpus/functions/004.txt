@@ -1,0 +1,13 @@
+title: a definition with no parameters binds a value directly
+grammar: typescript
+pending: values
+
+--- tql ---
+limit = 7;
+main = pure (limit + 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[8]

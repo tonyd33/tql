@@ -1,0 +1,14 @@
+title: a function parameter shadows a global of the same name
+grammar: typescript
+pending: values
+
+--- tql ---
+n = 100;
+shadowed n = n + 1;
+main = pure (shadowed 1), pure n;
+
+--- source ---
+class A {}
+
+--- values ---
+[2, 100]

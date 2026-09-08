@@ -1,0 +1,174 @@
+========================================
+a definition with no parameters
+========================================
+
+main = 1;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (number)))
+
+========================================
+a definition with parameters
+========================================
+
+add x y = x + y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    parameter: (identifier)
+    body: (additive
+      left: (identifier)
+      right: (identifier))))
+
+========================================
+main takes the parsed root as its parameter
+========================================
+
+main root = (children | is_kind :class_declaration) root;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (application
+      function: (parenthesized
+        (pipe
+          left: (identifier)
+          right: (application
+            function: (identifier)
+            argument: (kind))))
+      argument: (identifier))))
+
+========================================
+several declarations in sequence
+========================================
+
+is_even n = if n = 0 then true else is_odd (n - 1);
+is_odd n = if n = 0 then false else is_even (n - 1);
+main = is_even 4;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (if_expression
+      condition: (comparison
+        left: (identifier)
+        right: (number))
+      consequence: (boolean)
+      alternative: (application
+        function: (identifier)
+        argument: (parenthesized
+          (additive
+            left: (identifier)
+            right: (number))))))
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (if_expression
+      condition: (comparison
+        left: (identifier)
+        right: (number))
+      consequence: (boolean)
+      alternative: (application
+        function: (identifier)
+        argument: (parenthesized
+          (additive
+            left: (identifier)
+            right: (number))))))
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (number))))
+
+========================================
+a signature
+========================================
+
+main : Filter node string;
+main = kind;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (filter_type
+      input: (type_variable)
+      output: (type_variable)))
+  (definition
+    name: (identifier)
+    body: (identifier)))
+
+========================================
+a function-typed signature
+========================================
+
+name_of : Filter node node -> Filter node string;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (filter_type
+        input: (type_variable)
+        output: (type_variable))
+      to: (filter_type
+        input: (type_variable)
+        output: (type_variable)))))
+
+========================================
+list and record types
+========================================
+
+f : [Filter node string];
+g : { name: string, size: int };
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (list_type
+      (filter_type
+        input: (type_variable)
+        output: (type_variable))))
+  (signature
+    name: (identifier)
+    type: (record_type
+      (record_type_field
+        name: (identifier)
+        type: (type_variable))
+      (record_type_field
+        name: (identifier)
+        type: (type_variable)))))
+
+========================================
+a comment
+========================================
+
+-- the entrypoint
+main = 1;
+
+---
+
+(source_file
+  (comment)
+  (definition
+    name: (identifier)
+    body: (number)))

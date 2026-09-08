@@ -1,0 +1,12 @@
+title: `.` is the identity filter
+grammar: typescript
+pending: values
+
+--- tql ---
+main = kind;
+
+--- source ---
+class A {}
+
+--- values ---
+["program"]

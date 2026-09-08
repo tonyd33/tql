@@ -1,0 +1,235 @@
+========================================
+field access binds tighter than application
+========================================
+
+main = f x.name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (field_access
+        record: (identifier)
+        field: (field_name)))))
+
+========================================
+application binds tighter than division
+========================================
+
+main = f x / y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (multiplicative
+      left: (application
+        function: (identifier)
+        argument: (identifier))
+      right: (identifier))))
+
+========================================
+division is left-associative and shares the multiplicative level
+========================================
+
+main = 8 / 4 * 2;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (multiplicative
+      left: (multiplicative
+        left: (number)
+        right: (number))
+      right: (number))))
+
+========================================
+multiplication binds tighter than addition
+========================================
+
+main = 2 + 3 * 4;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (additive
+      left: (number)
+      right: (multiplicative
+        left: (number)
+        right: (number)))))
+
+========================================
+addition binds tighter than comparison
+========================================
+
+main = 1 + 1 = 2;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (comparison
+      left: (additive
+        left: (number)
+        right: (number))
+      right: (number))))
+
+========================================
+comparison binds tighter than not
+========================================
+
+main = not 1 = 1;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (logical_not
+      operand: (comparison
+        left: (number)
+        right: (number)))))
+
+========================================
+not binds tighter than and
+========================================
+
+main = not false and false;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (logical_and
+      left: (logical_not
+        operand: (boolean))
+      right: (boolean))))
+
+========================================
+application binds tighter than not
+========================================
+
+main = not f x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (logical_not
+      operand: (application
+        function: (identifier)
+        argument: (identifier)))))
+
+========================================
+and binds tighter than or
+========================================
+
+main = false and true or true;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (logical_or
+      left: (logical_and
+        left: (boolean)
+        right: (boolean))
+      right: (boolean))))
+
+========================================
+or binds tighter than pipe
+========================================
+
+main = a or b | c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (logical_or
+        left: (identifier)
+        right: (identifier))
+      right: (identifier))))
+
+========================================
+pipe binds tighter than union
+========================================
+
+main = a | b, c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (union
+      left: (pipe
+        left: (identifier)
+        right: (identifier))
+      right: (identifier))))
+
+========================================
+a comparison chain groups to the left
+========================================
+
+main = 1 < 2 < 3;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (comparison
+      left: (comparison
+        left: (number)
+        right: (number))
+      right: (number))))
+
+========================================
+subtraction is left-associative
+========================================
+
+main = 10 - 3 - 2;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (additive
+      left: (additive
+        left: (number)
+        right: (number))
+      right: (number))))
+
+========================================
+parentheses override precedence
+========================================
+
+main = (2 + 3) * 4;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (multiplicative
+      left: (parenthesized
+        (additive
+          left: (number)
+          right: (number)))
+      right: (number))))

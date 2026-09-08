@@ -1,0 +1,73 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / function_declaration as @f | select(@f.return_type is not null) | @f
+
+--- source ---
+function a(): number { return 1; }
+function b() { return 2; }
+function c(): string { return 'x'; }
+
+--- values ---
+[
+  {
+    "kind": "function_declaration",
+    "text": "function a(): number { return 1; }",
+    "start_byte": 0,
+    "end_byte": 34,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 34
+    }
+  },
+  {
+    "kind": "function_declaration",
+    "text": "function c(): string { return 'x'; }",
+    "start_byte": 62,
+    "end_byte": 98,
+    "start_point": {
+      "row": 2,
+      "column": 0
+    },
+    "end_point": {
+      "row": 2,
+      "column": 36
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node function_declaration)) f) (call select (is-not-null (field f return_type)))) f))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block (return_statement (number)))) (function_declaration name: (identifier) parameters: (formal_parameters) return_type: (type_annotation (predefined_type)) body: (statement_block (return_statement (string (string_fragment))))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 17
+0012: trv value_source (variable_id 0)
+0013: trv field 33
+0014: asn 5 ((current value) value)
+0015: yield (current value) value
+0016: halt
+0017: trv value_source (variable_id 4)
+0018: jmp 20 if (literal bool true)
+0019: halt
+0020: trv value_source ((current value) value)
+0021: yield variable_id 0
+0022: halt

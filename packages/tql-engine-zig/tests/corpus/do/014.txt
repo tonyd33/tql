@@ -1,0 +1,18 @@
+title: a `do` bind over a non-node stream
+grammar: typescript
+pending: values
+
+Stream binding is not node-specific; it binds any filter's outputs.
+
+--- tql ---
+main _root =
+  do {
+    n <- [1, 2, 3];
+    [n * 10]
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[10, 20, 30]

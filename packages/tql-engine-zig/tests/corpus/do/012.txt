@@ -1,0 +1,21 @@
+title: a bound scalar is lifted in an operator operand
+grammar: typescript
+pending: values
+
+`expected` is a bound string. The comparison needs a filter operand, so the
+string is lifted to a one-result filter rather than being run.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    let expected = "A";
+    [text c.name = expected]
+  };
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]

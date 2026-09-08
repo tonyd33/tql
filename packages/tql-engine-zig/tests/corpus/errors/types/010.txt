@@ -1,0 +1,10 @@
+title: `unnest` requires a list input
+grammar: typescript
+
+--- tql ---
+main = 42 | unnest;
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:10
+The pipe input. Expected `[a]`, found `int`.

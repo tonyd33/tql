@@ -1,0 +1,119 @@
+grammar: c
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / function_definition as @func | {
+  fn: @func,
+  param_lists: [
+    @func.declarator as @decl |
+    [@decl.parameters / parameter_declaration]
+  ]
+}
+
+--- source ---
+int add(int a, int b) { return a + b; }
+
+--- values ---
+[
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "param_lists": [
+      [
+        {
+          "kind": "parameter_declaration",
+          "text": "int a",
+          "start_byte": 8,
+          "end_byte": 13,
+          "start_point": {
+            "row": 0,
+            "column": 8
+          },
+          "end_point": {
+            "row": 0,
+            "column": 13
+          }
+        },
+        {
+          "kind": "parameter_declaration",
+          "text": "int b",
+          "start_byte": 15,
+          "end_byte": 20,
+          "start_point": {
+            "row": 0,
+            "column": 15
+          },
+          "end_point": {
+            "row": 0,
+            "column": 20
+          }
+        }
+      ]
+    ]
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (param_lists (collect (pipe (bind (field func declarator) decl) (collect (child (field decl parameters) (node parameter_declaration)))))))))
+
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: asn 5 (variable_id 0)
+0013: trv value_source (variable_id 4)
+0014: probe aggregate 36 6 list
+0015: trv value_source (variable_id 0)
+0016: trv field 10
+0017: asn 8 ((current value) value)
+0018: asn 7 (variable_id 8)
+0019: trv value_source (variable_id 7)
+0020: probe aggregate 34 9 list
+0021: trv value_source (variable_id 7)
+0022: trv field 28
+0023: asn 10 ((current value) value)
+0024: trv value_source (variable_id 10)
+0025: trv child
+0026: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0027: jmp 29 if (variable_id 11)
+0028: halt
+0029: asn 12 ((current value) value)
+0030: trv value_source (variable_id 12)
+0031: asn 13 ((current value) value)
+0032: yield variable_id 13
+0033: halt
+0034: yield variable_id 9
+0035: halt
+0036: asn 14 (variable_id 6)
+0037: probe aggregate 43 15 record
+0038: yield literal string "fn"
+0039: yield variable_id 5
+0040: yield literal string "param_lists"
+0041: yield variable_id 14
+0042: halt
+0043: yield variable_id 15
+0044: halt

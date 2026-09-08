@@ -1,0 +1,20 @@
+title: multiple lambda parameters are nested unary lambdas
+grammar: typescript
+pending: values
+
+`\x y -> x + y` and `\x -> \y -> x + y` are the same value. Both are applied
+the same way.
+
+--- tql ---
+main =
+  let {
+    a = \x y -> x + y;
+    b = \x -> \y -> x + y
+  } in
+    pure (a 1 2), pure (b 1 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 3]

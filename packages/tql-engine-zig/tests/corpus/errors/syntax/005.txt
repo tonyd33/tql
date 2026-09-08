@@ -1,0 +1,19 @@
+title: a `do` block with no final expression
+grammar: typescript
+asserts: error
+
+Every `do` block has exactly one final expression. This block ends after a
+statement, so the `}` arrives where the final expression was required.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+  };
+
+--- error ---
+category: parse
+span: any
+Rejection is what matters. Whether the diagnostic points at the `}` or at the
+block it closes is a presentation choice, and pinning it here would freeze a
+recovery detail the language does not fix.

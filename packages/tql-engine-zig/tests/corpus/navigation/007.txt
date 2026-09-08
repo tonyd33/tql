@@ -1,0 +1,15 @@
+title: descendants are proper; a node is not its own descendant
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | descendants | is_kind :class_declaration
+  | .name | text;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

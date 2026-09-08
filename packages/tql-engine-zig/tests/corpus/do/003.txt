@@ -1,0 +1,21 @@
+title: nested binds concatenate in stream order
+grammar: typescript
+pending: values
+
+Both methods of A precede the method of B: the outer bind's order is preserved
+and the inner bind's results are concatenated within each branch.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    m <- (children | is_kind :method_definition) c.body;
+    (.name | text) m
+  };
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+["m", "n", "p"]

@@ -1,0 +1,28 @@
+title: descendant navigation is pre-order
+grammar: typescript
+pending: values
+
+Pre-order visits each node before its own descendants. `class_declaration` A
+precedes its nested `method_definition` m, which precedes the later sibling
+`class_declaration` B. A breadth-first or post-order walk would reorder these.
+
+--- tql ---
+main = descendants | kind;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[
+  "class_declaration",
+  "type_identifier",
+  "class_body",
+  "method_definition",
+  "property_identifier",
+  "formal_parameters",
+  "statement_block",
+  "class_declaration",
+  "type_identifier",
+  "class_body"
+]

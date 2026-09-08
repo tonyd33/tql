@@ -1,0 +1,12 @@
+title: `parent` yields exactly one node below the root
+grammar: typescript
+pending: values
+
+--- tql ---
+main = descendants | is_kind :method_definition | parent | kind;
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["class_body"]

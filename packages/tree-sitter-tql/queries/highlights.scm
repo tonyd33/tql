@@ -1,24 +1,37 @@
-[ "def"
-  "as"
-  "is"
+[ "let"
+  "in"
+  "do"
+  "if"
+  "then"
+  "else"
   "and"
   "or"
   "not"
 ] @keyword
 
-(null_literal) @constant.builtin
-
 (comment) @comment
 
-(variable) @variable
-(dot_field_access field: (_) @attribute)
+(boolean) @constant.builtin
+
+(kind) @type
+
 (field_access field: (_) @attribute)
-(descendant_navigation descendant: (_) @property)
-(child_navigation child: (_) @property)
+(leading_field field: (_) @attribute)
+(record_field name: (_) @property)
+(record_type_field name: (_) @property)
 
-(function_definition name: (_) @function)
-(function_call name: (_) @function)
+(definition name: (_) @function)
+(definition parameter: (_) @variable.parameter)
+(signature name: (_) @function)
+(binding name: (_) @function)
+(binding parameter: (_) @variable.parameter)
+(lambda parameter: (_) @variable.parameter)
+(bind_statement name: (_) @variable)
 
-(string_literal) @string
-(regex_literal) @string.regex
-(number_literal) @number
+"Filter" @type.builtin
+(type_identifier) @type
+(type_variable) @type
+
+(string) @string
+(regex) @string.regex
+(number) @number

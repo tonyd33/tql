@@ -1,0 +1,15 @@
+title: `main` may not have a function type
+grammar: typescript
+
+The output of a query is not a function. Two parameters on the head is one
+spelling of that error, and `main a = \b -> e` and `main = \a -> \b -> e` are
+the same function written differently — so the rejection is of the type, not of
+where the parameters were written.
+
+--- tql ---
+main root extra = root;
+
+--- error ---
+category: main-type
+span: 1:1-1:24
+The `main` definition.

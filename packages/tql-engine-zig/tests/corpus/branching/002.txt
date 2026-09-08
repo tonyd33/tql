@@ -1,0 +1,18 @@
+title: both branches run on the same current input, not on the condition
+grammar: typescript
+pending: values
+
+The condition projects the name, but the selected branch still receives the
+class node, so it can navigate again.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | branch (\c -> [text c.name = "A"]) kind (pure "other");
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["class_declaration", "other"]

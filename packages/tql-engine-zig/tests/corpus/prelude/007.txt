@@ -1,0 +1,20 @@
+title: `all` is true only when every element satisfies the predicate
+grammar: typescript
+pending: values
+
+`all` probes for a *violating* element by swapping the inner branch arms
+(`branch predicate empty identity`), then negates the result. Its scheme
+matches `any`: `Filter a b -> Filter b bool -> Filter a bool`.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | all (.body | children | is_kind :method_definition)
+        (\m -> [text m.name ~ r"^get"]);
+
+--- source ---
+class A { getX() {} getY() {} }
+class B { getZ() {} setW() {} }
+
+--- values ---
+[true, false]

@@ -1,0 +1,13 @@
+title: structural equality on lists
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  (pure ([1, 2] = [1, 2]), pure ([1, 2] = [2, 1]));
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

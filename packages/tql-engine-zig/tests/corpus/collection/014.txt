@@ -1,0 +1,13 @@
+title: structural equality on records
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  (pure ({ a = 1 } = { a = 1 }), pure ({ a = 1 } = { a = 2 }));
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

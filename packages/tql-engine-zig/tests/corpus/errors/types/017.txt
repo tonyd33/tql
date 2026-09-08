@@ -1,0 +1,16 @@
+title: `Eq` on a list containing filters
+grammar: typescript
+
+A container holding a filter is outside `Eq`, recursively.
+
+--- tql ---
+main =
+  let {
+    fs = [kind, text]
+  } in
+    fs = fs;
+
+--- error ---
+category: unsatisfied-constraint
+span: 5:5-5:12
+`Eq [Filter node string]` is not satisfied.

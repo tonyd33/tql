@@ -1,0 +1,21 @@
+title: nested lists and records encode recursively
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  [children | is_kind :class_declaration
+   | { name = .name | text,
+       methods = [.body | children | is_kind :method_definition | .name | text] }];
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[
+  [
+    { "name": "A", "methods": ["m"] },
+    { "name": "B", "methods": [] }
+  ]
+]

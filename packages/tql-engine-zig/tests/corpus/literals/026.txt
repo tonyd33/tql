@@ -1,0 +1,15 @@
+title: `length` of a string is its UTF-8 byte length
+grammar: typescript
+pending: values
+
+`"héllo"` is five characters but six UTF-8 bytes: `é` occupies two. Byte
+length, not character count, is the rule.
+
+--- tql ---
+main = ("hello", "héllo") | length;
+
+--- source ---
+class A {}
+
+--- values ---
+[5, 6]

@@ -1,0 +1,18 @@
+title: `filename` composes with other projections
+grammar: typescript
+file: src/service.ts
+pending: values
+
+`filename` runs on the node input like any other filter, so it can appear as a
+record field beside node projections.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | { file = filename, name = .name | text };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "file": "src/service.ts", "name": "A" }]

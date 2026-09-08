@@ -1,0 +1,12 @@
+title: modulo
+grammar: typescript
+pending: values
+
+--- tql ---
+main = pure (7 % 3);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]

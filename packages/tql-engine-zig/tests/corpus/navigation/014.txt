@@ -1,0 +1,16 @@
+title: `ancestors` yields proper ancestors, nearest first
+grammar: typescript
+pending: values
+
+Nearest-first is the rule under test: a root-first ordering would reverse this
+list. The starting `property_identifier` is excluded because ancestors are
+proper.
+
+--- tql ---
+main = descendants | is_kind :property_identifier | ancestors | kind;
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["method_definition", "class_body", "class_declaration", "program"]

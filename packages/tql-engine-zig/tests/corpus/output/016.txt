@@ -1,0 +1,14 @@
+title: `main = empty` is accepted when a signature fixes the type
+grammar: typescript
+pending: values
+
+The signature fixes `b := string`, so `Serial string` is entailed and the
+program is accepted. This is the boundary case: an unannotated `main = empty`
+is rejected for ambiguity, not for `empty` itself.
+
+--- tql ---
+main : Filter node string;
+main = empty;
+
+--- values ---
+[]

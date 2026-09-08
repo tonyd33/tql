@@ -1,0 +1,51 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def any_property_identifier(): . // property_identifier;
+
+. | any_property_identifier()
+
+--- source ---
+class Foo { bar() {} }
+
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "bar",
+    "start_byte": 12,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 12
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (query any_property_identifier (parameters) (descendant . (node property_identifier))) (pipe . (call any_property_identifier)))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: call 5
+0002: asn 0 ((current value) value)
+0003: yield variable_id 0
+0004: halt
+0005: trv value_source ((current value) value)
+0006: trv descendant
+0007: rel equals ((current value) kind) (literal kind_id 377) -> 1
+0008: jmp 10 if (variable_id 1)
+0009: halt
+0010: asn 2 ((current value) value)
+0011: trv value_source (variable_id 2)
+0012: asn 3 ((current value) value)
+0013: yield variable_id 3
+0014: halt

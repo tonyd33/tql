@@ -1,0 +1,21 @@
+title: a function stored in a record is data, never executed
+grammar: typescript
+
+A record field holds whatever its expression evaluates to, and `f` is a
+function, so the record carries it as data. The rejection comes when the record
+reaches output and its field fails `Serial`, not from an arity or application
+error — which is the evidence that naming `f` did not call it.
+
+The field is what fails, so the span is the field rather than the whole record.
+
+--- tql ---
+main =
+  let {
+    f = \x -> x + 1
+  } in
+    { op = f };
+
+--- error ---
+category: unsatisfied-constraint
+span: 5:5-5:15
+`Serial` is not satisfied for the `op` field, of type `int -> int`.

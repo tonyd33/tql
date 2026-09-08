@@ -1,0 +1,16 @@
+title: the closing quote ends the literal
+grammar: typescript
+pending: values
+
+`r"^A"` is a complete regex literal; the following `,` begins a union, not more
+pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly
+one meaning in every position.
+
+--- tql ---
+main = (pure ("A" ~ r"^A"), pure ("B" ~ r"^A"));
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

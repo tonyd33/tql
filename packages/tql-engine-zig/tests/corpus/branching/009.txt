@@ -1,0 +1,14 @@
+title: `and` with an empty right operand yields nothing for a true left
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  (pure true, pure false)
+  and (children | is_kind :interface_declaration | pure true);
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

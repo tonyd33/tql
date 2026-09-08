@@ -1,0 +1,14 @@
+title: an invalid regex literal is a compile error
+grammar: typescript
+asserts: error
+
+The pattern is compiled when the query is compiled, so an unclosed group fails
+at compile time rather than producing a runtime branch failure.
+
+--- tql ---
+main = "abc" ~ r"(unclosed";
+
+--- error ---
+category: invalid-regex
+span: 1:16-1:28
+The regex literal.

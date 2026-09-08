@@ -1,0 +1,12 @@
+title: a union of two different element types
+grammar: typescript
+
+`union : Filter a b -> Filter a b -> Filter a b` requires one element type.
+
+--- tql ---
+main = 1, "two";
+
+--- error ---
+category: type-mismatch
+span: 1:11-1:16
+The right operand. Expected `Filter node int`, found `Filter node string`.

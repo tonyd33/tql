@@ -1,0 +1,14 @@
+title: records nest and hold heterogeneous fields
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | { name = .name | text, meta = { k = kind, n = pure 1 } };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "name": "A", "meta": { "k": "class_declaration", "n": 1 } }]

@@ -1,0 +1,25 @@
+title: a `do`-local `let` sees bindings from earlier statements
+grammar: typescript
+asserts: core
+pending: values
+
+`prefix` is computed from `c`, bound by the preceding statement, and is then
+used by the final expression.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    let prefix = text c.name;
+    m <- (children | is_kind :method_definition) c.body;
+    [prefix]
+  };
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["A", "A"]
+
+--- core ---
+main = \root -> bind c <- compose children is_kind[class_declaration] root in letrec { prefix = text (field[name] c) } in bind m <- compose children is_kind[method_definition] (field[body] c) in collect prefix

@@ -1,0 +1,14 @@
+title: applying too many arguments is a compile error
+grammar: typescript
+
+`inc` takes one argument. Applying two is not a runtime arity check; the
+inferred type has no arrow left to consume the third term.
+
+--- tql ---
+inc n = n + 1;
+main = inc 1 2;
+
+--- error ---
+category: over-application
+span: 1:15-1:16
+The extra argument.

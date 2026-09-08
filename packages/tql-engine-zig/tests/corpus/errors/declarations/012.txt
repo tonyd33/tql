@@ -1,0 +1,15 @@
+title: an orphan signature is a compile error
+grammar: typescript
+asserts: error
+
+Each signature annotates exactly one definition in the same program. `g` has no
+definition.
+
+--- tql ---
+g : Filter node string;
+main = kind;
+
+--- error ---
+category: orphan-signature
+span: 1:1-1:24
+The signature with no definition.

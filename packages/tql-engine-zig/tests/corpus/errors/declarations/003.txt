@@ -1,0 +1,18 @@
+title: a `do` binding is not visible after its block
+grammar: typescript
+asserts: error
+
+The binding is branch-local to the block.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    (.name | text) c
+  };
+after = c;
+
+--- error ---
+category: unresolved-name
+span: 6:9-6:10
+`c` in `after`.

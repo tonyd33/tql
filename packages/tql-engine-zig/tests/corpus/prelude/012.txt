@@ -1,0 +1,16 @@
+title: `within` searches ancestors
+grammar: typescript
+pending: values
+
+`within p = exists (ancestors | select p)`.
+
+--- tql ---
+main =
+  descendants | is_kind :property_identifier
+  | within (\n -> [kind n = "class_declaration"]);
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+[true]

@@ -1,0 +1,16 @@
+title: `all` short-circuits on the first violation
+grammar: typescript
+pending: values
+
+The inner probe searches for a violating element and finds one at 0, so it
+stops there despite the infinite source.
+
+--- tql ---
+from n = pure n, from (n + 1);
+main = all (from 0) (\x -> [x < 0]);
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

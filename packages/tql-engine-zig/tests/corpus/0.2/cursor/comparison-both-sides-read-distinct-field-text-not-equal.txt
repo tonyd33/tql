@@ -1,0 +1,63 @@
+grammar: c
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / function_definition | select(.type | text != .body | text)
+
+--- source ---
+int add(int a, int b) { return a + b; }
+
+--- values ---
+[
+  {
+    "kind": "function_definition",
+    "text": "int add(int a, int b) { return a + b; }",
+    "start_byte": 0,
+    "end_byte": 39,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 39
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (child . (node function_definition)) (call select (ne (pipe (dot-field type) (call text)) (pipe (dot-field body) (call text))))))
+
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: asn 3 ((current value) value)
+0010: asn 4 ((current value) value)
+0011: trv field 36
+0012: asn 5 ((current value) value)
+0013: trv value_source (variable_id 5)
+0014: asn 6 ((current value) text)
+0015: trv value_source (variable_id 4)
+0016: trv field 5
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: rel equals (variable_id 6) ((current value) text) -> 8
+0020: jmp 23 if (variable_id 8)
+0021: asn 9 (literal bool true)
+0022: jmp 24
+0023: asn 9 (literal bool false)
+0024: trv value_source (variable_id 3)
+0025: jmp 27 if (variable_id 9)
+0026: halt
+0027: yield (current value) value
+0028: halt

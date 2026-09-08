@@ -1,0 +1,14 @@
+title: `within` is false when no ancestor matches
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  descendants | is_kind :property_identifier
+  | within (\n -> [kind n = "interface_declaration"]);
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+[false]

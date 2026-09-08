@@ -1,0 +1,17 @@
+title: product operators enumerate left operand outermost
+grammar: typescript
+pending: values
+
+The rule under test is ordering. Left-major means the left operand is the outer
+generator: 10 pairs with 1 then 2, then 20 pairs with 1 then 2, giving
+11, 12, 21, 22. A right-major enumeration would vary the left operand fastest
+and give 11, 21, 12, 22.
+
+--- tql ---
+main = \_root -> do { l <- [10, 20]; r <- [1, 2]; [l + r] };
+
+--- source ---
+class A {}
+
+--- values ---
+[11, 12, 21, 22]

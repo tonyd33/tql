@@ -1,0 +1,22 @@
+title: `any` and `all` share one scheme
+grammar: typescript
+pending: values
+
+Both helpers are applied to the same source and predicate, confirming they
+accept identical argument types.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    [{ some = any ((children | is_kind :method_definition) c.body)
+                  (\m -> [text m.name ~ r"^get"]),
+       every = all ((children | is_kind :method_definition) c.body)
+                   (\m -> [text m.name ~ r"^get"]) }]
+  };
+
+--- source ---
+class A { getX() {} setY() {} }
+
+--- values ---
+[{ "some": true, "every": false }]

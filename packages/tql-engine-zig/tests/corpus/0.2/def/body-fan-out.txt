@@ -1,0 +1,67 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def all_identifiers(@root): @root // identifier;
+
+. | all_identifiers(.)
+
+--- source ---
+function useFoo() {}
+function bar() {}
+
+--- values ---
+[
+  {
+    "kind": "identifier",
+    "text": "useFoo",
+    "start_byte": 9,
+    "end_byte": 15,
+    "start_point": {
+      "row": 0,
+      "column": 9
+    },
+    "end_point": {
+      "row": 0,
+      "column": 15
+    }
+  },
+  {
+    "kind": "identifier",
+    "text": "bar",
+    "start_byte": 30,
+    "end_byte": 33,
+    "start_point": {
+      "row": 1,
+      "column": 9
+    },
+    "end_point": {
+      "row": 1,
+      "column": 12
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (query all_identifiers (parameters (param root)) (descendant root (node identifier))) (pipe . (call all_identifiers .)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: asn 0 ((current value) value)
+0002: call 6
+0003: asn 1 ((current value) value)
+0004: yield variable_id 1
+0005: halt
+0006: trv value_source (variable_id 0)
+0007: trv descendant
+0008: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0009: jmp 11 if (variable_id 2)
+0010: halt
+0011: asn 3 ((current value) value)
+0012: trv value_source (variable_id 3)
+0013: asn 4 ((current value) value)
+0014: yield variable_id 4
+0015: halt

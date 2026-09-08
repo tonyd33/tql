@@ -1,0 +1,13 @@
+title: there is no null literal
+grammar: typescript
+asserts: error
+
+Absence is the empty stream.
+
+--- tql ---
+main = null;
+
+--- error ---
+category: unresolved-name
+span: 1:8-1:12
+`null`.

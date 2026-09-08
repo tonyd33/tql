@@ -1,0 +1,16 @@
+title: tuple types do not exist
+grammar: typescript
+
+There is no tuple type or tuple literal. A parenthesized comma expression is a
+stream union, so `(1, "a")` is a union of mismatched element types rather than
+a pair.
+
+--- tql ---
+main = (1, "a");
+
+--- error ---
+category: type-mismatch
+span: 1:12-1:15
+The right operand of the union. Expected `Filter node int`, found
+`Filter node string`. Note the error is a union type mismatch, not an unknown
+tuple type: `,` never constructs a pair.

@@ -1,0 +1,19 @@
+title: `any` is true when some element satisfies the predicate
+grammar: typescript
+pending: values
+
+`any source predicate = probe (compose source (select predicate))`, typed
+`Filter a b -> Filter b bool -> Filter a bool`.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | any (.body | children | is_kind :method_definition)
+        (\m -> [text m.name ~ r"^get"]);
+
+--- source ---
+class A { getX() {} setY() {} }
+class B { setZ() {} }
+
+--- values ---
+[true, false]

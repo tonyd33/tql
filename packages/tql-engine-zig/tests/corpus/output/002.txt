@@ -1,0 +1,24 @@
+title: `end_byte` and `end_point` are exclusive
+grammar: typescript
+pending: values
+
+The source is exactly 10 bytes. The node's `end_byte` is 10, one past the last
+byte, and `start_byte` is 0, the first byte. An inclusive end would report 9.
+
+--- tql ---
+main = children | is_kind :class_declaration;
+
+--- source ---
+class A {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A {}",
+    "start_byte": 0,
+    "end_byte": 10,
+    "start_point": { "row": 0, "column": 0 },
+    "end_point": { "row": 0, "column": 10 }
+  }
+]

@@ -1,0 +1,27 @@
+title: `as` binding is removed
+grammar: typescript
+
+Replaced by `do` stream binding. `as` is not a keyword, so this parses as an
+application of three operands and fails when `as` does not resolve.
+
+Three names are unresolved, not one. `as` groups as `(:class_declaration as) c`,
+so the `c` it was meant to bind is an ordinary operand rather than a binder, and
+the `c` in `c.name` has nothing to resolve against either.
+
+--- tql ---
+main = children | is_kind :class_declaration as c | c.name | text;
+
+--- error ---
+category: unresolved-name
+span: 1:46-1:48
+`as`.
+
+--- error ---
+category: unresolved-name
+span: 1:49-1:50
+`c` as an operand of `as`.
+
+--- error ---
+category: unresolved-name
+span: 1:53-1:54
+`c` in `c.name`.

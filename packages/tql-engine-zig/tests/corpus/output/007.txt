@@ -1,0 +1,12 @@
+title: scalars encode naturally
+grammar: typescript
+pending: values
+
+--- tql ---
+main = pure 42, pure (0 - 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[42, -1]

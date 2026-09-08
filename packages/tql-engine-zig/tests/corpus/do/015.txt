@@ -1,0 +1,18 @@
+title: a bind whose query is empty yields no output
+grammar: typescript
+pending: values
+
+The body never runs.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :interface_declaration) root;
+    (.name | text) c
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[]

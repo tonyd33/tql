@@ -16,8 +16,15 @@ pub const ansi = struct {
     pub const yellow_bold = "\x1b[1;33m";
 };
 
-pub fn formatAst(allocator: std.mem.Allocator, ast: tql.ast.SourceFile) ![]const u8 {
-    return ast.sexprAlloc(allocator);
+pub fn formatCst(allocator: std.mem.Allocator, tree: tql.cst.SourceFile) ![]const u8 {
+    return tree.sexprAlloc(allocator);
+}
+
+pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.link.Program) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    try tql.link.printProgram(program, &w.writer);
+    return w.toOwnedSlice();
 }
 
 pub fn formatSourceAst(allocator: std.mem.Allocator, tree: *ts.Tree) ![]const u8 {

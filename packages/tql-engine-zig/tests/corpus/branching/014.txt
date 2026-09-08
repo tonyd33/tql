@@ -1,0 +1,15 @@
+title: `and` and `or` are left-associative
+grammar: typescript
+pending: values
+
+`false and true or true` groups as `(false and true) or true`. The alternative
+grouping `false and (true or true)` would yield `false`.
+
+--- tql ---
+main = pure false and pure true or pure true;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

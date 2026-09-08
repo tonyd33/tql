@@ -1,0 +1,17 @@
+title: `contains` searches descendants
+grammar: typescript
+pending: values
+
+`contains p = exists (descendants | select p)`.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | contains (\n -> [kind n = "method_definition"]);
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[true, false]

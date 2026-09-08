@@ -1,0 +1,18 @@
+title: a comparison chain does not type
+grammar: typescript
+
+`a < b < c` must be grouped. The chain is well-formed syntax: it parses as
+`(1 < 2) < 3`, and the rejection is a typing one — the outer `<` requires
+`Ord` and its left operand is a `bool`, which has no instance.
+
+A better diagnostic than the bare `Ord bool` constraint is owed here: the
+checker can see that the operand of a comparison is itself a comparison, and
+saying the operators do not chain is more useful than naming the instance.
+
+--- tql ---
+main = 1 < 2 < 3;
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:17
+The whole chain.

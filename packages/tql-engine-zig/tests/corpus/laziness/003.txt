@@ -1,0 +1,16 @@
+title: `any` short-circuits on the first match
+grammar: typescript
+pending: values
+
+The source is infinite but the predicate holds at 0, so the probe stops at the
+first element. Termination is the evidence.
+
+--- tql ---
+from n = pure n, from (n + 1);
+main = any (from 0) (\x -> [x >= 0]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

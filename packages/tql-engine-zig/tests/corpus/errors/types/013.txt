@@ -1,0 +1,12 @@
+title: a non-boolean condition is a compile error
+grammar: typescript
+
+There is no truthiness. A condition must have type `Filter a bool`.
+
+--- tql ---
+main = if 1 then "yes" else "no";
+
+--- error ---
+category: type-mismatch
+span: 1:11-1:12
+The condition. Expected `Filter node bool`, found `Filter node int`.

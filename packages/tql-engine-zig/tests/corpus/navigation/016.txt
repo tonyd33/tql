@@ -1,0 +1,14 @@
+title: navigation from a filter with no output yields no output
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :interface_declaration
+  | descendants | is_kind :property_identifier | text;
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+[]

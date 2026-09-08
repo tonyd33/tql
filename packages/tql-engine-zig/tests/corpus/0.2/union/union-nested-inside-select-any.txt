@@ -1,0 +1,69 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. // function_declaration as @f | select(any(@f // identifier; (text = 'foo') <|> (text = 'bar'))) | text
+
+--- source ---
+function foo() {}
+function bar() {}
+function baz() {}
+
+--- values ---
+[
+  "function foo() {}",
+  "function bar() {}"
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (descendant . (node function_declaration)) f) (call select (call any (descendant f (node identifier)) (union (paren (eq (call text) (string "foo"))) (paren (eq (call text) (string "bar"))))))) (call text)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 224) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 39
+0012: trv value_source (variable_id 0)
+0013: trv descendant
+0014: rel equals ((current value) kind) (literal kind_id 1) -> 5
+0015: jmp 17 if (variable_id 5)
+0016: halt
+0017: asn 6 ((current value) value)
+0018: trv value_source (variable_id 6)
+0019: asn 7 ((current value) value)
+0020: trv value_source (variable_id 7)
+0021: alt 24 30
+0022: asn 8 ((current value) value)
+0023: jmp 36
+0024: asn 9 ((current value) value)
+0025: asn 10 ((current value) text)
+0026: trv value_source (variable_id 9)
+0027: rel equals (variable_id 10) (literal string "foo") -> 11
+0028: yield variable_id 11
+0029: halt
+0030: asn 12 ((current value) value)
+0031: asn 13 ((current value) text)
+0032: trv value_source (variable_id 12)
+0033: rel equals (variable_id 13) (literal string "bar") -> 14
+0034: yield variable_id 14
+0035: halt
+0036: jmp 38 if not (variable_id 8)
+0037: yield (current value) value
+0038: halt
+0039: trv value_source (variable_id 4)
+0040: jmp 42 if (literal bool true)
+0041: halt
+0042: trv value_source ((current value) value)
+0043: yield (current value) text
+0044: halt

@@ -1,0 +1,13 @@
+title: a list encodes as a JSON array
+grammar: typescript
+pending: values
+
+--- tql ---
+main = [children | is_kind :class_declaration | .name | text];
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["A", "B"]]

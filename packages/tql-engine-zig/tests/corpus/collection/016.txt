@@ -1,0 +1,18 @@
+title: a record holding a collected list
+grammar: typescript
+pending: values
+
+Collection inside a field keeps the record single-valued: the list is one
+value, so no product fan-out occurs.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | { name = .name | text,
+      methods = [.body | children | is_kind :method_definition | .name | text] };
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+[{ "name": "A", "methods": ["m", "n"] }]

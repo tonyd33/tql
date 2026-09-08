@@ -1,0 +1,10 @@
+title: a regex nested in a record is not serializable
+grammar: typescript
+
+--- tql ---
+main = { name = .name | text, pattern = r"^A" };
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:31-1:45
+`Serial regex` is not satisfied, reached through field `pattern`.

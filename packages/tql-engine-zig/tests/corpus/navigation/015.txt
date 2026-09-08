@@ -1,0 +1,20 @@
+title: chained navigation runs left to right
+grammar: typescript
+pending: values
+
+Each stage runs once per output of the previous stage, and results concatenate
+in left-major order: both methods of A precede the method of B.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | children | is_kind :class_body
+  | children | is_kind :method_definition
+  | .name | text;
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+["m", "n", "p"]

@@ -20,7 +20,23 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .tql_tree,
     .source_tree,
     .bytecode,
+    .core,
+    .@"error",
 };
+
+/// Sections still compared for a case that expects a compile error. The query
+/// never reaches the runtime, so only the parse-level snapshots and the error
+/// itself remain meaningful.
+const ERROR_CASE_SECTIONS = [_]SectionKind{
+    .tql_tree,
+    .source_tree,
+    .@"error",
+};
+
+fn isErrorCaseSection(kind: SectionKind) bool {
+    for (ERROR_CASE_SECTIONS) |k| if (k == kind) return true;
+    return false;
+}
 
 const CompareSections = struct {
     const Fields = blk: {
@@ -38,7 +54,10 @@ const CompareSections = struct {
 
     fields: Fields = .{},
 
+    /// The `error` section is written by hand as the spec for a rejection, so
+    /// `--update` never regenerates it.
     fn get(self: CompareSections, comptime kind: SectionKind) bool {
+        if (kind == .@"error") return false;
         return @field(self.fields, @tagName(kind));
     }
 
@@ -49,6 +68,7 @@ const CompareSections = struct {
     }
 
     fn addSection(self: *CompareSections, s: []const u8) !void {
+        if (std.mem.eql(u8, s, @tagName(SectionKind.@"error"))) return error.SectionNotUpdatable;
         inline for (COMPARABLE_SECTIONS) |kind| {
             if (std.mem.eql(u8, s, @tagName(kind))) {
                 @field(self.fields, @tagName(kind)) = true;
@@ -65,6 +85,7 @@ const Options = struct {
     file_name: ?[]const u8 = null,
     include: ?[]const u8 = null,
     corpus_dir: []const u8 = DEFAULT_CORPUS_DIR,
+    max_pending: ?u32 = null,
     fail_fast: bool = false,
     color: bool = true,
 };
@@ -87,6 +108,9 @@ const FileResult = struct {
     passed: u32,
     failed: u32,
     skipped: u32,
+    /// Sections the case has written but cannot assert yet. Reported so the
+    /// count of deferred expectations is visible rather than implicit.
+    pending: u32,
     failed_fast: bool,
 };
 
@@ -103,6 +127,7 @@ const TestRunContext = struct {
     stdout: *std.Io.Writer,
     opts: Options,
     diffs: std.ArrayList(DiffEntry),
+    group_printed: ?[]const u8,
 
     fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options) TestRunContext {
         return .{
@@ -110,10 +135,12 @@ const TestRunContext = struct {
             .stdout = stdout,
             .opts = opts,
             .diffs = .empty,
+            .group_printed = null,
         };
     }
 
     fn deinit(self: *TestRunContext) void {
+        if (self.group_printed) |g| self.gpa.free(g);
         for (self.diffs.items) |d| {
             self.gpa.free(d.group);
             self.gpa.free(d.case_name);
@@ -121,6 +148,31 @@ const TestRunContext = struct {
             self.gpa.free(d.actual);
         }
         self.diffs.deinit(self.gpa);
+    }
+
+    /// Prints a group heading the first time a case from that group reports.
+    /// Cases arrive in sorted path order, so tracking only the previous group
+    /// is enough.
+    fn printGroupHeader(self: *TestRunContext, group: []const u8) !void {
+        if (self.group_printed) |prev| {
+            if (std.mem.eql(u8, prev, group)) return;
+            self.gpa.free(prev);
+        }
+        self.group_printed = try self.gpa.dupe(u8, group);
+        const shown = if (group.len == 0) "(root)" else group;
+        if (self.opts.color) {
+            try self.stdout.print("\n{s}{s}{s}\n", .{ ansi.bold, shown, ansi.reset });
+        } else {
+            try self.stdout.print("\n{s}\n", .{shown});
+        }
+    }
+
+    fn printCaseFailure(self: *TestRunContext, name: []const u8) !void {
+        if (self.opts.color) {
+            try self.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
+        } else {
+            try self.stdout.print("  FAIL {s}\n", .{name});
+        }
     }
 
     fn addDiff(
@@ -203,6 +255,7 @@ pub fn main(init: std.process.Init) !u8 {
     var passed: u32 = 0;
     var failed: u32 = 0;
     var skipped: u32 = 0;
+    var pending: u32 = 0;
 
     const corpus_files = try collectCorpusFiles(gpa, io, opts.corpus_dir);
     defer {
@@ -211,14 +264,20 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     for (corpus_files) |filename| {
-        if (opts.file_name) |name| {
-            const stem = filename[0 .. filename.len - 4];
-            if (!std.mem.eql(u8, stem, name) and !std.mem.eql(u8, filename, name)) continue;
+        if (opts.file_name) |want| {
+            // Matches a case path, with or without extension, and a directory
+            // prefix so `--file navigation` selects the whole group.
+            const name = caseName(filename);
+            const is_case = std.mem.eql(u8, name, want) or std.mem.eql(u8, filename, want);
+            const is_group = std.mem.startsWith(u8, name, want) and
+                name.len > want.len and name[want.len] == '/';
+            if (!is_case and !is_group) continue;
         }
         const result = try testFile(&ctx, io, filename);
         passed += result.passed;
         failed += result.failed;
         skipped += result.skipped;
+        pending += result.pending;
         if (result.failed_fast) break;
     }
 
@@ -234,8 +293,27 @@ pub fn main(init: std.process.Init) !u8 {
             }
             try stdout.writeByte('\n');
         }
+        if (pending > 0) {
+            try stdout.print(
+                "{s}{d} pending section{s} not asserted{s}\n",
+                .{ ansi.yellow_bold, pending, if (pending == 1) "" else "s", ansi.reset },
+            );
+        }
     } else {
-        try stdout.print("{d} passed, {d} failed, {d} skipped\n", .{ passed, failed, skipped });
+        try stdout.print(
+            "{d} passed, {d} failed, {d} skipped, {d} pending\n",
+            .{ passed, failed, skipped, pending },
+        );
+    }
+
+    if (opts.max_pending) |limit| {
+        if (pending > limit) {
+            try stdout.print(
+                "error: {d} pending sections exceeds --max-pending {d}\n",
+                .{ pending, limit },
+            );
+            return 1;
+        }
     }
 
     if (ctx.diffs.items.len > 0) {
@@ -267,6 +345,9 @@ pub fn main(init: std.process.Init) !u8 {
     return if (failed > 0) 1 else 0;
 }
 
+/// Collects case files recursively. Each file is one case; its path relative to
+/// the corpus root is its identity, so `navigation/child.txt` is the case
+/// `navigation/child`.
 fn collectCorpusFiles(gpa: std.mem.Allocator, io: std.Io, corpus_dir: []const u8) ![][]const u8 {
     const cwd = std.Io.Dir.cwd();
     var dir = try cwd.openDir(io, corpus_dir, .{ .iterate = true });
@@ -278,16 +359,30 @@ fn collectCorpusFiles(gpa: std.mem.Allocator, io: std.Io, corpus_dir: []const u8
         files.deinit(gpa);
     }
 
-    var iter = dir.iterate();
-    while (try iter.next(io)) |entry| {
+    var walker = try dir.walk(gpa);
+    defer walker.deinit();
+    while (try walker.next(io)) |entry| {
         if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.name, ".txt")) continue;
-        try files.append(gpa, try gpa.dupe(u8, entry.name));
+        if (!std.mem.endsWith(u8, entry.path, ".txt")) continue;
+        try files.append(gpa, try gpa.dupe(u8, entry.path));
     }
 
     std.mem.sortUnstable([]const u8, files.items, {}, comptime dictionarySort(u8, std.sort.asc(u8)));
 
     return files.toOwnedSlice(gpa);
+}
+
+/// The case name is its path without the extension, using `/` on every
+/// platform so names match what a reader types on the command line.
+fn caseName(path: []const u8) []const u8 {
+    return path[0 .. path.len - ".txt".len];
+}
+
+/// The group is the leading directory component, or the empty string for a
+/// case sitting at the corpus root.
+fn caseGroup(name: []const u8) []const u8 {
+    const slash = std.mem.lastIndexOfScalar(u8, name, '/') orelse return "";
+    return name[0..slash];
 }
 
 fn testFile(
@@ -300,73 +395,64 @@ fn testFile(
     const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ ctx.opts.corpus_dir, filename });
     defer gpa.free(path);
 
+    const name = caseName(filename);
+    const group = caseGroup(name);
+
+    var result: FileResult = .{ .passed = 0, .failed = 0, .skipped = 0, .pending = 0, .failed_fast = false };
+
+    if (ctx.opts.include) |pattern| {
+        // TODO: regex matching
+        if (std.mem.indexOf(u8, name, pattern) == null) {
+            result.skipped += 1;
+            return result;
+        }
+    }
+
     const content = try cwd.readFileAlloc(io, path, gpa, .limited(10 * 1024 * 1024));
     defer gpa.free(content);
 
-    var corpus = try corpus_parser.parse(gpa, content);
+    var corpus = corpus_parser.parse(gpa, content) catch |err| {
+        try ctx.printGroupHeader(group);
+        if (ctx.opts.color) {
+            try ctx.stdout.print(
+                "  {s}✗{s} {s} {s}({s}){s}\n",
+                .{ ansi.red_bold, ansi.reset, name, ansi.dim, @errorName(err), ansi.reset },
+            );
+        } else {
+            try ctx.stdout.print("  FAIL {s} ({t})\n", .{ name, err });
+        }
+        result.failed = 1;
+        result.failed_fast = ctx.opts.fail_fast;
+        return result;
+    };
     defer corpus.deinit();
 
-    const group = filename[0 .. filename.len - 4];
+    try ctx.printGroupHeader(group);
 
-    var result: FileResult = .{ .passed = 0, .failed = 0, .skipped = 0, .failed_fast = false };
-    var file_modified = false;
-    var file_header_printed = false;
-
-    var directives: std.ArrayList(corpus_parser.UpdateDirective) = .empty;
+    var section_updates: std.ArrayList(corpus_parser.SectionUpdate) = .empty;
     defer {
-        for (directives.items) |d| {
-            for (d.sections) |s| gpa.free(s.new_content);
-            gpa.free(d.sections);
-        }
-        directives.deinit(gpa);
+        for (section_updates.items) |s| gpa.free(s.new_content);
+        section_updates.deinit(gpa);
     }
 
-    for (corpus.cases) |tc| {
-        if (ctx.opts.include) |pattern| {
-            // TODO: regex matching
-            if (!std.mem.eql(u8, tc.name, pattern)) {
-                result.skipped += 1;
-                continue;
-            }
-        }
-
-        if (!file_header_printed) {
-            if (ctx.opts.color) {
-                try ctx.stdout.print("\n{s}{s}{s}\n", .{ ansi.bold, group, ansi.reset });
-            } else {
-                try ctx.stdout.print("\n{s}\n", .{group});
-            }
-            file_header_printed = true;
-        }
-
-        var section_updates: std.ArrayList(corpus_parser.SectionUpdate) = .empty;
-        defer section_updates.deinit(gpa);
-
-        const case_result = try testCase(ctx, io, tc, &section_updates, group);
-        switch (case_result) {
-            .passed, .modified => result.passed += 1,
-            .failed => result.failed += 1,
-            .skipped => result.skipped += 1,
-        }
-
-        if (case_result == .modified) {
-            file_modified = true;
-            try directives.append(gpa, .{
-                .case_name = tc.name,
-                .sections = try section_updates.toOwnedSlice(gpa),
-            });
-        }
-
-        if (ctx.opts.fail_fast and case_result == .failed) {
-            result.failed_fast = true;
-            break;
-        }
+    const case_result = try testCase(ctx, io, corpus.case, &section_updates, group, name);
+    switch (case_result) {
+        .passed, .modified => result.passed += 1,
+        .failed => result.failed += 1,
+        .skipped => result.skipped += 1,
     }
+    // `unassertable` sections are deliberately excluded: they never resolve, so
+    // counting them would put a permanent floor under the budget.
+    result.pending = @intCast(corpus.case.pending.count());
 
-    if (file_modified) {
-        const bytes = try corpus_parser.applyUpdates(gpa, corpus, directives.items);
+    if (case_result == .modified) {
+        const bytes = try corpus_parser.applyUpdates(gpa, corpus, section_updates.items);
         defer gpa.free(bytes);
         try cwd.writeFile(io, .{ .sub_path = path, .data = bytes });
+    }
+
+    if (ctx.opts.fail_fast and case_result == .failed) {
+        result.failed_fast = true;
     }
 
     return result;
@@ -378,6 +464,7 @@ fn testCase(
     tc: corpus_parser.TestCase,
     updates: *std.ArrayList(corpus_parser.SectionUpdate),
     group: []const u8,
+    name: []const u8,
 ) !CaseResult {
     const gpa = ctx.gpa;
     var test_gpa: std.heap.DebugAllocator(.{}) = .init;
@@ -387,10 +474,10 @@ fn testCase(
         if (ctx.opts.color) {
             try ctx.stdout.print(
                 "  {s}✗{s} {s} {s}({s}){s}\n",
-                .{ ansi.red_bold, ansi.reset, tc.name, ansi.dim, @errorName(err), ansi.reset },
+                .{ ansi.red_bold, ansi.reset, name, ansi.dim, @errorName(err), ansi.reset },
             );
         } else {
-            try ctx.stdout.print("  FAIL {s} ({})\n", .{ tc.name, err });
+            try ctx.stdout.print("  FAIL {s} ({t})\n", .{ name, err });
         }
         return .failed;
     };
@@ -398,9 +485,19 @@ fn testCase(
     var test_failed = false;
     var test_modified = false;
 
-    inline for (COMPARABLE_SECTIONS) |kind| {
+    const expects_error = tc.expectsError();
+
+    inline for (COMPARABLE_SECTIONS) |kind| skip: {
+        if (expects_error and !isErrorCaseSection(kind)) break :skip;
+        // Diagnostics are compared field by field below, not as text.
+        if (kind == .@"error") break :skip;
+        // The ratchet: a section is compared only while the case claims it.
+        // Anything else populated was rejected at parse time as unasserted, so
+        // silence here can only mean a recorded `pending` or `unassertable`.
+        if (!tc.asserts.has(kind)) break :skip;
+
         const actual_val = @field(actual, @tagName(kind));
-        const section: corpus_parser.Section = @field(tc, @tagName(kind));
+        const section: corpus_parser.Section = tc.section(kind);
         const exp = section.content;
 
         if (exp.len > 0) {
@@ -411,28 +508,38 @@ fn testCase(
                 } else {
                     if (!test_failed) {
                         if (ctx.opts.color) {
-                            try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+                            try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
                         } else {
-                            try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+                            try ctx.stdout.print("  FAIL {s}\n", .{name});
                         }
                         test_failed = true;
                     }
-                    try ctx.addDiff(group, tc.name, kind.name(), exp, actual_val);
+                    try ctx.addDiff(group, name, kind.name(), exp, actual_val);
                 }
             }
+        } else if (actual_val.len == 0) {
+            // Neither side has content: the section has no producer yet, so
+            // there is nothing to assert.
+            break :skip;
         } else if (ctx.opts.update.get(kind)) {
             try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
             test_modified = true;
         } else {
             if (!test_failed) {
                 if (ctx.opts.color) {
-                    try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+                    try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
                 } else {
-                    try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+                    try ctx.stdout.print("  FAIL {s}\n", .{name});
                 }
                 test_failed = true;
             }
-            try ctx.addDiff(group, tc.name, kind.name(), "", actual_val);
+            try ctx.addDiff(group, name, kind.name(), "", actual_val);
+        }
+    }
+
+    if (expects_error and tc.asserts.has(.@"error")) {
+        if (try compareDiagnostics(ctx, tc, actual.@"error", name, group, test_failed)) {
+            test_failed = true;
         }
     }
 
@@ -442,9 +549,9 @@ fn testCase(
     if (leaked) {
         if (!test_failed) {
             if (ctx.opts.color) {
-                try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, tc.name });
+                try ctx.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
             } else {
-                try ctx.stdout.print("  FAIL {s}\n", .{tc.name});
+                try ctx.stdout.print("  FAIL {s}\n", .{name});
             }
             test_failed = true;
         }
@@ -459,19 +566,98 @@ fn testCase(
         return .failed;
     } else if (test_modified) {
         if (ctx.opts.color) {
-            try ctx.stdout.print("  {s}~{s} {s}\n", .{ ansi.yellow_bold, ansi.reset, tc.name });
+            try ctx.stdout.print("  {s}~{s} {s}\n", .{ ansi.yellow_bold, ansi.reset, name });
         } else {
-            try ctx.stdout.print("  UPDATED {s}\n", .{tc.name});
+            try ctx.stdout.print("  UPDATED {s}\n", .{name});
         }
         return .modified;
     } else {
         if (ctx.opts.color) {
-            try ctx.stdout.print("  {s}✓{s} {s}\n", .{ ansi.green, ansi.reset, tc.name });
+            try ctx.stdout.print("  {s}✓{s} {s}\n", .{ ansi.green, ansi.reset, name });
         } else {
-            try ctx.stdout.print("  PASS {s}\n", .{tc.name});
+            try ctx.stdout.print("  PASS {s}\n", .{name});
         }
         return .passed;
     }
+}
+
+/// Compares expected diagnostics against what the engine reported. Only the
+/// category and span are normative; the message is commentary, so rewording a
+/// diagnostic never breaks a fixture. Returns true if the case failed.
+///
+/// `actual` is one `category/span` pair per line, in report order.
+fn compareDiagnostics(
+    ctx: *TestRunContext,
+    tc: corpus_parser.TestCase,
+    actual: []const u8,
+    name: []const u8,
+    group: []const u8,
+    already_failed: bool,
+) !bool {
+    const gpa = ctx.gpa;
+    var failed = false;
+    var reported = false;
+
+    var actual_lines: std.ArrayList([]const u8) = .empty;
+    defer actual_lines.deinit(gpa);
+    var it = std.mem.splitScalar(u8, actual, '\n');
+    while (it.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len > 0) try actual_lines.append(gpa, trimmed);
+    }
+
+    if (actual_lines.items.len != tc.diagnostics.len) {
+        failed = true;
+        if (!already_failed and !reported) {
+            try ctx.printCaseFailure(name);
+            reported = true;
+        }
+        const expected = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{tc.diagnostics.len});
+        defer gpa.free(expected);
+        const got = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{actual_lines.items.len});
+        defer gpa.free(got);
+        try ctx.addDiff(group, name, "error count", expected, got);
+        return failed;
+    }
+
+    for (tc.diagnostics, actual_lines.items) |want, got| {
+        const slash = std.mem.indexOfScalar(u8, got, '/') orelse got.len;
+        const got_category = std.mem.trim(u8, got[0..slash], " \t");
+        const got_span = if (slash < got.len) std.mem.trim(u8, got[slash + 1 ..], " \t") else "";
+
+        const category_ok = std.mem.eql(u8, want.category, got_category);
+        const span_ok = want.spanMatches(got_span);
+        if (category_ok and span_ok) continue;
+
+        failed = true;
+        if (!already_failed and !reported) {
+            try ctx.printCaseFailure(name);
+            reported = true;
+        }
+        const expected = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ want.category, want.span });
+        defer gpa.free(expected);
+        try ctx.addDiff(group, name, "error", expected, got);
+    }
+
+    return failed;
+}
+
+/// One `category/span` line per diagnostic, in report order, which is the form
+/// `compareDiagnostics` reads. The message is deliberately omitted: fixtures
+/// never compare it.
+fn renderDiagnostics(
+    allocator: std.mem.Allocator,
+    diagnostics: []const tql.diagnostic.Diagnostic,
+) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    for (diagnostics, 0..) |d, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.writeAll(d.category.name());
+        try w.writer.writeByte('/');
+        try d.span.format(&w.writer);
+    }
+    return w.toOwnedSlice();
 }
 
 fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestCase) !TestOutputs {
@@ -482,11 +668,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     var engine = try Engine.init(.{ .allocator = allocator, .io = io });
     defer engine.deinit();
 
-    var ast = try engine.parseQuery(tc.query.content);
-    defer ast.deinit(allocator);
-
-    var query = try engine.compile(tc.query.content, grammar);
-    defer query.deinit();
+    var parsed = try engine.parseQueryCollecting(tc.query.content);
+    defer parsed.deinit();
+    const query_cst = parsed.source_file;
 
     const ts_parser = ts.Parser.create();
     defer ts_parser.destroy();
@@ -494,18 +678,124 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     const tree = ts_parser.parseString(tc.target.content, null) orelse return error.ParseFailed;
     defer tree.destroy();
 
-    var run_result = try query.run(tc.target.content, allocator, allocator);
-    defer run_result.deinit();
-
     const source_tree_raw = try fmt.formatSourceAst(allocator, tree);
     defer allocator.free(source_tree_raw);
     const source_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, source_tree_raw, "\n"));
     errdefer allocator.free(source_tree);
 
-    const tql_tree_raw = try fmt.formatAst(allocator, ast);
+    const tql_tree_raw = try fmt.formatCst(allocator, query_cst);
     defer allocator.free(tql_tree_raw);
     const tql_tree = try allocator.dupe(u8, std.mem.trimEnd(u8, tql_tree_raw, "\n"));
     errdefer allocator.free(tql_tree);
+
+    // A case carrying an `--- error ---` section asserts the query is
+    // rejected, so compilation failure is the expected outcome and every
+    // section downstream of it stays empty.
+    const expects_error = tc.expectsError();
+
+    // Syntax errors are decided by the parser alone, so they are reported
+    // before compilation is even attempted.
+    if (parsed.hasErrors()) {
+        if (!expects_error) return error.UnexpectedParseError;
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = try renderDiagnostics(allocator, parsed.diagnostics),
+        };
+    }
+
+    // Desugaring runs independently of the rest of compilation: a case may
+    // assert its Core term while its values are still pending.
+    var core_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(core_text);
+    var desugar_diagnostics: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(desugar_diagnostics);
+
+    if (tc.isAsserted(.core) or expects_error) {
+        var sink = tql.diagnostic.Sink.init(allocator);
+        defer sink.deinit();
+
+        // Through the Engine rather than `desugar.module` directly, so the
+        // corpus exercises the same link the compiler performs: the prelude
+        // beneath the query, with `main` resolved by the linker.
+        if (engine.desugarQuery(tc.query.content, grammar, &sink)) |desugared| {
+            var program = desugared;
+            defer program.deinit();
+            allocator.free(core_text);
+            core_text = try fmt.formatCore(allocator, &program);
+        } else |err| switch (err) {
+            error.DesugarFailed, error.LinkFailed => {
+                allocator.free(desugar_diagnostics);
+                desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
+            },
+            else => return err,
+        }
+    }
+
+    // A rejection found by desugaring is the case's expected outcome, and
+    // nothing downstream of it runs.
+    if (desugar_diagnostics.len > 0) {
+        if (!expects_error) return error.UnexpectedDesugarError;
+        allocator.free(core_text);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = desugar_diagnostics,
+        };
+    }
+
+    // Compilation is driven by what the case claims, not by what it contains.
+    // A case whose value-bearing sections are all `pending` has nothing for the
+    // compiler or the runtime to decide yet, so running them would be wasted
+    // work whose only effect is to fail on syntax the 0.2 compiler predates.
+    // As sections move from `pending` into `asserts`, this switches back on
+    // one fixture at a time.
+    const needs_compile = expects_error or
+        tc.isAsserted(.bytecode) or
+        tc.isAsserted(.values);
+
+    if (!needs_compile) {
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = core_text,
+            .@"error" = try allocator.dupe(u8, ""),
+        };
+    }
+
+    var query = engine.compile(tc.query.content, grammar) catch |err| {
+        if (!expects_error) return err;
+        // Compilation past the parser still reports a bare Zig error, with no
+        // category and no span, so a fixture only matches if it was written
+        // `span: any` and a multi-diagnostic case can never match.
+        //
+        // IMPROVE: desugaring, resolution and typing should report structured
+        // diagnostics the way the parser now does, and this should render them.
+        const message = try std.fmt.allocPrint(allocator, "{t}/", .{err});
+        errdefer allocator.free(message);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = core_text,
+            .@"error" = message,
+        };
+    };
+    defer query.deinit();
+
+    if (expects_error) return error.ExpectedCompileError;
+
+    var run_result = try query.run(tc.target.content, allocator, allocator);
+    defer run_result.deinit();
 
     const bytecode_raw = try fmt.formatBytecode(allocator, query.instructions());
     defer allocator.free(bytecode_raw);
@@ -522,6 +812,8 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         .tql_tree = tql_tree,
         .bytecode = bytecode,
         .values = actual_values,
+        .core = core_text,
+        .@"error" = try allocator.dupe(u8, ""),
     };
 }
 
@@ -643,7 +935,13 @@ const cli_opts = .{
         .names = .{ .long = "file-name" },
         .has_arg = .required_argument,
         .meta = "NAME",
-        .description = "Run only the corpus file with this name (with or without .txt)",
+        .description = "Run only this case path, or every case under it (with or without .txt)",
+    },
+    .max_pending = goz.Opt{
+        .names = .{ .long = "max-pending" },
+        .has_arg = .required_argument,
+        .meta = "N",
+        .description = "Fail if more than N sections are written but not yet asserted",
     },
     .include = goz.Opt{
         .names = .{ .long = "include", .short = 'i' },
@@ -681,6 +979,7 @@ fn parseArgs(iter: *std.process.Args.Iterator) !Options {
                 .file_name => opts.file_name = kv.value,
                 .include => opts.include = kv.value,
                 .corpus_dir => opts.corpus_dir = kv.value,
+                .max_pending => opts.max_pending = try std.fmt.parseInt(u32, kv.value, 10),
             },
             .named_opt => |kv| switch (kv.field) {
                 .update => {

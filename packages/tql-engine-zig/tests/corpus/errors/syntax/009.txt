@@ -1,0 +1,15 @@
+title: `<|>` is not the union operator
+grammar: typescript
+asserts: error
+
+Union is `,`. `<|>` is a legacy spelling that the language never adopted.
+
+--- tql ---
+main = 1 <|> 2;
+
+--- error ---
+category: parse
+span: any
+Removed syntax. `<` lexes as a comparison operator, so the error starts at
+`|>`; recovering the whole token would mean teaching the grammar a spelling
+that no longer exists.

@@ -12,26 +12,58 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  benchmark:
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    env:
+      MACHINES: 6
+      ITERATIONS: 3
+      LIMIT_S: 35
+      REGRESSION_PCT: 10
+    outputs:
+      machines: ${{ steps.plan.outputs.machines }}
+      iterations: ${{ steps.plan.outputs.iterations }}
+      limit_s: ${{ steps.plan.outputs.limit_s }}
+      regression_pct: ${{ steps.plan.outputs.regression_pct }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Plan topology
+        id: plan
+        run: |
+          matrix=$(jq -nc --argjson n "$MACHINES" '[range(1; $n + 1)] | {machine: .}')
+          {
+            echo "machines=$MACHINES"
+            echo "iterations=$ITERATIONS"
+            echo "limit_s=$LIMIT_S"
+            echo "regression_pct=$REGRESSION_PCT"
+            echo "matrix=$matrix"
+          } >> "$GITHUB_OUTPUT"
+          echo "$matrix"
+
+  build:
+    name: Build (${{ matrix.side }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - side: head
+            ref: ${{ github.event.pull_request.head.sha }}
+          - side: base
+            ref: ${{ github.event.pull_request.base.sha }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          path: tql
+          ref: ${{ matrix.ref }}
 
-      - uses: ./tql/.github/actions/setup
-        with:
-          path: tql
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Install
-        working-directory: tql
         run: task install
 
       - name: Build optimized cli
-        working-directory: tql
         run: >
           task engine:build-cli --
           --prefix "$HOME/.local"
@@ -39,6 +71,33 @@ jobs:
           -Dgrammars=c
           -Doptimize=ReleaseFast
           --release=fast
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: tql-${{ matrix.side }}
+          path: ~/.local/bin/tql
+          if-no-files-found: error
+
+  run:
+    name: Run (machine ${{ matrix.machine }})
+    needs: [setup, build]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    env:
+      ITERATIONS: ${{ needs.setup.outputs.iterations }}
+      MACHINE: ${{ matrix.machine }}
+    steps:
+      - name: Download binaries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: tql-*
+          path: bin
+
+      - name: Make binaries executable
+        run: chmod +x bin/tql-head/tql bin/tql-base/tql
 
       - name: Checkout Linux source tree
         uses: actions/checkout@v7
@@ -49,80 +108,174 @@ jobs:
 
       - name: Run query
         run: |
-          mkdir -p results
-          for i in $(seq 1 7); do
-            "$HOME/.local/bin/tql" query --grammar c --format json '
-            . > function_definition as @fn
-            | @fn > function_declarator as @fn_decl
-            | @fn_decl > identifier as @name
-            | @fn.body as @body
-            | select(
-              any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-              any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
-            )
-            | { @name }
-            ' "$GITHUB_WORKSPACE/linux" | jq .stats | tee "results/$i.json"
+          mkdir -p results/head results/base
+          workers=2
+          query='
+          . / function_definition as @fn
+          | @fn / function_declarator as @fn_decl
+          | @fn_decl / identifier as @name
+          | @fn.body as @body
+          | select(
+            any(@body // call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
+            any(@body // goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
+          )
+          | { @name }
+          '
+          for i in $(seq 1 "$ITERATIONS"); do
+            # shuffle order so no possible cache pollution. need even machines
+            if (( (i + MACHINE) % 2 == 0 )); then
+              order="head base"
+            else
+              order="base head"
+            fi
+            for side in $order; do
+              "$GITHUB_WORKSPACE/bin/tql-$side/tql" query --workers="$workers" --grammar=c --format=json "$query" \
+                "$GITHUB_WORKSPACE/linux" \
+                | jq --argjson m "$MACHINE" '.stats + {machine: $m}' \
+                | tee "results/$side/$MACHINE-$i.json"
+            done
           done
 
-      - name: Aggregate, comment, and check query time
+      - name: Upload results
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-machine-${{ matrix.machine }}
+          path: results
+
+  compare:
+    name: Compare
+    needs: [setup, run]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: benchmark-machine-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql
+          sparse-checkout: scripts
+
+      - name: Paired statistics
+        id: stats
+        run: |
+          python3 tql/scripts/confidence_curve.py artifacts --json > stats.json
+          {
+            echo "json<<STATS_EOF"
+            cat stats.json
+            echo "STATS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render, comment, and check thresholds
         uses: actions/github-script@v9
+        env:
+          STATS: ${{ steps.stats.outputs.json }}
+          MACHINES: ${{ needs.setup.outputs.machines }}
+          ITERATIONS: ${{ needs.setup.outputs.iterations }}
+          LIMIT_S: ${{ needs.setup.outputs.limit_s }}
+          REGRESSION_PCT: ${{ needs.setup.outputs.regression_pct }}
         with:
           script: |
-            const fs = require("fs/promises");
-            const path = require("path");
+            const stats = JSON.parse(process.env.STATS);
+            const limitS = Number(process.env.LIMIT_S);
+            const regressionPct = Number(process.env.REGRESSION_PCT);
+            const machines = Number(process.env.MACHINES);
+            const iterations = Number(process.env.ITERATIONS);
 
-            const limitS = 35;
-            const fields = [
-              ["read_time_ns", "Read"],
-              ["parse_time_ns", "Parse"],
-              ["query_time_ns", "Query"],
-            ];
-
-            const files = await fs.readdir("results");
-            const runs = await Promise.all(
-              files.map(async (f) =>
-                JSON.parse(await fs.readFile(path.join("results", f), "utf8")),
-              ),
-            );
-            const n = runs.length;
+            const labels = {
+              read_time_ns: "Read",
+              parse_time_ns: "Parse",
+              query_time_ns: "Query",
+            };
 
             const toS = (ns) => Math.round((ns / 1e9) * 100) / 100;
+            const pct = (x) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
+            // `speedup` is positive when head is faster; a delta reads the
+            // other way round, so negate for display.
+            const delta = (x) => pct(-x);
+            const boundPhrase = (b) =>
+              b >= 0
+                ? `head is at least ${(b * 100).toFixed(1)}% faster`
+                : `head is no more than ${(-b * 100).toFixed(1)}% slower`;
 
-            const stats = Object.fromEntries(
-              fields.map(([key]) => {
-                const times = runs.map((r) => r[key]).sort((a, b) => a - b);
-                const mean = times.reduce((a, b) => a + b, 0) / n;
-                const stddev = Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
-                const median = n % 2 === 1 ? times[(n - 1) / 2] : (times[n / 2 - 1] + times[n / 2]) / 2;
-                return [key, { times, mean, stddev, median }];
-              }),
+            const query = stats.fields.query_time_ns;
+            const exceeded = query.head_median_ns >= limitS * 1e9;
+            const regression = -query.speedup * 100;
+            const regressed = regression >= regressionPct;
+
+            const problems = [];
+            if (exceeded) problems.push("⚠️ **Benchmark limit exceeded**");
+            if (regressed)
+              problems.push(
+                `⚠️ **Query time regressed vs base by ${regression.toFixed(1)}%**`,
+              );
+            const status = problems.length
+              ? problems.join("\n")
+              : "✅ **Benchmark passed**";
+
+            const rows = Object.entries(labels).map(([key, label]) => {
+              const f = stats.fields[key];
+              return `| ${label} | ${toS(f.head_median_ns)}s | ${toS(f.base_median_ns)}s | ${delta(f.speedup)} | ${boundPhrase(f.bound_95)} |`;
+            });
+
+            const perMachineRows = Object.entries(query.per_machine_speedup).map(
+              ([m, s]) => `| ${m} | ${delta(s)} |`,
             );
 
-            const queryMedianS = toS(stats.query_time_ns.median);
-            const exceeded = stats.query_time_ns.median >= limitS * 1e9;
+            const curveRows = query.curve.map(
+              (p) =>
+                `| ${p.x >= 0 ? "+" : ""}${(p.x * 100).toFixed(0)}% | ${(p.confidence * 100).toFixed(1)}% |`,
+            );
 
-            for (const [key, label] of fields) {
-              const s = stats[key];
-              console.log(
-                `${label} times (s): ${s.times.map(toS).join(", ")}`,
-              );
-              console.log(
-                `${label}: median=${toS(s.median)}s mean=${toS(s.mean)}s stddev=${toS(s.stddev)}s`,
-              );
-            }
-            console.log(`Query limit: ${limitS}s`);
+            const marker = "<!-- benchmark-result -->";
+            const body = [
+              marker,
+              status,
+              "",
+              `Query time (limit ${limitS}s, regression threshold ${regressionPct}%).`,
+              `${machines} machines × ${iterations} iterations per side; head and base run interleaved on the same machine.`,
+              "Δ is the paired per-machine estimate, so cross-machine variance cancels.",
+              `Base: \`${context.payload.pull_request.base.sha.slice(0, 7)}\``,
+              "",
+              "| Stage | Head median | Base median | Δ (paired) | 95% confidence |",
+              "| --- | --- | --- | --- | --- |",
+              ...rows,
+              "",
+              "<details><summary>Per-machine query delta</summary>",
+              "",
+              "| Machine | Δ |",
+              "| --- | --- |",
+              ...perMachineRows,
+              "",
+              "</details>",
+              "",
+              "<details><summary>Confidence curve</summary>",
+              "",
+              `Paired across ${query.machines} machines (df=${query.df}); sample size is machines, not runs, since same-machine runs are correlated.`,
+              "",
+              `- 95% confident: ${boundPhrase(query.bound_95)}`,
+              `- 99% confident: ${boundPhrase(query.bound_99)}`,
+              "",
+              "| Head faster by at least | Confidence |",
+              "| --- | --- |",
+              ...curveRows,
+              "",
+              "Negative rows read as regressions: the +0% row is the confidence that head is faster at all.",
+              "",
+              "</details>",
+            ].join("\n");
 
-            if (context.eventName === "pull_request") {
-              const marker = "<!-- benchmark-result -->";
-              const status = exceeded ? "⚠️ **Benchmark limit exceeded**" : "✅ **Benchmark passed**";
-              const rows = fields
-                .map(([key, label]) => {
-                  const s = stats[key];
-                  return `| ${label} | ${toS(s.median)}s | ${toS(s.mean)}s | ${toS(s.stddev)}s |`;
-                })
-                .join("\n");
-              const body = `${marker}\n${status}\n\nQuery time (limit ${limitS}s) over ${n} runs.\n\n| Stage | Median | Mean | Stddev |\n| --- | --- | --- | --- |\n${rows}`;
+            await core.summary.addRaw(body).write();
 
+            // Forks get a read-only token, so commenting can fail while the
+            // job summary above still carries the report.
+            try {
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -145,9 +298,16 @@ jobs:
                   body,
                 });
               }
+            } catch (err) {
+              core.warning(`Could not post PR comment: ${err.message}`);
             }
 
             if (exceeded) {
-              core.setFailed(`Median query time ${queryMedianS}s exceeds ${limitS}s limit`);
+              core.setFailed(
+                `Median query time ${toS(query.head_median_ns)}s exceeds ${limitS}s limit`,
+              );
+            } else if (regressed) {
+              core.setFailed(
+                `Median query time regressed ${regression.toFixed(1)}% vs base (threshold ${regressionPct}%)`,
+              );
             }
-

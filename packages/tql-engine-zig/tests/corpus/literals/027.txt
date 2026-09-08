@@ -1,0 +1,12 @@
+title: `length` of a list is its element count
+grammar: typescript
+pending: values
+
+--- tql ---
+main = [1, 2, 3] | length;
+
+--- source ---
+class A {}
+
+--- values ---
+[3]

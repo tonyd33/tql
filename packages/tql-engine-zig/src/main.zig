@@ -545,7 +545,27 @@ const FileStats = struct {
     read_time: std.Io.Duration = .zero,
     parse_time: std.Io.Duration = .zero,
     query_time: std.Io.Duration = .zero,
+    profile: tql.Profile = .{},
 };
+
+/// Counter fields are emitted only in a `-Dprofile` build; otherwise this
+/// writes nothing and the object holds timings alone.
+fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
+    try jws.beginObject();
+    try jws.objectField("read_time_ns");
+    try jws.write(stats.read_time.nanoseconds);
+    try jws.objectField("parse_time_ns");
+    try jws.write(stats.parse_time.nanoseconds);
+    try jws.objectField("query_time_ns");
+    try jws.write(stats.query_time.nanoseconds);
+    if (tql.profiling_enabled) {
+        inline for (@typeInfo(tql.Profile).@"struct".fields) |field| {
+            try jws.objectField(field.name);
+            try jws.write(@field(stats.profile, field.name));
+        }
+    }
+    try jws.endObject();
+}
 
 const FileResult = struct {
     arena: std.heap.ArenaAllocator,
@@ -643,6 +663,7 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
         totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
+        totals.profile.add(result.stats.profile);
         if (result.values.items.len == 0) continue;
         try jws.beginObject();
         try jws.objectField("file");
@@ -651,18 +672,13 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         try jws.beginArray();
         for (result.values.items) |v| try v.jsonStringify(jws);
         try jws.endArray();
+        try jws.objectField("stats");
+        try writeStats(jws, result.stats);
         try jws.endObject();
     }
     try jws.endArray();
     try jws.objectField("stats");
-    try jws.beginObject();
-    try jws.objectField("read_time_ns");
-    try jws.write(totals.read_time.nanoseconds);
-    try jws.objectField("parse_time_ns");
-    try jws.write(totals.parse_time.nanoseconds);
-    try jws.objectField("query_time_ns");
-    try jws.write(totals.query_time.nanoseconds);
-    try jws.endObject();
+    try writeStats(jws, totals);
     try jws.endObject();
 }
 
@@ -704,6 +720,7 @@ fn workerThread(ctx: *SharedContext) !void {
                 .read_time = read_time,
                 .parse_time = run_result.stats.parse_time,
                 .query_time = run_result.stats.query_time,
+                .profile = run_result.stats.profile,
             },
         });
 

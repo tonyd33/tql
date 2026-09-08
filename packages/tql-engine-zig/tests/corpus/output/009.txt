@@ -1,0 +1,14 @@
+title: a record encodes as a JSON object
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | { name = .name | text, size = text | length };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "name": "A", "size": 10 }]

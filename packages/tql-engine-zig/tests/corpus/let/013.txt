@@ -1,0 +1,21 @@
+title: nested `let` groups
+grammar: typescript
+pending: values
+
+The inner group closes at its own `}`, leaving the outer body to continue.
+
+--- tql ---
+main =
+  let {
+    outer = 10
+  } in
+    let {
+      inner = outer + 5
+    } in
+      pure inner;
+
+--- source ---
+class A {}
+
+--- values ---
+[15]

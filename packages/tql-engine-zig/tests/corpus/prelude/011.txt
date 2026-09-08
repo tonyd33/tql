@@ -1,0 +1,16 @@
+title: `contains` does not match the node itself
+grammar: typescript
+pending: values
+
+Descendants are proper, so a class does not contain itself.
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | contains (\n -> [kind n = "class_declaration"]);
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

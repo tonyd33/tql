@@ -27,6 +27,7 @@ pub const TestContext = struct {
         instructions: []const Instruction,
         language: ?*ts.Language = null,
         allocator: ?Allocator = null,
+        param_var_arena: []const ir.VariableId = &.{},
     }) !TestContext {
         const allocator = x.allocator orelse std.testing.allocator;
         const language = x.language orelse tree_sitter_c();
@@ -44,6 +45,7 @@ pub const TestContext = struct {
             .source = x.source,
             .instructions = x.instructions,
             .regexes = &[_]pcre2.Regex{},
+            .param_var_arena = x.param_var_arena,
             .allocator = allocator,
         });
 

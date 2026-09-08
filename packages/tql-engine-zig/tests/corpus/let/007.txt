@@ -1,0 +1,17 @@
+title: a `let` binding holds a function value
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  let {
+    is_named n = text n.name = "A"
+  } in
+    children | is_kind :class_declaration | \c -> [is_named c];
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]

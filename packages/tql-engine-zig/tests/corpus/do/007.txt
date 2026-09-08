@@ -1,0 +1,33 @@
+title: a `do`-local `let` group binds several names
+grammar: typescript
+pending: values
+
+Two bindings in one group, both used in the result record.
+
+`k = c | kind` is worth attention, and this program is expected to change. `c`
+is bound to a node, not to a filter, so what the pipe receives on its left is a
+value; an implementation that treats a bare name after `|` as already being a
+filter builds an ill-typed term here, because composition wants a filter on both
+sides and a node is not one.
+
+The resolution taken is that a filter is an ordinary function, so this line
+becomes application — `k = kind c` — and the pipe is no longer involved. The
+values below are what the program must yield under either spelling, so they are
+written as the durable part.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    let {
+      name = text c.name;
+      k = kind c
+    };
+    [{ n = name, k = k }]
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "n": "A", "k": "class_declaration" }]

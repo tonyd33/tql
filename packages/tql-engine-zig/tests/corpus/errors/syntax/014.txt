@@ -1,0 +1,19 @@
+title: an unclosed brace group
+grammar: typescript
+asserts: error
+
+Group structure is delimited by braces alone, with no layout rule, so a missing
+`}` is an ordinary parse error rather than a dedicated diagnostic.
+
+--- tql ---
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    c
+
+--- error ---
+category: parse
+span: any
+The declaration is both unclosed and unterminated, so the span covers all of
+it rather than the `do` block alone. Which of the two failures a parser reports
+first is a recovery detail.
