@@ -1,0 +1,12 @@
+title: a scalar literal in filter position yields itself once
+grammar: typescript
+pending: values
+
+--- tql ---
+main = 42;
+
+--- source ---
+class A {}
+
+--- values ---
+[42]

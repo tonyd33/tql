@@ -1,0 +1,15 @@
+title: `select` passes its input through unchanged
+grammar: typescript
+pending: values
+
+The output is the node itself, not the predicate's boolean, so the `identity`
+arm is what runs on success.
+
+--- tql ---
+main = . / :class_declaration | select (.name | text = "A") | kind;
+
+--- source ---
+class A {}
+
+--- values ---
+["class_declaration"]

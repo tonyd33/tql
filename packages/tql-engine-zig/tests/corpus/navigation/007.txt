@@ -1,0 +1,12 @@
+title: descendants are proper; a node is not its own descendant
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration // :class_declaration | .name | text;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

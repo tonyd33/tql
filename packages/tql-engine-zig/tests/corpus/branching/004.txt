@@ -1,0 +1,12 @@
+title: a condition yielding many booleans runs many branches in order
+grammar: typescript
+pending: values
+
+--- tql ---
+main = if (true, false, true) then "y" else "n";
+
+--- source ---
+class A {}
+
+--- values ---
+["y", "n", "y"]

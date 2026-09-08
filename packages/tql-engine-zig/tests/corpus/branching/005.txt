@@ -1,0 +1,12 @@
+title: `not` negates each boolean output
+grammar: typescript
+pending: values
+
+--- tql ---
+main = not (true, false);
+
+--- source ---
+class A {}
+
+--- values ---
+[false, true]

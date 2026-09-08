@@ -1,0 +1,14 @@
+title: a kind from a different grammar is unknown
+grammar: typescript
+
+`function_definition` is a C kind. Under the typescript grammar the equivalent
+is `function_declaration`, so this must be rejected rather than silently
+yielding nothing.
+
+--- tql ---
+main = . // :function_definition;
+
+--- error ---
+category: unknown-kind
+span: 1:13-1:33
+The `:function_definition` selector.

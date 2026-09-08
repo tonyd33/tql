@@ -1,0 +1,15 @@
+title: collection of an empty query yields one empty list
+grammar: typescript
+pending: values
+
+Collection observes absence: the inner query yields nothing, and the result is
+one `[]` rather than no output.
+
+--- tql ---
+main = [. / :interface_declaration | text];
+
+--- source ---
+class A {}
+
+--- values ---
+[[]]

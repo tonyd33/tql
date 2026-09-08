@@ -1,0 +1,24 @@
+title: a lifted function value is data, never executed
+grammar: typescript
+
+Lifting wraps a value in `pure`; it does not apply it. A record field is a
+value position, so `f` is stored as data; the record then reaches output and
+fails `Serial`. The error is the serialization failure, not an arity or
+application error, which is the evidence that lifting did not execute the
+function.
+
+A bare `main = f` would not witness this rule: a bare identifier in filter
+position is used directly (`SEM-LIFT-2`), so no lifting would occur and the
+rejection would be `main`'s type rather than `Serial`.
+
+--- tql ---
+main =
+  let {
+    f = \x -> x + 1
+  } in
+    { op = f };
+
+--- error ---
+category: unsatisfied-constraint
+span: 5:5-5:15
+`Serial` is not satisfied for the `op` field, of type `int -> int`.

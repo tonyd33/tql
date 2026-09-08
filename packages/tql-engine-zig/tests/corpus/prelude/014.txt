@@ -1,0 +1,14 @@
+title: `or_else` yields the primary when it has results
+grammar: typescript
+pending: values
+
+`or_else primary fallback = branch (probe primary) primary fallback`.
+
+--- tql ---
+main = . / :class_declaration | or_else (.name | text) ("anonymous");
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

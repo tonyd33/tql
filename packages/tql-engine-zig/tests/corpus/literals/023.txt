@@ -1,0 +1,12 @@
+title: `toint` accepts a leading minus
+grammar: typescript
+pending: values
+
+--- tql ---
+main = "-7" | toint;
+
+--- source ---
+class A {}
+
+--- values ---
+[-7]

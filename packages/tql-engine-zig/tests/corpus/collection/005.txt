@@ -1,0 +1,15 @@
+title: collection runs once per input value
+grammar: typescript
+pending: values
+
+One list per class, not one list overall.
+
+--- tql ---
+main = . / :class_declaration | [.body / :method_definition | .name | text];
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+[["m", "n"], ["p"]]

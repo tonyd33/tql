@@ -1,0 +1,20 @@
+title: partial application yields a function value
+grammar: typescript
+pending: values
+
+`add 10` is applied to two different arguments, so the partial application was
+a reusable value rather than an error.
+
+--- tql ---
+add x y = x + y;
+main =
+  let {
+    add10 = add 10
+  } in
+    add10 1, add10 2;
+
+--- source ---
+class A {}
+
+--- values ---
+[11, 12]

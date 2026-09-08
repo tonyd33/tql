@@ -1,0 +1,12 @@
+title: `text`, `kind`, and `range` project a node
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | { k = kind, t = text };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "k": "class_declaration", "t": "class A {}" }]

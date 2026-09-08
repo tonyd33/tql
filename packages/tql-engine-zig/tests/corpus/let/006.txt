@@ -1,0 +1,20 @@
+title: a `let` binding holds a filter value used as a pipe stage
+grammar: typescript
+pending: values
+
+`names` is bound to a filter, not to its results. Binding does not run it; the
+pipe does.
+
+--- tql ---
+main =
+  let {
+    names = .name | text
+  } in
+    . / :class_declaration | names;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

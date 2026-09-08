@@ -1,0 +1,12 @@
+title: `unnest` streams list elements in order
+grammar: typescript
+pending: values
+
+--- tql ---
+main = [3, 1, 2] | unnest;
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 1, 2]

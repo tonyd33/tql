@@ -1,0 +1,16 @@
+title: a literal ignores its input and yields once per input value
+grammar: typescript
+pending: values
+
+Two class declarations give two inputs to the right stage, so `pure` runs
+twice.
+
+--- tql ---
+main = . / :class_declaration | 1;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[1, 1]

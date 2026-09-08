@@ -1,0 +1,11 @@
+title: duplicate `main` definitions
+grammar: typescript
+
+--- tql ---
+main = 1;
+main = 2;
+
+--- error ---
+category: duplicate-definition
+span: 2:1-2:10
+The second `main`.

@@ -1,0 +1,17 @@
+title: application binds tighter than pipe
+grammar: typescript
+pending: values
+
+`. / :class_declaration | name_of .` groups as
+`. / :class_declaration | (name_of .)`.
+
+--- tql ---
+name_of n = n.name | text;
+main = . / :class_declaration | name_of .;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

@@ -1,0 +1,15 @@
+title: child navigation does not descend
+grammar: typescript
+pending: values
+
+Only the top-level class is a child of `program`. The nested method is a
+descendant but not a child, so `/` must not reach it.
+
+--- tql ---
+main = . / :method_definition | .name | text;
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+[]

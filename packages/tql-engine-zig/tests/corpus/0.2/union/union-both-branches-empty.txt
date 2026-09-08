@@ -1,0 +1,46 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+(. // interface_declaration | text) <|> (. // type_alias_declaration | text)
+
+--- source ---
+function foo() {}
+
+--- values ---
+[]
+
+--- tql tree ---
+(source_file (union (paren (pipe (descendant . (node interface_declaration)) (call text))) (paren (pipe (descendant . (node type_alias_declaration)) (call text)))))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: alt 3 14
+0001: asn 0 ((current value) value)
+0002: jmp 25
+0003: trv value_source ((current value) value)
+0004: trv descendant
+0005: rel equals ((current value) kind) (literal kind_id 288) -> 1
+0006: jmp 8 if (variable_id 1)
+0007: halt
+0008: asn 2 ((current value) value)
+0009: trv value_source (variable_id 2)
+0010: asn 3 ((current value) value)
+0011: trv value_source (variable_id 3)
+0012: yield (current value) text
+0013: halt
+0014: trv value_source ((current value) value)
+0015: trv descendant
+0016: rel equals ((current value) kind) (literal kind_id 293) -> 4
+0017: jmp 19 if (variable_id 4)
+0018: halt
+0019: asn 5 ((current value) value)
+0020: trv value_source (variable_id 5)
+0021: asn 6 ((current value) value)
+0022: trv value_source (variable_id 6)
+0023: yield (current value) text
+0024: halt
+0025: yield variable_id 0
+0026: halt

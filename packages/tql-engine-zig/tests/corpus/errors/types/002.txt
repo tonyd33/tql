@@ -1,0 +1,12 @@
+title: mixed operand types in a comparison
+grammar: typescript
+
+`=` compares equal types only.
+
+--- tql ---
+main = 1 = "one";
+
+--- error ---
+category: type-mismatch
+span: 1:12-1:17
+The right operand. Expected `int`, found `string`.

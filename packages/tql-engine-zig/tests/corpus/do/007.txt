@@ -1,0 +1,20 @@
+title: a `do`-local `let` group binds several names
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    let {
+      name = c.name | text;
+      k = c | kind
+    };
+    { n = name, k = k }
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "n": "A", "k": "class_declaration" }]

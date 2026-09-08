@@ -1,0 +1,14 @@
+title: `any` over an empty source is false
+grammar: typescript
+pending: values
+
+The source yields nothing, so the probe finds no first result.
+
+--- tql ---
+main = . / :class_declaration | any (.body / :method_definition) (.name | text ~ r"^get");
+
+--- source ---
+class B {}
+
+--- values ---
+[false]

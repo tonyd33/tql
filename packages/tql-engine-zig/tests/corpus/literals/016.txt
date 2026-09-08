@@ -1,0 +1,12 @@
+title: string ordering
+grammar: typescript
+pending: values
+
+--- tql ---
+main = "a" < "b", "b" < "a";
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

@@ -1,0 +1,26 @@
+title: the binding is branch-local and immutable
+grammar: typescript
+pending: values
+
+Each branch of the outer bind has its own `c`. The inner record sees the `c` of
+its own branch, never a later one.
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    n <- (1, 2);
+    { class = c.name | text, n = n }
+  };
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[
+  { "class": "A", "n": 1 },
+  { "class": "A", "n": 2 },
+  { "class": "B", "n": 1 },
+  { "class": "B", "n": 2 }
+]

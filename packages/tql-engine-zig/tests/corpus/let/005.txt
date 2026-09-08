@@ -1,0 +1,12 @@
+title: an optional trailing semicolon is permitted in the brace form
+grammar: typescript
+pending: values
+
+--- tql ---
+main = let { a = 1; b = 2; } in a + b;
+
+--- source ---
+class A {}
+
+--- values ---
+[3]

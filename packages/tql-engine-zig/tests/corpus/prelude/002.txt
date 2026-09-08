@@ -1,0 +1,12 @@
+title: `select` with a never-true predicate yields nothing
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | select (.name | text = "Nope") | .name | text;
+
+--- source ---
+class A {}
+
+--- values ---
+[]

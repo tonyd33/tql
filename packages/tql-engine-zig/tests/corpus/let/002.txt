@@ -1,0 +1,17 @@
+title: multiple bindings in one group are siblings
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  let {
+    lo = 2;
+    hi = 5
+  } in
+    lo + hi;
+
+--- source ---
+class A {}
+
+--- values ---
+[7]

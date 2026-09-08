@@ -1,0 +1,16 @@
+title: a known field absent from a node yields the empty stream
+grammar: typescript
+pending: values
+
+`value` is a known typescript field, present on `variable_declarator` only when
+an initializer is written. The uninitialized declarator yields nothing rather
+than failing.
+
+--- tql ---
+main = . // :variable_declarator | .value | text;
+
+--- source ---
+let a;
+
+--- values ---
+[]

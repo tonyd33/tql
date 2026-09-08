@@ -1,0 +1,10 @@
+title: an unresolved name is a compile error
+grammar: typescript
+
+--- tql ---
+main = missing_helper 1;
+
+--- error ---
+category: unresolved-name
+span: 1:8-1:22
+`missing_helper`.

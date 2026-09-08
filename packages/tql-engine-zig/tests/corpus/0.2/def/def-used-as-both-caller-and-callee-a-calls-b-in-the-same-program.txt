@@ -1,0 +1,62 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def starts_with_use(@ident): @ident | text ~ /^use/;
+def is_hook(@ident): starts_with_use(@ident) and (@ident | text ~ /^[a-z]/);
+
+. // identifier | is_hook(.)
+
+--- source ---
+function useFoo() {}
+function Bar() {}
+
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (query starts_with_use (parameters (param ident)) (regex_match (pipe ident (call text)) (regex "^use"))) (query is_hook (parameters (param ident)) (and (call starts_with_use ident) (paren (regex_match (pipe ident (call text)) (regex "^[a-z]"))))) (pipe (descendant . (node identifier)) (call is_hook .)))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: trv value_source (variable_id 4)
+0009: asn 1 ((current value) value)
+0010: call 21
+0011: asn 5 ((current value) value)
+0012: yield variable_id 5
+0013: halt
+0014: asn 6 ((current value) value)
+0015: trv value_source (variable_id 0)
+0016: asn 7 ((current value) text)
+0017: trv value_source (variable_id 6)
+0018: rel like (variable_id 7) (literal regex ...) -> 8
+0019: yield variable_id 8
+0020: halt
+0021: asn 9 (literal bool false)
+0022: asn 10 ((current value) value)
+0023: asn 0 (variable_id 1)
+0024: call 14
+0025: asn 11 ((current value) value)
+0026: jmp 34 if not (variable_id 11)
+0027: trv value_source (variable_id 10)
+0028: asn 12 ((current value) value)
+0029: trv value_source (variable_id 1)
+0030: asn 13 ((current value) text)
+0031: trv value_source (variable_id 12)
+0032: rel like (variable_id 13) (literal regex ...) -> 14
+0033: asn 9 (variable_id 14)
+0034: yield variable_id 9
+0035: halt

@@ -1,0 +1,15 @@
+title: `and` runs its right operand only for a true left output
+grammar: typescript
+pending: values
+
+For left output `true` the result is the right operand's stream; for `false`
+the result is `[false]` and the right operand does not run.
+
+--- tql ---
+main = (true, false) and true;
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

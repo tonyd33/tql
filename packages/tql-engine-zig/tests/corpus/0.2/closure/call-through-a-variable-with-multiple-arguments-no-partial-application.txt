@@ -1,0 +1,83 @@
+grammar: c
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+def type_is(@n; @kind): @n.type | text = @kind;
+
+. as @root
+| type_is as @f
+| @root / function_definition.declarator
+| .parameters / parameter_declaration as @p
+| select(@f(@p; 'int'))
+| @p.declarator
+| text
+
+--- source ---
+int add(int a, char b) { return a; }
+
+--- values ---
+[
+  "a"
+]
+
+--- tql tree ---
+(source_file (query type_is (parameters (param n) (param kind)) (eq (pipe (field n type) (call text)) kind)) (pipe (pipe (pipe (bind (pipe (pipe (bind (pipe (bind . root) (call type_is)) f) (field (child root (node function_definition)) declarator)) (child (dot-field parameters) (node parameter_declaration))) p) (call select (call @f p (string "int")))) (field p declarator)) (call text)))
+
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (identifier)))))
+
+--- bytecode ---
+0000: asn 4 ((current value) value)
+0001: trv value_source (variable_id 4)
+0002: make_closure entry=44 arity=2 param_vars_offset=0 -> 5
+0003: asn 3 (variable_id 5)
+0004: trv value_source (variable_id 3)
+0005: trv value_source (variable_id 4)
+0006: trv child
+0007: rel equals ((current value) kind) (literal kind_id 196) -> 6
+0008: jmp 10 if (variable_id 6)
+0009: halt
+0010: asn 7 ((current value) value)
+0011: trv value_source (variable_id 7)
+0012: asn 8 ((current value) value)
+0013: trv value_source (variable_id 8)
+0014: trv field 10
+0015: asn 9 ((current value) value)
+0016: trv value_source (variable_id 9)
+0017: trv field 28
+0018: asn 10 ((current value) value)
+0019: trv value_source (variable_id 10)
+0020: trv child
+0021: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0022: jmp 24 if (variable_id 11)
+0023: halt
+0024: asn 12 ((current value) value)
+0025: trv value_source (variable_id 12)
+0026: asn 13 ((current value) value)
+0027: asn 2 (variable_id 13)
+0028: trv value_source (variable_id 2)
+0029: asn 14 ((current value) value)
+0030: apply (variable_id 3) (variable_id 2)
+0031: asn 15 ((current value) value)
+0032: apply (variable_id 15) (literal string "int")
+0033: asn 16 ((current value) value)
+0034: trv value_source (variable_id 14)
+0035: jmp 37 if (variable_id 16)
+0036: halt
+0037: trv value_source ((current value) value)
+0038: trv value_source (variable_id 2)
+0039: trv field 10
+0040: asn 17 ((current value) value)
+0041: trv value_source (variable_id 17)
+0042: yield (current value) text
+0043: halt
+0044: asn 18 ((current value) value)
+0045: trv value_source (variable_id 0)
+0046: trv field 36
+0047: asn 19 ((current value) value)
+0048: trv value_source (variable_id 19)
+0049: asn 20 ((current value) text)
+0050: trv value_source (variable_id 18)
+0051: rel equals (variable_id 20) (variable_id 1) -> 21
+0052: yield variable_id 21
+0053: halt

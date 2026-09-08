@@ -1,0 +1,21 @@
+title: the prelude is ordinary TQL and can be redefined locally
+grammar: typescript
+pending: values
+
+A local binding named `keep` behaves exactly as `select` does, since `select`
+has no compiler special casing. This is evidence for the claim that the prelude
+is ordinary higher-order TQL.
+
+--- tql ---
+main =
+  let {
+    keep p = if p then . else empty
+  } in
+    . / :class_declaration | keep (.name | text ~ r"^S") | .name | text;
+
+--- source ---
+class Service {}
+class Other {}
+
+--- values ---
+["Service"]

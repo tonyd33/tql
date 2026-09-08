@@ -1,0 +1,72 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @c | select(any(@c // method_definition; .name | text = 'foo')) | @c
+
+--- source ---
+class Service { foo() {}; }
+class Controller { bar() {}; }
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service { foo() {}; }",
+    "start_byte": 0,
+    "end_byte": 27,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 27
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (call any (descendant c (node method_definition)) (eq (pipe (dot-field name) (call text)) (string "foo"))))) c))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe exists 31
+0012: trv value_source (variable_id 0)
+0013: trv descendant
+0014: rel equals ((current value) kind) (literal kind_id 261) -> 5
+0015: jmp 17 if (variable_id 5)
+0016: halt
+0017: asn 6 ((current value) value)
+0018: trv value_source (variable_id 6)
+0019: asn 7 ((current value) value)
+0020: trv value_source (variable_id 7)
+0021: asn 8 ((current value) value)
+0022: trv field 25
+0023: asn 9 ((current value) value)
+0024: trv value_source (variable_id 9)
+0025: asn 10 ((current value) text)
+0026: trv value_source (variable_id 8)
+0027: rel equals (variable_id 10) (literal string "foo") -> 11
+0028: jmp 30 if not (variable_id 11)
+0029: yield (current value) value
+0030: halt
+0031: trv value_source (variable_id 4)
+0032: jmp 34 if (literal bool true)
+0033: halt
+0034: trv value_source ((current value) value)
+0035: yield variable_id 0
+0036: halt

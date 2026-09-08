@@ -1,0 +1,25 @@
+title: a bound value already typed `Filter` is used directly, not lifted
+grammar: typescript
+pending: values
+
+`predicate` is bound to a filter value. It is used as a pipe stage directly. If
+it were lifted instead, the result would be a filter yielding a filter, which
+is not serializable and would be rejected.
+
+The outer input is retained as `root` because the inner bind rebases its body
+onto the yielded filter value, not onto the node.
+
+--- tql ---
+make_predicate = kind;
+main =
+  do {
+    root <- .;
+    predicate <- make_predicate;
+    root | predicate
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+["program"]

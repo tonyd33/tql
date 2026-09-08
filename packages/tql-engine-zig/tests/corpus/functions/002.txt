@@ -1,0 +1,16 @@
+title: application is left-associative
+grammar: typescript
+pending: values
+
+`add 2 3` is `(add 2) 3`. The explicit grouping produces the same value, which
+is what left-associativity means here.
+
+--- tql ---
+add x y = x + y;
+main = add 2 3, (add 2) 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[5, 5]

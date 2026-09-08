@@ -1,0 +1,77 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @class | @class.name as @name | ('class', @name, @class)
+
+--- source ---
+class Foo {}
+
+--- values ---
+[
+  [
+    "class",
+    {
+      "kind": "type_identifier",
+      "text": "Foo",
+      "start_byte": 6,
+      "end_byte": 9,
+      "start_point": {
+        "row": 0,
+        "column": 6
+      },
+      "end_point": {
+        "row": 0,
+        "column": 9
+      }
+    },
+    {
+      "kind": "class_declaration",
+      "text": "class Foo {}",
+      "start_byte": 0,
+      "end_byte": 12,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 12
+      }
+    }
+  ]
+]
+
+--- tql tree ---
+(source_file (pipe (bind (pipe (bind (child . (node class_declaration)) class) (field class name)) name) (tuple (string "class") name class)))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 2
+0003: jmp 5 if (variable_id 2)
+0004: halt
+0005: asn 3 ((current value) value)
+0006: trv value_source (variable_id 3)
+0007: asn 4 ((current value) value)
+0008: asn 1 (variable_id 4)
+0009: trv value_source (variable_id 1)
+0010: trv value_source (variable_id 1)
+0011: trv field 25
+0012: asn 5 ((current value) value)
+0013: asn 0 (variable_id 5)
+0014: trv value_source (variable_id 0)
+0015: asn 6 ((current value) value)
+0016: probe aggregate 24 7 list
+0017: trv value_source (variable_id 6)
+0018: yield literal string "class"
+0019: trv value_source (variable_id 6)
+0020: yield variable_id 0
+0021: trv value_source (variable_id 6)
+0022: yield variable_id 1
+0023: halt
+0024: yield variable_id 7
+0025: halt

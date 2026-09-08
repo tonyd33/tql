@@ -1,0 +1,149 @@
+grammar: c
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / function_definition as @func | {
+  fn: @func,
+  int_params: [
+    @func.declarator.parameters / parameter_declaration as @p |
+    @p.type as @t |
+    select(@t | text = 'int') |
+    @p
+  ]
+}
+
+--- source ---
+int add(int a, int b) { return a + b; }
+int main(void) { return 0; }
+
+--- values ---
+[
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int add(int a, int b) { return a + b; }",
+      "start_byte": 0,
+      "end_byte": 39,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 39
+      }
+    },
+    "int_params": [
+      {
+        "kind": "parameter_declaration",
+        "text": "int a",
+        "start_byte": 8,
+        "end_byte": 13,
+        "start_point": {
+          "row": 0,
+          "column": 8
+        },
+        "end_point": {
+          "row": 0,
+          "column": 13
+        }
+      },
+      {
+        "kind": "parameter_declaration",
+        "text": "int b",
+        "start_byte": 15,
+        "end_byte": 20,
+        "start_point": {
+          "row": 0,
+          "column": 15
+        },
+        "end_point": {
+          "row": 0,
+          "column": 20
+        }
+      }
+    ]
+  },
+  {
+    "fn": {
+      "kind": "function_definition",
+      "text": "int main(void) { return 0; }",
+      "start_byte": 40,
+      "end_byte": 68,
+      "start_point": {
+        "row": 1,
+        "column": 0
+      },
+      "end_point": {
+        "row": 1,
+        "column": 28
+      }
+    },
+    "int_params": []
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) func) (object (fn func) (int_params (collect (pipe (pipe (bind (pipe (bind (child (field (field func declarator) parameters) (node parameter_declaration)) p) (field p type)) t) (call select (eq (pipe t (call text)) (string "int")))) p))))))
+
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))) (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type)))) body: (compound_statement (return_statement (number_literal)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: asn 5 (variable_id 0)
+0013: trv value_source (variable_id 4)
+0014: probe aggregate 48 6 list
+0015: trv value_source (variable_id 0)
+0016: trv field 10
+0017: asn 9 ((current value) value)
+0018: trv value_source (variable_id 9)
+0019: trv field 28
+0020: asn 10 ((current value) value)
+0021: trv value_source (variable_id 10)
+0022: trv child
+0023: rel equals ((current value) kind) (literal kind_id 260) -> 11
+0024: jmp 26 if (variable_id 11)
+0025: halt
+0026: asn 12 ((current value) value)
+0027: trv value_source (variable_id 12)
+0028: asn 13 ((current value) value)
+0029: asn 8 (variable_id 13)
+0030: trv value_source (variable_id 8)
+0031: trv value_source (variable_id 8)
+0032: trv field 36
+0033: asn 14 ((current value) value)
+0034: asn 7 (variable_id 14)
+0035: trv value_source (variable_id 7)
+0036: asn 15 ((current value) value)
+0037: asn 16 ((current value) value)
+0038: trv value_source (variable_id 7)
+0039: asn 17 ((current value) text)
+0040: trv value_source (variable_id 16)
+0041: rel equals (variable_id 17) (literal string "int") -> 18
+0042: trv value_source (variable_id 15)
+0043: jmp 45 if (variable_id 18)
+0044: halt
+0045: trv value_source ((current value) value)
+0046: yield variable_id 8
+0047: halt
+0048: asn 19 (variable_id 6)
+0049: probe aggregate 55 20 record
+0050: yield literal string "fn"
+0051: yield variable_id 5
+0052: yield literal string "int_params"
+0053: yield variable_id 19
+0054: halt
+0055: yield variable_id 20
+0056: halt

@@ -1,0 +1,18 @@
+title: a `do`-local `let` has no `in` and scopes over the rest of the block
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    let name = c.name | text;
+    name
+  };
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

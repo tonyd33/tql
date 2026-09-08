@@ -1,0 +1,12 @@
+title: `or_else` yields the fallback when the primary is empty
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / :class_declaration | or_else (.body / :method_definition | .name | text) ("none");
+
+--- source ---
+class A {}
+
+--- values ---
+["none"]

@@ -1,0 +1,39 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. // identifier | (. | text ~ /^use[A-Z][a-zA-Z]+/)
+
+--- source ---
+function useFoo() {}
+function bar() {}
+
+--- values ---
+[
+  true,
+  false
+]
+
+--- tql tree ---
+(source_file (pipe (descendant . (node identifier)) (paren (regex_match (pipe . (call text)) (regex "^use[A-Z][a-zA-Z]+")))))
+
+--- source tree ---
+(program (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)) (function_declaration name: (identifier) parameters: (formal_parameters) body: (statement_block)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv descendant
+0002: rel equals ((current value) kind) (literal kind_id 1) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: asn 3 ((current value) value)
+0010: trv value_source ((current value) value)
+0011: asn 4 ((current value) text)
+0012: trv value_source (variable_id 3)
+0013: rel like (variable_id 4) (literal regex ...) -> 5
+0014: yield variable_id 5
+0015: halt

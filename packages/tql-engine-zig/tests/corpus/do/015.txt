@@ -1,0 +1,18 @@
+title: a bind whose query is empty yields no output
+grammar: typescript
+pending: values
+
+The body never runs.
+
+--- tql ---
+main =
+  do {
+    c <- . / :interface_declaration;
+    c.name | text
+  };
+
+--- source ---
+class A {}
+
+--- values ---
+[]

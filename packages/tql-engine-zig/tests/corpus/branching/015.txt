@@ -1,0 +1,12 @@
+title: a boolean-valued query used as a condition
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . // :method_definition | if .name | text ~ r"^get" then .name | text else empty;
+
+--- source ---
+class A { getX() {} setY() {} getZ() {} }
+
+--- values ---
+["getX", "getZ"]

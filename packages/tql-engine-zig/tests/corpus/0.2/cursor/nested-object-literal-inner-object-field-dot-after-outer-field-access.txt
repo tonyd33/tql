@@ -1,0 +1,85 @@
+grammar: c
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / function_definition as @fn | { outer: @fn.type, inner: { whole: . } }
+
+--- source ---
+int add(int a, int b) { return a + b; }
+
+--- values ---
+[
+  {
+    "inner": {
+      "whole": {
+        "kind": "function_definition",
+        "text": "int add(int a, int b) { return a + b; }",
+        "start_byte": 0,
+        "end_byte": 39,
+        "start_point": {
+          "row": 0,
+          "column": 0
+        },
+        "end_point": {
+          "row": 0,
+          "column": 39
+        }
+      }
+    },
+    "outer": {
+      "kind": "primitive_type",
+      "text": "int",
+      "start_byte": 0,
+      "end_byte": 3,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 3
+      }
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node function_definition)) fn) (object (outer (field fn type)) (inner (object (whole .))))))
+
+--- source tree ---
+(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list (parameter_declaration type: (primitive_type) declarator: (identifier)) (parameter_declaration type: (primitive_type) declarator: (identifier)))) body: (compound_statement (return_statement (binary_expression left: (identifier) right: (identifier))))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 196) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: trv value_source (variable_id 4)
+0012: trv value_source (variable_id 0)
+0013: trv field 36
+0014: asn 5 ((current value) value)
+0015: asn 6 (variable_id 5)
+0016: trv value_source (variable_id 4)
+0017: asn 7 ((current value) value)
+0018: trv value_source (variable_id 7)
+0019: asn 8 ((current value) value)
+0020: probe aggregate 24 9 record
+0021: yield literal string "whole"
+0022: yield variable_id 8
+0023: halt
+0024: asn 10 (variable_id 9)
+0025: probe aggregate 31 11 record
+0026: yield literal string "outer"
+0027: yield variable_id 6
+0028: yield literal string "inner"
+0029: yield variable_id 10
+0030: halt
+0031: yield variable_id 11
+0032: halt

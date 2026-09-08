@@ -1,0 +1,13 @@
+title: a curried definition applied to all its arguments
+grammar: typescript
+pending: values
+
+--- tql ---
+add x y = x + y;
+main = add 2 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[5]

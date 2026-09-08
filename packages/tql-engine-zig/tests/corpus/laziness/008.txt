@@ -1,0 +1,15 @@
+title: collecting an infinite filter does not terminate
+grammar: typescript
+expect: divergence
+
+Collection must observe every output, so it cannot be lazy. This fixture pins
+the semantics; it is not executed.
+
+--- tql ---
+from n = n, from (n + 1);
+main = [from 0] | length;
+
+--- source ---
+class A {}
+
+`collect` forces the whole stream. No finite output exists.

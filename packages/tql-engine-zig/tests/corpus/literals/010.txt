@@ -1,0 +1,12 @@
+title: addition, subtraction, multiplication
+grammar: typescript
+pending: values
+
+--- tql ---
+main = 2 + 3, 10 - 4, 6 * 7;
+
+--- source ---
+class A {}
+
+--- values ---
+[5, 6, 42]

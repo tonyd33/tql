@@ -1,0 +1,14 @@
+title: child navigation is document order, not grammar order
+grammar: typescript
+pending: values
+
+--- tql ---
+main = . / * | kind;
+
+--- source ---
+function f() {}
+class A {}
+function g() {}
+
+--- values ---
+["function_declaration", "class_declaration", "function_declaration"]

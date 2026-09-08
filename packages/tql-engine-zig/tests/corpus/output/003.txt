@@ -1,0 +1,25 @@
+title: points carry row and column across lines
+grammar: typescript
+pending: values
+
+The second class begins on row 1 at column 0. Its `start_byte` is 11, counting
+the 10 bytes of the first line plus one newline.
+
+--- tql ---
+main = . / :class_declaration | select (.name | text = "B");
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class B {}",
+    "start_byte": 11,
+    "end_byte": 21,
+    "start_point": { "row": 1, "column": 0 },
+    "end_point": { "row": 1, "column": 10 }
+  }
+]

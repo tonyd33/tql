@@ -1,0 +1,12 @@
+title: `Ord` on a node
+grammar: typescript
+
+`node` has `Eq` but not `Ord`, so this is a narrower rejection than E-ORD-01.
+
+--- tql ---
+main = (. / :class_declaration) < (. / :class_declaration);
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:8-1:58
+`Ord node` is not satisfied.

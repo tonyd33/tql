@@ -1,0 +1,15 @@
+title: `do` nested inside a pipe stage
+grammar: typescript
+pending: values
+
+The block runs once per input value from the left stage.
+
+--- tql ---
+main = . / :class_declaration | do { m <- .body / :method_definition; m.name | text };
+
+--- source ---
+class A { m() {} }
+class B { p() {} }
+
+--- values ---
+["m", "p"]

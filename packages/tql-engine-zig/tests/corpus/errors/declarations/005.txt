@@ -1,0 +1,13 @@
+title: an unknown static kind is a compile error
+grammar: typescript
+
+`:not_a_kind` is checked against the selected grammar at compile time, not
+matched at runtime against nothing.
+
+--- tql ---
+main = . / :not_a_kind;
+
+--- error ---
+category: unknown-kind
+span: 1:12-1:23
+The `:not_a_kind` selector.

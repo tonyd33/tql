@@ -1,0 +1,12 @@
+title: arithmetic on a string
+grammar: typescript
+
+`+`, `-`, `*`, `/`, `%` require `int`.
+
+--- tql ---
+main = "a" + 1;
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:11
+The left operand. Expected `int`, found `string`.

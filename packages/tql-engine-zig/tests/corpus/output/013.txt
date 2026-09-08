@@ -1,0 +1,16 @@
+title: `filename` yields the queried file path
+grammar: typescript
+file: src/service.ts
+pending: values
+
+The `file:` header supplies the path as metadata; the parsed text still comes
+from `--- source ---`.
+
+--- tql ---
+main = filename;
+
+--- source ---
+class A {}
+
+--- values ---
+["src/service.ts"]

@@ -1,0 +1,17 @@
+title: a checked signature is accepted
+grammar: typescript
+pending: values
+
+The annotation is an instance of the inferred principal scheme, so it is
+accepted and becomes the exported scheme.
+
+--- tql ---
+name_of : Filter node node -> Filter node string;
+name_of n = n.name | text;
+main = . / :class_declaration | name_of .;
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

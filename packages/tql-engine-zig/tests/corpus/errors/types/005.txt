@@ -1,0 +1,12 @@
+title: branches of different types
+grammar: typescript
+
+Both branches of `branch` share the result type.
+
+--- tql ---
+main = if true then 1 else "two";
+
+--- error ---
+category: type-mismatch
+span: 1:28-1:33
+The else branch. Expected `Filter node int`, found `Filter node string`.

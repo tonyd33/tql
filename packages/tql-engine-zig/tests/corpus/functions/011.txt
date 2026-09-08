@@ -1,0 +1,16 @@
+title: a higher-order function taking and returning filters
+grammar: typescript
+pending: values
+
+`both` takes two filters and returns their union as a new filter. Both
+arguments are `Filter node string`, which is what lets the union unify.
+
+--- tql ---
+both f g = f, g;
+main = . / :class_declaration | both (.name | text) (kind);
+
+--- source ---
+class A {}
+
+--- values ---
+["A", "class_declaration"]

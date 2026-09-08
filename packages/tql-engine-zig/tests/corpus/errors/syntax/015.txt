@@ -1,0 +1,13 @@
+title: an unclosed `let` group
+grammar: typescript
+
+`in` arrives where the binding group's `}` was required.
+
+--- tql ---
+main = let { x = 1 in x;
+
+--- error ---
+category: parse
+span: any
+Recovery discards the whole declaration rather than resynchronizing inside it,
+so the span covers the line. Rejection is what this fixture asserts.

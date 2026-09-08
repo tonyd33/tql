@@ -1,0 +1,14 @@
+title: a signature may not annotate a wired symbol
+grammar: typescript
+
+Wired symbols are supplied by the implementation and need no source
+declaration.
+
+--- tql ---
+kind : Filter node string;
+main = kind;
+
+--- error ---
+category: symbol-collision
+span: 1:1-1:27
+The colliding signature.

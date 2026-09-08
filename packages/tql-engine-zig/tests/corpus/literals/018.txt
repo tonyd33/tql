@@ -1,0 +1,16 @@
+title: distinct nodes with identical text are not equal
+grammar: typescript
+pending: values
+
+Two `class_declaration` nodes give four left-major pairs. Identity, not text,
+decides: only the diagonal pairs are equal.
+
+--- tql ---
+main = (. / :class_declaration) = (. / :class_declaration);
+
+--- source ---
+class A {}
+class A {}
+
+--- values ---
+[true, false, false, true]

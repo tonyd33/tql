@@ -1,0 +1,15 @@
+title: application binds tighter than query infix operators
+grammar: typescript
+pending: values
+
+`add 1 2 + add 3 4` groups as `(add 1 2) + (add 3 4)`, not `add 1 (2 + add) 3 4`.
+
+--- tql ---
+add x y = x + y;
+main = add 1 2 + add 3 4;
+
+--- source ---
+class A {}
+
+--- values ---
+[10]

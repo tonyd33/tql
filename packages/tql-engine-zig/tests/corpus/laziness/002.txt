@@ -1,0 +1,13 @@
+title: `exists` inherits `probe`'s laziness
+grammar: typescript
+pending: values
+
+--- tql ---
+from n = n, from (n + 1);
+main = exists (from 0);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

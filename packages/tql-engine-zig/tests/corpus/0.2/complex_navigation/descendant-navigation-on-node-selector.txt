@@ -1,0 +1,71 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration // property_identifier
+
+--- source ---
+class Service {
+  foo() {}
+}
+class Controller {
+  bar() {}
+}
+
+--- values ---
+[
+  {
+    "kind": "property_identifier",
+    "text": "foo",
+    "start_byte": 18,
+    "end_byte": 21,
+    "start_point": {
+      "row": 1,
+      "column": 2
+    },
+    "end_point": {
+      "row": 1,
+      "column": 5
+    }
+  },
+  {
+    "kind": "property_identifier",
+    "text": "bar",
+    "start_byte": 50,
+    "end_byte": 53,
+    "start_point": {
+      "row": 4,
+      "column": 2
+    },
+    "end_point": {
+      "row": 4,
+      "column": 5
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (descendant (child . (node class_declaration)) (node property_identifier)))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))) (class_declaration name: (type_identifier) body: (class_body (method_definition name: (property_identifier) parameters: (formal_parameters) body: (statement_block)))))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 0
+0003: jmp 5 if (variable_id 0)
+0004: halt
+0005: asn 1 ((current value) value)
+0006: trv value_source (variable_id 1)
+0007: asn 2 ((current value) value)
+0008: trv value_source (variable_id 2)
+0009: trv descendant
+0010: rel equals ((current value) kind) (literal kind_id 377) -> 3
+0011: jmp 13 if (variable_id 3)
+0012: halt
+0013: asn 4 ((current value) value)
+0014: trv value_source (variable_id 4)
+0015: asn 5 ((current value) value)
+0016: yield variable_id 5
+0017: halt

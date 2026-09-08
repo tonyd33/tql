@@ -1,0 +1,16 @@
+title: `exists` yields one boolean, never prunes
+grammar: typescript
+pending: values
+
+`exists q = probe q`. It reports presence rather than filtering, so a false
+result is still one output value.
+
+--- tql ---
+main = . / :class_declaration | exists (.body / :method_definition);
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[true, false]

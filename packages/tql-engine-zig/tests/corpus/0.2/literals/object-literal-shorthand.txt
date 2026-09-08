@@ -1,0 +1,53 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @class | { @class }
+
+--- source ---
+class Foo {}
+
+--- values ---
+[
+  {
+    "class": {
+      "kind": "class_declaration",
+      "text": "class Foo {}",
+      "start_byte": 0,
+      "end_byte": 12,
+      "start_point": {
+        "row": 0,
+        "column": 0
+      },
+      "end_point": {
+        "row": 0,
+        "column": 12
+      }
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (bind (child . (node class_declaration)) class) (object class)))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: probe aggregate 15 5 record
+0012: yield literal string "class"
+0013: yield variable_id 0
+0014: halt
+0015: yield variable_id 5
+0016: halt

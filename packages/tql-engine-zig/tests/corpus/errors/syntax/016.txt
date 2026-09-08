@@ -1,0 +1,20 @@
+title: a declaration inside a right-hand side
+grammar: typescript
+
+Declarations are top-level only. Inside a `do` block, `helper = 1` is not a
+binding — `<-` binds, and `=` is equality — so it reads as an expression and
+the block then has two result expressions.
+
+--- tql ---
+main =
+  do {
+    helper = 1;
+    .
+  };
+
+--- error ---
+category: parse
+span: any
+The mis-read `helper = 1` is a valid comparison, so it is taken as the block's
+result and the error surfaces at the expression after it. Pinning that span
+would assert a recovery detail, not the defect.

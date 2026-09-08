@@ -1,0 +1,12 @@
+title: `Eq` on a regex
+grammar: typescript
+
+`regex` has none of `Eq`, `Ord`, or `Serial`.
+
+--- tql ---
+main = r"a" = r"a";
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:8-1:17
+`Eq regex` is not satisfied.

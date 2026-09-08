@@ -1,0 +1,13 @@
+title: a list of records
+grammar: typescript
+pending: values
+
+--- tql ---
+main = [. / :class_declaration | { name = .name | text }];
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[[{ "name": "A" }, { "name": "B" }]]

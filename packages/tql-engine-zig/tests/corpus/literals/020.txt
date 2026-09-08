@@ -1,0 +1,14 @@
+title: both operands run on the same current input
+grammar: typescript
+pending: values
+
+Each operand independently navigates from the same class node.
+
+--- tql ---
+main = . / :class_declaration | .name | text = text;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

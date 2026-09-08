@@ -1,0 +1,17 @@
+title: a single stream bind runs the body once per output
+grammar: typescript
+pending: values
+
+--- tql ---
+main =
+  do {
+    c <- . / :class_declaration;
+    c.name | text
+  };
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

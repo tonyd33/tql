@@ -1,0 +1,17 @@
+title: a filter returned from a function
+grammar: typescript
+pending: values
+
+`matcher` constructs a filter from a string. Ordinary application builds the
+filter; the pipe executes it.
+
+--- tql ---
+matcher expected = .name | text = expected;
+main = . / :class_declaration | matcher "A";
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]

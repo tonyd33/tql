@@ -1,0 +1,18 @@
+title: a global cycle with no intervening binder diverges
+grammar: typescript
+expect: divergence
+
+Distinct from an unresolved-name error: `a` and `b` both resolve. The failure
+is that forcing either re-enters an `evaluating` thunk with no lambda between
+them, so no closure is built to defer the reference.
+
+Contrast FN-16, where mutual recursion through function parameters terminates
+because each body forces to a closure immediately.
+
+--- tql ---
+a = b;
+b = a;
+main = a;
+
+Forcing an `evaluating` thunk. Black-hole detection may report this; the
+specified semantics is divergence, so a diagnostic is permitted, not required.

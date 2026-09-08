@@ -1,0 +1,15 @@
+title: `length` agrees with the byte extent of the same text
+grammar: typescript
+pending: values
+
+The string node's text is `"héllo"` including both quote characters: 8 bytes,
+matching `end_byte - start_byte` from OUT-05.
+
+--- tql ---
+main = . // :string | text | length;
+
+--- source ---
+let s = "héllo";
+
+--- values ---
+[8]

@@ -1,0 +1,69 @@
+grammar: typescript
+asserts: values, tql_tree, source_tree, bytecode
+
+--- tql ---
+. / class_declaration as @c | select(. | text = 'class Foo {}' and @c.name | text = 'Foo') | @c
+
+--- source ---
+class Foo {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Foo {}",
+    "start_byte": 0,
+    "end_byte": 12,
+    "start_point": {
+      "row": 0,
+      "column": 0
+    },
+    "end_point": {
+      "row": 0,
+      "column": 12
+    }
+  }
+]
+
+--- tql tree ---
+(source_file (pipe (pipe (bind (child . (node class_declaration)) c) (call select (and (eq (pipe . (call text)) (string "class Foo {}")) (eq (pipe (field c name) (call text)) (string "Foo"))))) c))
+
+--- source tree ---
+(program (class_declaration name: (type_identifier) body: (class_body)))
+
+--- bytecode ---
+0000: trv value_source ((current value) value)
+0001: trv child
+0002: rel equals ((current value) kind) (literal kind_id 221) -> 1
+0003: jmp 5 if (variable_id 1)
+0004: halt
+0005: asn 2 ((current value) value)
+0006: trv value_source (variable_id 2)
+0007: asn 3 ((current value) value)
+0008: asn 0 (variable_id 3)
+0009: trv value_source (variable_id 0)
+0010: asn 4 ((current value) value)
+0011: asn 5 (literal bool false)
+0012: asn 6 ((current value) value)
+0013: asn 7 ((current value) value)
+0014: trv value_source ((current value) value)
+0015: asn 8 ((current value) text)
+0016: trv value_source (variable_id 7)
+0017: rel equals (variable_id 8) (literal string "class Foo {}") -> 9
+0018: jmp 29 if not (variable_id 9)
+0019: trv value_source (variable_id 6)
+0020: asn 10 ((current value) value)
+0021: trv value_source (variable_id 0)
+0022: trv field 25
+0023: asn 11 ((current value) value)
+0024: trv value_source (variable_id 11)
+0025: asn 12 ((current value) text)
+0026: trv value_source (variable_id 10)
+0027: rel equals (variable_id 12) (literal string "Foo") -> 13
+0028: asn 5 (variable_id 13)
+0029: trv value_source (variable_id 4)
+0030: jmp 32 if (variable_id 5)
+0031: halt
+0032: trv value_source ((current value) value)
+0033: yield variable_id 0
+0034: halt

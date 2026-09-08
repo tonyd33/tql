@@ -1,0 +1,14 @@
+title: `or_else` yields every primary result, not just the first
+grammar: typescript
+pending: values
+
+The probe only decides which branch runs; the chosen branch then runs in full.
+
+--- tql ---
+main = . / :class_declaration | or_else (.body / :method_definition | .name | text) ("none");
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["m", "n"]

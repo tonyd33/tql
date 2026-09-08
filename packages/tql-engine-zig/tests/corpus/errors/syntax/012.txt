@@ -1,0 +1,13 @@
+title: there is no optional-binding form
+grammar: typescript
+
+`@var?` optional binding is legacy 0.2 syntax with no 0.3 analogue.
+
+--- tql ---
+main = . / :class_declaration | @name?;
+
+--- error ---
+category: parse
+span: any
+Removed syntax. The `@` and the `?` are separate errors either side of an
+intact `name`, so no single span covers the sequence.
