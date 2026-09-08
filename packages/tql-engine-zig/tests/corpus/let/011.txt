@@ -14,7 +14,7 @@ main =
   let {
     ident x = x
   } in
-    ident 1, (ident "ab" | length);
+    pure (ident 1), pure (length (ident "ab"));
 
 --- source ---
 class A {}

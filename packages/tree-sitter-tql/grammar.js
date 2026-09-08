@@ -8,17 +8,16 @@
 // @ts-check
 
 const PREC = {
-  child: 19,
-  descendant: 18,
-  field: 17,
-
-  pipe: 11,
-  comparison: 9,
-  not: 8,
-  and: 7,
-  or: 6,
-  bind: 3,
-  union: 2,
+  union: 1,
+  pipe: 2,
+  or: 3,
+  and: 4,
+  not: 5,
+  cmp: 6,
+  add: 7,
+  mul: 8,
+  app: 9,
+  field: 10,
 };
 
 module.exports = grammar({
@@ -26,276 +25,278 @@ module.exports = grammar({
 
   extras: $ => [/\s/, $.comment],
 
+  word: $ => $.identifier,
+
   rules: {
-    source_file: $ =>
-      repeat(choice($.directive, $.function_definition, $.expression)),
+    source_file: $ => repeat($._declaration),
 
     comment: _ => token(seq("--", /.*/)),
 
-    // Directives
-    directive: $ => seq("#", choice($.language_directive, $.import_directive)),
+    _declaration: $ => choice($.signature, $.definition),
 
-    language_directive: $ =>
-      seq("language", field("language", $.string_literal)),
+    signature: $ =>
+      seq(field("name", $.identifier), ":", field("type", $._type), ";"),
 
-    import_directive: $ => seq("import", field("path", $.string_literal)),
-
-    // Function definitions: def name(@a; @b): expr;
-    function_definition: $ =>
+    definition: $ =>
       seq(
-        "def",
         field("name", $.identifier),
-        optional(field("parameters", $.def_parameters)),
-        ":",
-        field("body", $.expression),
+        repeat(field("parameter", $.identifier)),
+        "=",
+        field("body", $._expression),
         ";",
       ),
 
-    def_parameters: $ => seq("(", optional(semicolon_sep1($.variable)), ")"),
-
-    expression: $ =>
+    _expression: $ =>
       choice(
-        $.identity,
-        $.dot_field_access,
-        $.variable,
-        $.string_literal,
-        $.regex_literal,
-        $.number_literal,
-        $.null_literal,
-        $.field_access,
-        $.child_navigation,
-        $.descendant_navigation,
-        $.function_call,
-        $.object_literal,
-        $.array_literal,
-        $.collect_expression,
-        $.tuple_literal,
-        $.parenthesized,
-        $.bind_expression,
-        $.let_expression,
-        $.pipe_expression,
-        $.union_expression,
-        $.comparison,
-        $.is_null_expr,
-        $.logical_and,
+        $.union,
+        $.pipe,
         $.logical_or,
+        $.logical_and,
         $.logical_not,
+        $.comparison,
+        $.additive,
+        $.multiplicative,
+        $.application,
+        $.field_access,
+        $._primary,
       ),
 
-    bind_expression: $ =>
-      prec.right(
-        PREC.bind,
-        seq(
-          field("expression", $.expression),
-          "as",
-          field("variable", $.variable),
-          optional(field("optional", "?")),
-        ),
-      ),
-
-    let_binding: $ =>
-      seq(field("variable", $.variable), "=", field("value", $.expression)),
-
-    let_expression: $ =>
-      prec.right(
-        PREC.bind,
-        seq(
-          "let",
-          comma_sep1(field("binding", $.let_binding)),
-          "in",
-          field("body", $.expression),
-        ),
-      ),
-
-    pipe_expression: $ =>
-      prec.left(
-        PREC.pipe,
-        seq(field("left", $.expression), "|", field("right", $.expression)),
-      ),
-
-    union_expression: $ =>
+    union: $ =>
       prec.left(
         PREC.union,
-        seq(field("left", $.expression), "<|>", field("right", $.expression)),
+        seq(field("left", $._expression), ",", field("right", $._expression)),
       ),
 
-    identity: _ => token("."),
-
-    // TODO: Get rid of this
-    dot_field_access: $ =>
-      prec.left(PREC.field, seq(".", field("field", $.identifier))),
-
-    node_selector: $ => prec(-1, choice($.identifier, alias("*", $.wildcard))),
-
-    field_access: $ =>
+    pipe: $ =>
       prec.left(
-        PREC.field,
-        seq(field("base", $.expression), ".", field("field", $.identifier)),
-      ),
-
-    child_navigation: $ =>
-      prec.left(
-        PREC.child,
-        seq(
-          field("parent", $.expression),
-          "/",
-          field("child", $.node_selector),
-        ),
-      ),
-
-    descendant_navigation: $ =>
-      prec.left(
-        PREC.descendant,
-        seq(
-          field("parent", $.expression),
-          "//",
-          field("descendant", $.node_selector),
-        ),
-      ),
-
-    is_null_expr: $ =>
-      prec.left(
-        PREC.comparison,
-        seq(
-          field("expression", $.expression),
-          "is",
-          field("negated", optional("not")),
-          $.null_literal,
-        ),
-      ),
-
-    comparison: $ =>
-      prec.left(
-        PREC.comparison,
-        seq(
-          field("left", $.expression),
-          field("operator", choice("=", "!=", "~", "!~", "<=", ">=", "<", ">")),
-          field("right", $.expression),
-        ),
-      ),
-
-    logical_and: $ =>
-      prec.left(
-        PREC.and,
-        seq(field("left", $.expression), "and", field("right", $.expression)),
+        PREC.pipe,
+        seq(field("left", $._expression), "|", field("right", $._expression)),
       ),
 
     logical_or: $ =>
       prec.left(
         PREC.or,
-        seq(field("left", $.expression), "or", field("right", $.expression)),
+        seq(field("left", $._expression), "or", field("right", $._expression)),
+      ),
+
+    logical_and: $ =>
+      prec.left(
+        PREC.and,
+        seq(field("left", $._expression), "and", field("right", $._expression)),
       ),
 
     logical_not: $ =>
-      prec.right(PREC.not, seq("not", field("predicate", $.expression))),
+      prec.right(PREC.not, seq("not", field("operand", $._expression))),
 
-    function_call: $ =>
-      choice(
-        prec(
-          1,
-          seq(
-            field("name", choice($.identifier, $.variable)),
-            "(",
-            optional(semicolon_sep1(field("argument", $.expression))),
-            ")",
-          ),
+    comparison: $ =>
+      prec.left(
+        PREC.cmp,
+        seq(
+          field("left", $._expression),
+          field("operator", choice("=", "!=", "<", "<=", ">", ">=", "~", "!~")),
+          field("right", $._expression),
         ),
-        field("name", $.identifier),
       ),
 
-    object_literal: $ => seq("{", optional(comma_sep1($.object_field)), "}"),
-
-    object_field: $ =>
-      choice(
-        $.variable,
-        seq(field("key", $.identifier), ":", field("value", $.expression)),
+    additive: $ =>
+      prec.left(
+        PREC.add,
+        seq(
+          field("left", $._expression),
+          field("operator", choice("+", "-")),
+          field("right", $._expression),
+        ),
       ),
 
-    array_literal: $ => seq("[", optional(comma_sep1($.expression)), "]"),
-
-    collect_expression: $ => prec(1, seq("[", $.expression, "]")),
-
-    tuple_literal: $ =>
-      seq("(", $.expression, ",", comma_sep1($.expression), ")"),
-
-    parenthesized: $ => seq("(", $.expression, ")"),
-
-    type: $ =>
-      choice(
-        $.identifier,
-        $.builtin_type,
-        $.array_type,
-        $.object_type,
-        $.tuple_type,
-        $.optional_type,
+    multiplicative: $ =>
+      prec.left(
+        PREC.mul,
+        seq(
+          field("left", $._expression),
+          field("operator", choice("*", "/", "%")),
+          field("right", $._expression),
+        ),
       ),
 
-    builtin_type: _ => choice("string", "number", "boolean", "regex"),
+    application: $ =>
+      prec.left(
+        PREC.app,
+        seq(field("function", $._expression), field("argument", $._expression)),
+      ),
 
-    array_type: $ => seq("Array", "<", field("element_type", $.type), ">"),
+    field_access: $ =>
+      prec.left(
+        PREC.field,
+        seq(
+          field("record", $._expression),
+          token.immediate("."),
+          field("field", $.field_name),
+        ),
+      ),
 
-    object_type: $ => seq("Object", "<", field("value_type", $.type), ">"),
+    field_name: _ => token.immediate(/[a-z_][a-zA-Z0-9_]*/),
 
-    tuple_type: $ =>
-      seq("Tuple", "<", comma_sep1(field("element_type", $.type)), ">"),
+    // A leading `.` is `identity` unless a name follows it immediately.
+    leading_field: $ => seq(".", field("field", $.field_name)),
 
-    optional_type: $ => seq(field("base_type", $.type), "?"),
+    let_expression: $ =>
+      prec.right(
+        seq(
+          "let",
+          field("bindings", $.binding_group),
+          "in",
+          field("body", $._expression),
+        ),
+      ),
 
-    string_literal: $ =>
+    binding_group: $ => seq("{", sep_trailing($.binding, ";"), "}"),
+
+    binding: $ =>
       seq(
-        "'",
-        field(
-          "content",
-          optional(repeat(choice($.string_fragment, $.escape_sequence))),
-        ),
-        "'",
+        field("name", $.identifier),
+        repeat(field("parameter", $.identifier)),
+        "=",
+        field("value", $._expression),
       ),
 
-    string_fragment: _ => token.immediate(prec(1, /[^'\\]+/)),
+    do_expression: $ => seq("do", "{", optional($._do_items), "}"),
 
-    escape_sequence: _ =>
-      token.immediate(
+    _do_items: $ =>
+      seq(
+        repeat(seq($._do_statement, ";")),
+        field("result", $._expression),
+        optional(";"),
+      ),
+
+    _do_statement: $ => choice($.bind_statement, $.let_statement),
+
+    bind_statement: $ =>
+      seq(field("name", $.identifier), "<-", field("value", $._expression)),
+
+    let_statement: $ =>
+      seq("let", field("bindings", choice($.binding, $.binding_group))),
+
+    if_expression: $ =>
+      prec.right(
+        seq(
+          "if",
+          field("condition", $._expression),
+          "then",
+          field("consequence", $._expression),
+          "else",
+          field("alternative", $._expression),
+        ),
+      ),
+
+    lambda: $ =>
+      prec.right(
         seq(
           "\\",
-          choice(
-            /[^xu0-7]/,
-            /[0-7]{1,3}/,
-            /x[0-9a-fA-F]{2}/,
-            /u[0-9a-fA-F]{4}/,
-            /u\{[0-9a-fA-F]+\}/,
-          ),
+          repeat1(field("parameter", $.identifier)),
+          "->",
+          field("body", $._expression),
         ),
       ),
 
-    regex_literal: $ =>
+    _primary: $ =>
+      choice(
+        $.identity,
+        $.leading_field,
+        $.kind,
+        $.identifier,
+        $.number,
+        $.string,
+        $.boolean,
+        $.regex,
+        $.list,
+        $.record,
+        $.parenthesized,
+        $.lambda,
+        $.let_expression,
+        $.do_expression,
+        $.if_expression,
+      ),
+
+    identity: _ => ".",
+
+    kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
+
+    parenthesized: $ => seq("(", $._expression, ")"),
+
+    // One expression, not a separated list: `,` inside the brackets is stream
+    // union, so `[a, b]` collects the union and yields a single list.
+    list: $ => seq("[", optional($._expression), "]"),
+
+    record: $ => seq("{", optional(sep_trailing($.record_field, ",")), "}"),
+
+    record_field: $ =>
+      prec(
+        PREC.union + 1,
+        seq(field("name", $.identifier), "=", field("value", $._expression)),
+      ),
+
+    _type: $ => choice($.function_type, $._type_atom),
+
+    function_type: $ =>
+      prec.right(seq(field("from", $._type_atom), "->", field("to", $._type))),
+
+    _type_atom: $ =>
+      choice(
+        $.filter_type,
+        $.list_type,
+        $.record_type,
+        $.type_identifier,
+        $.type_variable,
+        $.parenthesized_type,
+      ),
+
+    filter_type: $ =>
       seq(
-        "/",
-        field(
-          "pattern",
-          optional(repeat(choice($.regex_fragment, $.regex_escape_sequence))),
-        ),
-        "/",
+        "Filter",
+        field("input", $._type_operand),
+        field("output", $._type_operand),
       ),
 
-    regex_fragment: _ => token.immediate(prec(1, /[^/\\]+/)),
+    _type_operand: $ =>
+      choice(
+        $.list_type,
+        $.record_type,
+        $.type_identifier,
+        $.type_variable,
+        $.parenthesized_type,
+      ),
 
-    regex_escape_sequence: _ => token.immediate(seq("\\", /./)),
+    list_type: $ => seq("[", $._type, "]"),
 
-    number_literal: _ => /\d+?/,
+    record_type: $ =>
+      seq("{", optional(sep_trailing($.record_type_field, ",")), "}"),
 
-    null_literal: _ => "null",
+    record_type_field: $ =>
+      seq(field("name", $.identifier), ":", field("type", $._type)),
 
-    // Identifiers
-    variable: $ => seq("@", $.identifier),
+    parenthesized_type: $ => seq("(", $._type, ")"),
 
-    identifier: _ => /[a-zA-Z_][a-zA-Z0-9_]*/,
+    type_identifier: _ => /[A-Z][a-zA-Z0-9_]*/,
+
+    type_variable: _ => /[a-z][a-zA-Z0-9_]*/,
+
+    identifier: _ => /[a-z_][a-zA-Z0-9_]*/,
+
+    number: _ => token(seq(optional("-"), /[0-9]+/)),
+
+    string: _ => token(seq('"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
+
+    boolean: _ => choice("true", "false"),
+
+    regex: _ => token(seq('r"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
   },
 });
 
-function comma_sep1(rule) {
-  return seq(rule, repeat(seq(",", rule)));
-}
-
-function semicolon_sep1(rule) {
-  return seq(rule, repeat(seq(";", rule)));
+/**
+ * One or more `rule`, separated by `sep`, with an optional trailing `sep`.
+ * @param {RuleOrLiteral} rule
+ * @param {RuleOrLiteral} sep
+ */
+function sep_trailing(rule, sep) {
+  return seq(rule, repeat(seq(sep, rule)), optional(sep));
 }

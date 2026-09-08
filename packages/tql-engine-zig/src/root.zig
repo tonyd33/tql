@@ -6,7 +6,8 @@ const build_options = @import("build_options");
 pub const VERSION = build_options.version;
 // IMPROVE: don't export this
 pub const ts = @import("tree-sitter");
-pub const ast = @import("ast.zig");
+pub const cst = @import("cst.zig");
+pub const diagnostic = @import("diagnostic.zig");
 pub const ir = @import("ir.zig");
 
 const runtime = @import("runtime.zig");
@@ -74,26 +75,26 @@ pub const Engine = struct {
     }
 
     // for debug
-    pub fn parseQuery(self: *Engine, query_source: []const u8) !ast.SourceFile {
+    pub fn parseQuery(self: *Engine, query_source: []const u8) !cst.SourceFile {
         return try self.tql_parser.parse(query_source);
+    }
+
+    /// Parse a query, keeping the diagnostics rather than collapsing them into
+    /// a bare error. Caller owns the result.
+    pub fn parseQueryCollecting(
+        self: *Engine,
+        query_source: []const u8,
+    ) !parser.ParseResult {
+        return try self.tql_parser.parseCollecting(query_source);
     }
 
     /// Parse + compile a TQL query for a given target language.
     /// Returned Query owns its ProgramImage.
     pub fn compile(self: *Engine, query_source: []const u8, g: *const Grammar) !Query {
-        const source_file = try self.tql_parser.parse(query_source);
-        defer source_file.deinit(self.config.allocator);
-
-        var c = compiler.Compiler.init(self.config.allocator, g.language);
-        defer c.deinit();
-
-        const program_image = try c.compile(self.config.allocator, source_file);
-        return .{
-            .program_image = program_image,
-            .grammar = g,
-            .allocator = self.config.allocator,
-            .io = self.config.io,
-        };
+        _ = self;
+        _ = query_source;
+        _ = g;
+        return error.DesugaringUnimplemented;
     }
 };
 
@@ -170,7 +171,8 @@ test {
     refAllDecls(@This());
     refAllDecls(runtime);
     refAllDecls(pcre2);
-    refAllDecls(ast);
+    refAllDecls(cst);
+    refAllDecls(diagnostic);
     refAllDecls(parser);
     refAllDecls(compiler);
     refAllDecls(grammar);

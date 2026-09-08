@@ -6,11 +6,11 @@ pending: values
 string is lifted to a one-result filter rather than being run.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
+    c <- (children | is_kind :class_declaration) root;
     let expected = "A";
-    c.name | text = expected
+    [text c.name = expected]
   };
 
 --- source ---

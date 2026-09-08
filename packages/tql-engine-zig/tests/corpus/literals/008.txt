@@ -7,7 +7,7 @@ the regex engine unchanged. The JavaScript source writes that same backslash as
 `\\` in its own string literal, so the matched text is `a\b`.
 
 --- tql ---
-main = . // :string | text ~ r"a\b";
+main = descendants | is_kind :string | \s -> text s ~ r"a\b";
 
 --- source ---
 let p = "a\\b";

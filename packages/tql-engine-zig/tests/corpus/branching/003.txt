@@ -6,7 +6,9 @@ Neither branch runs. The empty condition stream produces an empty result even
 though both branches would succeed.
 
 --- tql ---
-main = if (. / :interface_declaration | true) then "yes" else "no";
+main =
+  branch (children | is_kind :interface_declaration | pure true)
+         (pure "yes") (pure "no");
 
 --- source ---
 class A {}

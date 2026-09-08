@@ -1,0 +1,286 @@
+========================================
+a let group with one binding
+========================================
+
+main = let { x = 1 } in x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (binding
+          name: (identifier)
+          value: (number)))
+      body: (identifier))))
+
+========================================
+a let group with several bindings
+========================================
+
+main = let { a = 1; b = 2 } in a + b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (binding
+          name: (identifier)
+          value: (number))
+        (binding
+          name: (identifier)
+          value: (number)))
+      body: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+a let group with a trailing separator
+========================================
+
+main = let { a = 1; b = 2; } in a + b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (binding
+          name: (identifier)
+          value: (number))
+        (binding
+          name: (identifier)
+          value: (number)))
+      body: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+a let binding with parameters
+========================================
+
+main = let { is_named n = n.name } in is_named .;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (binding
+          name: (identifier)
+          parameter: (identifier)
+          value: (field_access
+            record: (identifier)
+            field: (field_name))))
+      body: (application
+        function: (identifier)
+        argument: (identity)))))
+
+========================================
+a nested let
+========================================
+
+main = let { a = 1 } in let { b = 2 } in a + b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (binding
+          name: (identifier)
+          value: (number)))
+      body: (let_expression
+        bindings: (binding_group
+          (binding
+            name: (identifier)
+            value: (number)))
+        body: (additive
+          left: (identifier)
+          right: (identifier))))))
+
+========================================
+a do block with one bind statement
+========================================
+
+main root = do { c <- (children | is_kind :class_declaration) root; c.name };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (application
+          function: (parenthesized
+            (pipe
+              left: (identifier)
+              right: (application
+                function: (identifier)
+                argument: (kind))))
+          argument: (identifier)))
+      result: (field_access
+        record: (identifier)
+        field: (field_name)))))
+
+========================================
+a do block with only a result
+========================================
+
+main root = do { (children | is_kind :class_declaration) root };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (do_expression
+      result: (application
+        function: (parenthesized
+          (pipe
+            left: (identifier)
+            right: (application
+              function: (identifier)
+              argument: (kind))))
+        argument: (identifier)))))
+
+========================================
+a do block with a trailing separator
+========================================
+
+main = do { c <- .; c; };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity))
+      result: (identifier))))
+
+========================================
+a do-local let statement with one binding
+========================================
+
+main = do { c <- .; let name = c.name; name };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity))
+      (let_statement
+        bindings: (binding
+          name: (identifier)
+          value: (field_access
+            record: (identifier)
+            field: (field_name))))
+      result: (identifier))))
+
+========================================
+a do-local let statement with a brace group
+========================================
+
+main = do { c <- .; let { a = 1; b = 2 }; a + b };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity))
+      (let_statement
+        bindings: (binding_group
+          (binding
+            name: (identifier)
+            value: (number))
+          (binding
+            name: (identifier)
+            value: (number))))
+      result: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+several bind statements
+========================================
+
+main = do { c <- .; m <- c.body; m };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity))
+      (bind_statement
+        name: (identifier)
+        value: (field_access
+          record: (identifier)
+          field: (field_name)))
+      result: (identifier))))
+
+========================================
+a do block as a pipe operand
+========================================
+
+main = children | is_kind :class_declaration | do { m <- .body; m };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (pipe
+        left: (identifier)
+        right: (application
+          function: (identifier)
+          argument: (kind)))
+      right: (do_expression
+        (bind_statement
+          name: (identifier)
+          value: (leading_field
+            field: (field_name)))
+        result: (identifier)))))
+
+========================================
+an empty record is not an empty do block
+========================================
+
+main = { };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (record)))

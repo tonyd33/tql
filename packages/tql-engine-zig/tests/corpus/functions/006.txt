@@ -11,7 +11,7 @@ main =
     a = \x y -> x + y;
     b = \x -> \y -> x + y
   } in
-    a 1 2, b 1 2;
+    pure (a 1 2), pure (b 1 2);
 
 --- source ---
 class A {}

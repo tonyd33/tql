@@ -3,11 +3,11 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    let name = c.name | text;
-    name
+    c <- (children | is_kind :class_declaration) root;
+    let name = text c.name;
+    [name]
   };
 
 --- source ---

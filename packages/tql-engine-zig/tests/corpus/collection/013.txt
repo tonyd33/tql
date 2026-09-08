@@ -6,7 +6,7 @@ The two record expressions list their labels in opposite order. They are the
 same value and the same type.
 
 --- tql ---
-main = { a = 1, b = 2 } = { b = 2, a = 1 };
+main = pure ({ a = 1, b = 2 } = { b = 2, a = 1 });
 
 --- source ---
 class A {}

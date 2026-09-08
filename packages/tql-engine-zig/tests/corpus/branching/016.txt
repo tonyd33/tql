@@ -2,8 +2,12 @@ title: `empty` as a branch yields nothing for that input
 grammar: typescript
 pending: values
 
+`,` is union over filters, so each literal is written `pure n` to be one. The
+composed filter is then applied to an ignored input.
+
 --- tql ---
-main = (1, 2, 3) | if . = 2 then . else empty;
+main =
+  (pure 1, pure 2, pure 3) | branch (\n -> [n = 2]) identity empty;
 
 --- source ---
 class A {}

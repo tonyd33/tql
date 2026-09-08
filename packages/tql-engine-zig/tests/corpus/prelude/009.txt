@@ -6,11 +6,13 @@ Both helpers are applied to the same source and predicate, confirming they
 accept identical argument types. Derived in D8 Q2.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    { some = any (c.body / :method_definition) (.name | text ~ r"^get"),
-      every = all (c.body / :method_definition) (.name | text ~ r"^get") }
+    c <- (children | is_kind :class_declaration) root;
+    [{ some = any ((children | is_kind :method_definition) c.body)
+                  (\m -> [text m.name ~ r"^get"]),
+       every = all ((children | is_kind :method_definition) c.body)
+                   (\m -> [text m.name ~ r"^get"]) }]
   };
 
 --- source ---

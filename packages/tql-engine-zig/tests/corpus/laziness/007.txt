@@ -14,7 +14,7 @@ main =
   let {
     step n = if n <= 0 then 0 else step (n - 1)
   } in
-    step 3;
+    pure (step 3);
 
 --- source ---
 class A {}

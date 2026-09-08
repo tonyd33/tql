@@ -1,0 +1,180 @@
+========================================
+identity
+========================================
+
+main = .;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (identity)))
+
+========================================
+a leading field access
+========================================
+
+main = .name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (leading_field
+      field: (field_name))))
+
+========================================
+field access on a name
+========================================
+
+main = c.name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (field_access
+      record: (identifier)
+      field: (field_name))))
+
+========================================
+literals
+========================================
+
+main = 42, "text", true, false, r"^A";
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (union
+      left: (union
+        left: (union
+          left: (union
+            left: (number)
+            right: (string))
+          right: (boolean))
+        right: (boolean))
+      right: (regex))))
+
+========================================
+a list
+========================================
+
+main = [1, 2, 3];
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (list
+      (union
+        left: (union
+          left: (number)
+          right: (number))
+        right: (number)))))
+
+========================================
+an empty list
+========================================
+
+main = [];
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (list)))
+
+========================================
+a record
+========================================
+
+main = { k = kind, t = text };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (record
+      (record_field
+        name: (identifier)
+        value: (identifier))
+      (record_field
+        name: (identifier)
+        value: (identifier)))))
+
+========================================
+a conditional
+========================================
+
+main = if true then 1 else 2;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (if_expression
+      condition: (boolean)
+      consequence: (number)
+      alternative: (number))))
+
+========================================
+a lambda
+========================================
+
+main = \x y -> x + y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (lambda
+      parameter: (identifier)
+      parameter: (identifier)
+      body: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+application is left-associative
+========================================
+
+main = f a b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (application
+        function: (identifier)
+        argument: (identifier))
+      argument: (identifier))))
+
+========================================
+a pipe chain
+========================================
+
+main = . | kind | text;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (pipe
+        left: (identity)
+        right: (identifier))
+      right: (identifier))))

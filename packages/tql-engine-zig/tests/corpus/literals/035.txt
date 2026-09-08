@@ -7,7 +7,7 @@ parameter before any application is considered.
 
 --- tql ---
 name_of n = n.name | text;
-main = . / :class_declaration | name_of .;
+main = children | is_kind :class_declaration | name_of;
 
 --- source ---
 class A {}

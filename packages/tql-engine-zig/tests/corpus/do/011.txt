@@ -6,10 +6,10 @@ pending: values
 node is lifted to a one-result filter and navigation starts from it.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    c // :property_identifier | text
+    c <- (children | is_kind :class_declaration) root;
+    (descendants | is_kind :property_identifier | text) c
   };
 
 --- source ---

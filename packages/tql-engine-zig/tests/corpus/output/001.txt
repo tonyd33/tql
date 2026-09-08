@@ -6,7 +6,7 @@ The one fixture that spells out full node JSON. `class Service {}` is 16 bytes
 on one row, so the node spans byte 0 to 16 and column 0 to 16.
 
 --- tql ---
-main = . / :class_declaration;
+main = children | is_kind :class_declaration;
 
 --- source ---
 class Service {}

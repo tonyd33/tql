@@ -8,10 +8,10 @@ main =
   let {
     k = "class_declaration"
   } in
-    . / :k;
+    (children | is_kind :k);
 
 --- error ---
 category: unknown-kind
-span: 5:9-5:11
+span: 5:25-5:27
 The `:k` selector. `k` is not a grammar kind, and the selector does not
 evaluate its operand.

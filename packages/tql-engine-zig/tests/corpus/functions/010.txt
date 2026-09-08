@@ -6,8 +6,8 @@ pending: values
 filter; the pipe executes it.
 
 --- tql ---
-matcher expected = .name | text = expected;
-main = . / :class_declaration | matcher "A";
+matcher expected = \c -> [text c.name = expected];
+main = children | is_kind :class_declaration | matcher "A";
 
 --- source ---
 class A {}

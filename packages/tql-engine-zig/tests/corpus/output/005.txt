@@ -6,7 +6,7 @@ pending: values
 ends at column 16. A character-based encoding would report 15.
 
 --- tql ---
-main = . // :string | range;
+main = descendants | is_kind :string | range;
 
 --- source ---
 let s = "héllo";

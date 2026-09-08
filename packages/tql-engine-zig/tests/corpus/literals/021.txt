@@ -3,7 +3,10 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = (1, 2) + (. / :interface_declaration | 0);
+main root =
+  do { l <- [1, 2];
+       r <- (children | is_kind :interface_declaration | pure 0) root;
+       [l + r] };
 
 --- source ---
 class A {}

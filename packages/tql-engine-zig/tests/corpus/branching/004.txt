@@ -3,7 +3,8 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = if (true, false, true) then "y" else "n";
+main =
+  branch (pure true, pure false, pure true) (pure "y") (pure "n");
 
 --- source ---
 class A {}

@@ -5,7 +5,9 @@ pending: values
 Descendants are proper, so a class does not contain itself.
 
 --- tql ---
-main = . / :class_declaration | contains (kind = "class_declaration");
+main =
+  children | is_kind :class_declaration
+  | contains (\n -> [kind n = "class_declaration"]);
 
 --- source ---
 class A {}

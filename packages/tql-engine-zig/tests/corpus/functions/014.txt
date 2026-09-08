@@ -6,7 +6,7 @@ pending: values
 collected before any body is resolved.
 
 --- tql ---
-main = helper 3;
+main = pure (helper 3);
 helper n = n * 2;
 
 --- source ---

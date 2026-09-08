@@ -6,9 +6,9 @@ withdrew `ERR-LAYOUT-1` (STAGE-1.md §4.1). A missing `}` is now an ordinary
 parse error, and this is the fixture that says so.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
+    c <- (children | is_kind :class_declaration) root;
     c
 
 --- error ---

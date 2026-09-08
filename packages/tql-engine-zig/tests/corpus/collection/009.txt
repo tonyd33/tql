@@ -6,7 +6,8 @@ Lists are ordered, so a different order is a different value. Lists of
 different length are never equal.
 
 --- tql ---
-main = ["a", "b"] = ["a", "b"], ["a"] = ["a", "b"];
+main =
+  (pure (["a", "b"] = ["a", "b"]), pure (["a"] = ["a", "b"]));
 
 --- source ---
 class A {}

@@ -8,7 +8,7 @@ claim is carried by CAL-ENV-5 as a `doc` rule.
 
 --- tql ---
 shared = 6 * 7;
-main = shared, shared;
+main = pure shared, pure shared;
 
 --- source ---
 class A {}

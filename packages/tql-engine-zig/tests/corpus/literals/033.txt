@@ -9,7 +9,9 @@ operator, so it splits the expression last; pipe splits before comparison.
 Both union operands are `bool`, since union requires a single element type.
 
 --- tql ---
-main = . / :class_declaration | .name | text = "A", false;
+main =
+  (children | is_kind :class_declaration
+  | \c -> text c.name = "A"), pure false;
 
 --- source ---
 class A {}

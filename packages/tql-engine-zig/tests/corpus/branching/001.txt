@@ -3,7 +3,9 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = . / :class_declaration | if .name | text = "A" then "yes" else "no";
+main =
+  children | is_kind :class_declaration
+  | branch (\c -> [text c.name = "A"]) (pure "yes") (pure "no");
 
 --- source ---
 class A {}

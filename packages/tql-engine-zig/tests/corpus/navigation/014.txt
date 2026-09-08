@@ -7,7 +7,7 @@ list. The starting `property_identifier` is excluded because ancestors are
 proper.
 
 --- tql ---
-main = . // :property_identifier | ancestors | kind;
+main = descendants | is_kind :property_identifier | ancestors | kind;
 
 --- source ---
 class A { m() {} }

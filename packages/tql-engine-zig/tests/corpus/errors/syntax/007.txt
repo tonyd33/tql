@@ -5,7 +5,7 @@ grammar: typescript
 fails at the `@` itself.
 
 --- tql ---
-main = . / :class_declaration | @name;
+main = children | is_kind :class_declaration | @name;
 
 --- error ---
 category: parse

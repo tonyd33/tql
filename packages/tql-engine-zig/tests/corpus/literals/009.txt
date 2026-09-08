@@ -7,7 +7,7 @@ pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly
 one meaning in every position (OPEN-QUESTIONS Q9).
 
 --- tql ---
-main = "A" ~ r"^A", "B" ~ r"^A";
+main = (pure ("A" ~ r"^A"), pure ("B" ~ r"^A"));
 
 --- source ---
 class A {}

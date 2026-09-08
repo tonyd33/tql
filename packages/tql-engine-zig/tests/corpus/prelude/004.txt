@@ -6,7 +6,9 @@ pending: values
 result is still one output value.
 
 --- tql ---
-main = . / :class_declaration | exists (.body / :method_definition);
+main =
+  children | is_kind :class_declaration
+  | exists (.body | children | is_kind :method_definition);
 
 --- source ---
 class A { m() {} }

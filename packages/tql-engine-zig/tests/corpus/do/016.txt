@@ -6,11 +6,11 @@ Each branch of the outer bind has its own `c`. The inner record sees the `c` of
 its own branch, never a later one.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    n <- (1, 2);
-    { class = c.name | text, n = n }
+    c <- (children | is_kind :class_declaration) root;
+    n <- [1, 2];
+    [{ class = text c.name, n = n }]
   };
 
 --- source ---

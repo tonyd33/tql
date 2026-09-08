@@ -3,7 +3,8 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = 1 < 2, 2 <= 2, 3 > 4, 3 >= 3;
+main =
+  (pure (1 < 2), pure (2 <= 2), pure (3 > 4), pure (3 >= 3));
 
 --- source ---
 class A {}

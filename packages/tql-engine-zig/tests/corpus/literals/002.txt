@@ -6,7 +6,7 @@ Union requires one element type, so this fixture unions bools only. LIT-01
 covers `int` and REGEX-05 covers a `string`-producing program.
 
 --- tql ---
-main = true, false, true;
+main = (pure true, pure false, pure true);
 
 --- source ---
 class A {}

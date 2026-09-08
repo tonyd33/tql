@@ -6,7 +6,7 @@ The source is exactly 10 bytes. The node's `end_byte` is 10, one past the last
 byte, and `start_byte` is 0, the first byte. An inclusive end would report 9.
 
 --- tql ---
-main = . / :class_declaration;
+main = children | is_kind :class_declaration;
 
 --- source ---
 class A {}

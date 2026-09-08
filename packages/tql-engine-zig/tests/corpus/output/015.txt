@@ -7,7 +7,9 @@ pending: values
 record field beside node projections.
 
 --- tql ---
-main = . / :class_declaration | { file = filename, name = .name | text };
+main =
+  children | is_kind :class_declaration
+  | { file = filename, name = .name | text };
 
 --- source ---
 class A {}

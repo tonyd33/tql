@@ -5,9 +5,9 @@ grammar: typescript
 matched at runtime against nothing.
 
 --- tql ---
-main = . / :not_a_kind;
+main = children | is_kind :not_a_kind;
 
 --- error ---
 category: unknown-kind
-span: 1:12-1:23
+span: 1:27-1:38
 The `:not_a_kind` selector.

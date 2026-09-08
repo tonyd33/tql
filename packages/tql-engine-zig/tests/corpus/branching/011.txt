@@ -7,7 +7,7 @@ rightward through the comparison level. The rejected reading `(not 1) = 1` does
 not typecheck, since `not` requires `Filter a bool`.
 
 --- tql ---
-main = not 1 = 1;
+main = not (pure 1 = pure 1);
 
 --- source ---
 class A {}

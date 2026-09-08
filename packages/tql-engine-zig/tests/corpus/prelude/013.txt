@@ -3,7 +3,9 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = . // :property_identifier | within (kind = "interface_declaration");
+main =
+  descendants | is_kind :property_identifier
+  | within (\n -> [kind n = "interface_declaration"]);
 
 --- source ---
 class A { m() {} }

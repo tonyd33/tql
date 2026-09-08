@@ -4,7 +4,7 @@ grammar: typescript
 `@var?` optional binding is legacy 0.2 syntax with no 0.3 analogue.
 
 --- tql ---
-main = . / :class_declaration | @name?;
+main = children | is_kind :class_declaration | @name?;
 
 --- error ---
 category: parse

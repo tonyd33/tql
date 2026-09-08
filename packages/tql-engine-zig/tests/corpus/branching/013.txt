@@ -6,7 +6,7 @@ pending: values
 
 --- tql ---
 is_a n = n.name | text = "A";
-main = . / :class_declaration | not is_a .;
+main = children | is_kind :class_declaration | not is_a .;
 
 --- source ---
 class A {}

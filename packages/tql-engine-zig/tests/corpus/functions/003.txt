@@ -11,7 +11,7 @@ main =
   let {
     add10 = add 10
   } in
-    add10 1, add10 2;
+    pure (add10 1), pure (add10 2);
 
 --- source ---
 class A {}

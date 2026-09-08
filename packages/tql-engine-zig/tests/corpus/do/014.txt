@@ -5,10 +5,10 @@ pending: values
 Stream binding is not node-specific; it binds any filter's outputs.
 
 --- tql ---
-main =
+main _root =
   do {
-    n <- (1, 2, 3);
-    n * 10
+    n <- [1, 2, 3];
+    [n * 10]
   };
 
 --- source ---

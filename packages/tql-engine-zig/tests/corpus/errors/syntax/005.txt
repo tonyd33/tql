@@ -5,9 +5,9 @@ Every `do` block has exactly one final expression. This block ends after a
 statement, so the `}` arrives where the final expression was required.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
+    c <- (children | is_kind :class_declaration) root;
   };
 
 --- error ---

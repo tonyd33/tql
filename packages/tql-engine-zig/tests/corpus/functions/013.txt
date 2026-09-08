@@ -4,7 +4,7 @@ pending: values
 
 --- tql ---
 countdown n = if n <= 0 then 0 else countdown (n - 1);
-main = countdown 5;
+main = pure (countdown 5);
 
 --- source ---
 class A {}

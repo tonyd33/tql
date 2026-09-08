@@ -7,7 +7,9 @@ the sibling `empty` arm pins the result type, giving
 `select : Filter a bool -> Filter a a`.
 
 --- tql ---
-main = . / :class_declaration | select (.name | text ~ r"^S") | .name | text;
+main =
+  children | is_kind :class_declaration
+  | select (\c -> [text c.name ~ r"^S"]) | .name | text;
 
 --- source ---
 class Service {}

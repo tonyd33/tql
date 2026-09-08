@@ -6,7 +6,10 @@ Both operands select the same single node, so the pair is that node against
 itself.
 
 --- tql ---
-main = (. / :class_declaration) = (. / :class_declaration);
+main root =
+  do { l <- (children | is_kind :class_declaration) root;
+       r <- (children | is_kind :class_declaration) root;
+       [l = r] };
 
 --- source ---
 class A {}

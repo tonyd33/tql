@@ -5,7 +5,10 @@ pending: values
 The block runs once per input value from the left stage.
 
 --- tql ---
-main = . / :class_declaration | do { m <- .body / :method_definition; m.name | text };
+main =
+  children | is_kind :class_declaration
+  | \c -> do { m <- (children | is_kind :method_definition) c.body;
+               (.name | text) m };
 
 --- source ---
 class A { m() {} }

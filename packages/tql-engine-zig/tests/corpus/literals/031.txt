@@ -5,7 +5,7 @@ pending: values
 `2 + 3 * 4` is `2 + (3 * 4)`; `10 - 3 - 2` is `(10 - 3) - 2`.
 
 --- tql ---
-main = 2 + 3 * 4, 10 - 3 - 2;
+main = (pure (2 + 3 * 4), pure (10 - 3 - 2));
 
 --- source ---
 class A {}

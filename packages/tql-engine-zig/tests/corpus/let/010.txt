@@ -13,7 +13,7 @@ main =
   let {
     label = "local"
   } in
-    label, other;
+    pure label, pure other;
 other = label;
 
 --- source ---

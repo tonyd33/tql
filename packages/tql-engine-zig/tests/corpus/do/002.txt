@@ -6,10 +6,10 @@ The final expression is `kind`, which takes no explicit input. It reports the
 class node, so the bind rebased the current input onto the bound value.
 
 --- tql ---
-main =
+main root =
   do {
-    c <- . / :class_declaration;
-    kind
+    c <- (children | is_kind :class_declaration) root;
+    kind c
   };
 
 --- source ---

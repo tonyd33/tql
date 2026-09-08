@@ -6,7 +6,9 @@ The condition projects the name, but the selected branch still receives the
 class node, so it can navigate again.
 
 --- tql ---
-main = . / :class_declaration | if .name | text = "A" then kind else "other";
+main =
+  children | is_kind :class_declaration
+  | branch (\c -> [text c.name = "A"]) kind (pure "other");
 
 --- source ---
 class A {}

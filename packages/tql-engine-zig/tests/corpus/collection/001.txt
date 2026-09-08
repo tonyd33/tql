@@ -5,7 +5,7 @@ pending: values
 The result is one value, not three: collection changes multiplicity.
 
 --- tql ---
-main = [. / :class_declaration | .name | text];
+main = [children | is_kind :class_declaration | .name | text];
 
 --- source ---
 class A {}

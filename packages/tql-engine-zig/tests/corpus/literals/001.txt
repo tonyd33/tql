@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = 42;
+main = pure 42;
 
 --- source ---
 class A {}

@@ -6,7 +6,7 @@ The right operand yields three moduli; only the zero pair is dropped, and the
 surviving pairs keep their left-major order.
 
 --- tql ---
-main = 12 % (5, 0, 7);
+main = \_root -> do { d <- [5, 0, 7]; [12 % d] };
 
 --- source ---
 class A {}
