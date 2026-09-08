@@ -1,5 +1,6 @@
 title: an unknown static field is a compile error
 grammar: typescript
+asserts: error
 
 A field unknown to the grammar is rejected. Contrast NAV-10, where a *known*
 field absent from a particular node yields the empty stream.

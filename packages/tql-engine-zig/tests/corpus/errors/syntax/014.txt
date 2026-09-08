@@ -1,9 +1,9 @@
 title: an unclosed brace group
 grammar: typescript
+asserts: error
 
-Group structure lost its rejection fixtures when the brace-only amendment
-withdrew `ERR-LAYOUT-1` (STAGE-1.md §4.1). A missing `}` is now an ordinary
-parse error, and this is the fixture that says so.
+Group structure is delimited by braces alone, with no layout rule, so a missing
+`}` is an ordinary parse error rather than a dedicated diagnostic.
 
 --- tql ---
 main root =

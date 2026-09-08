@@ -20,6 +20,13 @@ pub fn formatCst(allocator: std.mem.Allocator, tree: tql.cst.SourceFile) ![]cons
     return tree.sexprAlloc(allocator);
 }
 
+pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.link.Program) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    try tql.link.printProgram(program, &w.writer);
+    return w.toOwnedSlice();
+}
+
 pub fn formatSourceAst(allocator: std.mem.Allocator, tree: *ts.Tree) ![]const u8 {
     return tree.rootNode().toSexp(allocator);
 }

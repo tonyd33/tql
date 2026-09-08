@@ -707,6 +707,49 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         };
     }
 
+    // Desugaring runs independently of the rest of compilation: a case may
+    // assert its Core term while its values are still pending.
+    var core_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(core_text);
+    var desugar_diagnostics: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(desugar_diagnostics);
+
+    if (tc.isAsserted(.core) or expects_error) {
+        var sink = tql.diagnostic.Sink.init(allocator);
+        defer sink.deinit();
+
+        // Through the Engine rather than `desugar.module` directly, so the
+        // corpus exercises the same link the compiler performs: the prelude
+        // beneath the query, with `main` resolved by the linker.
+        if (engine.desugarQuery(tc.query.content, grammar, &sink)) |desugared| {
+            var program = desugared;
+            defer program.deinit();
+            allocator.free(core_text);
+            core_text = try fmt.formatCore(allocator, &program);
+        } else |err| switch (err) {
+            error.DesugarFailed, error.LinkFailed => {
+                allocator.free(desugar_diagnostics);
+                desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
+            },
+            else => return err,
+        }
+    }
+
+    // A rejection found by desugaring is the case's expected outcome, and
+    // nothing downstream of it runs.
+    if (desugar_diagnostics.len > 0) {
+        if (!expects_error) return error.UnexpectedDesugarError;
+        allocator.free(core_text);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = try allocator.dupe(u8, ""),
+            .@"error" = desugar_diagnostics,
+        };
+    }
+
     // Compilation is driven by what the case claims, not by what it contains.
     // A case whose value-bearing sections are all `pending` has nothing for the
     // compiler or the runtime to decide yet, so running them would be wasted
@@ -723,7 +766,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .tql_tree = tql_tree,
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
-            .core = try allocator.dupe(u8, ""),
+            .core = core_text,
             .@"error" = try allocator.dupe(u8, ""),
         };
     }
@@ -743,7 +786,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .tql_tree = tql_tree,
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
-            .core = try allocator.dupe(u8, ""),
+            .core = core_text,
             .@"error" = message,
         };
     };
@@ -769,8 +812,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         .tql_tree = tql_tree,
         .bytecode = bytecode,
         .values = actual_values,
-        // TODO: implement core
-        .core = try allocator.dupe(u8, ""),
+        .core = core_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
 }

@@ -2,8 +2,7 @@ title: `as` binding is removed
 grammar: typescript
 
 Replaced by `do` stream binding. `as` is not a keyword, so this parses as an
-application of three operands and fails when `as` does not resolve, exactly as
-`def` does in E-LEGACY-01.
+application of three operands and fails when `as` does not resolve.
 
 Three names are unresolved, not one. `as` groups as `(:class_declaration as) c`,
 so the `c` it was meant to bind is an ordinary operand rather than a binder, and

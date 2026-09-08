@@ -1,5 +1,6 @@
 title: a binding with no right-hand side
 grammar: typescript
+asserts: error
 
 --- tql ---
 main =

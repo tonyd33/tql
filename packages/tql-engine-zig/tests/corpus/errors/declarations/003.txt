@@ -1,5 +1,6 @@
 title: a `do` binding is not visible after its block
 grammar: typescript
+asserts: error
 
 The binding is branch-local to the block.
 

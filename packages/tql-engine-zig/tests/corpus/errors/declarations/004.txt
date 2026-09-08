@@ -1,5 +1,6 @@
 title: a lambda parameter is not visible outside its body
 grammar: typescript
+asserts: error
 
 --- tql ---
 f = \x -> x + 1;

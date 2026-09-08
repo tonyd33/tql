@@ -1,5 +1,6 @@
 title: static child navigation keeps only matching kinds
 grammar: typescript
+asserts: core
 pending: values
 
 --- tql ---
@@ -12,3 +13,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- core ---
+main = compose (compose (compose children is_kind[class_declaration]) field[name]) text

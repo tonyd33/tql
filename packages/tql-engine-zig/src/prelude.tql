@@ -1,0 +1,19 @@
+-- TQL prelude.
+
+select p = branch p identity empty;
+
+exists p = probe p;
+
+any source predicate = probe (compose source (select predicate));
+
+all source predicate =
+  branch
+    (probe (compose source (branch predicate empty identity)))
+    (pure false)
+    (pure true);
+
+contains predicate = exists (descendants | select predicate);
+
+within predicate = exists (ancestors | select predicate);
+
+or_else primary fallback = branch (probe primary) primary fallback;

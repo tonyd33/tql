@@ -1,15 +1,12 @@
-title: a lifted function value is data, never executed
+title: a function stored in a record is data, never executed
 grammar: typescript
 
-Lifting wraps a value in `pure`; it does not apply it. A record field is a
-value position, so `f` is stored as data; the record then reaches output and
-fails `Serial`. The error is the serialization failure, not an arity or
-application error, which is the evidence that lifting did not execute the
-function.
+A record field holds whatever its expression evaluates to, and `f` is a
+function, so the record carries it as data. The rejection comes when the record
+reaches output and its field fails `Serial`, not from an arity or application
+error — which is the evidence that naming `f` did not call it.
 
-A bare `main = f` would not witness this rule: a bare identifier in filter
-position is used directly (`SEM-LIFT-2`), so no lifting would occur and the
-rejection would be `main`'s type rather than `Serial`.
+The field is what fails, so the span is the field rather than the whole record.
 
 --- tql ---
 main =

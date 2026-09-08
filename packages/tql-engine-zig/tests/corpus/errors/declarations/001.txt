@@ -1,5 +1,6 @@
 title: an unresolved name is a compile error
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = missing_helper 1;

@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 Both helpers are applied to the same source and predicate, confirming they
-accept identical argument types. Derived in D8 Q2.
+accept identical argument types.
 
 --- tql ---
 main root =

@@ -1,5 +1,6 @@
 title: an unknown static kind is a compile error
 grammar: typescript
+asserts: error
 
 `:not_a_kind` is checked against the selected grammar at compile time, not
 matched at runtime against nothing.

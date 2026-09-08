@@ -1,7 +1,8 @@
 title: `<|>` is not the union operator
 grammar: typescript
+asserts: error
 
-Union is `,`. `<|>` is a legacy spelling from `work/real_world/TQL.md`.
+Union is `,`. `<|>` is a legacy spelling that the language never adopted.
 
 --- tql ---
 main = 1 <|> 2;

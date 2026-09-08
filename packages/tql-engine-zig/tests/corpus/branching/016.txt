@@ -1,5 +1,6 @@
 title: `empty` as a branch yields nothing for that input
 grammar: typescript
+asserts: core
 pending: values
 
 `,` is union over filters, so each literal is written `pure n` to be one. The
@@ -14,3 +15,6 @@ class A {}
 
 --- values ---
 [2]
+
+--- core ---
+main = compose (union (union (pure 1) (pure 2)) (pure 3)) (branch (\n -> collect (op[=] n 2)) identity empty)

@@ -1,5 +1,6 @@
 title: a program with no `main` is rejected
 grammar: typescript
+asserts: error
 
 Source files never rely on an implicit trailing expression.
 

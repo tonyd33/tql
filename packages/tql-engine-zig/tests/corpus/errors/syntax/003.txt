@@ -5,7 +5,7 @@ grammar: typescript
 `(1 < 2) < 3`, and the rejection is a typing one — the outer `<` requires
 `Ord` and its left operand is a `bool`, which has no instance.
 
-Stage 3 owes a better diagnostic than the bare `Ord bool` constraint. The
+A better diagnostic than the bare `Ord bool` constraint is owed here: the
 checker can see that the operand of a comparison is itself a comparison, and
 saying the operators do not chain is more useful than naming the instance.
 

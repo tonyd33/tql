@@ -1,7 +1,8 @@
 title: `Ord` on a node
 grammar: typescript
 
-`node` has `Eq` but not `Ord`, so this is a narrower rejection than E-ORD-01.
+`node` has `Eq` but not `Ord`, so ordering two nodes is rejected even though
+comparing them for equality is not.
 
 --- tql ---
 main root =

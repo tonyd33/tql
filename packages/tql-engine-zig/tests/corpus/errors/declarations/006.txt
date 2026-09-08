@@ -1,5 +1,6 @@
 title: a kind from a different grammar is unknown
 grammar: typescript
+asserts: error
 
 `function_definition` is a C kind. Under the typescript grammar the equivalent
 is `function_declaration`, so this must be rejected rather than silently

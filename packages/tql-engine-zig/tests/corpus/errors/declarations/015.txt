@@ -1,5 +1,6 @@
 title: a user definition may not collide with a wired symbol
 grammar: typescript
+asserts: error
 
 `text` is a wired operation supplied by the implementation.
 

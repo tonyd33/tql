@@ -1,5 +1,6 @@
 title: a duplicate definition is a compile error
 grammar: typescript
+asserts: error
 
 --- tql ---
 f = 1;

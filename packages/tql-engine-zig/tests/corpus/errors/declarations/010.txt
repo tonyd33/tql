@@ -1,5 +1,6 @@
 title: an invalid quantifier is a compile error
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = "abc" ~ r"a{2,1}";

@@ -1,5 +1,6 @@
 title: an orphan signature is a compile error
 grammar: typescript
+asserts: error
 
 Each signature annotates exactly one definition in the same program. `g` has no
 definition.
