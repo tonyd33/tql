@@ -6,7 +6,7 @@ One empty field annihilates the whole product, exactly as for scalar operators.
 
 --- tql ---
 main =
-  { a = pure 1, b = (children | is_kind :interface_declaration | text) };
+  { a = pure 1, b = (children | is_kind :interface_declaration | lift text) };
 
 --- source ---
 class A {}

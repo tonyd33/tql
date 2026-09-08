@@ -4,7 +4,7 @@ asserts: core
 pending: values
 
 --- tql ---
-main = children | is_kind :class_declaration | .name | text;
+main = children | is_kind :class_declaration | .name | lift text;
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class B {}
 ["A", "B"]
 
 --- core ---
-main = compose (compose (compose children is_kind[class_declaration]) field[name]) text
+main = compose (compose (compose children is_kind[class_declaration]) field[name]) (lift text)

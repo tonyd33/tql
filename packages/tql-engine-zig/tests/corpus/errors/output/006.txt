@@ -1,14 +1,17 @@
-title: a filter nested in a list is not serializable
+title: a function nested in a list is not serializable
 grammar: typescript
 
+`[e]` collects `e`'s outputs, so `[pure kind, pure text]` is `[node -> string]`
+— a list of functions. `Serial` fails through the list to its element type.
+
+The pre-Q22 program here was `[kind, text]`, which collected a union of two
+filters into `[string]` and did not fail at all; `collection/003` is the same
+shape and is a passing fixture.
+
 --- tql ---
-main =
-  let {
-    fs = [kind, text]
-  } in
-    fs;
+main = [pure kind, pure text];
 
 --- error ---
 category: unsatisfied-constraint
-span: 5:5-5:7
-`Serial [Filter node string]` is not satisfied.
+span: 1:8-1:30
+`Serial [node -> string]` is not satisfied.

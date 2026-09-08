@@ -7,7 +7,7 @@ definition.
 
 --- tql ---
 g : Filter node string;
-main = kind;
+main = lift kind;
 
 --- error ---
 category: orphan-signature

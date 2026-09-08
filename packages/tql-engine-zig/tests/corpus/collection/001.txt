@@ -6,7 +6,7 @@ pending: values
 The result is one value, not three: collection changes multiplicity.
 
 --- tql ---
-main = [children | is_kind :class_declaration | .name | text];
+main = [children | is_kind :class_declaration | .name | lift text];
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class C {}
 [["A", "B", "C"]]
 
 --- core ---
-main = collect (compose (compose (compose children is_kind[class_declaration]) field[name]) text)
+main = collect (compose (compose (compose children is_kind[class_declaration]) field[name]) (lift text))

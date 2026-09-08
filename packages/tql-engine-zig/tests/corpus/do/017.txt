@@ -8,7 +8,7 @@ The block runs once per input value from the left stage.
 main =
   children | is_kind :class_declaration
   | \c -> do { m <- (children | is_kind :method_definition) c.body;
-               (.name | text) m };
+               (.name | lift text) m };
 
 --- source ---
 class A { m() {} }

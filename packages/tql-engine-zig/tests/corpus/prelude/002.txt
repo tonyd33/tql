@@ -5,7 +5,7 @@ pending: values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (\c -> [text c.name = "Nope"]) | .name | text;
+  | select (\c -> [text c.name = "Nope"]) | .name | lift text;
 
 --- source ---
 class A {}

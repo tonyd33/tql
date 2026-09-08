@@ -191,17 +191,17 @@ const primitive_meta = [_]struct {
     },
     .{
         .name = "text",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
+        .scheme = .{ .type = types.func_type(types.node_type, types.string_type) },
         .lowering = .text,
     },
     .{
         .name = "kind",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
+        .scheme = .{ .type = types.func_type(types.node_type, types.string_type) },
         .lowering = .kind,
     },
     .{
         .name = "range",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.range_type) },
+        .scheme = .{ .type = types.func_type(types.node_type, types.range_type) },
         .lowering = .range,
     },
     .{
@@ -228,7 +228,10 @@ const primitive_meta = [_]struct {
     },
     .{
         .name = "filename",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
+        .scheme = .{ .quantified = 1, .type = types.filter_type(
+            types.variable_type(0),
+            types.string_type,
+        ) },
         .lowering = .filename,
     },
     .{

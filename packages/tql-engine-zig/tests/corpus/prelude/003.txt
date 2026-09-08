@@ -8,7 +8,7 @@ arm is what runs on success.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (\c -> [text c.name = "A"]) | kind;
+  | select (\c -> [text c.name = "A"]) | lift kind;
 
 --- source ---
 class A {}

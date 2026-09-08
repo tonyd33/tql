@@ -9,7 +9,7 @@ the sibling `empty` arm pins the result type, giving
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (\c -> [text c.name ~ r"^S"]) | .name | text;
+  | select (\c -> [text c.name ~ r"^S"]) | .name | lift text;
 
 --- source ---
 class Service {}

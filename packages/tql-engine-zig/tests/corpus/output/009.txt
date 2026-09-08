@@ -5,7 +5,7 @@ pending: values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | { name = .name | text, size = text | length };
+  | { name = .name | lift text, size = lift text | length };
 
 --- source ---
 class A {}

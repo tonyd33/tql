@@ -2,8 +2,11 @@ title: `.` is the identity filter
 grammar: typescript
 pending: values
 
+`.` yields its input unchanged, so the chain reports the kind of the root the
+query started from. Every navigation chain starts from it.
+
 --- tql ---
-main = kind;
+main = . | lift kind;
 
 --- source ---
 class A {}

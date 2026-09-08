@@ -10,7 +10,7 @@ The outer input is retained as `root` because the inner bind rebases its body
 onto the yielded filter value, not onto the node.
 
 --- tql ---
-make_predicate = pure kind;
+make_predicate = pure (lift kind);
 main root =
   do {
     predicate <- make_predicate root;

@@ -6,7 +6,7 @@ pending: values
 parameter before any application is considered.
 
 --- tql ---
-name_of n = n.name | text;
+name_of n = n.name | lift text;
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---

@@ -6,7 +6,7 @@ pending: values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | { kind = kind, name = .name | text };
+  | { kind = lift kind, name = .name | lift text };
 
 --- source ---
 class Service {}
@@ -15,4 +15,4 @@ class Service {}
 [{ "kind": "class_declaration", "name": "Service" }]
 
 --- core ---
-main = compose (compose children is_kind[class_declaration]) (record_filter[kind,name] kind (compose field[name] text))
+main = compose (compose children is_kind[class_declaration]) (record_filter[kind,name] (lift kind) (compose field[name] (lift text)))

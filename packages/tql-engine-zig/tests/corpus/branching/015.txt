@@ -5,7 +5,7 @@ pending: values
 --- tql ---
 main =
   descendants | is_kind :method_definition
-  | branch (\m -> [text m.name ~ r"^get"]) (.name | text) empty;
+  | branch (\m -> [text m.name ~ r"^get"]) (.name | lift text) empty;
 
 --- source ---
 class A { getX() {} setY() {} getZ() {} }

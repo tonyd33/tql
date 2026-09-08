@@ -10,7 +10,7 @@ main root =
   do {
     c <- (children | is_kind :class_declaration) root;
     m <- (children | is_kind :method_definition) c.body;
-    (.name | text) m
+    (.name | lift text) m
   };
 
 --- source ---

@@ -2,7 +2,7 @@ title: `text` requires a node input
 grammar: typescript
 
 --- tql ---
-main = 42 | text;
+main = 42 | lift text;
 
 --- error ---
 category: type-mismatch

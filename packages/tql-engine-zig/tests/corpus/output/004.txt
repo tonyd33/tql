@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = children | is_kind :class_declaration | range;
+main = children | is_kind :class_declaration | lift range;
 
 --- source ---
 class A {}

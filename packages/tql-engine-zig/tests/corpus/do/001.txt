@@ -6,7 +6,7 @@ pending: values
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    (.name | text) c
+    (.name | lift text) c
   };
 
 --- source ---

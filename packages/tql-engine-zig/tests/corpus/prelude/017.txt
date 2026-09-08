@@ -12,7 +12,7 @@ main =
     keep p = if p then . else empty
   } in
     children | is_kind :class_declaration
-    | keep (\c -> [text c.name ~ r"^S"]) | .name | text;
+    | keep (\c -> [text c.name ~ r"^S"]) | .name | lift text;
 
 --- source ---
 class Service {}

@@ -6,7 +6,7 @@ The group is evaluated once per input value from the left stage.
 
 --- tql ---
 main =
-  children | is_kind :class_declaration | let { n = .name | text } in n;
+  children | is_kind :class_declaration | let { n = .name | lift text } in n;
 
 --- source ---
 class A {}

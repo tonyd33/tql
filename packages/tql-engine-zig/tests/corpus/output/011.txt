@@ -5,7 +5,7 @@ pending: values
 `node` is `Serial`, so it may appear inside a serializable container.
 
 --- tql ---
-main = children | is_kind :class_declaration | { at = range, k = kind };
+main = children | is_kind :class_declaration | { at = lift range, k = lift kind };
 
 --- source ---
 class A {}

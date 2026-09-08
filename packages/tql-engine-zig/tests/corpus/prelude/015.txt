@@ -5,7 +5,7 @@ pending: values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | or_else (.body | children | is_kind :method_definition | .name | text)
+  | or_else (.body | children | is_kind :method_definition | .name | lift text)
             (pure "none");
 
 --- source ---

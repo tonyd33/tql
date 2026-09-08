@@ -3,7 +3,7 @@ grammar: typescript
 pending: values
 
 --- tql ---
-main = children | kind;
+main = children | lift kind;
 
 --- source ---
 function f() {}

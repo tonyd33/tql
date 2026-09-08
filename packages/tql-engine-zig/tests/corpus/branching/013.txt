@@ -6,7 +6,7 @@ pending: values
 looser grouping of `not` over comparison does not reach it.
 
 --- tql ---
-is_a n = n.name | text = "A";
+is_a n = n.name | lift (\t -> text t = "A");
 main = children | is_kind :class_declaration | not is_a .;
 
 --- source ---

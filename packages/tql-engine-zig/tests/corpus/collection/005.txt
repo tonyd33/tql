@@ -7,7 +7,7 @@ One list per class, not one list overall.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | [.body | children | is_kind :method_definition | .name | text];
+  | [.body | children | is_kind :method_definition | .name | lift text];
 
 --- source ---
 class A { m() {} n() {} }

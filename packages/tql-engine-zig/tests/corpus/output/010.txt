@@ -5,8 +5,8 @@ pending: values
 --- tql ---
 main =
   [children | is_kind :class_declaration
-   | { name = .name | text,
-       methods = [.body | children | is_kind :method_definition | .name | text] }];
+   | { name = .name | lift text,
+       methods = [.body | children | is_kind :method_definition | .name | lift text] }];
 
 --- source ---
 class A { m() {} }

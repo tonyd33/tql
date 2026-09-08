@@ -6,7 +6,7 @@ pending: values
 main =
   children | is_kind :class_declaration
   | .body | children | is_kind :method_definition
-  | .name | text;
+  | .name | lift text;
 
 --- source ---
 class A { m() {} n() {} }

@@ -334,6 +334,7 @@ test "the prelude's bodies compile to Core" {
     }
 
     try std.testing.expectEqualStrings(
+        \\lift = \f -> \x -> pure (f x) x
         \\select = \p -> branch p identity empty
         \\exists = \p -> probe p
         \\any = \source -> \predicate -> probe (compose source (select predicate))

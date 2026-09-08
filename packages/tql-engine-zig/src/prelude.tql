@@ -1,5 +1,7 @@
 -- TQL prelude.
 
+lift f x = pure (f x) x;
+
 select p = branch p identity empty;
 
 exists p = probe p;

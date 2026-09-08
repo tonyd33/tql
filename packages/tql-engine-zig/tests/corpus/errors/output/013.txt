@@ -9,10 +9,10 @@ from, so `c` cannot be used at two different types.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    [{ a = kind c, b = length c }]
+    [{ a = pure (kind c), b = length c }]
   };
 
 --- error ---
 category: type-mismatch
-span: 4:24-4:32
+span: 4:31-4:39
 The second use of `c`. Expected `node`, found a use requiring `Sized`.

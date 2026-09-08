@@ -9,7 +9,7 @@ node is lifted to a one-result filter and navigation starts from it.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    (descendants | is_kind :property_identifier | text) c
+    (descendants | is_kind :property_identifier | lift text) c
   };
 
 --- source ---

@@ -9,7 +9,7 @@ record field beside node projections.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | { file = filename, name = .name | text };
+  | { file = filename, name = .name | lift text };
 
 --- source ---
 class A {}

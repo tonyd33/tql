@@ -7,7 +7,7 @@ pending: values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | or_else (.name | text) (pure "anonymous");
+  | or_else (.name | lift text) (pure "anonymous");
 
 --- source ---
 class A {}
