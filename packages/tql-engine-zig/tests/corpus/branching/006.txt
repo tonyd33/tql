@@ -1,19 +1,20 @@
-title: `and` runs its right operand only for a true left output
+title: a scalar connective maps over a stream with `lift`
 grammar: typescript
 asserts: types
 pending: values
 
-For left output `true` the result is the right operand's stream; for `false`
-the result is `[false]` and the right operand does not run.
+`not` is scalar, so negating each output of a stream is `lift` at the call site
+rather than a property of `not` itself. `not` is an operator, not an
+identifier, so the lifted function is written as a lambda.
 
 --- tql ---
-main = (pure true, pure false) and pure true;
+main = (pure true, pure false) | lift (\b -> not b);
 
 --- source ---
 class A {}
 
 --- values ---
-[true, false]
+[false, true]
 
 --- types ---
 main : Node -> [Bool]

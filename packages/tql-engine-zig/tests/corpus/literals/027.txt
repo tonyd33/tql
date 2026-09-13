@@ -4,7 +4,7 @@ asserts: types
 pending: values
 
 --- tql ---
-main = [pure 1, pure 2, pure 3] | length;
+main = [pure 1, pure 2, pure 3] | lift length;
 
 --- source ---
 class A {}

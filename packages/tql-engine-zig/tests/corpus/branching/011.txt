@@ -5,10 +5,10 @@ pending: values
 
 `not` binds looser than comparison, so its operand extends rightward through
 the comparison level. The rejected reading `(not 1) = 1` does not typecheck,
-since `not` requires `Filter a bool`.
+since `not` requires `Bool`.
 
 --- tql ---
-main = not (pure (1 = 1));
+main = pure (not 1 = 1);
 
 --- source ---
 class A {}

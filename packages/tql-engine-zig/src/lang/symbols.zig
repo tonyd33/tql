@@ -71,7 +71,7 @@ pub const Interner = struct {
 
     /// Returns the existing id for a spelling, or interns it. Identical
     /// synthesis requests must yield one symbol. (e.g. `{a=1,b=2}` and
-    /// `{b=2,a=1}` share a `record_filter[a,b]`)
+    /// `{b=2,a=1}` share a `record[a,b]`)
     pub fn internOrGet(self: *Interner, spelling_text: []const u8) Allocator.Error!SymbolId {
         if (self.by_spelling.get(spelling_text)) |existing| return existing;
         return try self.internUnchecked(spelling_text);

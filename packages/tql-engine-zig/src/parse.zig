@@ -195,6 +195,10 @@ const Walker = struct {
                     if (try self.definition(child)) |d| {
                         try declarations.append(self.allocator, .{ .definition = d });
                     }
+                } else if (std.mem.eql(u8, kind, "type_declaration")) {
+                    if (try self.typeDeclaration(child)) |t| {
+                        try declarations.append(self.allocator, .{ .type_declaration = t });
+                    }
                 }
                 if (!cursor.gotoNextSibling()) break;
             }
@@ -410,6 +414,15 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "if_expression")) {
             return self.ifExpr(node, span);
         }
+        if (std.mem.eql(u8, kind, "case_expression")) {
+            return self.caseExpr(node, span);
+        }
+        if (std.mem.eql(u8, kind, "type_identifier")) {
+            return cst.Expression{
+                .kind = .{ .constructor = try self.dupe(node) },
+                .span = span,
+            };
+        }
         if (std.mem.eql(u8, kind, "lambda")) {
             return self.lambda(node, span);
         }
@@ -560,6 +573,167 @@ const Walker = struct {
         return .{
             .kind = .{ .not = try self.boxed(cst.Not{ .operand = operand }) },
             .span = span,
+        };
+    }
+
+    fn typeDeclaration(self: *Walker, node: ts.Node) !?cst.TypeDeclaration {
+        const name_node = node.childByFieldName("name") orelse {
+            try self.missingField(node, "name");
+            return null;
+        };
+        const name = try self.dupe(name_node);
+        errdefer self.allocator.free(name);
+
+        var params: std.ArrayList(cst.Identifier) = .empty;
+        errdefer {
+            for (params.items) |p| self.allocator.free(p);
+            params.deinit(self.allocator);
+        }
+        var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
+        errdefer {
+            for (constructors.items) |c| c.deinit(self.allocator);
+            constructors.deinit(self.allocator);
+        }
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    const child = cursor.node();
+                    if (std.mem.eql(u8, field, "parameter")) {
+                        try params.append(self.allocator, try self.dupe(child));
+                    } else if (std.mem.eql(u8, field, "constructor")) {
+                        if (try self.constructorDeclaration(child)) |c| {
+                            try constructors.append(self.allocator, c);
+                        } else return null;
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .name = name,
+            .parameters = try params.toOwnedSlice(self.allocator),
+            .constructors = try constructors.toOwnedSlice(self.allocator),
+            .span = spanOf(node),
+        };
+    }
+
+    fn constructorDeclaration(self: *Walker, node: ts.Node) !?cst.ConstructorDeclaration {
+        const name_node = node.childByFieldName("name") orelse {
+            try self.missingField(node, "name");
+            return null;
+        };
+        const name = try self.dupe(name_node);
+        errdefer self.allocator.free(name);
+
+        var fields: std.ArrayList(cst.Type) = .empty;
+        errdefer {
+            for (fields.items) |f| f.deinit(self.allocator);
+            fields.deinit(self.allocator);
+        }
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "field")) {
+                        const t = try self.typeExpr(cursor.node()) orelse return null;
+                        try fields.append(self.allocator, t);
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .name = name,
+            .fields = try fields.toOwnedSlice(self.allocator),
+            .span = spanOf(node),
+        };
+    }
+
+    fn caseExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+        const scrutinee_node = node.childByFieldName("scrutinee") orelse {
+            try self.missingField(node, "scrutinee");
+            return null;
+        };
+        const scrutinee = try self.expression(scrutinee_node) orelse return null;
+        errdefer scrutinee.deinit(self.allocator);
+
+        var alternatives: std.ArrayList(cst.Case.Alternative) = .empty;
+        errdefer {
+            for (alternatives.items) |a| a.deinit(self.allocator);
+            alternatives.deinit(self.allocator);
+        }
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (std.mem.eql(u8, child.grammarKind(), "case_alternative")) {
+                    if (try self.caseAlternative(child)) |a| {
+                        try alternatives.append(self.allocator, a);
+                    } else return null;
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .kind = .{ .case = try self.boxed(cst.Case{
+                .scrutinee = scrutinee,
+                .alternatives = try alternatives.toOwnedSlice(self.allocator),
+            }) },
+            .span = span,
+        };
+    }
+
+    fn caseAlternative(self: *Walker, node: ts.Node) !?cst.Case.Alternative {
+        const name_node = node.childByFieldName("constructor") orelse {
+            try self.missingField(node, "constructor");
+            return null;
+        };
+        const body_node = node.childByFieldName("body") orelse {
+            try self.missingField(node, "body");
+            return null;
+        };
+        const constructor = try self.dupe(name_node);
+        errdefer self.allocator.free(constructor);
+
+        var binders: std.ArrayList(cst.Parameter) = .empty;
+        errdefer {
+            for (binders.items) |b| b.deinit(self.allocator);
+            binders.deinit(self.allocator);
+        }
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "binder")) {
+                        const child = cursor.node();
+                        try binders.append(self.allocator, .{
+                            .name = try self.dupe(child),
+                            .span = spanOf(child),
+                        });
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        const body = try self.expression(body_node) orelse return null;
+        return .{
+            .constructor = constructor,
+            .binders = try binders.toOwnedSlice(self.allocator),
+            .body = body,
+            .span = spanOf(node),
         };
     }
 
@@ -763,6 +937,43 @@ const Walker = struct {
         };
     }
 
+    fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
+        const name_node = node.childByFieldName("constructor") orelse {
+            try self.missingField(node, "constructor");
+            return null;
+        };
+        const constructor = try self.dupe(name_node);
+        errdefer self.allocator.free(constructor);
+
+        var arguments: std.ArrayList(cst.Type) = .empty;
+        errdefer {
+            for (arguments.items) |a| a.deinit(self.allocator);
+            arguments.deinit(self.allocator);
+        }
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "argument")) {
+                        const t = try self.typeExpr(cursor.node()) orelse return null;
+                        try arguments.append(self.allocator, t);
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return cst.Type{
+            .kind = .{ .application = try self.boxed(cst.TypeApplication{
+                .constructor = constructor,
+                .arguments = try arguments.toOwnedSlice(self.allocator),
+            }) },
+            .span = span,
+        };
+    }
+
     fn typeExpr(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Type {
         const span = spanOf(node);
         const kind = node.grammarKind();
@@ -772,6 +983,9 @@ const Walker = struct {
                 .kind = .{ .constructor = try self.dupe(node) },
                 .span = span,
             };
+        }
+        if (std.mem.eql(u8, kind, "type_application")) {
+            return self.typeApplication(node, span);
         }
         if (std.mem.eql(u8, kind, "type_variable")) {
             return cst.Type{

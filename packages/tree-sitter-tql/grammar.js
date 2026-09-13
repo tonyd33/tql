@@ -32,7 +32,23 @@ module.exports = grammar({
 
     comment: _ => token(seq("--", /.*/)),
 
-    _declaration: $ => choice($.signature, $.definition),
+    _declaration: $ => choice($.signature, $.definition, $.type_declaration),
+
+    type_declaration: $ =>
+      seq(
+        "type",
+        field("name", $.type_identifier),
+        repeat(field("parameter", $.type_variable)),
+        "=",
+        sep1(field("constructor", $.constructor_declaration), "|"),
+        ";",
+      ),
+
+    constructor_declaration: $ =>
+      seq(
+        field("name", $.type_identifier),
+        repeat(field("field", $._type_operand)),
+      ),
 
     signature: $ =>
       seq(field("name", $.identifier), ":", field("type", $._type), ";"),
@@ -176,6 +192,24 @@ module.exports = grammar({
     let_statement: $ =>
       seq("let", field("bindings", choice($.binding, $.binding_group))),
 
+    case_expression: $ =>
+      seq(
+        "case",
+        field("scrutinee", $._expression),
+        "of",
+        "{",
+        sep_trailing($.case_alternative, ";"),
+        "}",
+      ),
+
+    case_alternative: $ =>
+      seq(
+        field("constructor", $.type_identifier),
+        repeat(field("binder", $.identifier)),
+        "->",
+        field("body", $._expression),
+      ),
+
     if_expression: $ =>
       prec.right(
         seq(
@@ -215,6 +249,8 @@ module.exports = grammar({
         $.let_expression,
         $.do_expression,
         $.if_expression,
+        $.case_expression,
+        $.type_identifier,
       ),
 
     identity: _ => ".",
@@ -243,11 +279,18 @@ module.exports = grammar({
     _type_atom: $ =>
       choice(
         $.filter_type,
+        $.type_application,
         $.list_type,
         $.record_type,
         $.type_identifier,
         $.type_variable,
         $.parenthesized_type,
+      ),
+
+    type_application: $ =>
+      seq(
+        field("constructor", $.type_identifier),
+        repeat1(field("argument", $._type_operand)),
       ),
 
     filter_type: $ =>
@@ -291,6 +334,10 @@ module.exports = grammar({
     regex: _ => token(seq('r"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
   },
 });
+
+function sep1(rule, sep) {
+  return seq(rule, repeat(seq(sep, rule)));
+}
 
 /**
  * One or more `rule`, separated by `sep`, with an optional trailing `sep`.

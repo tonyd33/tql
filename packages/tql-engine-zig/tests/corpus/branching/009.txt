@@ -1,18 +1,24 @@
-title: `and` with an empty right operand yields nothing for a true left
+title: an empty operand stream annihilates a lifted connective
 grammar: typescript
 asserts: types
 pending: values
 
+`and` is scalar, so reaching a stream operand goes through `do`. An empty bind
+contributes nothing, which is where the annihilation lives now.
+
 --- tql ---
-main =
-  (pure true, pure false)
-  and (children | is_kind :interface_declaration | pure true);
+main root =
+  do {
+    a <- (pure true, pure false) root;
+    b <- (children | is_kind :interface_declaration | pure true) root;
+    pure (a and b) root
+  };
 
 --- source ---
 class A {}
 
 --- values ---
-[false]
+[]
 
 --- types ---
 main : Node -> [Bool]

@@ -1,6 +1,8 @@
 //! Structural unification with an occurs check.
 
 const std = @import("std");
+const datatypes_mod = @import("../lang/datatypes.zig");
+const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
 const Substitution = @import("substitution.zig").Substitution;
 
@@ -55,11 +57,19 @@ pub fn unify(
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
         },
-        .list => |element| {
-            if (b != .list) {
+        // Nominal in the head, pointwise in the arguments.
+        .constructor => |c| {
+            if (b != .constructor or b.constructor.name != c.name or
+                b.constructor.arguments.len != c.arguments.len)
+            {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            return unify(subst, element.*, b.list.*);
+            for (c.arguments, b.constructor.arguments) |expected_arg, found_arg| {
+                switch (unify(subst, expected_arg, found_arg)) {
+                    .unified => {},
+                    .mismatch => |m| return .{ .mismatch = m },
+                }
+            }
         },
         .function => |arrow| {
             if (b != .function) {
@@ -114,16 +124,21 @@ const testing = std.testing;
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
+    interner: symbols.Interner,
+    datatypes: datatypes_mod.Registry,
 
     fn init(gpa: std.mem.Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined };
-        self.subst = Substitution.init(gpa, self.arena.allocator());
+        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try symbols.Interner.init(gpa), .datatypes = datatypes_mod.Registry.init(gpa) };
+        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
+        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: std.mem.Allocator) void {
         self.subst.deinit();
+        self.datatypes.deinit();
+        self.interner.deinit();
         self.arena.deinit();
         gpa.destroy(self);
     }
@@ -228,7 +243,7 @@ test "lists unify elementwise" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectUnifies(try types.list(fix.subst.arena, a), try types.list(fix.subst.arena, types.int_type));
+    try fix.expectUnifies(try fix.subst.datatypes.list(fix.subst.arena, a), try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
     try testing.expectEqual(types.int_type, fix.subst.resolve(a));
 }
 
@@ -237,7 +252,7 @@ test "a list does not unify with its element type" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    _ = try fix.mismatch(try types.list(fix.subst.arena, types.int_type), types.int_type);
+    _ = try fix.mismatch(try fix.subst.datatypes.list(fix.subst.arena, types.int_type), types.int_type);
 }
 
 test "the reported mismatch is the pair that conflicted, not the outer one" {
@@ -246,8 +261,8 @@ test "the reported mismatch is the pair that conflicted, not the outer one" {
     defer fix.deinit(gpa);
 
     const m = try fix.mismatch(
-        try types.list(fix.subst.arena, types.int_type),
-        try types.list(fix.subst.arena, types.string_type),
+        try fix.subst.datatypes.list(fix.subst.arena, types.int_type),
+        try fix.subst.datatypes.list(fix.subst.arena, types.string_type),
     );
     // `[int]` vs `[string]` would make a reader hunt for the difference.
     try testing.expectEqual(types.int_type, m.expected);
@@ -277,8 +292,8 @@ test "a filter is an arrow to a list, and unifies as one" {
     const a = try fix.subst.fresh();
     const b = try fix.subst.fresh();
     try fix.expectUnifies(
-        try types.filter(fix.subst.arena, a, b),
-        comptime types.filter_type(types.node_type, types.string_type),
+        try fix.subst.datatypes.filter(fix.subst.arena, a, b),
+        try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.string_type),
     );
     try testing.expectEqual(types.node_type, fix.subst.resolve(a));
     try testing.expectEqual(types.string_type, fix.subst.resolve(b));
@@ -294,7 +309,7 @@ test "a projection does not unify with a filter" {
     const a = try fix.subst.fresh();
     _ = try fix.mismatch(
         comptime types.func_type(types.node_type, types.string_type),
-        try types.filter(fix.subst.arena, types.node_type, a),
+        try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, a),
     );
 }
 
@@ -355,7 +370,7 @@ test "the occurs check rejects an infinite type" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    const m = try fix.mismatch(a, try types.list(fix.subst.arena, a));
+    const m = try fix.mismatch(a, try fix.subst.datatypes.list(fix.subst.arena, a));
     try testing.expectEqual(Mismatch.Reason.occurs, m.reason);
 }
 
@@ -366,7 +381,7 @@ test "the occurs check sees through solved metavariables" {
 
     const a = try fix.subst.fresh();
     const b = try fix.subst.fresh();
-    try fix.expectUnifies(b, try types.list(fix.subst.arena, a));
+    try fix.expectUnifies(b, try fix.subst.datatypes.list(fix.subst.arena, a));
     // `a := b` is now `a := [a]`, reachable only by resolving `b`.
     const m = try fix.mismatch(a, b);
     try testing.expectEqual(Mismatch.Reason.occurs, m.reason);
@@ -383,7 +398,7 @@ test "unification is transitive through nested structure" {
 
     // `a := [b]` from the argument, then `b := c` and `c := int` chain through
     // to make the argument `[int]`.
-    try fix.expectUnifies(a, try types.list(fix.subst.arena, b));
+    try fix.expectUnifies(a, try fix.subst.datatypes.list(fix.subst.arena, b));
     try fix.expectUnifies(b, c);
     try fix.expectUnifies(c, types.int_type);
 
@@ -415,7 +430,7 @@ test "a self-referential arrow is rejected as an infinite type" {
     // `(a -> [b])` against `(b -> a)`: the argument gives `a := b`, and then
     // the result asks for `b := [b]`.
     const m = try fix.mismatch(
-        try types.func(fix.subst.arena, a, try types.list(fix.subst.arena, b)),
+        try types.func(fix.subst.arena, a, try fix.subst.datatypes.list(fix.subst.arena, b)),
         try types.func(fix.subst.arena, b, a),
     );
     try testing.expectEqual(Mismatch.Reason.occurs, m.reason);

@@ -1,5 +1,40 @@
 -- TQL prelude.
 
+append xs ys = case xs of {
+  Nil -> ys;
+  Cons h t -> Cons h (append t ys);
+};
+
+flat_map xs f = case xs of {
+  Nil -> Nil;
+  Cons h t -> append (f h) (flat_map t f);
+};
+
+union p q = \x -> append (p x) (q x);
+
+collect p = \x -> Cons (p x) Nil;
+
+not b = case b of {
+  False -> True;
+  True -> False;
+};
+
+and a b = case a of {
+  False -> False;
+  True -> b;
+};
+
+or a b = case a of {
+  False -> b;
+  True -> True;
+};
+
+branch condition consequence alternative =
+  \x -> flat_map (condition x) (\c -> case c of {
+    False -> alternative x;
+    True -> consequence x;
+  });
+
 lift f x = pure (f x) x;
 
 select p = branch p identity empty;
@@ -11,8 +46,8 @@ any source predicate = probe (compose source (select predicate));
 all source predicate =
   branch
     (probe (compose source (branch predicate empty identity)))
-    (pure false)
-    (pure true);
+    (pure False)
+    (pure True);
 
 contains predicate = exists (descendants | select predicate);
 

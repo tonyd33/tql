@@ -25,7 +25,7 @@ main root =
       name = text cn;
       k = kind c
     };
-    { n = pure name, k = pure k } root
+    pure { n = name, k = k } root
   };
 
 --- source ---

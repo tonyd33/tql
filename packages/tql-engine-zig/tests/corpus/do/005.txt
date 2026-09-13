@@ -11,7 +11,7 @@ main root =
   do {
     c <- (children | is_kind :class_declaration) root;
     cn <- c.name;
-    { root = pure (kind root), class = pure (text cn) } root
+    pure { root = kind root, class = text cn } root
   };
 
 --- source ---

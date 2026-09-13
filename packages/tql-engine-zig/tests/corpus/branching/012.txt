@@ -7,7 +7,7 @@ pending: values
 the comparison to its right and stops before `and`.
 
 --- tql ---
-main = not (pure (1 = 2)) and pure false;
+main = pure (not 1 = 2 and false);
 
 --- source ---
 class A {}

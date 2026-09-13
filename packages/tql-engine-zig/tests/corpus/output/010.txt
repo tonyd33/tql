@@ -4,10 +4,13 @@ asserts: types
 pending: values
 
 --- tql ---
-main =
-  [children | is_kind :class_declaration
-   | { name = .name | lift text,
-       methods = [.body | children | is_kind :method_definition | .name | lift text] }];
+main root =
+  [\r -> do {
+    c <- (children | is_kind :class_declaration) r;
+    n <- c.name;
+    methods <- [.body | children | is_kind :method_definition | .name | lift text] c;
+    pure { name = text n, methods = methods } r
+  }] root;
 
 --- source ---
 class A { m() {} }

@@ -8,7 +8,7 @@ pending: values
 
 --- tql ---
 pick x y = x;
-main = pure (pick 1 2), (pure (pick "ab" "cd") | length);
+main = pure (pick 1 2), pure (length (pick "ab" "cd"));
 
 --- source ---
 class A {}

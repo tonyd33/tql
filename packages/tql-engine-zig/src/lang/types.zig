@@ -1,6 +1,7 @@
 //! Type and scheme representation.
 
 const std = @import("std");
+const datatypes = @import("datatypes.zig");
 
 /// A type variable, identified by its binding position in the enclosing
 /// scheme's `forall`.
@@ -10,7 +11,6 @@ pub const TypeVar = u8;
 pub const Meta = u32;
 
 pub const Primitive = enum {
-    Bool,
     Int,
     String,
     Regex,
@@ -26,9 +26,18 @@ pub const Type = union(enum) {
     variable: TypeVar,
     meta: Meta,
     primitive: Primitive,
-    list: *const Type,
+    /// A declared algebraic data type at its arguments. `[a]` is `List` at
+    /// one argument and `Bool` is a nullary one.
+    constructor: *const Constructed,
     record: []const Field,
     function: *const Arrow,
+
+    pub const Constructed = struct {
+        name: datatypes.TypeId,
+        /// Carried so a type can print without a registry in hand.
+        spelling: []const u8,
+        arguments: []const Type,
+    };
 
     pub const Field = struct {
         label: []const u8,
@@ -49,11 +58,7 @@ pub const Type = union(enum) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
             .meta => |id| try w.print("?{d}", .{id}),
             .primitive => |p| try w.writeAll(p.spelling()),
-            .list => |element| {
-                try w.writeByte('[');
-                try element.write(w, false);
-                try w.writeByte(']');
-            },
+            .constructor => |c| try writeConstructed(c, w),
             .record => |fields| {
                 try w.writeByte('{');
                 for (fields, 0..) |f, i| {
@@ -73,6 +78,23 @@ pub const Type = union(enum) {
         }
     }
 };
+
+fn writeConstructed(
+    c: *const Type.Constructed,
+    w: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling)) {
+        try w.writeByte('[');
+        try c.arguments[0].write(w, false);
+        try w.writeByte(']');
+        return;
+    }
+    try w.writeAll(c.spelling);
+    for (c.arguments) |argument| {
+        try w.writeByte(' ');
+        try argument.write(w, true);
+    }
+}
 
 // For now, a closed constraint set is fine.
 pub const TypeClassConstraint = struct {
@@ -113,7 +135,6 @@ pub const Scheme = struct {
     }
 };
 
-pub const bool_type: Type = .{ .primitive = .Bool };
 pub const int_type: Type = .{ .primitive = .Int };
 pub const string_type: Type = .{ .primitive = .String };
 pub const regex_type: Type = .{ .primitive = .Regex };
@@ -124,17 +145,8 @@ pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };
 }
 
-pub fn list_type(comptime element: Type) Type {
-    return .{ .list = &element };
-}
-
 pub fn func_type(comptime from: Type, comptime to: Type) Type {
     return .{ .function = &.{ .from = from, .to = to } };
-}
-
-/// `Filter a b` = `a -> [b]`.
-pub fn filter_type(comptime input: Type, comptime output: Type) Type {
-    return func_type(input, list_type(output));
 }
 
 pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
@@ -143,8 +155,25 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
     return slot;
 }
 
-pub fn list(allocator: std.mem.Allocator, element: Type) !Type {
-    return .{ .list = try store(allocator, element) };
+/// The two names the compiler knows structurally. A type built before the
+/// registry exists refers to them by spelling.
+pub const list_spelling = "List";
+pub const bool_spelling = "Bool";
+
+/// A declared type at its arguments, copied into `allocator`.
+pub fn constructed(
+    allocator: std.mem.Allocator,
+    name: datatypes.TypeId,
+    spelling: []const u8,
+    arguments: []const Type,
+) !Type {
+    const node = try allocator.create(Type.Constructed);
+    node.* = .{
+        .name = name,
+        .spelling = spelling,
+        .arguments = try allocator.dupe(Type, arguments),
+    };
+    return .{ .constructor = node };
 }
 
 pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
@@ -153,22 +182,32 @@ pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     return .{ .function = arrow };
 }
 
-/// `Filter a b` = `a -> [b]`.
-pub fn filter(allocator: std.mem.Allocator, input: Type, output: Type) !Type {
-    return try func(allocator, input, try list(allocator, output));
+/// `[t]` at an arbitrary id. Printing keys on the spelling, not the id.
+fn testList(arena: std.mem.Allocator, element: Type) !Type {
+    return try constructed(arena, @enumFromInt(0), list_spelling, &.{element});
+}
+
+fn testFilter(arena: std.mem.Allocator, input: Type, output: Type) !Type {
+    return try func(arena, input, try testList(arena, output));
 }
 
 test "filter notation expands to a function returning a list" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try filter_type(node_type, string_type).format(&buf.writer);
+    const t = try testFilter(arena.allocator(), node_type, string_type);
+    try t.format(&buf.writer);
     try std.testing.expectEqualStrings("Node -> [String]", buf.written());
 }
 
 test "arrows are right-associative and group on the left" {
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    const compose = comptime func_type(filter_type(variable_type(0), variable_type(1)), func_type(filter_type(variable_type(1), variable_type(2)), filter_type(variable_type(0), variable_type(2))));
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const compose = try func(t, try testFilter(t, variable_type(0), variable_type(1)), try func(t, try testFilter(t, variable_type(1), variable_type(2)), try testFilter(t, variable_type(0), variable_type(2))));
     try compose.format(&buf.writer);
     try std.testing.expectEqualStrings(
         "(a -> [b]) -> (b -> [c]) -> a -> [c]",
@@ -190,10 +229,14 @@ test "a metavariable renders distinctly from a bound variable" {
 test "constrained scheme renders its context" {
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const boolean = try constructed(t, @enumFromInt(1), bool_spelling, &.{});
     const eq: Scheme = .{
         .quantified = 1,
         .constraints = &.{.{ .class = .Eq, .type = variable_type(0) }},
-        .type = comptime func_type(variable_type(0), func_type(variable_type(0), bool_type)),
+        .type = try func(t, variable_type(0), try func(t, variable_type(0), boolean)),
     };
     try eq.format(&buf.writer);
     try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());

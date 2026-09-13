@@ -9,6 +9,7 @@
 const std = @import("std");
 const core = @import("../lang/core.zig");
 const cst = @import("../lang/cst.zig");
+const datatypes = @import("../lang/datatypes.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
@@ -16,6 +17,7 @@ const resolve = @import("resolve.zig");
 const desugar = @import("lower.zig");
 const primitives = @import("../lang/primitives.zig");
 const symbols = @import("../lang/symbols.zig");
+const types = @import("../lang/types.zig");
 
 pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 
@@ -39,6 +41,9 @@ pub const Program = struct {
     entry_offset: u32,
     interner: symbols.Interner,
     primitives: primitives.Table,
+    /// Declared types and their constructors, collected before any body was
+    /// desugared so a constructor reference resolves like any other global.
+    datatypes: datatypes.Registry,
     /// What each synthesized symbol was generated from, merged from the linked
     /// modules. Desugaring's output: nothing downstream has the grammar.
     synthesis: desugar.SynthesisTable,
@@ -58,6 +63,7 @@ pub const Program = struct {
     }
 
     pub fn deinit(self: *Program) void {
+        self.datatypes.deinit();
         self.synthesis.deinit();
         self.primitives.deinit();
         self.interner.deinit();
@@ -103,7 +109,7 @@ pub const Desugarer = struct {
         return .{
             .allocator = allocator,
             .arena = arena,
-            .interned = try primitives.Interned.init(allocator),
+            .interned = try primitives.Interned.init(allocator, arena.allocator()),
             .synthesis = desugar.SynthesisTable.init(allocator),
         };
     }
@@ -117,6 +123,139 @@ pub const Desugarer = struct {
         self.allocator.destroy(arena);
     }
 
+    /// Registers a module's `type` declarations before any body is desugared,
+    /// so a constructor reference resolves like any other global.
+    fn declareTypes(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+        const arena = self.arena.?.allocator();
+        const interner = &self.interned.interner;
+
+        for (source.declarations) |*decl| {
+            if (decl.* != .type_declaration) continue;
+            const declared = &decl.type_declaration;
+
+            if (self.interned.datatypes.lookup(declared.name) != null) {
+                try sink.report(
+                    .duplicate_definition,
+                    declared.span,
+                    "`{s}` is declared more than once",
+                    .{declared.name},
+                );
+                continue;
+            }
+
+            const id = try self.interned.datatypes.declare(
+                try arena.dupe(u8, declared.name),
+                @intCast(declared.parameters.len),
+                &.{},
+                .{ .Eq = .fields, .Serial = .fields },
+            );
+
+            const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
+            var failed = false;
+            for (declared.constructors, constructors, 0..) |written, *out, tag| {
+                const symbol = interner.intern(written.name) catch |err| switch (err) {
+                    error.Collision => {
+                        try sink.report(
+                            .symbol_collision,
+                            written.span,
+                            "`{s}` collides with an existing symbol",
+                            .{written.name},
+                        );
+                        failed = true;
+                        continue;
+                    },
+                    else => |e| return e,
+                };
+
+                const fields = try arena.alloc(types.Type, written.fields.len);
+                for (written.fields, fields) |field, *slot| {
+                    slot.* = try self.fieldType(field, declared.*, sink) orelse {
+                        failed = true;
+                        break;
+                    };
+                }
+
+                out.* = .{ .symbol = symbol, .tag = @intCast(tag), .fields = fields };
+            }
+            if (failed) continue;
+
+            try self.interned.datatypes.setConstructors(id, constructors);
+        }
+    }
+
+    /// A constructor field's type, with the datatype's own parameters in
+    /// scope as bound variables.
+    fn fieldType(
+        self: *Desugarer,
+        written: cst.Type,
+        declared: cst.TypeDeclaration,
+        sink: *diagnostic.Sink,
+    ) !?types.Type {
+        const arena = self.arena.?.allocator();
+        switch (written.kind) {
+            .variable => |name| {
+                for (declared.parameters, 0..) |parameter, i| {
+                    if (std.mem.eql(u8, parameter, name)) return types.variable_type(@intCast(i));
+                }
+                try sink.report(
+                    .unresolved_name,
+                    written.span,
+                    "`{s}` is not a parameter of `{s}`",
+                    .{ name, declared.name },
+                );
+                return null;
+            },
+            .constructor => |name| {
+                if (self.interned.datatypes.lookup(name)) |id| {
+                    return try types.constructed(arena, id, self.interned.datatypes.get(id).name, &.{});
+                }
+                if (annotation.primitiveNamed(name)) |t| return t;
+                try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
+                return null;
+            },
+            .application => |a| {
+                const id = self.interned.datatypes.lookup(a.constructor) orelse {
+                    try sink.report(
+                        .unresolved_name,
+                        written.span,
+                        "`{s}` is not a type",
+                        .{a.constructor},
+                    );
+                    return null;
+                };
+                const arguments = try arena.alloc(types.Type, a.arguments.len);
+                for (a.arguments, arguments) |argument, *slot| {
+                    slot.* = try self.fieldType(argument, declared, sink) orelse return null;
+                }
+                return try types.constructed(arena, id, self.interned.datatypes.get(id).name, arguments);
+            },
+            .list => |element| {
+                const inner = try self.fieldType(element.*, declared, sink) orelse return null;
+                return try self.interned.datatypes.list(arena, inner);
+            },
+            .parenthesized => |inner| return try self.fieldType(inner.*, declared, sink),
+            .function => |f| {
+                const from = try self.fieldType(f.from, declared, sink) orelse return null;
+                const to = try self.fieldType(f.to, declared, sink) orelse return null;
+                return try types.func(arena, from, to);
+            },
+            .filter => |f| {
+                const input = try self.fieldType(f.input, declared, sink) orelse return null;
+                const output = try self.fieldType(f.output, declared, sink) orelse return null;
+                return try self.interned.datatypes.filter(arena, input, output);
+            },
+            .record => {
+                try sink.report(
+                    .type_mismatch,
+                    written.span,
+                    "a constructor field may not be a record yet",
+                    .{},
+                );
+                return null;
+            },
+        }
+    }
+
     /// Desugars one source file and adds it to the link: collect heads,
     /// resolve bodies.
     pub fn add(
@@ -127,6 +266,8 @@ pub const Desugarer = struct {
     ) !void {
         const builder = core.Builder{ .allocator = self.arena.?.allocator() };
         const interner = &self.interned.interner;
+
+        try self.declareTypes(source, sink);
 
         var declarations = try resolve.collect(self.allocator, interner, source, sink);
         defer declarations.deinit();
@@ -141,6 +282,7 @@ pub const Desugarer = struct {
             var lowerer = desugar.Lowerer.init(
                 builder,
                 interner,
+                &self.interned.datatypes,
                 &self.synthesis,
                 &declarations,
                 g.language,
@@ -177,6 +319,7 @@ pub const Desugarer = struct {
                 builder.allocator,
                 self.allocator,
                 signature,
+                &self.interned.datatypes,
                 sink,
             ) catch |err| switch (err) {
                 error.BadAnnotation => {
@@ -262,6 +405,7 @@ pub const Desugarer = struct {
             .entry_offset = entry_offset,
             .interner = self.interned.interner,
             .primitives = self.interned.table,
+            .datatypes = self.interned.datatypes,
             .synthesis = self.synthesis,
             .annotations = annotations,
         };

@@ -3,13 +3,18 @@ grammar: typescript
 asserts: types
 pending: values
 
-`not is_a "A"` is `not (is_a "A")`. Application binds tighter than `not`, so the
-looser grouping of `not` over comparison does not reach it. The rejected reading
-`(not is_a) "A"` applies `not` to a function and does not typecheck.
+`not is_a "A" c` is `not (is_a "A" c)`. Application binds tighter than `not`, so
+the looser grouping of `not` over comparison does not reach it. The rejected
+reading `(not is_a) "A" c` applies `not` to a function and does not typecheck.
 
 --- tql ---
-is_a expected = .name | lift (\t -> text t = expected);
-main = children | is_kind :class_declaration | not is_a "A";
+is_a expected n = text n = expected;
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    n <- c.name;
+    pure (not is_a "A" n) root
+  };
 
 --- source ---
 class A {}
@@ -19,5 +24,5 @@ class B {}
 [false, true]
 
 --- types ---
-is_a : String -> Node -> [Bool]
+is_a : String -> Node -> Bool
 main : Node -> [Bool]

@@ -7,7 +7,7 @@ pending: values
 length, not character count, is the rule.
 
 --- tql ---
-main = (pure "hello", pure "héllo") | length;
+main = (pure "hello", pure "héllo") | lift length;
 
 --- source ---
 class A {}

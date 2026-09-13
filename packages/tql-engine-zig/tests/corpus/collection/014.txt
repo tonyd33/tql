@@ -6,8 +6,8 @@ pending: values
 --- tql ---
 main root =
   let {
-    x = { a = pure 1 } root;
-    y = { a = pure 2 } root
+    x = { a = 1 };
+    y = { a = 2 }
   } in
     (pure (x = x), pure (x = y)) root;
 

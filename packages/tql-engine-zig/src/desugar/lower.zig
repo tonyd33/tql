@@ -4,6 +4,7 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 const core = @import("../lang/core.zig");
 const cst = @import("../lang/cst.zig");
+const datatypes = @import("../lang/datatypes.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
 const resolve = @import("resolve.zig");
 const pcre2 = @import("../regex.zig");
@@ -21,16 +22,17 @@ pub const Synthesis = union(enum) {
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
     operator: []const u8,
-    /// `record_filter[l,...]`, labels in normalized order. The scheme is n-ary
+    /// `record[l,...]`, labels in normalized order. The scheme is n-ary
     /// in the field count, so inference builds it from these rather than
     /// reading one off a table.
-    record_filter: []const []const u8,
+    record: []const []const u8,
 };
 
 pub const SynthesisTable = symbols.SymbolTable(Synthesis);
 
 pub const Lowerer = struct {
     interner: *symbols.Interner,
+    datatypes: *const datatypes.Registry,
     synthesis: *SynthesisTable,
     declarations: *const resolve.Declarations,
     language: *const ts.Language,
@@ -44,6 +46,7 @@ pub const Lowerer = struct {
     pub fn init(
         builder: core.Builder,
         interner: *symbols.Interner,
+        declared: *const datatypes.Registry,
         synthesis: *SynthesisTable,
         declarations: *const resolve.Declarations,
         language: *const ts.Language,
@@ -51,6 +54,7 @@ pub const Lowerer = struct {
     ) Lowerer {
         return .{
             .interner = interner,
+            .datatypes = declared,
             .synthesis = synthesis,
             .declarations = declarations,
             .language = language,
@@ -68,6 +72,135 @@ pub const Lowerer = struct {
     fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) !core.Term {
         const id = self.interner.lookup(name).?;
         return self.builder.symbol(id, span);
+    }
+
+    fn constructorRef(
+        self: *Lowerer,
+        name: []const u8,
+        span: diagnostic.Span,
+    ) Error!core.Term {
+        const id = self.interner.lookup(name) orelse {
+            try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
+            return error.DesugarFailed;
+        };
+        if (self.datatypes.ownerOf(id) == null) {
+            try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
+            return error.DesugarFailed;
+        }
+        return self.builder.symbol(id, span);
+    }
+
+    fn caseOf(
+        self: *Lowerer,
+        c: cst.Case,
+        scope: ?*const resolve.Scope,
+        span: diagnostic.Span,
+    ) Error!core.Term {
+        const scrutinee = try self.expression(c.scrutinee, scope);
+
+        if (c.alternatives.len == 0) {
+            try self.sink.report(.type_mismatch, span, "a case has no alternatives", .{});
+            return error.DesugarFailed;
+        }
+
+        const first = self.interner.lookup(c.alternatives[0].constructor) orelse {
+            try self.sink.report(
+                .unresolved_name,
+                c.alternatives[0].span,
+                "`{s}` is not a constructor",
+                .{c.alternatives[0].constructor},
+            );
+            return error.DesugarFailed;
+        };
+        const owner = self.datatypes.ownerOf(first) orelse {
+            try self.sink.report(
+                .unresolved_name,
+                c.alternatives[0].span,
+                "`{s}` is not a constructor",
+                .{c.alternatives[0].constructor},
+            );
+            return error.DesugarFailed;
+        };
+
+        const declared = self.datatypes.get(owner);
+        const slots = try self.builder.slice(?core.Case.Alternative, declared.constructors.len);
+        @memset(slots, null);
+
+        for (c.alternatives) |alternative| {
+            const id = self.interner.lookup(alternative.constructor) orelse {
+                try self.sink.report(
+                    .unresolved_name,
+                    alternative.span,
+                    "`{s}` is not a constructor",
+                    .{alternative.constructor},
+                );
+                return error.DesugarFailed;
+            };
+            const constructor = self.datatypes.constructorOf(id) orelse {
+                try self.sink.report(
+                    .unresolved_name,
+                    alternative.span,
+                    "`{s}` is not a constructor",
+                    .{alternative.constructor},
+                );
+                return error.DesugarFailed;
+            };
+            if (self.datatypes.ownerOf(id).? != owner) {
+                try self.sink.report(
+                    .type_mismatch,
+                    alternative.span,
+                    "`{s}` is not a constructor of `{s}`",
+                    .{ alternative.constructor, declared.name },
+                );
+                return error.DesugarFailed;
+            }
+            if (slots[constructor.tag] != null) {
+                try self.sink.report(
+                    .type_mismatch,
+                    alternative.span,
+                    "`{s}` is matched more than once",
+                    .{alternative.constructor},
+                );
+                return error.DesugarFailed;
+            }
+            if (alternative.binders.len != constructor.fields.len) {
+                try self.sink.report(
+                    .type_mismatch,
+                    alternative.span,
+                    "`{s}` binds {d} field(s), given {d}",
+                    .{ alternative.constructor, constructor.fields.len, alternative.binders.len },
+                );
+                return error.DesugarFailed;
+            }
+
+            const binders = try self.builder.slice(symbols.SymbolId, alternative.binders.len);
+            const entries = try self.builder.slice(resolve.Scope.Entry, alternative.binders.len);
+            for (alternative.binders, binders, entries) |binder, *slot, *entry| {
+                slot.* = try self.interner.fresh(binder.name);
+                entry.* = .{ .name = binder.name, .symbol = slot.* };
+            }
+            const inner: resolve.Scope = .{ .parent = scope, .names = entries };
+
+            slots[constructor.tag] = .{
+                .constructor = id,
+                .binders = binders,
+                .body = try self.expression(alternative.body, &inner),
+            };
+        }
+
+        const alternatives = try self.builder.slice(core.Case.Alternative, slots.len);
+        for (slots, alternatives, declared.constructors) |slot, *out, constructor| {
+            out.* = slot orelse {
+                try self.sink.report(
+                    .type_mismatch,
+                    span,
+                    "`{s}` is not matched",
+                    .{self.interner.spelling(constructor.symbol)},
+                );
+                return error.DesugarFailed;
+            };
+        }
+        return try self.builder.case(scrutinee, alternatives, span);
     }
 
     fn recordReference(self: *Lowerer, symbol: symbols.SymbolId) !void {
@@ -174,7 +307,9 @@ pub const Lowerer = struct {
             // Literal payloads are duped: the CST they point into is freed
             // before the Core program is used.
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
-            .boolean => |b| return self.builder.literal(.{ .boolean = b }, e.span),
+            // A boolean is a nullary constructor, not a literal, so `case` on
+            // one is uniform with `case` on any other declared type.
+            .boolean => |b| return try self.primitive(if (b) "True" else "False", e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -281,13 +416,31 @@ pub const Lowerer = struct {
                 e.span,
             ),
 
-            // The scalar conditional is a Core term form, not an application.
-            .@"if" => |i| return try self.builder.conditional(
-                try self.expression(i.condition, scope),
-                try self.expression(i.consequence, scope),
-                try self.expression(i.alternative, scope),
-                e.span,
-            ),
+            // The scalar conditional is `case` on `Bool`. Alternatives go in
+            // tag order, so `False` precedes `True` and the alternative
+            // bodies are the *opposite* order from how they are written.
+            .@"if" => |i| {
+                const alternatives = try self.builder.slice(core.Case.Alternative, 2);
+                alternatives[0] = .{
+                    .constructor = self.interner.lookup("False").?,
+                    .binders = &.{},
+                    .body = try self.expression(i.alternative, scope),
+                };
+                alternatives[1] = .{
+                    .constructor = self.interner.lookup("True").?,
+                    .binders = &.{},
+                    .body = try self.expression(i.consequence, scope),
+                };
+                return try self.builder.case(
+                    try self.expression(i.condition, scope),
+                    alternatives,
+                    e.span,
+                );
+            },
+
+            .constructor => |name| return try self.constructorRef(name, e.span),
+
+            .case => |c| return try self.caseOf(c.*, scope, e.span),
 
             .lambda => |l| return try self.parameterized(l.parameters, l.body, scope, e.span),
 
@@ -355,7 +508,7 @@ pub const Lowerer = struct {
         );
     }
 
-    /// `{l = p, ...}` is the synthesized `record_filter[l,...]` applied to each
+    /// `{l = e, ...}` is the synthesized `record[l,...]` applied to each
     /// field's expression. Labels are normalized so `{a=1,b=2}` and `{b=2,a=1}`
     /// produce one symbol, and the arguments follow the normalized order.
     fn record(self: *Lowerer, r: cst.Record, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {
@@ -377,9 +530,9 @@ pub const Lowerer = struct {
         const owned = try self.builder.slice([]const u8, labels.len);
         for (labels, 0..) |label, i| owned[i] = try self.builder.dupe(label);
         const symbol = try self.synthesize(
-            "record_filter[{s}]",
+            "record[{s}]",
             .{try self.builder.join(",", labels)},
-            .{ .record_filter = owned },
+            .{ .record = owned },
         );
         return try self.builder.applyMany(
             self.builder.symbol(symbol, span),

@@ -10,10 +10,11 @@ accept identical argument types.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    { some = any (.body | children | is_kind :method_definition)
-                 (.name | lift (\n -> text n ~ r"^get")),
-      every = all (.body | children | is_kind :method_definition)
-                  (.name | lift (\n -> text n ~ r"^get")) } c
+    some <- any (.body | children | is_kind :method_definition)
+                (.name | lift (\n -> text n ~ r"^get")) c;
+    every <- all (.body | children | is_kind :method_definition)
+                 (.name | lift (\n -> text n ~ r"^get")) c;
+    pure { some = some, every = every } c
   };
 
 --- source ---

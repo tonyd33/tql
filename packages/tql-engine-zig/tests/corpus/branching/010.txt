@@ -7,7 +7,7 @@ pending: values
 would be `[true]`.
 
 --- tql ---
-main = not (pure false) and pure false;
+main = pure (not false and false);
 
 --- source ---
 class A {}

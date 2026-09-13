@@ -233,3 +233,63 @@ main = (2 + 3) * 4;
           left: (number)
           right: (number)))
       right: (number))))
+
+========================================
+constructor fields do not absorb a following field as an argument
+========================================
+
+type T a = C a a;
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable)
+      field: (type_variable))))
+
+========================================
+a parenthesized field is a type application
+========================================
+
+type T a = C (List a);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (parenthesized_type
+        (type_application
+          constructor: (type_identifier)
+          argument: (type_variable))))))
+
+========================================
+a case alternative body extends to its separator
+========================================
+
+main = case b of { False -> f x; True -> g y };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        constructor: (type_identifier)
+        body: (application
+          function: (identifier)
+          argument: (identifier)))
+      (case_alternative
+        constructor: (type_identifier)
+        body: (application
+          function: (identifier)
+          argument: (identifier))))))

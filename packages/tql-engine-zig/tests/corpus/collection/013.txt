@@ -9,8 +9,8 @@ same value and the same type.
 --- tql ---
 main root =
   let {
-    x = { a = pure 1, b = pure 2 } root;
-    y = { b = pure 2, a = pure 1 } root
+    x = { a = 1, b = 2 };
+    y = { b = 2, a = 1 }
   } in
     pure (x = y) root;
 

@@ -7,10 +7,13 @@ Collection inside a field keeps the record single-valued: the list is one
 value, so no product fan-out occurs.
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | { name = .name | lift text,
-      methods = [.body | children | is_kind :method_definition | .name | lift text] };
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    n <- c.name;
+    methods <- [.body | children | is_kind :method_definition | .name | lift text] c;
+    pure { name = text n, methods = methods } root
+  };
 
 --- source ---
 class A { m() {} n() {} }

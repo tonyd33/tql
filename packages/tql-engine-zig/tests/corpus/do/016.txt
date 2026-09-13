@@ -12,7 +12,7 @@ main root =
     c <- (children | is_kind :class_declaration) root;
     n <- (pure 1, pure 2) root;
     cn <- c.name;
-    { class = pure (text cn), n = pure n } root
+    pure { class = text cn, n = n } root
   };
 
 --- source ---

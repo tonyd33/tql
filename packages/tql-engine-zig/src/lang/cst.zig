@@ -33,6 +33,7 @@ pub const SourceFile = struct {
 pub const Declaration = union(enum) {
     signature: Signature,
     definition: Definition,
+    type_declaration: TypeDeclaration,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -91,6 +92,54 @@ pub const Definition = struct {
         }
         try w.writeAll(") ");
         try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+/// `type T a = C1 f1 f2 | C2;`
+pub const TypeDeclaration = struct {
+    name: Identifier,
+    parameters: []const Identifier,
+    constructors: []const ConstructorDeclaration,
+    span: diagnostic.Span = .unknown,
+
+    pub fn deinit(self: TypeDeclaration, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        for (self.parameters) |p| allocator.free(p);
+        allocator.free(self.parameters);
+        for (self.constructors) |c| c.deinit(allocator);
+        allocator.free(self.constructors);
+    }
+
+    pub fn sexpr(self: TypeDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(type {s} (params", .{self.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p});
+        try w.writeAll(")");
+        for (self.constructors) |c| {
+            try w.writeByte(' ');
+            try c.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+};
+
+pub const ConstructorDeclaration = struct {
+    name: Identifier,
+    fields: []const Type,
+    span: diagnostic.Span = .unknown,
+
+    pub fn deinit(self: ConstructorDeclaration, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        for (self.fields) |f| f.deinit(allocator);
+        allocator.free(self.fields);
+    }
+
+    pub fn sexpr(self: ConstructorDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(con {s}", .{self.name});
+        for (self.fields) |f| {
+            try w.writeByte(' ');
+            try f.sexpr(w);
+        }
         try w.writeByte(')');
     }
 };
@@ -296,6 +345,9 @@ pub const Expression = struct {
         binary: *Binary,
         not: *Not,
         @"if": *If,
+        case: *Case,
+        /// A data constructor used as a value: `Nil`, `True`.
+        constructor: Identifier,
         lambda: *Lambda,
         let: *Let,
         do: *Do,
@@ -310,6 +362,7 @@ pub const Expression = struct {
             .identity, .number, .boolean => {},
             .kind_test => |k| allocator.free(k),
             .name => |n| allocator.free(n),
+            .constructor => |c| allocator.free(c),
             .string => |s| allocator.free(s),
             .regex => |r| allocator.free(r),
             .field_access => |fa| {
@@ -330,6 +383,10 @@ pub const Expression = struct {
             .not => |n| {
                 n.operand.deinit(allocator);
                 allocator.destroy(n);
+            },
+            .case => |c| {
+                c.deinit(allocator);
+                allocator.destroy(c);
             },
             .@"if" => |i| {
                 i.condition.deinit(allocator);
@@ -409,6 +466,19 @@ pub const Expression = struct {
                 try n.operand.sexpr(w);
                 try w.writeByte(')');
             },
+            .case => |c| {
+                try w.writeAll("(case ");
+                try c.scrutinee.sexpr(w);
+                for (c.alternatives) |a| {
+                    try w.print(" (alt {s} (binders", .{a.constructor});
+                    for (a.binders) |b| try w.print(" {s}", .{b.name});
+                    try w.writeAll(") ");
+                    try a.body.sexpr(w);
+                    try w.writeByte(')');
+                }
+                try w.writeByte(')');
+            },
+            .constructor => |c| try w.print("{s}", .{c}),
             .@"if" => |i| {
                 try w.writeAll("(if ");
                 try i.condition.sexpr(w);
@@ -488,6 +558,11 @@ pub const FilterType = struct {
     output: Type,
 };
 
+pub const TypeApplication = struct {
+    constructor: Identifier,
+    arguments: []const Type,
+};
+
 pub const TypeField = struct {
     name: Identifier,
     type: Type,
@@ -499,6 +574,32 @@ pub const TypeField = struct {
     }
 };
 
+/// `case e of { C x -> e; ... }`
+pub const Case = struct {
+    scrutinee: Expression,
+    alternatives: []const Alternative,
+
+    pub const Alternative = struct {
+        constructor: Identifier,
+        binders: []const Parameter,
+        body: Expression,
+        span: diagnostic.Span = .unknown,
+
+        pub fn deinit(self: Alternative, allocator: std.mem.Allocator) void {
+            allocator.free(self.constructor);
+            for (self.binders) |b| b.deinit(allocator);
+            allocator.free(self.binders);
+            self.body.deinit(allocator);
+        }
+    };
+
+    pub fn deinit(self: Case, allocator: std.mem.Allocator) void {
+        self.scrutinee.deinit(allocator);
+        for (self.alternatives) |a| a.deinit(allocator);
+        allocator.free(self.alternatives);
+    }
+};
+
 pub const Type = struct {
     kind: Kind,
     span: diagnostic.Span = .unknown,
@@ -507,6 +608,8 @@ pub const Type = struct {
         /// A concrete type name: `Filter`'s operands aside, anything
         /// capitalized.
         constructor: Identifier,
+        /// A declared type at its arguments, like `List a`.
+        application: *TypeApplication,
         variable: Identifier,
         function: *FunctionType,
         filter: *FilterType,
@@ -518,6 +621,12 @@ pub const Type = struct {
     pub fn deinit(self: Type, allocator: std.mem.Allocator) void {
         switch (self.kind) {
             .constructor => |c| allocator.free(c),
+            .application => |a| {
+                allocator.free(a.constructor);
+                for (a.arguments) |arg| arg.deinit(allocator);
+                allocator.free(a.arguments);
+                allocator.destroy(a);
+            },
             .variable => |v| allocator.free(v),
             .function => |f| {
                 f.from.deinit(allocator);
@@ -547,6 +656,14 @@ pub const Type = struct {
     pub fn sexpr(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .constructor => |c| try w.print("{s}", .{c}),
+            .application => |a| {
+                try w.print("({s}", .{a.constructor});
+                for (a.arguments) |arg| {
+                    try w.writeByte(' ');
+                    try arg.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
             .variable => |v| try w.print("{s}", .{v}),
             .function => |f| {
                 try w.writeAll("(-> ");

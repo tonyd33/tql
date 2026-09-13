@@ -9,13 +9,14 @@
 
 const std = @import("std");
 const cst = @import("../lang/cst.zig");
+const datatypes = @import("../lang/datatypes.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
+const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
 
 const Allocator = std.mem.Allocator;
 
 const primitive_names = [_]struct { name: []const u8, type: types.Type }{
-    .{ .name = "Bool", .type = types.bool_type },
     .{ .name = "Int", .type = types.int_type },
     .{ .name = "String", .type = types.string_type },
     .{ .name = "Regex", .type = types.regex_type },
@@ -40,12 +41,19 @@ pub fn translate(
     arena: Allocator,
     gpa: Allocator,
     signature: *const cst.Signature,
+    declared: *const datatypes.Registry,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
     var vars: std.ArrayList([]const u8) = .empty;
     defer vars.deinit(gpa);
 
-    var t = Translator{ .arena = arena, .gpa = gpa, .vars = &vars, .sink = sink };
+    var t = Translator{
+        .arena = arena,
+        .gpa = gpa,
+        .vars = &vars,
+        .datatypes = declared,
+        .sink = sink,
+    };
     const translated = try t.type(signature.type);
 
     return .{
@@ -62,21 +70,15 @@ const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
     vars: *std.ArrayList([]const u8),
+    datatypes: *const datatypes.Registry,
     sink: *diagnostic.Sink,
 
     fn @"type"(self: *Translator, node: cst.Type) Error!types.Type {
         return switch (node.kind) {
-            .constructor => |name| primitiveNamed(name) orelse {
-                try self.sink.report(
-                    .type_mismatch,
-                    node.span,
-                    "`{s}` is not a type",
-                    .{name},
-                );
-                return error.BadAnnotation;
-            },
+            .constructor => |name| try self.named(name, node.span),
+            .application => |a| try self.application(a.*, node.span),
             .variable => |name| .{ .variable = try self.binder(name) },
-            .list => |element| try types.list(self.arena, try self.type(element.*)),
+            .list => |element| try self.datatypes.list(self.arena, try self.type(element.*)),
             .parenthesized => |inner| try self.type(inner.*),
             .function => |f| try types.func(self.arena, try self.type(f.from), try self.type(f.to)),
             // `Filter a b` is `a -> [b]`. The expansion happens here, so
@@ -84,10 +86,53 @@ const Translator = struct {
             .filter => |f| try types.func(
                 self.arena,
                 try self.type(f.input),
-                try types.list(self.arena, try self.type(f.output)),
+                try self.datatypes.list(self.arena, try self.type(f.output)),
             ),
             .record => |fields| try self.record(fields),
         };
+    }
+
+    fn named(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.Type {
+        if (self.datatypes.lookup(name)) |declared| {
+            const parameters = self.datatypes.get(declared).parameters;
+            if (parameters != 0) {
+                try self.sink.report(
+                    .type_mismatch,
+                    span,
+                    "`{s}` takes {d} type argument(s), given 0",
+                    .{ name, parameters },
+                );
+                return error.BadAnnotation;
+            }
+            return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
+        }
+        if (primitiveNamed(name)) |t| return t;
+        try self.sink.report(.type_mismatch, span, "`{s}` is not a type", .{name});
+        return error.BadAnnotation;
+    }
+
+    fn application(
+        self: *Translator,
+        node: cst.TypeApplication,
+        span: diagnostic.Span,
+    ) Error!types.Type {
+        const declared = self.datatypes.lookup(node.constructor) orelse {
+            try self.sink.report(.type_mismatch, span, "`{s}` is not a type", .{node.constructor});
+            return error.BadAnnotation;
+        };
+        const parameters = self.datatypes.get(declared).parameters;
+        if (node.arguments.len != parameters) {
+            try self.sink.report(
+                .type_mismatch,
+                span,
+                "`{s}` takes {d} type argument(s), given {d}",
+                .{ node.constructor, parameters, node.arguments.len },
+            );
+            return error.BadAnnotation;
+        }
+        const arguments = try self.arena.alloc(types.Type, node.arguments.len);
+        for (node.arguments, arguments) |argument, *copy| copy.* = try self.type(argument);
+        return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, arguments);
     }
 
     /// The `forall` position of a type variable, assigned on first appearance.
@@ -127,14 +172,24 @@ const testing = std.testing;
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     sink: diagnostic.Sink,
+    interner: symbols.Interner,
+    datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .sink = diagnostic.Sink.init(gpa) };
+        self.* = .{
+            .arena = .init(gpa),
+            .sink = diagnostic.Sink.init(gpa),
+            .interner = try symbols.Interner.init(gpa),
+            .datatypes = datatypes.Registry.init(gpa),
+        };
+        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
+        self.datatypes.deinit();
+        self.interner.deinit();
         self.sink.deinit();
         self.arena.deinit();
         gpa.destroy(self);
@@ -157,6 +212,7 @@ const Fixture = struct {
             self.arena.allocator(),
             testing.allocator,
             &signature,
+            &self.datatypes,
             &self.sink,
         );
 
@@ -189,6 +245,7 @@ test "an unknown constructor is rejected" {
         fix.arena.allocator(),
         gpa,
         &signature,
+        &fix.datatypes,
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -282,10 +339,12 @@ test "a record type keeps its labels" {
     try fix.expectScheme(fix.node(.{ .record = fields }), "{k: String, n: Int}");
 }
 
-test "the primitive table is the six primitives and nothing else" {
-    // A change to what a signature may name should fail here first.
-    try testing.expectEqual(6, primitive_names.len);
+test "the primitive table is the five primitives and nothing else" {
+    // A change to what a signature may name should fail here first. `Bool` is
+    // absent because it is a declared type, resolved through the registry.
+    try testing.expectEqual(5, primitive_names.len);
     try testing.expect(primitiveNamed("Node") != null);
+    try testing.expect(primitiveNamed("Bool") == null);
     try testing.expect(primitiveNamed("node") == null);
     try testing.expect(primitiveNamed("Filter") == null);
 }

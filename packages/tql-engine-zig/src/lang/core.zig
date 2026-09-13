@@ -5,7 +5,7 @@
 //!        | literal
 //!        | \x -> expr
 //!        | expr_1 expr_2
-//!        | if expr_1 then expr_2 else expr_3
+//!        | case expr of { C x_1 .. x_n -> expr; ... }
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //!        | bind x <- expr_1 in expr_2
 //! ```
@@ -30,14 +30,13 @@ pub const Term = struct {
         literal: Literal,
         lambda: *const Lambda,
         apply: *const Apply,
-        conditional: *const Conditional,
+        case: *const Case,
         letrec: *const Letrec,
         bind: *const Bind,
     };
 };
 
 pub const Literal = union(enum) {
-    boolean: bool,
     number: i64,
     string: []const u8,
     regex: []const u8,
@@ -53,10 +52,15 @@ pub const Apply = struct {
     argument: Term,
 };
 
-pub const Conditional = struct {
-    condition: Term,
-    consequence: Term,
-    alternative: Term,
+pub const Case = struct {
+    scrutinee: Term,
+    alternatives: []const Alternative,
+
+    pub const Alternative = struct {
+        constructor: symbols.SymbolId,
+        binders: []const symbols.SymbolId,
+        body: Term,
+    };
 };
 
 pub const Letrec = struct {
@@ -134,20 +138,15 @@ pub const Builder = struct {
         return result;
     }
 
-    pub fn conditional(
+    pub fn case(
         self: Builder,
-        condition: Term,
-        consequence: Term,
-        alternative: Term,
+        scrutinee: Term,
+        alternatives: []const Case.Alternative,
         span: diagnostic.Span,
     ) !Term {
-        const node = try self.allocator.create(Conditional);
-        node.* = .{
-            .condition = condition,
-            .consequence = consequence,
-            .alternative = alternative,
-        };
-        return .{ .kind = .{ .conditional = node }, .span = span };
+        const node = try self.allocator.create(Case);
+        node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives };
+        return .{ .kind = .{ .case = node }, .span = span };
     }
 
     pub fn letrec(
@@ -211,15 +210,22 @@ pub const Printer = struct {
                 try self.write(a.argument, w, .operand);
                 if (wrap) try w.writeByte(')');
             },
-            .conditional => |c| {
+            .case => |c| {
                 const wrap = position != .top;
                 if (wrap) try w.writeByte('(');
-                try w.writeAll("if ");
-                try self.write(c.condition, w, .top);
-                try w.writeAll(" then ");
-                try self.write(c.consequence, w, .top);
-                try w.writeAll(" else ");
-                try self.write(c.alternative, w, .top);
+                try w.writeAll("case ");
+                try self.write(c.scrutinee, w, .top);
+                try w.writeAll(" of { ");
+                for (c.alternatives, 0..) |alternative, i| {
+                    if (i > 0) try w.writeAll("; ");
+                    try w.writeAll(self.interner.spelling(alternative.constructor));
+                    for (alternative.binders) |binder| {
+                        try w.print(" {s}", .{self.interner.spelling(binder)});
+                    }
+                    try w.writeAll(" -> ");
+                    try self.write(alternative.body, w, .top);
+                }
+                try w.writeAll(" }");
                 if (wrap) try w.writeByte(')');
             },
             .letrec => |l| {
@@ -249,7 +255,6 @@ pub const Printer = struct {
 
     fn writeLiteral(value: Literal, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("\"{s}\"", .{s}),
             .regex => |r| try w.print("r\"{s}\"", .{r}),

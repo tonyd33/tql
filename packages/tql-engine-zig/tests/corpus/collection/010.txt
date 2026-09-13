@@ -1,21 +1,25 @@
-title: a record runs each field on the same input
+title: a record of scalars is built from bound nodes
 grammar: typescript
-asserts: core, types
+asserts: types
 pending: values
 
+Record fields are scalars, so the record is a scalar too. Navigation stays a
+filter, because a field may hold several nodes. A field read is bound first and
+the record is built from the bound name.
+
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | { kind = lift kind, name = .name | lift text };
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    n <- c.name;
+    pure { kind = kind c, name = text n } root
+  };
 
 --- source ---
 class Service {}
 
 --- values ---
 [{ "kind": "class_declaration", "name": "Service" }]
-
---- core ---
-main = compose (compose children is_kind[class_declaration]) (record_filter[kind,name] (lift kind) (compose field[name] (lift text)))
 
 --- types ---
 main : Node -> [{kind: String, name: String}]

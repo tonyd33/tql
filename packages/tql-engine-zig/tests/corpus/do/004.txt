@@ -14,7 +14,7 @@ main root =
     m <- (.body | children | is_kind :method_definition) c;
     cn <- c.name;
     mn <- m.name;
-    { class = pure (text cn), method = pure (text mn) } root
+    pure { class = text cn, method = text mn } root
   };
 
 --- source ---

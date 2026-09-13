@@ -3,6 +3,7 @@
 const std = @import("std");
 const constraints = @import("constraints.zig");
 const core = @import("../lang/core.zig");
+const datatypes_mod = @import("../lang/datatypes.zig");
 const desugar = @import("../desugar.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
 const schemes = @import("schemes.zig");
@@ -20,7 +21,7 @@ pub const Rule = enum {
     t_lit,
     t_lam,
     t_app,
-    t_if,
+    t_case,
     t_letrec,
     t_bind,
 };
@@ -108,6 +109,8 @@ pub const Inference = struct {
     /// Written signatures, by the symbol they annotate. Stored separately from
     /// inference to preserve the span
     annotations: symbols.SymbolTable(desugar.Annotation),
+    /// The declared types a `case`'s alternatives are checked against.
+    datatypes: *const datatypes_mod.Registry,
     failure: ?Failure = null,
 
     pub fn init(
@@ -115,11 +118,13 @@ pub const Inference = struct {
         subst: *Substitution,
         undecided: *constraints.Set,
         globals: Globals,
+        declared: *const datatypes_mod.Registry,
     ) Inference {
         return .{
             .gpa = gpa,
             .subst = subst,
             .undecided = undecided,
+            .datatypes = declared,
             .globals = globals,
             .scope = Scope.init(gpa),
             .inferred = symbols.SymbolTable(types.Scheme).init(gpa),
@@ -144,7 +149,7 @@ pub const Inference = struct {
             .literal => |lit| self.literal(lit),
             .lambda => |lam| try self.lambda(lam.*),
             .apply => |app| try self.application(app.*),
-            .conditional => |c| try self.conditional(c.*),
+            .case => |c| try self.caseOf(c.*),
             .letrec => |l| try self.letrec(l.*),
             .bind => |b| try self.streamBind(b.*),
         };
@@ -169,7 +174,6 @@ pub const Inference = struct {
     fn literal(self: *Inference, lit: core.Literal) types.Type {
         _ = self;
         return switch (lit) {
-            .boolean => types.bool_type,
             .number => types.int_type,
             .string => types.string_type,
             .regex => types.regex_type,
@@ -258,14 +262,40 @@ pub const Inference = struct {
     ///               Gamma |- e_f : tau
     ///               --------------------------------------------
     ///               Gamma |- if e_c then e_t else e_f : tau
-    fn conditional(self: *Inference, c: core.Conditional) Error!types.Type {
-        const condition = try self.term(c.condition);
-        try self.expect(condition, types.bool_type, c.condition.span, .t_if);
+    fn caseOf(self: *Inference, c: core.Case) Error!types.Type {
+        const scrutinee = try self.term(c.scrutinee);
 
-        const consequence = try self.term(c.consequence);
-        const alternative = try self.term(c.alternative);
-        try self.expect(alternative, consequence, c.alternative.span, .t_if);
-        return consequence;
+        // The alternatives name their constructors statically, so the datatype
+        // is known without resolving the scrutinee. Unifying against it at
+        // fresh arguments is what lets `case xs of ...` fix `xs`'s type rather
+        // than requiring it to be fixed already.
+        const owner = self.datatypes.ownerOf(c.alternatives[0].constructor).?;
+        const declared = self.datatypes.get(owner);
+
+        const arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
+        for (arguments) |*argument| argument.* = try self.subst.fresh();
+        const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
+        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span, .t_case);
+
+        var result: ?types.Type = null;
+        for (c.alternatives, declared.constructors) |alternative, constructor| {
+            const mark = self.scope.mark();
+            defer self.scope.truncate(mark);
+
+            for (alternative.binders, constructor.fields) |binder, field| {
+                const at = try self.subst.instantiateWith(field, arguments);
+                try self.scope.push(binder, .{ .monomorphic = at });
+            }
+
+            const body = try self.term(alternative.body);
+            if (result) |expected| {
+                try self.expect(body, expected, alternative.body.span, .t_case);
+            } else {
+                result = body;
+            }
+        }
+
+        return result.?;
     }
 
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)
@@ -310,7 +340,7 @@ pub const Inference = struct {
     fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
         const source = try self.term(b.value);
         const element = try self.subst.fresh();
-        try self.expect(source, try types.list(self.subst.arena, element), b.value.span, .t_bind);
+        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span, .t_bind);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -318,8 +348,8 @@ pub const Inference = struct {
 
         const body = try self.term(b.body);
         const result = try self.subst.fresh();
-        try self.expect(body, try types.list(self.subst.arena, result), b.body.span, .t_bind);
-        return try types.list(self.subst.arena, result);
+        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span, .t_bind);
+        return try self.subst.datatypes.list(self.subst.arena, result);
     }
 
     /// `Gen(Gamma, tau)`: quantify the metavariables free in `tau`
@@ -496,7 +526,7 @@ pub const Inference = struct {
 
         // 1. `Node -> [tau]`
         const output = try self.subst.fresh();
-        const wanted = try types.filter(self.subst.arena, types.node_type, output);
+        const wanted = try self.subst.datatypes.filter(self.subst.arena, types.node_type, output);
 
         switch (unify.unify(self.subst, wanted, instantiated.type)) {
             .unified => {},
@@ -534,7 +564,7 @@ pub const Inference = struct {
         }
 
         try self.inferred.put(id, .{
-            .type = try types.filter(self.subst.arena, types.node_type, settled),
+            .type = try self.subst.datatypes.filter(self.subst.arena, types.node_type, settled),
         });
     }
 
@@ -597,6 +627,16 @@ pub const Checked = struct {
     }
 };
 
+fn constructorSchemeOf(
+    subst: *Substitution,
+    registry: *const datatypes_mod.Registry,
+    id: symbols.SymbolId,
+) Error!?types.Scheme {
+    const owner = registry.ownerOf(id) orelse return null;
+    const constructor = registry.constructorOf(id).?;
+    return try schemes.constructorScheme(subst.arena, registry.get(owner), constructor.*, owner);
+}
+
 /// Resolves a global symbol against the program: a primitive's table scheme,
 /// or a synthesized symbol's constructed one.
 const ProgramGlobals = struct {
@@ -606,7 +646,7 @@ const ProgramGlobals = struct {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
         if (self.program.primitives.scheme(id)) |s| return s;
         if (self.program.synthesis.get(id)) |s| return try schemes.schemeFor(subst, s);
-        return null;
+        return try constructorSchemeOf(subst, &self.program.datatypes, id);
     }
 };
 
@@ -625,7 +665,7 @@ pub fn check(
     arena.* = .init(gpa);
     errdefer arena.deinit();
 
-    var subst = Substitution.init(gpa, arena.allocator());
+    var subst = Substitution.init(gpa, arena.allocator(), &program.datatypes);
     errdefer subst.deinit();
     var undecided = constraints.Set.init(gpa);
     errdefer undecided.deinit();
@@ -634,7 +674,7 @@ pub fn check(
     var inference = Inference.init(gpa, &subst, &undecided, .{
         .context = &globals,
         .lookupFn = ProgramGlobals.lookup,
-    });
+    }, &program.datatypes);
     defer inference.deinit();
     try inference.declare(program.annotations);
 
@@ -701,6 +741,7 @@ const Fixture = struct {
     table: symbols.SymbolTable(types.Scheme),
     synthesis: desugar.SynthesisTable,
     builder: core.Builder,
+    datatypes: datatypes_mod.Registry,
     inference: Inference,
 
     fn init(gpa: Allocator) !*Fixture {
@@ -713,10 +754,13 @@ const Fixture = struct {
             .table = symbols.SymbolTable(types.Scheme).init(gpa),
             .synthesis = desugar.SynthesisTable.init(gpa),
             .builder = undefined,
+            .datatypes = datatypes_mod.Registry.init(gpa),
             .inference = undefined,
         };
-        self.subst = Substitution.init(gpa, self.arena.allocator());
+        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
+        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         self.builder = .{ .allocator = self.arena.allocator() };
+        try self.declareFlag();
         self.inference = Inference.init(
             gpa,
             &self.subst,
@@ -725,6 +769,7 @@ const Fixture = struct {
                 .context = self,
                 .lookupFn = lookupScheme,
             },
+            &self.datatypes,
         );
         return self;
     }
@@ -740,11 +785,12 @@ const Fixture = struct {
         const self: *const Fixture = @ptrCast(@alignCast(context));
         if (self.table.get(id)) |s| return s;
         if (self.synthesis.get(id)) |s| return try schemes.schemeFor(subst, s);
-        return null;
+        return try constructorSchemeOf(subst, &self.datatypes, id);
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
         self.inference.deinit();
+        self.datatypes.deinit();
         self.synthesis.deinit();
         self.table.deinit();
         self.interner.deinit();
@@ -790,8 +836,34 @@ const Fixture = struct {
         return self.builder.lambda(parameter, body, diagnostic.Span.unknown);
     }
 
+    fn declareFlag(self: *Fixture) !void {
+        const arena = self.arena.allocator();
+        const constructors = try arena.dupe(datatypes_mod.Constructor, &.{
+            .{ .symbol = try self.interner.intern("Off"), .tag = 0, .fields = &.{} },
+            .{ .symbol = try self.interner.intern("On"), .tag = 1, .fields = &.{} },
+        });
+        _ = try self.datatypes.declare("Flag", 0, constructors, .{});
+    }
+
+    /// `case c of { Off -> e; On -> t }`, alternatives in tag order.
     fn cond(self: *Fixture, c: core.Term, t: core.Term, e: core.Term) !core.Term {
-        return self.builder.conditional(c, t, e, diagnostic.Span.unknown);
+        const alternatives = try self.builder.slice(core.Case.Alternative, 2);
+        alternatives[0] = .{
+            .constructor = self.interner.lookup("Off").?,
+            .binders = &.{},
+            .body = e,
+        };
+        alternatives[1] = .{
+            .constructor = self.interner.lookup("On").?,
+            .binders = &.{},
+            .body = t,
+        };
+        return self.builder.case(c, alternatives, diagnostic.Span.unknown);
+    }
+
+    /// A nullary constructor reference.
+    fn con(self: *Fixture, spelling: []const u8) core.Term {
+        return self.builder.symbol(self.interner.lookup(spelling).?, diagnostic.Span.unknown);
     }
 
     fn rec(self: *Fixture, bindings: []const core.Letrec.Binding, body: core.Term) !core.Term {
@@ -833,7 +905,6 @@ test "a literal has its scalar type" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectType(fix.lit(.{ .boolean = true }), "Bool");
     try fix.expectType(fix.lit(.{ .number = 1 }), "Int");
     try fix.expectType(fix.lit(.{ .string = "s" }), "String");
     try fix.expectType(fix.lit(.{ .regex = "r" }), "Regex");
@@ -846,7 +917,7 @@ test "a symbol's scheme is instantiated at its use" {
 
     const identity = try fix.define("identity", .{
         .quantified = 1,
-        .type = comptime types.filter_type(types.variable_type(0), types.variable_type(0)),
+        .type = try fix.subst.datatypes.filter(fix.subst.arena, types.variable_type(0), types.variable_type(0)),
     });
     try fix.expectType(fix.sym(identity), "?0 -> [?0]");
 }
@@ -940,27 +1011,27 @@ test "an unresolved callee unifies rather than failing" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // A callee that is still a metavariable is neither error — applying
+    // A callee that is still a metavariable is neither error. Applying
     // it is what *determines* that it is a function.
     const x = try fix.name("x");
     const body = try fix.app(fix.sym(x), fix.lit(.{ .number = 1 }));
     try fix.expectType(try fix.lam(x, body), "(Int -> ?1) -> ?1");
 }
 
-test "a conditional requires a bool condition and unifies its arms" {
+test "a case unifies its alternatives" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
     const c = try fix.cond(
-        fix.lit(.{ .boolean = true }),
+        fix.con("On"),
         fix.lit(.{ .number = 1 }),
         fix.lit(.{ .number = 2 }),
     );
     try fix.expectType(c, "Int");
 }
 
-test "a non-bool condition is rejected" {
+test "a scrutinee that is not a declared type is rejected" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -971,16 +1042,16 @@ test "a non-bool condition is rejected" {
         fix.lit(.{ .number = 2 }),
     );
     try fix.expectFails(c, .type_mismatch);
-    try testing.expectEqual(Rule.t_if, fix.inference.failure.?.rule);
+    try testing.expectEqual(Rule.t_case, fix.inference.failure.?.rule);
 }
 
-test "arms of different types are rejected" {
+test "alternatives of different types are rejected" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
     const c = try fix.cond(
-        fix.lit(.{ .boolean = true }),
+        fix.con("On"),
         fix.lit(.{ .number = 1 }),
         fix.lit(.{ .string = "s" }),
     );
@@ -1006,7 +1077,7 @@ test "a letrec member is monomorphic while the group is checked" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // letrec { loop = \x -> loop x } in loop — the recursive use must not be
+    // letrec { loop = \x -> loop x } in loop. The recursive use must not be
     // generalized mid-check, or the placeholder would never be constrained.
     const x = try fix.name("x");
     const loop = try fix.name("loop");
@@ -1024,13 +1095,14 @@ test "a stream bind takes a list and yields a list" {
 
     // bind c <- children_of in pure_of c
     const children = try fix.define("children_of", .{
-        .type = comptime types.list_type(types.node_type),
+        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
     });
     const pure_of = try fix.define("pure_of", .{
         .quantified = 1,
-        .type = comptime types.func_type(
+        .type = try types.func(
+            fix.subst.arena,
             types.variable_type(0),
-            types.list_type(types.variable_type(0)),
+            try fix.subst.datatypes.list(fix.subst.arena, types.variable_type(0)),
         ),
     });
 
@@ -1057,7 +1129,7 @@ test "a bind body that is not a list is rejected" {
 
     // The body must produce `[b]`; a bare element is not one.
     const children = try fix.define("children_of", .{
-        .type = comptime types.list_type(types.node_type),
+        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
     });
     const c = try fix.name("c");
     try fix.expectFails(try fix.streamBind(c, fix.sym(children), fix.sym(c)), .type_mismatch);
@@ -1071,7 +1143,7 @@ test "a bound name is monomorphic in the bind body" {
     // `errors/output/013`: `c` cannot be used at two types. Here
     // the second use forces `node` against `[?]`, which cannot hold.
     const children = try fix.define("children_of", .{
-        .type = comptime types.list_type(types.node_type),
+        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
     });
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
@@ -1098,7 +1170,7 @@ test "instantiating a constrained scheme raises the constraint at the use" {
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
-    // `Sized int` is refuted — `errors/types/`'s ERR-SIZED-1 shape.
+    // `Sized int` is refuted.
     const applied = try fix.app(fix.sym(length_of), fix.lit(.{ .number = 1 }));
     try fix.expectFails(applied, .unsatisfied_constraint);
 }
@@ -1225,7 +1297,7 @@ test "a definition is checked against its callee's generalized scheme" {
 
     // id = \x -> x;  pair = \y -> id (id y)
     // Two uses of `id` at the same type here, but through *separate*
-    // instantiations — which only works if `id` was generalized first.
+    // instantiations, which only works if `id` was generalized first.
     const x = try fix.name("x");
     const y = try fix.name("y");
     const id = try fix.name("id");
@@ -1293,7 +1365,7 @@ test "a recursive definition stays monomorphic within its own component" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // loop = \x -> loop x — the self-reference must see the placeholder, not
+    // loop = \x -> loop x. The self-reference must see the placeholder, not
     // a scheme, or the recursion would generalize before it is constrained.
     const x = try fix.name("x");
     const loop = try fix.name("loop");
@@ -1364,53 +1436,46 @@ test "ordering two nodes is refuted while comparing them is not" {
     try fix.expectFails(ordered, .unsatisfied_constraint);
 }
 
-test "a record filter applied to two field filters yields a record" {
+test "a record applied to two field values yields a record" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `{ k = lift kind, n = lift text }` after desugaring.
-    const record_filter = try fix.synthesize(
-        "record_filter[k,n]",
-        .{ .record_filter = &.{ "k", "n" } },
+    // `{ k = kind n, n = 1 }` after desugaring.
+    const record = try fix.synthesize(
+        "record[k,n]",
+        .{ .record = &.{ "k", "n" } },
     );
-    const to_string = try fix.define("to_string", .{
-        .type = comptime types.filter_type(types.node_type, types.string_type),
-    });
-    const to_int = try fix.define("to_int", .{
-        .type = comptime types.filter_type(types.node_type, types.int_type),
-    });
+    const a_string = try fix.define("a_string", .{ .type = types.string_type });
+    const an_int = try fix.define("an_int", .{ .type = types.int_type });
 
     const applied = try fix.app(
-        try fix.app(fix.sym(record_filter), fix.sym(to_string)),
-        fix.sym(to_int),
+        try fix.app(fix.sym(record), fix.sym(a_string)),
+        fix.sym(an_int),
     );
-    try fix.expectType(applied, "Node -> [{k: String, n: Int}]");
+    try fix.expectType(applied, "{k: String, n: Int}");
 }
 
-test "record fields must read the same input" {
+test "record fields are independent" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // The shared input variable is what rejects this: one field reads a node,
-    // the other a string, and a record filter has one input.
-    const record_filter = try fix.synthesize(
-        "record_filter[a,b]",
-        .{ .record_filter = &.{ "a", "b" } },
+    // Each field quantifies its own variable, so fields of unrelated types sit
+    // beside each other. Under the filter-typed record they shared an input
+    // and this was a mismatch.
+    const record = try fix.synthesize(
+        "record[a,b]",
+        .{ .record = &.{ "a", "b" } },
     );
-    const from_node = try fix.define("from_node", .{
-        .type = comptime types.filter_type(types.node_type, types.string_type),
-    });
-    const from_string = try fix.define("from_string", .{
-        .type = comptime types.filter_type(types.string_type, types.int_type),
-    });
+    const a_node = try fix.define("a_node", .{ .type = types.node_type });
+    const a_regex = try fix.define("a_regex", .{ .type = types.regex_type });
 
     const applied = try fix.app(
-        try fix.app(fix.sym(record_filter), fix.sym(from_node)),
-        fix.sym(from_string),
+        try fix.app(fix.sym(record), fix.sym(a_node)),
+        fix.sym(a_regex),
     );
-    try fix.expectFails(applied, .type_mismatch);
+    try fix.expectType(applied, "{a: Node, b: Regex}");
 }
 
 test "a synthesized field access composes with a kind test" {
@@ -1418,20 +1483,22 @@ test "a synthesized field access composes with a kind test" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `children | is_kind :class_declaration | .name` — the navigation chain
+    // `children | is_kind :class_declaration | .name`, the navigation chain
     // every fixture opens with, as Core composition.
     const compose = try fix.define("compose", .{
         .quantified = 3,
-        .type = comptime types.func_type(
-            types.filter_type(types.variable_type(0), types.variable_type(1)),
-            types.func_type(
-                types.filter_type(types.variable_type(1), types.variable_type(2)),
-                types.filter_type(types.variable_type(0), types.variable_type(2)),
+        .type = try types.func(
+            fix.subst.arena,
+            try fix.subst.datatypes.filter(fix.subst.arena, types.variable_type(0), types.variable_type(1)),
+            try types.func(
+                fix.subst.arena,
+                try fix.subst.datatypes.filter(fix.subst.arena, types.variable_type(1), types.variable_type(2)),
+                try fix.subst.datatypes.filter(fix.subst.arena, types.variable_type(0), types.variable_type(2)),
             ),
         ),
     });
     const children = try fix.define("children", .{
-        .type = comptime types.filter_type(types.node_type, types.node_type),
+        .type = try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.node_type),
     });
     const is_kind = try fix.synthesize(
         "is_kind[class_declaration]",

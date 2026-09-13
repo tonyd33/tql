@@ -336,11 +336,19 @@ test "the prelude's bodies compile to Core" {
     }
 
     try std.testing.expectEqualStrings(
+        \\append = \xs -> \ys -> case xs of { Nil -> ys; Cons h t -> Cons h (append t ys) }
+        \\flat_map = \xs -> \f -> case xs of { Nil -> Nil; Cons h t -> append (f h) (flat_map t f) }
+        \\union = \p -> \q -> \x -> append (p x) (q x)
+        \\collect = \p -> \x -> Cons (p x) Nil
+        \\not = \b -> case b of { False -> True; True -> False }
+        \\and = \a -> \b -> case a of { False -> False; True -> b }
+        \\or = \a -> \b -> case a of { False -> b; True -> True }
+        \\branch = \condition -> \consequence -> \alternative -> \x -> flat_map (condition x) (\c -> case c of { False -> alternative x; True -> consequence x })
         \\lift = \f -> \x -> pure (f x) x
         \\select = \p -> branch p identity empty
         \\exists = \p -> probe p
         \\any = \source -> \predicate -> probe (compose source (select predicate))
-        \\all = \source -> \predicate -> branch (probe (compose source (branch predicate empty identity))) (pure false) (pure true)
+        \\all = \source -> \predicate -> branch (probe (compose source (branch predicate empty identity))) (pure False) (pure True)
         \\contains = \predicate -> exists (compose descendants (select predicate))
         \\within = \predicate -> exists (compose ancestors (select predicate))
         \\or_else = \primary -> \fallback -> branch (probe primary) primary fallback
@@ -373,6 +381,14 @@ test "the prelude's schemes are inferred" {
     }
 
     try std.testing.expectEqualStrings(
+        \\append : [a] -> [a] -> [a]
+        \\flat_map : [a] -> (a -> [b]) -> [b]
+        \\union : (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\collect : (a -> b) -> a -> [b]
+        \\not : Bool -> Bool
+        \\and : Bool -> Bool -> Bool
+        \\or : Bool -> Bool -> Bool
+        \\branch : (a -> [Bool]) -> (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\lift : (a -> b) -> a -> [b]
         \\select : (a -> [Bool]) -> a -> [a]
         \\exists : (a -> [b]) -> a -> [Bool]
@@ -416,4 +432,39 @@ test "linked components order prelude callees before user callers" {
         }
     }
     try std.testing.expect(seen_contains);
+}
+
+test "a case binds a constructor's field at its instantiated type" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var result = try engine.checkQuery(
+        \\type Maybe a = Just a | Nothing;
+        \\or_default m d = case m of { Just x -> x; Nothing -> d };
+        \\main = pure (or_default (Just 42) 0);
+    , g, &sink);
+    defer result.deinit();
+
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    defer w.deinit();
+
+    for (result.program.entryDefinitions(), 0..) |definition, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.print("{s} : ", .{result.program.interner.spelling(definition.symbol)});
+        try result.checked.schemeOf(definition.symbol).?.format(&w.writer);
+    }
+
+    try std.testing.expectEqualStrings(
+        \\or_default : Maybe a -> a -> a
+        \\main : Node -> [Int]
+    , w.written());
 }

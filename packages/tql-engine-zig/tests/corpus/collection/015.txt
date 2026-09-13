@@ -4,9 +4,12 @@ asserts: types
 pending: values
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | { name = .name | lift text, meta = { k = lift kind, n = pure 1 } };
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    n <- c.name;
+    pure { name = text n, meta = { k = kind c, n = 1 } } root
+  };
 
 --- source ---
 class A {}

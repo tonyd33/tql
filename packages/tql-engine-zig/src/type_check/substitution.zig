@@ -1,6 +1,8 @@
 //! The unification state: what each metavariable has been solved to.
 
 const std = @import("std");
+const datatypes = @import("../lang/datatypes.zig");
+const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
 
 const Allocator = std.mem.Allocator;
@@ -8,12 +10,18 @@ const Allocator = std.mem.Allocator;
 /// The unification state.
 pub const Substitution = struct {
     arena: Allocator,
+    /// The declared types, for deciding a constraint on a constructed type.
+    datatypes: *const datatypes.Registry,
     /// Indexed by `Meta`. `null` means unsolved.
     solutions: std.ArrayList(?types.Type),
     gpa: Allocator,
 
-    pub fn init(gpa: Allocator, arena: Allocator) Substitution {
-        return .{ .arena = arena, .solutions = .empty, .gpa = gpa };
+    pub fn init(
+        gpa: Allocator,
+        arena: Allocator,
+        declared: *const datatypes.Registry,
+    ) Substitution {
+        return .{ .arena = arena, .datatypes = declared, .solutions = .empty, .gpa = gpa };
     }
 
     pub fn deinit(self: *Substitution) void {
@@ -69,10 +77,15 @@ pub const Substitution = struct {
         const head = self.resolve(t);
         switch (head) {
             .variable, .meta, .primitive => return head,
-            .list => |element| {
-                const resolved = try self.resolveDeep(element.*);
-                if (std.meta.eql(resolved, element.*)) return head;
-                return try types.list(self.arena, resolved);
+            .constructor => |c| {
+                var changed = false;
+                const copies = try self.arena.alloc(types.Type, c.arguments.len);
+                for (c.arguments, copies) |argument, *copy| {
+                    copy.* = try self.resolveDeep(argument);
+                    if (!std.meta.eql(copy.*, argument)) changed = true;
+                }
+                if (!changed) return head;
+                return try types.constructed(self.arena, c.name, c.spelling, copies);
             },
             .record => |fields| {
                 var changed = false;
@@ -102,7 +115,9 @@ pub const Substitution = struct {
         return switch (head) {
             .meta => |other| other == id,
             .variable, .primitive => false,
-            .list => |element| self.occurs(id, element.*),
+            .constructor => |c| for (c.arguments) |argument| {
+                if (self.occurs(id, argument)) break true;
+            } else false,
             .record => |fields| for (fields) |f| {
                 if (self.occurs(id, f.type.*)) break true;
             } else false,
@@ -120,7 +135,7 @@ pub const Substitution = struct {
                 try out.append(self.gpa, id);
             },
             .variable, .primitive => {},
-            .list => |element| try self.freeMetas(element.*, out),
+            .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
             .record => |fields| for (fields) |f| try self.freeMetas(f.type.*, out),
             .function => |arrow| {
                 try self.freeMetas(arrow.from, out);
@@ -189,7 +204,13 @@ pub const Substitution = struct {
                 return head;
             },
             .variable, .primitive => return head,
-            .list => |element| return try types.list(self.arena, try self.bindMetas(element.*, metas)),
+            .constructor => |c| {
+                const copies = try self.arena.alloc(types.Type, c.arguments.len);
+                for (c.arguments, copies) |argument, *copy| {
+                    copy.* = try self.bindMetas(argument, metas);
+                }
+                return try types.constructed(self.arena, c.name, c.spelling, copies);
+            },
             .record => |fields| {
                 const copies = try self.arena.alloc(types.Type.Field, fields.len);
                 for (fields, copies) |f, *copy| {
@@ -216,7 +237,13 @@ pub const Substitution = struct {
                 return metas[index];
             },
             .meta, .primitive => return t,
-            .list => |element| return try types.list(self.arena, try self.substituteVars(element.*, metas)),
+            .constructor => |c| {
+                const copies = try self.arena.alloc(types.Type, c.arguments.len);
+                for (c.arguments, copies) |argument, *copy| {
+                    copy.* = try self.substituteVars(argument, metas);
+                }
+                return try types.constructed(self.arena, c.name, c.spelling, copies);
+            },
             .record => |fields| {
                 const copies = try self.arena.alloc(types.Type.Field, fields.len);
                 for (fields, copies) |f, *copy| {
@@ -239,16 +266,26 @@ pub const Substitution = struct {
 const TestSubst = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
+    interner: symbols.Interner,
+    datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*TestSubst {
         const self = try gpa.create(TestSubst);
-        self.* = .{ .arena = .init(gpa), .subst = undefined };
-        self.subst = Substitution.init(gpa, self.arena.allocator());
+        self.* = .{
+            .arena = .init(gpa),
+            .subst = undefined,
+            .interner = try symbols.Interner.init(gpa),
+            .datatypes = datatypes.Registry.init(gpa),
+        };
+        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
+        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;
     }
 
     fn deinit(self: *TestSubst, gpa: Allocator) void {
         self.subst.deinit();
+        self.datatypes.deinit();
+        self.interner.deinit();
         self.arena.deinit();
         gpa.destroy(self);
     }
@@ -301,7 +338,7 @@ test "resolve is shallow; resolveDeep rewrites children" {
 
     const a = try t.subst.fresh();
     t.subst.bind(a.meta, types.string_type);
-    const listed = try types.list(t.subst.arena, a);
+    const listed = try t.subst.datatypes.list(t.subst.arena, a);
 
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
@@ -322,7 +359,7 @@ test "occurs check finds a metavariable nested in a type" {
 
     const a = try t.subst.fresh();
     const b = try t.subst.fresh();
-    const nested = try types.func(t.subst.arena, types.int_type, try types.list(t.subst.arena, a));
+    const nested = try types.func(t.subst.arena, types.int_type, try t.subst.datatypes.list(t.subst.arena, a));
 
     try std.testing.expect(t.subst.occurs(a.meta, nested));
     try std.testing.expect(!t.subst.occurs(b.meta, nested));
@@ -335,7 +372,7 @@ test "occurs check sees through a solved metavariable" {
 
     const a = try t.subst.fresh();
     const b = try t.subst.fresh();
-    t.subst.bind(b.meta, try types.list(t.subst.arena, a));
+    t.subst.bind(b.meta, try t.subst.datatypes.list(t.subst.arena, a));
 
     // `a` is not syntactically in `b`, but it is once `b` is resolved.
     try std.testing.expect(t.subst.occurs(a.meta, b));
@@ -382,7 +419,7 @@ test "instantiation replaces bound variables with fresh metavariables" {
     // `identity : Filter a a`, the shape `primitives.zig` writes at comptime.
     const scheme: types.Scheme = .{
         .quantified = 1,
-        .type = comptime types.filter_type(types.variable_type(0), types.variable_type(0)),
+        .type = try t.subst.datatypes.filter(t.subst.arena, types.variable_type(0), types.variable_type(0)),
     };
     const inst = try t.subst.instantiate(scheme);
 
@@ -400,7 +437,7 @@ test "two instantiations of one scheme share nothing" {
 
     const scheme: types.Scheme = .{
         .quantified = 1,
-        .type = comptime types.filter_type(types.variable_type(0), types.variable_type(0)),
+        .type = try t.subst.datatypes.filter(t.subst.arena, types.variable_type(0), types.variable_type(0)),
     };
     const first = try t.subst.instantiate(scheme);
     const second = try t.subst.instantiate(scheme);
@@ -417,7 +454,7 @@ test "instantiation leaves the source scheme untouched" {
 
     const scheme: types.Scheme = .{
         .quantified = 1,
-        .type = comptime types.filter_type(types.variable_type(0), types.variable_type(0)),
+        .type = try t.subst.datatypes.filter(t.subst.arena, types.variable_type(0), types.variable_type(0)),
     };
     const inst = try t.subst.instantiate(scheme);
     t.subst.bind(inst.metas[0].meta, types.int_type);
@@ -455,7 +492,7 @@ test "quantify turns free metavariables into forall positions" {
     defer t.deinit(gpa);
 
     const a = try t.subst.fresh();
-    const shape = try types.func(t.subst.arena, a, try types.list(t.subst.arena, a));
+    const shape = try types.func(t.subst.arena, a, try t.subst.datatypes.list(t.subst.arena, a));
     const scheme = try t.subst.quantify(shape, &.{a.meta}, &.{});
 
     var buf: std.Io.Writer.Allocating = .init(gpa);

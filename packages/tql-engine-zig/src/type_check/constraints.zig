@@ -1,5 +1,8 @@
 const std = @import("std");
+const datatypes = @import("../lang/datatypes.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
+const datatypes_mod = @import("../lang/datatypes.zig");
+const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
 
 const Substitution = @import("substitution.zig").Substitution;
@@ -27,12 +30,12 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
         .meta => |id| .{ .deferred = id },
         .variable => unreachable,
         .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = head },
-        .list => |element| switch (class) {
-            // The one place a constraint does not descend: a list has a
+        .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
+            .never => .{ .fails = head },
+            // `Sized [a]` is the one that does not descend: a list has a
             // length whatever its elements are.
-            .Sized => .holds,
-            .Ord => .{ .fails = head },
-            .Eq, .Serial => entails(subst, class, element.*),
+            .always => .holds,
+            .fields => conjunctionOf(subst, class, c.arguments),
         },
         .record => |fields| switch (class) {
             .Sized, .Ord => .{ .fails = head },
@@ -40,6 +43,23 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
         },
         .function => .{ .fails = head },
     };
+}
+
+fn conjunctionOf(
+    subst: *Substitution,
+    class: types.TypeClassConstraint.Class,
+    arguments: []const types.Type,
+) Outcome {
+    var deferred: ?types.Meta = null;
+    for (arguments) |argument| {
+        switch (entails(subst, class, argument)) {
+            .holds => {},
+            .fails => |culprit| return .{ .fails = culprit },
+            .deferred => |id| deferred = deferred orelse id,
+        }
+    }
+    if (deferred) |id| return .{ .deferred = id };
+    return .holds;
 }
 
 fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, fields: []const types.Type.Field) Outcome {
@@ -58,19 +78,19 @@ fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, fie
 fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
     return switch (class) {
         .Eq => switch (p) {
-            .Bool, .Int, .String, .Range, .Node => true,
+            .Int, .String, .Range, .Node => true,
             .Regex => false,
         },
         .Ord => switch (p) {
             .Int, .String => true,
-            .Bool, .Regex, .Node, .Range => false,
+            .Regex, .Node, .Range => false,
         },
         .Sized => switch (p) {
             .String => true,
-            .Bool, .Int, .Regex, .Node, .Range => false,
+            .Int, .Regex, .Node, .Range => false,
         },
         .Serial => switch (p) {
-            .Bool, .Int, .String, .Node, .Range => true,
+            .Int, .String, .Node, .Range => true,
             .Regex => false,
         },
     };
@@ -204,17 +224,22 @@ const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
     set: Set,
+    interner: symbols.Interner,
+    datatypes: datatypes_mod.Registry,
 
     fn init(gpa: std.mem.Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .set = Set.init(gpa) };
-        self.subst = Substitution.init(gpa, self.arena.allocator());
+        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try symbols.Interner.init(gpa), .datatypes = datatypes_mod.Registry.init(gpa), .set = Set.init(gpa) };
+        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
+        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: std.mem.Allocator) void {
         self.set.deinit();
         self.subst.deinit();
+        self.datatypes.deinit();
+        self.interner.deinit();
         self.arena.deinit();
         gpa.destroy(self);
     }
@@ -253,7 +278,7 @@ test "Eq holds for the five scalars and not regex" {
     defer fix.deinit(gpa);
 
     for ([_]types.Type{
-        types.bool_type,
+        try fix.subst.datatypes.boolType(fix.subst.arena),
         types.int_type,
         types.string_type,
         types.range_type,
@@ -274,7 +299,7 @@ test "Ord holds only for int and string" {
     try fix.expectFails(.Ord, types.node_type);
     try fix.expectHolds(.Eq, types.node_type);
 
-    try fix.expectFails(.Ord, types.bool_type);
+    try fix.expectFails(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
     try fix.expectFails(.Ord, types.range_type);
     try fix.expectFails(.Ord, types.regex_type);
 }
@@ -285,7 +310,7 @@ test "Sized holds for string and lists, not for int" {
     defer fix.deinit(gpa);
 
     try fix.expectHolds(.Sized, types.string_type);
-    try fix.expectHolds(.Sized, try types.list(fix.subst.arena, types.node_type));
+    try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
     try fix.expectFails(.Sized, types.int_type);
 }
 
@@ -296,7 +321,7 @@ test "Sized on a list does not descend" {
 
     // A list of functions still has a length, even though the element type
     // has no constraint at all.
-    const of_functions = try types.list(
+    const of_functions = try fix.subst.datatypes.list(
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
     );
@@ -310,7 +335,7 @@ test "Sized on a list of an unsolved metavariable holds without deferring" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectHolds(.Sized, try types.list(fix.subst.arena, a));
+    try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
 test "Serial holds for the five scalars and not regex" {
@@ -319,7 +344,7 @@ test "Serial holds for the five scalars and not regex" {
     defer fix.deinit(gpa);
 
     for ([_]types.Type{
-        types.bool_type,
+        try fix.subst.datatypes.boolType(fix.subst.arena),
         types.int_type,
         types.string_type,
         types.node_type,
@@ -334,9 +359,9 @@ test "structural classes descend into lists" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.Eq, try types.list(fix.subst.arena, types.int_type));
-    try fix.expectFails(.Eq, try types.list(fix.subst.arena, types.regex_type));
-    try fix.expectHolds(.Serial, try types.list(fix.subst.arena, try types.list(fix.subst.arena, types.node_type)));
+    try fix.expectHolds(.Eq, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectFails(.Eq, try fix.subst.datatypes.list(fix.subst.arena, types.regex_type));
+    try fix.expectHolds(.Serial, try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.node_type)));
 }
 
 test "structural classes descend into records" {
@@ -370,7 +395,7 @@ test "Ord does not hold for a list even of ordered elements" {
     defer fix.deinit(gpa);
 
     // `Ord` is exactly `Int` and `String`; nothing structural joins it.
-    try fix.expectFails(.Ord, try types.list(fix.subst.arena, types.int_type));
+    try fix.expectFails(.Ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
 }
 
 test "a function fails every class, and a filter is a function" {
@@ -379,7 +404,7 @@ test "a function fails every class, and a filter is a function" {
     defer fix.deinit(gpa);
 
     const projection = try types.func(fix.subst.arena, types.node_type, types.string_type);
-    const filter = try types.filter(fix.subst.arena, types.node_type, types.string_type);
+    const filter = try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.string_type);
 
     for ([_]types.TypeClassConstraint.Class{ .Eq, .Ord, .Serial, .Sized }) |class| {
         try fix.expectFails(class, projection);
@@ -394,7 +419,7 @@ test "a container holding a function is outside Eq and Serial" {
 
     // What `errors/types/017` and `errors/output/006` assert: the element
     // type is `Node -> String`.
-    const of_projections = try types.list(
+    const of_projections = try fix.subst.datatypes.list(
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
     );
@@ -407,7 +432,7 @@ test "the reported culprit is the element, not the container" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const nested = try types.list(fix.subst.arena, try types.list(fix.subst.arena, types.regex_type));
+    const nested = try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.regex_type));
     const outcome = entails(&fix.subst, .Serial, nested);
 
     var buf: std.Io.Writer.Allocating = .init(gpa);
@@ -423,7 +448,7 @@ test "an unsolved metavariable defers" {
 
     const a = try fix.subst.fresh();
     try fix.expectDeferred(.Serial, a);
-    try fix.expectDeferred(.Eq, try types.list(fix.subst.arena, a));
+    try fix.expectDeferred(.Eq, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
 test "deferral resolves once the metavariable is solved" {
@@ -543,7 +568,7 @@ test "recheck keeps a constraint that is still undecided" {
     const b = try fix.subst.fresh();
     _ = try fix.set.require(&fix.subst, .Serial, a, some_span);
 
-    fix.subst.bind(a.meta, try types.list(fix.subst.arena, b));
+    fix.subst.bind(a.meta, try fix.subst.datatypes.list(fix.subst.arena, b));
     try testing.expectEqual(null, try fix.set.recheck(&fix.subst));
     try testing.expectEqual(1, fix.set.all().len);
 }
@@ -576,7 +601,7 @@ test "a constraint on a type mentioning a quantified metavariable is taken" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    _ = try fix.set.require(&fix.subst, .Serial, try types.list(fix.subst.arena, a), some_span);
+    _ = try fix.set.require(&fix.subst, .Serial, try fix.subst.datatypes.list(fix.subst.arena, a), some_span);
 
     var taken: std.ArrayList(Constraint) = .empty;
     defer taken.deinit(gpa);
