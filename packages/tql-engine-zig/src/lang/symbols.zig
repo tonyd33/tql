@@ -135,8 +135,8 @@ test "a table is absent for ids its stage said nothing about" {
     defer table.deinit();
 
     const id: SymbolId = @enumFromInt(4);
-    try std.testing.expectEqual(@as(?u16, null), table.get(id));
+    try std.testing.expectEqual(null, table.get(id));
     try table.put(id, 7);
-    try std.testing.expectEqual(@as(?u16, 7), table.get(id));
-    try std.testing.expectEqual(@as(?u16, null), table.get(@enumFromInt(0)));
+    try std.testing.expectEqual(7, table.get(id));
+    try std.testing.expectEqual(null, table.get(@enumFromInt(0)));
 }

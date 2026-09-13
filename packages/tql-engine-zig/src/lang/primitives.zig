@@ -4,9 +4,6 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-const Scheme = types.Scheme;
-const SymbolId = symbols.SymbolId;
-
 pub const Lowering = enum {
     identity,
     pure,
@@ -39,7 +36,7 @@ pub const Lowering = enum {
 
 const primitive_meta = [_]struct {
     name: []const u8,
-    scheme: Scheme,
+    scheme: types.Scheme,
     lowering: Lowering,
 }{
     .{
@@ -258,7 +255,7 @@ const primitive_meta = [_]struct {
 
 const operator_meta = [_]struct {
     spelling: []const u8,
-    scheme: Scheme,
+    scheme: types.Scheme,
 }{
     .{ .spelling = "=", .scheme = comparison(.Eq) },
     .{ .spelling = "!=", .scheme = comparison(.Eq) },
@@ -275,7 +272,7 @@ const operator_meta = [_]struct {
     .{ .spelling = "%", .scheme = arithmetic() },
 };
 
-fn comparison(comptime class: types.TypeClassConstraint.Class) Scheme {
+fn comparison(comptime class: types.TypeClassConstraint.Class) types.Scheme {
     return .{
         .quantified = 1,
         .constraints = &.{.{ .class = class, .type = types.variable_type(0) }},
@@ -283,17 +280,17 @@ fn comparison(comptime class: types.TypeClassConstraint.Class) Scheme {
     };
 }
 
-fn matching() Scheme {
+fn matching() types.Scheme {
     return .{ .type = types.func_type(types.string_type, types.func_type(types.regex_type, types.bool_type)) };
 }
 
-fn arithmetic() Scheme {
+fn arithmetic() types.Scheme {
     return .{ .type = types.func_type(types.int_type, types.func_type(types.int_type, types.int_type)) };
 }
 
 /// What each primitive is, keyed by the id it was interned as.
 pub const Table = struct {
-    schemes: symbols.SymbolTable(Scheme),
+    schemes: symbols.SymbolTable(types.Scheme),
     lowerings: symbols.SymbolTable(Lowering),
 
     pub fn deinit(self: *Table) void {
@@ -301,15 +298,15 @@ pub const Table = struct {
         self.lowerings.deinit();
     }
 
-    pub fn scheme(self: *const Table, id: SymbolId) ?Scheme {
+    pub fn scheme(self: *const Table, id: symbols.SymbolId) ?types.Scheme {
         return self.schemes.get(id);
     }
 
-    pub fn lowering(self: *const Table, id: SymbolId) ?Lowering {
+    pub fn lowering(self: *const Table, id: symbols.SymbolId) ?Lowering {
         return self.lowerings.get(id);
     }
 
-    pub fn contains(self: *const Table, id: SymbolId) bool {
+    pub fn contains(self: *const Table, id: symbols.SymbolId) bool {
         return self.lowerings.get(id) != null;
     }
 };
@@ -328,7 +325,7 @@ pub const Interned = struct {
         errdefer interner.deinit();
 
         var table: Table = .{
-            .schemes = symbols.SymbolTable(Scheme).init(allocator),
+            .schemes = symbols.SymbolTable(types.Scheme).init(allocator),
             .lowerings = symbols.SymbolTable(Lowering).init(allocator),
         };
         errdefer table.deinit();
@@ -349,7 +346,7 @@ pub const Interned = struct {
 
 /// The scheme for a scalar operator spelling. A property of the spelling, not
 /// of an interned id, so it is a lookup rather than a table entry.
-pub fn operatorScheme(spelling_text: []const u8) ?Scheme {
+pub fn operatorScheme(spelling_text: []const u8) ?types.Scheme {
     for (operator_meta) |row| {
         if (std.mem.eql(u8, row.spelling, spelling_text)) return row.scheme;
     }
@@ -398,9 +395,9 @@ test "operator schemes take scalars, not filters" {
     defer buf.deinit();
 
     try operatorScheme("=").?.format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> bool", buf.written());
+    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
 
     buf.clearRetainingCapacity();
     try operatorScheme("+").?.format(&buf.writer);
-    try std.testing.expectEqualStrings("int -> int -> int", buf.written());
+    try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
 }

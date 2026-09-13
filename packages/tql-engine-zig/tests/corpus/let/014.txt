@@ -1,5 +1,6 @@
 title: `let` inside a pipe stage
 grammar: typescript
+asserts: types
 pending: values
 
 The group is evaluated once per input value from the left stage.
@@ -14,3 +15,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+main : Node -> [String]

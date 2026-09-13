@@ -1,5 +1,6 @@
 title: `ancestors` yields proper ancestors, nearest first
 grammar: typescript
+asserts: types
 pending: values
 
 Nearest-first is the rule under test: a root-first ordering would reverse this
@@ -14,3 +15,6 @@ class A { m() {} }
 
 --- values ---
 ["method_definition", "class_body", "class_declaration", "program"]
+
+--- types ---
+main : Node -> [String]

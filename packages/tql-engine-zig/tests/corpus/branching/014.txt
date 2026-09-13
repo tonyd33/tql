@@ -1,5 +1,6 @@
 title: `and` and `or` are left-associative
 grammar: typescript
+asserts: types
 pending: values
 
 `false and true or true` groups as `(false and true) or true`. The alternative
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

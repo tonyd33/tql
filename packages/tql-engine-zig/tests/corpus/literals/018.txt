@@ -1,5 +1,6 @@
 title: distinct nodes with identical text are not equal
 grammar: typescript
+asserts: types
 pending: values
 
 Two `class_declaration` nodes give four pairs, enumerated with the left operand
@@ -12,7 +13,7 @@ The cross product is written out. Operators take scalars, so the pairing is the
 main root =
   do { l <- (children | is_kind :class_declaration) root;
        r <- (children | is_kind :class_declaration) root;
-       [l = r] };
+       pure (l = r) root };
 
 --- source ---
 class A {}
@@ -20,3 +21,6 @@ class A {}
 
 --- values ---
 [true, false, false, true]
+
+--- types ---
+main : Node -> [Bool]

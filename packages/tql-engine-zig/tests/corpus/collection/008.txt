@@ -1,13 +1,21 @@
 title: structural equality on lists
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
-main =
-  (pure ([1, 2] = [1, 2]), pure ([1, 2] = [2, 1]));
+main root =
+  let {
+    a = [pure 1, pure 2] root;
+    b = [pure 2, pure 1] root
+  } in
+    (pure (a = a), pure (a = b)) root;
 
 --- source ---
 class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

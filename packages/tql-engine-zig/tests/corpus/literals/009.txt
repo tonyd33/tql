@@ -1,5 +1,6 @@
 title: the closing quote ends the literal
 grammar: typescript
+asserts: types
 pending: values
 
 `r"^A"` is a complete regex literal; the following `,` begins a union, not more
@@ -14,3 +15,6 @@ class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

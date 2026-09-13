@@ -1,5 +1,6 @@
 title: named-field navigation selects children under that field
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class Service {}
 
 --- values ---
 ["Service"]
+
+--- types ---
+main : Node -> [String]

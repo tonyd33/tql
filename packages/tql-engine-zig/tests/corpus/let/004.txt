@@ -1,5 +1,6 @@
 title: brace form is order-independent too
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [11]
+
+--- types ---
+main : Node -> [Int]

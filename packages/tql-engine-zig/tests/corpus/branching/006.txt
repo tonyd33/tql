@@ -1,5 +1,6 @@
 title: `and` runs its right operand only for a true left output
 grammar: typescript
+asserts: types
 pending: values
 
 For left output `true` the result is the right operand's stream; for `false`
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

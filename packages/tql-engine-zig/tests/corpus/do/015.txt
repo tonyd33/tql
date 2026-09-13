@@ -1,5 +1,6 @@
 title: a bind whose query is empty yields no output
 grammar: typescript
+asserts: types
 pending: values
 
 The body never runs.
@@ -16,3 +17,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

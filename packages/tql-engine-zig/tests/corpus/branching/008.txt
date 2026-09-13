@@ -1,5 +1,6 @@
 title: `and` propagates a multi-output right operand
 grammar: typescript
+asserts: types
 pending: values
 
 The left `true` contributes the whole right stream; the left `false`
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 [true, false, false]
+
+--- types ---
+main : Node -> [Bool]

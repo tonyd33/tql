@@ -1,5 +1,6 @@
 title: string ordering
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

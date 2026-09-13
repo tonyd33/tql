@@ -1,15 +1,19 @@
 title: an empty operand yields no pairs
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
 main root =
-  do { l <- [1, 2];
+  do { l <- (pure 1, pure 2) root;
        r <- (children | is_kind :interface_declaration | pure 0) root;
-       [l + r] };
+       pure (l + r) root };
 
 --- source ---
 class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [Int]

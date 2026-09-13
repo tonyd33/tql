@@ -1,5 +1,6 @@
 title: field navigation and kind navigation compose
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -13,3 +14,6 @@ class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

@@ -1,12 +1,11 @@
 const std = @import("std");
 const diagnostic = @import("diagnostic.zig");
 
-pub const Span = diagnostic.Span;
 pub const Identifier = []const u8;
 
 pub const SourceFile = struct {
     declarations: []const Declaration,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: SourceFile, allocator: std.mem.Allocator) void {
         for (self.declarations) |d| d.deinit(allocator);
@@ -31,14 +30,11 @@ pub const SourceFile = struct {
 };
 
 /// `name : type;` or `name p1 p2 = body;`.
-///
-/// `main` is not distinguished here. Rejecting `main x = x` is a whole-program
-/// property, and the span its fixture pins is this node's.
 pub const Declaration = union(enum) {
     signature: Signature,
     definition: Definition,
 
-    pub fn span(self: Declaration) Span {
+    pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
             inline else => |d| d.span,
         };
@@ -60,7 +56,7 @@ pub const Declaration = union(enum) {
 pub const Signature = struct {
     name: Identifier,
     type: Type,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: Signature, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -78,7 +74,7 @@ pub const Definition = struct {
     name: Identifier,
     parameters: []const Parameter,
     body: Expression,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: Definition, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -101,7 +97,7 @@ pub const Definition = struct {
 
 pub const Parameter = struct {
     name: Identifier,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: Parameter, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -113,7 +109,7 @@ pub const Binding = struct {
     name: Identifier,
     parameters: []const Parameter,
     value: Expression,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: Binding, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -259,18 +255,18 @@ pub const Statement = union(enum) {
 pub const BindStatement = struct {
     name: Identifier,
     value: Expression,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 };
 
 pub const LetStatement = struct {
     bindings: []const Binding,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 };
 
 pub const RecordField = struct {
     name: Identifier,
     value: Expression,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: RecordField, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -284,7 +280,7 @@ pub const Record = struct {
 
 pub const Expression = struct {
     kind: Kind,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
         identity,
@@ -495,7 +491,7 @@ pub const FilterType = struct {
 pub const TypeField = struct {
     name: Identifier,
     type: Type,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub fn deinit(self: TypeField, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -505,7 +501,7 @@ pub const TypeField = struct {
 
 pub const Type = struct {
     kind: Kind,
-    span: Span = .unknown,
+    span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
         /// A concrete type name: `Filter`'s operands aside, anything

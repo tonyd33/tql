@@ -1,5 +1,6 @@
 title: closures capture their lexical environment
 grammar: typescript
+asserts: types
 pending: values
 
 `bump` captures `step` from the enclosing group, not from its call site.
@@ -17,3 +18,6 @@ class A {}
 
 --- values ---
 [11, 12]
+
+--- types ---
+main : Node -> [Int]

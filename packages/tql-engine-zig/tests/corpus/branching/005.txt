@@ -1,5 +1,6 @@
 title: `not` negates each boolean output
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [false, true]
+
+--- types ---
+main : Node -> [Bool]

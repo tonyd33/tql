@@ -1,5 +1,6 @@
 title: application binds tighter than pipe
 grammar: typescript
+asserts: types
 pending: values
 
 `. / :class_declaration | name_of .` groups as
@@ -15,3 +16,7 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+name_of : Node -> [String]
+main : Node -> [String]

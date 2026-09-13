@@ -1,5 +1,6 @@
 title: a known field absent from a node yields the empty stream
 grammar: typescript
+asserts: types
 pending: values
 
 `value` is a known typescript field, present on `variable_declarator` only when
@@ -14,3 +15,6 @@ let a;
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

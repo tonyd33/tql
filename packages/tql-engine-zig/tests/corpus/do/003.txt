@@ -1,5 +1,6 @@
 title: nested binds concatenate in stream order
 grammar: typescript
+asserts: types
 pending: values
 
 Both methods of A precede the method of B: the outer bind's order is preserved
@@ -9,7 +10,7 @@ and the inner bind's results are concatenated within each branch.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    m <- (children | is_kind :method_definition) c.body;
+    m <- (.body | children | is_kind :method_definition) c;
     (.name | lift text) m
   };
 
@@ -19,3 +20,6 @@ class B { p() {} }
 
 --- values ---
 ["m", "n", "p"]
+
+--- types ---
+main : Node -> [String]

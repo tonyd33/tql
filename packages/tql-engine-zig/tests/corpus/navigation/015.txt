@@ -1,5 +1,6 @@
 title: chained navigation runs left to right
 grammar: typescript
+asserts: types
 pending: values
 
 Each stage runs once per output of the previous stage, and results concatenate
@@ -18,3 +19,6 @@ class B { p() {} }
 
 --- values ---
 ["m", "n", "p"]
+
+--- types ---
+main : Node -> [String]

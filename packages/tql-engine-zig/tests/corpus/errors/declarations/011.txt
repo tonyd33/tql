@@ -3,8 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-f : node -> string;
-f : node -> string;
+f : Node -> String;
+f : Node -> String;
 f = kind;
 main = lift f;
 

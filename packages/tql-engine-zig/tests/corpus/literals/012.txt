@@ -1,12 +1,16 @@
 title: modulo by zero yields the empty stream
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
-main = 1 % 0;
+main = pure (1 % 0);
 
 --- source ---
 class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [Int]

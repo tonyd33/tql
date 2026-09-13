@@ -1,5 +1,6 @@
 title: a node encodes with exactly six fields
 grammar: typescript
+asserts: types
 pending: values
 
 The one fixture that spells out full node JSON. `class Service {}` is 16 bytes
@@ -22,3 +23,6 @@ class Service {}
     "end_point": { "row": 0, "column": 16 }
   }
 ]
+
+--- types ---
+main : Node -> [Node]

@@ -1,5 +1,6 @@
 title: byte offsets and columns count UTF-8 bytes, not characters
 grammar: typescript
+asserts: types
 pending: values
 
 `é` occupies two bytes, so the `"héllo"` string node spans bytes 8 to 16 and
@@ -20,3 +21,6 @@ let s = "héllo";
     "end_point": { "row": 0, "column": 16 }
   }
 ]
+
+--- types ---
+main : Node -> [Range]

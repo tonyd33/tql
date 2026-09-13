@@ -6,7 +6,7 @@ const types = @import("../types.zig");
 const Value = types.Value;
 const Range = types.Range;
 
-const ir = @import("../../ir.zig");
+const ir = @import("../../lang/ir.zig");
 const Instruction = ir.Instruction;
 const Axis = ir.Axis;
 const ValueSource = ir.ValueSource;

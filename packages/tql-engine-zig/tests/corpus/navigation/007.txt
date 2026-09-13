@@ -1,5 +1,6 @@
 title: descendants are proper; a node is not its own descendant
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

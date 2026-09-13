@@ -1,5 +1,6 @@
 title: a literal ignores its input and yields once per input value
 grammar: typescript
+asserts: types
 pending: values
 
 Two class declarations give two inputs to the right stage, so `pure` runs
@@ -14,3 +15,6 @@ class B {}
 
 --- values ---
 [1, 1]
+
+--- types ---
+main : Node -> [Int]

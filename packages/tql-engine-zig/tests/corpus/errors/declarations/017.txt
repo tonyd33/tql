@@ -6,7 +6,7 @@ Wired symbols are supplied by the implementation and need no source
 declaration.
 
 --- tql ---
-kind : node -> string;
+kind : Node -> String;
 main = lift kind;
 
 --- error ---

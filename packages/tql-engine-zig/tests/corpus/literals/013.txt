@@ -1,15 +1,19 @@
 title: a partial operation prunes only the offending pair
 grammar: typescript
+asserts: types
 pending: values
 
 The right operand yields three moduli; only the zero pair is dropped, and the
 surviving pairs keep their left-major order.
 
 --- tql ---
-main = \_root -> do { d <- [5, 0, 7]; [12 % d] };
+main = \root -> do { d <- (pure 5, pure 0, pure 7) root; pure (12 % d) root };
 
 --- source ---
 class A {}
 
 --- values ---
 [2, 5]
+
+--- types ---
+main : Node -> [Int]

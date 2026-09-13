@@ -1,6 +1,6 @@
 title: collecting an infinite filter does not terminate
 grammar: typescript
-expect: divergence
+asserts: types
 
 Collection must observe every output, so it cannot be lazy. This fixture pins
 the semantics; it is not executed.
@@ -13,3 +13,7 @@ main = [from 0] | length;
 class A {}
 
 `collect` forces the whole stream. No finite output exists.
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Int]

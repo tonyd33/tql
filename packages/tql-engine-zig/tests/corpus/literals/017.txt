@@ -1,5 +1,6 @@
 title: node equality is identity-based
 grammar: typescript
+asserts: types
 pending: values
 
 Both operands select the same single node, so the pair is that node against
@@ -9,10 +10,13 @@ itself.
 main root =
   do { l <- (children | is_kind :class_declaration) root;
        r <- (children | is_kind :class_declaration) root;
-       [l = r] };
+       pure (l = r) root };
 
 --- source ---
 class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

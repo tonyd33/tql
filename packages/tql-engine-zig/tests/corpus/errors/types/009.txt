@@ -7,4 +7,4 @@ main = 42 | lift text;
 --- error ---
 category: type-mismatch
 span: 1:8-1:10
-The pipe input. Expected `Filter node node`, found `Filter node int`.
+The pipe input. Expected `Filter Node Node`, found `Filter Node Int`.

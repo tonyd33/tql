@@ -1,5 +1,6 @@
 title: `parent` yields no result at the root
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

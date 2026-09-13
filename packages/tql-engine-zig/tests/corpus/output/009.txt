@@ -1,5 +1,6 @@
 title: a record encodes as a JSON object
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -12,3 +13,6 @@ class A {}
 
 --- values ---
 [{ "name": "A", "size": 10 }]
+
+--- types ---
+main : Node -> [{name: String, size: Int}]

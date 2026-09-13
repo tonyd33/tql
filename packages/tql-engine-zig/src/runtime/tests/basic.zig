@@ -3,7 +3,7 @@ const expectError = std.testing.expectError;
 
 const types = @import("../types.zig");
 
-const ir = @import("../../ir.zig");
+const ir = @import("../../lang/ir.zig");
 const Instruction = ir.Instruction;
 
 const TestContext = @import("./test_helpers.zig").TestContext;

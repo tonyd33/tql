@@ -6,34 +6,31 @@ const build_options = @import("build_options");
 pub const VERSION = build_options.version;
 // IMPROVE: don't export this
 pub const ts = @import("tree-sitter");
-pub const cst = @import("cst.zig");
-pub const diagnostic = @import("diagnostic.zig");
-pub const ir = @import("ir.zig");
+// Shared vocabulary: the IRs and types every stage speaks.
+pub const cst = @import("lang/cst.zig");
+pub const core = @import("lang/core.zig");
+pub const diagnostic = @import("lang/diagnostic.zig");
+pub const ir = @import("lang/ir.zig");
+pub const primitives = @import("lang/primitives.zig");
+pub const symbols = @import("lang/symbols.zig");
+pub const types = @import("lang/types.zig");
 
+// The stages, in pipeline order. Each is a facade over a private subdirectory.
+pub const parse = @import("parse.zig");
+pub const desugar = @import("desugar.zig");
+pub const type_check = @import("type_check.zig");
+
+const grammar = @import("lang/grammar.zig");
 const runtime = @import("runtime.zig");
-const runtime_types = @import("runtime/types.zig");
 const pcre2 = @import("regex.zig");
-const parser = @import("parser.zig");
-const compiler = @import("compiler.zig");
-const grammar = @import("grammar.zig");
 const value = @import("value.zig");
 
-pub const core = @import("core.zig");
-pub const desugar = @import("desugar.zig");
-pub const link = @import("link.zig");
-
-/// The prelude, linked beneath every query. Compiling it needs a parser, which
-/// `desugar.zig` does not import.
-pub const prelude_source = @embedFile("prelude.tql");
-pub const resolve = @import("resolve.zig");
-pub const primitives = @import("primitives.zig");
-pub const symbols = @import("symbols.zig");
-pub const types = @import("types.zig");
+/// The prelude, linked beneath every query.
+pub const prelude_source = desugar.prelude_source;
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
-pub const Parser = parser.Parser;
-pub const Compiler = compiler.Compiler;
+pub const Parser = parse.Parser;
 pub const Grammar = grammar.Grammar;
 pub const GrammarRegistry = grammar.Registry;
 
@@ -50,8 +47,8 @@ pub const Config = struct {
     io: std.Io,
 };
 
-pub const Profile = runtime_types.Profile;
-pub const profiling_enabled = runtime_types.profiling_enabled;
+pub const Profile = runtime.Profile;
+pub const profiling_enabled = runtime.profiling_enabled;
 
 pub const RunStats = struct {
     parse_time: std.Io.Duration,
@@ -73,12 +70,12 @@ pub const RunResult = struct {
 /// A "batteries-included" interface to the TQL primitives.
 pub const Engine = struct {
     config: Config,
-    tql_parser: parser.Parser,
+    tql_parser: parse.Parser,
 
     pub fn init(config: Config) !Engine {
         return Engine{
             .config = config,
-            .tql_parser = try parser.Parser.init(config.allocator),
+            .tql_parser = try parse.Parser.init(config.allocator),
         };
     }
 
@@ -96,7 +93,7 @@ pub const Engine = struct {
     pub fn parseQueryCollecting(
         self: *Engine,
         query_source: []const u8,
-    ) !parser.ParseResult {
+    ) !parse.ParseResult {
         return try self.tql_parser.parseCollecting(query_source);
     }
 
@@ -107,7 +104,7 @@ pub const Engine = struct {
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !link.Program {
+    ) !desugar.Program {
         var parsed = try self.tql_parser.parseCollecting(query_source);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
@@ -117,53 +114,53 @@ pub const Engine = struct {
             return error.DesugarFailed;
         }
 
-        const allocator = self.config.allocator;
-
-        var linker = try link.Linker.init(allocator);
-        defer linker.deinit();
+        var desugarer = try desugar.Desugarer.init(self.config.allocator);
+        defer desugarer.deinit();
 
         // Added first, so prelude names are registered before user declarations
         // and a user definition colliding with one is rejected on insert.
-        try linker.add(try self.desugarPrelude(&linker, g, sink));
+        try self.addPrelude(&desugarer, g, sink);
+        try desugarer.add(parsed.source_file, g, sink);
 
-        try linker.add(try desugar.module(
-            allocator,
-            linker.arena.allocator(),
-            linker.interner(),
-            &linker.synthesis,
-            parsed.source_file,
-            g,
-            sink,
-        ));
-
-        return try linker.finish(parsed.source_file.span, sink);
+        return try desugarer.finish(parsed.source_file.span, sink);
     }
 
-    /// Parses and desugars `prelude.tql` into a module.
+    /// Parse, desugar, link and type-check a query. Diagnostics are collected;
+    /// the caller owns both results.
+    ///
+    /// The `Checked` borrows nothing from the `Program`, but a `Scheme` in it
+    /// may name symbols only the program's interner can spell, so they are
+    /// returned together and are meant to be deinitialized together.
+    pub fn checkQuery(
+        self: *Engine,
+        query_source: []const u8,
+        g: *const Grammar,
+        sink: *diagnostic.Sink,
+    ) !CheckedQuery {
+        var program = try self.desugarQuery(query_source, g, sink);
+        errdefer program.deinit();
+
+        const checked = try type_check.check(self.config.allocator, &program, sink);
+        return .{ .program = program, .checked = checked };
+    }
+
+    /// Parses and desugars `prelude.tql` into the link.
     ///
     /// Recompiled per link: a module's `SymbolId`s index the registry it was
     /// desugared against, and `is_kind` resolves kind IDs from the grammar, so
     /// a cached one would be valid only per grammar and per registry prefix.
-    fn desugarPrelude(
+    fn addPrelude(
         self: *Engine,
-        linker: *link.Linker,
+        desugarer: *desugar.Desugarer,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !desugar.Module {
+    ) !void {
         var parsed = try self.tql_parser.parseCollecting(prelude_source);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
         std.debug.assert(!parsed.hasErrors());
 
-        return try desugar.module(
-            self.config.allocator,
-            linker.arena.allocator(),
-            linker.interner(),
-            &linker.synthesis,
-            parsed.source_file,
-            g,
-            sink,
-        );
+        try desugarer.add(parsed.source_file, g, sink);
     }
 
     /// Parse + compile a TQL query for a given target language.
@@ -173,6 +170,18 @@ pub const Engine = struct {
         _ = query_source;
         _ = g;
         return error.DesugaringUnimplemented;
+    }
+};
+
+/// A linked program and its inferred schemes. The two are created together and
+/// destroyed together.
+pub const CheckedQuery = struct {
+    program: desugar.Program,
+    checked: type_check.Checked,
+
+    pub fn deinit(self: *CheckedQuery) void {
+        self.checked.deinit();
+        self.program.deinit();
     }
 };
 
@@ -251,21 +260,16 @@ test {
     refAllDecls(pcre2);
     refAllDecls(cst);
     refAllDecls(diagnostic);
-    refAllDecls(parser);
-    refAllDecls(compiler);
+    refAllDecls(parse);
     refAllDecls(grammar);
     refAllDecls(core);
     refAllDecls(desugar);
-    refAllDecls(resolve);
     refAllDecls(symbols);
     refAllDecls(primitives);
     refAllDecls(types);
-    refAllDecls(link);
+    refAllDecls(type_check);
 }
 
-// The kind and field ids are resolved once, at desugaring, and nothing
-// downstream can recover them — so a wrong id would otherwise surface only in
-// Stage 5.
 test "synthesized symbols carry the grammar ids they resolved" {
     const allocator = std.testing.allocator;
 
@@ -302,12 +306,10 @@ test "synthesized symbols carry the grammar ids they resolved" {
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
     const compose = program.interner.lookup("compose").?;
     try std.testing.expect(program.primitives.contains(compose));
-    try std.testing.expectEqual(@as(?desugar.Synthesis, null), program.synthesis.get(compose));
+    try std.testing.expectEqual(null, program.synthesis.get(compose));
     try std.testing.expect(!program.primitives.contains(kind));
 }
 
-// A corpus fixture cannot assert these: the printer shows entry definitions
-// only.
 test "the prelude's bodies compile to Core" {
     const allocator = std.testing.allocator;
 
@@ -345,7 +347,43 @@ test "the prelude's bodies compile to Core" {
     , w.written());
 }
 
-// Callees precede callers across the module boundary.
+test "the prelude's schemes are inferred" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var result = try engine.checkQuery("main = children;", g, &sink);
+    defer result.deinit();
+
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    defer w.deinit();
+
+    for (result.program.definitions[0..result.program.entry_offset], 0..) |definition, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.print("{s} : ", .{result.program.interner.spelling(definition.symbol)});
+        try result.checked.schemeOf(definition.symbol).?.format(&w.writer);
+    }
+
+    try std.testing.expectEqualStrings(
+        \\lift : (a -> b) -> a -> [b]
+        \\select : (a -> [Bool]) -> a -> [a]
+        \\exists : (a -> [b]) -> a -> [Bool]
+        \\any : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\all : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\contains : (Node -> [Bool]) -> Node -> [Bool]
+        \\within : (Node -> [Bool]) -> Node -> [Bool]
+        \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]
+    , w.written());
+}
+
 test "linked components order prelude callees before user callers" {
     const allocator = std.testing.allocator;
 

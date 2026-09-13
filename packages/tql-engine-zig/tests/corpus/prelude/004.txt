@@ -1,5 +1,6 @@
 title: `exists` yields one boolean, never prunes
 grammar: typescript
+asserts: types
 pending: values
 
 `exists q = probe q`. It reports presence rather than filtering, so a false
@@ -16,3 +17,6 @@ class B {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -5,9 +5,9 @@
 //! globally.
 
 const std = @import("std");
-const cst = @import("cst.zig");
-const diagnostic = @import("diagnostic.zig");
-const symbols = @import("symbols.zig");
+const cst = @import("../lang/cst.zig");
+const diagnostic = @import("../lang/diagnostic.zig");
+const symbols = @import("../lang/symbols.zig");
 
 /// A lexical scope chain. Each frame is one binding construct: lambda
 /// parameters, a `let` group, a `do` bind, or a `do`-local `let` group.
@@ -122,10 +122,6 @@ pub fn collect(
         const target = for (declarations.items.items) |*d| {
             if (std.mem.eql(u8, d.name, signature.name)) break d;
         } else {
-            // A signature naming a symbol registered before this file was
-            // collected — a built-in, or a definition from a module linked
-            // beneath it — is a collision rather than an orphan: the name is
-            // taken, not merely undefined.
             if (interner.lookup(signature.name)) |_| {
                 try sink.report(
                     .symbol_collision,

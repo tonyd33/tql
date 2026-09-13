@@ -1,5 +1,6 @@
 title: a list encodes as a JSON array
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -11,3 +12,6 @@ class B {}
 
 --- values ---
 [["A", "B"]]
+
+--- types ---
+main : Node -> [[String]]

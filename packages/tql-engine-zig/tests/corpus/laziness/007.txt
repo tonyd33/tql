@@ -1,5 +1,6 @@
 title: a recursive `let` group builds lazy thunks
 grammar: typescript
+asserts: types
 pending: values
 
 `step` refers to itself through a lambda, so forcing it terminates: the
@@ -22,3 +23,6 @@ class A {}
 
 --- values ---
 [0]
+
+--- types ---
+main : Node -> [Int]

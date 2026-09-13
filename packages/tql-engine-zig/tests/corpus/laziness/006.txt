@@ -1,5 +1,6 @@
 title: a global is forced at most once and memoized
 grammar: typescript
+asserts: types
 pending: values
 
 `shared` is referenced twice. Memoization is not directly observable as a
@@ -15,3 +16,7 @@ class A {}
 
 --- values ---
 [42, 42]
+
+--- types ---
+shared : Int
+main : Node -> [Int]

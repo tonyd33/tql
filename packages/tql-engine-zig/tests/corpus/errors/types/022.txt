@@ -11,6 +11,6 @@ main = (1, "a");
 --- error ---
 category: type-mismatch
 span: 1:12-1:15
-The right operand of the union. Expected `Filter node int`, found
-`Filter node string`. Note the error is a union type mismatch, not an unknown
+The right operand of the union. Expected `Filter Node Int`, found
+`Filter Node String`. Note the error is a union type mismatch, not an unknown
 tuple type: `,` never constructs a pair.

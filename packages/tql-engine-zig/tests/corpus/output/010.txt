@@ -1,5 +1,6 @@
 title: nested lists and records encode recursively
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -19,3 +20,6 @@ class B {}
     { "name": "B", "methods": [] }
   ]
 ]
+
+--- types ---
+main : Node -> [[{methods: [String], name: String}]]

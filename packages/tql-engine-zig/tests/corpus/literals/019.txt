@@ -1,5 +1,6 @@
 title: product operators enumerate left operand outermost
 grammar: typescript
+asserts: types
 pending: values
 
 The rule under test is ordering. Left-major means the left operand is the outer
@@ -8,10 +9,17 @@ generator: 10 pairs with 1 then 2, then 20 pairs with 1 then 2, giving
 and give 11, 21, 12, 22.
 
 --- tql ---
-main = \_root -> do { l <- [10, 20]; r <- [1, 2]; [l + r] };
+main = \root -> do {
+  l <- (pure 10, pure 20) root;
+  r <- (pure 1, pure 2) root;
+  pure (l + r) root
+};
 
 --- source ---
 class A {}
 
 --- values ---
 [11, 12, 21, 22]
+
+--- types ---
+main : Node -> [Int]

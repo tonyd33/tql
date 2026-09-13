@@ -1,15 +1,24 @@
 title: field order is irrelevant for equality and type identity
 grammar: typescript
+asserts: types
 pending: values
 
 The two record expressions list their labels in opposite order. They are the
 same value and the same type.
 
 --- tql ---
-main = pure ({ a = 1, b = 2 } = { b = 2, a = 1 });
+main root =
+  let {
+    x = { a = pure 1, b = pure 2 } root;
+    y = { b = pure 2, a = pure 1 } root
+  } in
+    pure (x = y) root;
 
 --- source ---
 class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

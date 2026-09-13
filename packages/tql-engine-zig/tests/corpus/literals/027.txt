@@ -1,12 +1,16 @@
 title: `length` of a list is its element count
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
-main = [1, 2, 3] | length;
+main = [pure 1, pure 2, pure 3] | length;
 
 --- source ---
 class A {}
 
 --- values ---
 [3]
+
+--- types ---
+main : Node -> [Int]

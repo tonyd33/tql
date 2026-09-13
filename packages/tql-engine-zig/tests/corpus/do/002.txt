@@ -1,5 +1,6 @@
 title: the body receives the bound value as its current input
 grammar: typescript
+asserts: types
 pending: values
 
 The final expression projects `c`, the bound name, and reports the class node
@@ -11,7 +12,7 @@ must produce.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    pure (kind c)
+    pure (kind c) c
   };
 
 --- source ---
@@ -19,3 +20,6 @@ class A {}
 
 --- values ---
 ["class_declaration"]
+
+--- types ---
+main : Node -> [String]

@@ -5,7 +5,7 @@ A container holding a function is outside `Eq`, recursively.
 
 `[e]` is collection, not a list literal: it collects the outputs of `e` into
 one list. `pure kind` is `Filter b (node -> string)`, so the collected element
-type is `node -> string` and the list is `[node -> string]`. Functions have no
+type is `Node -> String` and the list is `[Node -> String]`. Functions have no
 `Eq`, and the list inherits that.
 
 --- tql ---
@@ -18,4 +18,4 @@ main =
 --- error ---
 category: unsatisfied-constraint
 span: 5:5-5:12
-`Eq [node -> string]` is not satisfied.
+`Eq [Node -> String]` is not satisfied.

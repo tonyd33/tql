@@ -4,9 +4,9 @@ grammar: typescript
 `[e]` collects `e`'s outputs, so `[pure kind, pure text]` is `[node -> string]`
 — a list of functions. `Serial` fails through the list to its element type.
 
-The pre-Q22 program here was `[kind, text]`, which collected a union of two
-filters into `[string]` and did not fail at all; `collection/003` is the same
-shape and is a passing fixture.
+This program was once `[kind, text]`, which collected a union of two filters
+into `[String]` and did not fail at all; `collection/003` is the same shape and
+is a passing fixture.
 
 --- tql ---
 main = [pure kind, pure text];
@@ -14,4 +14,4 @@ main = [pure kind, pure text];
 --- error ---
 category: unsatisfied-constraint
 span: 1:8-1:30
-`Serial [node -> string]` is not satisfied.
+`Serial [Node -> String]` is not satisfied.

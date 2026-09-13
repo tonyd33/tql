@@ -1,5 +1,6 @@
 title: a `let` group generalizes, allowing two use sites at different types
 grammar: typescript
+asserts: types
 pending: values
 
 `ident` is used at `int` and at `string` in the same body. That requires the
@@ -14,10 +15,13 @@ main =
   let {
     ident x = x
   } in
-    pure (ident 1), pure (length (ident "ab"));
+    pure (ident 1), (pure (ident "ab") | length);
 
 --- source ---
 class A {}
 
 --- values ---
 [1, 2]
+
+--- types ---
+main : Node -> [Int]

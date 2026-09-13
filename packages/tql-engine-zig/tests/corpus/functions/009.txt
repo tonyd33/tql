@@ -1,5 +1,6 @@
 title: a filter passed as an argument
 grammar: typescript
+asserts: types
 pending: values
 
 `apply_to_classes` takes a filter and runs it as a pipe stage. The argument is
@@ -15,3 +16,7 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+apply_to_classes : (Node -> [a]) -> Node -> [a]
+main : Node -> [String]

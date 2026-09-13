@@ -1,5 +1,6 @@
 title: a generalized global used at two types
 grammar: typescript
+asserts: types
 pending: values
 
 `pick` is generalized after its SCC is checked, so it may be instantiated at
@@ -7,10 +8,14 @@ pending: values
 
 --- tql ---
 pick x y = x;
-main = pure (pick 1 2), pure (length (pick "ab" "cd"));
+main = pure (pick 1 2), (pure (pick "ab" "cd") | length);
 
 --- source ---
 class A {}
 
 --- values ---
 [1, 2]
+
+--- types ---
+pick : a -> b -> a
+main : Node -> [Int]

@@ -1,5 +1,6 @@
 title: bindings are order-independent
 grammar: typescript
+asserts: types
 pending: values
 
 `first` refers to `second`, which is written after it. Declaration order has no
@@ -18,3 +19,6 @@ class A {}
 
 --- values ---
 [11]
+
+--- types ---
+main : Node -> [Int]

@@ -2,7 +2,7 @@ const std = @import("std");
 
 const types = @import("../types.zig");
 
-const ir = @import("../../ir.zig");
+const ir = @import("../../lang/ir.zig");
 const Instruction = ir.Instruction;
 const Axis = ir.Axis;
 

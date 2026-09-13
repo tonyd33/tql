@@ -1,5 +1,6 @@
 title: multiple lambda parameters are nested unary lambdas
 grammar: typescript
+asserts: types
 pending: values
 
 `\x y -> x + y` and `\x -> \y -> x + y` are the same value. Both are applied
@@ -18,3 +19,6 @@ class A {}
 
 --- values ---
 [3, 3]
+
+--- types ---
+main : Node -> [Int]

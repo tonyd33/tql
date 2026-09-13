@@ -20,10 +20,35 @@ pub fn formatCst(allocator: std.mem.Allocator, tree: tql.cst.SourceFile) ![]cons
     return tree.sexprAlloc(allocator);
 }
 
-pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.link.Program) ![]const u8 {
+pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.desugar.Program) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
-    try tql.link.printProgram(program, &w.writer);
+    try tql.desugar.printProgram(program, &w.writer);
+    return w.toOwnedSlice();
+}
+
+/// `name : scheme` per entry-module definition, in declaration order.
+///
+/// Entry definitions only, like `formatCore`: the prelude's schemes are
+/// asserted in a `root.zig` test instead, so a prelude edit does not rewrite
+/// every fixture's types section.
+pub fn formatTypes(
+    allocator: std.mem.Allocator,
+    program: *const tql.desugar.Program,
+    checked: *const tql.type_check.Checked,
+) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+
+    for (program.entryDefinitions(), 0..) |definition, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.print("{s} : ", .{program.interner.spelling(definition.symbol)});
+        const scheme = checked.schemeOf(definition.symbol) orelse {
+            try w.writer.writeAll("<unchecked>");
+            continue;
+        };
+        try scheme.format(&w.writer);
+    }
     return w.toOwnedSlice();
 }
 

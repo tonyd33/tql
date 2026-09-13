@@ -21,6 +21,7 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .source_tree,
     .bytecode,
     .core,
+    .types,
     .@"error",
 };
 
@@ -441,8 +442,6 @@ fn testFile(
         .failed => result.failed += 1,
         .skipped => result.skipped += 1,
     }
-    // `unassertable` sections are deliberately excluded: they never resolve, so
-    // counting them would put a permanent floor under the budget.
     result.pending = @intCast(corpus.case.pending.count());
 
     if (case_result == .modified) {
@@ -493,7 +492,7 @@ fn testCase(
         if (kind == .@"error") break :skip;
         // The ratchet: a section is compared only while the case claims it.
         // Anything else populated was rejected at parse time as unasserted, so
-        // silence here can only mean a recorded `pending` or `unassertable`.
+        // silence here can only mean a recorded `pending`.
         if (!tc.asserts.has(kind)) break :skip;
 
         const actual_val = @field(actual, @tagName(kind));
@@ -703,6 +702,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .types = try allocator.dupe(u8, ""),
             .@"error" = try renderDiagnostics(allocator, parsed.diagnostics),
         };
     }
@@ -714,7 +714,12 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     var desugar_diagnostics: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(desugar_diagnostics);
 
-    if (tc.isAsserted(.core) or expects_error) {
+    var types_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(types_text);
+    var type_diagnostics: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(type_diagnostics);
+
+    {
         var sink = tql.diagnostic.Sink.init(allocator);
         defer sink.deinit();
 
@@ -726,6 +731,33 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             defer program.deinit();
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
+
+            if (tc.isAsserted(.types) or expects_error) {
+                var type_sink = tql.diagnostic.Sink.init(allocator);
+                defer type_sink.deinit();
+
+                if (tql.type_check.check(allocator, &program, &type_sink)) |checked| {
+                    var c = checked;
+                    defer c.deinit();
+                    allocator.free(types_text);
+                    types_text = try fmt.formatTypes(allocator, &program, &c);
+                } else |err| switch (err) {
+                    error.TypeCheckFailed => {
+                        allocator.free(type_diagnostics);
+                        type_diagnostics = try renderDiagnostics(allocator, type_sink.items());
+                        if (!expects_error) {
+                            for (type_sink.items()) |d| {
+                                std.debug.print("    {s} @ {f}: {s}\n", .{
+                                    d.category.name(),
+                                    d.span,
+                                    d.message,
+                                });
+                            }
+                        }
+                    },
+                    else => |e| return e,
+                }
+            }
         } else |err| switch (err) {
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
@@ -733,6 +765,26 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             },
             else => return err,
         }
+    }
+
+    // A rejection found by type checking. Core is still reported: the program
+    // desugared fine, and its untyped term is what the case may assert.
+    if (type_diagnostics.len > 0) {
+        // A case that does not expect a rejection has no `--- error ---` to
+        // diff against, so the diagnostic would otherwise be discarded with
+        // only the error name surviving. Print it: an unexpected type error is
+        // exactly the thing the reader needs to see.
+        if (!expects_error) return error.UnexpectedTypeError;
+        allocator.free(types_text);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = try allocator.dupe(u8, ""),
+            .core = core_text,
+            .types = try allocator.dupe(u8, ""),
+            .@"error" = type_diagnostics,
+        };
     }
 
     // A rejection found by desugaring is the case's expected outcome, and
@@ -746,6 +798,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .types = try allocator.dupe(u8, ""),
             .@"error" = desugar_diagnostics,
         };
     }
@@ -767,6 +820,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = core_text,
+            .types = types_text,
             .@"error" = try allocator.dupe(u8, ""),
         };
     }
@@ -787,6 +841,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = core_text,
+            .types = types_text,
             .@"error" = message,
         };
     };
@@ -813,6 +868,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         .bytecode = bytecode,
         .values = actual_values,
         .core = core_text,
+        .types = types_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
 }

@@ -1,5 +1,6 @@
 title: forward references between globals are valid
 grammar: typescript
+asserts: types
 pending: values
 
 `main` refers to `helper`, which is declared after it. Declaration heads are
@@ -14,3 +15,7 @@ class A {}
 
 --- values ---
 [6]
+
+--- types ---
+main : Node -> [Int]
+helper : Int -> Int

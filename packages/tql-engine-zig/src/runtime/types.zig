@@ -6,7 +6,7 @@ const OverlayMap = ds.OverlayMap;
 const Rc = ds.Rc;
 const pcre2 = @import("../regex.zig");
 const public = @import("../value.zig");
-const ir = @import("../ir.zig");
+const ir = @import("../lang/ir.zig");
 
 const Allocator = std.mem.Allocator;
 

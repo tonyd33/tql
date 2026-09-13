@@ -2,19 +2,20 @@
 
 const std = @import("std");
 
-const Allocator = std.mem.Allocator;
-
 /// A type variable, identified by its binding position in the enclosing
 /// scheme's `forall`.
 pub const TypeVar = u8;
 
+/// An unknown standing for a type not yet determined.
+pub const Meta = u32;
+
 pub const Primitive = enum {
-    bool,
-    int,
-    string,
-    regex,
-    node,
-    range,
+    Bool,
+    Int,
+    String,
+    Regex,
+    Node,
+    Range,
 
     pub fn spelling(self: Primitive) []const u8 {
         return @tagName(self);
@@ -23,6 +24,7 @@ pub const Primitive = enum {
 
 pub const Type = union(enum) {
     variable: TypeVar,
+    meta: Meta,
     primitive: Primitive,
     list: *const Type,
     record: []const Field,
@@ -45,6 +47,7 @@ pub const Type = union(enum) {
     fn write(self: Type, w: *std.Io.Writer, parenthesize_arrow: bool) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
+            .meta => |id| try w.print("?{d}", .{id}),
             .primitive => |p| try w.writeAll(p.spelling()),
             .list => |element| {
                 try w.writeByte('[');
@@ -110,12 +113,12 @@ pub const Scheme = struct {
     }
 };
 
-pub const bool_type: Type = .{ .primitive = .bool };
-pub const int_type: Type = .{ .primitive = .int };
-pub const string_type: Type = .{ .primitive = .string };
-pub const regex_type: Type = .{ .primitive = .regex };
-pub const node_type: Type = .{ .primitive = .node };
-pub const range_type: Type = .{ .primitive = .range };
+pub const bool_type: Type = .{ .primitive = .Bool };
+pub const int_type: Type = .{ .primitive = .Int };
+pub const string_type: Type = .{ .primitive = .String };
+pub const regex_type: Type = .{ .primitive = .Regex };
+pub const node_type: Type = .{ .primitive = .Node };
+pub const range_type: Type = .{ .primitive = .Range };
 
 pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };
@@ -134,11 +137,32 @@ pub fn filter_type(comptime input: Type, comptime output: Type) Type {
     return func_type(input, list_type(output));
 }
 
+pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
+    const slot = try allocator.create(Type);
+    slot.* = t;
+    return slot;
+}
+
+pub fn list(allocator: std.mem.Allocator, element: Type) !Type {
+    return .{ .list = try store(allocator, element) };
+}
+
+pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
+    const arrow = try allocator.create(Type.Arrow);
+    arrow.* = .{ .from = from, .to = to };
+    return .{ .function = arrow };
+}
+
+/// `Filter a b` = `a -> [b]`.
+pub fn filter(allocator: std.mem.Allocator, input: Type, output: Type) !Type {
+    return try func(allocator, input, try list(allocator, output));
+}
+
 test "filter notation expands to a function returning a list" {
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
     try filter_type(node_type, string_type).format(&buf.writer);
-    try std.testing.expectEqualStrings("node -> [string]", buf.written());
+    try std.testing.expectEqualStrings("Node -> [String]", buf.written());
 }
 
 test "arrows are right-associative and group on the left" {
@@ -152,6 +176,17 @@ test "arrows are right-associative and group on the left" {
     );
 }
 
+test "a metavariable renders distinctly from a bound variable" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try (Type{ .meta = 3 }).format(&buf.writer);
+    try std.testing.expectEqualStrings("?3", buf.written());
+
+    buf.clearRetainingCapacity();
+    try variable_type(3).format(&buf.writer);
+    try std.testing.expectEqualStrings("d", buf.written());
+}
+
 test "constrained scheme renders its context" {
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
@@ -161,5 +196,5 @@ test "constrained scheme renders its context" {
         .type = comptime func_type(variable_type(0), func_type(variable_type(0), bool_type)),
     };
     try eq.format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> bool", buf.written());
+    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
 }

@@ -1,5 +1,6 @@
 title: a condition yielding no booleans yields no output
 grammar: typescript
+asserts: types
 pending: values
 
 Neither branch runs. The empty condition stream produces an empty result even
@@ -15,3 +16,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

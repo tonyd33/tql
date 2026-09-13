@@ -9,4 +9,4 @@ main = { name = .name | lift text, f = lift kind };
 --- error ---
 category: unsatisfied-constraint
 span: 1:36-1:49
-`Serial (Filter node string)` is not satisfied, reached through field `f`.
+`Serial (Filter Node String)` is not satisfied, reached through field `f`.

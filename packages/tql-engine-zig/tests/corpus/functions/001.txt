@@ -1,6 +1,6 @@
 title: a curried definition applied to all its arguments
 grammar: typescript
-asserts: core
+asserts: core, types
 pending: values
 
 --- tql ---
@@ -16,3 +16,7 @@ class A {}
 --- core ---
 add = \x -> \y -> op[+] x y
 main = pure (add 2 3)
+
+--- types ---
+add : Int -> Int -> Int
+main : Node -> [Int]

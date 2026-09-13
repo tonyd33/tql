@@ -1,5 +1,6 @@
 title: nested `let` groups
 grammar: typescript
+asserts: types
 pending: values
 
 The inner group closes at its own `}`, leaving the outer body to continue.
@@ -19,3 +20,6 @@ class A {}
 
 --- values ---
 [15]
+
+--- types ---
+main : Node -> [Int]

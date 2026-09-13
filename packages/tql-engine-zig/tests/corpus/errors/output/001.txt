@@ -1,4 +1,4 @@
-title: `main` must have type `Filter node _`
+title: `main` must have type `Filter Node _`
 grammar: typescript
 
 `main` is applied to the parsed root, so its input type is `node`. A filter
@@ -10,4 +10,4 @@ main = unnest;
 --- error ---
 category: main-type
 span: 1:1-1:14
-The `main` definition. Expected `Filter node _`, found `Filter [a] a`.
+The `main` definition. Expected `Filter Node _`, found `Filter [a] a`.

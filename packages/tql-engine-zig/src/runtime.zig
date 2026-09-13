@@ -7,7 +7,7 @@ const ds = @import("ds.zig");
 const value_mod = @import("value.zig");
 const pcre2 = @import("regex.zig");
 const rt = @import("runtime/types.zig");
-const ir = @import("ir.zig");
+const ir = @import("lang/ir.zig");
 
 const Point = value_mod.Point;
 const Range = value_mod.Range;
@@ -31,6 +31,10 @@ const Environment = rt.Environment;
 const ValueSource = ir.ValueSource;
 const Instruction = ir.Instruction;
 const VariableId = ir.VariableId;
+
+/// Instruction counters, and whether the build collects them.
+pub const Profile = rt.Profile;
+pub const profiling_enabled = rt.profiling_enabled;
 
 pub const Runtime = struct {
     const Self = @This();

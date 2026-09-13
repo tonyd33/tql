@@ -1,5 +1,6 @@
 title: an empty field stream yields no records
 grammar: typescript
+asserts: types
 pending: values
 
 One empty field annihilates the whole product, exactly as for scalar operators.
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [{a: Int, b: String}]

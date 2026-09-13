@@ -1,6 +1,6 @@
 title: a `do`-local `let` sees bindings from earlier statements
 grammar: typescript
-asserts: core
+asserts: core, types
 pending: values
 
 `prefix` is computed from `c`, bound by the preceding statement, and is then
@@ -10,9 +10,10 @@ used by the final expression.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    let prefix = text c.name;
-    m <- (children | is_kind :method_definition) c.body;
-    [prefix]
+    n <- c.name;
+    let prefix = text n;
+    m <- (.body | children | is_kind :method_definition) c;
+    pure prefix c
   };
 
 --- source ---
@@ -22,4 +23,7 @@ class A { m() {} n() {} }
 ["A", "A"]
 
 --- core ---
-main = \root -> bind c <- compose children is_kind[class_declaration] root in letrec { prefix = text (field[name] c) } in bind m <- compose children is_kind[method_definition] (field[body] c) in collect prefix
+main = \root -> bind c <- compose children is_kind[class_declaration] root in bind n <- field[name] c in letrec { prefix = text n } in bind m <- compose (compose field[body] children) is_kind[method_definition] c in pure prefix c
+
+--- types ---
+main : Node -> [String]

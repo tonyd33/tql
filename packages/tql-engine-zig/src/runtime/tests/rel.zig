@@ -6,7 +6,7 @@ const pcre2 = @import("../../regex.zig");
 const types = @import("../types.zig");
 const Value = types.Value;
 
-const ir = @import("../../ir.zig");
+const ir = @import("../../lang/ir.zig");
 const Instruction = ir.Instruction;
 const Axis = ir.Axis;
 const Relation = ir.Relation;

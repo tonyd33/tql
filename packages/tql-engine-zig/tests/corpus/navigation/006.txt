@@ -1,5 +1,6 @@
 title: descendant navigation is pre-order
 grammar: typescript
+asserts: types
 pending: values
 
 Pre-order visits each node before its own descendants. `class_declaration` A
@@ -26,3 +27,6 @@ class B {}
   "type_identifier",
   "class_body"
 ]
+
+--- types ---
+main : Node -> [String]

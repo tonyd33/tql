@@ -1,5 +1,6 @@
 title: `contains` does not match the node itself
 grammar: typescript
+asserts: types
 pending: values
 
 Descendants are proper, so a class does not contain itself.
@@ -7,10 +8,13 @@ Descendants are proper, so a class does not contain itself.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | contains (\n -> [kind n = "class_declaration"]);
+  | contains (lift (\n -> kind n = "class_declaration"));
 
 --- source ---
 class A {}
 
 --- values ---
 [false]
+
+--- types ---
+main : Node -> [Bool]

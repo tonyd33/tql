@@ -1,5 +1,6 @@
 title: an optional trailing semicolon is permitted in the brace form
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [3]
+
+--- types ---
+main : Node -> [Int]

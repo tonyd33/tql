@@ -1,14 +1,18 @@
 title: `select` with a never-true predicate yields nothing
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (\c -> [text c.name = "Nope"]) | .name | lift text;
+  | select (.name | lift (\n -> text n = "Nope")) | .name | lift text;
 
 --- source ---
 class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

@@ -1,5 +1,6 @@
 title: `exists` inherits `probe`'s laziness
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -11,3 +12,7 @@ class A {}
 
 --- values ---
 [true]
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Bool]

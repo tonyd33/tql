@@ -1,5 +1,6 @@
 title: a `let` group is a recursive SCC
 grammar: typescript
+asserts: types
 pending: values
 
 `countdown` refers to itself. The group is inferred as a recursive SCC, so a
@@ -17,3 +18,6 @@ class A {}
 
 --- values ---
 [0]
+
+--- types ---
+main : Node -> [Int]

@@ -1,5 +1,6 @@
 title: a union is lazy in its right operand
 grammar: typescript
+asserts: types
 pending: values
 
 The left operand alone satisfies the probe, so the infinite right operand is
@@ -14,3 +15,7 @@ class A {}
 
 --- values ---
 [true]
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Bool]

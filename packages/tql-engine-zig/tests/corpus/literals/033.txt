@@ -1,5 +1,6 @@
 title: pipe binds looser than comparison, union looser than pipe
 grammar: typescript
+asserts: types
 pending: values
 
 `. / :class_declaration | .name | text = "A", false` groups as
@@ -11,10 +12,13 @@ Both union operands are `bool`, since union requires a single element type.
 --- tql ---
 main =
   (children | is_kind :class_declaration
-  | \c -> text c.name = "A"), pure false;
+  | .name | lift (\n -> text n = "A")), pure false;
 
 --- source ---
 class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

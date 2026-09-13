@@ -1,5 +1,6 @@
 title: navigation from a filter with no output yields no output
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -12,3 +13,6 @@ class A { m() {} }
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

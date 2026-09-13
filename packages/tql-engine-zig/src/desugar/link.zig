@@ -7,12 +7,15 @@
 //! whole-program pass does not depend on either.
 
 const std = @import("std");
-const core = @import("core.zig");
-const diagnostic = @import("diagnostic.zig");
+const core = @import("../lang/core.zig");
+const cst = @import("../lang/cst.zig");
+const diagnostic = @import("../lang/diagnostic.zig");
+const grammar = @import("../lang/grammar.zig");
+const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
-const desugar = @import("desugar.zig");
-const primitives = @import("primitives.zig");
-const symbols = @import("symbols.zig");
+const desugar = @import("lower.zig");
+const primitives = @import("../lang/primitives.zig");
+const symbols = @import("../lang/symbols.zig");
 
 pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 
@@ -39,6 +42,15 @@ pub const Program = struct {
     /// What each synthesized symbol was generated from, merged from the linked
     /// modules. Desugaring's output: nothing downstream has the grammar.
     synthesis: desugar.SynthesisTable,
+    annotations: []const desugar.Annotation,
+
+    /// The scheme a signature declared for `id`, if one was written.
+    pub fn annotationOf(self: *const Program, id: symbols.SymbolId) ?desugar.Annotation {
+        for (self.annotations) |a| {
+            if (a.symbol == id) return a;
+        }
+        return null;
+    }
 
     /// The definitions the entry module declared, in declaration order.
     pub fn entryDefinitions(self: *const Program) []const core.Definition {
@@ -68,24 +80,21 @@ pub fn printProgram(
     }
 }
 
-/// Owns a link in progress: the arena every module's terms are desugared into,
-/// the symbol identities they share, and the modules added so far.
+/// Desugars source files into one linked program.
 ///
-/// Modules are added in link order, the entry module last. Ownership of the
-/// arena, the interner, and the tables passes to the program `finish` returns.
-/// Until then, and on any failure, `deinit` releases them.
-pub const Linker = struct {
+/// Sources are added in link order: the entry source is last.
+/// `finish` assembles them and hands the arena to the `Program` it returns,
+/// leaving this holding nothing.
+pub const Desugarer = struct {
     allocator: std.mem.Allocator,
-    arena: *std.heap.ArenaAllocator,
+    arena: ?*std.heap.ArenaAllocator,
     interned: primitives.Interned,
     /// Shared across every module in the link, so a symbol is one symbol
     /// whichever module synthesized it.
     synthesis: desugar.SynthesisTable,
     modules: std.ArrayList(desugar.Module) = .empty,
-    // HACK: there's likely a better way of memory safety
-    owns: bool = true,
 
-    pub fn init(allocator: std.mem.Allocator) !Linker {
+    pub fn init(allocator: std.mem.Allocator) !Desugarer {
         const arena = try allocator.create(std.heap.ArenaAllocator);
         errdefer allocator.destroy(arena);
         arena.* = std.heap.ArenaAllocator.init(allocator);
@@ -99,34 +108,110 @@ pub const Linker = struct {
         };
     }
 
-    /// The identities every module in this link is desugared against.
-    pub fn interner(self: *Linker) *symbols.Interner {
-        return &self.interned.interner;
-    }
-
-    pub fn deinit(self: *Linker) void {
+    pub fn deinit(self: *Desugarer) void {
         self.modules.deinit(self.allocator);
-        if (!self.owns) return;
+        const arena = self.arena orelse return;
         self.synthesis.deinit();
         self.interned.deinit();
-        self.arena.deinit();
-        self.allocator.destroy(self.arena);
+        arena.deinit();
+        self.allocator.destroy(arena);
     }
 
-    pub fn add(self: *Linker, m: desugar.Module) std.mem.Allocator.Error!void {
-        try self.modules.append(self.allocator, m);
+    /// Desugars one source file and adds it to the link: collect heads,
+    /// resolve bodies.
+    pub fn add(
+        self: *Desugarer,
+        source: cst.SourceFile,
+        g: *const grammar.Grammar,
+        sink: *diagnostic.Sink,
+    ) !void {
+        const builder = core.Builder{ .allocator = self.arena.?.allocator() };
+        const interner = &self.interned.interner;
+
+        var declarations = try resolve.collect(self.allocator, interner, source, sink);
+        defer declarations.deinit();
+
+        const definitions = try builder.slice(core.Definition, declarations.items.items.len);
+        const edges = try builder.slice([]const u32, declarations.items.items.len);
+        @memset(edges, &.{});
+
+        // IMPROVE: desugar the entire module at once with a single desugar pass?
+        var failed = false;
+        for (declarations.items.items, 0..) |d, i| {
+            var lowerer = desugar.Lowerer.init(
+                builder,
+                interner,
+                &self.synthesis,
+                &declarations,
+                g.language,
+                sink,
+            );
+            defer lowerer.deinit();
+
+            const body = lowerer.parameterized(
+                d.definition.parameters,
+                d.definition.body,
+                null,
+                d.definition.span,
+            ) catch |err| switch (err) {
+                error.DesugarFailed => {
+                    failed = true;
+                    continue;
+                },
+                else => |e| return e,
+            };
+
+            definitions[i] = .{
+                .symbol = d.symbol,
+                .body = body,
+                .span = d.definition.span,
+            };
+            edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
+        }
+
+        var annotations: std.ArrayList(desugar.Annotation) = .empty;
+        defer annotations.deinit(self.allocator);
+        for (declarations.items.items) |d| {
+            const signature = d.signature orelse continue;
+            const scheme = annotation.translate(
+                builder.allocator,
+                self.allocator,
+                signature,
+                sink,
+            ) catch |err| switch (err) {
+                error.BadAnnotation => {
+                    failed = true;
+                    continue;
+                },
+                else => |e| return e,
+            };
+            try annotations.append(self.allocator, .{
+                .symbol = d.symbol,
+                .scheme = scheme,
+                .span = signature.span,
+            });
+        }
+
+        if (failed or sink.hasErrors()) return error.DesugarFailed;
+
+        try self.modules.append(self.allocator, .{
+            .definitions = definitions,
+            .edges = edges,
+            .annotations = try builder.dupeSlice(desugar.Annotation, annotations.items),
+        });
     }
 
-    /// Assembles the added modules into a program. The last one added is the
+    /// Assembles the added sources into a program. The last one added is the
     /// entry module and must declare `main`.
     pub fn finish(
-        self: *Linker,
+        self: *Desugarer,
         entry_span: diagnostic.Span,
         sink: *diagnostic.Sink,
     ) Error!Program {
         std.debug.assert(self.modules.items.len > 0);
 
-        const scratch = self.arena.allocator();
+        const arena = self.arena.?;
+        const scratch = arena.allocator();
 
         var total: usize = 0;
         for (self.modules.items) |m| total += m.definitions.len;
@@ -148,6 +233,17 @@ pub const Linker = struct {
             sink,
         );
 
+        var annotation_count: usize = 0;
+        for (self.modules.items) |m| annotation_count += m.annotations.len;
+        const annotations = try scratch.alloc(desugar.Annotation, annotation_count);
+        var annotation_offset: usize = 0;
+        for (self.modules.items) |m| {
+            for (m.annotations) |a| {
+                annotations[annotation_offset] = a;
+                annotation_offset += 1;
+            }
+        }
+
         var components_result = try resolve.stronglyConnectedComponents(self.allocator, edges);
         defer components_result.deinit();
 
@@ -156,10 +252,10 @@ pub const Linker = struct {
             components[i] = try scratch.dupe(u32, c);
         }
 
-        self.owns = false;
+        self.arena = null;
         return .{
             .allocator = self.allocator,
-            .arena = self.arena,
+            .arena = arena,
             .definitions = definitions,
             .components = components,
             .entry = main,
@@ -167,6 +263,7 @@ pub const Linker = struct {
             .interner = self.interned.interner,
             .primitives = self.interned.table,
             .synthesis = self.synthesis,
+            .annotations = annotations,
         };
     }
 };
@@ -191,8 +288,6 @@ fn place(
     return @intCast(m.definitions.len);
 }
 
-/// `main` must be declared by the entry module. Its type — and with it the
-/// rejection of a `main` that returns a function — is inference's.
 fn entrySymbol(
     entry_definitions: []const core.Definition,
     interner: *const symbols.Interner,

@@ -1,5 +1,6 @@
 title: a raw literal applies no escape processing
 grammar: typescript
+asserts: types
 pending: values
 
 `r"a\b"` is the pattern `a\b`: the backslash stands for itself and is passed to
@@ -7,10 +8,13 @@ the regex engine unchanged. The JavaScript source writes that same backslash as
 `\\` in its own string literal, so the matched text is `a\b`.
 
 --- tql ---
-main = descendants | is_kind :string | \s -> text s ~ r"a\b";
+main = descendants | is_kind :string | lift (\s -> text s ~ r"a\b");
 
 --- source ---
 let p = "a\\b";
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

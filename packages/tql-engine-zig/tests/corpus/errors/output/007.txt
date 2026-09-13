@@ -7,4 +7,4 @@ main = { name = .name | lift text, pattern = r"^A" };
 --- error ---
 category: unsatisfied-constraint
 span: 1:36-1:50
-`Serial regex` is not satisfied, reached through field `pattern`.
+`Serial Regex` is not satisfied, reached through field `pattern`.

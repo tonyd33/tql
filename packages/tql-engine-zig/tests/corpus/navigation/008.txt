@@ -1,5 +1,6 @@
 title: wildcard child navigation keeps every named child
 grammar: typescript
+asserts: types
 pending: values
 
 `class_declaration` has two named children, `name` and `body`. Anonymous tokens
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 ["type_identifier", "class_body"]
+
+--- types ---
+main : Node -> [String]

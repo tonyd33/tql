@@ -1,5 +1,6 @@
 title: `[a, b]` collects the union of `a` and `b`
 grammar: typescript
+asserts: types
 pending: values
 
 `,` inside brackets is stream union, not an array separator. The bracket
@@ -14,3 +15,6 @@ class A {}
 
 --- values ---
 [[1, 2, 3]]
+
+--- types ---
+main : Node -> [[Int]]

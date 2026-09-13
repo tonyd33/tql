@@ -9,4 +9,4 @@ main = 1, "two";
 --- error ---
 category: type-mismatch
 span: 1:11-1:16
-The right operand. Expected `Filter node int`, found `Filter node string`.
+The right operand. Expected `Filter Node Int`, found `Filter Node String`.

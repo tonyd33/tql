@@ -1,9 +1,10 @@
 title: a higher-order function taking and returning filters
 grammar: typescript
+asserts: types
 pending: values
 
 `both` takes two filters and returns their union as a new filter. Both
-arguments are `Filter node string`, which is what lets the union unify.
+arguments are `Filter Node String`, which is what lets the union unify.
 
 --- tql ---
 both f g = f, g;
@@ -14,3 +15,7 @@ class A {}
 
 --- values ---
 ["A", "class_declaration"]
+
+--- types ---
+both : (a -> [b]) -> (a -> [b]) -> a -> [b]
+main : Node -> [String]

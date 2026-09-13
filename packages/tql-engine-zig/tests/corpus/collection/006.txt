@@ -1,5 +1,6 @@
 title: nested collection
 grammar: typescript
+asserts: types
 pending: values
 
 The outer bracket collects the per-class lists into one list of lists.
@@ -15,3 +16,6 @@ class B { p() {} }
 
 --- values ---
 [[["m", "n"], ["p"]]]
+
+--- types ---
+main : Node -> [[[String]]]

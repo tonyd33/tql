@@ -1,6 +1,6 @@
 title: a condition yielding many booleans runs many branches in order
 grammar: typescript
-asserts: core
+asserts: core, types
 pending: values
 
 --- tql ---
@@ -15,3 +15,6 @@ class A {}
 
 --- core ---
 main = branch (union (union (pure true) (pure false)) (pure true)) (pure "y") (pure "n")
+
+--- types ---
+main : Node -> [String]

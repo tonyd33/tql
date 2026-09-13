@@ -9,4 +9,4 @@ main = if children | is_kind :class_declaration then pure "yes" else pure "no";
 --- error ---
 category: type-mismatch
 span: 1:11-1:48
-The condition. Expected `Filter node bool`, found `Filter node node`.
+The condition. Expected `Filter Node Bool`, found `Filter Node Node`.

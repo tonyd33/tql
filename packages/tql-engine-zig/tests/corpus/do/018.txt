@@ -1,5 +1,6 @@
 title: `do` and explicit pipe agree when no correlation is needed
 grammar: typescript
+asserts: types
 pending: values
 
 Stream bind degenerates to pipe when the body does not need the binding. Both
@@ -20,3 +21,6 @@ class B {}
 
 --- values ---
 ["A", "B", "A", "B"]
+
+--- types ---
+main : Node -> [String]

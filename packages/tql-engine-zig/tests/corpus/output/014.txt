@@ -1,5 +1,6 @@
 title: `filename` yields the empty stream when no path is available
 grammar: typescript
+asserts: types
 pending: values
 
 No `file:` header, so there is no path. Absence is the empty stream, not an
@@ -13,3 +14,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

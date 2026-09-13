@@ -1,5 +1,6 @@
 title: child navigation does not descend
 grammar: typescript
+asserts: types
 pending: values
 
 Only the top-level class is a child of `program`. The nested method is a
@@ -13,3 +14,6 @@ class A { m() {} }
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

@@ -57,12 +57,12 @@ pub fn Rc(comptime K: type) type {
 test "Rc trivial K" {
     const gpa = std.testing.allocator;
     const cell = try Rc(u32).create(gpa, 42);
-    try std.testing.expectEqual(@as(u32, 42), cell.value);
-    try std.testing.expectEqual(@as(u32, 1), cell.rc);
+    try std.testing.expectEqual(42, cell.value);
+    try std.testing.expectEqual(1, cell.rc);
     _ = cell.reference();
-    try std.testing.expectEqual(@as(u32, 2), cell.rc);
+    try std.testing.expectEqual(2, cell.rc);
     cell.dereference(gpa);
-    try std.testing.expectEqual(@as(u32, 1), cell.rc);
+    try std.testing.expectEqual(1, cell.rc);
     cell.dereference(gpa);
 }
 
@@ -78,9 +78,9 @@ test "Rc K with deinit(self)" {
     const cell = try Rc(Counter).create(gpa, .{ .ptr = &calls });
     _ = cell.reference();
     cell.dereference(gpa);
-    try std.testing.expectEqual(@as(u32, 0), calls);
+    try std.testing.expectEqual(0, calls);
     cell.dereference(gpa);
-    try std.testing.expectEqual(@as(u32, 1), calls);
+    try std.testing.expectEqual(1, calls);
 }
 
 test "Rc K with deinit(self, gpa)" {

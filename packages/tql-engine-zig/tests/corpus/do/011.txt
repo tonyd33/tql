@@ -1,5 +1,6 @@
 title: a bound node is lifted when it begins navigation
 grammar: typescript
+asserts: types
 pending: values
 
 `c` is a node value, not a filter. Navigation requires a filter input, so the
@@ -17,3 +18,6 @@ class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

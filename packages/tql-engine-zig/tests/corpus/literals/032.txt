@@ -1,5 +1,6 @@
 title: comparison binds looser than arithmetic
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

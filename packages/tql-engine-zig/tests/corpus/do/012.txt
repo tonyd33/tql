@@ -1,5 +1,6 @@
 title: a bound scalar is lifted in an operator operand
 grammar: typescript
+asserts: types
 pending: values
 
 `expected` is a bound string. The comparison needs a filter operand, so the
@@ -10,7 +11,8 @@ main root =
   do {
     c <- (children | is_kind :class_declaration) root;
     let expected = "A";
-    [text c.name = expected]
+    n <- c.name;
+    pure (text n = expected) root
   };
 
 --- source ---
@@ -19,3 +21,6 @@ class B {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

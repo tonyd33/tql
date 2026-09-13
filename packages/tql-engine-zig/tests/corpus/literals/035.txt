@@ -1,12 +1,16 @@
 title: field access binds tighter than application
 grammar: typescript
+asserts: types
 pending: values
 
-`name_of .` applies `name_of` to `.`; inside, `n.name` is field access on the
+`name_of c` applies `name_of` to `c`; inside, `n.name` is field access on the
 parameter before any application is considered.
 
+Field access yields a stream, so `n.name` is a `[Node]` rather than a `Node`.
+Its element is bound before the projection applies.
+
 --- tql ---
-name_of n = n.name | lift text;
+name_of n = do { f <- n.name; pure (text f) n };
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---
@@ -14,3 +18,7 @@ class A {}
 
 --- values ---
 ["A"]
+
+--- types ---
+name_of : Node -> [String]
+main : Node -> [String]

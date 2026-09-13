@@ -1,5 +1,6 @@
 title: a lambda used directly as a pipe stage argument
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -11,3 +12,7 @@ class A {}
 
 --- values ---
 [15]
+
+--- types ---
+apply : (a -> b) -> a -> b
+main : Node -> [Int]

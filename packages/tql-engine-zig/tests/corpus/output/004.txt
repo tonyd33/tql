@@ -1,5 +1,6 @@
 title: a range encodes as the location subset without kind or text
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -17,3 +18,6 @@ class A {}
     "end_point": { "row": 0, "column": 10 }
   }
 ]
+
+--- types ---
+main : Node -> [Range]

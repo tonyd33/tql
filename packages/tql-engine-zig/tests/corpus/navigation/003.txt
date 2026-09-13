@@ -1,5 +1,6 @@
 title: child navigation is document order, not grammar order
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -12,3 +13,6 @@ function g() {}
 
 --- values ---
 ["function_declaration", "class_declaration", "function_declaration"]
+
+--- types ---
+main : Node -> [String]

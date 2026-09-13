@@ -7,8 +7,8 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
-const cst = @import("cst.zig");
-const diagnostic = @import("diagnostic.zig");
+const cst = @import("lang/cst.zig");
+const diagnostic = @import("lang/diagnostic.zig");
 
 const Span = diagnostic.Span;
 const Sink = diagnostic.Sink;
@@ -947,7 +947,7 @@ fn expectSexpr(source: []const u8, expected: []const u8) !void {
     var result = try parser.parseCollecting(source);
     defer result.deinit();
 
-    try testing.expectEqual(@as(usize, 0), result.diagnostics.len);
+    try testing.expectEqual(0, result.diagnostics.len);
 
     const actual = try result.source_file.sexprAlloc(testing.allocator);
     defer testing.allocator.free(actual);
@@ -1078,10 +1078,10 @@ test "spans are byte-accurate" {
     defer result.deinit();
 
     const body = result.source_file.declarations[0].definition.body;
-    try testing.expectEqual(@as(u32, 7), body.span.start_byte);
-    try testing.expectEqual(@as(u32, 12), body.span.end_byte);
-    try testing.expectEqual(@as(u32, 0), body.span.start_point.row);
-    try testing.expectEqual(@as(u32, 7), body.span.start_point.column);
+    try testing.expectEqual(7, body.span.start_byte);
+    try testing.expectEqual(12, body.span.end_byte);
+    try testing.expectEqual(0, body.span.start_point.row);
+    try testing.expectEqual(7, body.span.start_point.column);
 }
 
 test "an unclosed group reports a missing token" {
@@ -1102,10 +1102,10 @@ test "an incomplete declaration spans the declaration" {
     var result = try parser.parseCollecting("main =");
     defer result.deinit();
 
-    try testing.expectEqual(@as(usize, 1), result.diagnostics.len);
+    try testing.expectEqual(1, result.diagnostics.len);
     const span = result.diagnostics[0].span;
-    try testing.expectEqual(@as(u32, 0), span.start_byte);
-    try testing.expectEqual(@as(u32, 6), span.end_byte);
+    try testing.expectEqual(0, span.start_byte);
+    try testing.expectEqual(6, span.end_byte);
 }
 
 test "several declarations parse independently" {

@@ -6,7 +6,7 @@ Each signature annotates exactly one definition in the same program. `g` has no
 definition.
 
 --- tql ---
-g : Filter node string;
+g : Filter Node String;
 main = lift kind;
 
 --- error ---

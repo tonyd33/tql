@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const pcre2 = @import("regex.zig");
+const pcre2 = @import("../regex.zig");
 
 pub const FieldId = u16;
 pub const Address = u32;

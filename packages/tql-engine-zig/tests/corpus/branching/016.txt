@@ -1,6 +1,6 @@
 title: `empty` as a branch yields nothing for that input
 grammar: typescript
-asserts: core
+asserts: core, types
 pending: values
 
 `,` is union over filters, so each literal is written `pure n` to be one. The
@@ -8,7 +8,7 @@ composed filter is then applied to an ignored input.
 
 --- tql ---
 main =
-  (pure 1, pure 2, pure 3) | branch (\n -> [n = 2]) identity empty;
+  (pure 1, pure 2, pure 3) | branch (lift (\n -> n = 2)) identity empty;
 
 --- source ---
 class A {}
@@ -17,4 +17,7 @@ class A {}
 [2]
 
 --- core ---
-main = compose (union (union (pure 1) (pure 2)) (pure 3)) (branch (\n -> collect (op[=] n 2)) identity empty)
+main = compose (union (union (pure 1) (pure 2)) (pure 3)) (branch (lift (\n -> op[=] n 2)) identity empty)
+
+--- types ---
+main : Node -> [Int]

@@ -1,5 +1,6 @@
 title: a definition with no parameters binds a value directly
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -11,3 +12,7 @@ class A {}
 
 --- values ---
 [8]
+
+--- types ---
+limit : Int
+main : Node -> [Int]

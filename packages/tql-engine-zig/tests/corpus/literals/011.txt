@@ -1,5 +1,6 @@
 title: modulo
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [1]
+
+--- types ---
+main : Node -> [Int]

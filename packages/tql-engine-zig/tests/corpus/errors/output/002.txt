@@ -1,14 +1,14 @@
 title: `main` bound to a projection is not a filter
 grammar: typescript
 
-`main` must be `Filter node output`. A projection is `node -> string`, which
+`main` must be `Filter Node output`. A projection is `Node -> String`, which
 is an ordinary function rather than a filter, so it does not unify with
-`node -> [output]` for any `output`.
+`Node -> [output]` for any `output`.
 
-Before Q22 this fixture read `main = kind` and claimed a `Serial` failure. It
-did not fail at all: `kind` was `Filter node string` and `main = kind` was the
-eta-reduction of a correct program. Q22 made projections functions, which is
-what this now tests — the failure is in `main`'s own type, not in `Serial`.
+This fixture once claimed a `Serial` failure, back when `kind` was
+`Filter Node String` and `main = kind` was the eta-reduction of a correct
+program — so it did not fail at all. Projections are now functions, and the
+failure is in `main`'s own type rather than in `Serial`.
 
 --- tql ---
 main = kind;
@@ -16,5 +16,5 @@ main = kind;
 --- error ---
 category: main-type
 span: 1:8-1:12
-`main` must be `Filter node output`. Found `node -> string`; a projection
+`main` must be `Filter Node output`. Found `Node -> String`; a projection
 reaches filter position through `lift`.

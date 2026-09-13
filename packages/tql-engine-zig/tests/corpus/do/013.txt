@@ -1,5 +1,6 @@
 title: a bound value already typed `Filter` is used directly, not lifted
 grammar: typescript
+asserts: types
 pending: values
 
 `predicate` is bound to a filter value. It is used as a pipe stage directly. If
@@ -22,3 +23,7 @@ class A {}
 
 --- values ---
 ["program"]
+
+--- types ---
+make_predicate : a -> [Node -> [String]]
+main : Node -> [String]

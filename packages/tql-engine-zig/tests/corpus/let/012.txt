@@ -1,5 +1,6 @@
 title: a binding evaluates as a value and does not run a filter
 grammar: typescript
+asserts: types
 pending: values
 
 Binding `k` does not execute it. Two uses of `k` on different inputs give
@@ -19,3 +20,6 @@ class A { m() {} }
 
 --- values ---
 ["class_declaration", "property_identifier"]
+
+--- types ---
+main : Node -> [String]

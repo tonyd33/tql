@@ -1,16 +1,24 @@
 title: list equality is element-wise and order-sensitive
 grammar: typescript
+asserts: types
 pending: values
 
 Lists are ordered, so a different order is a different value. Lists of
 different length are never equal.
 
 --- tql ---
-main =
-  (pure (["a", "b"] = ["a", "b"]), pure (["a"] = ["a", "b"]));
+main root =
+  let {
+    ab = [pure "a", pure "b"] root;
+    a = [pure "a"] root
+  } in
+    (pure (ab = ab), pure (a = ab)) root;
 
 --- source ---
 class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,5 +1,6 @@
 title: `any` and `all` share one scheme
 grammar: typescript
+asserts: types
 pending: values
 
 Both helpers are applied to the same source and predicate, confirming they
@@ -9,10 +10,10 @@ accept identical argument types.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    [{ some = any ((children | is_kind :method_definition) c.body)
-                  (\m -> [text m.name ~ r"^get"]),
-       every = all ((children | is_kind :method_definition) c.body)
-                   (\m -> [text m.name ~ r"^get"]) }]
+    { some = any (.body | children | is_kind :method_definition)
+                 (.name | lift (\n -> text n ~ r"^get")),
+      every = all (.body | children | is_kind :method_definition)
+                  (.name | lift (\n -> text n ~ r"^get")) } c
   };
 
 --- source ---
@@ -20,3 +21,6 @@ class A { getX() {} setY() {} }
 
 --- values ---
 [{ "some": true, "every": false }]
+
+--- types ---
+main : Node -> [{every: Bool, some: Bool}]

@@ -1,6 +1,6 @@
 title: a record runs each field on the same input
 grammar: typescript
-asserts: core
+asserts: core, types
 pending: values
 
 --- tql ---
@@ -16,3 +16,6 @@ class Service {}
 
 --- core ---
 main = compose (compose children is_kind[class_declaration]) (record_filter[kind,name] (lift kind) (compose field[name] (lift text)))
+
+--- types ---
+main : Node -> [{kind: String, name: String}]

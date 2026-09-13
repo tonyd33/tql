@@ -1,5 +1,6 @@
 title: negative integer literal
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -10,3 +11,6 @@ class A {}
 
 --- values ---
 [-7]
+
+--- types ---
+main : Node -> [Int]

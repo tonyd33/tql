@@ -1,5 +1,6 @@
 title: `filename` composes with other projections
 grammar: typescript
+asserts: types
 file: src/service.ts
 pending: values
 
@@ -16,3 +17,6 @@ class A {}
 
 --- values ---
 [{ "file": "src/service.ts", "name": "A" }]
+
+--- types ---
+main : Node -> [{file: String, name: String}]

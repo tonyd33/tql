@@ -1,5 +1,6 @@
 title: a node nested inside a record encodes as a node
 grammar: typescript
+asserts: types
 pending: values
 
 `node` is `Serial`, so it may appear inside a serializable container.
@@ -22,3 +23,6 @@ class A {}
     "k": "class_declaration"
   }
 ]
+
+--- types ---
+main : Node -> [{at: Range, k: String}]

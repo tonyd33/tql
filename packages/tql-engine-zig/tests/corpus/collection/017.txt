@@ -1,5 +1,6 @@
 title: a list of records
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -11,3 +12,6 @@ class B {}
 
 --- values ---
 [[{ "name": "A" }, { "name": "B" }]]
+
+--- types ---
+main : Node -> [[{name: String}]]

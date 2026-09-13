@@ -1,9 +1,10 @@
 title: a signature on `main` is permitted
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
-main : Filter node string;
+main : Filter Node String;
 main = children | is_kind :class_declaration | .name | lift text;
 
 --- source ---
@@ -11,3 +12,6 @@ class A {}
 
 --- values ---
 ["A"]
+
+--- types ---
+main : Node -> [String]

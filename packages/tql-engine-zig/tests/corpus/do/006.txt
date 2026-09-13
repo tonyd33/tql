@@ -1,13 +1,15 @@
 title: a `do`-local `let` has no `in` and scopes over the rest of the block
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    let name = text c.name;
-    [name]
+    n <- c.name;
+    let name = text n;
+    pure name root
   };
 
 --- source ---
@@ -16,3 +18,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+main : Node -> [String]

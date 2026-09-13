@@ -1,5 +1,6 @@
 title: `probe` forces at most the first result
 grammar: typescript
+asserts: types
 pending: values
 
 `nats` is an infinite recursive filter. `probe` terminates because it needs
@@ -16,3 +17,8 @@ class A {}
 
 --- values ---
 [true]
+
+--- types ---
+from : Int -> a -> [Int]
+nats : a -> [Int]
+main : Node -> [Bool]

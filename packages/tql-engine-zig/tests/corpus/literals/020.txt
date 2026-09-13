@@ -1,5 +1,6 @@
 title: both operands run on the same current input
 grammar: typescript
+asserts: types
 pending: values
 
 Each operand independently navigates from the same class node.
@@ -7,10 +8,13 @@ Each operand independently navigates from the same class node.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | \c -> text c.name = text c;
+  | lift (\c -> text c = text c);
 
 --- source ---
 class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,5 +1,6 @@
 title: `and` with an empty right operand yields nothing for a true left
 grammar: typescript
+asserts: types
 pending: values
 
 --- tql ---
@@ -12,3 +13,6 @@ class A {}
 
 --- values ---
 [false]
+
+--- types ---
+main : Node -> [Bool]
