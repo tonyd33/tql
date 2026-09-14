@@ -112,6 +112,23 @@ pub const Registry = struct {
         return self.lookup(types.bool_spelling).?;
     }
 
+    /// The constructor `b` denotes. `False` is tag 0 and `True` is tag 1,
+    /// fixed by `declareStructural`; a caller building a boolean value must
+    /// not assume that order itself.
+    pub fn boolConstructor(self: *const Registry, b: bool) Constructor {
+        return self.get(self.boolId()).constructors[if (b) 1 else 0];
+    }
+
+    /// `Nil`, tag 0 of `List`.
+    pub fn nilConstructor(self: *const Registry) Constructor {
+        return self.get(self.listId()).constructors[0];
+    }
+
+    /// `Cons`, tag 1 of `List`, taking a head and a tail.
+    pub fn consConstructor(self: *const Registry) Constructor {
+        return self.get(self.listId()).constructors[1];
+    }
+
     /// `[t]`, for a caller that has the registry.
     pub fn list(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
         return try types.constructed(arena, self.listId(), types.list_spelling, &.{element});
@@ -216,6 +233,30 @@ test "a declared type is reachable by name, id, and constructor" {
     try std.testing.expectEqual(id, registry.ownerOf(cons).?);
     try std.testing.expectEqual(1, registry.constructorOf(cons).?.tag);
     try std.testing.expectEqual(null, registry.ownerOf(@enumFromInt(9)));
+}
+
+test "the structural accessors follow the declared tag order" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var registry = Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    var interner = try symbols.Interner.init(std.testing.allocator);
+    defer interner.deinit();
+    try registry.declareStructural(&interner, arena.allocator());
+
+    const f = registry.boolConstructor(false);
+    const t = registry.boolConstructor(true);
+    try std.testing.expectEqualStrings("False", interner.spelling(f.symbol));
+    try std.testing.expectEqualStrings("True", interner.spelling(t.symbol));
+    try std.testing.expectEqual(0, f.tag);
+    try std.testing.expectEqual(1, t.tag);
+
+    const n = registry.nilConstructor();
+    const c = registry.consConstructor();
+    try std.testing.expectEqualStrings("Nil", interner.spelling(n.symbol));
+    try std.testing.expectEqualStrings("Cons", interner.spelling(c.symbol));
+    try std.testing.expectEqual(0, n.tag);
+    try std.testing.expectEqual(1, c.tag);
 }
 
 test "a list is Sized whatever its elements are, but Ord never" {

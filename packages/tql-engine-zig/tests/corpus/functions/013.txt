@@ -1,7 +1,6 @@
 title: a recursive global definition
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 countdown n = if n <= 0 then 0 else countdown (n - 1);

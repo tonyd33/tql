@@ -1,7 +1,6 @@
 title: comparison binds looser than arithmetic
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure (1 + 1 = 2);

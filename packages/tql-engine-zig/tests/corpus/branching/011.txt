@@ -1,7 +1,6 @@
 title: `not a = b` groups as `not (a = b)`
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `not` binds looser than comparison, so its operand extends rightward through
 the comparison level. The rejected reading `(not 1) = 1` does not typecheck,

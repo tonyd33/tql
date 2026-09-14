@@ -1,7 +1,6 @@
 title: scalars encode naturally
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure 42, pure (0 - 1);

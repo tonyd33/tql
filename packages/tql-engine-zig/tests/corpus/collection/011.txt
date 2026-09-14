@@ -1,7 +1,6 @@
 title: a cross product over two streams is written with `do`
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Record fields are scalars, so a record does not fan out. Two streams are
 combined by binding each in turn: `a` binds first and varies slowest, which is

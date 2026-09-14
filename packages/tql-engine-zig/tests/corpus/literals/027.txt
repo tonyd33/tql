@@ -1,7 +1,6 @@
 title: `length` of a list is its element count
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = [pure 1, pure 2, pure 3] | lift length;

@@ -1,7 +1,6 @@
 title: parentheses override precedence
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure ((2 + 3) * 4);

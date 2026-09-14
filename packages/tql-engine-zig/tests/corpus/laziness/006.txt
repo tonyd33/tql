@@ -1,7 +1,6 @@
 title: a global is forced at most once and memoized
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `shared` is referenced twice. Memoization is not directly observable as a
 value, so the evidence here is only that both references agree; that a global

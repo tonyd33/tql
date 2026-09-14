@@ -1,7 +1,6 @@
 title: application binds tighter than query infix operators
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `add 1 2 + add 3 4` groups as `(add 1 2) + (add 3 4)`, not `add 1 (2 + add) 3 4`.
 

@@ -1,7 +1,6 @@
 title: a `do` bind over a non-node stream
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Stream binding is not node-specific; it binds any filter's outputs.
 

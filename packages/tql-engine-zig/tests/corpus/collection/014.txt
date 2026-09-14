@@ -1,7 +1,6 @@
 title: structural equality on records
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main root =

@@ -1,5 +1,14 @@
 -- TQL prelude.
 
+identity x = Cons x Nil;
+
+pure v x = Cons v Nil;
+
+empty x = Nil;
+
+unnest : [a] -> [a];
+unnest xs = xs;
+
 append xs ys = case xs of {
   Nil -> ys;
   Cons h t -> Cons h (append t ys);
@@ -8,6 +17,13 @@ append xs ys = case xs of {
 flat_map xs f = case xs of {
   Nil -> Nil;
   Cons h t -> append (f h) (flat_map t f);
+};
+
+compose p q x = flat_map (p x) q;
+
+probe p x = case p x of {
+  Nil -> Cons False Nil;
+  Cons h t -> Cons True Nil;
 };
 
 union p q = \x -> append (p x) (q x);

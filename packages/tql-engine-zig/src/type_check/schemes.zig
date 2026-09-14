@@ -43,12 +43,12 @@ pub fn schemeFor(subst: *Substitution, synthesis: desugar.Synthesis) Error!types
         .kind_test => |k| try kindTest(subst, k.id),
         .field => |f| try fieldAccess(subst, f.id),
         // Already written and unit-tested in `primitives.zig`; a property of
-        // the spelling, not of the interned id.
-        .operator => |spelling| (try primitives.operatorScheme(
+        // the operator, not of the interned id.
+        .operator => |operator| try primitives.operatorScheme(
             subst.arena,
             subst.datatypes,
-            spelling,
-        )).?,
+            operator,
+        ),
         .record => |labels| try record(subst, labels),
     };
 }
@@ -191,10 +191,10 @@ test "an operator's scheme comes from the primitive table" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectScheme(.{ .operator = "=" }, "Eq a => a -> a -> Bool");
-    try fix.expectScheme(.{ .operator = "<" }, "Ord a => a -> a -> Bool");
-    try fix.expectScheme(.{ .operator = "+" }, "Int -> Int -> Int");
-    try fix.expectScheme(.{ .operator = "~" }, "String -> Regex -> Bool");
+    try fix.expectScheme(.{ .operator = .eq }, "Eq a => a -> a -> Bool");
+    try fix.expectScheme(.{ .operator = .lt }, "Ord a => a -> a -> Bool");
+    try fix.expectScheme(.{ .operator = .add }, "Int -> Int -> Int");
+    try fix.expectScheme(.{ .operator = .match }, "String -> Regex -> Bool");
 }
 
 test "a one-field record takes one field value and yields one record" {

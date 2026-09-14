@@ -1,7 +1,6 @@
 title: `exists` inherits `probe`'s laziness
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 from n = pure n, from (n + 1);

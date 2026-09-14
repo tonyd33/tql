@@ -1,7 +1,6 @@
 title: negative integer literal
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure (0 - 7);

@@ -1,7 +1,6 @@
 title: a generalized global used at two types
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `pick` is generalized after its SCC is checked, so it may be instantiated at
 `int` and at `string` in the same program.

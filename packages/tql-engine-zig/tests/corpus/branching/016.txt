@@ -1,7 +1,6 @@
 title: `empty` as a branch yields nothing for that input
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 `,` is union over filters, so each literal is written `pure n` to be one. The
 composed filter is then applied to an ignored input.

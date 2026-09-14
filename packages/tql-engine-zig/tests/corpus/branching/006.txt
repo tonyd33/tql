@@ -1,7 +1,6 @@
 title: a scalar connective maps over a stream with `lift`
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `not` is scalar, so negating each output of a stream is `lift` at the call site
 rather than a property of `not` itself. `not` is an operator, not an

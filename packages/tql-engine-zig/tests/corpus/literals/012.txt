@@ -1,16 +1,17 @@
-title: modulo by zero yields the empty stream
+title: modulo by zero is undefined
 grammar: typescript
 asserts: types
-pending: values
+
+Division and modulo by zero have no defined result. The rule that they yield
+an empty stream was written when operators were filters and could produce no
+output; a scalar operator has nowhere to put the absence. A `Maybe` is what
+gives this an answer, and the language does not have one yet.
 
 --- tql ---
 main = pure (1 % 0);
 
 --- source ---
 class A {}
-
---- values ---
-[]
 
 --- types ---
 main : Node -> [Int]

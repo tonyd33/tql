@@ -1,7 +1,6 @@
 title: a condition yielding many booleans runs many branches in order
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 --- tql ---
 main =

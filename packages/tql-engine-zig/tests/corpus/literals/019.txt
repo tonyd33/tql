@@ -1,7 +1,6 @@
 title: product operators enumerate left operand outermost
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The rule under test is ordering. Left-major means the left operand is the outer
 generator: 10 pairs with 1 then 2, then 20 pairs with 1 then 2, giving

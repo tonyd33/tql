@@ -1,7 +1,6 @@
 title: field order is irrelevant for equality and type identity
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The two record expressions list their labels in opposite order. They are the
 same value and the same type.

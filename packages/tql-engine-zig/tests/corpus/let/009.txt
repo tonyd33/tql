@@ -1,7 +1,6 @@
 title: mutual recursion inside one group
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 `is_even` and `is_odd` refer to each other. Both are checked monomorphically as
 one component, then generalized together.

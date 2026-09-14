@@ -1,7 +1,6 @@
 title: `any` short-circuits on the first match
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The source is infinite but the predicate holds at 0, so the probe stops at the
 first element. Termination is the evidence.

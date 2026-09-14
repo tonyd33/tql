@@ -1,7 +1,6 @@
 title: a function parameter shadows a global of the same name
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 n = 100;

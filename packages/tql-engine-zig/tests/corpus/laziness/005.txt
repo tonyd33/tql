@@ -1,7 +1,6 @@
 title: a union is lazy in its right operand
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The left operand alone satisfies the probe, so the infinite right operand is
 never forced.

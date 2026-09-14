@@ -5,17 +5,50 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
+/// A scalar operator, which desugaring synthesizes an `op[...]` symbol for.
+///
+/// The surface has four more binary operators. `|`, `,`, `and` and `or`
+/// desugar to prelude combinators and never reach here.
+pub const Scalar = enum {
+    eq,
+    ne,
+    lt,
+    lte,
+    gt,
+    gte,
+    match,
+    not_match,
+    add,
+    subtract,
+    multiply,
+    divide,
+    modulo,
+
+    /// How the operator is written, and how its symbol is named.
+    pub fn spelling(self: Scalar) []const u8 {
+        return switch (self) {
+            .eq => "=",
+            .ne => "!=",
+            .lt => "<",
+            .lte => "<=",
+            .gt => ">",
+            .gte => ">=",
+            .match => "~",
+            .not_match => "!~",
+            .add => "+",
+            .subtract => "-",
+            .multiply => "*",
+            .divide => "/",
+            .modulo => "%",
+        };
+    }
+};
+
 pub const Lowering = enum {
-    identity,
-    pure,
-    compose,
-    empty,
-    probe,
     text,
     kind,
     range,
     length,
-    unnest,
     toint,
     filename,
     parent,
@@ -41,40 +74,7 @@ fn primitiveSchemes(
     const B = Builder{ .arena = arena, .declared = declared };
 
     const a = types.variable_type(0);
-    const b = types.variable_type(1);
-    const c = types.variable_type(2);
 
-    try out.append(gpa, .{
-        .name = "identity",
-        .scheme = .{ .quantified = 1, .type = try B.filter(a, a) },
-        .lowering = .identity,
-    });
-    try out.append(gpa, .{
-        .name = "pure",
-        .scheme = .{ .quantified = 2, .type = try B.func(a, try B.filter(b, a)) },
-        .lowering = .pure,
-    });
-    try out.append(gpa, .{
-        .name = "compose",
-        .scheme = .{ .quantified = 3, .type = try B.func(
-            try B.filter(a, b),
-            try B.func(try B.filter(b, c), try B.filter(a, c)),
-        ) },
-        .lowering = .compose,
-    });
-    try out.append(gpa, .{
-        .name = "empty",
-        .scheme = .{ .quantified = 2, .type = try B.filter(a, b) },
-        .lowering = .empty,
-    });
-    try out.append(gpa, .{
-        .name = "probe",
-        .scheme = .{ .quantified = 2, .type = try B.func(
-            try B.filter(a, b),
-            try B.filter(a, try B.boolType()),
-        ) },
-        .lowering = .probe,
-    });
     try out.append(gpa, .{
         .name = "text",
         .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
@@ -100,11 +100,6 @@ fn primitiveSchemes(
             .type = try B.func(a, types.int_type),
         },
         .lowering = .length,
-    });
-    try out.append(gpa, .{
-        .name = "unnest",
-        .scheme = .{ .quantified = 1, .type = try B.filter(try B.list(a), a) },
-        .lowering = .unnest,
     });
     try out.append(gpa, .{
         .name = "toint",
@@ -158,29 +153,20 @@ const Builder = struct {
     }
 };
 
-const operator_spellings = [_][]const u8{
-    "=", "!=", "<", "<=", ">", ">=",
-    "~", "!~", "+", "-",  "*", "/",
-    "%",
-};
-
 /// The scheme of a scalar operator, built against `arena` and `declared`.
 pub fn operatorScheme(
     arena: Allocator,
     declared: *const datatypes.Registry,
-    spelling_text: []const u8,
-) !?types.Scheme {
+    operator: Scalar,
+) !types.Scheme {
     const B = Builder{ .arena = arena, .declared = declared };
     const a = types.variable_type(0);
 
-    const class: ?types.TypeClassConstraint.Class =
-        if (std.mem.eql(u8, spelling_text, "=") or std.mem.eql(u8, spelling_text, "!="))
-            .Eq
-        else if (std.mem.eql(u8, spelling_text, "<") or std.mem.eql(u8, spelling_text, "<=") or
-        std.mem.eql(u8, spelling_text, ">") or std.mem.eql(u8, spelling_text, ">="))
-            .Ord
-        else
-            null;
+    const class: ?types.TypeClassConstraint.Class = switch (operator) {
+        .eq, .ne => .Eq,
+        .lt, .lte, .gt, .gte => .Ord,
+        else => null,
+    };
 
     if (class) |k| {
         return .{
@@ -192,22 +178,17 @@ pub fn operatorScheme(
         };
     }
 
-    if (std.mem.eql(u8, spelling_text, "~") or std.mem.eql(u8, spelling_text, "!~")) {
-        return .{ .type = try B.func(
+    return switch (operator) {
+        .match, .not_match => .{ .type = try B.func(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
-        ) };
-    }
-
-    for (operator_spellings) |known| {
-        if (std.mem.eql(u8, known, spelling_text)) {
-            return .{ .type = try B.func(
-                types.int_type,
-                try B.func(types.int_type, types.int_type),
-            ) };
-        }
-    }
-    return null;
+        ) },
+        .add, .subtract, .multiply, .divide, .modulo => .{ .type = try B.func(
+            types.int_type,
+            try B.func(types.int_type, types.int_type),
+        ) },
+        .eq, .ne, .lt, .lte, .gt, .gte => unreachable,
+    };
 }
 
 /// What each primitive is, keyed by the id it was interned as.
@@ -302,10 +283,9 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "identity", "pure",      "compose",  "empty",
-        "probe",    "text",      "kind",     "range",
-        "length",   "unnest",    "toint",    "filename",
-        "parent",   "ancestors", "children", "descendants",
+        "text",     "kind",        "range",  "length",
+        "toint",    "filename",    "parent", "ancestors",
+        "children", "descendants",
     };
 
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
@@ -332,11 +312,11 @@ test "every primitive is interned, and its scheme and lowering are recorded" {
     defer fix.deinit(gpa);
     const interned = &fix.interned;
 
-    const compose = interned.interner.lookup("compose") orelse return error.Missing;
-    try std.testing.expectEqualStrings("compose", interned.interner.spelling(compose));
-    try std.testing.expect(interned.table.contains(compose));
-    try std.testing.expectEqual(Lowering.compose, interned.table.lowering(compose).?);
-    try std.testing.expect(interned.table.scheme(compose) != null);
+    const text = interned.interner.lookup("text") orelse return error.Missing;
+    try std.testing.expectEqualStrings("text", interned.interner.spelling(text));
+    try std.testing.expect(interned.table.contains(text));
+    try std.testing.expectEqual(Lowering.text, interned.table.lowering(text).?);
+    try std.testing.expect(interned.table.scheme(text) != null);
 }
 
 test "a declaration colliding with a primitive's name is rejected" {
@@ -356,10 +336,16 @@ test "operator schemes take scalars, not filters" {
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
 
-    try (try operatorScheme(arena, &fix.interned.datatypes, "=")).?.format(&buf.writer);
+    try (try operatorScheme(arena, &fix.interned.datatypes, .eq)).format(&buf.writer);
     try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
 
     buf.clearRetainingCapacity();
-    try (try operatorScheme(arena, &fix.interned.datatypes, "+")).?.format(&buf.writer);
+    try (try operatorScheme(arena, &fix.interned.datatypes, .add)).format(&buf.writer);
     try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
+
+    // Every operator has one, so a new member fails here rather than at
+    // evaluation.
+    for (std.enums.values(Scalar)) |operator| {
+        _ = try operatorScheme(arena, &fix.interned.datatypes, operator);
+    }
 }

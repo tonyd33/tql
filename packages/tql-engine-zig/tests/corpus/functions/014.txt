@@ -1,7 +1,6 @@
 title: forward references between globals are valid
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `main` refers to `helper`, which is declared after it. Declaration heads are
 collected before any body is resolved.

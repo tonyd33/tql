@@ -1,7 +1,6 @@
 title: string ordering
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = (pure ("a" < "b"), pure ("b" < "a"));

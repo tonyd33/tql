@@ -1399,7 +1399,7 @@ test "a synthesized operator takes scalars, not filters" {
     defer fix.deinit(gpa);
 
     // `op[=] : Eq a => a -> a -> Bool`. Applying it to two ints is fine.
-    const eq = try fix.synthesize("op[=]", .{ .operator = "=" });
+    const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
     const applied = try fix.app(
         try fix.app(fix.sym(eq), fix.lit(.{ .number = 1 })),
         fix.lit(.{ .number = 2 }),
@@ -1413,7 +1413,7 @@ test "an operator's constraint is refuted on a regex" {
     defer fix.deinit(gpa);
 
     // `errors/types/015`: `r"a" = r"a"` fails `Eq regex`.
-    const eq = try fix.synthesize("op[=]", .{ .operator = "=" });
+    const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
     const applied = try fix.app(
         try fix.app(fix.sym(eq), fix.lit(.{ .regex = "a" })),
         fix.lit(.{ .regex = "a" }),
@@ -1428,7 +1428,7 @@ test "ordering two nodes is refuted while comparing them is not" {
 
     // `errors/types/019`'s point: `node` has `Eq` but not `Ord`.
     const node_of = try fix.define("node_of", .{ .type = types.node_type });
-    const lt = try fix.synthesize("op[<]", .{ .operator = "<" });
+    const lt = try fix.synthesize("op[<]", .{ .operator = .lt });
     const ordered = try fix.app(
         try fix.app(fix.sym(lt), fix.sym(node_of)),
         fix.sym(node_of),

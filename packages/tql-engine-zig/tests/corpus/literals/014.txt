@@ -1,7 +1,6 @@
 title: comparison operators on integers
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

@@ -1,7 +1,6 @@
 title: a curried definition applied to all its arguments
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 --- tql ---
 add x y = x + y;

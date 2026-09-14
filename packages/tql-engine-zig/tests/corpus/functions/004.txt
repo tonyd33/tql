@@ -1,7 +1,6 @@
 title: a definition with no parameters binds a value directly
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 limit = 7;

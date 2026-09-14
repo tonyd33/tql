@@ -1,7 +1,6 @@
 title: a recursive `let` group builds lazy thunks
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `step` refers to itself through a lambda, so forcing it terminates: the
 self-reference is under a binder and is not entered until the function is

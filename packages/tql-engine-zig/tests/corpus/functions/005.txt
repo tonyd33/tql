@@ -1,7 +1,6 @@
 title: a lambda with one parameter
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

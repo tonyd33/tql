@@ -1,7 +1,6 @@
 title: an optional trailing semicolon is permitted in the brace form
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = let { a = 1; b = 2; } in pure (a + b);

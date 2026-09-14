@@ -1,7 +1,6 @@
 title: `length` of a string is its UTF-8 byte length
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `"héllo"` is five characters but six UTF-8 bytes: `é` occupies two. Byte
 length, not character count, is the rule.

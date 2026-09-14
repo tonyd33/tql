@@ -1,7 +1,6 @@
 title: `all` short-circuits on the first violation
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The inner probe searches for a violating element and finds one at 0, so it
 stops there despite the infinite source.

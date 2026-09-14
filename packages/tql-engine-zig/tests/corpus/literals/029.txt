@@ -1,7 +1,6 @@
 title: `unnest` streams list elements in order
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = [pure 3, pure 1, pure 2] | unnest;

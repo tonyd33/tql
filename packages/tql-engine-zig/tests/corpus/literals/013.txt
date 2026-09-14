@@ -1,19 +1,17 @@
-title: a partial operation prunes only the offending pair
+title: a zero divisor anywhere in a stream is undefined
 grammar: typescript
 asserts: types
-pending: values
 
-The right operand yields three moduli; only the zero pair is dropped, and the
-surviving pairs keep their left-major order.
+This case pinned the old pruning rule: three moduli, the zero pair dropped,
+the survivors keeping their left-major order. Scalar operators have no way to
+drop a pair, so the whole query is undefined once a zero divisor reaches one.
+It typechecks; it has no value.
 
 --- tql ---
 main = \root -> do { d <- (pure 5, pure 0, pure 7) root; pure (12 % d) root };
 
 --- source ---
 class A {}
-
---- values ---
-[2, 5]
 
 --- types ---
 main : Node -> [Int]

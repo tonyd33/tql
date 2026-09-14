@@ -1,7 +1,6 @@
 title: `not` negates a boolean
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure (not true), pure (not false);

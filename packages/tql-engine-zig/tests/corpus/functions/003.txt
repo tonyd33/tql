@@ -1,7 +1,6 @@
 title: partial application yields a function value
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 `add 10` is applied to two different arguments, so the partial application was
 a reusable value rather than an error.

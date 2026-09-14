@@ -1,7 +1,6 @@
 title: `main = empty` is accepted when a signature fixes the type
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The signature fixes `b := String`, so `Serial String` is entailed and the
 program is accepted. This is the boundary case: an unannotated `main = empty`

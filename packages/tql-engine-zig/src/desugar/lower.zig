@@ -6,6 +6,7 @@ const core = @import("../lang/core.zig");
 const cst = @import("../lang/cst.zig");
 const datatypes = @import("../lang/datatypes.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
+const primitives = @import("../lang/primitives.zig");
 const resolve = @import("resolve.zig");
 const pcre2 = @import("../regex.zig");
 const symbols = @import("../lang/symbols.zig");
@@ -21,7 +22,7 @@ pub const Synthesis = union(enum) {
     /// `field[l]`, carrying the resolved grammar field ID.
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
-    operator: []const u8,
+    operator: primitives.Scalar,
     /// `record[l,...]`, labels in normalized order. The scheme is n-ary
     /// in the field count, so inference builds it from these rather than
     /// reading one off a table.
@@ -495,11 +496,26 @@ pub const Lowerer = struct {
 
         // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
         // never lifted over filters.
-        const spelling = b.operator.spelling();
+        const scalar: primitives.Scalar = switch (b.operator) {
+            .divide => .divide,
+            .multiply => .multiply,
+            .modulo => .modulo,
+            .add => .add,
+            .subtract => .subtract,
+            .eq => .eq,
+            .ne => .ne,
+            .lt => .lt,
+            .lte => .lte,
+            .gt => .gt,
+            .gte => .gte,
+            .match => .match,
+            .not_match => .not_match,
+            .pipe, .stream_union, .@"and", .@"or" => unreachable,
+        };
         const operator = try self.synthesize(
             "op[{s}]",
-            .{spelling},
-            .{ .operator = try self.builder.dupe(spelling) },
+            .{scalar.spelling()},
+            .{ .operator = scalar },
         );
         return try self.builder.applyMany(
             self.builder.symbol(operator, span),

@@ -1,7 +1,6 @@
 title: bindings are order-independent
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `first` refers to `second`, which is written after it. Declaration order has no
 semantic effect, so this resolves.

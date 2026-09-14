@@ -500,7 +500,7 @@ fn testCase(
         const exp = section.content;
 
         if (exp.len > 0) {
-            if (!std.mem.eql(u8, exp, actual_val)) {
+            if (!try sectionsMatch(gpa, kind, exp, actual_val)) {
                 if (ctx.opts.update.get(kind)) {
                     try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
                     test_modified = true;
@@ -578,6 +578,58 @@ fn testCase(
         }
         return .passed;
     }
+}
+
+/// Whether a produced section matches what the case asserts.
+///
+/// `values` compares as JSON with insignificant whitespace removed. Fixtures
+/// lay their expected values out by hand, one output per line with short
+/// objects inline, and reformatting 174 of them to match a serializer would
+/// cost more than it buys.
+fn sectionsMatch(
+    gpa: std.mem.Allocator,
+    kind: corpus_parser.SectionKind,
+    expected: []const u8,
+    actual: []const u8,
+) !bool {
+    if (kind != .values) return std.mem.eql(u8, expected, actual);
+
+    const want = try stripJsonWhitespace(gpa, expected);
+    defer gpa.free(want);
+    const got = try stripJsonWhitespace(gpa, actual);
+    defer gpa.free(got);
+    return std.mem.eql(u8, want, got);
+}
+
+/// Drops whitespace outside string literals.
+fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+
+    var in_string = false;
+    var escaped = false;
+    for (text) |c| {
+        if (in_string) {
+            try out.append(gpa, c);
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        switch (c) {
+            ' ', '\t', '\n', '\r' => {},
+            '"' => {
+                in_string = true;
+                try out.append(gpa, c);
+            },
+            else => try out.append(gpa, c),
+        }
+    }
+    return try out.toOwnedSlice(gpa);
 }
 
 /// Compares expected diagnostics against what the engine reported. Only the
@@ -803,6 +855,24 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         };
     }
 
+    // A case asserting values runs on the evaluator. The tree primitives are
+    // not implemented, so a query that navigates reports Unimplemented and the
+    // case stays pending until it is written.
+    if (tc.isAsserted(.values) and !expects_error) {
+        var eval_sink = tql.diagnostic.Sink.init(allocator);
+        defer eval_sink.deinit();
+        const values = try engine.evaluateQuery(tc.query.content, grammar, &eval_sink, allocator);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .bytecode = try allocator.dupe(u8, ""),
+            .values = values,
+            .core = core_text,
+            .types = types_text,
+            .@"error" = try allocator.dupe(u8, ""),
+        };
+    }
+
     // Compilation is driven by what the case claims, not by what it contains.
     // A case whose value-bearing sections are all `pending` has nothing for the
     // compiler or the runtime to decide yet, so running them would be wasted
@@ -810,8 +880,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     // As sections move from `pending` into `asserts`, this switches back on
     // one fixture at a time.
     const needs_compile = expects_error or
-        tc.isAsserted(.bytecode) or
-        tc.isAsserted(.values);
+        tc.isAsserted(.bytecode);
 
     if (!needs_compile) {
         return .{

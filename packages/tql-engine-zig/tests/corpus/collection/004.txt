@@ -1,7 +1,6 @@
 title: `[a, b]` collects the union of `a` and `b`
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `,` inside brackets is stream union, not an array separator. The bracket
 collects whatever the union yields, so a multi-output operand contributes every

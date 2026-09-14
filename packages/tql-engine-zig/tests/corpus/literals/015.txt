@@ -1,7 +1,6 @@
 title: equality and inequality
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
