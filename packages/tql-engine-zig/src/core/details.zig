@@ -59,6 +59,17 @@ pub const PrimOp = enum {
     field,
     operator,
     record,
+
+    /// The single axis this one becomes when composed with a kind test, if
+    /// there is one. `children` then `is_kind[k]` walks the same nodes as
+    /// `children_of_kind[k]` without building the list between them.
+    pub fn fusedWithKindTest(self: PrimOp) ?PrimOp {
+        return switch (self) {
+            .children => .children_of_kind,
+            .descendants => .descendants_of_kind,
+            else => null,
+        };
+    }
 };
 
 /// What a synthesized symbol denotes. The payload is resolved during

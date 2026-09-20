@@ -234,11 +234,8 @@ const Pass = struct {
             .symbol => |id| id,
             else => return null,
         };
-        const fused: core.PrimOp = switch (self.primopOf(axis) orelse return null) {
-            .children => .children_of_kind,
-            .descendants => .descendants_of_kind,
-            else => return null,
-        };
+        const primop = self.primopOf(axis) orelse return null;
+        const fused = primop.fusedWithKindTest() orelse return null;
 
         return self.builder.symbol(try self.kindAxisSymbol(fused, kind), span);
     }
