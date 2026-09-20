@@ -16,15 +16,13 @@ const diagnostic = @import("diagnostic.zig");
 
 pub const symbols = @import("core/symbols.zig");
 pub const details = @import("core/details.zig");
+pub const env = @import("core/env.zig");
 pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
 
-pub const Details = details.Details;
 pub const Synthesized = details.Synthesized;
 pub const PrimOp = details.PrimOp;
 pub const Scalar = details.Scalar;
-pub const Symbol = symbols.Symbol;
-pub const TypeId = symbols.TypeId;
 
 pub const SymbolId = symbols.SymbolId;
 pub const SymbolTable = symbols.SymbolTable;

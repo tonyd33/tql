@@ -1,6 +1,7 @@
 //! Symbol interning and per-symbol side tables.
 
 const std = @import("std");
+// TODO: break this cycle. details.zig imports TypeId back from here.
 const Details = @import("details.zig").Details;
 
 const Allocator = std.mem.Allocator;
@@ -47,6 +48,29 @@ pub fn SymbolTable(comptime T: type) type {
             }
             self.entries.items[index] = value;
         }
+
+        pub const Entry = struct { id: SymbolId, value: T };
+
+        /// Walks the symbols this table has a value for, in id order.
+        pub fn iterator(self: *const Self) Iterator {
+            return .{ .entries = self.entries.items };
+        }
+
+        pub const Iterator = struct {
+            entries: []const ?T,
+            index: u32 = 0,
+
+            pub fn next(self: *Iterator) ?Entry {
+                while (self.index < self.entries.len) {
+                    const index = self.index;
+                    self.index += 1;
+                    if (self.entries[index]) |value| {
+                        return .{ .id = @enumFromInt(index), .value = value };
+                    }
+                }
+                return null;
+            }
+        };
     };
 }
 

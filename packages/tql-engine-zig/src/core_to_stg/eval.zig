@@ -133,8 +133,8 @@ pub const Machine = struct {
         return .{
             .arena = arena,
             .program = program,
-            .datatypes = &source.datatypes,
-            .interner = &source.interner,
+            .datatypes = &source.env.datatypes,
+            .interner = &source.env.interner,
             .globals = globals,
             .gpa = gpa,
         };

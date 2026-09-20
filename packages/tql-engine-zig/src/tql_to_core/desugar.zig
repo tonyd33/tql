@@ -632,12 +632,4 @@ pub const Lowerer = struct {
 pub const Module = struct {
     definitions: []const core.Definition,
     edges: []const []const u32,
-    annotations: []const Annotation,
-};
-
-/// A written signature, translated.
-pub const Annotation = struct {
-    symbol: core.SymbolId,
-    scheme: types.Scheme,
-    span: diagnostic.Span,
 };

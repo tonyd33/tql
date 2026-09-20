@@ -11,7 +11,6 @@ const std = @import("std");
 const core = @import("core.zig");
 const tql_to_core = @import("tql_to_core.zig");
 const diagnostic = @import("diagnostic.zig");
-const builtin = @import("builtin.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -22,16 +21,15 @@ pub const Error = Allocator.Error;
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
 pub fn run(program: *tql_to_core.Program) Error!void {
-    const compose = program.interner.lookup("compose") orelse return;
+    const compose = program.env.interner.lookup("compose") orelse return;
 
     var pass: Pass = .{
-        .builder = .{ .allocator = program.arena.allocator() },
-        .interner = &program.interner,
-        .primitives = &program.primitives,
+        .builder = .{ .allocator = program.env.allocator() },
+        .interner = &program.env.interner,
         .compose = compose,
     };
 
-    const definitions = try program.arena.allocator().alloc(
+    const definitions = try program.env.allocator().alloc(
         core.Definition,
         program.definitions.len,
     );
@@ -70,10 +68,10 @@ fn simplified(allocator: Allocator, query: []const u8, out: *std.Io.Writer.Alloc
     var result = try engine.checkQuery(query, g, &sink);
     defer result.deinit();
 
-    try run(&result.program);
+    try run(&result);
 
-    const printer: core.Printer = .{ .interner = &result.program.interner };
-    for (result.program.entryDefinitions()) |definition| {
+    const printer: core.Printer = .{ .interner = &result.env.interner };
+    for (result.entryDefinitions()) |definition| {
         try printer.term(definition.body, &out.writer);
     }
 }
@@ -144,7 +142,6 @@ test "an axis with no kind test is left alone" {
 const Pass = struct {
     builder: core.Builder,
     interner: *core.Interner,
-    primitives: *const builtin.Table,
     compose: core.SymbolId,
 
     /// Rewrite `t`, bottom up. A rewrite sees operands that are already

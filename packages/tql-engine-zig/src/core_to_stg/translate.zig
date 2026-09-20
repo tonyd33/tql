@@ -70,7 +70,7 @@ pub const Translator = struct {
         const self: *const Translator = @ptrCast(@alignCast(context));
         // A constructor, primitive or synthesized symbol is reached by
         // identity. Missing one here makes a closure try to capture it.
-        switch (self.program.interner.details(symbol)) {
+        switch (self.program.env.interner.details(symbol)) {
             .constructor, .primop, .synthesized => return false,
             .vanilla => {},
         }
@@ -81,9 +81,9 @@ pub const Translator = struct {
     }
 
     fn resolve(self: *Translator, name: core.SymbolId) Callee {
-        switch (self.program.interner.details(name)) {
+        switch (self.program.env.interner.details(name)) {
             .constructor => |c| return .{
-                .constructor = &self.program.datatypes.get(c.owner).constructors[c.tag],
+                .constructor = &self.program.env.datatypes.get(c.owner).constructors[c.tag],
             },
             .primop => |primop| return .{ .primitive = primop },
             // A synthesized symbol lowers like a primitive.
@@ -263,8 +263,8 @@ pub const Translator = struct {
 
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |source, *alternative| {
-                    const constructor = self.program.datatypes.constructorOf(
-                        &self.program.interner,
+                    const constructor = self.program.env.datatypes.constructorOf(
+                        &self.program.env.interner,
                         source.constructor,
                     ) orelse return error.Unsupported;
                     const binders = try self.arena.dupe(core.SymbolId, source.binders);
@@ -319,7 +319,7 @@ pub const Translator = struct {
             .bind => |bind_term| {
                 // `bind x <- v in body` is `flat_map v (\x -> body)`, an
                 // ordinary call. The evaluator never sees a bind.
-                const flat_map = self.program.interner.lookup("flat_map") orelse
+                const flat_map = self.program.env.interner.lookup("flat_map") orelse
                     return error.Unsupported;
 
                 const source = try self.atomize(bind_term.value, hoisted);
@@ -402,7 +402,7 @@ pub const Translator = struct {
     /// primitive counts its input, making `pure` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
-        switch (self.program.interner.details(name)) {
+        switch (self.program.env.interner.details(name)) {
             // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
             // `Filter Node Node`, one argument; an operator takes two
             // scalars.
@@ -414,7 +414,7 @@ pub const Translator = struct {
             else => {},
         }
 
-        const scheme = self.program.primitives.scheme(name) orelse return error.Unsupported;
+        const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
         var arity: u32 = 0;
         var walk = scheme.type;
         while (walk == .function) : (walk = walk.function.to) arity += 1;
@@ -520,7 +520,7 @@ pub fn translate(
         .arena = arena.allocator(),
         .gpa = gpa,
         .program = program,
-        .interner = &program.interner,
+        .interner = &program.env.interner,
     };
 
     const definitions = try arena.allocator().alloc(stg.Definition, program.definitions.len);

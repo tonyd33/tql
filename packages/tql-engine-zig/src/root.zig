@@ -122,22 +122,19 @@ pub const Engine = struct {
     }
 
     /// Parse, desugar, link and type-check a query. Diagnostics are collected;
-    /// the caller owns both results.
-    ///
-    /// The `Checked` borrows nothing from the `Program`, but a `Scheme` in it
-    /// may name symbols only the program's interner can spell, so they are
-    /// returned together and are meant to be deinitialized together.
+    /// the caller owns the result and its environment holds every scheme
+    /// inference found.
     pub fn checkQuery(
         self: *Engine,
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !CheckedQuery {
+    ) !tql_to_core.Program {
         var program = try self.desugarQuery(query_source, g, sink);
         errdefer program.deinit();
 
-        const checked = try type_check.check(self.config.allocator, &program, sink);
-        return .{ .program = program, .checked = checked };
+        try type_check.check(self.config.allocator, &program, sink);
+        return program;
     }
 
     /// Parses and desugars `prelude.tql` into the link.
@@ -219,7 +216,7 @@ pub const Engine = struct {
 
 /// A query checked and translated once, run against many targets.
 pub const CompiledQuery = struct {
-    checked: CheckedQuery,
+    checked: tql_to_core.Program,
     translated: core_to_stg.Program,
     grammar: *const Grammar,
     allocator: Allocator,
@@ -304,18 +301,6 @@ pub const RunOutcome = struct {
     query_time: std.Io.Duration,
 };
 
-/// A linked program and its inferred schemes. The two are created together and
-/// destroyed together.
-pub const CheckedQuery = struct {
-    program: tql_to_core.Program,
-    checked: type_check.Checked,
-
-    pub fn deinit(self: *CheckedQuery) void {
-        self.checked.deinit();
-        self.program.deinit();
-    }
-};
-
 test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
@@ -354,23 +339,23 @@ test "synthesized symbols carry the grammar ids they resolved" {
     );
     defer program.deinit();
 
-    const kind = program.interner.lookup("is_kind[class_declaration]").?;
-    const kind_what = program.interner.details(kind).synthesized;
+    const kind = program.env.interner.lookup("is_kind[class_declaration]").?;
+    const kind_what = program.env.interner.details(kind).synthesized;
     try std.testing.expectEqualStrings("class_declaration", kind_what.kind_test.name);
     try std.testing.expectEqual(
         g.language.idForNodeKind("class_declaration", true),
         kind_what.kind_test.id,
     );
 
-    const field = program.interner.lookup("field[name]").?;
-    const field_what = program.interner.details(field).synthesized;
+    const field = program.env.interner.lookup("field[name]").?;
+    const field_what = program.env.interner.details(field).synthesized;
     try std.testing.expectEqualStrings("name", field_what.field.name);
     try std.testing.expectEqual(g.language.fieldIdForName("name"), field_what.field.id);
 
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
-    const text = program.interner.lookup("text").?;
-    try std.testing.expectEqual(core.PrimOp.text, program.interner.details(text).primop);
-    try std.testing.expect(program.interner.details(kind) == .synthesized);
+    const text = program.env.interner.lookup("text").?;
+    try std.testing.expectEqual(core.PrimOp.text, program.env.interner.details(text).primop);
+    try std.testing.expect(program.env.interner.details(kind) == .synthesized);
 }
 
 test "a constructor field that is not an atom becomes a thunk" {
@@ -395,7 +380,7 @@ test "a constructor field that is not an atom becomes a thunk" {
     // `append`'s `Cons h (append t ys)`. The recursive call is a compound
     // argument, so it must be let-bound to a thunk before the `Cons` rather
     // than evaluated into the field. This is what `laziness/005` depends on.
-    const append = program.interner.lookup("append").?;
+    const append = program.env.interner.lookup("append").?;
     var body: ?*const core_to_stg.Closure = null;
     for (translated.definitions) |definition| {
         if (definition.symbol == append) body = definition.value;
@@ -403,7 +388,7 @@ test "a constructor field that is not an atom becomes a thunk" {
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: core_to_stg.Printer = .{ .interner = &program.interner };
+    const printer: core_to_stg.Printer = .{ .interner = &program.env.interner };
     try printer.closure(body.?, &w.writer);
 
     // The recursive call is let-bound to a thunk and the `Cons` takes that
@@ -456,7 +441,7 @@ test "a stream bind translates to a flat_map call" {
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: core_to_stg.Printer = .{ .interner = &program.interner };
+    const printer: core_to_stg.Printer = .{ .interner = &program.env.interner };
     try printer.closure(body.?, &w.writer);
 
     // `bind` is not a machine form: the receiver becomes a one-argument
@@ -734,7 +719,7 @@ test "forcing a global cycle reports it rather than hanging" {
     var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
-    const a = program.interner.lookup("a").?;
+    const a = program.env.interner.lookup("a").?;
     try std.testing.expectError(error.Cycle, machine.force(machine.globals.get(a).?));
 }
 
@@ -759,13 +744,13 @@ test "isLocal separates locals from globals in a real program" {
         .arena = allocator,
         .gpa = allocator,
         .program = &program,
-        .interner = &program.interner,
+        .interner = &program.env.interner,
     };
 
     // Reached by identity: never captured.
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.interner.lookup("Cons").?));
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.interner.lookup("compose").?));
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.interner.lookup("append").?));
+    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("Cons").?));
+    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("compose").?));
+    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("append").?));
 
     // A synthesized primitive is reached by identity like any other.
     {
@@ -775,15 +760,15 @@ test "isLocal separates locals from globals in a real program" {
             .arena = allocator,
             .gpa = allocator,
             .program = &ops,
-            .interner = &ops.interner,
+            .interner = &ops.env.interner,
         };
-        const plus = ops.interner.lookup("op[+]").?;
+        const plus = ops.env.interner.lookup("op[+]").?;
         try std.testing.expect(!translate_mod.Translator.isLocal(&t2, plus));
     }
 
     // A binder is a local, and is what a closure must capture.
     const append_body = for (program.definitions) |definition| {
-        if (definition.symbol == program.interner.lookup("append").?) break definition.body;
+        if (definition.symbol == program.env.interner.lookup("append").?) break definition.body;
     } else unreachable;
     const xs = append_body.kind.lambda.parameter;
     try std.testing.expect(translate_mod.Translator.isLocal(&translator, xs));
@@ -807,10 +792,10 @@ test "the prelude's bodies compile to Core" {
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: core.Printer = .{ .interner = &program.interner };
+    const printer: core.Printer = .{ .interner = &program.env.interner };
     for (program.definitions[0..program.entry_offset], 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} = ", .{program.interner.spelling(definition.symbol)});
+        try w.writer.print("{s} = ", .{program.env.interner.spelling(definition.symbol)});
         try printer.term(definition.body, &w.writer);
     }
 
@@ -859,10 +844,10 @@ test "the prelude's schemes are inferred" {
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
 
-    for (result.program.definitions[0..result.program.entry_offset], 0..) |definition, i| {
+    for (result.definitions[0..result.entry_offset], 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{result.program.interner.spelling(definition.symbol)});
-        try result.checked.schemeOf(definition.symbol).?.format(&w.writer);
+        try w.writer.print("{s} : ", .{result.env.interner.spelling(definition.symbol)});
+        try result.env.schemeOf(definition.symbol).?.format(&w.writer);
     }
 
     try std.testing.expectEqualStrings(
@@ -907,13 +892,13 @@ test "linked components order prelude callees before user callers" {
     var program = try engine.desugarQuery("main = contains (\\n -> [true]);", g, &sink);
     defer program.deinit();
 
-    try std.testing.expectEqualStrings("main", program.interner.spelling(program.entry));
+    try std.testing.expectEqualStrings("main", program.env.interner.spelling(program.entry));
 
     var seen_select = false;
     var seen_contains = false;
     for (program.components) |component| {
         for (component) |index| {
-            const spelling = program.interner.spelling(program.definitions[index].symbol);
+            const spelling = program.env.interner.spelling(program.definitions[index].symbol);
             if (std.mem.eql(u8, spelling, "select")) seen_select = true;
             if (std.mem.eql(u8, spelling, "contains")) {
                 try std.testing.expect(seen_select);
@@ -948,10 +933,10 @@ test "a case binds a constructor's field at its instantiated type" {
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
 
-    for (result.program.entryDefinitions(), 0..) |definition, i| {
+    for (result.entryDefinitions(), 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{result.program.interner.spelling(definition.symbol)});
-        try result.checked.schemeOf(definition.symbol).?.format(&w.writer);
+        try w.writer.print("{s} : ", .{result.env.interner.spelling(definition.symbol)});
+        try result.env.schemeOf(definition.symbol).?.format(&w.writer);
     }
 
     try std.testing.expectEqualStrings(

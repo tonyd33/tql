@@ -14,12 +14,9 @@ pub const Mismatch = unify.Mismatch;
 /// Public for the same reason: a diagnostic renders it.
 pub const Violation = constraints.Violation;
 
-/// Type-checks a linked program, reporting through a `diagnostic.Sink`.
+/// Type-checks a linked program, writing each definition's scheme into its
+/// environment and reporting through a `diagnostic.Sink`.
 pub const check = infer.check;
-
-/// A checked program: the schemes of its definitions, and the arena they live
-/// in.
-pub const Checked = infer.Checked;
 
 pub const Error = infer.Error;
 

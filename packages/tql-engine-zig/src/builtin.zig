@@ -140,81 +140,30 @@ pub fn operatorScheme(
     };
 }
 
-/// The scheme of each primitive, keyed by the id it was interned as.
-pub const Table = struct {
-    schemes: core.SymbolTable(types.Scheme),
+/// Declares the structural types, then interns the primitives with their
+/// schemes. Called once on a fresh environment, before any body is resolved,
+/// so a declaration colliding with a primitive's name fails on intern.
+pub fn populate(target: *core.env.Env) !void {
+    const arena = target.allocator();
+    try target.datatypes.declareStructural(&target.interner, arena);
 
-    pub fn deinit(self: *Table) void {
-        self.schemes.deinit();
+    var rows: std.ArrayList(Row) = .empty;
+    defer rows.deinit(target.gpa);
+    try primitiveSchemes(arena, &target.datatypes, &rows, target.gpa);
+
+    for (rows.items) |row| {
+        const id = try target.interner.intern(row.name, .{ .primop = row.primop });
+        try target.setScheme(id, row.scheme);
     }
+}
 
-    pub fn scheme(self: *const Table, id: core.SymbolId) ?types.Scheme {
-        return self.schemes.get(id);
-    }
-};
-
-/// An interner with the primitives already interned, paired with the table
-/// saying what they are. The two are created and destroyed together because the
-/// ids in one only mean anything against the other.
-pub const Interned = struct {
-    interner: core.Interner,
-    table: Table,
-    datatypes: datatypes.Registry,
-
-    /// Declares the structural types, then interns the primitives. Called
-    /// once, before any body is resolved, so a declaration colliding with a
-    /// primitive's name fails on intern.
-    ///
-    /// `arena` holds the schemes and must outlive the result.
-    pub fn init(allocator: Allocator, arena: Allocator) !Interned {
-        var interner = try core.Interner.init(allocator);
-        errdefer interner.deinit();
-
-        var declared = datatypes.Registry.init(allocator);
-        errdefer declared.deinit();
-        try declared.declareStructural(&interner, arena);
-
-        var table: Table = .{
-            .schemes = core.SymbolTable(types.Scheme).init(allocator),
-        };
-        errdefer table.deinit();
-
-        var rows: std.ArrayList(Row) = .empty;
-        defer rows.deinit(allocator);
-        try primitiveSchemes(arena, &declared, &rows, allocator);
-
-        for (rows.items) |row| {
-            const id = try interner.intern(row.name, .{ .primop = row.primop });
-            try table.schemes.put(id, row.scheme);
-        }
-        return .{ .interner = interner, .table = table, .datatypes = declared };
-    }
-
-    pub fn deinit(self: *Interned) void {
-        self.datatypes.deinit();
-        self.table.deinit();
-        self.interner.deinit();
-    }
-};
-
-/// `Interned` plus the arena its schemes live in.
-const Fixture = struct {
-    arena: std.heap.ArenaAllocator,
-    interned: Interned,
-
-    fn init(gpa: Allocator) !*Fixture {
-        const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .interned = undefined };
-        self.interned = try Interned.init(gpa, self.arena.allocator());
-        return self;
-    }
-
-    fn deinit(self: *Fixture, gpa: Allocator) void {
-        self.interned.deinit();
-        self.arena.deinit();
-        gpa.destroy(self);
-    }
-};
+/// An environment with the primitives already in it.
+fn fixture(gpa: Allocator) !core.env.Env {
+    var target = try core.env.Env.init(gpa);
+    errdefer target.deinit();
+    try populate(&target);
+    return target;
+}
 
 test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
@@ -244,47 +193,44 @@ test "primitives are the documented set" {
 }
 
 test "every primitive is interned, and its scheme and primop are recorded" {
-    const gpa = std.testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
-    const interned = &fix.interned;
+    var target = try fixture(std.testing.allocator);
+    defer target.deinit();
 
-    const text = interned.interner.lookup("text") orelse return error.Missing;
-    try std.testing.expectEqualStrings("text", interned.interner.spelling(text));
-    try std.testing.expectEqual(PrimOp.text, interned.interner.details(text).primop);
-    try std.testing.expect(interned.table.scheme(text) != null);
+    const text = target.interner.lookup("text") orelse return error.Missing;
+    try std.testing.expectEqualStrings("text", target.interner.spelling(text));
+    try std.testing.expectEqual(PrimOp.text, target.interner.details(text).primop);
+    try std.testing.expect(target.schemeOf(text) != null);
 }
 
 test "a declaration colliding with a primitive's name is rejected" {
-    const gpa = std.testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
+    var target = try fixture(std.testing.allocator);
+    defer target.deinit();
 
     try std.testing.expectError(
         error.Collision,
-        fix.interned.interner.intern("children", .vanilla),
+        target.interner.intern("children", .vanilla),
     );
 }
 
 test "operator schemes take scalars, not filters" {
     const gpa = std.testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
-    const arena = fix.arena.allocator();
+    var target = try fixture(gpa);
+    defer target.deinit();
+    const arena = target.allocator();
 
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
 
-    try (try operatorScheme(arena, &fix.interned.datatypes, .eq)).format(&buf.writer);
+    try (try operatorScheme(arena, &target.datatypes, .eq)).format(&buf.writer);
     try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
 
     buf.clearRetainingCapacity();
-    try (try operatorScheme(arena, &fix.interned.datatypes, .add)).format(&buf.writer);
+    try (try operatorScheme(arena, &target.datatypes, .add)).format(&buf.writer);
     try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
 
     // Every operator has one, so a new member fails here rather than at
     // evaluation.
     for (std.enums.values(Scalar)) |operator| {
-        _ = try operatorScheme(arena, &fix.interned.datatypes, operator);
+        _ = try operatorScheme(arena, &target.datatypes, operator);
     }
 }

@@ -27,8 +27,9 @@ pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 /// the program can be returned by value: an `ArenaAllocator`'s allocator holds
 /// a pointer to the arena itself, which moving the struct would dangle.
 pub const Program = struct {
-    allocator: std.mem.Allocator,
-    arena: *std.heap.ArenaAllocator,
+    /// Symbols, declared types, and what passes have learned about them.
+    /// Owns the arena every definition is allocated from.
+    env: core.env.Env,
     definitions: []const core.Definition,
     /// Indices into `definitions`, grouped by strongly connected component in
     /// dependency order.
@@ -38,20 +39,6 @@ pub const Program = struct {
     /// Where the entry module's definitions begin; everything below it was
     /// linked in from a library module.
     entry_offset: u32,
-    interner: core.Interner,
-    primitives: builtin.Table,
-    /// Declared types and their constructors, collected before any body was
-    /// desugared so a constructor reference resolves like any other global.
-    datatypes: datatypes.Registry,
-    annotations: []const desugar.Annotation,
-
-    /// The scheme a signature declared for `id`, if one was written.
-    pub fn annotationOf(self: *const Program, id: core.SymbolId) ?desugar.Annotation {
-        for (self.annotations) |a| {
-            if (a.symbol == id) return a;
-        }
-        return null;
-    }
 
     /// The definitions the entry module declared, in declaration order.
     pub fn entryDefinitions(self: *const Program) []const core.Definition {
@@ -59,11 +46,7 @@ pub const Program = struct {
     }
 
     pub fn deinit(self: *Program) void {
-        self.datatypes.deinit();
-        self.primitives.deinit();
-        self.interner.deinit();
-        self.arena.deinit();
-        self.allocator.destroy(self.arena);
+        self.env.deinit();
     }
 };
 
@@ -73,10 +56,10 @@ pub fn printProgram(
     p: *const Program,
     w: *std.Io.Writer,
 ) std.Io.Writer.Error!void {
-    const printer: core.Printer = .{ .interner = &p.interner };
+    const printer: core.Printer = .{ .interner = &p.env.interner };
     for (p.entryDefinitions(), 0..) |d, i| {
         if (i > 0) try w.writeByte('\n');
-        try w.print("{s} = ", .{p.interner.spelling(d.symbol)});
+        try w.print("{s} = ", .{p.env.interner.spelling(d.symbol)});
         try printer.term(d.body, w);
     }
 }
@@ -88,42 +71,34 @@ pub fn printProgram(
 /// leaving this holding nothing.
 pub const Desugarer = struct {
     allocator: std.mem.Allocator,
-    arena: ?*std.heap.ArenaAllocator,
-    interned: builtin.Interned,
+    /// Null once `finish` has handed it to the `Program`.
+    env: ?core.env.Env,
     modules: std.ArrayList(desugar.Module) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
-        const arena = try allocator.create(std.heap.ArenaAllocator);
-        errdefer allocator.destroy(arena);
-        arena.* = std.heap.ArenaAllocator.init(allocator);
-        errdefer arena.deinit();
+        var target = try core.env.Env.init(allocator);
+        errdefer target.deinit();
+        try builtin.populate(&target);
 
-        return .{
-            .allocator = allocator,
-            .arena = arena,
-            .interned = try builtin.Interned.init(allocator, arena.allocator()),
-        };
+        return .{ .allocator = allocator, .env = target };
     }
 
     pub fn deinit(self: *Desugarer) void {
         self.modules.deinit(self.allocator);
-        const arena = self.arena orelse return;
-        self.interned.deinit();
-        arena.deinit();
-        self.allocator.destroy(arena);
+        if (self.env) |*target| target.deinit();
     }
 
     /// Registers a module's `type` declarations before any body is desugared,
     /// so a constructor reference resolves like any other global.
     fn declareTypes(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
-        const arena = self.arena.?.allocator();
-        const interner = &self.interned.interner;
+        const arena = self.env.?.allocator();
+        const interner = &self.env.?.interner;
 
         for (source.declarations) |*decl| {
             if (decl.* != .type_declaration) continue;
             const declared = &decl.type_declaration;
 
-            if (self.interned.datatypes.lookup(declared.name) != null) {
+            if (self.env.?.datatypes.lookup(declared.name) != null) {
                 try sink.report(
                     .duplicate_definition,
                     declared.span,
@@ -133,7 +108,7 @@ pub const Desugarer = struct {
                 continue;
             }
 
-            const id = try self.interned.datatypes.declare(
+            const id = try self.env.?.datatypes.declare(
                 interner,
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
@@ -170,7 +145,7 @@ pub const Desugarer = struct {
             }
             if (failed) continue;
 
-            self.interned.datatypes.setConstructors(interner, id, constructors);
+            self.env.?.datatypes.setConstructors(interner, id, constructors);
         }
     }
 
@@ -182,7 +157,7 @@ pub const Desugarer = struct {
         declared: cst.TypeDeclaration,
         sink: *diagnostic.Sink,
     ) !?types.Type {
-        const arena = self.arena.?.allocator();
+        const arena = self.env.?.allocator();
         switch (written.kind) {
             .variable => |name| {
                 for (declared.parameters, 0..) |parameter, i| {
@@ -197,15 +172,15 @@ pub const Desugarer = struct {
                 return null;
             },
             .constructor => |name| {
-                if (self.interned.datatypes.lookup(name)) |id| {
-                    return try types.constructed(arena, id, self.interned.datatypes.get(id).name, &.{});
+                if (self.env.?.datatypes.lookup(name)) |id| {
+                    return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
                 }
                 if (annotation.primitiveNamed(name)) |t| return t;
                 try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
                 return null;
             },
             .application => |a| {
-                const id = self.interned.datatypes.lookup(a.constructor) orelse {
+                const id = self.env.?.datatypes.lookup(a.constructor) orelse {
                     try sink.report(
                         .unresolved_name,
                         written.span,
@@ -218,11 +193,11 @@ pub const Desugarer = struct {
                 for (a.arguments, arguments) |argument, *slot| {
                     slot.* = try self.fieldType(argument, declared, sink) orelse return null;
                 }
-                return try types.constructed(arena, id, self.interned.datatypes.get(id).name, arguments);
+                return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, arguments);
             },
             .list => |element| {
                 const inner = try self.fieldType(element.*, declared, sink) orelse return null;
-                return try self.interned.datatypes.list(arena, inner);
+                return try self.env.?.datatypes.list(arena, inner);
             },
             .parenthesized => |inner| return try self.fieldType(inner.*, declared, sink),
             .function => |f| {
@@ -233,7 +208,7 @@ pub const Desugarer = struct {
             .filter => |f| {
                 const input = try self.fieldType(f.input, declared, sink) orelse return null;
                 const output = try self.fieldType(f.output, declared, sink) orelse return null;
-                return try self.interned.datatypes.filter(arena, input, output);
+                return try self.env.?.datatypes.filter(arena, input, output);
             },
             .record => {
                 try sink.report(
@@ -255,8 +230,8 @@ pub const Desugarer = struct {
         g: *const grammar.Grammar,
         sink: *diagnostic.Sink,
     ) !void {
-        const builder = core.Builder{ .allocator = self.arena.?.allocator() };
-        const interner = &self.interned.interner;
+        const builder = core.Builder{ .allocator = self.env.?.allocator() };
+        const interner = &self.env.?.interner;
 
         try self.declareTypes(source, sink);
 
@@ -273,7 +248,7 @@ pub const Desugarer = struct {
             var lowerer = desugar.Lowerer.init(
                 builder,
                 interner,
-                &self.interned.datatypes,
+                &self.env.?.datatypes,
                 &declarations,
                 g.language,
                 sink,
@@ -301,15 +276,13 @@ pub const Desugarer = struct {
             edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
         }
 
-        var annotations: std.ArrayList(desugar.Annotation) = .empty;
-        defer annotations.deinit(self.allocator);
         for (declarations.items.items) |d| {
             const signature = d.signature orelse continue;
             const scheme = annotation.translate(
                 builder.allocator,
                 self.allocator,
                 signature,
-                &self.interned.datatypes,
+                &self.env.?.datatypes,
                 sink,
             ) catch |err| switch (err) {
                 error.BadAnnotation => {
@@ -318,7 +291,7 @@ pub const Desugarer = struct {
                 },
                 else => |e| return e,
             };
-            try annotations.append(self.allocator, .{
+            try self.env.?.annotate(.{
                 .symbol = d.symbol,
                 .scheme = scheme,
                 .span = signature.span,
@@ -330,7 +303,6 @@ pub const Desugarer = struct {
         try self.modules.append(self.allocator, .{
             .definitions = definitions,
             .edges = edges,
-            .annotations = try builder.dupeSlice(desugar.Annotation, annotations.items),
         });
     }
 
@@ -343,8 +315,7 @@ pub const Desugarer = struct {
     ) Error!Program {
         std.debug.assert(self.modules.items.len > 0);
 
-        const arena = self.arena.?;
-        const scratch = arena.allocator();
+        const scratch = self.env.?.allocator();
 
         var total: usize = 0;
         for (self.modules.items) |m| total += m.definitions.len;
@@ -361,21 +332,10 @@ pub const Desugarer = struct {
 
         const main = try entrySymbol(
             definitions[entry_offset..],
-            &self.interned.interner,
+            &self.env.?.interner,
             entry_span,
             sink,
         );
-
-        var annotation_count: usize = 0;
-        for (self.modules.items) |m| annotation_count += m.annotations.len;
-        const annotations = try scratch.alloc(desugar.Annotation, annotation_count);
-        var annotation_offset: usize = 0;
-        for (self.modules.items) |m| {
-            for (m.annotations) |a| {
-                annotations[annotation_offset] = a;
-                annotation_offset += 1;
-            }
-        }
 
         var components_result = try resolve.stronglyConnectedComponents(self.allocator, edges);
         defer components_result.deinit();
@@ -385,18 +345,14 @@ pub const Desugarer = struct {
             components[i] = try scratch.dupe(u32, c);
         }
 
-        self.arena = null;
+        const target = self.env.?;
+        self.env = null;
         return .{
-            .allocator = self.allocator,
-            .arena = arena,
+            .env = target,
             .definitions = definitions,
             .components = components,
             .entry = main,
             .entry_offset = entry_offset,
-            .interner = self.interned.interner,
-            .primitives = self.interned.table,
-            .datatypes = self.interned.datatypes,
-            .annotations = annotations,
         };
     }
 };
