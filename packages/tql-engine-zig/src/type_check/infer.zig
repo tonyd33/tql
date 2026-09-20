@@ -644,7 +644,7 @@ const ProgramGlobals = struct {
     fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
         if (self.program.primitives.scheme(id)) |s| return s;
-        if (self.program.synthesis.get(id)) |s| return try schemes.schemeFor(subst, s);
+        if (self.program.details.get(id)) |s| return try schemes.schemeFor(subst, s);
         return try constructorSchemeOf(subst, &self.program.datatypes, id);
     }
 };
@@ -738,7 +738,7 @@ const Fixture = struct {
     undecided: constraints.Set,
     interner: core.Interner,
     table: core.SymbolTable(types.Scheme),
-    synthesis: tql_to_core.SynthesisTable,
+    details: core.DetailsTable,
     builder: core.Builder,
     datatypes: core.datatypes.Registry,
     inference: Inference,
@@ -751,7 +751,7 @@ const Fixture = struct {
             .undecided = constraints.Set.init(gpa),
             .interner = try core.Interner.init(gpa),
             .table = core.SymbolTable(types.Scheme).init(gpa),
-            .synthesis = tql_to_core.SynthesisTable.init(gpa),
+            .details = core.DetailsTable.init(gpa),
             .builder = undefined,
             .datatypes = core.datatypes.Registry.init(gpa),
             .inference = undefined,
@@ -783,14 +783,14 @@ const Fixture = struct {
     ) Error!?types.Scheme {
         const self: *const Fixture = @ptrCast(@alignCast(context));
         if (self.table.get(id)) |s| return s;
-        if (self.synthesis.get(id)) |s| return try schemes.schemeFor(subst, s);
+        if (self.details.get(id)) |s| return try schemes.schemeFor(subst, s);
         return try constructorSchemeOf(subst, &self.datatypes, id);
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
         self.inference.deinit();
         self.datatypes.deinit();
-        self.synthesis.deinit();
+        self.details.deinit();
         self.table.deinit();
         self.interner.deinit();
         self.undecided.deinit();
@@ -811,9 +811,9 @@ const Fixture = struct {
 
     /// Interns a synthesized symbol under its bracketed spelling, the way the
     /// desugarer does, and records what it was generated from.
-    fn synthesize(self: *Fixture, spelling: []const u8, what: tql_to_core.Synthesis) !core.SymbolId {
+    fn synthesize(self: *Fixture, spelling: []const u8, what: core.Details) !core.SymbolId {
         const id = try self.name(spelling);
-        try self.synthesis.put(id, what);
+        try self.details.put(id, what);
         return id;
     }
 

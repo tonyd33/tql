@@ -14,7 +14,6 @@
 //! these arms already carry.
 
 const std = @import("std");
-const tql_to_core = @import("../tql_to_core.zig");
 const builtin = @import("../builtin.zig");
 const core = @import("../core.zig");
 const datatypes = core.datatypes;
@@ -34,15 +33,15 @@ pub const Error = error{TooManyRecordFields} || Allocator.Error;
 /// `subst` is needed because `record`'s scheme is n-ary in its label
 /// count and must be built at runtime; the other three are comptime constants
 /// and touch it not at all.
-pub fn schemeFor(subst: *Substitution, synthesis: tql_to_core.Synthesis) Error!types.Scheme {
-    return switch (synthesis) {
+pub fn schemeFor(subst: *Substitution, details: core.Details) Error!types.Scheme {
+    return switch (details) {
         // The kind id is resolved and carried, and deliberately unused: a kind
         // test narrows the *value* but not yet the type. W4 is where it starts
         // mattering.
         .kind_test => |k| try kindTest(subst, k.id),
         .kind_axis => |k| try kindAxis(subst, k.id),
         .field => |f| try fieldAccess(subst, f.id),
-        // Already written and unit-tested in `primitives.zig`; a property of
+        // Already written and unit-tested in `builtin.zig`; a property of
         // the operator, not of the interned id.
         .operator => |operator| try builtin.operatorScheme(
             subst.arena,
@@ -147,8 +146,8 @@ const Fixture = struct {
         gpa.destroy(self);
     }
 
-    fn expectScheme(self: *Fixture, synthesis: tql_to_core.Synthesis, expected: []const u8) !void {
-        const scheme = try schemeFor(&self.subst, synthesis);
+    fn expectScheme(self: *Fixture, details: core.Details, expected: []const u8) !void {
+        const scheme = try schemeFor(&self.subst, details);
         var buf: std.Io.Writer.Allocating = .init(testing.allocator);
         defer buf.deinit();
         try scheme.format(&buf.writer);

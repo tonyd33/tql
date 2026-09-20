@@ -7,11 +7,6 @@ const desugar = @import("tql_to_core/desugar.zig");
 /// A written signature, translated to a scheme.
 pub const Annotation = desugar.Annotation;
 
-/// What a synthesized symbol was generated from.
-pub const Synthesis = desugar.Synthesis;
-
-pub const SynthesisTable = desugar.SynthesisTable;
-
 /// Desugars source files into one linked `Program`.
 pub const Desugarer = link.Desugarer;
 

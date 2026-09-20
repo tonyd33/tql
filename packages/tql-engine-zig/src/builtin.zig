@@ -7,61 +7,8 @@ const Allocator = std.mem.Allocator;
 
 /// A scalar operator, which desugaring synthesizes an `op[...]` symbol for.
 ///
-/// The surface has four more binary operators. `|`, `,`, `and` and `or`
-/// desugar to prelude combinators and never reach here.
-pub const Scalar = enum {
-    eq,
-    ne,
-    lt,
-    lte,
-    gt,
-    gte,
-    match,
-    not_match,
-    add,
-    subtract,
-    multiply,
-    divide,
-    modulo,
-
-    /// How the operator is written, and how its symbol is named.
-    pub fn spelling(self: Scalar) []const u8 {
-        return switch (self) {
-            .eq => "=",
-            .ne => "!=",
-            .lt => "<",
-            .lte => "<=",
-            .gt => ">",
-            .gte => ">=",
-            .match => "~",
-            .not_match => "!~",
-            .add => "+",
-            .subtract => "-",
-            .multiply => "*",
-            .divide => "/",
-            .modulo => "%",
-        };
-    }
-};
-
-pub const Lowering = enum {
-    text,
-    kind,
-    range,
-    length,
-    toint,
-    filename,
-    parent,
-    ancestors,
-    children,
-    descendants,
-    children_of_kind,
-    descendants_of_kind,
-    is_kind,
-    field,
-    operator,
-    record,
-};
+const Scalar = core.Scalar;
+const PrimOp = core.PrimOp;
 
 /// Builds the primitive schemes into `arena`.
 ///
@@ -80,17 +27,17 @@ fn primitiveSchemes(
     try out.append(gpa, .{
         .name = "text",
         .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
-        .lowering = .text,
+        .primop = .text,
     });
     try out.append(gpa, .{
         .name = "kind",
         .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
-        .lowering = .kind,
+        .primop = .kind,
     });
     try out.append(gpa, .{
         .name = "range",
         .scheme = .{ .type = try B.func(types.node_type, types.range_type) },
-        .lowering = .range,
+        .primop = .range,
     });
     try out.append(gpa, .{
         .name = "length",
@@ -101,28 +48,28 @@ fn primitiveSchemes(
             }),
             .type = try B.func(a, types.int_type),
         },
-        .lowering = .length,
+        .primop = .length,
     });
     try out.append(gpa, .{
         .name = "toint",
         .scheme = .{ .type = try B.filter(types.string_type, types.int_type) },
-        .lowering = .toint,
+        .primop = .toint,
     });
     try out.append(gpa, .{
         .name = "filename",
         .scheme = .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
-        .lowering = .filename,
+        .primop = .filename,
     });
     inline for (.{
-        .{ "parent", Lowering.parent },
-        .{ "ancestors", Lowering.ancestors },
-        .{ "children", Lowering.children },
-        .{ "descendants", Lowering.descendants },
+        .{ "parent", PrimOp.parent },
+        .{ "ancestors", PrimOp.ancestors },
+        .{ "children", PrimOp.children },
+        .{ "descendants", PrimOp.descendants },
     }) |axis| {
         try out.append(gpa, .{
             .name = axis[0],
             .scheme = .{ .type = try B.filter(types.node_type, types.node_type) },
-            .lowering = axis[1],
+            .primop = axis[1],
         });
     }
 }
@@ -130,7 +77,7 @@ fn primitiveSchemes(
 const Row = struct {
     name: []const u8,
     scheme: types.Scheme,
-    lowering: Lowering,
+    primop: PrimOp,
 };
 
 /// Type construction against one arena and registry.
@@ -196,23 +143,23 @@ pub fn operatorScheme(
 /// What each primitive is, keyed by the id it was interned as.
 pub const Table = struct {
     schemes: core.SymbolTable(types.Scheme),
-    lowerings: core.SymbolTable(Lowering),
+    primops: core.SymbolTable(PrimOp),
 
     pub fn deinit(self: *Table) void {
         self.schemes.deinit();
-        self.lowerings.deinit();
+        self.primops.deinit();
     }
 
     pub fn scheme(self: *const Table, id: core.SymbolId) ?types.Scheme {
         return self.schemes.get(id);
     }
 
-    pub fn lowering(self: *const Table, id: core.SymbolId) ?Lowering {
-        return self.lowerings.get(id);
+    pub fn primop(self: *const Table, id: core.SymbolId) ?PrimOp {
+        return self.primops.get(id);
     }
 
     pub fn contains(self: *const Table, id: core.SymbolId) bool {
-        return self.lowerings.get(id) != null;
+        return self.primops.get(id) != null;
     }
 };
 
@@ -239,7 +186,7 @@ pub const Interned = struct {
 
         var table: Table = .{
             .schemes = core.SymbolTable(types.Scheme).init(allocator),
-            .lowerings = core.SymbolTable(Lowering).init(allocator),
+            .primops = core.SymbolTable(PrimOp).init(allocator),
         };
         errdefer table.deinit();
 
@@ -250,7 +197,7 @@ pub const Interned = struct {
         for (rows.items) |row| {
             const id = try interner.intern(row.name);
             try table.schemes.put(id, row.scheme);
-            try table.lowerings.put(id, row.lowering);
+            try table.primops.put(id, row.primop);
         }
         return .{ .interner = interner, .table = table, .datatypes = declared };
     }
@@ -308,7 +255,7 @@ test "primitives are the documented set" {
     }
 }
 
-test "every primitive is interned, and its scheme and lowering are recorded" {
+test "every primitive is interned, and its scheme and primop are recorded" {
     const gpa = std.testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -317,7 +264,7 @@ test "every primitive is interned, and its scheme and lowering are recorded" {
     const text = interned.interner.lookup("text") orelse return error.Missing;
     try std.testing.expectEqualStrings("text", interned.interner.spelling(text));
     try std.testing.expect(interned.table.contains(text));
-    try std.testing.expectEqual(Lowering.text, interned.table.lowering(text).?);
+    try std.testing.expectEqual(PrimOp.text, interned.table.primop(text).?);
     try std.testing.expect(interned.table.scheme(text) != null);
 }
 

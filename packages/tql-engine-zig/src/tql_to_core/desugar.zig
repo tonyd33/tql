@@ -13,30 +13,13 @@ const types = core.types;
 
 pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
-/// What a synthesized symbol was generated from. The information must be
-/// injected at this step as its unrecoverable later.
-pub const Synthesis = union(enum) {
-    /// `is_kind[k]`, carrying the resolved grammar kind ID.
-    kind_test: struct { name: []const u8, id: u16 },
-    /// `descendants_of_kind[k]` or `children_of_kind[k]`, carrying the
-    /// resolved grammar kind ID.
-    kind_axis: struct { name: []const u8, id: u16, lowering: builtin.Lowering },
-    /// `field[l]`, carrying the resolved grammar field ID.
-    field: struct { name: []const u8, id: u16 },
-    /// `op[+]` and friends.
-    operator: builtin.Scalar,
-    /// `record[l,...]`, labels in normalized order. The scheme is n-ary
-    /// in the field count, so inference builds it from these rather than
-    /// reading one off a table.
-    record: []const []const u8,
-};
-
-pub const SynthesisTable = core.SymbolTable(Synthesis);
+const Details = core.Details;
+const DetailsTable = core.DetailsTable;
 
 pub const Lowerer = struct {
     interner: *core.Interner,
     datatypes: *const datatypes.Registry,
-    synthesis: *SynthesisTable,
+    details: *DetailsTable,
     declarations: *const resolve.Declarations,
     language: *const ts.Language,
     sink: *diagnostic.Sink,
@@ -50,7 +33,7 @@ pub const Lowerer = struct {
         builder: core.Builder,
         interner: *core.Interner,
         declared: *const datatypes.Registry,
-        synthesis: *SynthesisTable,
+        details: *DetailsTable,
         declarations: *const resolve.Declarations,
         language: *const ts.Language,
         sink: *diagnostic.Sink,
@@ -58,7 +41,7 @@ pub const Lowerer = struct {
         return .{
             .interner = interner,
             .datatypes = declared,
-            .synthesis = synthesis,
+            .details = details,
             .declarations = declarations,
             .language = language,
             .sink = sink,
@@ -216,7 +199,7 @@ pub const Lowerer = struct {
 
     /// The primitives spelled `name :k`, taking a kind token rather than a
     /// value. Each is one Core symbol, not an application.
-    const kind_forms = [_]struct { spelling: []const u8, axis: ?builtin.Lowering }{
+    const kind_forms = [_]struct { spelling: []const u8, axis: ?core.PrimOp }{
         .{ .spelling = "is_kind", .axis = null },
         .{ .spelling = "children_of_kind", .axis = .children_of_kind },
         .{ .spelling = "descendants_of_kind", .axis = .descendants_of_kind },
@@ -247,7 +230,7 @@ pub const Lowerer = struct {
     fn synthesizeKindForm(
         self: *Lowerer,
         spelling: []const u8,
-        axis: ?builtin.Lowering,
+        axis: ?core.PrimOp,
         name: []const u8,
         span: diagnostic.Span,
     ) Error!core.SymbolId {
@@ -262,8 +245,8 @@ pub const Lowerer = struct {
             return error.DesugarFailed;
         }
         const duped = try self.builder.dupe(name);
-        const what: Synthesis = if (axis) |lowering|
-            .{ .kind_axis = .{ .name = duped, .id = id, .lowering = lowering } }
+        const what: Details = if (axis) |primop|
+            .{ .kind_axis = .{ .name = duped, .id = id, .primop = primop } }
         else
             .{ .kind_test = .{ .name = duped, .id = id } };
         return try self.synthesize("{s}[{s}]", .{ spelling, name }, what);
@@ -276,11 +259,11 @@ pub const Lowerer = struct {
         // IMPROVE: normalize differently in a non-stupid way
         comptime spelling_format: []const u8,
         spelling_args: anytype,
-        what: Synthesis,
+        what: Details,
     ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
         const id = try self.interner.internOrGet(spelling);
-        try self.synthesis.put(id, what);
+        try self.details.put(id, what);
         return id;
     }
 
@@ -519,7 +502,7 @@ pub const Lowerer = struct {
 
         // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
         // never lifted over filters.
-        const scalar: builtin.Scalar = switch (b.operator) {
+        const scalar: core.Scalar = switch (b.operator) {
             .divide => .divide,
             .multiply => .multiply,
             .modulo => .modulo,

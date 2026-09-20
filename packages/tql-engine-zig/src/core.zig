@@ -15,8 +15,14 @@ const pcre2 = @import("regex.zig");
 const diagnostic = @import("diagnostic.zig");
 
 pub const symbols = @import("core/symbols.zig");
+pub const details = @import("core/details.zig");
 pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
+
+pub const Details = details.Details;
+pub const DetailsTable = details.DetailsTable;
+pub const PrimOp = details.PrimOp;
+pub const Scalar = details.Scalar;
 
 pub const SymbolId = symbols.SymbolId;
 pub const SymbolTable = symbols.SymbolTable;

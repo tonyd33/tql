@@ -27,7 +27,7 @@ const Callee = union(enum) {
     local: core.SymbolId,
     global: core.SymbolId,
     constructor: *const datatypes.Constructor,
-    primitive: builtin.Lowering,
+    primitive: core.PrimOp,
 };
 
 /// Bindings an expression needed before it could be written, in allocation
@@ -71,9 +71,9 @@ pub const Translator = struct {
         if (self.program.datatypes.constructorOf(symbol) != null) return false;
         if (self.program.primitives.contains(symbol)) return false;
         // A synthesized symbol is reached by identity too. These are in the
-        // synthesis table, not the primitive table; missing them here makes a
+        // details table, not the primitive table; missing them here makes a
         // closure try to capture an operator.
-        if (self.program.synthesis.get(symbol) != null) return false;
+        if (self.program.details.get(symbol) != null) return false;
         for (self.program.definitions) |definition| {
             if (definition.symbol == symbol) return false;
         }
@@ -84,14 +84,14 @@ pub const Translator = struct {
         if (self.program.datatypes.constructorOf(name)) |constructor| {
             return .{ .constructor = constructor };
         }
-        if (self.program.primitives.lowering(name)) |lowering| {
-            return .{ .primitive = lowering };
+        if (self.program.primitives.primop(name)) |primop| {
+            return .{ .primitive = primop };
         }
         // A synthesized symbol lowers like a primitive.
-        if (self.program.synthesis.get(name)) |synthesis| {
-            return .{ .primitive = switch (synthesis) {
+        if (self.program.details.get(name)) |details| {
+            return .{ .primitive = switch (details) {
                 .kind_test => .is_kind,
-                .kind_axis => |k| k.lowering,
+                .kind_axis => |k| k.primop,
                 .field => .field,
                 .operator => .operator,
                 .record => .record,
@@ -146,8 +146,8 @@ pub const Translator = struct {
                 },
                 // A primitive passed as a value, as `select p = branch p
                 // identity empty` passes both of its arms.
-                .primitive => |lowering| {
-                    const wrapper = try self.primitiveWrapper(name, lowering);
+                .primitive => |primop| {
+                    const wrapper = try self.primitiveWrapper(name, primop);
                     return try self.bindClosure(wrapper, hoisted);
                 },
             },
@@ -367,7 +367,7 @@ pub const Translator = struct {
                     };
                     return .{ .constructed = node };
                 },
-                .primitive => |lowering| {
+                .primitive => |primop| {
                     // A primitive node is saturated by construction, so the
                     // evaluator runs it without an arity check. An
                     // under-applied one becomes a call to its wrapper.
@@ -375,14 +375,14 @@ pub const Translator = struct {
                     if (arguments.len == wanted) {
                         const node = try self.arena.create(stg.Expr.Primitive);
                         node.* = .{
-                            .lowering = lowering,
+                            .primop = primop,
                             .symbol = head.kind.symbol,
                             .arguments = arguments,
                         };
                         return .{ .primitive = node };
                     }
 
-                    const wrapper = try self.primitiveWrapper(head.kind.symbol, lowering);
+                    const wrapper = try self.primitiveWrapper(head.kind.symbol, primop);
                     const node = try self.arena.create(stg.Expr.Apply);
                     node.* = .{
                         .callee = try self.bindClosure(wrapper, hoisted),
@@ -407,8 +407,8 @@ pub const Translator = struct {
     /// primitive counts its input, making `pure` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
-        if (self.program.synthesis.get(name)) |synthesis| {
-            return switch (synthesis) {
+        if (self.program.details.get(name)) |details| {
+            return switch (details) {
                 // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
                 // `Filter Node Node`, one argument; an operator takes two
                 // scalars.
@@ -430,7 +430,7 @@ pub const Translator = struct {
     fn primitiveWrapper(
         self: *Translator,
         name: core.SymbolId,
-        lowering: builtin.Lowering,
+        primop: core.PrimOp,
     ) Error!*const stg.Closure {
         const arity = try self.primitiveArity(name);
         if (arity == 0) return error.Unsupported;
@@ -445,7 +445,7 @@ pub const Translator = struct {
         }
 
         const call_node = try self.arena.create(stg.Expr.Primitive);
-        call_node.* = .{ .lowering = lowering, .symbol = name, .arguments = arguments };
+        call_node.* = .{ .primop = primop, .symbol = name, .arguments = arguments };
 
         const node = try self.arena.create(stg.Closure);
         node.* = .{

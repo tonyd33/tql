@@ -102,9 +102,9 @@ pub const Expr = union(enum) {
     };
 
     pub const Primitive = struct {
-        lowering: builtin.Lowering,
+        primop: core.PrimOp,
         /// The symbol it was reached through. `op[+]` and `op[-]` share a
-        /// Lowering; look this up in the synthesis table to tell them apart.
+        /// PrimOp; look this up in the details table to tell them apart.
         symbol: core.SymbolId,
         arguments: []const Atom,
     };

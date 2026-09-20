@@ -355,7 +355,7 @@ test "synthesized symbols carry the grammar ids they resolved" {
     defer program.deinit();
 
     const kind = program.interner.lookup("is_kind[class_declaration]").?;
-    const kind_what = program.synthesis.get(kind).?;
+    const kind_what = program.details.get(kind).?;
     try std.testing.expectEqualStrings("class_declaration", kind_what.kind_test.name);
     try std.testing.expectEqual(
         g.language.idForNodeKind("class_declaration", true),
@@ -363,14 +363,14 @@ test "synthesized symbols carry the grammar ids they resolved" {
     );
 
     const field = program.interner.lookup("field[name]").?;
-    const field_what = program.synthesis.get(field).?;
+    const field_what = program.details.get(field).?;
     try std.testing.expectEqualStrings("name", field_what.field.name);
     try std.testing.expectEqual(g.language.fieldIdForName("name"), field_what.field.id);
 
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
     const text = program.interner.lookup("text").?;
     try std.testing.expect(program.primitives.contains(text));
-    try std.testing.expectEqual(null, program.synthesis.get(text));
+    try std.testing.expectEqual(null, program.details.get(text));
     try std.testing.expect(!program.primitives.contains(kind));
 }
 

@@ -27,7 +27,7 @@ pub fn run(program: *tql_to_core.Program) Error!void {
     var pass: Pass = .{
         .builder = .{ .allocator = program.arena.allocator() },
         .interner = &program.interner,
-        .synthesis = &program.synthesis,
+        .details = &program.details,
         .primitives = &program.primitives,
         .compose = compose,
     };
@@ -145,7 +145,7 @@ test "an axis with no kind test is left alone" {
 const Pass = struct {
     builder: core.Builder,
     interner: *core.Interner,
-    synthesis: *tql_to_core.SynthesisTable,
+    details: *core.DetailsTable,
     primitives: *const builtin.Table,
     compose: core.SymbolId,
 
@@ -239,7 +239,7 @@ const Pass = struct {
             .symbol => |id| id,
             else => return null,
         };
-        const fused: builtin.Lowering = switch (self.loweringOf(axis) orelse return null) {
+        const fused: core.PrimOp = switch (self.primopOf(axis) orelse return null) {
             .children => .children_of_kind,
             .descendants => .descendants_of_kind,
             else => return null,
@@ -254,7 +254,7 @@ const Pass = struct {
             .symbol => |s| s,
             else => return null,
         };
-        return switch (self.synthesis.get(id) orelse return null) {
+        return switch (self.details.get(id) orelse return null) {
             .kind_test => |k| .{ .name = k.name, .id = k.id },
             else => null,
         };
@@ -262,26 +262,26 @@ const Pass = struct {
 
     /// The primitive a symbol names, when it names one. A local binding that
     /// shadows the name is a different symbol, so this cannot confuse the two.
-    fn loweringOf(self: *const Pass, id: core.SymbolId) ?builtin.Lowering {
-        return self.primitives.lowering(id);
+    fn primopOf(self: *const Pass, id: core.SymbolId) ?core.PrimOp {
+        return self.primitives.primop(id);
     }
 
     /// The synthesized symbol for a fused axis, interned and recorded the way
     /// desugaring would have written it.
     fn kindAxisSymbol(
         self: *Pass,
-        lowering: builtin.Lowering,
+        primop: core.PrimOp,
         kind: Kind,
     ) Error!core.SymbolId {
         const spelling = try self.builder.print("{s}[{s}]", .{
-            @tagName(lowering),
+            @tagName(primop),
             kind.name,
         });
         const id = try self.interner.internOrGet(spelling);
-        try self.synthesis.put(id, .{ .kind_axis = .{
+        try self.details.put(id, .{ .kind_axis = .{
             .name = kind.name,
             .id = kind.id,
-            .lowering = lowering,
+            .primop = primop,
         } });
         return id;
     }

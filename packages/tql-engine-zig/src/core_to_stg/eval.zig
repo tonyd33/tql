@@ -72,7 +72,7 @@ pub const Machine = struct {
     datatypes: *const datatypes.Registry,
     /// What each synthesized primitive was generated from. `op[+]` and `op[-]`
     /// share a `Lowering`, so the spelling comes from here.
-    synthesis: *const tql_to_core.SynthesisTable,
+    details: *const core.DetailsTable,
     /// Reaches the prelude definitions a primitive delegates to.
     interner: *const core.Interner,
     /// One thunk per global, allocated before the run and forced at most once.
@@ -135,7 +135,7 @@ pub const Machine = struct {
             .arena = arena,
             .program = program,
             .datatypes = &source.datatypes,
-            .synthesis = &source.synthesis,
+            .details = &source.details,
             .interner = &source.interner,
             .globals = globals,
             .gpa = gpa,
@@ -481,7 +481,7 @@ pub const Machine = struct {
         call: *const stg.Expr.Primitive,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
-        switch (call.lowering) {
+        switch (call.primop) {
             // `length` forces the spine, so it diverges on an infinite list.
             .length => {
                 if (arguments.len != 1) return error.TypeError;
@@ -510,10 +510,10 @@ pub const Machine = struct {
             .operator => return try self.operator(call, arguments),
 
             // Fields are scalars and stay unforced. The labels come from the
-            // synthesis table, already sorted.
+            // details table, already sorted.
             .record => {
-                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
-                const labels = switch (synthesis) {
+                const details = self.details.get(call.symbol) orelse return error.TypeError;
+                const labels = switch (details) {
                     .record => |l| l,
                     else => return error.TypeError,
                 };
@@ -545,8 +545,8 @@ pub const Machine = struct {
             // `[x]` when the static kind matches, otherwise `[]`.
             .is_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
-                const wanted = switch (synthesis) {
+                const details = self.details.get(call.symbol) orelse return error.TypeError;
+                const wanted = switch (details) {
                     .kind_test => |k| k.id,
                     else => return error.TypeError,
                 };
@@ -633,8 +633,8 @@ pub const Machine = struct {
             // grammar knows but this node lacks yields no output.
             .field => {
                 const subject = try self.nodeArgument(arguments);
-                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
-                const field_id = switch (synthesis) {
+                const details = self.details.get(call.symbol) orelse return error.TypeError;
+                const field_id = switch (details) {
                     .field => |f| f.id,
                     else => return error.TypeError,
                 };
@@ -651,12 +651,12 @@ pub const Machine = struct {
             // into the advance, so the list holds only matches.
             .children_of_kind, .descendants_of_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
-                const kind_id = switch (synthesis) {
+                const details = self.details.get(call.symbol) orelse return error.TypeError;
+                const kind_id = switch (details) {
                     .kind_axis => |k| k.id,
                     else => return error.TypeError,
                 };
-                const descendants = call.lowering == .descendants_of_kind;
+                const descendants = call.primop == .descendants_of_kind;
                 const cursor = try self.newCursor(subject);
                 return try self.step(.{
                     .cursor = cursor,
@@ -775,8 +775,8 @@ pub const Machine = struct {
         arguments: []const *value.Thunk,
     ) Error!value.Value {
         if (arguments.len != 2) return error.TypeError;
-        const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
-        const scalar = switch (synthesis) {
+        const details = self.details.get(call.symbol) orelse return error.TypeError;
+        const scalar = switch (details) {
             .operator => |o| o,
             else => return error.TypeError,
         };

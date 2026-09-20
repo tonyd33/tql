@@ -77,7 +77,7 @@ pub const Printer = struct {
                 try self.atoms(c.fields, w);
             },
             .primitive => |p| {
-                try w.print("{s}#", .{@tagName(p.lowering)});
+                try w.print("{s}#", .{@tagName(p.primop)});
                 try self.atoms(p.arguments, w);
             },
             .case => |c| {
