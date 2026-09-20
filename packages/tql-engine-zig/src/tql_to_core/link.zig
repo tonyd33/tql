@@ -7,17 +7,16 @@
 //! whole-program pass does not depend on either.
 
 const std = @import("std");
-const core = @import("../lang/core.zig");
+const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
-const datatypes = @import("../lang/datatypes.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
+const diagnostic = @import("../diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
-const tql_to_core = @import("lower.zig");
-const primitives = @import("../lang/primitives.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const desugar = @import("desugar.zig");
+const builtin = @import("../builtin.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 
@@ -35,22 +34,22 @@ pub const Program = struct {
     /// dependency order.
     components: []const []const u32,
     /// The linked program's `main`.
-    entry: symbols.SymbolId,
+    entry: core.SymbolId,
     /// Where the entry module's definitions begin; everything below it was
     /// linked in from a library module.
     entry_offset: u32,
-    interner: symbols.Interner,
-    primitives: primitives.Table,
+    interner: core.Interner,
+    primitives: builtin.Table,
     /// Declared types and their constructors, collected before any body was
     /// desugared so a constructor reference resolves like any other global.
     datatypes: datatypes.Registry,
     /// What each synthesized symbol was generated from, merged from the linked
     /// modules. Desugaring's output: nothing downstream has the grammar.
-    synthesis: tql_to_core.SynthesisTable,
-    annotations: []const tql_to_core.Annotation,
+    synthesis: desugar.SynthesisTable,
+    annotations: []const desugar.Annotation,
 
     /// The scheme a signature declared for `id`, if one was written.
-    pub fn annotationOf(self: *const Program, id: symbols.SymbolId) ?tql_to_core.Annotation {
+    pub fn annotationOf(self: *const Program, id: core.SymbolId) ?desugar.Annotation {
         for (self.annotations) |a| {
             if (a.symbol == id) return a;
         }
@@ -94,11 +93,11 @@ pub fn printProgram(
 pub const Desugarer = struct {
     allocator: std.mem.Allocator,
     arena: ?*std.heap.ArenaAllocator,
-    interned: primitives.Interned,
+    interned: builtin.Interned,
     /// Shared across every module in the link, so a symbol is one symbol
     /// whichever module synthesized it.
-    synthesis: tql_to_core.SynthesisTable,
-    modules: std.ArrayList(tql_to_core.Module) = .empty,
+    synthesis: desugar.SynthesisTable,
+    modules: std.ArrayList(desugar.Module) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         const arena = try allocator.create(std.heap.ArenaAllocator);
@@ -109,8 +108,8 @@ pub const Desugarer = struct {
         return .{
             .allocator = allocator,
             .arena = arena,
-            .interned = try primitives.Interned.init(allocator, arena.allocator()),
-            .synthesis = tql_to_core.SynthesisTable.init(allocator),
+            .interned = try builtin.Interned.init(allocator, arena.allocator()),
+            .synthesis = desugar.SynthesisTable.init(allocator),
         };
     }
 
@@ -279,7 +278,7 @@ pub const Desugarer = struct {
         // IMPROVE: desugar the entire module at once with a single desugar pass?
         var failed = false;
         for (declarations.items.items, 0..) |d, i| {
-            var lowerer = tql_to_core.Lowerer.init(
+            var lowerer = desugar.Lowerer.init(
                 builder,
                 interner,
                 &self.interned.datatypes,
@@ -311,7 +310,7 @@ pub const Desugarer = struct {
             edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
         }
 
-        var annotations: std.ArrayList(tql_to_core.Annotation) = .empty;
+        var annotations: std.ArrayList(desugar.Annotation) = .empty;
         defer annotations.deinit(self.allocator);
         for (declarations.items.items) |d| {
             const signature = d.signature orelse continue;
@@ -340,7 +339,7 @@ pub const Desugarer = struct {
         try self.modules.append(self.allocator, .{
             .definitions = definitions,
             .edges = edges,
-            .annotations = try builder.dupeSlice(tql_to_core.Annotation, annotations.items),
+            .annotations = try builder.dupeSlice(desugar.Annotation, annotations.items),
         });
     }
 
@@ -378,7 +377,7 @@ pub const Desugarer = struct {
 
         var annotation_count: usize = 0;
         for (self.modules.items) |m| annotation_count += m.annotations.len;
-        const annotations = try scratch.alloc(tql_to_core.Annotation, annotation_count);
+        const annotations = try scratch.alloc(desugar.Annotation, annotation_count);
         var annotation_offset: usize = 0;
         for (self.modules.items) |m| {
             for (m.annotations) |a| {
@@ -416,7 +415,7 @@ pub const Desugarer = struct {
 /// edges into linked indices. Returns how many it placed.
 fn place(
     scratch: std.mem.Allocator,
-    m: tql_to_core.Module,
+    m: desugar.Module,
     definitions: []core.Definition,
     edges: [][]const u32,
     offset: u32,
@@ -434,10 +433,10 @@ fn place(
 
 fn entrySymbol(
     entry_definitions: []const core.Definition,
-    interner: *const symbols.Interner,
+    interner: *const core.Interner,
     entry_span: diagnostic.Span,
     sink: *diagnostic.Sink,
-) Error!symbols.SymbolId {
+) Error!core.SymbolId {
     for (entry_definitions) |d| {
         if (std.mem.eql(u8, interner.spelling(d.symbol), "main")) return d.symbol;
     }

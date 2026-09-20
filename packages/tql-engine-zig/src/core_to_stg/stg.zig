@@ -26,10 +26,9 @@
 //! is passed, so `Cons h (append t ys)` cannot be spelled.
 
 const std = @import("std");
-const core = @import("../lang/core.zig");
-const datatypes = @import("../lang/datatypes.zig");
-const primitives = @import("../lang/primitives.zig");
-const symbols = @import("../lang/symbols.zig");
+const core = @import("../core.zig");
+const datatypes = core.datatypes;
+const builtin = @import("../builtin.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -41,13 +40,13 @@ const Allocator = std.mem.Allocator;
 /// printing and for the debug check that the slot holds what the atom meant.
 pub const Local = struct {
     offset: u32,
-    name: symbols.SymbolId,
+    name: core.SymbolId,
 };
 
 /// An argument. Never a compound expression.
 pub const Atom = union(enum) {
     local: Local,
-    global: symbols.SymbolId,
+    global: core.SymbolId,
     literal: core.Literal,
 };
 
@@ -60,19 +59,19 @@ pub const Closure = struct {
     /// scope it was written in.
     free: []const Local,
     update: Update,
-    parameters: []const symbols.SymbolId,
+    parameters: []const core.SymbolId,
     body: Expr,
 };
 
 /// A saturated constructor application.
 pub const Constructed = struct {
-    constructor: symbols.SymbolId,
+    constructor: core.SymbolId,
     tag: u32,
     fields: []const Atom,
 };
 
 pub const Binding = struct {
-    binder: symbols.SymbolId,
+    binder: core.SymbolId,
     value: Allocation,
 };
 
@@ -82,10 +81,10 @@ pub const Allocation = union(enum) {
 };
 
 pub const Alternative = struct {
-    constructor: symbols.SymbolId,
+    constructor: core.SymbolId,
     tag: u32,
     /// One per constructor field, bound to it in field order.
-    binders: []const symbols.SymbolId,
+    binders: []const core.SymbolId,
     body: Expr,
 };
 
@@ -103,10 +102,10 @@ pub const Expr = union(enum) {
     };
 
     pub const Primitive = struct {
-        lowering: primitives.Lowering,
+        lowering: builtin.Lowering,
         /// The symbol it was reached through. `op[+]` and `op[-]` share a
         /// Lowering; look this up in the synthesis table to tell them apart.
-        symbol: symbols.SymbolId,
+        symbol: core.SymbolId,
         arguments: []const Atom,
     };
 
@@ -127,7 +126,7 @@ pub const Expr = union(enum) {
 };
 
 pub const Definition = struct {
-    symbol: symbols.SymbolId,
+    symbol: core.SymbolId,
     /// A global is a thunk of no arguments, even when its body is a
     /// constructor application.
     value: *const Closure,
@@ -136,7 +135,7 @@ pub const Definition = struct {
 /// A translated program, and the arena its terms live in.
 pub const Program = struct {
     definitions: []const Definition,
-    entry: symbols.SymbolId,
+    entry: core.SymbolId,
     arena: *std.heap.ArenaAllocator,
 
     /// Held by pointer: moving an `ArenaAllocator` struct dangles every
@@ -152,7 +151,7 @@ test "an alternative's position is its tag" {
     // The evaluator indexes `alternatives` by the scrutinee's tag rather than
     // searching for a matching constructor, which is only sound while the
     // translation keeps them in tag order.
-    const pair = [_]symbols.SymbolId{ @enumFromInt(7), @enumFromInt(8) };
+    const pair = [_]core.SymbolId{ @enumFromInt(7), @enumFromInt(8) };
     const alternatives = [_]Alternative{
         .{ .constructor = @enumFromInt(0), .tag = 0, .binders = &.{}, .body = .{ .atom = .{ .literal = .{ .number = 1 } } } },
         .{ .constructor = @enumFromInt(1), .tag = 1, .binders = &pair, .body = .{ .atom = .{ .literal = .{ .number = 2 } } } },
@@ -164,7 +163,7 @@ test "an alternative's position is its tag" {
 
 test "a thunk is a closure of no arguments that updates" {
     const body: Expr = .{ .atom = .{ .literal = .{ .number = 1 } } };
-    const one = [_]symbols.SymbolId{@enumFromInt(1)};
+    const one = [_]core.SymbolId{@enumFromInt(1)};
     const thunk: Closure = .{ .free = &.{}, .update = .updatable, .parameters = &.{}, .body = body };
     const function: Closure = .{ .free = &.{}, .update = .single_entry, .parameters = &one, .body = body };
 

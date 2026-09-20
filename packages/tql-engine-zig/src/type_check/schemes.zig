@@ -15,11 +15,10 @@
 
 const std = @import("std");
 const tql_to_core = @import("../tql_to_core.zig");
-const datatypes = @import("../lang/datatypes.zig");
-const primitives = @import("../lang/primitives.zig");
-const datatypes_mod = @import("../lang/datatypes.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const builtin = @import("../builtin.zig");
+const core = @import("../core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Allocator = std.mem.Allocator;
 const Substitution = @import("substitution.zig").Substitution;
@@ -45,7 +44,7 @@ pub fn schemeFor(subst: *Substitution, synthesis: tql_to_core.Synthesis) Error!t
         .field => |f| try fieldAccess(subst, f.id),
         // Already written and unit-tested in `primitives.zig`; a property of
         // the operator, not of the interned id.
-        .operator => |operator| try primitives.operatorScheme(
+        .operator => |operator| try builtin.operatorScheme(
             subst.arena,
             subst.datatypes,
             operator,
@@ -129,12 +128,12 @@ const testing = std.testing;
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
-    interner: symbols.Interner,
-    datatypes: datatypes_mod.Registry,
+    interner: core.Interner,
+    datatypes: core.datatypes.Registry,
 
     fn init(gpa: Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try symbols.Interner.init(gpa), .datatypes = datatypes_mod.Registry.init(gpa) };
+        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try core.Interner.init(gpa), .datatypes = core.datatypes.Registry.init(gpa) };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
         self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;

@@ -2,14 +2,12 @@
 
 const std = @import("std");
 const constraints = @import("constraints.zig");
-const core = @import("../lang/core.zig");
-const datatypes_mod = @import("../lang/datatypes.zig");
+const core = @import("../core.zig");
 const tql_to_core = @import("../tql_to_core.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
+const diagnostic = @import("../diagnostic.zig");
 const pcre2 = @import("../regex.zig");
 const schemes = @import("schemes.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const types = core.types;
 const unify = @import("unify.zig");
 
 const Allocator = std.mem.Allocator;
@@ -37,7 +35,7 @@ pub const Failure = struct {
         mismatch: unify.Mismatch,
         violation: constraints.Violation,
         over_application: types.Type,
-        unbound: symbols.SymbolId,
+        unbound: core.SymbolId,
     };
 };
 
@@ -55,7 +53,7 @@ const Scope = struct {
     gpa: Allocator,
 
     const Entry = struct {
-        symbol: symbols.SymbolId,
+        symbol: core.SymbolId,
         binding: Binding,
     };
 
@@ -67,7 +65,7 @@ const Scope = struct {
         self.entries.deinit(self.gpa);
     }
 
-    fn push(self: *Scope, symbol: symbols.SymbolId, binding: Binding) !void {
+    fn push(self: *Scope, symbol: core.SymbolId, binding: Binding) !void {
         try self.entries.append(self.gpa, .{ .symbol = symbol, .binding = binding });
     }
 
@@ -80,7 +78,7 @@ const Scope = struct {
     }
 
     /// Innermost binding wins.
-    fn lookup(self: *const Scope, symbol: symbols.SymbolId) ?Binding {
+    fn lookup(self: *const Scope, symbol: core.SymbolId) ?Binding {
         var i = self.entries.items.len;
         while (i > 0) {
             i -= 1;
@@ -92,9 +90,9 @@ const Scope = struct {
 
 pub const Globals = struct {
     context: *const anyopaque,
-    lookupFn: *const fn (*const anyopaque, *Substitution, symbols.SymbolId) Error!?types.Scheme,
+    lookupFn: *const fn (*const anyopaque, *Substitution, core.SymbolId) Error!?types.Scheme,
 
-    pub fn lookup(self: Globals, subst: *Substitution, id: symbols.SymbolId) Error!?types.Scheme {
+    pub fn lookup(self: Globals, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
         return self.lookupFn(self.context, subst, id);
     }
 };
@@ -106,12 +104,12 @@ pub const Inference = struct {
     globals: Globals,
     scope: Scope,
     /// Schemes generalized so far, by symbol. An earlier SCC's result.
-    inferred: symbols.SymbolTable(types.Scheme),
+    inferred: core.SymbolTable(types.Scheme),
     /// Written signatures, by the symbol they annotate. Stored separately from
     /// inference to preserve the span
-    annotations: symbols.SymbolTable(tql_to_core.Annotation),
+    annotations: core.SymbolTable(tql_to_core.Annotation),
     /// The declared types a `case`'s alternatives are checked against.
-    datatypes: *const datatypes_mod.Registry,
+    datatypes: *const core.datatypes.Registry,
     failure: ?Failure = null,
 
     pub fn init(
@@ -119,7 +117,7 @@ pub const Inference = struct {
         subst: *Substitution,
         undecided: *constraints.Set,
         globals: Globals,
-        declared: *const datatypes_mod.Registry,
+        declared: *const core.datatypes.Registry,
     ) Inference {
         return .{
             .gpa = gpa,
@@ -128,8 +126,8 @@ pub const Inference = struct {
             .datatypes = declared,
             .globals = globals,
             .scope = Scope.init(gpa),
-            .inferred = symbols.SymbolTable(types.Scheme).init(gpa),
-            .annotations = symbols.SymbolTable(tql_to_core.Annotation).init(gpa),
+            .inferred = core.SymbolTable(types.Scheme).init(gpa),
+            .annotations = core.SymbolTable(tql_to_core.Annotation).init(gpa),
         };
     }
 
@@ -191,7 +189,7 @@ pub const Inference = struct {
     /// 3. an earlier SCC's scheme
     /// 4. whatever's in `globals` (the primitive table, a synthesized scheme,
     ///    or an annotation).
-    fn variable(self: *Inference, id: symbols.SymbolId, span: diagnostic.Span) Error!types.Type {
+    fn variable(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!types.Type {
         if (self.scope.lookup(id)) |binding| return switch (binding) {
             // Monomorphic: used at one type, not instantiated.
             .monomorphic => |t| t,
@@ -471,7 +469,7 @@ pub const Inference = struct {
     }
 
     /// The generalized scheme of a definition, once its component is done.
-    pub fn schemeOf(self: *const Inference, id: symbols.SymbolId) ?types.Scheme {
+    pub fn schemeOf(self: *const Inference, id: core.SymbolId) ?types.Scheme {
         return self.inferred.get(id);
     }
 
@@ -521,7 +519,7 @@ pub const Inference = struct {
     }
 
     /// `main`'s three extra checks
-    pub fn checkMain(self: *Inference, id: symbols.SymbolId, span: diagnostic.Span) Error!void {
+    pub fn checkMain(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!void {
         const scheme = self.inferred.get(id) orelse return;
         const instantiated = try self.subst.instantiate(scheme);
 
@@ -571,9 +569,9 @@ pub const Inference = struct {
 
     /// Hands the scheme table to the caller, who becomes responsible for it.
     /// `deinit` must not free it afterwards, so it is left empty.
-    fn takeSchemes(self: *Inference) symbols.SymbolTable(types.Scheme) {
+    fn takeSchemes(self: *Inference) core.SymbolTable(types.Scheme) {
         const taken = self.inferred;
-        self.inferred = symbols.SymbolTable(types.Scheme).init(self.gpa);
+        self.inferred = core.SymbolTable(types.Scheme).init(self.gpa);
         return taken;
     }
 
@@ -612,7 +610,7 @@ pub const Checked = struct {
     arena: *std.heap.ArenaAllocator,
     subst: Substitution,
     undecided: constraints.Set,
-    schemes_by_symbol: symbols.SymbolTable(types.Scheme),
+    schemes_by_symbol: core.SymbolTable(types.Scheme),
     gpa: Allocator,
 
     pub fn deinit(self: *Checked) void {
@@ -623,15 +621,15 @@ pub const Checked = struct {
         self.gpa.destroy(self.arena);
     }
 
-    pub fn schemeOf(self: *const Checked, id: symbols.SymbolId) ?types.Scheme {
+    pub fn schemeOf(self: *const Checked, id: core.SymbolId) ?types.Scheme {
         return self.schemes_by_symbol.get(id);
     }
 };
 
 fn constructorSchemeOf(
     subst: *Substitution,
-    registry: *const datatypes_mod.Registry,
-    id: symbols.SymbolId,
+    registry: *const core.datatypes.Registry,
+    id: core.SymbolId,
 ) Error!?types.Scheme {
     const owner = registry.ownerOf(id) orelse return null;
     const constructor = registry.constructorOf(id).?;
@@ -643,7 +641,7 @@ fn constructorSchemeOf(
 const ProgramGlobals = struct {
     program: *const tql_to_core.Program,
 
-    fn lookup(context: *const anyopaque, subst: *Substitution, id: symbols.SymbolId) Error!?types.Scheme {
+    fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
         if (self.program.primitives.scheme(id)) |s| return s;
         if (self.program.synthesis.get(id)) |s| return try schemes.schemeFor(subst, s);
@@ -738,11 +736,11 @@ const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
     undecided: constraints.Set,
-    interner: symbols.Interner,
-    table: symbols.SymbolTable(types.Scheme),
+    interner: core.Interner,
+    table: core.SymbolTable(types.Scheme),
     synthesis: tql_to_core.SynthesisTable,
     builder: core.Builder,
-    datatypes: datatypes_mod.Registry,
+    datatypes: core.datatypes.Registry,
     inference: Inference,
 
     fn init(gpa: Allocator) !*Fixture {
@@ -751,11 +749,11 @@ const Fixture = struct {
             .arena = .init(gpa),
             .subst = undefined,
             .undecided = constraints.Set.init(gpa),
-            .interner = try symbols.Interner.init(gpa),
-            .table = symbols.SymbolTable(types.Scheme).init(gpa),
+            .interner = try core.Interner.init(gpa),
+            .table = core.SymbolTable(types.Scheme).init(gpa),
             .synthesis = tql_to_core.SynthesisTable.init(gpa),
             .builder = undefined,
-            .datatypes = datatypes_mod.Registry.init(gpa),
+            .datatypes = core.datatypes.Registry.init(gpa),
             .inference = undefined,
         };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
@@ -781,7 +779,7 @@ const Fixture = struct {
     fn lookupScheme(
         context: *const anyopaque,
         subst: *Substitution,
-        id: symbols.SymbolId,
+        id: core.SymbolId,
     ) Error!?types.Scheme {
         const self: *const Fixture = @ptrCast(@alignCast(context));
         if (self.table.get(id)) |s| return s;
@@ -801,25 +799,25 @@ const Fixture = struct {
         gpa.destroy(self);
     }
 
-    fn define(self: *Fixture, spelling: []const u8, scheme: types.Scheme) !symbols.SymbolId {
+    fn define(self: *Fixture, spelling: []const u8, scheme: types.Scheme) !core.SymbolId {
         const id = try self.interner.intern(spelling);
         try self.table.put(id, scheme);
         return id;
     }
 
-    fn name(self: *Fixture, spelling: []const u8) !symbols.SymbolId {
+    fn name(self: *Fixture, spelling: []const u8) !core.SymbolId {
         return self.interner.lookup(spelling) orelse try self.interner.intern(spelling);
     }
 
     /// Interns a synthesized symbol under its bracketed spelling, the way the
     /// desugarer does, and records what it was generated from.
-    fn synthesize(self: *Fixture, spelling: []const u8, what: tql_to_core.Synthesis) !symbols.SymbolId {
+    fn synthesize(self: *Fixture, spelling: []const u8, what: tql_to_core.Synthesis) !core.SymbolId {
         const id = try self.name(spelling);
         try self.synthesis.put(id, what);
         return id;
     }
 
-    fn sym(self: *Fixture, id: symbols.SymbolId) core.Term {
+    fn sym(self: *Fixture, id: core.SymbolId) core.Term {
         _ = self;
         return .{ .kind = .{ .symbol = id }, .span = diagnostic.Span.unknown };
     }
@@ -842,13 +840,13 @@ const Fixture = struct {
         return self.builder.apply(function, argument, diagnostic.Span.unknown);
     }
 
-    fn lam(self: *Fixture, parameter: symbols.SymbolId, body: core.Term) !core.Term {
+    fn lam(self: *Fixture, parameter: core.SymbolId, body: core.Term) !core.Term {
         return self.builder.lambda(parameter, body, diagnostic.Span.unknown);
     }
 
     fn declareFlag(self: *Fixture) !void {
         const arena = self.arena.allocator();
-        const constructors = try arena.dupe(datatypes_mod.Constructor, &.{
+        const constructors = try arena.dupe(core.datatypes.Constructor, &.{
             .{ .symbol = try self.interner.intern("Off"), .tag = 0, .fields = &.{} },
             .{ .symbol = try self.interner.intern("On"), .tag = 1, .fields = &.{} },
         });
@@ -882,7 +880,7 @@ const Fixture = struct {
 
     fn streamBind(
         self: *Fixture,
-        n: symbols.SymbolId,
+        n: core.SymbolId,
         value: core.Term,
         body: core.Term,
     ) !core.Term {
@@ -897,7 +895,7 @@ const Fixture = struct {
         try testing.expectEqualStrings(expected, buf.written());
     }
 
-    fn expectScheme(self: *Fixture, id: symbols.SymbolId, expected: []const u8) !void {
+    fn expectScheme(self: *Fixture, id: core.SymbolId, expected: []const u8) !void {
         var buf: std.Io.Writer.Allocating = .init(testing.allocator);
         defer buf.deinit();
         try self.inference.schemeOf(id).?.format(&buf.writer);

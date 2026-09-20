@@ -1,9 +1,8 @@
 const std = @import("std");
-const datatypes = @import("../lang/datatypes.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
-const datatypes_mod = @import("../lang/datatypes.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const diagnostic = @import("../diagnostic.zig");
+const core = @import("../core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Substitution = @import("substitution.zig").Substitution;
 
@@ -224,12 +223,12 @@ const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
     set: Set,
-    interner: symbols.Interner,
-    datatypes: datatypes_mod.Registry,
+    interner: core.Interner,
+    datatypes: core.datatypes.Registry,
 
     fn init(gpa: std.mem.Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try symbols.Interner.init(gpa), .datatypes = datatypes_mod.Registry.init(gpa), .set = Set.init(gpa) };
+        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try core.Interner.init(gpa), .datatypes = core.datatypes.Registry.init(gpa), .set = Set.init(gpa) };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
         self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;

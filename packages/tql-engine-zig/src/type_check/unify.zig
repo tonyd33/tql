@@ -1,9 +1,8 @@
 //! Structural unification with an occurs check.
 
 const std = @import("std");
-const datatypes_mod = @import("../lang/datatypes.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const core = @import("../core.zig");
+const types = core.types;
 const Substitution = @import("substitution.zig").Substitution;
 
 const Allocator = std.mem.Allocator;
@@ -124,12 +123,12 @@ const testing = std.testing;
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
-    interner: symbols.Interner,
-    datatypes: datatypes_mod.Registry,
+    interner: core.Interner,
+    datatypes: core.datatypes.Registry,
 
     fn init(gpa: std.mem.Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try symbols.Interner.init(gpa), .datatypes = datatypes_mod.Registry.init(gpa) };
+        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try core.Interner.init(gpa), .datatypes = core.datatypes.Registry.init(gpa) };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
         self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
         return self;

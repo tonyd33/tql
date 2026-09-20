@@ -11,13 +11,12 @@
 //! one binder wherever it appears and nothing here handles shadowing.
 
 const std = @import("std");
-const core = @import("../lang/core.zig");
-const datatypes = @import("../lang/datatypes.zig");
+const core = @import("../core.zig");
 const tql_to_core = @import("../tql_to_core.zig");
 const free = @import("free.zig");
-const primitives = @import("../lang/primitives.zig");
+const builtin = @import("../builtin.zig");
 const stg = @import("stg.zig");
-const symbols = @import("../lang/symbols.zig");
+const datatypes = core.datatypes;
 
 const Allocator = std.mem.Allocator;
 
@@ -25,10 +24,10 @@ pub const Error = Allocator.Error || error{Unsupported};
 
 /// What a Core symbol resolves to at a use site.
 const Callee = union(enum) {
-    local: symbols.SymbolId,
-    global: symbols.SymbolId,
+    local: core.SymbolId,
+    global: core.SymbolId,
     constructor: *const datatypes.Constructor,
-    primitive: primitives.Lowering,
+    primitive: builtin.Lowering,
 };
 
 /// Bindings an expression needed before it could be written, in allocation
@@ -41,7 +40,7 @@ pub const Translator = struct {
     program: *const tql_to_core.Program,
     /// Names for the thunks atomization introduces. From the interner, so they
     /// cannot collide with a source binder.
-    interner: *symbols.Interner,
+    interner: *core.Interner,
     generated: u32 = 0,
 
     /// The environment of the closure being translated, in the order the
@@ -49,10 +48,10 @@ pub const Translator = struct {
     ///
     /// Nothing here is searched at run time; this pass turns every name into
     /// an offset into it.
-    scope: std.ArrayList(symbols.SymbolId) = .empty,
+    scope: std.ArrayList(core.SymbolId) = .empty,
 
     /// Where `name` sits in the environment of the closure being translated.
-    fn place(self: *Translator, name: symbols.SymbolId) stg.Local {
+    fn place(self: *Translator, name: core.SymbolId) stg.Local {
         // Innermost first, so the scope reads as a stack.
         var i = self.scope.items.len;
         while (i > 0) {
@@ -67,7 +66,7 @@ pub const Translator = struct {
     }
 
     /// Whether a symbol is a local rather than something reached by identity.
-    pub fn isLocal(context: *const anyopaque, symbol: symbols.SymbolId) bool {
+    pub fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
         const self: *const Translator = @ptrCast(@alignCast(context));
         if (self.program.datatypes.constructorOf(symbol) != null) return false;
         if (self.program.primitives.contains(symbol)) return false;
@@ -81,7 +80,7 @@ pub const Translator = struct {
         return true;
     }
 
-    fn resolve(self: *Translator, name: symbols.SymbolId) Callee {
+    fn resolve(self: *Translator, name: core.SymbolId) Callee {
         if (self.program.datatypes.constructorOf(name)) |constructor| {
             return .{ .constructor = constructor };
         }
@@ -164,7 +163,7 @@ pub const Translator = struct {
     ///
     /// The id is distinct whatever the spelling; the counter only keeps the
     /// printed term readable.
-    fn freshBinder(self: *Translator, comptime prefix: []const u8) Error!symbols.SymbolId {
+    fn freshBinder(self: *Translator, comptime prefix: []const u8) Error!core.SymbolId {
         // Wide enough for the prefix and any `u32`, so the format cannot fail.
         var buffer: [prefix.len + 10]u8 = undefined;
         const spelling = std.fmt.bufPrint(
@@ -201,7 +200,7 @@ pub const Translator = struct {
     /// `close` wraps these in a non-recursive `let` around the body, so the
     /// evaluator appends them to the frame in the order they were hoisted,
     /// before evaluating the body that reads them.
-    fn hoistedPlace(self: *Translator, binder: symbols.SymbolId) Error!stg.Local {
+    fn hoistedPlace(self: *Translator, binder: core.SymbolId) Error!stg.Local {
         const offset = self.scope.items.len;
         try self.scope.append(self.gpa, binder);
         return .{ .offset = @intCast(offset), .name = binder };
@@ -253,7 +252,7 @@ pub const Translator = struct {
             .lambda => {
                 // Collect the whole parameter list: `\x -> \y -> e` is one
                 // closure of arity two, not two of arity one.
-                var parameters: std.ArrayList(symbols.SymbolId) = .empty;
+                var parameters: std.ArrayList(core.SymbolId) = .empty;
                 defer parameters.deinit(self.gpa);
 
                 var body = term;
@@ -273,7 +272,7 @@ pub const Translator = struct {
                 for (case_term.alternatives, alternatives) |source, *alternative| {
                     const constructor = self.program.datatypes.constructorOf(source.constructor) orelse
                         return error.Unsupported;
-                    const binders = try self.arena.dupe(symbols.SymbolId, source.binders);
+                    const binders = try self.arena.dupe(core.SymbolId, source.binders);
 
                     // In scope for this alternative's body only, and pushed in
                     // the order the evaluator binds the constructor's fields.
@@ -406,7 +405,7 @@ pub const Translator = struct {
     /// How many arguments a primitive's denotation takes: the arrow count of
     /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
     /// primitive counts its input, making `pure` arity two.
-    fn primitiveArity(self: *Translator, name: symbols.SymbolId) Error!u32 {
+    fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
         if (self.program.synthesis.get(name)) |synthesis| {
             return switch (synthesis) {
@@ -430,13 +429,13 @@ pub const Translator = struct {
     /// value.
     fn primitiveWrapper(
         self: *Translator,
-        name: symbols.SymbolId,
-        lowering: primitives.Lowering,
+        name: core.SymbolId,
+        lowering: builtin.Lowering,
     ) Error!*const stg.Closure {
         const arity = try self.primitiveArity(name);
         if (arity == 0) return error.Unsupported;
 
-        const parameters = try self.arena.alloc(symbols.SymbolId, arity);
+        const parameters = try self.arena.alloc(core.SymbolId, arity);
         const arguments = try self.arena.alloc(stg.Atom, arity);
         // No free variables, so the frame is exactly the parameters and each
         // one's offset is its position.
@@ -461,7 +460,7 @@ pub const Translator = struct {
     /// Build a closure over `body`, collecting the free variables it reads.
     fn closure(
         self: *Translator,
-        parameters: []const symbols.SymbolId,
+        parameters: []const core.SymbolId,
         body: core.Term,
         update: stg.Update,
     ) Error!*const stg.Closure {
@@ -476,7 +475,7 @@ pub const Translator = struct {
         try collector.walk(body);
 
         const free_names = collector.out.items;
-        const parameter_names = try self.arena.dupe(symbols.SymbolId, parameters);
+        const parameter_names = try self.arena.dupe(core.SymbolId, parameters);
 
         // Where each free variable sits in the *enclosing* environment, which
         // is what the evaluator copies from. Resolved before the scope is

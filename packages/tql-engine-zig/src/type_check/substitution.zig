@@ -1,9 +1,9 @@
 //! The unification state: what each metavariable has been solved to.
 
 const std = @import("std");
-const datatypes = @import("../lang/datatypes.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const core = @import("../core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
@@ -266,7 +266,7 @@ pub const Substitution = struct {
 const TestSubst = struct {
     arena: std.heap.ArenaAllocator,
     subst: Substitution,
-    interner: symbols.Interner,
+    interner: core.Interner,
     datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*TestSubst {
@@ -274,7 +274,7 @@ const TestSubst = struct {
         self.* = .{
             .arena = .init(gpa),
             .subst = undefined,
-            .interner = try symbols.Interner.init(gpa),
+            .interner = try core.Interner.init(gpa),
             .datatypes = datatypes.Registry.init(gpa),
         };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());

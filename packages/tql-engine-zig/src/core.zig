@@ -11,9 +11,17 @@
 //! ```
 
 const std = @import("std");
-const pcre2 = @import("../regex.zig");
+const pcre2 = @import("regex.zig");
 const diagnostic = @import("diagnostic.zig");
-const symbols = @import("symbols.zig");
+
+pub const symbols = @import("core/symbols.zig");
+pub const types = @import("core/types.zig");
+pub const datatypes = @import("core/datatypes.zig");
+
+pub const SymbolId = symbols.SymbolId;
+pub const SymbolTable = symbols.SymbolTable;
+pub const Interner = symbols.Interner;
+pub const InsertError = symbols.InsertError;
 
 const Allocator = std.mem.Allocator;
 
@@ -24,10 +32,11 @@ const Allocator = std.mem.Allocator;
 pub const Term = struct {
     kind: Kind,
     /// Where this term came from, before desugaring.
+    // IMPROVE: parameterize this
     span: diagnostic.Span,
 
     pub const Kind = union(enum) {
-        symbol: symbols.SymbolId,
+        symbol: SymbolId,
         literal: Literal,
         lambda: *const Lambda,
         apply: *const Apply,
@@ -53,7 +62,7 @@ pub const Regex = struct {
 };
 
 pub const Lambda = struct {
-    parameter: symbols.SymbolId,
+    parameter: SymbolId,
     body: Term,
 };
 
@@ -67,8 +76,8 @@ pub const Case = struct {
     alternatives: []const Alternative,
 
     pub const Alternative = struct {
-        constructor: symbols.SymbolId,
-        binders: []const symbols.SymbolId,
+        constructor: SymbolId,
+        binders: []const SymbolId,
         body: Term,
     };
 };
@@ -78,20 +87,20 @@ pub const Letrec = struct {
     body: Term,
 
     pub const Binding = struct {
-        name: symbols.SymbolId,
+        name: SymbolId,
         value: Term,
     };
 };
 
 pub const Bind = struct {
-    name: symbols.SymbolId,
+    name: SymbolId,
     value: Term,
     body: Term,
 };
 
 /// A top-level definition.
 pub const Definition = struct {
-    symbol: symbols.SymbolId,
+    symbol: SymbolId,
     body: Term,
     span: diagnostic.Span,
 };
@@ -120,7 +129,7 @@ pub const Builder = struct {
         return try std.fmt.allocPrint(self.allocator, format, args);
     }
 
-    pub fn symbol(self: Builder, id: symbols.SymbolId, span: diagnostic.Span) Term {
+    pub fn symbol(self: Builder, id: SymbolId, span: diagnostic.Span) Term {
         _ = self;
         return .{ .kind = .{ .symbol = id }, .span = span };
     }
@@ -129,7 +138,7 @@ pub const Builder = struct {
         _ = self;
         return .{ .kind = .{ .literal = value }, .span = span };
     }
-    pub fn lambda(self: Builder, parameter: symbols.SymbolId, body: Term, span: diagnostic.Span) !Term {
+    pub fn lambda(self: Builder, parameter: SymbolId, body: Term, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Lambda);
         node.* = .{ .parameter = parameter, .body = body };
         return .{ .kind = .{ .lambda = node }, .span = span };
@@ -170,7 +179,7 @@ pub const Builder = struct {
         return .{ .kind = .{ .letrec = node }, .span = span };
     }
 
-    pub fn bind(self: Builder, name: symbols.SymbolId, value: Term, body: Term, span: diagnostic.Span) !Term {
+    pub fn bind(self: Builder, name: SymbolId, value: Term, body: Term, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Bind);
         node.* = .{ .name = name, .value = value, .body = body };
         return .{ .kind = .{ .bind = node }, .span = span };
@@ -180,7 +189,7 @@ pub const Builder = struct {
 /// Emits one line per term. Terms are compared structurally, so line breaks
 /// carry no meaning.
 pub const Printer = struct {
-    interner: *const symbols.Interner,
+    interner: *const Interner,
 
     pub fn term(self: Printer, t: Term, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try self.write(t, w, .top);

@@ -2,15 +2,14 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
-const core = @import("../lang/core.zig");
+const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
-const datatypes = @import("../lang/datatypes.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
-const primitives = @import("../lang/primitives.zig");
+const diagnostic = @import("../diagnostic.zig");
+const builtin = @import("../builtin.zig");
 const resolve = @import("resolve.zig");
 const pcre2 = @import("../regex.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
@@ -21,21 +20,21 @@ pub const Synthesis = union(enum) {
     kind_test: struct { name: []const u8, id: u16 },
     /// `descendants_of_kind[k]` or `children_of_kind[k]`, carrying the
     /// resolved grammar kind ID.
-    kind_axis: struct { name: []const u8, id: u16, lowering: primitives.Lowering },
+    kind_axis: struct { name: []const u8, id: u16, lowering: builtin.Lowering },
     /// `field[l]`, carrying the resolved grammar field ID.
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
-    operator: primitives.Scalar,
+    operator: builtin.Scalar,
     /// `record[l,...]`, labels in normalized order. The scheme is n-ary
     /// in the field count, so inference builds it from these rather than
     /// reading one off a table.
     record: []const []const u8,
 };
 
-pub const SynthesisTable = symbols.SymbolTable(Synthesis);
+pub const SynthesisTable = core.SymbolTable(Synthesis);
 
 pub const Lowerer = struct {
-    interner: *symbols.Interner,
+    interner: *core.Interner,
     datatypes: *const datatypes.Registry,
     synthesis: *SynthesisTable,
     declarations: *const resolve.Declarations,
@@ -49,7 +48,7 @@ pub const Lowerer = struct {
 
     pub fn init(
         builder: core.Builder,
-        interner: *symbols.Interner,
+        interner: *core.Interner,
         declared: *const datatypes.Registry,
         synthesis: *SynthesisTable,
         declarations: *const resolve.Declarations,
@@ -177,7 +176,7 @@ pub const Lowerer = struct {
                 return error.DesugarFailed;
             }
 
-            const binders = try self.builder.slice(symbols.SymbolId, alternative.binders.len);
+            const binders = try self.builder.slice(core.SymbolId, alternative.binders.len);
             const entries = try self.builder.slice(resolve.Scope.Entry, alternative.binders.len);
             for (alternative.binders, binders, entries) |binder, *slot, *entry| {
                 slot.* = try self.interner.fresh(binder.name);
@@ -207,7 +206,7 @@ pub const Lowerer = struct {
         return try self.builder.case(scrutinee, alternatives, span);
     }
 
-    fn recordReference(self: *Lowerer, symbol: symbols.SymbolId) !void {
+    fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
         const index = self.declarations.indexOf(symbol) orelse return;
         for (self.references.items) |existing| {
             if (existing == index) return;
@@ -217,7 +216,7 @@ pub const Lowerer = struct {
 
     /// The primitives spelled `name :k`, taking a kind token rather than a
     /// value. Each is one Core symbol, not an application.
-    const kind_forms = [_]struct { spelling: []const u8, axis: ?primitives.Lowering }{
+    const kind_forms = [_]struct { spelling: []const u8, axis: ?builtin.Lowering }{
         .{ .spelling = "is_kind", .axis = null },
         .{ .spelling = "children_of_kind", .axis = .children_of_kind },
         .{ .spelling = "descendants_of_kind", .axis = .descendants_of_kind },
@@ -226,7 +225,7 @@ pub const Lowerer = struct {
     /// Recognizes `is_kind :k` and the `_of_kind` axes, whose two surface
     /// tokens are one Core symbol. Returns null when this is an ordinary
     /// application. The inner error is the unknown-kind rejection.
-    fn kindApplication(self: *Lowerer, a: cst.Apply) ?(Error!symbols.SymbolId) {
+    fn kindApplication(self: *Lowerer, a: cst.Apply) ?(Error!core.SymbolId) {
         const function = unwrap(a.function);
         const name = switch (function.kind) {
             .name => |n| n,
@@ -248,10 +247,10 @@ pub const Lowerer = struct {
     fn synthesizeKindForm(
         self: *Lowerer,
         spelling: []const u8,
-        axis: ?primitives.Lowering,
+        axis: ?builtin.Lowering,
         name: []const u8,
         span: diagnostic.Span,
-    ) Error!symbols.SymbolId {
+    ) Error!core.SymbolId {
         const id = self.language.idForNodeKind(name, true);
         if (id == 0) {
             try self.sink.report(
@@ -278,7 +277,7 @@ pub const Lowerer = struct {
         comptime spelling_format: []const u8,
         spelling_args: anytype,
         what: Synthesis,
-    ) Error!symbols.SymbolId {
+    ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
         const id = try self.interner.internOrGet(spelling);
         try self.synthesis.put(id, what);
@@ -520,7 +519,7 @@ pub const Lowerer = struct {
 
         // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
         // never lifted over filters.
-        const scalar: primitives.Scalar = switch (b.operator) {
+        const scalar: builtin.Scalar = switch (b.operator) {
             .divide => .divide,
             .multiply => .multiply,
             .modulo => .modulo,
@@ -661,7 +660,7 @@ pub const Module = struct {
 
 /// A written signature, translated.
 pub const Annotation = struct {
-    symbol: symbols.SymbolId,
+    symbol: core.SymbolId,
     scheme: types.Scheme,
     span: diagnostic.Span,
 };

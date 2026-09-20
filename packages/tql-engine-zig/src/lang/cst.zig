@@ -1,5 +1,5 @@
 const std = @import("std");
-const diagnostic = @import("diagnostic.zig");
+const diagnostic = @import("../diagnostic.zig");
 
 pub const Identifier = []const u8;
 

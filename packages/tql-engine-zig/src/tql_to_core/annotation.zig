@@ -9,10 +9,10 @@
 
 const std = @import("std");
 const cst = @import("../lang/cst.zig");
-const datatypes = @import("../lang/datatypes.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
-const symbols = @import("../lang/symbols.zig");
-const types = @import("../lang/types.zig");
+const diagnostic = @import("../diagnostic.zig");
+const core = @import("../core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
@@ -172,7 +172,7 @@ const testing = std.testing;
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     sink: diagnostic.Sink,
-    interner: symbols.Interner,
+    interner: core.Interner,
     datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*Fixture {
@@ -180,7 +180,7 @@ const Fixture = struct {
         self.* = .{
             .arena = .init(gpa),
             .sink = diagnostic.Sink.init(gpa),
-            .interner = try symbols.Interner.init(gpa),
+            .interner = try core.Interner.init(gpa),
             .datatypes = datatypes.Registry.init(gpa),
         };
         try self.datatypes.declareStructural(&self.interner, self.arena.allocator());

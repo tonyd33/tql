@@ -13,9 +13,8 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
-const core = @import("../lang/core.zig");
+const core = @import("../core.zig");
 const stg = @import("stg.zig");
-const symbols = @import("../lang/symbols.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -52,7 +51,7 @@ pub const Closure = struct {
 };
 
 pub const Constructed = struct {
-    constructor: symbols.SymbolId,
+    constructor: core.SymbolId,
     tag: u32,
     /// Field count, whether they are inline or spilled.
     len: u32,
@@ -80,7 +79,7 @@ pub const Constructed = struct {
     /// `spill` must outlive the value when there are more than
     /// `inline_capacity` of them; at or below it the fields are copied and
     /// `spill` is not retained.
-    pub fn init(constructor: symbols.SymbolId, tag: u32, spill: []const *Thunk) Constructed {
+    pub fn init(constructor: core.SymbolId, tag: u32, spill: []const *Thunk) Constructed {
         var self: Constructed = .{
             .constructor = constructor,
             .tag = tag,

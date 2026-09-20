@@ -8,7 +8,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const cst = @import("lang/cst.zig");
-const diagnostic = @import("lang/diagnostic.zig");
+const diagnostic = @import("diagnostic.zig");
 
 const Span = diagnostic.Span;
 const Sink = diagnostic.Sink;

@@ -6,8 +6,8 @@
 
 const std = @import("std");
 const cst = @import("../lang/cst.zig");
-const diagnostic = @import("../lang/diagnostic.zig");
-const symbols = @import("../lang/symbols.zig");
+const diagnostic = @import("../diagnostic.zig");
+const core = @import("../core.zig");
 
 /// A lexical scope chain. Each frame is one binding construct: lambda
 /// parameters, a `let` group, a `do` bind, or a `do`-local `let` group.
@@ -17,10 +17,10 @@ pub const Scope = struct {
 
     pub const Entry = struct {
         name: []const u8,
-        symbol: symbols.SymbolId,
+        symbol: core.SymbolId,
     };
 
-    pub fn lookup(self: *const Scope, name: []const u8) ?symbols.SymbolId {
+    pub fn lookup(self: *const Scope, name: []const u8) ?core.SymbolId {
         var frame: ?*const Scope = self;
         while (frame) |f| : (frame = f.parent) {
             // Later entries in a frame shadow earlier ones, which matters for
@@ -39,7 +39,7 @@ pub const Scope = struct {
 /// signature that annotates it, if any.
 pub const Declaration = struct {
     name: []const u8,
-    symbol: symbols.SymbolId,
+    symbol: core.SymbolId,
     definition: *const cst.Definition,
     signature: ?*const cst.Signature = null,
 };
@@ -59,7 +59,7 @@ pub const Declarations = struct {
         return null;
     }
 
-    pub fn indexOf(self: *const Declarations, symbol: symbols.SymbolId) ?u32 {
+    pub fn indexOf(self: *const Declarations, symbol: core.SymbolId) ?u32 {
         for (self.items.items, 0..) |d, i| {
             if (d.symbol == symbol) return @intCast(i);
         }
@@ -72,7 +72,7 @@ pub const Declarations = struct {
 /// continues so one run reports them all.
 pub fn collect(
     allocator: std.mem.Allocator,
-    interner: *symbols.Interner,
+    interner: *core.Interner,
     source: cst.SourceFile,
     sink: *diagnostic.Sink,
 ) !Declarations {
@@ -259,7 +259,7 @@ const Tarjan = struct {
 };
 
 test "scopes resolve innermost first" {
-    var interner = try symbols.Interner.init(std.testing.allocator);
+    var interner = try core.Interner.init(std.testing.allocator);
     defer interner.deinit();
 
     const outer_x = try interner.fresh("x");

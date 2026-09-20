@@ -8,24 +8,23 @@ pub const VERSION = build_options.version;
 pub const ts = @import("tree-sitter");
 // Shared vocabulary: the IRs and types every stage speaks.
 pub const cst = @import("lang/cst.zig");
-pub const core = @import("lang/core.zig");
-pub const diagnostic = @import("lang/diagnostic.zig");
-pub const primitives = @import("lang/primitives.zig");
-pub const symbols = @import("lang/symbols.zig");
-pub const types = @import("lang/types.zig");
+pub const core = @import("core.zig");
+pub const diagnostic = @import("diagnostic.zig");
+pub const builtin = @import("builtin.zig");
+pub const types = core.types;
 
 // The stages, in pipeline order. Each is a facade over a private subdirectory.
 pub const parse = @import("parse.zig");
 pub const tql_to_core = @import("tql_to_core.zig");
 pub const type_check = @import("type_check.zig");
-pub const simplify = @import("simplify.zig");
+pub const core_to_core = @import("core_to_core.zig");
 pub const core_to_stg = @import("core_to_stg.zig");
 
 const grammar = @import("lang/grammar.zig");
 const pcre2 = @import("regex.zig");
 
 /// The prelude, linked beneath every query.
-pub const prelude_source = tql_to_core.prelude_source;
+pub const prelude_source = @embedFile("prelude.tql");
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
@@ -205,7 +204,7 @@ pub const Engine = struct {
         var checked = try self.checkQuery(query_source, g, sink);
         errdefer checked.deinit();
 
-        try simplify.run(&checked.program);
+        try core_to_core.run(&checked.program);
 
         const translated = try core_to_stg.translate(self.config.allocator, &checked.program);
         return .{
@@ -326,9 +325,10 @@ test {
     refAllDecls(parse);
     refAllDecls(grammar);
     refAllDecls(core);
+    refAllDecls(core.symbols);
+    refAllDecls(core.datatypes);
     refAllDecls(tql_to_core);
-    refAllDecls(symbols);
-    refAllDecls(primitives);
+    refAllDecls(builtin);
     refAllDecls(types);
     refAllDecls(type_check);
     refAllDecls(core_to_stg);

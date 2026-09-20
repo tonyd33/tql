@@ -8,11 +8,10 @@
 //! Runs after inference, so a rewrite may assume its input type-checked.
 
 const std = @import("std");
-const core = @import("lang/core.zig");
+const core = @import("core.zig");
 const tql_to_core = @import("tql_to_core.zig");
-const diagnostic = @import("lang/diagnostic.zig");
-const primitives = @import("lang/primitives.zig");
-const symbols = @import("lang/symbols.zig");
+const diagnostic = @import("diagnostic.zig");
+const builtin = @import("builtin.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -145,10 +144,10 @@ test "an axis with no kind test is left alone" {
 
 const Pass = struct {
     builder: core.Builder,
-    interner: *symbols.Interner,
+    interner: *core.Interner,
     synthesis: *tql_to_core.SynthesisTable,
-    primitives: *const primitives.Table,
-    compose: symbols.SymbolId,
+    primitives: *const builtin.Table,
+    compose: core.SymbolId,
 
     /// Rewrite `t`, bottom up. A rewrite sees operands that are already
     /// rewritten, so one traversal reaches a fused axis nested in a fused axis.
@@ -240,7 +239,7 @@ const Pass = struct {
             .symbol => |id| id,
             else => return null,
         };
-        const fused: primitives.Lowering = switch (self.loweringOf(axis) orelse return null) {
+        const fused: builtin.Lowering = switch (self.loweringOf(axis) orelse return null) {
             .children => .children_of_kind,
             .descendants => .descendants_of_kind,
             else => return null,
@@ -263,7 +262,7 @@ const Pass = struct {
 
     /// The primitive a symbol names, when it names one. A local binding that
     /// shadows the name is a different symbol, so this cannot confuse the two.
-    fn loweringOf(self: *const Pass, id: symbols.SymbolId) ?primitives.Lowering {
+    fn loweringOf(self: *const Pass, id: core.SymbolId) ?builtin.Lowering {
         return self.primitives.lowering(id);
     }
 
@@ -271,9 +270,9 @@ const Pass = struct {
     /// desugaring would have written it.
     fn kindAxisSymbol(
         self: *Pass,
-        lowering: primitives.Lowering,
+        lowering: builtin.Lowering,
         kind: Kind,
-    ) Error!symbols.SymbolId {
+    ) Error!core.SymbolId {
         const spelling = try self.builder.print("{s}[{s}]", .{
             @tagName(lowering),
             kind.name,

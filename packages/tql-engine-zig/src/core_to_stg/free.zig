@@ -7,8 +7,7 @@
 //! walk carries a flat bound set, not a scope chain.
 
 const std = @import("std");
-const core = @import("../lang/core.zig");
-const symbols = @import("../lang/symbols.zig");
+const core = @import("../core.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -19,23 +18,23 @@ const Allocator = std.mem.Allocator;
 pub const Collector = struct {
     gpa: Allocator,
     /// Whether a symbol is a local at all. A global is never captured.
-    is_local: *const fn (context: *const anyopaque, symbol: symbols.SymbolId) bool,
+    is_local: *const fn (context: *const anyopaque, symbol: core.SymbolId) bool,
     context: *const anyopaque,
 
-    bound: std.ArrayList(symbols.SymbolId) = .empty,
-    out: std.ArrayList(symbols.SymbolId) = .empty,
+    bound: std.ArrayList(core.SymbolId) = .empty,
+    out: std.ArrayList(core.SymbolId) = .empty,
 
     pub fn deinit(self: *Collector) void {
         self.bound.deinit(self.gpa);
         self.out.deinit(self.gpa);
     }
 
-    fn isBound(self: *const Collector, symbol: symbols.SymbolId) bool {
-        return std.mem.indexOfScalar(symbols.SymbolId, self.bound.items, symbol) != null;
+    fn isBound(self: *const Collector, symbol: core.SymbolId) bool {
+        return std.mem.indexOfScalar(core.SymbolId, self.bound.items, symbol) != null;
     }
 
-    fn collected(self: *const Collector, symbol: symbols.SymbolId) bool {
-        return std.mem.indexOfScalar(symbols.SymbolId, self.out.items, symbol) != null;
+    fn collected(self: *const Collector, symbol: core.SymbolId) bool {
+        return std.mem.indexOfScalar(core.SymbolId, self.out.items, symbol) != null;
     }
 
     pub fn walk(self: *Collector, term: core.Term) Allocator.Error!void {
@@ -95,7 +94,7 @@ const testing = std.testing;
 const Threshold = struct {
     value: u32,
 
-    fn isLocal(context: *const anyopaque, symbol: symbols.SymbolId) bool {
+    fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
         const self: *const Threshold = @ptrCast(@alignCast(context));
         return @intFromEnum(symbol) >= self.value;
     }
@@ -105,7 +104,7 @@ fn collectorFor(gpa: Allocator, threshold: *const Threshold) Collector {
     return .{ .gpa = gpa, .is_local = Threshold.isLocal, .context = threshold };
 }
 
-const span = @import("../lang/diagnostic.zig").Span.unknown;
+const span = @import("../diagnostic.zig").Span.unknown;
 
 fn sym(id: u32) core.Term {
     return .{ .kind = .{ .symbol = @enumFromInt(id) }, .span = span };
@@ -118,7 +117,7 @@ test "a bare local is free" {
     defer collector.deinit();
 
     try collector.walk(sym(7));
-    try testing.expectEqualSlices(symbols.SymbolId, &.{@enumFromInt(7)}, collector.out.items);
+    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(7)}, collector.out.items);
 }
 
 test "a global is not free" {
@@ -146,7 +145,7 @@ test "a lambda's parameter is not free in its body" {
     const lambda = try builder.lambda(@enumFromInt(1), body, span);
 
     try collector.walk(lambda);
-    try testing.expectEqualSlices(symbols.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
 }
 
 test "a variable mentioned twice is captured once" {
@@ -161,7 +160,7 @@ test "a variable mentioned twice is captured once" {
 
     const term = try builder.apply(sym(5), sym(5), span);
     try collector.walk(term);
-    try testing.expectEqualSlices(symbols.SymbolId, &.{@enumFromInt(5)}, collector.out.items);
+    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(5)}, collector.out.items);
 }
 
 test "a letrec binding is not free in its own right-hand side" {
@@ -181,7 +180,7 @@ test "a letrec binding is not free in its own right-hand side" {
     const term = try builder.letrec(bindings, sym(1), span);
 
     try collector.walk(term);
-    try testing.expectEqualSlices(symbols.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
 }
 
 test "a bind's value sees the enclosing scope, its body sees the binder" {
@@ -199,7 +198,7 @@ test "a bind's value sees the enclosing scope, its body sees the binder" {
     const term = try builder.bind(@enumFromInt(1), sym(2), sym(1), span);
 
     try collector.walk(term);
-    try testing.expectEqualSlices(symbols.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
 }
 
 test "a case alternative's binders are not free in its body" {
@@ -215,7 +214,7 @@ test "a case alternative's binders are not free in its body" {
     // `case s of { C h t -> h t g }`: only `s` and `g` are free.
     const body = try builder.apply(try builder.apply(sym(2), sym(3), span), sym(4), span);
     const alternatives = try arena.allocator().alloc(core.Case.Alternative, 1);
-    const binders = try arena.allocator().alloc(symbols.SymbolId, 2);
+    const binders = try arena.allocator().alloc(core.SymbolId, 2);
     binders[0] = @enumFromInt(2);
     binders[1] = @enumFromInt(3);
     alternatives[0] = .{ .constructor = @enumFromInt(9), .binders = binders, .body = body };
@@ -223,7 +222,7 @@ test "a case alternative's binders are not free in its body" {
 
     try collector.walk(term);
     try testing.expectEqualSlices(
-        symbols.SymbolId,
+        core.SymbolId,
         &.{ @enumFromInt(1), @enumFromInt(4) },
         collector.out.items,
     );

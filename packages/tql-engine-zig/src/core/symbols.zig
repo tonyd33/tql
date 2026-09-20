@@ -1,3 +1,5 @@
+//! Symbol interning and per-symbol side tables.
+
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;

@@ -1,7 +1,7 @@
 const std = @import("std");
-const datatypes = @import("datatypes.zig");
-const symbols = @import("symbols.zig");
-const types = @import("types.zig");
+const core = @import("core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
@@ -195,23 +195,23 @@ pub fn operatorScheme(
 
 /// What each primitive is, keyed by the id it was interned as.
 pub const Table = struct {
-    schemes: symbols.SymbolTable(types.Scheme),
-    lowerings: symbols.SymbolTable(Lowering),
+    schemes: core.SymbolTable(types.Scheme),
+    lowerings: core.SymbolTable(Lowering),
 
     pub fn deinit(self: *Table) void {
         self.schemes.deinit();
         self.lowerings.deinit();
     }
 
-    pub fn scheme(self: *const Table, id: symbols.SymbolId) ?types.Scheme {
+    pub fn scheme(self: *const Table, id: core.SymbolId) ?types.Scheme {
         return self.schemes.get(id);
     }
 
-    pub fn lowering(self: *const Table, id: symbols.SymbolId) ?Lowering {
+    pub fn lowering(self: *const Table, id: core.SymbolId) ?Lowering {
         return self.lowerings.get(id);
     }
 
-    pub fn contains(self: *const Table, id: symbols.SymbolId) bool {
+    pub fn contains(self: *const Table, id: core.SymbolId) bool {
         return self.lowerings.get(id) != null;
     }
 };
@@ -220,7 +220,7 @@ pub const Table = struct {
 /// saying what they are. The two are created and destroyed together because the
 /// ids in one only mean anything against the other.
 pub const Interned = struct {
-    interner: symbols.Interner,
+    interner: core.Interner,
     table: Table,
     datatypes: datatypes.Registry,
 
@@ -230,7 +230,7 @@ pub const Interned = struct {
     ///
     /// `arena` holds the schemes and must outlive the result.
     pub fn init(allocator: Allocator, arena: Allocator) !Interned {
-        var interner = try symbols.Interner.init(allocator);
+        var interner = try core.Interner.init(allocator);
         errdefer interner.deinit();
 
         var declared = datatypes.Registry.init(allocator);
@@ -238,8 +238,8 @@ pub const Interned = struct {
         try declared.declareStructural(&interner, arena);
 
         var table: Table = .{
-            .schemes = symbols.SymbolTable(types.Scheme).init(allocator),
-            .lowerings = symbols.SymbolTable(Lowering).init(allocator),
+            .schemes = core.SymbolTable(types.Scheme).init(allocator),
+            .lowerings = core.SymbolTable(Lowering).init(allocator),
         };
         errdefer table.deinit();
 
@@ -294,7 +294,7 @@ test "primitives are the documented set" {
     defer arena.deinit();
     var declared = datatypes.Registry.init(std.testing.allocator);
     defer declared.deinit();
-    var interner = try symbols.Interner.init(std.testing.allocator);
+    var interner = try core.Interner.init(std.testing.allocator);
     defer interner.deinit();
     try declared.declareStructural(&interner, arena.allocator());
 

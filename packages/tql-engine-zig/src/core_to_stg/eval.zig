@@ -10,12 +10,12 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const pcre2 = @import("../regex.zig");
-const datatypes = @import("../lang/datatypes.zig");
 const tql_to_core = @import("../tql_to_core.zig");
-const primitives = @import("../lang/primitives.zig");
+const builtin = @import("../builtin.zig");
 const stg = @import("stg.zig");
-const symbols = @import("../lang/symbols.zig");
+const core = @import("../core.zig");
 const value = @import("value.zig");
+const datatypes = core.datatypes;
 
 const Allocator = std.mem.Allocator;
 
@@ -74,9 +74,9 @@ pub const Machine = struct {
     /// share a `Lowering`, so the spelling comes from here.
     synthesis: *const tql_to_core.SynthesisTable,
     /// Reaches the prelude definitions a primitive delegates to.
-    interner: *const symbols.Interner,
+    interner: *const core.Interner,
     /// One thunk per global, allocated before the run and forced at most once.
-    globals: std.AutoHashMapUnmanaged(symbols.SymbolId, *value.Thunk),
+    globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk),
     /// The file being queried. Absent when the machine runs hand-built terms,
     /// in which case every tree primitive is a type error rather than a
     /// wrong answer.
@@ -118,7 +118,7 @@ pub const Machine = struct {
         program: *const stg.Program,
         source: *const tql_to_core.Program,
     ) Allocator.Error!Machine {
-        var globals: std.AutoHashMapUnmanaged(symbols.SymbolId, *value.Thunk) = .empty;
+        var globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk) = .empty;
 
         // Every global is allocated before any is filled, so one may reference
         // another in any order.
@@ -686,7 +686,7 @@ pub const Machine = struct {
     /// cell costs no allocation of its own.
     fn construct(
         self: *Machine,
-        constructor: symbols.SymbolId,
+        constructor: core.SymbolId,
         tag: u32,
         atoms: []const stg.Atom,
         env: []const *value.Thunk,

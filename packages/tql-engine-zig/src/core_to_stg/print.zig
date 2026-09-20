@@ -6,10 +6,10 @@
 
 const std = @import("std");
 const stg = @import("stg.zig");
-const symbols = @import("../lang/symbols.zig");
+const core = @import("../core.zig");
 
 pub const Printer = struct {
-    interner: *const symbols.Interner,
+    interner: *const core.Interner,
 
     /// Spelled out because `expr`, `closure` and `allocation` are mutually
     /// recursive, and an inferred set cannot close over that cycle.
