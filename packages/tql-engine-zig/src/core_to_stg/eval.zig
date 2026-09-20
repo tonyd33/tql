@@ -70,10 +70,9 @@ pub const Machine = struct {
     program: *const stg.Program,
     /// Constructors of `List` and `Bool`, which primitives build directly.
     datatypes: *const datatypes.Registry,
-    /// What each synthesized primitive was generated from. `op[+]` and `op[-]`
-    /// share a `Lowering`, so the spelling comes from here.
-    details: *const core.DetailsTable,
-    /// Reaches the prelude definitions a primitive delegates to.
+    /// Reaches the prelude definitions a primitive delegates to, and says what
+    /// each synthesized primitive denotes. `op[+]` and `op[-]` share a
+    /// `PrimOp`, so the operator comes from here.
     interner: *const core.Interner,
     /// One thunk per global, allocated before the run and forced at most once.
     globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk),
@@ -135,7 +134,6 @@ pub const Machine = struct {
             .arena = arena,
             .program = program,
             .datatypes = &source.datatypes,
-            .details = &source.details,
             .interner = &source.interner,
             .globals = globals,
             .gpa = gpa,
@@ -510,10 +508,9 @@ pub const Machine = struct {
             .operator => return try self.operator(call, arguments),
 
             // Fields are scalars and stay unforced. The labels come from the
-            // details table, already sorted.
+            // symbol's details, already sorted.
             .record => {
-                const details = self.details.get(call.symbol) orelse return error.TypeError;
-                const labels = switch (details) {
+                const labels = switch (try self.synthesized(call.symbol)) {
                     .record => |l| l,
                     else => return error.TypeError,
                 };
@@ -545,8 +542,7 @@ pub const Machine = struct {
             // `[x]` when the static kind matches, otherwise `[]`.
             .is_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const details = self.details.get(call.symbol) orelse return error.TypeError;
-                const wanted = switch (details) {
+                const wanted = switch (try self.synthesized(call.symbol)) {
                     .kind_test => |k| k.id,
                     else => return error.TypeError,
                 };
@@ -633,8 +629,7 @@ pub const Machine = struct {
             // grammar knows but this node lacks yields no output.
             .field => {
                 const subject = try self.nodeArgument(arguments);
-                const details = self.details.get(call.symbol) orelse return error.TypeError;
-                const field_id = switch (details) {
+                const field_id = switch (try self.synthesized(call.symbol)) {
                     .field => |f| f.id,
                     else => return error.TypeError,
                 };
@@ -651,8 +646,7 @@ pub const Machine = struct {
             // into the advance, so the list holds only matches.
             .children_of_kind, .descendants_of_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const details = self.details.get(call.symbol) orelse return error.TypeError;
-                const kind_id = switch (details) {
+                const kind_id = switch (try self.synthesized(call.symbol)) {
                     .kind_axis => |k| k.id,
                     else => return error.TypeError,
                 };
@@ -669,6 +663,14 @@ pub const Machine = struct {
                 });
             },
         }
+    }
+
+    /// What a synthesized primitive denotes.
+    fn synthesized(self: *Machine, symbol: core.SymbolId) Error!core.Synthesized {
+        return switch (self.interner.details(symbol)) {
+            .synthesized => |s| s,
+            else => error.TypeError,
+        };
     }
 
     /// The single node argument of a tree primitive.
@@ -775,8 +777,7 @@ pub const Machine = struct {
         arguments: []const *value.Thunk,
     ) Error!value.Value {
         if (arguments.len != 2) return error.TypeError;
-        const details = self.details.get(call.symbol) orelse return error.TypeError;
-        const scalar = switch (details) {
+        const scalar = switch (try self.synthesized(call.symbol)) {
             .operator => |o| o,
             else => return error.TypeError,
         };

@@ -20,9 +20,11 @@ pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
 
 pub const Details = details.Details;
-pub const DetailsTable = details.DetailsTable;
+pub const Synthesized = details.Synthesized;
 pub const PrimOp = details.PrimOp;
 pub const Scalar = details.Scalar;
+pub const Symbol = symbols.Symbol;
+pub const TypeId = symbols.TypeId;
 
 pub const SymbolId = symbols.SymbolId;
 pub const SymbolTable = symbols.SymbolTable;

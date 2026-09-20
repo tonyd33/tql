@@ -33,8 +33,8 @@ pub const Error = error{TooManyRecordFields} || Allocator.Error;
 /// `subst` is needed because `record`'s scheme is n-ary in its label
 /// count and must be built at runtime; the other three are comptime constants
 /// and touch it not at all.
-pub fn schemeFor(subst: *Substitution, details: core.Details) Error!types.Scheme {
-    return switch (details) {
+pub fn schemeFor(subst: *Substitution, synthesized: core.Synthesized) Error!types.Scheme {
+    return switch (synthesized) {
         // The kind id is resolved and carried, and deliberately unused: a kind
         // test narrows the *value* but not yet the type. W4 is where it starts
         // mattering.
@@ -146,8 +146,8 @@ const Fixture = struct {
         gpa.destroy(self);
     }
 
-    fn expectScheme(self: *Fixture, details: core.Details, expected: []const u8) !void {
-        const scheme = try schemeFor(&self.subst, details);
+    fn expectScheme(self: *Fixture, synthesized: core.Synthesized, expected: []const u8) !void {
+        const scheme = try schemeFor(&self.subst, synthesized);
         var buf: std.Io.Writer.Allocating = .init(testing.allocator);
         defer buf.deinit();
         try scheme.format(&buf.writer);

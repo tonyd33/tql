@@ -6,7 +6,7 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-pub const TypeId = enum(u32) { _ };
+pub const TypeId = symbols.TypeId;
 
 /// Which classes a declared type admits, and whether its parameters must
 /// admit them too.
@@ -57,15 +57,9 @@ pub const Registry = struct {
     allocator: Allocator,
     datatypes: std.ArrayList(Datatype) = .empty,
     by_name: std.StringHashMapUnmanaged(TypeId) = .empty,
-    /// Which datatype a constructor belongs to, for `case` and for scheme
-    /// construction.
-    constructor_owner: symbols.SymbolTable(TypeId),
 
     pub fn init(allocator: Allocator) Registry {
-        return .{
-            .allocator = allocator,
-            .constructor_owner = symbols.SymbolTable(TypeId).init(allocator),
-        };
+        return .{ .allocator = allocator };
     }
 
     /// Declares `List` and `Bool`. The primitive schemes mention both, so they
@@ -85,20 +79,20 @@ pub const Registry = struct {
 
         const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
         const list_constructors = try arena.dupe(Constructor, &.{
-            .{ .symbol = try interner.intern("Nil"), .tag = 0, .fields = &.{} },
-            .{ .symbol = try interner.intern("Cons"), .tag = 1, .fields = cons_fields },
+            .{ .symbol = try interner.intern("Nil", .vanilla), .tag = 0, .fields = &.{} },
+            .{ .symbol = try interner.intern("Cons", .vanilla), .tag = 1, .fields = cons_fields },
         });
-        _ = try self.declare(types.list_spelling, 1, list_constructors, .{
+        _ = try self.declare(interner, types.list_spelling, 1, list_constructors, .{
             .Eq = .fields,
             .Sized = .always,
             .Serial = .fields,
         });
 
         const bool_constructors = try arena.dupe(Constructor, &.{
-            .{ .symbol = try interner.intern("False"), .tag = 0, .fields = &.{} },
-            .{ .symbol = try interner.intern("True"), .tag = 1, .fields = &.{} },
+            .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
+            .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
         });
-        _ = try self.declare(types.bool_spelling, 0, bool_constructors, .{
+        _ = try self.declare(interner, types.bool_spelling, 0, bool_constructors, .{
             .Eq = .always,
             .Serial = .always,
         });
@@ -152,13 +146,14 @@ pub const Registry = struct {
     pub fn deinit(self: *Registry) void {
         self.datatypes.deinit(self.allocator);
         self.by_name.deinit(self.allocator);
-        self.constructor_owner.deinit();
     }
 
     /// `name` and the constructor slice must outlive the registry; both are
-    /// expected to live in the program arena.
+    /// expected to live in the program arena. Each constructor's symbol is
+    /// pointed back at the datatype declaring it.
     pub fn declare(
         self: *Registry,
+        interner: *symbols.Interner,
         name: []const u8,
         parameters: u8,
         constructors: []const Constructor,
@@ -172,7 +167,7 @@ pub const Registry = struct {
             .classes = classes,
         });
         try self.by_name.put(self.allocator, name, id);
-        for (constructors) |c| try self.constructor_owner.put(c.symbol, id);
+        own(interner, id, constructors);
         return id;
     }
 
@@ -180,11 +175,18 @@ pub const Registry = struct {
     /// fields need the name in scope before they resolve.
     pub fn setConstructors(
         self: *Registry,
+        interner: *symbols.Interner,
         id: TypeId,
         constructors: []const Constructor,
-    ) Allocator.Error!void {
+    ) void {
         self.datatypes.items[@intFromEnum(id)].constructors = constructors;
-        for (constructors) |c| try self.constructor_owner.put(c.symbol, id);
+        own(interner, id, constructors);
+    }
+
+    fn own(interner: *symbols.Interner, id: TypeId, constructors: []const Constructor) void {
+        for (constructors) |c| {
+            interner.setDetails(c.symbol, .{ .constructor = .{ .owner = id, .tag = c.tag } });
+        }
     }
 
     pub fn get(self: *const Registry, id: TypeId) *const Datatype {
@@ -195,34 +197,41 @@ pub const Registry = struct {
         return self.by_name.get(name);
     }
 
-    pub fn ownerOf(self: *const Registry, constructor: symbols.SymbolId) ?TypeId {
-        return self.constructor_owner.get(constructor);
-    }
-
     pub fn constructorOf(
         self: *const Registry,
+        interner: *const symbols.Interner,
         constructor: symbols.SymbolId,
     ) ?*const Constructor {
-        const owner = self.ownerOf(constructor) orelse return null;
-        for (self.get(owner).constructors) |*c| {
-            if (c.symbol == constructor) return c;
-        }
-        return null;
+        return switch (interner.details(constructor)) {
+            .constructor => |c| &self.get(c.owner).constructors[c.tag],
+            else => null,
+        };
     }
 };
+
+/// The datatype declaring `constructor`, when the symbol is one.
+pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId) ?TypeId {
+    return switch (interner.details(constructor)) {
+        .constructor => |c| c.owner,
+        else => null,
+    };
+}
 
 test "a declared type is reachable by name, id, and constructor" {
     var registry = Registry.init(std.testing.allocator);
     defer registry.deinit();
+    var interner = try symbols.Interner.init(std.testing.allocator);
+    defer interner.deinit();
 
-    const nil: symbols.SymbolId = @enumFromInt(0);
-    const cons: symbols.SymbolId = @enumFromInt(1);
+    const nil = try interner.intern("Nil", .vanilla);
+    const cons = try interner.intern("Cons", .vanilla);
+    const other = try interner.intern("other", .vanilla);
     const constructors = [_]Constructor{
         .{ .symbol = nil, .tag = 0, .fields = &.{} },
         .{ .symbol = cons, .tag = 1, .fields = &.{} },
     };
 
-    const id = try registry.declare("List", 1, &constructors, .{
+    const id = try registry.declare(&interner, "List", 1, &constructors, .{
         .Eq = .fields,
         .Sized = .always,
         .Serial = .fields,
@@ -230,9 +239,9 @@ test "a declared type is reachable by name, id, and constructor" {
 
     try std.testing.expectEqual(id, registry.lookup("List").?);
     try std.testing.expectEqual(1, registry.get(id).parameters);
-    try std.testing.expectEqual(id, registry.ownerOf(cons).?);
-    try std.testing.expectEqual(1, registry.constructorOf(cons).?.tag);
-    try std.testing.expectEqual(null, registry.ownerOf(@enumFromInt(9)));
+    try std.testing.expectEqual(id, ownerOf(&interner, cons).?);
+    try std.testing.expectEqual(1, registry.constructorOf(&interner, cons).?.tag);
+    try std.testing.expectEqual(null, ownerOf(&interner, other));
 }
 
 test "the structural accessors follow the declared tag order" {

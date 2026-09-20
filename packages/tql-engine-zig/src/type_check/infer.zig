@@ -110,6 +110,8 @@ pub const Inference = struct {
     annotations: core.SymbolTable(tql_to_core.Annotation),
     /// The declared types a `case`'s alternatives are checked against.
     datatypes: *const core.datatypes.Registry,
+    /// Says which datatype a constructor belongs to.
+    interner: *const core.Interner,
     failure: ?Failure = null,
 
     pub fn init(
@@ -118,12 +120,14 @@ pub const Inference = struct {
         undecided: *constraints.Set,
         globals: Globals,
         declared: *const core.datatypes.Registry,
+        interner: *const core.Interner,
     ) Inference {
         return .{
             .gpa = gpa,
             .subst = subst,
             .undecided = undecided,
             .datatypes = declared,
+            .interner = interner,
             .globals = globals,
             .scope = Scope.init(gpa),
             .inferred = core.SymbolTable(types.Scheme).init(gpa),
@@ -268,7 +272,7 @@ pub const Inference = struct {
         // is known without resolving the scrutinee. Unifying against it at
         // fresh arguments is what lets `case xs of ...` fix `xs`'s type rather
         // than requiring it to be fixed already.
-        const owner = self.datatypes.ownerOf(c.alternatives[0].constructor).?;
+        const owner = core.datatypes.ownerOf(self.interner, c.alternatives[0].constructor).?;
         const declared = self.datatypes.get(owner);
 
         const arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
@@ -629,10 +633,11 @@ pub const Checked = struct {
 fn constructorSchemeOf(
     subst: *Substitution,
     registry: *const core.datatypes.Registry,
+    interner: *const core.Interner,
     id: core.SymbolId,
 ) Error!?types.Scheme {
-    const owner = registry.ownerOf(id) orelse return null;
-    const constructor = registry.constructorOf(id).?;
+    const owner = core.datatypes.ownerOf(interner, id) orelse return null;
+    const constructor = registry.constructorOf(interner, id).?;
     return try schemes.constructorScheme(subst.arena, registry.get(owner), constructor.*, owner);
 }
 
@@ -644,8 +649,16 @@ const ProgramGlobals = struct {
     fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
         if (self.program.primitives.scheme(id)) |s| return s;
-        if (self.program.details.get(id)) |s| return try schemes.schemeFor(subst, s);
-        return try constructorSchemeOf(subst, &self.program.datatypes, id);
+        switch (self.program.interner.details(id)) {
+            .synthesized => |s| return try schemes.schemeFor(subst, s),
+            else => {},
+        }
+        return try constructorSchemeOf(
+            subst,
+            &self.program.datatypes,
+            &self.program.interner,
+            id,
+        );
     }
 };
 
@@ -673,7 +686,7 @@ pub fn check(
     var inference = Inference.init(gpa, &subst, &undecided, .{
         .context = &globals,
         .lookupFn = ProgramGlobals.lookup,
-    }, &program.datatypes);
+    }, &program.datatypes, &program.interner);
     defer inference.deinit();
     try inference.declare(program.annotations);
 
@@ -738,7 +751,6 @@ const Fixture = struct {
     undecided: constraints.Set,
     interner: core.Interner,
     table: core.SymbolTable(types.Scheme),
-    details: core.DetailsTable,
     builder: core.Builder,
     datatypes: core.datatypes.Registry,
     inference: Inference,
@@ -751,7 +763,6 @@ const Fixture = struct {
             .undecided = constraints.Set.init(gpa),
             .interner = try core.Interner.init(gpa),
             .table = core.SymbolTable(types.Scheme).init(gpa),
-            .details = core.DetailsTable.init(gpa),
             .builder = undefined,
             .datatypes = core.datatypes.Registry.init(gpa),
             .inference = undefined,
@@ -769,6 +780,7 @@ const Fixture = struct {
                 .lookupFn = lookupScheme,
             },
             &self.datatypes,
+            &self.interner,
         );
         return self;
     }
@@ -783,14 +795,16 @@ const Fixture = struct {
     ) Error!?types.Scheme {
         const self: *const Fixture = @ptrCast(@alignCast(context));
         if (self.table.get(id)) |s| return s;
-        if (self.details.get(id)) |s| return try schemes.schemeFor(subst, s);
-        return try constructorSchemeOf(subst, &self.datatypes, id);
+        switch (self.interner.details(id)) {
+            .synthesized => |s| return try schemes.schemeFor(subst, s),
+            else => {},
+        }
+        return try constructorSchemeOf(subst, &self.datatypes, &self.interner, id);
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
         self.inference.deinit();
         self.datatypes.deinit();
-        self.details.deinit();
         self.table.deinit();
         self.interner.deinit();
         self.undecided.deinit();
@@ -800,21 +814,19 @@ const Fixture = struct {
     }
 
     fn define(self: *Fixture, spelling: []const u8, scheme: types.Scheme) !core.SymbolId {
-        const id = try self.interner.intern(spelling);
+        const id = try self.interner.intern(spelling, .vanilla);
         try self.table.put(id, scheme);
         return id;
     }
 
     fn name(self: *Fixture, spelling: []const u8) !core.SymbolId {
-        return self.interner.lookup(spelling) orelse try self.interner.intern(spelling);
+        return self.interner.lookup(spelling) orelse try self.interner.intern(spelling, .vanilla);
     }
 
     /// Interns a synthesized symbol under its bracketed spelling, the way the
     /// desugarer does, and records what it was generated from.
-    fn synthesize(self: *Fixture, spelling: []const u8, what: core.Details) !core.SymbolId {
-        const id = try self.name(spelling);
-        try self.details.put(id, what);
-        return id;
+    fn synthesize(self: *Fixture, spelling: []const u8, what: core.Synthesized) !core.SymbolId {
+        return try self.interner.internOrGet(spelling, .{ .synthesized = what });
     }
 
     fn sym(self: *Fixture, id: core.SymbolId) core.Term {
@@ -847,10 +859,10 @@ const Fixture = struct {
     fn declareFlag(self: *Fixture) !void {
         const arena = self.arena.allocator();
         const constructors = try arena.dupe(core.datatypes.Constructor, &.{
-            .{ .symbol = try self.interner.intern("Off"), .tag = 0, .fields = &.{} },
-            .{ .symbol = try self.interner.intern("On"), .tag = 1, .fields = &.{} },
+            .{ .symbol = try self.interner.intern("Off", .vanilla), .tag = 0, .fields = &.{} },
+            .{ .symbol = try self.interner.intern("On", .vanilla), .tag = 1, .fields = &.{} },
         });
-        _ = try self.datatypes.declare("Flag", 0, constructors, .{});
+        _ = try self.datatypes.declare(&self.interner, "Flag", 0, constructors, .{});
     }
 
     /// `case c of { Off -> e; On -> t }`, alternatives in tag order.

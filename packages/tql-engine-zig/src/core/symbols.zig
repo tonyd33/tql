@@ -1,13 +1,23 @@
 //! Symbol interning and per-symbol side tables.
 
 const std = @import("std");
+const Details = @import("details.zig").Details;
 
 const Allocator = std.mem.Allocator;
 
 // newtype SymbolId = u32
 pub const SymbolId = enum(u32) { _ };
 
+// newtype TypeId = u32
+pub const TypeId = enum(u32) { _ };
+
 pub const InsertError = error{Collision} || Allocator.Error;
+
+/// A symbol's identity and what it denotes.
+pub const Symbol = struct {
+    spelling: []const u8,
+    details: Details,
+};
 
 pub fn SymbolTable(comptime T: type) type {
     return struct {
@@ -46,9 +56,9 @@ pub const Interner = struct {
     allocator: Allocator,
     /// Heap-owned so this can be moved.
     arena: *std.heap.ArenaAllocator,
-    /// Spelling per id, indexed by id. Locals are here too, so a diagnostic can
-    /// name one; only globals enter `by_spelling`.
-    spellings: std.ArrayList([]const u8) = .empty,
+    /// One entry per id, indexed by id. Locals are here too, so a diagnostic
+    /// can name one; only globals enter `by_spelling`.
+    entries: std.ArrayList(Symbol) = .empty,
     by_spelling: std.StringHashMapUnmanaged(SymbolId) = .empty,
 
     pub fn init(allocator: Allocator) !Interner {
@@ -58,7 +68,7 @@ pub const Interner = struct {
     }
 
     pub fn deinit(self: *Interner) void {
-        self.spellings.deinit(self.allocator);
+        self.entries.deinit(self.allocator);
         self.by_spelling.deinit(self.allocator);
         self.arena.deinit();
         self.allocator.destroy(self.arena);
@@ -66,34 +76,46 @@ pub const Interner = struct {
 
     /// A global. Collides when the spelling is taken, which is what makes a
     /// redefinition an error rather than a shadowing.
-    pub fn intern(self: *Interner, spelling_text: []const u8) InsertError!SymbolId {
+    pub fn intern(
+        self: *Interner,
+        spelling_text: []const u8,
+        what: Details,
+    ) InsertError!SymbolId {
         if (self.by_spelling.contains(spelling_text)) return error.Collision;
-        return try self.internUnchecked(spelling_text);
+        return try self.internUnchecked(spelling_text, what);
     }
 
     /// Returns the existing id for a spelling, or interns it. Identical
     /// synthesis requests must yield one symbol. (e.g. `{a=1,b=2}` and
     /// `{b=2,a=1}` share a `record[a,b]`)
-    pub fn internOrGet(self: *Interner, spelling_text: []const u8) Allocator.Error!SymbolId {
+    pub fn internOrGet(
+        self: *Interner,
+        spelling_text: []const u8,
+        what: Details,
+    ) Allocator.Error!SymbolId {
         if (self.by_spelling.get(spelling_text)) |existing| return existing;
-        return try self.internUnchecked(spelling_text);
+        return try self.internUnchecked(spelling_text, what);
     }
 
-    fn internUnchecked(self: *Interner, spelling_text: []const u8) Allocator.Error!SymbolId {
+    fn internUnchecked(
+        self: *Interner,
+        spelling_text: []const u8,
+        what: Details,
+    ) Allocator.Error!SymbolId {
         const owned = try self.arena.allocator().dupe(u8, spelling_text);
-        const id = try self.append(owned);
+        const id = try self.append(owned, what);
         try self.by_spelling.put(self.allocator, owned, id);
         return id;
     }
 
     /// A local binder.
     pub fn fresh(self: *Interner, name: []const u8) Allocator.Error!SymbolId {
-        return try self.append(try self.arena.allocator().dupe(u8, name));
+        return try self.append(try self.arena.allocator().dupe(u8, name), .vanilla);
     }
 
-    fn append(self: *Interner, owned: []const u8) Allocator.Error!SymbolId {
-        const id: SymbolId = @enumFromInt(self.spellings.items.len);
-        try self.spellings.append(self.allocator, owned);
+    fn append(self: *Interner, owned: []const u8, what: Details) Allocator.Error!SymbolId {
+        const id: SymbolId = @enumFromInt(self.entries.items.len);
+        try self.entries.append(self.allocator, .{ .spelling = owned, .details = what });
         return id;
     }
 
@@ -102,11 +124,23 @@ pub const Interner = struct {
     }
 
     pub fn spelling(self: *const Interner, id: SymbolId) []const u8 {
-        return self.spellings.items[@intFromEnum(id)];
+        return self.entries.items[@intFromEnum(id)].spelling;
+    }
+
+    pub fn details(self: *const Interner, id: SymbolId) Details {
+        return self.entries.items[@intFromEnum(id)].details;
+    }
+
+    /// Records what an already-interned symbol denotes. A constructor is
+    /// interned before its datatype has an id, so its details arrive here.
+    ///
+    /// Preconditions: `id` was handed out by this interner.
+    pub fn setDetails(self: *Interner, id: SymbolId, what: Details) void {
+        self.entries.items[@intFromEnum(id)].details = what;
     }
 
     pub fn count(self: *const Interner) usize {
-        return self.spellings.items.len;
+        return self.entries.items.len;
     }
 };
 
@@ -114,11 +148,12 @@ test "internOrGet returns one symbol for one spelling" {
     var interner = try Interner.init(std.testing.allocator);
     defer interner.deinit();
 
-    const first = try interner.internOrGet("is_kind[class_declaration]");
-    const second = try interner.internOrGet("is_kind[class_declaration]");
+    const what: Details = .{ .synthesized = .{ .kind_test = .{ .name = "k", .id = 1 } } };
+    const first = try interner.internOrGet("is_kind[class_declaration]", what);
+    const second = try interner.internOrGet("is_kind[class_declaration]", what);
     try std.testing.expectEqual(first, second);
 
-    const other = try interner.internOrGet("is_kind[method_definition]");
+    const other = try interner.internOrGet("is_kind[method_definition]", what);
     try std.testing.expect(first != other);
 }
 

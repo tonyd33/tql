@@ -43,9 +43,6 @@ pub const Program = struct {
     /// Declared types and their constructors, collected before any body was
     /// desugared so a constructor reference resolves like any other global.
     datatypes: datatypes.Registry,
-    /// What each synthesized symbol denotes, merged from the linked modules.
-    /// Desugaring's output: nothing downstream has the grammar.
-    details: core.DetailsTable,
     annotations: []const desugar.Annotation,
 
     /// The scheme a signature declared for `id`, if one was written.
@@ -63,7 +60,6 @@ pub const Program = struct {
 
     pub fn deinit(self: *Program) void {
         self.datatypes.deinit();
-        self.details.deinit();
         self.primitives.deinit();
         self.interner.deinit();
         self.arena.deinit();
@@ -94,9 +90,6 @@ pub const Desugarer = struct {
     allocator: std.mem.Allocator,
     arena: ?*std.heap.ArenaAllocator,
     interned: builtin.Interned,
-    /// Shared across every module in the link, so a symbol is one symbol
-    /// whichever module synthesized it.
-    details: core.DetailsTable,
     modules: std.ArrayList(desugar.Module) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
@@ -109,14 +102,12 @@ pub const Desugarer = struct {
             .allocator = allocator,
             .arena = arena,
             .interned = try builtin.Interned.init(allocator, arena.allocator()),
-            .details = core.DetailsTable.init(allocator),
         };
     }
 
     pub fn deinit(self: *Desugarer) void {
         self.modules.deinit(self.allocator);
         const arena = self.arena orelse return;
-        self.details.deinit();
         self.interned.deinit();
         arena.deinit();
         self.allocator.destroy(arena);
@@ -143,6 +134,7 @@ pub const Desugarer = struct {
             }
 
             const id = try self.interned.datatypes.declare(
+                interner,
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
                 &.{},
@@ -152,7 +144,7 @@ pub const Desugarer = struct {
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
             var failed = false;
             for (declared.constructors, constructors, 0..) |written, *out, tag| {
-                const symbol = interner.intern(written.name) catch |err| switch (err) {
+                const symbol = interner.intern(written.name, .vanilla) catch |err| switch (err) {
                     error.Collision => {
                         try sink.report(
                             .symbol_collision,
@@ -178,7 +170,7 @@ pub const Desugarer = struct {
             }
             if (failed) continue;
 
-            try self.interned.datatypes.setConstructors(id, constructors);
+            self.interned.datatypes.setConstructors(interner, id, constructors);
         }
     }
 
@@ -282,7 +274,6 @@ pub const Desugarer = struct {
                 builder,
                 interner,
                 &self.interned.datatypes,
-                &self.details,
                 &declarations,
                 g.language,
                 sink,
@@ -405,7 +396,6 @@ pub const Desugarer = struct {
             .interner = self.interned.interner,
             .primitives = self.interned.table,
             .datatypes = self.interned.datatypes,
-            .details = self.details,
             .annotations = annotations,
         };
     }

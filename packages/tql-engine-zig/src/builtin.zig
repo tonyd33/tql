@@ -140,26 +140,16 @@ pub fn operatorScheme(
     };
 }
 
-/// What each primitive is, keyed by the id it was interned as.
+/// The scheme of each primitive, keyed by the id it was interned as.
 pub const Table = struct {
     schemes: core.SymbolTable(types.Scheme),
-    primops: core.SymbolTable(PrimOp),
 
     pub fn deinit(self: *Table) void {
         self.schemes.deinit();
-        self.primops.deinit();
     }
 
     pub fn scheme(self: *const Table, id: core.SymbolId) ?types.Scheme {
         return self.schemes.get(id);
-    }
-
-    pub fn primop(self: *const Table, id: core.SymbolId) ?PrimOp {
-        return self.primops.get(id);
-    }
-
-    pub fn contains(self: *const Table, id: core.SymbolId) bool {
-        return self.primops.get(id) != null;
     }
 };
 
@@ -186,7 +176,6 @@ pub const Interned = struct {
 
         var table: Table = .{
             .schemes = core.SymbolTable(types.Scheme).init(allocator),
-            .primops = core.SymbolTable(PrimOp).init(allocator),
         };
         errdefer table.deinit();
 
@@ -195,9 +184,8 @@ pub const Interned = struct {
         try primitiveSchemes(arena, &declared, &rows, allocator);
 
         for (rows.items) |row| {
-            const id = try interner.intern(row.name);
+            const id = try interner.intern(row.name, .{ .primop = row.primop });
             try table.schemes.put(id, row.scheme);
-            try table.primops.put(id, row.primop);
         }
         return .{ .interner = interner, .table = table, .datatypes = declared };
     }
@@ -263,8 +251,7 @@ test "every primitive is interned, and its scheme and primop are recorded" {
 
     const text = interned.interner.lookup("text") orelse return error.Missing;
     try std.testing.expectEqualStrings("text", interned.interner.spelling(text));
-    try std.testing.expect(interned.table.contains(text));
-    try std.testing.expectEqual(PrimOp.text, interned.table.primop(text).?);
+    try std.testing.expectEqual(PrimOp.text, interned.interner.details(text).primop);
     try std.testing.expect(interned.table.scheme(text) != null);
 }
 
@@ -273,7 +260,10 @@ test "a declaration colliding with a primitive's name is rejected" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try std.testing.expectError(error.Collision, fix.interned.interner.intern("children"));
+    try std.testing.expectError(
+        error.Collision,
+        fix.interned.interner.intern("children", .vanilla),
+    );
 }
 
 test "operator schemes take scalars, not filters" {

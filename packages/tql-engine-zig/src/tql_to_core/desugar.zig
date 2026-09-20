@@ -13,13 +13,11 @@ const types = core.types;
 
 pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
-const Details = core.Details;
-const DetailsTable = core.DetailsTable;
+const Synthesized = core.Synthesized;
 
 pub const Lowerer = struct {
     interner: *core.Interner,
     datatypes: *const datatypes.Registry,
-    details: *DetailsTable,
     declarations: *const resolve.Declarations,
     language: *const ts.Language,
     sink: *diagnostic.Sink,
@@ -33,7 +31,6 @@ pub const Lowerer = struct {
         builder: core.Builder,
         interner: *core.Interner,
         declared: *const datatypes.Registry,
-        details: *DetailsTable,
         declarations: *const resolve.Declarations,
         language: *const ts.Language,
         sink: *diagnostic.Sink,
@@ -41,7 +38,6 @@ pub const Lowerer = struct {
         return .{
             .interner = interner,
             .datatypes = declared,
-            .details = details,
             .declarations = declarations,
             .language = language,
             .sink = sink,
@@ -69,7 +65,7 @@ pub const Lowerer = struct {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         };
-        if (self.datatypes.ownerOf(id) == null) {
+        if (datatypes.ownerOf(self.interner, id) == null) {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         }
@@ -98,7 +94,7 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         };
-        const owner = self.datatypes.ownerOf(first) orelse {
+        const owner = datatypes.ownerOf(self.interner, first) orelse {
             try self.sink.report(
                 .unresolved_name,
                 c.alternatives[0].span,
@@ -122,7 +118,7 @@ pub const Lowerer = struct {
                 );
                 return error.DesugarFailed;
             };
-            const constructor = self.datatypes.constructorOf(id) orelse {
+            const constructor = self.datatypes.constructorOf(self.interner, id) orelse {
                 try self.sink.report(
                     .unresolved_name,
                     alternative.span,
@@ -131,7 +127,7 @@ pub const Lowerer = struct {
                 );
                 return error.DesugarFailed;
             };
-            if (self.datatypes.ownerOf(id).? != owner) {
+            if (datatypes.ownerOf(self.interner, id).? != owner) {
                 try self.sink.report(
                     .type_mismatch,
                     alternative.span,
@@ -245,7 +241,7 @@ pub const Lowerer = struct {
             return error.DesugarFailed;
         }
         const duped = try self.builder.dupe(name);
-        const what: Details = if (axis) |primop|
+        const what: Synthesized = if (axis) |primop|
             .{ .kind_axis = .{ .name = duped, .id = id, .primop = primop } }
         else
             .{ .kind_test = .{ .name = duped, .id = id } };
@@ -259,12 +255,10 @@ pub const Lowerer = struct {
         // IMPROVE: normalize differently in a non-stupid way
         comptime spelling_format: []const u8,
         spelling_args: anytype,
-        what: Details,
+        what: Synthesized,
     ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
-        const id = try self.interner.internOrGet(spelling);
-        try self.details.put(id, what);
-        return id;
+        return try self.interner.internOrGet(spelling, .{ .synthesized = what });
     }
 
     /// Parentheses are grouping only, so a form is recognized through them.

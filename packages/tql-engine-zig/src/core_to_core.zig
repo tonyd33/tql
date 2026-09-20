@@ -27,7 +27,6 @@ pub fn run(program: *tql_to_core.Program) Error!void {
     var pass: Pass = .{
         .builder = .{ .allocator = program.arena.allocator() },
         .interner = &program.interner,
-        .details = &program.details,
         .primitives = &program.primitives,
         .compose = compose,
     };
@@ -145,7 +144,6 @@ test "an axis with no kind test is left alone" {
 const Pass = struct {
     builder: core.Builder,
     interner: *core.Interner,
-    details: *core.DetailsTable,
     primitives: *const builtin.Table,
     compose: core.SymbolId,
 
@@ -254,8 +252,11 @@ const Pass = struct {
             .symbol => |s| s,
             else => return null,
         };
-        return switch (self.details.get(id) orelse return null) {
-            .kind_test => |k| .{ .name = k.name, .id = k.id },
+        return switch (self.interner.details(id)) {
+            .synthesized => |s| switch (s) {
+                .kind_test => |k| .{ .name = k.name, .id = k.id },
+                else => null,
+            },
             else => null,
         };
     }
@@ -263,7 +264,10 @@ const Pass = struct {
     /// The primitive a symbol names, when it names one. A local binding that
     /// shadows the name is a different symbol, so this cannot confuse the two.
     fn primopOf(self: *const Pass, id: core.SymbolId) ?core.PrimOp {
-        return self.primitives.primop(id);
+        return switch (self.interner.details(id)) {
+            .primop => |p| p,
+            else => null,
+        };
     }
 
     /// The synthesized symbol for a fused axis, interned and recorded the way
@@ -277,12 +281,10 @@ const Pass = struct {
             @tagName(primop),
             kind.name,
         });
-        const id = try self.interner.internOrGet(spelling);
-        try self.details.put(id, .{ .kind_axis = .{
+        return try self.interner.internOrGet(spelling, .{ .synthesized = .{ .kind_axis = .{
             .name = kind.name,
             .id = kind.id,
             .primop = primop,
-        } });
-        return id;
+        } } });
     }
 };

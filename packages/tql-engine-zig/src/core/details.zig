@@ -63,7 +63,7 @@ pub const PrimOp = enum {
 
 /// What a synthesized symbol denotes. The payload is resolved during
 /// desugaring and is unrecoverable from the spelling afterwards.
-pub const Details = union(enum) {
+pub const Synthesized = union(enum) {
     /// `is_kind[k]`, carrying the resolved grammar kind ID.
     kind_test: struct { name: []const u8, id: u16 },
     /// `descendants_of_kind[k]` or `children_of_kind[k]`, carrying the
@@ -77,6 +77,27 @@ pub const Details = union(enum) {
     /// in the field count, so inference builds it from these rather than
     /// reading one off a table.
     record: []const []const u8,
+
+    /// The machine operation this denotes.
+    pub fn primop(self: Synthesized) PrimOp {
+        return switch (self) {
+            .kind_test => .is_kind,
+            .kind_axis => |k| k.primop,
+            .field => .field,
+            .operator => .operator,
+            .record => .record,
+        };
+    }
 };
 
-pub const DetailsTable = symbols.SymbolTable(Details);
+/// What a symbol is.
+pub const Details = union(enum) {
+    /// A binder or a written definition.
+    vanilla,
+    /// A built-in, denoting a machine operation.
+    primop: PrimOp,
+    /// Generated during compilation, denoting one the surface cannot name.
+    synthesized: Synthesized,
+    /// A data constructor, at its position in the datatype that declares it.
+    constructor: struct { owner: symbols.TypeId, tag: u32 },
+};

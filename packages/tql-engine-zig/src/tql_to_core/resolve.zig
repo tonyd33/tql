@@ -95,7 +95,7 @@ pub fn collect(
             continue;
         }
 
-        const symbol = interner.intern(definition.name) catch |err| switch (err) {
+        const symbol = interner.intern(definition.name, .vanilla) catch |err| switch (err) {
             error.Collision => {
                 try sink.report(
                     .symbol_collision,

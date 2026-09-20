@@ -68,12 +68,12 @@ pub const Translator = struct {
     /// Whether a symbol is a local rather than something reached by identity.
     pub fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
         const self: *const Translator = @ptrCast(@alignCast(context));
-        if (self.program.datatypes.constructorOf(symbol) != null) return false;
-        if (self.program.primitives.contains(symbol)) return false;
-        // A synthesized symbol is reached by identity too. These are in the
-        // details table, not the primitive table; missing them here makes a
-        // closure try to capture an operator.
-        if (self.program.details.get(symbol) != null) return false;
+        // A constructor, primitive or synthesized symbol is reached by
+        // identity. Missing one here makes a closure try to capture it.
+        switch (self.program.interner.details(symbol)) {
+            .constructor, .primop, .synthesized => return false,
+            .vanilla => {},
+        }
         for (self.program.definitions) |definition| {
             if (definition.symbol == symbol) return false;
         }
@@ -81,21 +81,14 @@ pub const Translator = struct {
     }
 
     fn resolve(self: *Translator, name: core.SymbolId) Callee {
-        if (self.program.datatypes.constructorOf(name)) |constructor| {
-            return .{ .constructor = constructor };
-        }
-        if (self.program.primitives.primop(name)) |primop| {
-            return .{ .primitive = primop };
-        }
-        // A synthesized symbol lowers like a primitive.
-        if (self.program.details.get(name)) |details| {
-            return .{ .primitive = switch (details) {
-                .kind_test => .is_kind,
-                .kind_axis => |k| k.primop,
-                .field => .field,
-                .operator => .operator,
-                .record => .record,
-            } };
+        switch (self.program.interner.details(name)) {
+            .constructor => |c| return .{
+                .constructor = &self.program.datatypes.get(c.owner).constructors[c.tag],
+            },
+            .primop => |primop| return .{ .primitive = primop },
+            // A synthesized symbol lowers like a primitive.
+            .synthesized => |s| return .{ .primitive = s.primop() },
+            .vanilla => {},
         }
         for (self.program.definitions) |definition| {
             if (definition.symbol == name) return .{ .global = name };
@@ -270,8 +263,10 @@ pub const Translator = struct {
 
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |source, *alternative| {
-                    const constructor = self.program.datatypes.constructorOf(source.constructor) orelse
-                        return error.Unsupported;
+                    const constructor = self.program.datatypes.constructorOf(
+                        &self.program.interner,
+                        source.constructor,
+                    ) orelse return error.Unsupported;
                     const binders = try self.arena.dupe(core.SymbolId, source.binders);
 
                     // In scope for this alternative's body only, and pushed in
@@ -407,15 +402,16 @@ pub const Translator = struct {
     /// primitive counts its input, making `pure` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
-        if (self.program.details.get(name)) |details| {
-            return switch (details) {
-                // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
-                // `Filter Node Node`, one argument; an operator takes two
-                // scalars.
+        switch (self.program.interner.details(name)) {
+            // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
+            // `Filter Node Node`, one argument; an operator takes two
+            // scalars.
+            .synthesized => |s| return switch (s) {
                 .kind_test, .kind_axis, .field => 1,
                 .operator => 2,
                 .record => |labels| @intCast(labels.len),
-            };
+            },
+            else => {},
         }
 
         const scheme = self.program.primitives.scheme(name) orelse return error.Unsupported;
