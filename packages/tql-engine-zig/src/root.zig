@@ -10,7 +10,7 @@ pub const ts = @import("tree-sitter");
 pub const cst = @import("lang/cst.zig");
 pub const core = @import("core.zig");
 pub const diagnostic = @import("diagnostic.zig");
-pub const builtin = @import("builtin.zig");
+pub const primitives = @import("primitives.zig");
 pub const types = core.types;
 
 // The stages, in pipeline order. Each is a facade over a private subdirectory.
@@ -201,9 +201,9 @@ pub const Engine = struct {
         var checked = try self.checkQuery(query_source, g, sink);
         errdefer checked.deinit();
 
-        try core_to_core.run(&checked.program);
+        try core_to_core.run(&checked);
 
-        const translated = try core_to_stg.translate(self.config.allocator, &checked.program);
+        const translated = try core_to_stg.translate(self.config.allocator, &checked);
         return .{
             .checked = checked,
             .translated = translated,
@@ -256,12 +256,12 @@ pub const CompiledQuery = struct {
             scratch,
             self.allocator,
             &self.translated,
-            &self.checked.program,
+            &self.checked,
         );
         defer machine.deinit(self.allocator);
         machine.target = .{ .source = target, .path = target_path };
 
-        const entry = machine.globals.get(self.checked.program.entry) orelse
+        const entry = machine.globals.get(self.checked.entry) orelse
             return error.MissingEntry;
 
         var root: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
@@ -313,7 +313,7 @@ test {
     refAllDecls(core.symbols);
     refAllDecls(core.datatypes);
     refAllDecls(tql_to_core);
-    refAllDecls(builtin);
+    refAllDecls(primitives);
     refAllDecls(types);
     refAllDecls(type_check);
     refAllDecls(core_to_stg);
@@ -943,4 +943,27 @@ test "a case binds a constructor's field at its instantiated type" {
         \\or_default : Maybe a -> a -> a
         \\main : Node -> [Int]
     , w.written());
+}
+
+test "a structural type redeclared with the wrong shape is rejected" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    // The evaluator builds `Bool` values directly, so the prelude's spelling
+    // and tag order are the ones it assumes.
+    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
+        \\type Bool = Maybe | Definitely;
+        \\main = pure 1;
+    , g, &sink));
+
+    try std.testing.expect(sink.hasErrors());
 }

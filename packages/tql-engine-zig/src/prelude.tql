@@ -1,5 +1,9 @@
 -- TQL prelude.
 
+type List a = Nil | Cons a (List a);
+
+type Bool = False | True;
+
 identity x = Cons x Nil;
 
 pure v x = Cons v Nil;

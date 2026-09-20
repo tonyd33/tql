@@ -35,15 +35,14 @@ pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.tql_to_core.
 pub fn formatTypes(
     allocator: std.mem.Allocator,
     program: *const tql.tql_to_core.Program,
-    checked: *const tql.type_check.Checked,
 ) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
 
     for (program.entryDefinitions(), 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{program.interner.spelling(definition.symbol)});
-        const scheme = checked.schemeOf(definition.symbol) orelse {
+        try w.writer.print("{s} : ", .{program.env.interner.spelling(definition.symbol)});
+        const scheme = program.env.schemeOf(definition.symbol) orelse {
             try w.writer.writeAll("<unchecked>");
             continue;
         };

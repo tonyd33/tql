@@ -14,7 +14,7 @@
 //! these arms already carry.
 
 const std = @import("std");
-const builtin = @import("../builtin.zig");
+const primitives = @import("../primitives.zig");
 const core = @import("../core.zig");
 const datatypes = core.datatypes;
 const types = core.types;
@@ -41,9 +41,9 @@ pub fn schemeFor(subst: *Substitution, synthesized: core.Synthesized) Error!type
         .kind_test => |k| try kindTest(subst, k.id),
         .kind_axis => |k| try kindAxis(subst, k.id),
         .field => |f| try fieldAccess(subst, f.id),
-        // Already written and unit-tested in `builtin.zig`; a property of
+        // Already written and unit-tested in `primitives.zig`; a property of
         // the operator, not of the interned id.
-        .operator => |operator| try builtin.operatorScheme(
+        .operator => |operator| try primitives.operatorScheme(
             subst.arena,
             subst.datatypes,
             operator,

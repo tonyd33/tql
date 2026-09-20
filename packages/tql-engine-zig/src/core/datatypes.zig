@@ -62,40 +62,79 @@ pub const Registry = struct {
         return .{ .allocator = allocator };
     }
 
-    /// Declares `List` and `Bool`. The primitive schemes mention both, so they
-    /// must exist before `prelude.tql` is parsed.
+    /// What the machine expects of a type it builds values of directly.
+    ///
+    /// The prelude declares `List` and `Bool`; these rows reserve their ids
+    /// and class entailments so a primitive scheme can name either before the
+    /// prelude is parsed.
+    pub const Structural = struct {
+        name: []const u8,
+        parameters: u8,
+        classes: ClassRow,
+        /// Constructor spellings in tag order.
+        constructors: []const []const u8,
+
+        pub const list: Structural = .{
+            .name = types.list_spelling,
+            .parameters = 1,
+            .classes = .{ .Eq = .fields, .Sized = .always, .Serial = .fields },
+            .constructors = &.{ "Nil", "Cons" },
+        };
+
+        pub const boolean: Structural = .{
+            .name = types.bool_spelling,
+            .parameters = 0,
+            .classes = .{ .Eq = .always, .Serial = .always },
+            .constructors = &.{ "False", "True" },
+        };
+
+        pub const all: []const Structural = &.{ Structural.list, Structural.boolean };
+    };
+
+    /// Reserves `List` and `Bool`, with no constructors yet. The primitive
+    /// schemes mention both, so their ids must exist before `prelude.tql` is
+    /// parsed; the prelude's own declarations fill the constructors in.
+    pub fn reserveStructural(self: *Registry, interner: *symbols.Interner) !void {
+        for (Structural.all) |s| {
+            _ = try self.declare(interner, s.name, s.parameters, &.{}, s.classes);
+        }
+    }
+
+    /// The reservation `name` names, when it names one.
+    pub fn structuralNamed(name: []const u8) ?Structural {
+        for (Structural.all) |s| {
+            if (std.mem.eql(u8, s.name, name)) return s;
+        }
+        return null;
+    }
+
+    /// Reserves `List` and `Bool` and fills in their constructors, standing in
+    /// for the prelude declarations that normally do it. For a caller that
+    /// needs the structural types without parsing a prelude.
     pub fn declareStructural(
         self: *Registry,
         interner: *symbols.Interner,
         arena: Allocator,
     ) !void {
+        try self.reserveStructural(interner);
+
         const element = types.variable_type(0);
         const self_ref = try types.constructed(
             arena,
-            @enumFromInt(self.datatypes.items.len),
+            self.listId(),
             types.list_spelling,
             &.{element},
         );
-
         const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
-        const list_constructors = try arena.dupe(Constructor, &.{
+        self.setConstructors(interner, self.listId(), try arena.dupe(Constructor, &.{
             .{ .symbol = try interner.intern("Nil", .vanilla), .tag = 0, .fields = &.{} },
             .{ .symbol = try interner.intern("Cons", .vanilla), .tag = 1, .fields = cons_fields },
-        });
-        _ = try self.declare(interner, types.list_spelling, 1, list_constructors, .{
-            .Eq = .fields,
-            .Sized = .always,
-            .Serial = .fields,
-        });
+        }));
 
-        const bool_constructors = try arena.dupe(Constructor, &.{
+        self.setConstructors(interner, self.boolId(), try arena.dupe(Constructor, &.{
             .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
             .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
-        });
-        _ = try self.declare(interner, types.bool_spelling, 0, bool_constructors, .{
-            .Eq = .always,
-            .Serial = .always,
-        });
+        }));
     }
 
     pub fn listId(self: *const Registry) TypeId {

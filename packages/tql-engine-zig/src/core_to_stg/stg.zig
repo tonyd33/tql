@@ -28,7 +28,7 @@
 const std = @import("std");
 const core = @import("../core.zig");
 const datatypes = core.datatypes;
-const builtin = @import("../builtin.zig");
+const primitives = @import("../primitives.zig");
 
 const Allocator = std.mem.Allocator;
 

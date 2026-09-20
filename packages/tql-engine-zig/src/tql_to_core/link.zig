@@ -14,7 +14,7 @@ const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
 const desugar = @import("desugar.zig");
-const builtin = @import("../builtin.zig");
+const primitives = @import("../primitives.zig");
 const datatypes = core.datatypes;
 const types = core.types;
 
@@ -78,7 +78,7 @@ pub const Desugarer = struct {
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         var target = try core.env.Env.init(allocator);
         errdefer target.deinit();
-        try builtin.populate(&target);
+        try primitives.populate(&target);
 
         return .{ .allocator = allocator, .env = target };
     }
@@ -98,7 +98,13 @@ pub const Desugarer = struct {
             if (decl.* != .type_declaration) continue;
             const declared = &decl.type_declaration;
 
-            if (self.env.?.datatypes.lookup(declared.name) != null) {
+            // A structural type is reserved before any source is read, so its
+            // declaration fills in the row already standing rather than
+            // opening a new one.
+            const structural = datatypes.Registry.structuralNamed(declared.name);
+            const existing = self.env.?.datatypes.lookup(declared.name);
+
+            if (existing != null and structural == null) {
                 try sink.report(
                     .duplicate_definition,
                     declared.span,
@@ -107,8 +113,31 @@ pub const Desugarer = struct {
                 );
                 continue;
             }
+            if (structural) |s| {
+                if (self.env.?.datatypes.get(existing.?).constructors.len > 0) {
+                    try sink.report(
+                        .duplicate_definition,
+                        declared.span,
+                        "`{s}` is declared more than once",
+                        .{declared.name},
+                    );
+                    continue;
+                }
+                if (!conforms(s, declared.*)) {
+                    const spelled = try std.mem.join(self.allocator, "`, `", s.constructors);
+                    defer self.allocator.free(spelled);
+                    try sink.report(
+                        .type_mismatch,
+                        declared.span,
+                        "`{s}` is built directly by the evaluator and must declare {d} " ++
+                            "parameter(s) and the constructors `{s}` in that order",
+                        .{ declared.name, s.parameters, spelled },
+                    );
+                    continue;
+                }
+            }
 
-            const id = try self.env.?.datatypes.declare(
+            const id = existing orelse try self.env.?.datatypes.declare(
                 interner,
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
@@ -147,6 +176,18 @@ pub const Desugarer = struct {
 
             self.env.?.datatypes.setConstructors(interner, id, constructors);
         }
+    }
+
+    /// Whether a written declaration matches what the evaluator expects of a
+    /// structural type: the same arity, and the same constructor spellings in
+    /// the same tag order.
+    fn conforms(s: datatypes.Registry.Structural, declared: cst.TypeDeclaration) bool {
+        if (declared.parameters.len != s.parameters) return false;
+        if (declared.constructors.len != s.constructors.len) return false;
+        for (declared.constructors, s.constructors) |written, expected| {
+            if (!std.mem.eql(u8, written.name, expected)) return false;
+        }
+        return true;
     }
 
     /// A constructor field's type, with the datatype's own parameters in

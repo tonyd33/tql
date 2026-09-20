@@ -787,11 +787,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
                 var type_sink = tql.diagnostic.Sink.init(allocator);
                 defer type_sink.deinit();
 
-                if (tql.type_check.check(allocator, &program, &type_sink)) |checked| {
-                    var c = checked;
-                    defer c.deinit();
+                if (tql.type_check.check(allocator, &program, &type_sink)) {
                     allocator.free(types_text);
-                    types_text = try fmt.formatTypes(allocator, &program, &c);
+                    types_text = try fmt.formatTypes(allocator, &program);
                 } else |err| switch (err) {
                     error.TypeCheckFailed => {
                         allocator.free(type_diagnostics);

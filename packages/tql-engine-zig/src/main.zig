@@ -508,9 +508,9 @@ fn runDumpInstructions(
     };
     defer compiled.deinit();
 
-    const printer = tql.core_to_stg.Printer{ .interner = &compiled.checked.program.env.interner };
+    const printer = tql.core_to_stg.Printer{ .interner = &compiled.checked.env.interner };
     for (compiled.translated.definitions) |definition| {
-        try stdout.print("{s} = ", .{compiled.checked.program.env.interner.spelling(definition.symbol)});
+        try stdout.print("{s} = ", .{compiled.checked.env.interner.spelling(definition.symbol)});
         try printer.closure(definition.value, stdout);
         try stdout.writeAll("\n");
     }

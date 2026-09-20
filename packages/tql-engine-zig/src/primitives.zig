@@ -5,8 +5,6 @@ const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
-/// A scalar operator, which desugaring synthesizes an `op[...]` symbol for.
-///
 const Scalar = core.Scalar;
 const PrimOp = core.PrimOp;
 
@@ -145,7 +143,7 @@ pub fn operatorScheme(
 /// so a declaration colliding with a primitive's name fails on intern.
 pub fn populate(target: *core.env.Env) !void {
     const arena = target.allocator();
-    try target.datatypes.declareStructural(&target.interner, arena);
+    try target.datatypes.reserveStructural(&target.interner);
 
     var rows: std.ArrayList(Row) = .empty;
     defer rows.deinit(target.gpa);

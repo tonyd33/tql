@@ -11,7 +11,7 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 const pcre2 = @import("../regex.zig");
 const tql_to_core = @import("../tql_to_core.zig");
-const builtin = @import("../builtin.zig");
+const primitives = @import("../primitives.zig");
 const stg = @import("stg.zig");
 const core = @import("../core.zig");
 const value = @import("value.zig");
@@ -1008,7 +1008,8 @@ pub const Machine = struct {
                 jws.endObject() catch return error.TypeError;
             },
             .constructed => |c| {
-                const owner = self.datatypes.ownerOf(c.constructor) orelse return error.TypeError;
+                const owner = datatypes.ownerOf(self.interner, c.constructor) orelse
+                    return error.TypeError;
                 if (owner == self.datatypes.boolId()) {
                     const t = self.datatypes.boolConstructor(true);
                     jws.write(c.tag == t.tag) catch return error.TypeError;
