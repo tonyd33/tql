@@ -1,7 +1,6 @@
 title: nested binds concatenate in stream order
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Both methods of A precede the method of B: the outer bind's order is preserved
 and the inner bind's results are concatenated within each branch.

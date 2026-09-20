@@ -1,7 +1,6 @@
 title: nested lists and records encode recursively
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main root =
@@ -19,8 +18,8 @@ class B {}
 --- values ---
 [
   [
-    { "name": "A", "methods": ["m"] },
-    { "name": "B", "methods": [] }
+    { "methods": ["m"], "name": "A" },
+    { "methods": [], "name": "B" }
   ]
 ]
 

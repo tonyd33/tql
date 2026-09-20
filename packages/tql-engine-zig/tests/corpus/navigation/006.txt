@@ -1,7 +1,6 @@
 title: descendant navigation is pre-order
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Pre-order visits each node before its own descendants. `class_declaration` A
 precedes its nested `method_definition` m, which precedes the later sibling

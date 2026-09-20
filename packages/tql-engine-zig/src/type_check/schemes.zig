@@ -14,7 +14,7 @@
 //! these arms already carry.
 
 const std = @import("std");
-const desugar = @import("../desugar.zig");
+const tql_to_core = @import("../tql_to_core.zig");
 const datatypes = @import("../lang/datatypes.zig");
 const primitives = @import("../lang/primitives.zig");
 const datatypes_mod = @import("../lang/datatypes.zig");
@@ -35,12 +35,13 @@ pub const Error = error{TooManyRecordFields} || Allocator.Error;
 /// `subst` is needed because `record`'s scheme is n-ary in its label
 /// count and must be built at runtime; the other three are comptime constants
 /// and touch it not at all.
-pub fn schemeFor(subst: *Substitution, synthesis: desugar.Synthesis) Error!types.Scheme {
+pub fn schemeFor(subst: *Substitution, synthesis: tql_to_core.Synthesis) Error!types.Scheme {
     return switch (synthesis) {
         // The kind id is resolved and carried, and deliberately unused: a kind
         // test narrows the *value* but not yet the type. W4 is where it starts
         // mattering.
         .kind_test => |k| try kindTest(subst, k.id),
+        .kind_axis => |k| try kindAxis(subst, k.id),
         .field => |f| try fieldAccess(subst, f.id),
         // Already written and unit-tested in `primitives.zig`; a property of
         // the operator, not of the interned id.
@@ -79,6 +80,12 @@ pub fn constructorScheme(
 
 /// `is_kind[k] : Filter node node`.
 fn kindTest(subst: *Substitution, id: u16) !types.Scheme {
+    _ = id;
+    return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
+}
+
+/// `descendants_of_kind[k] : Filter node node`, and `children_of_kind[k]`.
+fn kindAxis(subst: *Substitution, id: u16) !types.Scheme {
     _ = id;
     return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
 }
@@ -141,7 +148,7 @@ const Fixture = struct {
         gpa.destroy(self);
     }
 
-    fn expectScheme(self: *Fixture, synthesis: desugar.Synthesis, expected: []const u8) !void {
+    fn expectScheme(self: *Fixture, synthesis: tql_to_core.Synthesis, expected: []const u8) !void {
         const scheme = try schemeFor(&self.subst, synthesis);
         var buf: std.Io.Writer.Allocating = .init(testing.allocator);
         defer buf.deinit();

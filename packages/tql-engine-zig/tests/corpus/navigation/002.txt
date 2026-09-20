@@ -1,7 +1,6 @@
 title: static child navigation keeps only matching kinds
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 --- tql ---
 main = children | is_kind :class_declaration | .name | lift text;

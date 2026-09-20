@@ -1,7 +1,6 @@
 title: stream binding preserves correlation between outputs
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 This is the case that motivated replacing `as`. Each method is paired with the
 class it came from, because the outer binding stays in scope inside the inner

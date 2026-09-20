@@ -1,7 +1,6 @@
 title: a node encodes with exactly six fields
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The one fixture that spells out full node JSON. `class Service {}` is 16 bytes
 on one row, so the node spans byte 0 to 16 and column 0 to 16.

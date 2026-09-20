@@ -1,7 +1,6 @@
 title: field access binds tighter than application
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `name_of c` applies `name_of` to `c`; inside, `n.name` is field access on the
 parameter before any application is considered.

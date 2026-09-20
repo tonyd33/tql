@@ -1,7 +1,6 @@
 title: regex match against node text
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

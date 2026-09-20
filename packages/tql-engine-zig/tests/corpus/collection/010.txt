@@ -1,7 +1,6 @@
 title: a record of scalars is built from bound nodes
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Record fields are scalars, so the record is a scalar too. Navigation stays a
 filter, because a field may hold several nodes. A field read is bound first and

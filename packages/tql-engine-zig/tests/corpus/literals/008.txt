@@ -1,7 +1,6 @@
 title: a raw literal applies no escape processing
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `r"a\b"` is the pattern `a\b`: the backslash stands for itself and is passed to
 the regex engine unchanged. The JavaScript source writes that same backslash as

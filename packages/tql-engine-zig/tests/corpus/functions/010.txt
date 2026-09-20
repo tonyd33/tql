@@ -1,7 +1,6 @@
 title: a filter returned from a function
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `matcher` constructs a filter from a string. Ordinary application builds the
 filter; the pipe executes it.

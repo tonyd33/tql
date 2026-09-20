@@ -1,11 +1,11 @@
 //! Lowering and evaluation: checked Core to a running program.
 
-const eval = @import("lower/eval.zig");
-const free = @import("lower/free.zig");
-const print = @import("lower/print.zig");
-const stg = @import("lower/stg.zig");
-const translate_mod = @import("lower/translate.zig");
-const value = @import("lower/value.zig");
+const eval = @import("core_to_stg/eval.zig");
+const free = @import("core_to_stg/free.zig");
+const print = @import("core_to_stg/print.zig");
+const stg = @import("core_to_stg/stg.zig");
+const translate_mod = @import("core_to_stg/translate.zig");
+const value = @import("core_to_stg/value.zig");
 
 /// The term language the evaluator walks.
 pub const Expr = stg.Expr;
@@ -29,6 +29,12 @@ pub const Printer = print.Printer;
 
 /// The evaluator.
 pub const Machine = eval.Machine;
+
+/// Allocation counters by call site. Profiling only.
+pub const Site = eval.Site;
+pub const site_counts = &eval.site_counts;
+pub const site_bytes = &eval.site_bytes;
+pub const count_allocations = eval.count_allocations;
 
 /// Runtime values, and the thunks that produce them.
 pub const Value = value.Value;

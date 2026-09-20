@@ -1,7 +1,6 @@
 title: `!~` is the negated match
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

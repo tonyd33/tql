@@ -1,7 +1,6 @@
 title: records nest and hold heterogeneous fields
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main root =
@@ -15,7 +14,7 @@ main root =
 class A {}
 
 --- values ---
-[{ "name": "A", "meta": { "k": "class_declaration", "n": 1 } }]
+[{ "meta": { "k": "class_declaration", "n": 1 }, "name": "A" }]
 
 --- types ---
 main : Node -> [{meta: {k: String, n: Int}, name: String}]

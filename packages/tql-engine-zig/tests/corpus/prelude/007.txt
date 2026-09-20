@@ -1,7 +1,6 @@
 title: `all` is true only when every element satisfies the predicate
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `all` probes for a *violating* element by swapping the inner branch arms
 (`branch predicate empty identity`), then negates the result. Its scheme

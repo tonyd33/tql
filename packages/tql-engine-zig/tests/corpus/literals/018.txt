@@ -1,7 +1,6 @@
 title: distinct nodes with identical text are not equal
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Two `class_declaration` nodes give four pairs, enumerated with the left operand
 outermost. Identity, not text, decides: only the diagonal pairs are equal.

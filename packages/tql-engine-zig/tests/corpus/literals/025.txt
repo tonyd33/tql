@@ -1,7 +1,6 @@
 title: `toint` rejects a value that does not fit int
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `9223372036854775807` is the largest `int`; one more does not fit and yields
 the empty stream rather than overflowing.

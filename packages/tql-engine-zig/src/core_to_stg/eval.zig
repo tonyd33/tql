@@ -1,0 +1,1206 @@
+//! Graph reduction over the STG-shaped term language: force a thunk by running
+//! its body, memoize the result, dispatch a `case` on the scrutinee's tag.
+//!
+//! Calls are eval/apply. The caller reads the callee's arity and decides
+//! whether the call is saturated, over-applied, or partial.
+//!
+//! Everything allocates in one arena owned by the Machine and freed with it.
+//! Nothing is collected during a run.
+
+const std = @import("std");
+const ts = @import("tree-sitter");
+const pcre2 = @import("../regex.zig");
+const datatypes = @import("../lang/datatypes.zig");
+const tql_to_core = @import("../tql_to_core.zig");
+const primitives = @import("../lang/primitives.zig");
+const stg = @import("stg.zig");
+const symbols = @import("../lang/symbols.zig");
+const value = @import("value.zig");
+
+const Allocator = std.mem.Allocator;
+
+/// Allocation counters, by call site. Profiling only.
+pub const Site = enum {
+    global_thunk,
+    force_literal,
+    run_env,
+    pending_append,
+    enter_captures,
+    let_thunk,
+    let_binder,
+    case_binder,
+    apply_args,
+    primitive_args,
+    record_fields,
+    toint_thunk,
+    filename_thunk,
+    construct_spill,
+    node_thunk,
+    nil_thunk,
+    cons_thunk,
+    step_tail,
+    alloc_captured,
+    apply_partial,
+    apply_all,
+};
+pub var site_counts: std.EnumArray(Site, u64) = .initFill(0);
+pub var site_bytes: std.EnumArray(Site, u64) = .initFill(0);
+
+/// Counting every allocation costs about 4x on a release build, so it is off
+/// unless a profiling run turns it on.
+pub const count_allocations = false;
+
+inline fn note(site: Site, bytes: usize) void {
+    if (!count_allocations) return;
+    site_counts.getPtr(site).* += 1;
+    site_bytes.getPtr(site).* += bytes;
+}
+
+pub const Error = Allocator.Error || error{
+    /// A thunk was re-entered while it was still being evaluated.
+    Cycle,
+    /// Division or modulo by zero.
+    DivideByZero,
+    /// Reached only by a program the type checker should have rejected.
+    TypeError,
+};
+
+pub const Machine = struct {
+    arena: Allocator,
+    program: *const stg.Program,
+    /// Constructors of `List` and `Bool`, which primitives build directly.
+    datatypes: *const datatypes.Registry,
+    /// What each synthesized primitive was generated from. `op[+]` and `op[-]`
+    /// share a `Lowering`, so the spelling comes from here.
+    synthesis: *const tql_to_core.SynthesisTable,
+    /// Reaches the prelude definitions a primitive delegates to.
+    interner: *const symbols.Interner,
+    /// One thunk per global, allocated before the run and forced at most once.
+    globals: std.AutoHashMapUnmanaged(symbols.SymbolId, *value.Thunk),
+    /// The file being queried. Absent when the machine runs hand-built terms,
+    /// in which case every tree primitive is a type error rather than a
+    /// wrong answer.
+    target: ?Target = null,
+
+    /// Every cursor handed to a traversal. A suspended walk has no moment at
+    /// which it is known finished, so the machine owns them and frees them all
+    /// when the run ends.
+    ///
+    /// A cursor holds a heap-allocated stack, so it cannot live in the arena.
+    cursors: std.ArrayList(*ts.TreeCursor) = .empty,
+    gpa: Allocator,
+
+    /// Environment buffers lent to `expression` and returned on exit.
+    ///
+    /// Each activation needs two, and a `case` scrutinee is the only thing
+    /// that nests, so the pool is as deep as a term nests rather than as long
+    /// as a list. Reusing them is what keeps a saturated call from growing a
+    /// fresh array: the capacity from the last call is already there.
+    env_pool: std.ArrayList(std.ArrayList(*value.Thunk)) = .empty,
+
+    /// Argument slices for calls in flight, as one stack.
+    ///
+    /// A callee reads its arguments and copies out whatever it keeps, so a
+    /// slice dies when the call returns. Handing them out of a stack that
+    /// unwinds with the call replaces one arena allocation per call, which is
+    /// the single largest source of them.
+    args: std.ArrayList(*value.Thunk) = .empty,
+
+    /// The queried file: what `text` slices, and what `filename` yields.
+    pub const Target = struct {
+        source: []const u8,
+        path: ?[]const u8,
+    };
+
+    pub fn init(
+        arena: Allocator,
+        gpa: Allocator,
+        program: *const stg.Program,
+        source: *const tql_to_core.Program,
+    ) Allocator.Error!Machine {
+        var globals: std.AutoHashMapUnmanaged(symbols.SymbolId, *value.Thunk) = .empty;
+
+        // Every global is allocated before any is filled, so one may reference
+        // another in any order.
+        for (program.definitions) |definition| {
+            const thunk = try arena.create(value.Thunk);
+            thunk.* = .{ .state = .{ .unevaluated = .{
+                .code = definition.value,
+                .captured = &.{},
+            } } };
+            try globals.put(gpa, definition.symbol, thunk);
+        }
+
+        return .{
+            .arena = arena,
+            .program = program,
+            .datatypes = &source.datatypes,
+            .synthesis = &source.synthesis,
+            .interner = &source.interner,
+            .globals = globals,
+            .gpa = gpa,
+        };
+    }
+
+    pub fn deinit(self: *Machine, gpa: Allocator) void {
+        self.globals.deinit(gpa);
+        for (self.cursors.items) |c| {
+            c.destroy();
+            gpa.destroy(c);
+        }
+        self.cursors.deinit(gpa);
+        for (self.env_pool.items) |*e| e.deinit(self.envAllocator());
+        self.env_pool.deinit(gpa);
+        self.args.deinit(gpa);
+    }
+
+    /// Borrow an empty environment buffer, keeping whatever capacity it has.
+    fn takeEnv(self: *Machine) Error!std.ArrayList(*value.Thunk) {
+        if (self.env_pool.pop()) |buffer| {
+            var reused = buffer;
+            reused.clearRetainingCapacity();
+            return reused;
+        }
+        return .empty;
+    }
+
+    /// Resolve `atoms` onto the argument stack and return them as a slice.
+    ///
+    /// Valid until the caller truncates the stack back to the mark it took
+    /// before calling. The slice must not be retained: growing the stack for
+    /// a nested call can move it.
+    fn pushArgs(self: *Machine, atoms: []const stg.Atom, env: []const *value.Thunk) Error![]const *value.Thunk {
+        const base = self.args.items.len;
+        try self.args.ensureUnusedCapacity(self.gpa, atoms.len);
+        for (atoms) |atom| {
+            self.args.appendAssumeCapacity(try self.resolve(env, atom));
+        }
+        return self.args.items[base..];
+    }
+
+    fn giveEnv(self: *Machine, buffer: std.ArrayList(*value.Thunk)) void {
+        self.env_pool.append(self.gpa, buffer) catch {
+            var owned = buffer;
+            owned.deinit(self.envAllocator());
+        };
+    }
+
+    /// A cursor positioned on `n`, owned by the machine.
+    fn newCursor(self: *Machine, n: ts.Node) Error!*ts.TreeCursor {
+        const cursor = try self.gpa.create(ts.TreeCursor);
+        errdefer self.gpa.destroy(cursor);
+        cursor.* = n.walk();
+        try self.cursors.append(self.gpa, cursor);
+        return cursor;
+    }
+
+    /// Read an atom without forcing it.
+    fn resolve(self: *Machine, env: []const *value.Thunk, atom: stg.Atom) Error!*value.Thunk {
+        return switch (atom) {
+            // The translator numbered every reference against the environment
+            // this builds, so a local is an index rather than a search.
+            .local => |local| blk: {
+                if (local.offset >= env.len) return error.TypeError;
+                break :blk env[local.offset];
+            },
+            .global => |id| self.globals.get(id) orelse return error.TypeError,
+            .literal => |literal| blk: {
+                const thunk = try self.arena.create(value.Thunk);
+                thunk.* = value.Thunk.value(switch (literal) {
+                    .number => |n| .{ .number = n },
+                    .string => |s| .{ .string = s },
+                    .regex => |r| .{ .regex = r },
+                });
+                break :blk thunk;
+            },
+        };
+    }
+
+    /// Force a thunk to a value and memoize it. A closure of one or more
+    /// parameters is already a value; only a thunk of none runs its body.
+    ///
+    /// Returns error.Cycle if the thunk is already being evaluated.
+    pub fn force(self: *Machine, thunk: *value.Thunk) Error!value.Value {
+        switch (thunk.state) {
+            .evaluated => |v| return v,
+            .evaluating => return error.Cycle,
+            // A suspended axis steps the walk rather than running a term.
+            .traversing => |t| {
+                const result = try self.step(t);
+                thunk.fill(result);
+                return result;
+            },
+            // By value, so `enter` overwriting the union below does not
+            // invalidate it.
+            .unevaluated => |pending| {
+                if (!thunk.enter()) return error.Cycle;
+
+                if (pending.code.parameters.len > 0) {
+                    const v: value.Value = .{ .closure = .{
+                        .code = pending.code,
+                        .captured = pending.captured,
+                    } };
+                    thunk.fill(v);
+                    return v;
+                }
+
+                const result = try self.run(pending.code, pending.captured, &.{});
+                thunk.fill(result);
+                return result;
+            },
+        }
+    }
+
+    /// Run a closure body in an environment of its captures and arguments.
+    fn run(
+        self: *Machine,
+        code: *const stg.Closure,
+        captured: []const *value.Thunk,
+        arguments: []const *value.Thunk,
+    ) Error!value.Value {
+        if (arguments.len != code.parameters.len) return error.TypeError;
+
+        var env = try self.takeEnv();
+        defer self.giveEnv(env);
+
+        note(.run_env, (captured.len + code.parameters.len) * @sizeOf(*value.Thunk));
+        try env.ensureTotalCapacity(self.envAllocator(), captured.len + arguments.len);
+        env.appendSliceAssumeCapacity(captured);
+        env.appendSliceAssumeCapacity(arguments);
+
+        return try self.expression(code.body, &env);
+    }
+
+    // IMPROVE: environments are LIFO but the arena frees nothing until the run
+    // ends, so a deep recursion retains a backing array per activation whether
+    // or not it's live. A stack allocator would fit these exactly.
+    fn envAllocator(self: *Machine) Allocator {
+        return self.arena;
+    }
+
+    /// Evaluate a term to WHNF.
+    ///
+    /// Tail positions loop rather than recurse: `let` and `case` bodies, and
+    /// a saturated call's body, all become the next term this loop runs. The
+    /// native stack then grows with a term's nesting rather than with the
+    /// length of a list a filter chain walks.
+    ///
+    /// A `case` scrutinee is the one sub-term evaluated by recursion, and it
+    /// is what bounds the depth.
+    fn expression(
+        self: *Machine,
+        expr: stg.Expr,
+        env: *std.ArrayList(*value.Thunk),
+    ) Error!value.Value {
+        // Rebound whenever a call enters a body, which runs in the callee's
+        // own environment rather than the caller's.
+        var current = expr;
+        var scope = env;
+
+        // Two buffers, used alternately: building the callee's environment
+        // reads the current one, so it cannot write into it. Borrowed from the
+        // machine so their capacity survives the call.
+        var envs: [2]std.ArrayList(*value.Thunk) = .{ try self.takeEnv(), try self.takeEnv() };
+        defer for (envs) |e| self.giveEnv(e);
+        var next: usize = 0;
+
+        // Thunks this loop entered and owes a result. Forcing one whose body
+        // is another thunk continues here rather than recursing, so the whole
+        // chain is updated when the loop finally produces a value.
+        var pending: std.ArrayList(*value.Thunk) = .empty;
+        defer pending.deinit(self.envAllocator());
+
+        const result: value.Value = while (true) switch (current) {
+            // Forcing the named thunk is itself a tail position. An
+            // unevaluated nullary one continues in this loop, with the thunk
+            // recorded so it is updated with whatever the loop produces.
+            .atom => |atom| {
+                const thunk = try self.resolve(scope.items, atom);
+                switch (thunk.state) {
+                    .evaluated => |v| break v,
+                    .evaluating => return error.Cycle,
+                    .traversing => |t| {
+                        const stepped = try self.step(t);
+                        thunk.fill(stepped);
+                        break stepped;
+                    },
+                    .unevaluated => |suspended| {
+                        if (suspended.code.parameters.len > 0) {
+                            if (!thunk.enter()) return error.Cycle;
+                            const v: value.Value = .{ .closure = .{
+                                .code = suspended.code,
+                                .captured = suspended.captured,
+                            } };
+                            thunk.fill(v);
+                            break v;
+                        }
+                        if (!thunk.enter()) return error.Cycle;
+                        try pending.append(self.envAllocator(), thunk);
+
+                        const target = &envs[next];
+                        target.clearRetainingCapacity();
+                        try target.appendSlice(self.envAllocator(), suspended.captured);
+                        current = suspended.code.body;
+                        scope = target;
+                        next = 1 - next;
+                    },
+                }
+            },
+
+            .constructed => |constructed| {
+                break .{ .constructed = try self.construct(
+                    constructed.constructor,
+                    constructed.tag,
+                    constructed.fields,
+                    scope.items,
+                ) };
+            },
+
+            .let => |let| {
+                const base = scope.items.len;
+                for (0..let.bindings.len) |_| {
+                    note(.let_thunk, @sizeOf(value.Thunk));
+                    const thunk = try self.arena.create(value.Thunk);
+                    try scope.append(self.envAllocator(), thunk);
+                }
+
+                // A recursive group is filled against the environment holding
+                // all of its own binders, so a binding may reference one that
+                // comes later. A non-recursive one is filled against the
+                // environment as it stood before the group, so a binding sees
+                // only what was already in scope.
+                const inner = if (let.recursive) scope.items else scope.items[0..base];
+                for (let.bindings, base..) |binding, i| {
+                    try self.fillAllocation(scope.items[i], binding.value, inner);
+                }
+                current = let.body;
+            },
+
+            .case => |case_expr| {
+                const scrutinee = try self.expression(case_expr.scrutinee, scope);
+                const constructed = switch (scrutinee) {
+                    .constructed => |c| c,
+                    else => return error.TypeError,
+                };
+
+                // Alternatives are in tag order and cover every constructor,
+                // so the tag is the index.
+                if (constructed.tag >= case_expr.alternatives.len) return error.TypeError;
+                const alternative = case_expr.alternatives[constructed.tag];
+                if (alternative.binders.len != constructed.len) return error.TypeError;
+
+                // The binders stay in scope for the body, which this loop runs
+                // next. Dropping them afterwards is what the recursive form
+                // did; binders are globally unique, so leaving them costs
+                // space and shadows nothing.
+                //
+                // Read through the local copy: inline fields live in the value
+                // itself, so a slice of it must not outlive this scope.
+                note(.case_binder, alternative.binders.len * @sizeOf(*value.Thunk));
+                try scope.appendSlice(self.envAllocator(), constructed.fields());
+                current = alternative.body;
+            },
+
+            .apply => |call| {
+                const callee = try self.force(try self.resolve(scope.items, call.callee));
+
+                // The arguments die with the call, so they come off the stack
+                // rather than the arena. Truncated before the loop continues,
+                // so a chain of tail calls does not grow it.
+                const mark = self.args.items.len;
+                const arguments = try self.pushArgs(call.arguments, scope.items);
+
+                const target = &envs[next];
+                const entered = try self.enter(callee, arguments, target);
+                if (entered == null) {
+                    const result = try self.apply(callee, arguments);
+                    self.args.shrinkRetainingCapacity(mark);
+                    break result;
+                }
+                self.args.shrinkRetainingCapacity(mark);
+                current = entered.?;
+                scope = target;
+                next = 1 - next;
+            },
+
+            .primitive => |call| {
+                const mark = self.args.items.len;
+                defer self.args.shrinkRetainingCapacity(mark);
+                const arguments = try self.pushArgs(call.arguments, scope.items);
+                break try self.primitive(call, arguments);
+            },
+        };
+
+        // Every thunk this loop entered gets the value it produced. They are
+        // links of one chain, so they all share it.
+        for (pending.items) |thunk| thunk.fill(result);
+        return result;
+    }
+
+    /// Prepare a saturated call to continue in `expression`'s loop: fill `out`
+    /// with the callee's environment and return the body to run.
+    ///
+    /// Returns null when the call is partial or over-applied, which the
+    /// general `apply` handles.
+    fn enter(
+        self: *Machine,
+        callee: value.Value,
+        arguments: []const *value.Thunk,
+        out: *std.ArrayList(*value.Thunk),
+    ) Error!?stg.Expr {
+        const closure = switch (callee) {
+            .closure => |c| c,
+            else => return error.TypeError,
+        };
+
+        const supplied = closure.applied.len + arguments.len;
+        if (supplied != closure.code.parameters.len) return null;
+
+        out.clearRetainingCapacity();
+        note(.enter_captures, (closure.captured.len + closure.code.parameters.len) * @sizeOf(*value.Thunk));
+        // Sized once: three appends onto a buffer whose capacity is already
+        // known re-check it three times otherwise, and this is the hottest
+        // path in the machine.
+        try out.ensureTotalCapacity(
+            self.envAllocator(),
+            closure.captured.len + closure.applied.len + arguments.len,
+        );
+        out.appendSliceAssumeCapacity(closure.captured);
+        // Arguments in parameter order: what a partial application already
+        // supplied, then what this call brought.
+        out.appendSliceAssumeCapacity(closure.applied);
+        out.appendSliceAssumeCapacity(arguments);
+        return closure.code.body;
+    }
+
+    /// Run a primitive, forcing exactly what its denotation forces and no
+    /// more. `pure` forces nothing, `probe` forces at most the first result,
+    /// `length` forces a whole spine.
+    fn primitive(
+        self: *Machine,
+        call: *const stg.Expr.Primitive,
+        arguments: []const *value.Thunk,
+    ) Error!value.Value {
+        switch (call.lowering) {
+            // `length` forces the spine, so it diverges on an infinite list.
+            .length => {
+                if (arguments.len != 1) return error.TypeError;
+                const subject = try self.force(arguments[0]);
+                return switch (subject) {
+                    .string => |s| .{ .number = @intCast(s.len) },
+                    .constructed => blk: {
+                        var count: i64 = 0;
+                        var current = subject;
+                        while (true) {
+                            const c = switch (current) {
+                                .constructed => |k| k,
+                                else => return error.TypeError,
+                            };
+                            if (c.tag == self.datatypes.nilConstructor().tag) break;
+                            if (c.len != 2) return error.TypeError;
+                            count += 1;
+                            current = try self.force(c.fields()[1]);
+                        }
+                        break :blk .{ .number = count };
+                    },
+                    else => error.TypeError,
+                };
+            },
+
+            .operator => return try self.operator(call, arguments),
+
+            // Fields are scalars and stay unforced. The labels come from the
+            // synthesis table, already sorted.
+            .record => {
+                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
+                const labels = switch (synthesis) {
+                    .record => |l| l,
+                    else => return error.TypeError,
+                };
+                if (labels.len != arguments.len) return error.TypeError;
+
+                const fields = try self.arena.alloc(value.Field, labels.len);
+                for (labels, arguments, fields) |label, thunk, *field| {
+                    field.* = .{ .label = label, .thunk = thunk };
+                }
+                return .{ .record = fields };
+            },
+
+            // Total functions on a node: every node has one, so each returns
+            // a scalar rather than a singleton list.
+            .text => {
+                const subject = try self.nodeArgument(arguments);
+                const target = self.target orelse return error.TypeError;
+                return .{ .string = target.source[subject.startByte()..subject.endByte()] };
+            },
+            .kind => {
+                const subject = try self.nodeArgument(arguments);
+                return .{ .string = subject.kind() };
+            },
+            .range => {
+                const subject = try self.nodeArgument(arguments);
+                return .{ .range = rangeOf(subject) };
+            },
+
+            // `[x]` when the static kind matches, otherwise `[]`.
+            .is_kind => {
+                const subject = try self.nodeArgument(arguments);
+                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
+                const wanted = switch (synthesis) {
+                    .kind_test => |k| k.id,
+                    else => return error.TypeError,
+                };
+                if (subject.kindId() != wanted) return self.nil();
+                return self.singleton(arguments[0]);
+            },
+
+            // `[parent]`, or `[]` at the root.
+            .parent => {
+                const subject = try self.nodeArgument(arguments);
+                const up = subject.parent() orelse return self.nil();
+                return self.singleton(try self.nodeThunk(up));
+            },
+
+            // Proper ancestors, nearest first. Bounded by tree depth, so it
+            // is built eagerly.
+            .ancestors => {
+                const subject = try self.nodeArgument(arguments);
+                var list = try self.nilThunk();
+                var chain: std.ArrayList(ts.Node) = .empty;
+                defer chain.deinit(self.arena);
+
+                var current = subject;
+                while (current.parent()) |up| : (current = up) {
+                    try chain.append(self.arena, up);
+                }
+
+                // Built from the far end back, so the nearest ancestor ends
+                // up at the head.
+                var i = chain.items.len;
+                while (i > 0) {
+                    i -= 1;
+                    list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
+                }
+                return try self.force(list);
+            },
+
+            .toint => {
+                if (arguments.len != 1) return error.TypeError;
+                const subject = try self.force(arguments[0]);
+                const text = switch (subject) {
+                    .string => |s| s,
+                    else => return error.TypeError,
+                };
+                const parsed = parseInt(text) orelse return self.nil();
+                const thunk = try self.arena.create(value.Thunk);
+                thunk.* = value.Thunk.value(.{ .number = parsed });
+                return self.singleton(thunk);
+            },
+
+            // Constant across the query, and it never reads its argument.
+            .filename => {
+                const target = self.target orelse return self.nil();
+                const path = target.path orelse return self.nil();
+                const thunk = try self.arena.create(value.Thunk);
+                thunk.* = value.Thunk.value(.{ .string = path });
+                return self.singleton(thunk);
+            },
+
+            // Named children, document order.
+            .children => {
+                const subject = try self.nodeArgument(arguments);
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = descendToNamedChild(cursor),
+                    .axis = .children,
+                });
+            },
+
+            // Named proper descendants, pre-order. Proper: the walk starts by
+            // stepping off the subject, so a node is not its own descendant.
+            .descendants => {
+                const subject = try self.nodeArgument(arguments);
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = advanceDescendant(cursor),
+                    .axis = .descendants,
+                });
+            },
+
+            // Named children under one field, document order. A field the
+            // grammar knows but this node lacks yields no output.
+            .field => {
+                const subject = try self.nodeArgument(arguments);
+                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
+                const field_id = switch (synthesis) {
+                    .field => |f| f.id,
+                    else => return error.TypeError,
+                };
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = descendToFieldChild(cursor, field_id),
+                    .axis = .field,
+                    .field_id = field_id,
+                });
+            },
+
+            // The `children`/`descendants` walks with the kind test folded
+            // into the advance, so the list holds only matches.
+            .children_of_kind, .descendants_of_kind => {
+                const subject = try self.nodeArgument(arguments);
+                const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
+                const kind_id = switch (synthesis) {
+                    .kind_axis => |k| k.id,
+                    else => return error.TypeError,
+                };
+                const descendants = call.lowering == .descendants_of_kind;
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = if (descendants)
+                        advanceDescendantOfKind(cursor, kind_id)
+                    else
+                        descendToChildOfKind(cursor, kind_id),
+                    .axis = if (descendants) .descendants_of_kind else .children_of_kind,
+                    .kind_id = kind_id,
+                });
+            },
+        }
+    }
+
+    /// The single node argument of a tree primitive.
+    fn nodeArgument(self: *Machine, arguments: []const *value.Thunk) Error!ts.Node {
+        if (arguments.len != 1) return error.TypeError;
+        return switch (try self.force(arguments[0])) {
+            .node => |n| n.inner,
+            else => error.TypeError,
+        };
+    }
+
+    /// Resolve a constructor's field atoms into a value.
+    ///
+    /// Fields that fit inline are written straight into the value, so a `Cons`
+    /// cell costs no allocation of its own.
+    fn construct(
+        self: *Machine,
+        constructor: symbols.SymbolId,
+        tag: u32,
+        atoms: []const stg.Atom,
+        env: []const *value.Thunk,
+    ) Error!value.Constructed {
+        if (atoms.len <= value.Constructed.inline_capacity) {
+            var built: value.Constructed = .{
+                .constructor = constructor,
+                .tag = tag,
+                .len = @intCast(atoms.len),
+                .storage = undefined,
+            };
+            for (atoms, 0..) |atom, i| {
+                built.storage.inline_fields[i] = try self.resolve(env, atom);
+            }
+            return built;
+        }
+
+        const spill = try self.arena.alloc(*value.Thunk, atoms.len);
+        for (atoms, spill) |atom, *field| field.* = try self.resolve(env, atom);
+        return value.Constructed.init(constructor, tag, spill);
+    }
+
+    fn nodeThunk(self: *Machine, n: ts.Node) Error!*value.Thunk {
+        note(.node_thunk, @sizeOf(value.Thunk));
+        const thunk = try self.arena.create(value.Thunk);
+        thunk.* = value.Thunk.value(.{ .node = .{ .inner = n } });
+        return thunk;
+    }
+
+    fn nil(self: *Machine) Error!value.Value {
+        const c = self.datatypes.nilConstructor();
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+    }
+
+    fn nilThunk(self: *Machine) Error!*value.Thunk {
+        note(.nil_thunk, @sizeOf(value.Thunk));
+        const thunk = try self.arena.create(value.Thunk);
+        thunk.* = value.Thunk.value(try self.nil());
+        return thunk;
+    }
+
+    fn cons(self: *Machine, head: *value.Thunk, tail: *value.Thunk) Error!value.Value {
+        const c = self.datatypes.consConstructor();
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{ head, tail }) };
+    }
+
+    fn consThunk(self: *Machine, head: *value.Thunk, tail: *value.Thunk) Error!*value.Thunk {
+        note(.cons_thunk, @sizeOf(value.Thunk));
+        const thunk = try self.arena.create(value.Thunk);
+        thunk.* = value.Thunk.value(try self.cons(head, tail));
+        return thunk;
+    }
+
+    fn singleton(self: *Machine, element: *value.Thunk) Error!value.Value {
+        return try self.cons(element, try self.nilThunk());
+    }
+
+    /// Yield one cell of a suspended axis, suspending the rest.
+    ///
+    /// One cell per call, so a consumer that stops early walks no further.
+    /// The cursor sits on the node being yielded and is advanced past it
+    /// before the tail is suspended.
+    fn step(self: *Machine, t: value.Traversal) Error!value.Value {
+        if (!t.live) return self.nil();
+
+        const current = t.cursor.node();
+
+        var rest = t;
+        rest.live = switch (t.axis) {
+            .children => advanceNamedSibling(t.cursor),
+            .descendants => advanceDescendant(t.cursor),
+            .field => advanceFieldSibling(t.cursor, t.field_id),
+            .children_of_kind => advanceSiblingOfKind(t.cursor, t.kind_id),
+            .descendants_of_kind => advanceDescendantOfKind(t.cursor, t.kind_id),
+        };
+
+        note(.step_tail, @sizeOf(value.Thunk));
+        const tail = try self.arena.create(value.Thunk);
+        tail.* = .{ .state = .{ .traversing = rest } };
+        return try self.cons(try self.nodeThunk(current), tail);
+    }
+
+    fn operator(
+        self: *Machine,
+        call: *const stg.Expr.Primitive,
+        arguments: []const *value.Thunk,
+    ) Error!value.Value {
+        if (arguments.len != 2) return error.TypeError;
+        const synthesis = self.synthesis.get(call.symbol) orelse return error.TypeError;
+        const scalar = switch (synthesis) {
+            .operator => |o| o,
+            else => return error.TypeError,
+        };
+
+        // Both operands are scalars, so both are forced. There is no stream
+        // here to be lazy about.
+        const left = try self.force(arguments[0]);
+        const right = try self.force(arguments[1]);
+
+        switch (scalar) {
+            .add, .subtract, .multiply, .divide, .modulo => {
+                const a = switch (left) {
+                    .number => |n| n,
+                    else => return error.TypeError,
+                };
+                const b = switch (right) {
+                    .number => |n| n,
+                    else => return error.TypeError,
+                };
+                // Division and modulo by zero are undefined until the language
+                // has a Maybe. A scalar operator has no way to yield nothing,
+                // so the old "empty stream" answer stopped being expressible
+                // when these became scalars.
+                return .{ .number = switch (scalar) {
+                    .add => a + b,
+                    .subtract => a - b,
+                    .multiply => a * b,
+                    .divide => if (b == 0) return error.DivideByZero else @divTrunc(a, b),
+                    .modulo => if (b == 0) return error.DivideByZero else @rem(a, b),
+                    else => unreachable,
+                } };
+            },
+
+            .eq => return try self.boolValue(try self.equal(left, right)),
+            .ne => return try self.boolValue(!try self.equal(left, right)),
+
+            .lt, .lte, .gt, .gte => {
+                // `Ord` holds for `Int` and `String` only, so these two cases
+                // are the whole of ordering.
+                const order: std.math.Order = switch (left) {
+                    .number => |a| switch (right) {
+                        .number => |b| std.math.order(a, b),
+                        else => return error.TypeError,
+                    },
+                    .string => |a| switch (right) {
+                        .string => |b| std.mem.order(u8, a, b),
+                        else => return error.TypeError,
+                    },
+                    else => return error.TypeError,
+                };
+                return try self.boolValue(switch (scalar) {
+                    .lt => order == .lt,
+                    .lte => order != .gt,
+                    .gt => order == .gt,
+                    .gte => order != .lt,
+                    else => unreachable,
+                });
+            },
+
+            .match, .not_match => {
+                const haystack = switch (left) {
+                    .string => |s| s,
+                    else => return error.TypeError,
+                };
+                const pattern = switch (right) {
+                    .regex => |r| r,
+                    else => return error.TypeError,
+                };
+                const hit = pattern.compiled.do_test(haystack);
+                return try self.boolValue(if (scalar == .match) hit else !hit);
+            },
+        }
+    }
+
+    /// Structural equality. Forces both sides only as far as it must to
+    /// decide.
+    fn equal(self: *Machine, left: value.Value, right: value.Value) Error!bool {
+        return switch (left) {
+            .node => |a| switch (right) {
+                .node => |b| a.inner.eql(b.inner),
+                else => error.TypeError,
+            },
+            .range => |a| switch (right) {
+                .range => |b| std.meta.eql(a, b),
+                else => error.TypeError,
+            },
+            .number => |a| switch (right) {
+                .number => |b| a == b,
+                else => error.TypeError,
+            },
+            .string => |a| switch (right) {
+                .string => |b| std.mem.eql(u8, a, b),
+                else => error.TypeError,
+            },
+            .constructed => |a| switch (right) {
+                .constructed => |b| blk: {
+                    if (a.tag != b.tag) break :blk false;
+                    if (a.len != b.len) break :blk false;
+                    for (a.fields(), b.fields()) |x, y| {
+                        if (!try self.equal(try self.force(x), try self.force(y))) break :blk false;
+                    }
+                    break :blk true;
+                },
+                else => error.TypeError,
+            },
+            // Labels are sorted, so the same record type gives the same order
+            // on both sides and the fields pair up positionally.
+            .record => |a| switch (right) {
+                .record => |b| blk: {
+                    if (a.len != b.len) break :blk false;
+                    for (a, b) |x, y| {
+                        if (!std.mem.eql(u8, x.label, y.label)) break :blk false;
+                        if (!try self.equal(try self.force(x.thunk), try self.force(y.thunk))) {
+                            break :blk false;
+                        }
+                    }
+                    break :blk true;
+                },
+                else => error.TypeError,
+            },
+            else => error.TypeError,
+        };
+    }
+
+    fn boolValue(self: *Machine, b: bool) Error!value.Value {
+        const c = self.datatypes.boolConstructor(b);
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+    }
+
+    /// Fill a `let` binding's thunk. The thunk was allocated before any
+    /// binding in the group was evaluated, so the group can be recursive.
+    fn fillAllocation(
+        self: *Machine,
+        thunk: *value.Thunk,
+        binding: stg.Allocation,
+        env: []const *value.Thunk,
+    ) Error!void {
+        switch (binding) {
+            .closure => |code| {
+                // Copied, so the closure outlives the scope it was written in.
+                // A closure over nothing needs no copy and no allocation.
+                const captured: []*value.Thunk = if (code.free.len == 0) &.{} else blk: {
+                    note(.alloc_captured, code.free.len * @sizeOf(*value.Thunk));
+                    const slots = try self.arena.alloc(*value.Thunk, code.free.len);
+                    for (code.free, slots) |capture, *slot| {
+                        if (capture.offset >= env.len) return error.TypeError;
+                        slot.* = env[capture.offset];
+                    }
+                    break :blk slots;
+                };
+                thunk.* = .{ .state = .{ .unevaluated = .{
+                    .code = code,
+                    .captured = captured,
+                } } };
+            },
+            .constructed => |constructed| {
+                thunk.* = value.Thunk.value(.{ .constructed = try self.construct(
+                    constructed.constructor,
+                    constructed.tag,
+                    constructed.fields,
+                    env,
+                ) });
+            },
+        }
+    }
+
+    /// Apply a callee to arguments, handling all three arities.
+    ///
+    /// - saturated: run the body
+    /// - partial: keep the arguments on the closure and stay a value
+    /// - over-applied: run the body, then apply the result to the rest
+    pub fn apply(
+        self: *Machine,
+        callee: value.Value,
+        arguments: []const *value.Thunk,
+    ) Error!value.Value {
+        if (arguments.len == 0) return callee;
+
+        const closure = switch (callee) {
+            .closure => |c| c,
+            else => return error.TypeError,
+        };
+
+        const supplied = closure.applied.len + arguments.len;
+        const arity = closure.code.parameters.len;
+
+        if (supplied < arity) {
+            // Partial: remember what was supplied and stay a value.
+            note(.apply_partial, supplied * @sizeOf(*value.Thunk));
+            const applied = try self.arena.alloc(*value.Thunk, supplied);
+            @memcpy(applied[0..closure.applied.len], closure.applied);
+            @memcpy(applied[closure.applied.len..], arguments);
+            return .{ .closure = .{
+                .code = closure.code,
+                .captured = closure.captured,
+                .applied = applied,
+            } };
+        }
+
+        note(.apply_all, supplied * @sizeOf(*value.Thunk));
+        const all = try self.arena.alloc(*value.Thunk, supplied);
+        @memcpy(all[0..closure.applied.len], closure.applied);
+        @memcpy(all[closure.applied.len..], arguments);
+
+        const result = try self.run(closure.code, closure.captured, all[0..arity]);
+
+        // Over-applied: the result is a function, and the rest are its
+        // arguments. `compose f g x` reaches this on every pipe.
+        if (supplied > arity) return try self.apply(result, all[arity..]);
+        return result;
+    }
+
+    /// Write a forced value as JSON. This is the `Serial` boundary: it forces
+    /// everything it writes, and a list is written by walking its spine.
+    ///
+    /// Returns error.TypeError on a value with no encoding. The checker
+    /// refuses those, so reaching one is a bug rather than a bad query.
+    pub fn serialize(self: *Machine, v: value.Value, jws: *std.json.Stringify) Error!void {
+        switch (v) {
+            .number => |n| jws.write(n) catch return error.TypeError,
+            .string => |s| jws.write(s) catch return error.TypeError,
+            .record => |fields| {
+                jws.beginObject() catch return error.TypeError;
+                for (fields) |field| {
+                    jws.objectField(field.label) catch return error.TypeError;
+                    try self.serialize(try self.force(field.thunk), jws);
+                }
+                jws.endObject() catch return error.TypeError;
+            },
+            .constructed => |c| {
+                const owner = self.datatypes.ownerOf(c.constructor) orelse return error.TypeError;
+                if (owner == self.datatypes.boolId()) {
+                    const t = self.datatypes.boolConstructor(true);
+                    jws.write(c.tag == t.tag) catch return error.TypeError;
+                } else if (owner == self.datatypes.listId()) {
+                    jws.beginArray() catch return error.TypeError;
+                    var current = v;
+                    while (true) {
+                        const cell = switch (current) {
+                            .constructed => |k| k,
+                            else => return error.TypeError,
+                        };
+                        if (cell.tag == self.datatypes.nilConstructor().tag) break;
+                        if (cell.len != 2) return error.TypeError;
+                        const cell_fields = cell.fields();
+                        try self.serialize(try self.force(cell_fields[0]), jws);
+                        current = try self.force(cell_fields[1]);
+                    }
+                    jws.endArray() catch return error.TypeError;
+                } else {
+                    // A user datatype, which has no encoding until 0.4 gives
+                    // it one.
+                    return error.TypeError;
+                }
+            },
+            .node => |n| {
+                const target = self.target orelse return error.TypeError;
+                const inner = n.inner;
+                jws.beginObject() catch return error.TypeError;
+                jws.objectField("kind") catch return error.TypeError;
+                jws.write(inner.kind()) catch return error.TypeError;
+                jws.objectField("text") catch return error.TypeError;
+                jws.write(target.source[inner.startByte()..inner.endByte()]) catch
+                    return error.TypeError;
+                writeLocation(rangeOf(inner), jws) catch return error.TypeError;
+                jws.endObject() catch return error.TypeError;
+            },
+            .range => |r| {
+                jws.beginObject() catch return error.TypeError;
+                writeLocation(r, jws) catch return error.TypeError;
+                jws.endObject() catch return error.TypeError;
+            },
+            else => return error.TypeError,
+        }
+    }
+};
+
+/// The location fields a node and a range share, in the order the public
+/// encoding fixes. Starts are inclusive and ends exclusive.
+fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
+    try jws.objectField("start_byte");
+    try jws.write(r.start_byte);
+    try jws.objectField("end_byte");
+    try jws.write(r.end_byte);
+    try jws.objectField("start_point");
+    try writePoint(r.start_point, jws);
+    try jws.objectField("end_point");
+    try writePoint(r.end_point, jws);
+}
+
+fn writePoint(p: value.Point, jws: *std.json.Stringify) !void {
+    try jws.beginObject();
+    try jws.objectField("row");
+    try jws.write(p.row);
+    try jws.objectField("column");
+    try jws.write(p.column);
+    try jws.endObject();
+}
+
+/// Move `cursor` to the first named child, reporting whether one exists.
+fn descendToNamedChild(cursor: *ts.TreeCursor) bool {
+    if (!cursor.gotoFirstChild()) return false;
+    if (cursor.node().isNamed()) return true;
+    return advanceNamedSibling(cursor);
+}
+
+/// Move `cursor` to the next named sibling, reporting whether one exists.
+///
+/// `gotoNextSibling` advances an index on the cursor's own stack, so this is
+/// amortized constant work per step.
+fn advanceNamedSibling(cursor: *ts.TreeCursor) bool {
+    while (cursor.gotoNextSibling()) {
+        if (cursor.node().isNamed()) return true;
+    }
+    return false;
+}
+
+/// Move `cursor` to the first named child under `field_id`.
+fn descendToFieldChild(cursor: *ts.TreeCursor, field_id: u16) bool {
+    if (!cursor.gotoFirstChild()) return false;
+    if (cursor.node().isNamed() and cursor.fieldId() == field_id) return true;
+    return advanceFieldSibling(cursor, field_id);
+}
+
+/// Move `cursor` to the next named sibling under `field_id`.
+fn advanceFieldSibling(cursor: *ts.TreeCursor, field_id: u16) bool {
+    while (cursor.gotoNextSibling()) {
+        if (cursor.node().isNamed() and cursor.fieldId() == field_id) return true;
+    }
+    return false;
+}
+
+/// Move `cursor` to its pre-order successor, reporting whether one exists.
+///
+/// Children first, then the next sibling, ascending while a level is
+/// exhausted. A cursor cannot walk above the node it was built from, so the
+/// walk stops at the subtree boundary on its own.
+///
+/// Every move is a step along the cursor's own stack, which is what keeps this
+/// linear. `gotoDescendant` looks like the natural call and is not: it
+/// re-descends from the top, scanning each level's children from the start, so
+/// a node with many flat children costs O(n^2) to walk. Error-recovery trees
+/// have exactly that shape.
+fn advancePreOrder(cursor: *ts.TreeCursor) bool {
+    if (cursor.gotoFirstChild()) return true;
+    while (true) {
+        if (cursor.gotoNextSibling()) return true;
+        if (!cursor.gotoParent()) return false;
+    }
+}
+
+/// Move a `descendants` walk to its next named node.
+fn advanceDescendant(cursor: *ts.TreeCursor) bool {
+    while (advancePreOrder(cursor)) {
+        if (cursor.node().isNamed()) return true;
+    }
+    return false;
+}
+
+/// Move `cursor` to the next named sibling whose kind is `kind_id`.
+fn advanceSiblingOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
+    while (cursor.gotoNextSibling()) {
+        const node = cursor.node();
+        if (node.isNamed() and node.kindId() == kind_id) return true;
+    }
+    return false;
+}
+
+/// Move `cursor` to the first named child whose kind is `kind_id`.
+fn descendToChildOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
+    if (!cursor.gotoFirstChild()) return false;
+    const node = cursor.node();
+    if (node.isNamed() and node.kindId() == kind_id) return true;
+    return advanceSiblingOfKind(cursor, kind_id);
+}
+
+/// Move a `descendants_of_kind` walk to its next named node of `kind_id`.
+///
+/// A node of another kind is stepped over, not skipped past: its own subtree
+/// is still walked, so a match nested under a non-match is found.
+fn advanceDescendantOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
+    while (advancePreOrder(cursor)) {
+        const node = cursor.node();
+        if (node.isNamed() and node.kindId() == kind_id) return true;
+    }
+    return false;
+}
+
+fn rangeOf(n: ts.Node) value.Range {
+    const start = n.startPoint();
+    const end = n.endPoint();
+    return .{
+        .start_byte = n.startByte(),
+        .end_byte = n.endByte(),
+        .start_point = .{ .row = start.row, .column = start.column },
+        .end_point = .{ .row = end.row, .column = end.column },
+    };
+}
+
+/// An optional leading `-` and one or more ASCII decimal digits, fitting an
+/// `i64`. Every other string, including a leading `+` or a separator, has no
+/// integer and yields no output.
+fn parseInt(text: []const u8) ?i64 {
+    var digits = text;
+    var negative = false;
+    if (digits.len > 0 and digits[0] == '-') {
+        negative = true;
+        digits = digits[1..];
+    }
+    if (digits.len == 0) return null;
+
+    var magnitude: u64 = 0;
+    for (digits) |c| {
+        if (c < '0' or c > '9') return null;
+        magnitude = std.math.mul(u64, magnitude, 10) catch return null;
+        magnitude = std.math.add(u64, magnitude, c - '0') catch return null;
+    }
+
+    const limit: u64 = if (negative)
+        -@as(i128, std.math.minInt(i64))
+    else
+        std.math.maxInt(i64);
+    if (magnitude > limit) return null;
+
+    if (negative) return @intCast(-@as(i128, magnitude));
+    return @intCast(magnitude);
+}

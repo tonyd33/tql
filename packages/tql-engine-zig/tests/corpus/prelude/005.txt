@@ -1,7 +1,6 @@
 title: `any` is true when some element satisfies the predicate
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `any source predicate = probe (compose source (select predicate))`, typed
 `Filter a b -> Filter b bool -> Filter a bool`.

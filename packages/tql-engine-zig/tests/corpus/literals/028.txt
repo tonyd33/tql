@@ -1,7 +1,6 @@
 title: `text`, `kind`, and `range` project a node
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = children | is_kind :class_declaration | lift (\c -> { k = kind c, t = text c });

@@ -1,7 +1,6 @@
 title: a binding evaluates as a value and does not run a filter
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Binding `k` does not execute it. Two uses of `k` on different inputs give
 different results, which is only possible if the binding stored the filter

@@ -1,7 +1,6 @@
 title: `length` agrees with the byte extent of the same text
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The string node's text is `"héllo"` including both quote characters: 8 bytes,
 matching the node's `end_byte - start_byte`.

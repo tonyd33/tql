@@ -1,7 +1,6 @@
 title: a record encodes as a JSON object
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main root =

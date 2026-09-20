@@ -1,7 +1,6 @@
 title: a bound scalar is lifted in an operator operand
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `expected` is a bound string. The comparison needs a filter operand, so the
 string is lifted to a one-result filter rather than being run.

@@ -1,7 +1,6 @@
 title: wildcard child navigation keeps every named child
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `class_declaration` has two named children, `name` and `body`. Anonymous tokens
 such as `class`, `{`, and `}` are not visited.

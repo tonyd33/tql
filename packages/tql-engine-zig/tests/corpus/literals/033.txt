@@ -1,7 +1,6 @@
 title: pipe binds looser than comparison, union looser than pipe
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `. / :class_declaration | .name | text = "A", false` groups as
 `((. / :class_declaration | .name | text) = "A"), false`. Union is the loosest

@@ -19,6 +19,9 @@ pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 pub const Synthesis = union(enum) {
     /// `is_kind[k]`, carrying the resolved grammar kind ID.
     kind_test: struct { name: []const u8, id: u16 },
+    /// `descendants_of_kind[k]` or `children_of_kind[k]`, carrying the
+    /// resolved grammar kind ID.
+    kind_axis: struct { name: []const u8, id: u16, lowering: primitives.Lowering },
     /// `field[l]`, carrying the resolved grammar field ID.
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
@@ -212,16 +215,26 @@ pub const Lowerer = struct {
         try self.references.append(self.builder.allocator, index);
     }
 
-    /// Recognizes `is_kind :k`, whose two surface tokens are one Core symbol.
-    /// Returns null when this is an ordinary application. The inner error is
-    /// the unknown-kind rejection.
-    fn kindTestApplication(self: *Lowerer, a: cst.Apply) ?(Error!symbols.SymbolId) {
+    /// The primitives spelled `name :k`, taking a kind token rather than a
+    /// value. Each is one Core symbol, not an application.
+    const kind_forms = [_]struct { spelling: []const u8, axis: ?primitives.Lowering }{
+        .{ .spelling = "is_kind", .axis = null },
+        .{ .spelling = "children_of_kind", .axis = .children_of_kind },
+        .{ .spelling = "descendants_of_kind", .axis = .descendants_of_kind },
+    };
+
+    /// Recognizes `is_kind :k` and the `_of_kind` axes, whose two surface
+    /// tokens are one Core symbol. Returns null when this is an ordinary
+    /// application. The inner error is the unknown-kind rejection.
+    fn kindApplication(self: *Lowerer, a: cst.Apply) ?(Error!symbols.SymbolId) {
         const function = unwrap(a.function);
         const name = switch (function.kind) {
             .name => |n| n,
             else => return null,
         };
-        if (!std.mem.eql(u8, name, "is_kind")) return null;
+        const form = for (kind_forms) |candidate| {
+            if (std.mem.eql(u8, name, candidate.spelling)) break candidate;
+        } else return null;
 
         const argument = unwrap(a.argument);
         const kind = switch (argument.kind) {
@@ -229,10 +242,16 @@ pub const Lowerer = struct {
             else => return null,
         };
         // The rejection names the kind token, not the whole application.
-        return self.synthesizeKindTest(kind, argument.span);
+        return self.synthesizeKindForm(form.spelling, form.axis, kind, argument.span);
     }
 
-    fn synthesizeKindTest(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!symbols.SymbolId {
+    fn synthesizeKindForm(
+        self: *Lowerer,
+        spelling: []const u8,
+        axis: ?primitives.Lowering,
+        name: []const u8,
+        span: diagnostic.Span,
+    ) Error!symbols.SymbolId {
         const id = self.language.idForNodeKind(name, true);
         if (id == 0) {
             try self.sink.report(
@@ -243,11 +262,12 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         }
-        return try self.synthesize(
-            "is_kind[{s}]",
-            .{name},
-            .{ .kind_test = .{ .name = try self.builder.dupe(name), .id = id } },
-        );
+        const duped = try self.builder.dupe(name);
+        const what: Synthesis = if (axis) |lowering|
+            .{ .kind_axis = .{ .name = duped, .id = id, .lowering = lowering } }
+        else
+            .{ .kind_test = .{ .name = duped, .id = id } };
+        return try self.synthesize("{s}[{s}]", .{ spelling, name }, what);
     }
 
     /// Interns a synthesized symbol under its bracketed spelling and records
@@ -316,9 +336,10 @@ pub const Lowerer = struct {
                 e.span,
             ),
             // The pattern is compiled here, so a malformed one is a compile
-            // error rather than a runtime failure.
+            // error rather than a runtime failure. The program is kept and
+            // matched against; nothing recompiles it per evaluation.
             .regex => |r| {
-                var compiled = pcre2.Regex.compile(r) catch {
+                const compiled = pcre2.Regex.compile(r) catch {
                     try self.sink.report(
                         .invalid_regex,
                         e.span,
@@ -327,9 +348,11 @@ pub const Lowerer = struct {
                     );
                     return error.DesugarFailed;
                 };
-                compiled.deinit();
                 return self.builder.literal(
-                    .{ .regex = try self.builder.dupe(r) },
+                    .{ .regex = .{
+                        .pattern = try self.builder.dupe(r),
+                        .compiled = compiled,
+                    } },
                     e.span,
                 );
             },
@@ -355,12 +378,13 @@ pub const Lowerer = struct {
             },
 
             // A kind is not a first-class value: it reaches Core only through
-            // the `is_kind :k` form, which `.apply` handles.
+            // the `name :k` forms, which `.apply` handles.
             .kind_test => |name| {
                 try self.sink.report(
                     .unresolved_name,
                     e.span,
-                    "`:{s}` is only meaningful as the argument of `is_kind`",
+                    "`:{s}` is only meaningful as the argument of `is_kind`, " ++
+                        "`children_of_kind` or `descendants_of_kind`",
                     .{name},
                 );
                 return error.DesugarFailed;
@@ -399,7 +423,7 @@ pub const Lowerer = struct {
             // target grammar at desugaring time, and there is no first-class
             // kind value for a general application to take.
             .apply => |a| {
-                if (self.kindTestApplication(a.*)) |symbol| {
+                if (self.kindApplication(a.*)) |symbol| {
                     return self.builder.symbol(try symbol, e.span);
                 }
                 return try self.builder.apply(

@@ -1,7 +1,6 @@
 title: `all` over an empty source is true
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Vacuous truth, and the dual of PRE-06. No violating element exists, so the
 inner probe is false and `all` yields true. A definition with the branch arms

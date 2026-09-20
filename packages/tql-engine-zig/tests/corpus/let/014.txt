@@ -1,7 +1,6 @@
 title: `let` inside a pipe stage
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The group is evaluated once per input value from the left stage.
 

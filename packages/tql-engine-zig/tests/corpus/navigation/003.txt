@@ -1,7 +1,6 @@
 title: child navigation is document order, not grammar order
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = children | lift kind;

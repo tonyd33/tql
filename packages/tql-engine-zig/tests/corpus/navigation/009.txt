@@ -1,7 +1,6 @@
 title: named-field navigation selects children under that field
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = children | is_kind :class_declaration | .name | lift text;

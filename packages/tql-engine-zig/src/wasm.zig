@@ -34,27 +34,34 @@ fn runImpl(
     });
     defer engine.deinit();
 
-    var compiled = try engine.compile(query_source, grammar);
+    var sink = tql.diagnostic.Sink.init(gpa);
+    defer sink.deinit();
+
+    var compiled = try engine.compileQuery(query_source, grammar, &sink);
     defer compiled.deinit();
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
 
-    var run_result = try compiled.run(query_target, arena.allocator(), arena.allocator());
-    defer run_result.deinit();
+    const run_result = try compiled.run(
+        query_target,
+        null,
+        arena.allocator(),
+        arena.allocator(),
+    );
 
     var jws: std.json.Stringify = .{ .writer = &buf.writer };
     try jws.beginObject();
     try jws.objectField("values");
-    try jws.beginArray();
-    for (run_result.values.items) |v| try v.jsonStringify(&jws);
-    try jws.endArray();
+    try jws.beginWriteRaw();
+    try jws.writer.writeAll(run_result.json);
+    jws.endWriteRaw();
     try jws.objectField("stats");
     try jws.beginObject();
     try jws.objectField("parse_time_ns");
-    try jws.write(run_result.stats.parse_time.nanoseconds);
+    try jws.write(run_result.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");
-    try jws.write(run_result.stats.query_time.nanoseconds);
+    try jws.write(run_result.query_time.nanoseconds);
     try jws.endObject();
     try jws.endObject();
 }

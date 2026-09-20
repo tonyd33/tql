@@ -1,0 +1,33 @@
+title: the kind axes equal their pipeline spellings
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+deep_fused = [descendants_of_kind :class_declaration | .name | lift text];
+deep_piped = [descendants | is_kind :class_declaration | .name | lift text];
+
+flat_fused = [children_of_kind :class_declaration | .name | lift text];
+flat_piped = [children | is_kind :class_declaration | .name | lift text];
+
+main = \r -> pure {
+  deep = deep_fused r = deep_piped r,
+  shallow = flat_fused r = flat_piped r,
+} r;
+
+--- source ---
+class Outer {
+  m() {
+    class Inner {}
+  }
+}
+class B {}
+
+--- values ---
+[{ "deep": true, "shallow": true }]
+
+--- types ---
+deep_fused : Node -> [[String]]
+deep_piped : Node -> [[String]]
+flat_fused : Node -> [[String]]
+flat_piped : Node -> [[String]]
+main : Node -> [{deep: Bool, shallow: Bool}]

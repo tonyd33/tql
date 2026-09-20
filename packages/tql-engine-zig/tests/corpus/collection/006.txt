@@ -1,7 +1,6 @@
 title: nested collection
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The outer bracket collects the per-class lists into one list of lists.
 

@@ -1,7 +1,6 @@
 title: a single stream bind runs the body once per output
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main root =

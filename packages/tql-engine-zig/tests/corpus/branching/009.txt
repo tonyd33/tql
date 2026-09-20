@@ -1,7 +1,6 @@
 title: an empty operand stream annihilates a lifted connective
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `and` is scalar, so reaching a stream operand goes through `do`. An empty bind
 contributes nothing, which is where the annihilation lives now.

@@ -1,7 +1,6 @@
 title: `or_else` yields the fallback when the primary is empty
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

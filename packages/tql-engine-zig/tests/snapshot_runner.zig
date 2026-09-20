@@ -7,7 +7,6 @@ const fmt = @import("fmt.zig");
 
 const Engine = tql.Engine;
 const GrammarRegistry = tql.GrammarRegistry;
-const Value = tql.Value;
 
 const SectionKind = corpus_parser.SectionKind;
 
@@ -855,13 +854,18 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         };
     }
 
-    // A case asserting values runs on the evaluator. The tree primitives are
-    // not implemented, so a query that navigates reports Unimplemented and the
-    // case stays pending until it is written.
+    // A case asserting values runs on the evaluator against the parsed target.
     if (tc.isAsserted(.values) and !expects_error) {
         var eval_sink = tql.diagnostic.Sink.init(allocator);
         defer eval_sink.deinit();
-        const values = try engine.evaluateQuery(tc.query.content, grammar, &eval_sink, allocator);
+        const values = try engine.evaluateQuery(
+            tc.query.content,
+            tc.target.content,
+            if (tc.file.len == 0) null else tc.file,
+            grammar,
+            &eval_sink,
+            allocator,
+        );
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
@@ -894,48 +898,16 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         };
     }
 
-    var query = engine.compile(tc.query.content, grammar) catch |err| {
-        if (!expects_error) return err;
-        // Compilation past the parser still reports a bare Zig error, with no
-        // category and no span, so a fixture only matches if it was written
-        // `span: any` and a multi-diagnostic case can never match.
-        //
-        // IMPROVE: desugaring, resolution and typing should report structured
-        // diagnostics the way the parser now does, and this should render them.
-        const message = try std.fmt.allocPrint(allocator, "{t}/", .{err});
-        errdefer allocator.free(message);
-        return .{
-            .source_tree = source_tree,
-            .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
-            .values = try allocator.dupe(u8, ""),
-            .core = core_text,
-            .types = types_text,
-            .@"error" = message,
-        };
-    };
-    defer query.deinit();
-
+    // Desugaring and type checking already returned above with their
+    // diagnostics, so a case reaching here expected a rejection that no stage
+    // made.
     if (expects_error) return error.ExpectedCompileError;
-
-    var run_result = try query.run(tc.target.content, allocator, allocator);
-    defer run_result.deinit();
-
-    const bytecode_raw = try fmt.formatBytecode(allocator, query.instructions());
-    defer allocator.free(bytecode_raw);
-    const bytecode = try allocator.dupe(u8, std.mem.trimEnd(u8, bytecode_raw, "\n"));
-    errdefer allocator.free(bytecode);
-
-    const values_raw = try fmt.formatValues(allocator, run_result.values.items);
-    defer allocator.free(values_raw);
-    const actual_values = try allocator.dupe(u8, std.mem.trimEnd(u8, values_raw, "\n"));
-    errdefer allocator.free(actual_values);
 
     return .{
         .source_tree = source_tree,
         .tql_tree = tql_tree,
-        .bytecode = bytecode,
-        .values = actual_values,
+        .bytecode = try allocator.dupe(u8, ""),
+        .values = try allocator.dupe(u8, ""),
         .core = core_text,
         .types = types_text,
         .@"error" = try allocator.dupe(u8, ""),

@@ -1,7 +1,6 @@
 title: `any` over an empty source is false
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The source yields nothing, so the probe finds no first result.
 

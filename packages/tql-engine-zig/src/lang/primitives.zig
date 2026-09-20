@@ -55,6 +55,8 @@ pub const Lowering = enum {
     ancestors,
     children,
     descendants,
+    children_of_kind,
+    descendants_of_kind,
     is_kind,
     field,
     operator,

@@ -3,7 +3,6 @@ const tql = @import("tql");
 const goz = @import("goz");
 const Engine = tql.Engine;
 const Grammar = tql.Grammar;
-const Value = tql.Value;
 
 const VERSION = tql.VERSION;
 
@@ -428,6 +427,32 @@ fn runDebug(
     }
 }
 
+/// Print every diagnostic a compilation collected, one per line, with the
+/// source line it points at.
+fn reportDiagnostics(
+    sink: *const tql.diagnostic.Sink,
+    source: []const u8,
+    stderr: *std.Io.Writer,
+) !void {
+    for (sink.items()) |d| {
+        try stderr.print("{d}:{d}: {t}: {s}\n", .{
+            d.span.start_point.row + 1,
+            d.span.start_point.column + 1,
+            d.category,
+            d.message,
+        });
+
+        var lines = std.mem.splitScalar(u8, source, '\n');
+        var row: u32 = 0;
+        while (lines.next()) |line| : (row += 1) {
+            if (row == d.span.start_point.row) {
+                try stderr.print("  {s}\n", .{line});
+                break;
+            }
+        }
+    }
+}
+
 fn runDumpInstructions(
     io: std.Io,
     gpa: std.mem.Allocator,
@@ -473,15 +498,20 @@ fn runDumpInstructions(
     var engine = try Engine.init(.{ .allocator = gpa, .io = io });
     defer engine.deinit();
 
-    var compiled = engine.compile(query, grammar) catch |err| {
+    var sink = tql.diagnostic.Sink.init(gpa);
+    defer sink.deinit();
+
+    var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
+        try reportDiagnostics(&sink, query, stderr);
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
     defer compiled.deinit();
 
-    for (compiled.instructions(), 0..) |instr, i| {
-        try stdout.print("{d:4}: ", .{i});
-        try instr.print(stdout);
+    const printer = tql.core_to_stg.Printer{ .interner = &compiled.checked.program.interner };
+    for (compiled.translated.definitions) |definition| {
+        try stdout.print("{s} = ", .{compiled.checked.program.interner.spelling(definition.symbol)});
+        try printer.closure(definition.value, stdout);
         try stdout.writeAll("\n");
     }
 
@@ -535,7 +565,10 @@ fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), w: *s
 // "feel out" an appropriate engine API from CLI usage.
 
 const PathEntry = struct {
-    arena: std.heap.ArenaAllocator,
+    /// Held by pointer: an `ArenaAllocator`'s `allocator()` vtable points at
+    /// the struct, so moving one through a queue dangles every allocation
+    /// made through it.
+    arena: *std.heap.ArenaAllocator,
     path: []const u8,
 };
 
@@ -545,11 +578,8 @@ const FileStats = struct {
     read_time: std.Io.Duration = .zero,
     parse_time: std.Io.Duration = .zero,
     query_time: std.Io.Duration = .zero,
-    profile: tql.Profile = .{},
 };
 
-/// Counter fields are emitted only in a `-Dprofile` build; otherwise this
-/// writes nothing and the object holds timings alone.
 fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
     try jws.beginObject();
     try jws.objectField("read_time_ns");
@@ -558,23 +588,25 @@ fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
     try jws.write(stats.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");
     try jws.write(stats.query_time.nanoseconds);
-    if (tql.profiling_enabled) {
-        inline for (@typeInfo(tql.Profile).@"struct".fields) |field| {
-            try jws.objectField(field.name);
-            try jws.write(@field(stats.profile, field.name));
-        }
-    }
     try jws.endObject();
 }
 
 const FileResult = struct {
-    arena: std.heap.ArenaAllocator,
+    /// Held by pointer for the same reason as `PathEntry.arena`, and owned by
+    /// the consumer: `deinit` frees the arena and the cell holding it.
+    arena: *std.heap.ArenaAllocator,
+    gpa: std.mem.Allocator,
     filename: []const u8,
-    values: std.ArrayList(Value),
+    /// The file's outputs, already rendered as a JSON array. Serialization
+    /// happens on the worker, while the parsed tree a node value borrows is
+    /// still alive.
+    values: []const u8,
+    count: usize,
     stats: FileStats,
 
     fn deinit(self: FileResult) void {
         self.arena.deinit();
+        self.gpa.destroy(self.arena);
     }
 };
 
@@ -587,7 +619,7 @@ const Progress = struct {
 };
 
 const SharedContext = struct {
-    compiled: *tql.Query,
+    compiled: *const tql.CompiledQuery,
     paths: []const []const u8,
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,
@@ -599,7 +631,9 @@ const SharedContext = struct {
 };
 
 fn pushFile(ctx: *SharedContext, path: []const u8) !void {
-    var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
+    const arena = try ctx.allocator.create(std.heap.ArenaAllocator);
+    errdefer ctx.allocator.destroy(arena);
+    arena.* = std.heap.ArenaAllocator.init(ctx.*.allocator);
     errdefer arena.deinit();
     const owned = try arena.allocator().dupe(u8, path);
     try ctx.path_queue.push(.{ .arena = arena, .path = owned });
@@ -645,11 +679,8 @@ fn walkerThread(ctx: *SharedContext) !void {
 fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer) !void {
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        for (result.values.items) |v| {
-            try stdout.print("{s}: ", .{result.filename});
-            try v.toString(stdout);
-            try stdout.writeByte('\n');
-        }
+        if (result.count == 0) continue;
+        try stdout.print("{s}: {s}\n", .{ result.filename, result.values });
     }
 }
 
@@ -663,15 +694,13 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
         totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
-        totals.profile.add(result.stats.profile);
-        if (result.values.items.len == 0) continue;
         try jws.beginObject();
         try jws.objectField("file");
         try jws.write(result.filename);
         try jws.objectField("values");
-        try jws.beginArray();
-        for (result.values.items) |v| try v.jsonStringify(jws);
-        try jws.endArray();
+        try jws.beginWriteRaw();
+        try jws.writer.writeAll(result.values);
+        jws.endWriteRaw();
         try jws.objectField("stats");
         try writeStats(jws, result.stats);
         try jws.endObject();
@@ -687,8 +716,11 @@ fn workerThread(ctx: *SharedContext) !void {
     defer arena.deinit();
 
     while (try ctx.path_queue.pop()) |entry| {
-        var result_arena = entry.arena;
-        errdefer result_arena.deinit();
+        const result_arena = entry.arena;
+        errdefer {
+            result_arena.deinit();
+            ctx.allocator.destroy(result_arena);
+        }
         const result_alloc = result_arena.allocator();
         const query_target_path = entry.path;
 
@@ -710,17 +742,23 @@ fn workerThread(ctx: *SharedContext) !void {
         const read_time = read_start.untilNow(ctx.io, .real);
         defer if (query_target.len > 0) std.posix.munmap(query_target);
 
-        const run_result = try ctx.compiled.run(query_target, result_alloc, arena.allocator());
+        const run_result = try ctx.compiled.run(
+            query_target,
+            query_target_path,
+            result_alloc,
+            arena.allocator(),
+        );
 
         try ctx.result_queue.push(.{
             .arena = result_arena,
+            .gpa = ctx.allocator,
             .filename = query_target_path,
-            .values = run_result.values,
+            .values = run_result.json,
+            .count = run_result.count,
             .stats = .{
                 .read_time = read_time,
-                .parse_time = run_result.stats.parse_time,
-                .query_time = run_result.stats.query_time,
-                .profile = run_result.stats.profile,
+                .parse_time = run_result.parse_time,
+                .query_time = run_result.query_time,
             },
         });
 
@@ -742,7 +780,14 @@ fn run(
     });
     defer engine.deinit();
 
-    var compiled = try engine.compile(config.query, config.grammar);
+    var sink = tql.diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
+        try reportDiagnostics(&sink, config.query, stderr);
+        try stderr.print("Error: {}\n", .{err});
+        return @intFromEnum(ExitCode.compilation_error);
+    };
     defer compiled.deinit();
 
     // real shit
@@ -786,6 +831,19 @@ fn run(
         p.join();
     }
     writer_thread.join();
+
+    if (tql.core_to_stg.count_allocations) {
+        var total: u64 = 0;
+        for (tql.core_to_stg.site_counts.values) |c| total += c;
+        try stderr.print("allocations by site (total {d}):\n", .{total});
+        inline for (@typeInfo(tql.core_to_stg.Site).@"enum".fields) |f| {
+            const site: tql.core_to_stg.Site = @enumFromInt(f.value);
+            const n = tql.core_to_stg.site_counts.get(site);
+            if (n > 0) try stderr.print("  {d:>10}  {d:>10} B  {s}\n", .{
+                n, tql.core_to_stg.site_bytes.get(site), f.name,
+            });
+        }
+    }
 
     path_queue.deinit(allocator);
     result_queue.deinit(allocator);

@@ -1,7 +1,6 @@
 title: the body receives the bound value as its current input
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The final expression projects `c`, the bound name, and reports the class node
 rather than the root — so the bind rebased the current input onto the bound

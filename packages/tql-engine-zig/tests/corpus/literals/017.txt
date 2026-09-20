@@ -1,7 +1,6 @@
 title: node equality is identity-based
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Both operands select the same single node, so the pair is that node against
 itself.

@@ -33,9 +33,20 @@ const symbols = @import("../lang/symbols.zig");
 
 const Allocator = std.mem.Allocator;
 
+/// Where a local sits in the environment, and the name it was compiled from.
+///
+/// The environment is a closure's captures followed by its frame, laid out
+/// contiguously, so one numbering covers both: an offset below the capture
+/// count reads a capture and the rest read the frame. The name is carried for
+/// printing and for the debug check that the slot holds what the atom meant.
+pub const Local = struct {
+    offset: u32,
+    name: symbols.SymbolId,
+};
+
 /// An argument. Never a compound expression.
 pub const Atom = union(enum) {
-    local: symbols.SymbolId,
+    local: Local,
     global: symbols.SymbolId,
     literal: core.Literal,
 };
@@ -44,10 +55,10 @@ pub const Atom = union(enum) {
 pub const Update = enum { updatable, single_entry };
 
 pub const Closure = struct {
-    /// The free variables the body reads. Read from the enclosing environment
-    /// at allocation and copied, so the closure outlives the scope it was
-    /// written in.
-    free: []const symbols.SymbolId,
+    /// The free variables the body reads, as offsets into the *enclosing*
+    /// environment. Read at allocation and copied, so the closure outlives the
+    /// scope it was written in.
+    free: []const Local,
     update: Update,
     parameters: []const symbols.SymbolId,
     body: Expr,

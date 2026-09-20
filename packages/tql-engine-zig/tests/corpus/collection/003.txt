@@ -1,7 +1,6 @@
 title: collection of an empty query yields one empty list
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Collection observes absence: the inner query yields nothing, and the result is
 one `[]` rather than no output.

@@ -1,7 +1,6 @@
 title: `select` passes its input through unchanged
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The output is the node itself, not the predicate's boolean, so the `identity`
 arm is what runs on success.

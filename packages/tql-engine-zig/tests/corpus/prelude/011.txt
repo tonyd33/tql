@@ -1,7 +1,6 @@
 title: `contains` does not match the node itself
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Descendants are proper, so a class does not contain itself.
 

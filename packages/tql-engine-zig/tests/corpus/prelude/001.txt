@@ -1,7 +1,6 @@
 title: `select` keeps inputs whose predicate holds
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `select p = branch p identity empty`. Unifying `identity : Filter a a` against
 the sibling `empty` arm pins the result type, giving

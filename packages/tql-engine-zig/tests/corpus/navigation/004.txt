@@ -1,7 +1,6 @@
 title: child navigation does not descend
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Only the top-level class is a child of `program`. The nested method is a
 descendant but not a child, so `/` must not reach it.

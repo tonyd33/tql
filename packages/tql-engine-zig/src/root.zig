@@ -10,24 +10,22 @@ pub const ts = @import("tree-sitter");
 pub const cst = @import("lang/cst.zig");
 pub const core = @import("lang/core.zig");
 pub const diagnostic = @import("lang/diagnostic.zig");
-pub const ir = @import("lang/ir.zig");
 pub const primitives = @import("lang/primitives.zig");
 pub const symbols = @import("lang/symbols.zig");
 pub const types = @import("lang/types.zig");
 
 // The stages, in pipeline order. Each is a facade over a private subdirectory.
 pub const parse = @import("parse.zig");
-pub const desugar = @import("desugar.zig");
+pub const tql_to_core = @import("tql_to_core.zig");
 pub const type_check = @import("type_check.zig");
-pub const lower = @import("lower.zig");
+pub const simplify = @import("simplify.zig");
+pub const core_to_stg = @import("core_to_stg.zig");
 
 const grammar = @import("lang/grammar.zig");
-const runtime = @import("runtime.zig");
 const pcre2 = @import("regex.zig");
-const value = @import("value.zig");
 
 /// The prelude, linked beneath every query.
-pub const prelude_source = desugar.prelude_source;
+pub const prelude_source = tql_to_core.prelude_source;
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
@@ -35,37 +33,10 @@ pub const Parser = parse.Parser;
 pub const Grammar = grammar.Grammar;
 pub const GrammarRegistry = grammar.Registry;
 
-pub const Value = value.Value;
-pub const NodeSnapshot = value.NodeSnapshot;
-pub const RecordEntry = value.RecordEntry;
-pub const RecordView = value.RecordView;
-pub const RecordIterator = value.RecordIterator;
-pub const ListView = value.ListView;
-
 pub const Config = struct {
     allocator: Allocator,
     // Do I really need this?
     io: std.Io,
-};
-
-pub const Profile = runtime.Profile;
-pub const profiling_enabled = runtime.profiling_enabled;
-
-pub const RunStats = struct {
-    parse_time: std.Io.Duration,
-    query_time: std.Io.Duration,
-    profile: Profile = .{},
-};
-
-pub const RunResult = struct {
-    values: std.ArrayList(Value),
-    stats: RunStats,
-    allocator: Allocator,
-
-    pub fn deinit(self: *RunResult) void {
-        for (self.values.items) |*v| v.deinit(self.allocator);
-        self.values.deinit(self.allocator);
-    }
 };
 
 /// Force a `[a]` spine into its elements, appending them to `out`. Elements
@@ -73,10 +44,10 @@ pub const RunResult = struct {
 ///
 /// Diverges on an infinite list.
 fn listElements(
-    machine: *lower.Machine,
+    machine: *core_to_stg.Machine,
     gpa: Allocator,
-    head: lower.Value,
-    out: *std.ArrayList(*lower.Thunk),
+    head: core_to_stg.Value,
+    out: *std.ArrayList(*core_to_stg.Thunk),
 ) !void {
     const nil_tag = machine.datatypes.nilConstructor().tag;
     var current = head;
@@ -86,9 +57,10 @@ fn listElements(
             else => return error.TypeError,
         };
         if (constructed.tag == nil_tag) return;
-        if (constructed.fields.len != 2) return error.TypeError;
-        try out.append(gpa, constructed.fields[0]);
-        current = try machine.force(constructed.fields[1]);
+        if (constructed.len != 2) return error.TypeError;
+        const fields = constructed.fields();
+        try out.append(gpa, fields[0]);
+        current = try machine.force(fields[1]);
     }
 }
 
@@ -129,7 +101,7 @@ pub const Engine = struct {
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !desugar.Program {
+    ) !tql_to_core.Program {
         var parsed = try self.tql_parser.parseCollecting(query_source);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
@@ -139,7 +111,7 @@ pub const Engine = struct {
             return error.DesugarFailed;
         }
 
-        var desugarer = try desugar.Desugarer.init(self.config.allocator);
+        var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
         // Added first, so prelude names are registered before user declarations
@@ -176,7 +148,7 @@ pub const Engine = struct {
     /// a cached one would be valid only per grammar and per registry prefix.
     fn addPrelude(
         self: *Engine,
-        desugarer: *desugar.Desugarer,
+        desugarer: *tql_to_core.Desugarer,
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !void {
@@ -188,74 +160,155 @@ pub const Engine = struct {
         try desugarer.add(parsed.source_file, g, sink);
     }
 
-    /// Parse, check, translate and run a query, writing its outputs as JSON.
+    /// Parse, check, translate and run a query against a target file, writing
+    /// its outputs as JSON.
     ///
-    /// The tree primitives are not implemented, so a query that navigates
-    /// returns error.Unimplemented. Caller owns the returned JSON.
+    /// `target_path` is what `filename` yields; a query run on text with no
+    /// path gets no output from it. Caller owns the returned JSON.
+    ///
+    /// The parsed target outlives the run: every node value points into it,
+    /// and serialization forces thunks after the outputs are collected.
     pub fn evaluateQuery(
         self: *Engine,
         query_source: []const u8,
+        target_source: []const u8,
+        target_path: ?[]const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
         result_allocator: Allocator,
     ) ![]const u8 {
-        var checked = try self.checkQuery(query_source, g, sink);
-        defer checked.deinit();
-
-        var translated = try lower.translate(self.config.allocator, &checked.program);
-        defer translated.deinit();
+        var compiled = try self.compileQuery(query_source, g, sink);
+        defer compiled.deinit();
 
         var arena: std.heap.ArenaAllocator = .init(self.config.allocator);
         defer arena.deinit();
 
-        var machine = try lower.Machine.init(
+        const outcome = try compiled.run(
+            target_source,
+            target_path,
+            result_allocator,
             arena.allocator(),
-            self.config.allocator,
-            &translated,
-            &checked.program,
         );
-        defer machine.deinit(self.config.allocator);
+        return outcome.json;
+    }
 
-        const entry = machine.globals.get(checked.program.entry) orelse return error.MissingEntry;
+    /// Check and translate a query once, for running against many targets.
+    ///
+    /// The result is immutable and safe to share across threads: every
+    /// per-run mutable structure lives in the `Machine` that `run` builds.
+    pub fn compileQuery(
+        self: *Engine,
+        query_source: []const u8,
+        g: *const Grammar,
+        sink: *diagnostic.Sink,
+    ) !CompiledQuery {
+        var checked = try self.checkQuery(query_source, g, sink);
+        errdefer checked.deinit();
 
-        // `main` takes the parsed root. Nothing reads it until the tree
-        // primitives exist, so a placeholder stands in for it.
-        var root: lower.Thunk = lower.Thunk.value(.{ .node = .{ .id = 0 } });
+        try simplify.run(&checked.program);
+
+        const translated = try core_to_stg.translate(self.config.allocator, &checked.program);
+        return .{
+            .checked = checked,
+            .translated = translated,
+            .grammar = g,
+            .allocator = self.config.allocator,
+            .io = self.config.io,
+        };
+    }
+};
+
+/// A query checked and translated once, run against many targets.
+pub const CompiledQuery = struct {
+    checked: CheckedQuery,
+    translated: core_to_stg.Program,
+    grammar: *const Grammar,
+    allocator: Allocator,
+    io: std.Io,
+
+    pub fn deinit(self: *CompiledQuery) void {
+        self.translated.deinit();
+        self.checked.deinit();
+    }
+
+    /// Run against one in-memory target buffer.
+    ///
+    /// `target` must outlive the returned values: a node points into the tree
+    /// parsed from it, and serializing one slices it for `text`.
+    ///
+    /// `scratch` is the machine's arena. The caller resets it between files.
+    pub fn run(
+        self: *const CompiledQuery,
+        target: []const u8,
+        target_path: ?[]const u8,
+        result_allocator: Allocator,
+        scratch: Allocator,
+    ) !RunOutcome {
+        const source_parser = ts.Parser.create();
+        defer source_parser.destroy();
+        try source_parser.setLanguage(self.grammar.language);
+
+        const parse_start = std.Io.Timestamp.now(self.io, .real);
+        const tree = source_parser.parseString(target, null) orelse
+            return error.TargetParseFailed;
+        defer tree.destroy();
+        const parse_time = parse_start.untilNow(self.io, .real);
+
+        const query_start = std.Io.Timestamp.now(self.io, .real);
+
+        var machine = try core_to_stg.Machine.init(
+            scratch,
+            self.allocator,
+            &self.translated,
+            &self.checked.program,
+        );
+        defer machine.deinit(self.allocator);
+        machine.target = .{ .source = target, .path = target_path };
+
+        const entry = machine.globals.get(self.checked.program.entry) orelse
+            return error.MissingEntry;
+
+        var root: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
         const outputs = try machine.apply(try machine.force(entry), &.{&root});
 
-        var elements: std.ArrayList(*lower.Thunk) = .empty;
-        defer elements.deinit(arena.allocator());
-        try listElements(&machine, arena.allocator(), outputs, &elements);
+        var elements: std.ArrayList(*core_to_stg.Thunk) = .empty;
+        defer elements.deinit(scratch);
+        try listElements(&machine, scratch, outputs, &elements);
 
+        // Serialized here, while the tree is alive. A node value borrows it,
+        // so it cannot outlive this call.
         var w: std.Io.Writer.Allocating = .init(result_allocator);
         errdefer w.deinit();
-        var jws = std.json.Stringify{
-            .writer = &w.writer,
-            .options = .{ .whitespace = .indent_2 },
-        };
+        var jws = std.json.Stringify{ .writer = &w.writer };
         try jws.beginArray();
         for (elements.items) |element| {
             try machine.serialize(try machine.force(element), &jws);
         }
         try jws.endArray();
 
-        return try w.toOwnedSlice();
-    }
+        const query_time = query_start.untilNow(self.io, .real);
 
-    /// Parse + compile a TQL query for a given target language.
-    /// Returned Query owns its ProgramImage.
-    pub fn compile(self: *Engine, query_source: []const u8, g: *const Grammar) !Query {
-        _ = self;
-        _ = query_source;
-        _ = g;
-        return error.DesugaringUnimplemented;
+        return .{
+            .json = try w.toOwnedSlice(),
+            .count = elements.items.len,
+            .parse_time = parse_time,
+            .query_time = query_time,
+        };
     }
+};
+
+/// One target's results: the outputs as a JSON array, and what it cost.
+pub const RunOutcome = struct {
+    json: []const u8,
+    count: usize,
+    parse_time: std.Io.Duration,
+    query_time: std.Io.Duration,
 };
 
 /// A linked program and its inferred schemes. The two are created together and
 /// destroyed together.
 pub const CheckedQuery = struct {
-    program: desugar.Program,
+    program: tql_to_core.Program,
     checked: type_check.Checked,
 
     pub fn deinit(self: *CheckedQuery) void {
@@ -264,90 +317,21 @@ pub const CheckedQuery = struct {
     }
 };
 
-pub const Query = struct {
-    program_image: ir.ProgramImage,
-    grammar: *const Grammar,
-    allocator: Allocator,
-    // Do I really want this...?
-    io: std.Io,
-
-    pub fn deinit(self: *Query) void {
-        self.program_image.deinit();
-    }
-
-    pub fn instructions(self: *const Query) []const ir.Instruction {
-        return self.program_image.instructions;
-    }
-
-    /// Run against one in-memory query target buffer. Caller owns returned RunResult
-    /// and must call deinit(). `query_target` must outlive the call but not the result.
-    pub fn run(
-        self: *Query,
-        query_target: []const u8,
-        result_allocator: Allocator,
-        scratch_allocator: Allocator,
-    ) !RunResult {
-        const source_parser = ts.Parser.create();
-        defer source_parser.destroy();
-        try source_parser.setLanguage(self.grammar.language);
-
-        const parse_start = std.Io.Timestamp.now(self.io, .real);
-        const tree = source_parser.parseString(query_target, null) orelse return error.SourceParseFailed;
-        defer tree.destroy();
-        const parse_time = parse_start.untilNow(self.io, .real);
-
-        var rt = runtime.Runtime.init(.{
-            .tree = tree,
-            .source = query_target,
-            .instructions = self.program_image.instructions,
-            .regexes = self.program_image.regexes,
-            .param_var_arena = self.program_image.param_var_arena,
-            .allocator = scratch_allocator,
-        });
-        try rt.exec();
-        defer rt.deinit();
-
-        var values: std.ArrayList(Value) = .empty;
-        errdefer {
-            for (values.items) |*v| v.deinit(result_allocator);
-            values.deinit(result_allocator);
-        }
-
-        const query_start = std.Io.Timestamp.now(self.io, .real);
-        while (try rt.next()) |runtime_value| {
-            const v = try runtime_value.toPublic(result_allocator, query_target);
-            try values.append(result_allocator, v);
-        }
-        const query_time = query_start.untilNow(self.io, .real);
-
-        return .{
-            .values = values,
-            .stats = .{
-                .parse_time = parse_time,
-                .query_time = query_time,
-                .profile = rt.profile,
-            },
-            .allocator = result_allocator,
-        };
-    }
-};
-
 test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
-    refAllDecls(runtime);
     refAllDecls(pcre2);
     refAllDecls(cst);
     refAllDecls(diagnostic);
     refAllDecls(parse);
     refAllDecls(grammar);
     refAllDecls(core);
-    refAllDecls(desugar);
+    refAllDecls(tql_to_core);
     refAllDecls(symbols);
     refAllDecls(primitives);
     refAllDecls(types);
     refAllDecls(type_check);
-    refAllDecls(lower);
+    refAllDecls(core_to_stg);
 }
 
 test "synthesized symbols carry the grammar ids they resolved" {
@@ -406,21 +390,21 @@ test "a constructor field that is not an atom becomes a thunk" {
     var program = try engine.desugarQuery("main = children;", g, &sink);
     defer program.deinit();
 
-    var translated = try lower.translate(allocator, &program);
+    var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
     // `append`'s `Cons h (append t ys)`. The recursive call is a compound
     // argument, so it must be let-bound to a thunk before the `Cons` rather
     // than evaluated into the field. This is what `laziness/005` depends on.
     const append = program.interner.lookup("append").?;
-    var body: ?*const lower.Closure = null;
+    var body: ?*const core_to_stg.Closure = null;
     for (translated.definitions) |definition| {
         if (definition.symbol == append) body = definition.value;
     }
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: lower.Printer = .{ .interner = &program.interner };
+    const printer: core_to_stg.Printer = .{ .interner = &program.interner };
     try printer.closure(body.?, &w.writer);
 
     // The recursive call is let-bound to a thunk and the `Cons` takes that
@@ -463,17 +447,17 @@ test "a stream bind translates to a flat_map call" {
     , g, &sink);
     defer program.deinit();
 
-    var translated = try lower.translate(allocator, &program);
+    var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var body: ?*const lower.Closure = null;
+    var body: ?*const core_to_stg.Closure = null;
     for (translated.definitions) |definition| {
         if (definition.symbol == program.entry) body = definition.value;
     }
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: lower.Printer = .{ .interner = &program.interner };
+    const printer: core_to_stg.Printer = .{ .interner = &program.interner };
     try printer.closure(body.?, &w.writer);
 
     // `bind` is not a machine form: the receiver becomes a one-argument
@@ -501,23 +485,23 @@ test "the evaluator runs the prelude's append" {
     , g, &sink);
     defer program.deinit();
 
-    var translated = try lower.translate(allocator, &program);
+    var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try lower.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const entry = machine.globals.get(program.entry).?;
     const main_value = try machine.force(entry);
 
     // `main` takes the root, which nothing here reads, so any thunk does.
-    var unit: lower.Thunk = lower.Thunk.value(.{ .number = 0 });
+    var unit: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .number = 0 });
     const applied = try machine.apply(main_value, &.{&unit});
 
-    var elements: std.ArrayList(*lower.Thunk) = .empty;
+    var elements: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer elements.deinit(arena.allocator());
     try listElements(&machine, arena.allocator(), applied, &elements);
 
@@ -532,7 +516,7 @@ fn runQuery(
     allocator: std.mem.Allocator,
     source: []const u8,
     arena: *std.heap.ArenaAllocator,
-    out: *std.ArrayList(*lower.Thunk),
+    out: *std.ArrayList(*core_to_stg.Thunk),
 ) !void {
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
@@ -547,14 +531,14 @@ fn runQuery(
     var program = try engine.desugarQuery(source, g, &sink);
     defer program.deinit();
 
-    var translated = try lower.translate(allocator, &program);
+    var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var machine = try lower.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const main_value = try machine.force(machine.globals.get(program.entry).?);
-    var unit: lower.Thunk = lower.Thunk.value(.{ .number = 0 });
+    var unit: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .number = 0 });
     try listElements(
         &machine,
         arena.allocator(),
@@ -572,7 +556,7 @@ test "the evaluator runs pure, compose and the scalar operators" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `pure` builds a one-element list, the operator is scalar under Q16, and
@@ -589,7 +573,7 @@ test "the evaluator orders ints and strings" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `Ord` holds for `Int` and `String` only, and `<=`/`>=` are the two that
@@ -613,7 +597,7 @@ test "the evaluator runs lift and select" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `select` keeps the inputs its predicate accepts. `lift` carries the
@@ -633,7 +617,7 @@ test "the evaluator runs exists, any and all" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `all` over an empty source is vacuously true, and its arms must be in
@@ -662,7 +646,7 @@ test "the evaluator runs or_else" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // The fallback runs only when the primary yields nothing.
@@ -675,13 +659,35 @@ test "the evaluator runs or_else" {
     try std.testing.expectEqual(@as(i64, 3), out.items[1].state.evaluated.number);
 }
 
+test "a filter chain over a long list runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    // `count` builds a list of `n` elements and `compose` runs a filter over
+    // it that keeps none, so reaching the end walks a chain of `append Nil`.
+    // Every step of that walk is a tail call: at 3000 elements this overflows
+    // a 16 MiB stack unless the evaluator loops rather than recurses.
+    try runQuery(allocator,
+        \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\keep_none x = Nil;
+        \\main root = flat_map (count 3000) keep_none;
+    , &arena, &out);
+
+    try std.testing.expectEqual(0, out.items.len);
+}
+
 test "the evaluator runs probe without forcing the whole stream" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*lower.Thunk) = .empty;
+    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `laziness/005`: the left operand satisfies the probe, so the infinite
@@ -720,13 +726,13 @@ test "forcing a global cycle reports it rather than hanging" {
     , g, &sink);
     defer program.deinit();
 
-    var translated = try lower.translate(allocator, &program);
+    var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try lower.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const a = program.interner.lookup("a").?;
@@ -749,7 +755,7 @@ test "isLocal separates locals from globals in a real program" {
     var program = try engine.desugarQuery("main root = pure 1 root;", g, &sink);
     defer program.deinit();
 
-    const translate_mod = @import("lower/translate.zig");
+    const translate_mod = @import("core_to_stg/translate.zig");
     var translator: translate_mod.Translator = .{
         .arena = allocator,
         .gpa = allocator,

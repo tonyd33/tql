@@ -1,7 +1,6 @@
 title: a signature on `main` is permitted
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main : Filter Node String;

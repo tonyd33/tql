@@ -1,7 +1,6 @@
 title: a `do`-local `let` sees bindings from earlier statements
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 `prefix` is computed from `c`, bound by the preceding statement, and is then
 used by the final expression.

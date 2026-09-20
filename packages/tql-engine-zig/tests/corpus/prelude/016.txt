@@ -1,7 +1,6 @@
 title: `or_else` yields every primary result, not just the first
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The probe only decides which branch runs; the chosen branch then runs in full.
 

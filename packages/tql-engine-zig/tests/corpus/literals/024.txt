@@ -1,7 +1,6 @@
 title: `toint` rejects non-integer strings with the empty stream
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Each rejected form is a separate reason: a plain word, a float, a leading plus,
 an internal space, and the empty string. None is an error.

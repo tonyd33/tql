@@ -1,7 +1,6 @@
 title: `do` nested inside a pipe stage
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The block runs once per input value from the left stage.
 

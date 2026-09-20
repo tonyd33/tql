@@ -1,7 +1,6 @@
 title: a bind whose query is empty yields no output
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The body never runs.
 

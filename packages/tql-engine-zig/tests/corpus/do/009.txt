@@ -1,7 +1,6 @@
 title: the last item in the braces is the final expression
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Each `name <- query` is terminated by `;`. The last item carries no `;`
 separating it from a successor, so it is the unique final expression. Compare a

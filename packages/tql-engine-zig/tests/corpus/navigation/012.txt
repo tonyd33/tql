@@ -1,7 +1,6 @@
 title: `parent` yields no result at the root
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = parent | lift kind;

@@ -1,7 +1,6 @@
 title: `any` and `all` share one scheme
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Both helpers are applied to the same source and predicate, confirming they
 accept identical argument types.
@@ -21,7 +20,7 @@ main root =
 class A { getX() {} setY() {} }
 
 --- values ---
-[{ "some": true, "every": false }]
+[{ "every": false, "some": true }]
 
 --- types ---
 main : Node -> [{every: Bool, some: Bool}]

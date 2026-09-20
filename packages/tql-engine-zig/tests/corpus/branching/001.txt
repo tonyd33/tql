@@ -1,7 +1,6 @@
 title: `if` selects a branch per boolean output of the condition
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

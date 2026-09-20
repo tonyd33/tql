@@ -1,7 +1,6 @@
 title: `[p]` collects every output of `p` into exactly one list
 grammar: typescript
-asserts: core, types
-pending: values
+asserts: core, types, values
 
 The result is one value, not three: collection changes multiplicity.
 

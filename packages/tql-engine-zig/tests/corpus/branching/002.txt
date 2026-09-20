@@ -1,7 +1,6 @@
 title: both branches run on the same current input, not on the condition
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The condition projects the name, but the selected branch still receives the
 class node, so it can navigate again.

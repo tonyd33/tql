@@ -1,7 +1,6 @@
 title: byte offsets and columns count UTF-8 bytes, not characters
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `é` occupies two bytes, so the `"héllo"` string node spans bytes 8 to 16 and
 ends at column 16. A character-based encoding would report 15.

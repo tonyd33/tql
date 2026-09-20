@@ -1,7 +1,6 @@
 title: application binds tighter than pipe
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `. / :class_declaration | name_of .` groups as
 `. / :class_declaration | (name_of .)`.

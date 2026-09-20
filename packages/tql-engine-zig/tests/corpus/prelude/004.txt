@@ -1,7 +1,6 @@
 title: `exists` yields one boolean, never prunes
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `exists q = probe q`. It reports presence rather than filtering, so a false
 result is still one output value.

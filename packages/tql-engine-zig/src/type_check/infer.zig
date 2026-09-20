@@ -4,8 +4,9 @@ const std = @import("std");
 const constraints = @import("constraints.zig");
 const core = @import("../lang/core.zig");
 const datatypes_mod = @import("../lang/datatypes.zig");
-const desugar = @import("../desugar.zig");
+const tql_to_core = @import("../tql_to_core.zig");
 const diagnostic = @import("../lang/diagnostic.zig");
+const pcre2 = @import("../regex.zig");
 const schemes = @import("schemes.zig");
 const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
@@ -108,7 +109,7 @@ pub const Inference = struct {
     inferred: symbols.SymbolTable(types.Scheme),
     /// Written signatures, by the symbol they annotate. Stored separately from
     /// inference to preserve the span
-    annotations: symbols.SymbolTable(desugar.Annotation),
+    annotations: symbols.SymbolTable(tql_to_core.Annotation),
     /// The declared types a `case`'s alternatives are checked against.
     datatypes: *const datatypes_mod.Registry,
     failure: ?Failure = null,
@@ -128,7 +129,7 @@ pub const Inference = struct {
             .globals = globals,
             .scope = Scope.init(gpa),
             .inferred = symbols.SymbolTable(types.Scheme).init(gpa),
-            .annotations = symbols.SymbolTable(desugar.Annotation).init(gpa),
+            .annotations = symbols.SymbolTable(tql_to_core.Annotation).init(gpa),
         };
     }
 
@@ -138,7 +139,7 @@ pub const Inference = struct {
         self.scope.deinit();
     }
 
-    pub fn declare(self: *Inference, written: []const desugar.Annotation) Allocator.Error!void {
+    pub fn declare(self: *Inference, written: []const tql_to_core.Annotation) Allocator.Error!void {
         for (written) |a| try self.annotations.put(a.symbol, a);
     }
 
@@ -458,7 +459,7 @@ pub const Inference = struct {
     }
 
     /// A linked program: every component, then `main`'s three extra checks.
-    pub fn check(self: *Inference, p: *const desugar.Program) Error!void {
+    pub fn check(self: *Inference, p: *const tql_to_core.Program) Error!void {
         try self.program(p.definitions, p.components);
 
         // Only after the body has a type, and spanning the whole definition
@@ -640,7 +641,7 @@ fn constructorSchemeOf(
 /// Resolves a global symbol against the program: a primitive's table scheme,
 /// or a synthesized symbol's constructed one.
 const ProgramGlobals = struct {
-    program: *const desugar.Program,
+    program: *const tql_to_core.Program,
 
     fn lookup(context: *const anyopaque, subst: *Substitution, id: symbols.SymbolId) Error!?types.Scheme {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
@@ -657,7 +658,7 @@ const ProgramGlobals = struct {
 /// A body that failed to infer produces no `main-type` diagnostic on top.
 pub fn check(
     gpa: Allocator,
-    program: *const desugar.Program,
+    program: *const tql_to_core.Program,
     sink: *diagnostic.Sink,
 ) !Checked {
     const arena = try gpa.create(std.heap.ArenaAllocator);
@@ -739,7 +740,7 @@ const Fixture = struct {
     undecided: constraints.Set,
     interner: symbols.Interner,
     table: symbols.SymbolTable(types.Scheme),
-    synthesis: desugar.SynthesisTable,
+    synthesis: tql_to_core.SynthesisTable,
     builder: core.Builder,
     datatypes: datatypes_mod.Registry,
     inference: Inference,
@@ -752,7 +753,7 @@ const Fixture = struct {
             .undecided = constraints.Set.init(gpa),
             .interner = try symbols.Interner.init(gpa),
             .table = symbols.SymbolTable(types.Scheme).init(gpa),
-            .synthesis = desugar.SynthesisTable.init(gpa),
+            .synthesis = tql_to_core.SynthesisTable.init(gpa),
             .builder = undefined,
             .datatypes = datatypes_mod.Registry.init(gpa),
             .inference = undefined,
@@ -812,7 +813,7 @@ const Fixture = struct {
 
     /// Interns a synthesized symbol under its bracketed spelling, the way the
     /// desugarer does, and records what it was generated from.
-    fn synthesize(self: *Fixture, spelling: []const u8, what: desugar.Synthesis) !symbols.SymbolId {
+    fn synthesize(self: *Fixture, spelling: []const u8, what: tql_to_core.Synthesis) !symbols.SymbolId {
         const id = try self.name(spelling);
         try self.synthesis.put(id, what);
         return id;
@@ -826,6 +827,15 @@ const Fixture = struct {
     fn lit(self: *Fixture, l: core.Literal) core.Term {
         _ = self;
         return .{ .kind = .{ .literal = l }, .span = diagnostic.Span.unknown };
+    }
+
+    /// A regex literal term. The compiled program leaks for the length of the
+    /// test, which is what the arena would do for it anyway.
+    fn regexLit(self: *Fixture, pattern: []const u8) !core.Term {
+        return self.lit(.{ .regex = .{
+            .pattern = pattern,
+            .compiled = try pcre2.Regex.compile(pattern),
+        } });
     }
 
     fn app(self: *Fixture, function: core.Term, argument: core.Term) !core.Term {
@@ -907,7 +917,7 @@ test "a literal has its scalar type" {
 
     try fix.expectType(fix.lit(.{ .number = 1 }), "Int");
     try fix.expectType(fix.lit(.{ .string = "s" }), "String");
-    try fix.expectType(fix.lit(.{ .regex = "r" }), "Regex");
+    try fix.expectType(try fix.regexLit("r"), "Regex");
 }
 
 test "a symbol's scheme is instantiated at its use" {
@@ -1415,8 +1425,8 @@ test "an operator's constraint is refuted on a regex" {
     // `errors/types/015`: `r"a" = r"a"` fails `Eq regex`.
     const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
     const applied = try fix.app(
-        try fix.app(fix.sym(eq), fix.lit(.{ .regex = "a" })),
-        fix.lit(.{ .regex = "a" }),
+        try fix.app(fix.sym(eq), try fix.regexLit("a")),
+        try fix.regexLit("a"),
     );
     try fix.expectFails(applied, .unsatisfied_constraint);
 }

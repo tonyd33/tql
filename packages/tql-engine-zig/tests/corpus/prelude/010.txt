@@ -1,7 +1,6 @@
 title: `contains` searches descendants
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `contains p = exists (descendants | select p)`.
 

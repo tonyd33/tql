@@ -1,7 +1,6 @@
 title: field navigation and kind navigation compose
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

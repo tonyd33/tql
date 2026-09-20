@@ -1,7 +1,6 @@
 title: a node nested inside a record encodes as a node
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `node` is `Serial`, so it may appear inside a serializable container.
 

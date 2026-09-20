@@ -1,7 +1,6 @@
 title: a checked signature is accepted
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 The annotation is an instance of the inferred principal scheme, so it is
 accepted and becomes the exported scheme.

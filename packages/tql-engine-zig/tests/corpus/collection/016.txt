@@ -1,7 +1,6 @@
 title: a record holding a collected list
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Collection inside a field keeps the record single-valued: the list is one
 value, so no product fan-out occurs.
@@ -19,7 +18,7 @@ main root =
 class A { m() {} n() {} }
 
 --- values ---
-[{ "name": "A", "methods": ["m", "n"] }]
+[{ "methods": ["m", "n"], "name": "A" }]
 
 --- types ---
 main : Node -> [{methods: [String], name: String}]

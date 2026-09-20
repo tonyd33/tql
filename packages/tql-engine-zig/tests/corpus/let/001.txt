@@ -1,7 +1,6 @@
 title: a `let` group with a single binding
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

@@ -1,0 +1,20 @@
+title: children_of_kind walks children and keeps one kind
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+main = children_of_kind :class_declaration | .name | lift text;
+
+--- source ---
+class A {}
+function f() {}
+class B {}
+
+--- values ---
+["A", "B"]
+
+--- core ---
+main = compose (compose children_of_kind[class_declaration] field[name]) (lift text)
+
+--- types ---
+main : Node -> [String]

@@ -1,7 +1,6 @@
 title: `toint` parses a decimal string
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure "42" | toint;

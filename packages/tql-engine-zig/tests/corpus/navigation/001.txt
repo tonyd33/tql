@@ -1,7 +1,6 @@
 title: `.` is the identity filter
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `.` yields its input unchanged, so the chain reports the kind of the root the
 query started from. Every navigation chain starts from it.

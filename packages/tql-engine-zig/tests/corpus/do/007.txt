@@ -1,7 +1,6 @@
 title: a `do`-local `let` group binds several names
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Two bindings in one group, both used in the result record.
 
@@ -32,7 +31,7 @@ main root =
 class A {}
 
 --- values ---
-[{ "n": "A", "k": "class_declaration" }]
+[{ "k": "class_declaration", "n": "A" }]
 
 --- types ---
 main : Node -> [{k: String, n: String}]

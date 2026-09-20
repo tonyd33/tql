@@ -1,7 +1,6 @@
 title: `within` searches ancestors
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `within p = exists (ancestors | select p)`.
 

@@ -1,7 +1,6 @@
 title: `toint` accepts a leading minus
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure "-7" | toint;

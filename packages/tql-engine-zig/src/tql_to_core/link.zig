@@ -14,7 +14,7 @@ const diagnostic = @import("../lang/diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
-const desugar = @import("lower.zig");
+const tql_to_core = @import("lower.zig");
 const primitives = @import("../lang/primitives.zig");
 const symbols = @import("../lang/symbols.zig");
 const types = @import("../lang/types.zig");
@@ -46,11 +46,11 @@ pub const Program = struct {
     datatypes: datatypes.Registry,
     /// What each synthesized symbol was generated from, merged from the linked
     /// modules. Desugaring's output: nothing downstream has the grammar.
-    synthesis: desugar.SynthesisTable,
-    annotations: []const desugar.Annotation,
+    synthesis: tql_to_core.SynthesisTable,
+    annotations: []const tql_to_core.Annotation,
 
     /// The scheme a signature declared for `id`, if one was written.
-    pub fn annotationOf(self: *const Program, id: symbols.SymbolId) ?desugar.Annotation {
+    pub fn annotationOf(self: *const Program, id: symbols.SymbolId) ?tql_to_core.Annotation {
         for (self.annotations) |a| {
             if (a.symbol == id) return a;
         }
@@ -97,8 +97,8 @@ pub const Desugarer = struct {
     interned: primitives.Interned,
     /// Shared across every module in the link, so a symbol is one symbol
     /// whichever module synthesized it.
-    synthesis: desugar.SynthesisTable,
-    modules: std.ArrayList(desugar.Module) = .empty,
+    synthesis: tql_to_core.SynthesisTable,
+    modules: std.ArrayList(tql_to_core.Module) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         const arena = try allocator.create(std.heap.ArenaAllocator);
@@ -110,7 +110,7 @@ pub const Desugarer = struct {
             .allocator = allocator,
             .arena = arena,
             .interned = try primitives.Interned.init(allocator, arena.allocator()),
-            .synthesis = desugar.SynthesisTable.init(allocator),
+            .synthesis = tql_to_core.SynthesisTable.init(allocator),
         };
     }
 
@@ -279,7 +279,7 @@ pub const Desugarer = struct {
         // IMPROVE: desugar the entire module at once with a single desugar pass?
         var failed = false;
         for (declarations.items.items, 0..) |d, i| {
-            var lowerer = desugar.Lowerer.init(
+            var lowerer = tql_to_core.Lowerer.init(
                 builder,
                 interner,
                 &self.interned.datatypes,
@@ -311,7 +311,7 @@ pub const Desugarer = struct {
             edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
         }
 
-        var annotations: std.ArrayList(desugar.Annotation) = .empty;
+        var annotations: std.ArrayList(tql_to_core.Annotation) = .empty;
         defer annotations.deinit(self.allocator);
         for (declarations.items.items) |d| {
             const signature = d.signature orelse continue;
@@ -340,7 +340,7 @@ pub const Desugarer = struct {
         try self.modules.append(self.allocator, .{
             .definitions = definitions,
             .edges = edges,
-            .annotations = try builder.dupeSlice(desugar.Annotation, annotations.items),
+            .annotations = try builder.dupeSlice(tql_to_core.Annotation, annotations.items),
         });
     }
 
@@ -378,7 +378,7 @@ pub const Desugarer = struct {
 
         var annotation_count: usize = 0;
         for (self.modules.items) |m| annotation_count += m.annotations.len;
-        const annotations = try scratch.alloc(desugar.Annotation, annotation_count);
+        const annotations = try scratch.alloc(tql_to_core.Annotation, annotation_count);
         var annotation_offset: usize = 0;
         for (self.modules.items) |m| {
             for (m.annotations) |a| {
@@ -416,7 +416,7 @@ pub const Desugarer = struct {
 /// edges into linked indices. Returns how many it placed.
 fn place(
     scratch: std.mem.Allocator,
-    m: desugar.Module,
+    m: tql_to_core.Module,
     definitions: []core.Definition,
     edges: [][]const u32,
     offset: u32,

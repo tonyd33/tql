@@ -17,12 +17,12 @@ pub const Printer = struct {
 
     fn atom(self: Printer, a: stg.Atom, w: *std.Io.Writer) !void {
         switch (a) {
-            .local => |id| try w.writeAll(self.interner.spelling(id)),
+            .local => |local| try w.writeAll(self.interner.spelling(local.name)),
             .global => |id| try w.writeAll(self.interner.spelling(id)),
             .literal => |literal| switch (literal) {
                 .number => |n| try w.print("{d}", .{n}),
                 .string => |s| try w.print("\"{s}\"", .{s}),
-                .regex => |r| try w.print("r\"{s}\"", .{r}),
+                .regex => |r| try w.print("r\"{s}\"", .{r.pattern}),
             },
         }
     }
@@ -36,9 +36,9 @@ pub const Printer = struct {
 
     pub fn closure(self: Printer, c: *const stg.Closure, w: *std.Io.Writer) Error!void {
         try w.writeByte('{');
-        for (c.free, 0..) |f, i| {
+        for (c.free, 0..) |capture, i| {
             if (i > 0) try w.writeByte(',');
-            try w.writeAll(self.interner.spelling(f));
+            try w.writeAll(self.interner.spelling(capture.name));
         }
         try w.writeAll("} ");
         try w.writeAll(switch (c.update) {

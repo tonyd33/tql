@@ -1,7 +1,6 @@
 title: the closing quote ends the literal
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `r"^A"` is a complete regex literal; the following `,` begins a union, not more
 pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly

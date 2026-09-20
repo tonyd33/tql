@@ -1,7 +1,6 @@
 title: the binding is branch-local and immutable
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 Each branch of the outer bind has its own `c`. The inner record sees the `c` of
 its own branch, never a later one.

@@ -1,7 +1,6 @@
 title: static descendant navigation reaches nested nodes
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main = descendants | is_kind :method_definition | .name | lift text;

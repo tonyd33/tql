@@ -1,8 +1,7 @@
 title: `filename` composes with other projections
 grammar: typescript
-asserts: types
+asserts: types, values
 file: src/service.ts
-pending: values
 
 `filename` runs on the node input like any other filter, so it can appear as a
 record field beside node projections.

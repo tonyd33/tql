@@ -1,7 +1,6 @@
 title: a multi-valued field is collected into a list field
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 A field holds one value, so a query yielding many is collected at the field.
 An empty query gives an empty list and the record is still built. The record no

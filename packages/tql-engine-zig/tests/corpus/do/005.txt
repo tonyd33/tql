@@ -1,7 +1,6 @@
 title: an outer input must be bound explicitly to survive a later bind
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `root` is bound before the navigation so the body can still reach the program
 node after the current input has been rebased onto a class node.
@@ -18,7 +17,7 @@ main root =
 class A {}
 
 --- values ---
-[{ "root": "program", "class": "A" }]
+[{ "class": "A", "root": "program" }]
 
 --- types ---
 main : Node -> [{class: String, root: String}]

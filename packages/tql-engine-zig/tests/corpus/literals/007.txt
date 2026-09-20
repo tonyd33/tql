@@ -1,7 +1,6 @@
 title: a raw literal needs no escape for a slash
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 `r"a/b"` is the three-character pattern `a/b`. A `/` is not special inside the
 literal, so it needs no escape; only `"` closes it.

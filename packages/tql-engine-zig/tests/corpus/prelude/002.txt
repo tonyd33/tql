@@ -1,7 +1,6 @@
 title: `select` with a never-true predicate yields nothing
 grammar: typescript
-asserts: types
-pending: values
+asserts: types, values
 
 --- tql ---
 main =

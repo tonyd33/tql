@@ -13,7 +13,7 @@
 const std = @import("std");
 const core = @import("../lang/core.zig");
 const datatypes = @import("../lang/datatypes.zig");
-const desugar = @import("../desugar.zig");
+const tql_to_core = @import("../tql_to_core.zig");
 const free = @import("free.zig");
 const primitives = @import("../lang/primitives.zig");
 const stg = @import("stg.zig");
@@ -38,11 +38,33 @@ const Hoisted = std.ArrayList(stg.Binding);
 pub const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
-    program: *const desugar.Program,
+    program: *const tql_to_core.Program,
     /// Names for the thunks atomization introduces. From the interner, so they
     /// cannot collide with a source binder.
     interner: *symbols.Interner,
     generated: u32 = 0,
+
+    /// The environment of the closure being translated, in the order the
+    /// evaluator builds it: captured free variables, then the frame.
+    ///
+    /// Nothing here is searched at run time; this pass turns every name into
+    /// an offset into it.
+    scope: std.ArrayList(symbols.SymbolId) = .empty,
+
+    /// Where `name` sits in the environment of the closure being translated.
+    fn place(self: *Translator, name: symbols.SymbolId) stg.Local {
+        // Innermost first, so the scope reads as a stack.
+        var i = self.scope.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.scope.items[i] == name) {
+                return .{ .offset = @intCast(i), .name = name };
+            }
+        }
+        // Reached only for a name no enclosing binder introduced, which the
+        // free-variable pass would have captured.
+        unreachable;
+    }
 
     /// Whether a symbol is a local rather than something reached by identity.
     pub fn isLocal(context: *const anyopaque, symbol: symbols.SymbolId) bool {
@@ -70,6 +92,7 @@ pub const Translator = struct {
         if (self.program.synthesis.get(name)) |synthesis| {
             return .{ .primitive = switch (synthesis) {
                 .kind_test => .is_kind,
+                .kind_axis => |k| k.lowering,
                 .field => .field,
                 .operator => .operator,
                 .record => .record,
@@ -108,7 +131,7 @@ pub const Translator = struct {
         switch (term.kind) {
             .literal => |literal| return .{ .literal = literal },
             .symbol => |name| switch (self.resolve(name)) {
-                .local => |id| return .{ .local = id },
+                .local => |id| return .{ .local = self.place(id) },
                 .global => |id| return .{ .global = id },
                 .constructor => |c| {
                     // A nullary constructor is a value, allocated directly.
@@ -160,7 +183,7 @@ pub const Translator = struct {
     ) Error!stg.Atom {
         const binder = try self.freshBinder("t");
         try hoisted.append(self.gpa, .{ .binder = binder, .value = .{ .closure = allocated } });
-        return .{ .local = binder };
+        return .{ .local = try self.hoistedPlace(binder) };
     }
 
     fn bindConstructed(
@@ -170,7 +193,18 @@ pub const Translator = struct {
     ) Error!stg.Atom {
         const binder = try self.freshBinder("c");
         try hoisted.append(self.gpa, .{ .binder = binder, .value = .{ .constructed = allocated } });
-        return .{ .local = binder };
+        return .{ .local = try self.hoistedPlace(binder) };
+    }
+
+    /// Put a hoisted binder in scope and return its place.
+    ///
+    /// `close` wraps these in a non-recursive `let` around the body, so the
+    /// evaluator appends them to the frame in the order they were hoisted,
+    /// before evaluating the body that reads them.
+    fn hoistedPlace(self: *Translator, binder: symbols.SymbolId) Error!stg.Local {
+        const offset = self.scope.items.len;
+        try self.scope.append(self.gpa, binder);
+        return .{ .offset = @intCast(offset), .name = binder };
     }
 
     /// Translate a term, wrapping whatever atomization had to hoist.
@@ -239,10 +273,18 @@ pub const Translator = struct {
                 for (case_term.alternatives, alternatives) |source, *alternative| {
                     const constructor = self.program.datatypes.constructorOf(source.constructor) orelse
                         return error.Unsupported;
+                    const binders = try self.arena.dupe(symbols.SymbolId, source.binders);
+
+                    // In scope for this alternative's body only, and pushed in
+                    // the order the evaluator binds the constructor's fields.
+                    const mark = self.scope.items.len;
+                    try self.scope.appendSlice(self.gpa, binders);
+                    defer self.scope.shrinkRetainingCapacity(mark);
+
                     alternative.* = .{
                         .constructor = source.constructor,
                         .tag = constructor.tag,
-                        .binders = try self.arena.dupe(symbols.SymbolId, source.binders),
+                        .binders = binders,
                         .body = try self.expression(source.body),
                     };
                 }
@@ -254,6 +296,16 @@ pub const Translator = struct {
 
             .letrec => |letrec| {
                 const bindings = try self.arena.alloc(stg.Binding, letrec.bindings.len);
+
+                // Recursive: every binder is in scope for every right-hand
+                // side as well as the body, and the evaluator appends them all
+                // before filling any.
+                const mark = self.scope.items.len;
+                for (letrec.bindings) |source| {
+                    try self.scope.append(self.gpa, source.name);
+                }
+                defer self.scope.shrinkRetainingCapacity(mark);
+
                 for (letrec.bindings, bindings) |source, *binding| {
                     binding.* = .{
                         .binder = source.name,
@@ -358,9 +410,10 @@ pub const Translator = struct {
         // A synthesized symbol has no row in the primitive table.
         if (self.program.synthesis.get(name)) |synthesis| {
             return switch (synthesis) {
-                // `is_kind[k]` and `field[l]` are `Filter Node Node`, one
-                // argument; an operator takes two scalars.
-                .kind_test, .field => 1,
+                // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
+                // `Filter Node Node`, one argument; an operator takes two
+                // scalars.
+                .kind_test, .kind_axis, .field => 1,
                 .operator => 2,
                 .record => |labels| @intCast(labels.len),
             };
@@ -385,9 +438,11 @@ pub const Translator = struct {
 
         const parameters = try self.arena.alloc(symbols.SymbolId, arity);
         const arguments = try self.arena.alloc(stg.Atom, arity);
-        for (parameters, arguments) |*parameter, *argument| {
+        // No free variables, so the frame is exactly the parameters and each
+        // one's offset is its position.
+        for (parameters, arguments, 0..) |*parameter, *argument, i| {
             parameter.* = try self.freshBinder("p");
-            argument.* = .{ .local = parameter.* };
+            argument.* = .{ .local = .{ .offset = @intCast(i), .name = parameter.* } };
         }
 
         const call_node = try self.arena.create(stg.Expr.Primitive);
@@ -420,11 +475,33 @@ pub const Translator = struct {
         for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);
         try collector.walk(body);
 
+        const free_names = collector.out.items;
+        const parameter_names = try self.arena.dupe(symbols.SymbolId, parameters);
+
+        // Where each free variable sits in the *enclosing* environment, which
+        // is what the evaluator copies from. Resolved before the scope is
+        // switched, because that is the scope they name.
+        const captures = try self.arena.alloc(stg.Local, free_names.len);
+        for (free_names, captures) |name, *capture| capture.* = self.place(name);
+
+        // The body is translated in this closure's scope, not the enclosing
+        // one: a reference means an offset, and the offsets differ per
+        // closure. Saved and restored so a nested closure does not disturb
+        // the one that contains it.
+        const outer = self.scope;
+        self.scope = .empty;
+        defer {
+            self.scope.deinit(self.gpa);
+            self.scope = outer;
+        }
+        try self.scope.appendSlice(self.gpa, free_names);
+        try self.scope.appendSlice(self.gpa, parameter_names);
+
         const node = try self.arena.create(stg.Closure);
         node.* = .{
-            .free = try self.arena.dupe(symbols.SymbolId, collector.out.items),
+            .free = captures,
             .update = update,
-            .parameters = try self.arena.dupe(symbols.SymbolId, parameters),
+            .parameters = parameter_names,
             .body = try self.expression(body),
         };
         return node;
@@ -437,7 +514,7 @@ pub const Translator = struct {
 /// the desugar.Program it came from.
 pub fn translate(
     gpa: Allocator,
-    program: *desugar.Program,
+    program: *tql_to_core.Program,
 ) Error!stg.Program {
     const arena = try gpa.create(std.heap.ArenaAllocator);
     errdefer gpa.destroy(arena);
