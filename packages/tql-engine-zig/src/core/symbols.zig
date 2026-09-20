@@ -31,6 +31,7 @@ pub fn SymbolTable(comptime T: type) type {
             return .{ .allocator = allocator };
         }
 
+        /// A no-op when `allocator` is an arena.
         pub fn deinit(self: *Self) void {
             self.entries.deinit(self.allocator);
         }
@@ -76,26 +77,17 @@ pub fn SymbolTable(comptime T: type) type {
 
 /// Hands out symbol identities and enforces one-spelling-one-symbol among
 /// globals.
+///
+/// Everything interned is allocated from `allocator` and freed with it.
 pub const Interner = struct {
     allocator: Allocator,
-    /// Heap-owned so this can be moved.
-    arena: *std.heap.ArenaAllocator,
     /// One entry per id, indexed by id. Locals are here too, so a diagnostic
     /// can name one; only globals enter `by_spelling`.
     entries: std.ArrayList(Symbol) = .empty,
     by_spelling: std.StringHashMapUnmanaged(SymbolId) = .empty,
 
-    pub fn init(allocator: Allocator) !Interner {
-        const arena = try allocator.create(std.heap.ArenaAllocator);
-        arena.* = std.heap.ArenaAllocator.init(allocator);
-        return .{ .allocator = allocator, .arena = arena };
-    }
-
-    pub fn deinit(self: *Interner) void {
-        self.entries.deinit(self.allocator);
-        self.by_spelling.deinit(self.allocator);
-        self.arena.deinit();
-        self.allocator.destroy(self.arena);
+    pub fn init(allocator: Allocator) Interner {
+        return .{ .allocator = allocator };
     }
 
     /// A global. Collides when the spelling is taken, which is what makes a
@@ -126,7 +118,7 @@ pub const Interner = struct {
         spelling_text: []const u8,
         what: Details,
     ) Allocator.Error!SymbolId {
-        const owned = try self.arena.allocator().dupe(u8, spelling_text);
+        const owned = try self.allocator.dupe(u8, spelling_text);
         const id = try self.append(owned, what);
         try self.by_spelling.put(self.allocator, owned, id);
         return id;
@@ -134,7 +126,7 @@ pub const Interner = struct {
 
     /// A local binder.
     pub fn fresh(self: *Interner, name: []const u8) Allocator.Error!SymbolId {
-        return try self.append(try self.arena.allocator().dupe(u8, name), .vanilla);
+        return try self.append(try self.allocator.dupe(u8, name), .vanilla);
     }
 
     fn append(self: *Interner, owned: []const u8, what: Details) Allocator.Error!SymbolId {
@@ -169,8 +161,9 @@ pub const Interner = struct {
 };
 
 test "internOrGet returns one symbol for one spelling" {
-    var interner = try Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var interner = Interner.init(arena.allocator());
 
     const what: Details = .{ .synthesized = .{ .kind_test = .{ .name = "k", .id = 1 } } };
     const first = try interner.internOrGet("is_kind[class_declaration]", what);
@@ -182,8 +175,9 @@ test "internOrGet returns one symbol for one spelling" {
 }
 
 test "locals may share a name without colliding" {
-    var interner = try Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var interner = Interner.init(arena.allocator());
 
     const first = try interner.fresh("x");
     const second = try interner.fresh("x");

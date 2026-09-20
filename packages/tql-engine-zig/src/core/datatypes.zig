@@ -143,11 +143,6 @@ pub const Registry = struct {
         return try types.func(arena, input, try self.list(arena, output));
     }
 
-    pub fn deinit(self: *Registry) void {
-        self.datatypes.deinit(self.allocator);
-        self.by_name.deinit(self.allocator);
-    }
-
     /// `name` and the constructor slice must outlive the registry; both are
     /// expected to live in the program arena. Each constructor's symbol is
     /// pointed back at the datatype declaring it.
@@ -218,10 +213,10 @@ pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId)
 }
 
 test "a declared type is reachable by name, id, and constructor" {
-    var registry = Registry.init(std.testing.allocator);
-    defer registry.deinit();
-    var interner = try symbols.Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var registry = Registry.init(arena.allocator());
+    var interner = symbols.Interner.init(arena.allocator());
 
     const nil = try interner.intern("Nil", .vanilla);
     const cons = try interner.intern("Cons", .vanilla);
@@ -247,10 +242,8 @@ test "a declared type is reachable by name, id, and constructor" {
 test "the structural accessors follow the declared tag order" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
-    var registry = Registry.init(std.testing.allocator);
-    defer registry.deinit();
-    var interner = try symbols.Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var registry = Registry.init(arena.allocator());
+    var interner = symbols.Interner.init(arena.allocator());
     try registry.declareStructural(&interner, arena.allocator());
 
     const f = registry.boolConstructor(false);

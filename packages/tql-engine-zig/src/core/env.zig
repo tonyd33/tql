@@ -40,21 +40,18 @@ pub const Env = struct {
         arena.* = .init(gpa);
         errdefer arena.deinit();
 
+        const scratch = arena.allocator();
         return .{
             .gpa = gpa,
             .arena = arena,
-            .interner = try symbols.Interner.init(gpa),
-            .datatypes = datatypes.Registry.init(gpa),
-            .schemes = symbols.SymbolTable(types.Scheme).init(gpa),
-            .annotations = symbols.SymbolTable(Annotation).init(gpa),
+            .interner = symbols.Interner.init(scratch),
+            .datatypes = datatypes.Registry.init(scratch),
+            .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
+            .annotations = symbols.SymbolTable(Annotation).init(scratch),
         };
     }
 
     pub fn deinit(self: *Env) void {
-        self.annotations.deinit();
-        self.schemes.deinit();
-        self.datatypes.deinit();
-        self.interner.deinit();
         self.arena.deinit();
         self.gpa.destroy(self.arena);
     }

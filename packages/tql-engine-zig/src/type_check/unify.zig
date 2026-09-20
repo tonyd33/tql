@@ -121,24 +121,20 @@ fn findLabel(fields: []const types.Type.Field, label: []const u8) ?types.Type.Fi
 const testing = std.testing;
 
 const Fixture = struct {
-    arena: std.heap.ArenaAllocator,
     subst: Substitution,
-    interner: core.Interner,
-    datatypes: core.datatypes.Registry,
+    env: core.env.Env,
 
     fn init(gpa: std.mem.Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try core.Interner.init(gpa), .datatypes = core.datatypes.Registry.init(gpa) };
-        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
-        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
+        self.* = .{ .env = try core.env.Env.init(gpa), .subst = undefined };
+        try self.env.datatypes.declareStructural(&self.env.interner, self.env.allocator());
+        self.subst = Substitution.init(gpa, self.env.allocator(), &self.env.datatypes);
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: std.mem.Allocator) void {
         self.subst.deinit();
-        self.datatypes.deinit();
-        self.interner.deinit();
-        self.arena.deinit();
+        self.env.deinit();
         gpa.destroy(self);
     }
 
@@ -160,7 +156,7 @@ const Fixture = struct {
     }
 
     fn record(self: *Fixture, labels: []const []const u8, field_types: []const types.Type) !types.Type {
-        const fields = try self.arena.allocator().alloc(types.Type.Field, labels.len);
+        const fields = try self.env.allocator().alloc(types.Type.Field, labels.len);
         for (labels, field_types, fields) |label, t, *f| {
             f.* = .{ .label = label, .type = try types.store(self.subst.arena, t) };
         }

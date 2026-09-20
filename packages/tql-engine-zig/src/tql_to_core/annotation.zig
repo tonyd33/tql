@@ -170,28 +170,22 @@ const testing = std.testing;
 /// Builds a `cst.Signature` by parsing one, so the tests exercise the same
 /// shapes the grammar actually produces.
 const Fixture = struct {
-    arena: std.heap.ArenaAllocator,
+    env: core.env.Env,
     sink: diagnostic.Sink,
-    interner: core.Interner,
-    datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
         self.* = .{
-            .arena = .init(gpa),
+            .env = try core.env.Env.init(gpa),
             .sink = diagnostic.Sink.init(gpa),
-            .interner = try core.Interner.init(gpa),
-            .datatypes = datatypes.Registry.init(gpa),
         };
-        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
+        try self.env.datatypes.declareStructural(&self.env.interner, self.env.allocator());
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
-        self.datatypes.deinit();
-        self.interner.deinit();
         self.sink.deinit();
-        self.arena.deinit();
+        self.env.deinit();
         gpa.destroy(self);
     }
 
@@ -201,7 +195,7 @@ const Fixture = struct {
     }
 
     fn ptr(self: *Fixture, t: cst.Type) !*cst.Type {
-        const slot = try self.arena.allocator().create(cst.Type);
+        const slot = try self.env.allocator().create(cst.Type);
         slot.* = t;
         return slot;
     }
@@ -209,10 +203,10 @@ const Fixture = struct {
     fn expectScheme(self: *Fixture, written: cst.Type, expected: []const u8) !void {
         const signature: cst.Signature = .{ .name = "f", .type = written };
         const scheme = try translate(
-            self.arena.allocator(),
+            self.env.allocator(),
             testing.allocator,
             &signature,
-            &self.datatypes,
+            &self.env.datatypes,
             &self.sink,
         );
 
@@ -242,10 +236,10 @@ test "an unknown constructor is rejected" {
         .type = fix.node(.{ .constructor = "Nope" }),
     };
     try testing.expectError(error.BadAnnotation, translate(
-        fix.arena.allocator(),
+        fix.env.allocator(),
         gpa,
         &signature,
-        &fix.datatypes,
+        &fix.env.datatypes,
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -257,7 +251,7 @@ test "type variables become forall binders in order of appearance" {
     defer fix.deinit(gpa);
 
     // `b -> a` binds `b` first, so `b` is variable 0 and renders as `a`.
-    const written = fix.node(.{ .function = try fix.arena.allocator().create(cst.FunctionType) });
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
     written.kind.function.* = .{
         .from = fix.node(.{ .variable = "b" }),
         .to = fix.node(.{ .variable = "a" }),
@@ -270,7 +264,7 @@ test "one variable used twice gets one binder" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const written = fix.node(.{ .function = try fix.arena.allocator().create(cst.FunctionType) });
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
     written.kind.function.* = .{
         .from = fix.node(.{ .variable = "a" }),
         .to = fix.node(.{ .variable = "a" }),
@@ -284,7 +278,7 @@ test "Filter expands to an arrow returning a list" {
     defer fix.deinit(gpa);
 
     // `Filter Node String` is `Node -> [String]`.
-    const written = fix.node(.{ .filter = try fix.arena.allocator().create(cst.FilterType) });
+    const written = fix.node(.{ .filter = try fix.env.allocator().create(cst.FilterType) });
     written.kind.filter.* = .{
         .input = fix.node(.{ .constructor = "Node" }),
         .output = fix.node(.{ .constructor = "String" }),
@@ -297,7 +291,7 @@ test "Filter over variables quantifies both" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const written = fix.node(.{ .filter = try fix.arena.allocator().create(cst.FilterType) });
+    const written = fix.node(.{ .filter = try fix.env.allocator().create(cst.FilterType) });
     written.kind.filter.* = .{
         .input = fix.node(.{ .variable = "a" }),
         .output = fix.node(.{ .variable = "a" }),
@@ -332,7 +326,7 @@ test "a record type keeps its labels" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const fields = try fix.arena.allocator().alloc(cst.TypeField, 2);
+    const fields = try fix.env.allocator().alloc(cst.TypeField, 2);
     fields[0] = .{ .name = "k", .type = fix.node(.{ .constructor = "String" }) };
     fields[1] = .{ .name = "n", .type = fix.node(.{ .constructor = "Int" }) };
 

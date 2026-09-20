@@ -264,29 +264,23 @@ pub const Substitution = struct {
 };
 
 const TestSubst = struct {
-    arena: std.heap.ArenaAllocator,
+    env: core.env.Env,
     subst: Substitution,
-    interner: core.Interner,
-    datatypes: datatypes.Registry,
 
     fn init(gpa: Allocator) !*TestSubst {
         const self = try gpa.create(TestSubst);
         self.* = .{
-            .arena = .init(gpa),
+            .env = try core.env.Env.init(gpa),
             .subst = undefined,
-            .interner = try core.Interner.init(gpa),
-            .datatypes = datatypes.Registry.init(gpa),
         };
-        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
-        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
+        try self.env.datatypes.declareStructural(&self.env.interner, self.env.allocator());
+        self.subst = Substitution.init(gpa, self.env.allocator(), &self.env.datatypes);
         return self;
     }
 
     fn deinit(self: *TestSubst, gpa: Allocator) void {
         self.subst.deinit();
-        self.datatypes.deinit();
-        self.interner.deinit();
-        self.arena.deinit();
+        self.env.deinit();
         gpa.destroy(self);
     }
 };
@@ -475,7 +469,7 @@ test "resolveDeep rewrites through every constructor" {
     t.subst.bind(a.meta, types.node_type);
     t.subst.bind(b.meta, types.string_type);
 
-    const fields = try t.arena.allocator().alloc(types.Type.Field, 1);
+    const fields = try t.env.allocator().alloc(types.Type.Field, 1);
     fields[0] = .{ .label = "k", .type = try types.store(t.subst.arena, b) };
     const shape = try types.func(t.subst.arena, a, .{ .record = fields });
 

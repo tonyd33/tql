@@ -125,24 +125,20 @@ fn record(subst: *Substitution, labels: []const []const u8) Error!types.Scheme {
 const testing = std.testing;
 
 const Fixture = struct {
-    arena: std.heap.ArenaAllocator,
+    env: core.env.Env,
     subst: Substitution,
-    interner: core.Interner,
-    datatypes: core.datatypes.Registry,
 
     fn init(gpa: Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
-        self.* = .{ .arena = .init(gpa), .subst = undefined, .interner = try core.Interner.init(gpa), .datatypes = core.datatypes.Registry.init(gpa) };
-        try self.datatypes.declareStructural(&self.interner, self.arena.allocator());
-        self.subst = Substitution.init(gpa, self.arena.allocator(), &self.datatypes);
+        self.* = .{ .env = try core.env.Env.init(gpa), .subst = undefined };
+        try self.env.datatypes.declareStructural(&self.env.interner, self.env.allocator());
+        self.subst = Substitution.init(gpa, self.env.allocator(), &self.env.datatypes);
         return self;
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
         self.subst.deinit();
-        self.datatypes.deinit();
-        self.interner.deinit();
-        self.arena.deinit();
+        self.env.deinit();
         gpa.destroy(self);
     }
 

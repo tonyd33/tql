@@ -259,8 +259,9 @@ const Tarjan = struct {
 };
 
 test "scopes resolve innermost first" {
-    var interner = try core.Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var interner = core.Interner.init(arena.allocator());
 
     const outer_x = try interner.fresh("x");
     const inner_x = try interner.fresh("x");

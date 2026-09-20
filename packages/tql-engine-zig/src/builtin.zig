@@ -176,10 +176,8 @@ test "primitives are the documented set" {
 
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
-    var declared = datatypes.Registry.init(std.testing.allocator);
-    defer declared.deinit();
-    var interner = try core.Interner.init(std.testing.allocator);
-    defer interner.deinit();
+    var declared = datatypes.Registry.init(arena.allocator());
+    var interner = core.Interner.init(arena.allocator());
     try declared.declareStructural(&interner, arena.allocator());
 
     var rows: std.ArrayList(Row) = .empty;
