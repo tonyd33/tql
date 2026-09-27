@@ -38,9 +38,7 @@ pub fn schemeFor(subst: *Substitution, synthesized: core.Synthesized) Error!type
         // The kind id is resolved and carried, and deliberately unused: a kind
         // test narrows the *value* but not yet the type. W4 is where it starts
         // mattering.
-        .kind_test => |k| try kindTest(subst, k.id),
-        .kind_axis => |k| try kindAxis(subst, k.id),
-        .field => |f| try fieldAccess(subst, f.id),
+        .kind_test, .kind_axis, .field => try nodeFilter(subst),
         // Already written and unit-tested in `primitives.zig`; a property of
         // the operator, not of the interned id.
         .operator => |operator| try primitives.operatorScheme(
@@ -76,21 +74,9 @@ pub fn constructorScheme(
     return .{ .quantified = declared.parameters, .type = result };
 }
 
-/// `is_kind[k] : Filter node node`.
-fn kindTest(subst: *Substitution, id: u16) !types.Scheme {
-    _ = id;
-    return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
-}
-
-/// `descendants_of_kind[k] : Filter node node`, and `children_of_kind[k]`.
-fn kindAxis(subst: *Substitution, id: u16) !types.Scheme {
-    _ = id;
-    return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
-}
-
-/// `field[l] : Filter node node`.
-fn fieldAccess(subst: *Substitution, id: u16) !types.Scheme {
-    _ = id;
+/// `Filter node node`: the scheme of `is_kind[k]`, `children_of_kind[k]`,
+/// `descendants_of_kind[k]` and `field[l]`.
+fn nodeFilter(subst: *Substitution) !types.Scheme {
     return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
 }
 

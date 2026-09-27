@@ -70,56 +70,98 @@ pub const Substitution = struct {
         return current;
     }
 
-    /// `resolve`, applied through the whole tree. Allocates in the arena when a
-    /// child changes; returns `t` itself when nothing did, so a fully-solved
-    /// type costs no allocation.
+    /// `resolve`, applied through the whole tree. Returns `t` itself when
+    /// nothing changed, so a fully-solved type costs no allocation.
     pub fn resolveDeep(self: *Substitution, t: types.Type) !types.Type {
-        const head = self.resolve(t);
+        return self.rewrite(t, Resolved{});
+    }
+
+    /// `t` with each metavariable and bound variable replaced by
+    /// `leaf.replace` of it, resolving every node first when `leaf.resolves`.
+    ///
+    /// Allocates in the arena only along a path where a leaf changed, and
+    /// returns `t` itself when none did.
+    fn rewrite(self: *Substitution, t: types.Type, leaf: anytype) Allocator.Error!types.Type {
+        const head = if (@TypeOf(leaf).resolves) self.resolve(t) else t;
         switch (head) {
-            .variable, .meta, .primitive => return head,
+            .variable, .meta => return leaf.replace(head),
+            .primitive => return head,
             .constructor => |c| {
                 // Allocated at the first child that changes, seeded with the
                 // unchanged ones before it.
                 var copies: ?[]types.Type = null;
                 for (c.arguments, 0..) |argument, i| {
-                    const resolved = try self.resolveDeep(argument);
+                    const rewritten = try self.rewrite(argument, leaf);
                     if (copies) |slots| {
-                        slots[i] = resolved;
-                    } else if (!std.meta.eql(resolved, argument)) {
+                        slots[i] = rewritten;
+                    } else if (!std.meta.eql(rewritten, argument)) {
                         const slots = try self.arena.alloc(types.Type, c.arguments.len);
                         @memcpy(slots[0..i], c.arguments[0..i]);
-                        slots[i] = resolved;
+                        slots[i] = rewritten;
                         copies = slots;
                     }
                 }
                 const changed = copies orelse return head;
-                const node = try self.arena.create(types.Type.Constructed);
-                node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = changed };
-                return .{ .constructor = node };
+                return try types.constructed(self.arena, c.name, c.spelling, changed);
             },
             .record => |fields| {
                 var copies: ?[]types.Type.Field = null;
                 for (fields, 0..) |f, i| {
-                    const resolved = try self.resolveDeep(f.type.*);
+                    const rewritten = try self.rewrite(f.type.*, leaf);
                     if (copies) |slots| {
-                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, resolved) };
-                    } else if (!std.meta.eql(resolved, f.type.*)) {
+                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
+                    } else if (!std.meta.eql(rewritten, f.type.*)) {
                         const slots = try self.arena.alloc(types.Type.Field, fields.len);
                         @memcpy(slots[0..i], fields[0..i]);
-                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, resolved) };
+                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
                         copies = slots;
                     }
                 }
                 return .{ .record = copies orelse return head };
             },
             .function => |arrow| {
-                const from = try self.resolveDeep(arrow.from);
-                const to = try self.resolveDeep(arrow.to);
+                const from = try self.rewrite(arrow.from, leaf);
+                const to = try self.rewrite(arrow.to, leaf);
                 if (std.meta.eql(from, arrow.from) and std.meta.eql(to, arrow.to)) return head;
                 return try types.func(self.arena, from, to);
             },
         }
     }
+
+    /// Leaves every leaf as it resolves.
+    const Resolved = struct {
+        const resolves = true;
+
+        fn replace(_: Resolved, head: types.Type) types.Type {
+            return head;
+        }
+    };
+
+    /// Replaces each metavariable in `metas` with the bound variable at its
+    /// index.
+    const Bound = struct {
+        metas: []const types.Meta,
+        const resolves = true;
+
+        fn replace(self: Bound, head: types.Type) types.Type {
+            if (head == .meta) for (self.metas, 0..) |m, index| {
+                if (m == head.meta) return .{ .variable = @intCast(index) };
+            };
+            return head;
+        }
+    };
+
+    /// Replaces each bound variable with `metas[index]`.
+    const Substituted = struct {
+        metas: []const types.Type,
+        const resolves = false;
+
+        fn replace(self: Substituted, head: types.Type) types.Type {
+            if (head != .variable) return head;
+            std.debug.assert(head.variable < self.metas.len);
+            return self.metas[head.variable];
+        }
+    };
 
     /// Whether `id` occurs anywhere in `t`. Binding a metavariable to a type
     /// containing it would build an infinite type, so unification checks this
@@ -169,7 +211,7 @@ pub const Substitution = struct {
         const metas = try self.arena.alloc(types.Type, scheme.quantified);
         for (metas) |*m| m.* = try self.fresh();
         return .{
-            .type = try self.substituteVars(scheme.type, metas),
+            .type = try self.instantiateWith(scheme.type, metas),
             .metas = metas,
         };
     }
@@ -184,7 +226,7 @@ pub const Substitution = struct {
     /// bound variables index the same `forall` a scheme was instantiated with.
     pub fn instantiateWith(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
         if (metas.len == 0) return t;
-        return self.substituteVars(t, metas);
+        return self.rewrite(t, Substituted{ .metas = metas });
     }
 
     /// The inverse of `instantiate`: turns the given free metavariables into
@@ -199,84 +241,14 @@ pub const Substitution = struct {
 
         const bound = try self.arena.alloc(types.TypeClassConstraint, constraint_list.len);
         for (constraint_list, bound) |c, *slot| {
-            slot.* = .{ .class = c.class, .type = try self.bindMetas(c.type, metas) };
+            slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, Bound{ .metas = metas }) };
         }
 
         return .{
             .quantified = @intCast(metas.len),
             .constraints = bound,
-            .type = try self.bindMetas(t, metas),
+            .type = try self.rewrite(t, Bound{ .metas = metas }),
         };
-    }
-
-    /// `t` with each metavariable in `metas` replaced by the bound variable at
-    /// its index.
-    fn bindMetas(self: *Substitution, t: types.Type, metas: []const types.Meta) !types.Type {
-        const head = self.resolve(t);
-        switch (head) {
-            .meta => |id| {
-                for (metas, 0..) |m, index| {
-                    if (m == id) return .{ .variable = @intCast(index) };
-                }
-                return head;
-            },
-            .variable, .primitive => return head,
-            .constructor => |c| {
-                const copies = try self.arena.alloc(types.Type, c.arguments.len);
-                for (c.arguments, copies) |argument, *copy| {
-                    copy.* = try self.bindMetas(argument, metas);
-                }
-                return try types.constructed(self.arena, c.name, c.spelling, copies);
-            },
-            .record => |fields| {
-                const copies = try self.arena.alloc(types.Type.Field, fields.len);
-                for (fields, copies) |f, *copy| {
-                    copy.* = .{
-                        .label = f.label,
-                        .type = try types.store(self.arena, try self.bindMetas(f.type.*, metas)),
-                    };
-                }
-                return .{ .record = copies };
-            },
-            .function => |arrow| return try types.func(
-                self.arena,
-                try self.bindMetas(arrow.from, metas),
-                try self.bindMetas(arrow.to, metas),
-            ),
-        }
-    }
-
-    /// `t` with each `.variable` replaced by `metas[index]`.
-    fn substituteVars(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
-        switch (t) {
-            .variable => |index| {
-                std.debug.assert(index < metas.len);
-                return metas[index];
-            },
-            .meta, .primitive => return t,
-            .constructor => |c| {
-                const copies = try self.arena.alloc(types.Type, c.arguments.len);
-                for (c.arguments, copies) |argument, *copy| {
-                    copy.* = try self.substituteVars(argument, metas);
-                }
-                return try types.constructed(self.arena, c.name, c.spelling, copies);
-            },
-            .record => |fields| {
-                const copies = try self.arena.alloc(types.Type.Field, fields.len);
-                for (fields, copies) |f, *copy| {
-                    copy.* = .{
-                        .label = f.label,
-                        .type = try types.store(self.arena, try self.substituteVars(f.type.*, metas)),
-                    };
-                }
-                return .{ .record = copies };
-            },
-            .function => |arrow| return try types.func(
-                self.arena,
-                try self.substituteVars(arrow.from, metas),
-                try self.substituteVars(arrow.to, metas),
-            ),
-        }
     }
 };
 

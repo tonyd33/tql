@@ -3,7 +3,7 @@ const RingBuffer = @import("ring_buffer.zig").RingBuffer;
 
 /// Bounded MPMC blocking queue backed by RingBuffer. Producers block when
 /// full; consumers block when empty. Once `close()` is called and the queue
-/// drains, `pop` returns `.closed`.
+/// drains, `pop` returns null.
 pub fn BlockingQueue(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -12,12 +12,6 @@ pub fn BlockingQueue(comptime T: type) type {
         mu: std.Io.Mutex = .init,
         cv: std.Io.Condition = .init,
         closed_flag: bool = false,
-
-        pub const PopResult = union(enum) {
-            value: T,
-            timeout,
-            closed,
-        };
 
         pub fn init(allocator: std.mem.Allocator, io: std.Io, size: u16) !Self {
             return .{
@@ -63,7 +57,7 @@ pub fn BlockingQueue(comptime T: type) type {
         }
 
         /// Mark the queue closed and wake all blocked threads. Pending values
-        /// remain poppable; subsequent pops after drain return `.closed`.
+        /// remain poppable; subsequent pops after drain return null.
         pub fn close(self: *Self) !void {
             try self.mu.lock(self.io);
             self.closed_flag = true;

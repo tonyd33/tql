@@ -7,11 +7,6 @@ pub const SourceFile = struct {
     declarations: []const Declaration,
     span: diagnostic.Span = .unknown,
 
-    pub fn deinit(self: SourceFile, allocator: std.mem.Allocator) void {
-        for (self.declarations) |d| d.deinit(allocator);
-        allocator.free(self.declarations);
-    }
-
     pub fn sexpr(self: SourceFile, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.writeAll("(source_file");
         for (self.declarations) |d| {
@@ -41,12 +36,6 @@ pub const Declaration = union(enum) {
         };
     }
 
-    pub fn deinit(self: Declaration, allocator: std.mem.Allocator) void {
-        switch (self) {
-            inline else => |d| d.deinit(allocator),
-        }
-    }
-
     pub fn sexpr(self: Declaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             inline else => |d| try d.sexpr(w),
@@ -58,11 +47,6 @@ pub const Signature = struct {
     name: Identifier,
     type: Type,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: Signature, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        self.type.deinit(allocator);
-    }
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(signature {s} ", .{self.name});
@@ -76,13 +60,6 @@ pub const Definition = struct {
     parameters: []const Parameter,
     body: Expression,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: Definition, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.parameters) |p| p.deinit(allocator);
-        allocator.free(self.parameters);
-        self.body.deinit(allocator);
-    }
 
     pub fn sexpr(self: Definition, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(define {s} (params", .{self.name});
@@ -103,14 +80,6 @@ pub const TypeDeclaration = struct {
     constructors: []const ConstructorDeclaration,
     span: diagnostic.Span = .unknown,
 
-    pub fn deinit(self: TypeDeclaration, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.parameters) |p| allocator.free(p);
-        allocator.free(self.parameters);
-        for (self.constructors) |c| c.deinit(allocator);
-        allocator.free(self.constructors);
-    }
-
     pub fn sexpr(self: TypeDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(type {s} (params", .{self.name});
         for (self.parameters) |p| try w.print(" {s}", .{p});
@@ -128,12 +97,6 @@ pub const ConstructorDeclaration = struct {
     fields: []const Type,
     span: diagnostic.Span = .unknown,
 
-    pub fn deinit(self: ConstructorDeclaration, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.fields) |f| f.deinit(allocator);
-        allocator.free(self.fields);
-    }
-
     pub fn sexpr(self: ConstructorDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(con {s}", .{self.name});
         for (self.fields) |f| {
@@ -147,10 +110,6 @@ pub const ConstructorDeclaration = struct {
 pub const Parameter = struct {
     name: Identifier,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: Parameter, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-    }
 };
 
 /// A `let` binding, which is a definition without the terminator: `f x = e`.
@@ -159,13 +118,6 @@ pub const Binding = struct {
     parameters: []const Parameter,
     value: Expression,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: Binding, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.parameters) |p| p.deinit(allocator);
-        allocator.free(self.parameters);
-        self.value.deinit(allocator);
-    }
 
     pub fn sexpr(self: Binding, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(bind {s} (params", .{self.name});
@@ -269,19 +221,6 @@ pub const Statement = union(enum) {
     bind: BindStatement,
     let: LetStatement,
 
-    pub fn deinit(self: Statement, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .bind => |b| {
-                allocator.free(b.name);
-                b.value.deinit(allocator);
-            },
-            .let => |l| {
-                for (l.bindings) |b| b.deinit(allocator);
-                allocator.free(l.bindings);
-            },
-        }
-    }
-
     pub fn sexpr(self: Statement, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .bind => |b| {
@@ -316,11 +255,6 @@ pub const RecordField = struct {
     name: Identifier,
     value: Expression,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: RecordField, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        self.value.deinit(allocator);
-    }
 };
 
 pub const Record = struct {
@@ -356,78 +290,6 @@ pub const Expression = struct {
         record: Record,
         parenthesized: *Expression,
     };
-
-    pub fn deinit(self: Expression, allocator: std.mem.Allocator) void {
-        switch (self.kind) {
-            .identity, .number, .boolean => {},
-            .kind_test => |k| allocator.free(k),
-            .name => |n| allocator.free(n),
-            .constructor => |c| allocator.free(c),
-            .string => |s| allocator.free(s),
-            .regex => |r| allocator.free(r),
-            .field_access => |fa| {
-                if (fa.record) |r| r.deinit(allocator);
-                allocator.free(fa.field);
-                allocator.destroy(fa);
-            },
-            .apply => |a| {
-                a.function.deinit(allocator);
-                a.argument.deinit(allocator);
-                allocator.destroy(a);
-            },
-            .binary => |b| {
-                b.left.deinit(allocator);
-                b.right.deinit(allocator);
-                allocator.destroy(b);
-            },
-            .not => |n| {
-                n.operand.deinit(allocator);
-                allocator.destroy(n);
-            },
-            .case => |c| {
-                c.deinit(allocator);
-                allocator.destroy(c);
-            },
-            .@"if" => |i| {
-                i.condition.deinit(allocator);
-                i.consequence.deinit(allocator);
-                i.alternative.deinit(allocator);
-                allocator.destroy(i);
-            },
-            .lambda => |l| {
-                for (l.parameters) |p| p.deinit(allocator);
-                allocator.free(l.parameters);
-                l.body.deinit(allocator);
-                allocator.destroy(l);
-            },
-            .let => |l| {
-                for (l.bindings) |b| b.deinit(allocator);
-                allocator.free(l.bindings);
-                l.body.deinit(allocator);
-                allocator.destroy(l);
-            },
-            .do => |d| {
-                for (d.statements) |s| s.deinit(allocator);
-                allocator.free(d.statements);
-                d.result.deinit(allocator);
-                allocator.destroy(d);
-            },
-            .list => |maybe| {
-                if (maybe) |e| {
-                    e.deinit(allocator);
-                    allocator.destroy(e);
-                }
-            },
-            .record => |r| {
-                for (r.fields) |f| f.deinit(allocator);
-                allocator.free(r.fields);
-            },
-            .parenthesized => |e| {
-                e.deinit(allocator);
-                allocator.destroy(e);
-            },
-        }
-    }
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
@@ -567,11 +429,6 @@ pub const TypeField = struct {
     name: Identifier,
     type: Type,
     span: diagnostic.Span = .unknown,
-
-    pub fn deinit(self: TypeField, allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        self.type.deinit(allocator);
-    }
 };
 
 /// `case e of { C x -> e; ... }`
@@ -584,20 +441,7 @@ pub const Case = struct {
         binders: []const Parameter,
         body: Expression,
         span: diagnostic.Span = .unknown,
-
-        pub fn deinit(self: Alternative, allocator: std.mem.Allocator) void {
-            allocator.free(self.constructor);
-            for (self.binders) |b| b.deinit(allocator);
-            allocator.free(self.binders);
-            self.body.deinit(allocator);
-        }
     };
-
-    pub fn deinit(self: Case, allocator: std.mem.Allocator) void {
-        self.scrutinee.deinit(allocator);
-        for (self.alternatives) |a| a.deinit(allocator);
-        allocator.free(self.alternatives);
-    }
 };
 
 pub const Type = struct {
@@ -617,41 +461,6 @@ pub const Type = struct {
         record: []const TypeField,
         parenthesized: *Type,
     };
-
-    pub fn deinit(self: Type, allocator: std.mem.Allocator) void {
-        switch (self.kind) {
-            .constructor => |c| allocator.free(c),
-            .application => |a| {
-                allocator.free(a.constructor);
-                for (a.arguments) |arg| arg.deinit(allocator);
-                allocator.free(a.arguments);
-                allocator.destroy(a);
-            },
-            .variable => |v| allocator.free(v),
-            .function => |f| {
-                f.from.deinit(allocator);
-                f.to.deinit(allocator);
-                allocator.destroy(f);
-            },
-            .filter => |f| {
-                f.input.deinit(allocator);
-                f.output.deinit(allocator);
-                allocator.destroy(f);
-            },
-            .list => |t| {
-                t.deinit(allocator);
-                allocator.destroy(t);
-            },
-            .record => |fields| {
-                for (fields) |f| f.deinit(allocator);
-                allocator.free(fields);
-            },
-            .parenthesized => |t| {
-                t.deinit(allocator);
-                allocator.destroy(t);
-            },
-        }
-    }
 
     pub fn sexpr(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {

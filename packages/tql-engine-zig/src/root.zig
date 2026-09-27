@@ -80,11 +80,6 @@ pub const Engine = struct {
         self.tql_parser.deinit();
     }
 
-    // for debug
-    pub fn parseQuery(self: *Engine, query_source: []const u8) !cst.SourceFile {
-        return try self.tql_parser.parse(query_source);
-    }
-
     /// Parse a query, keeping the diagnostics rather than collapsing them into
     /// a bare error. Caller owns the result.
     pub fn parseQueryCollecting(
@@ -254,14 +249,15 @@ pub const CompiledQuery = struct {
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
-        defer machine.deinit(self.allocator);
+        defer machine.deinit();
         machine.target = .{ .source = target, .path = target_path };
 
         const entry = machine.global(self.checked.entry) orelse
             return error.MissingEntry;
 
-        var root: stg.Thunk = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
-        const outputs = try machine.apply(try machine.force(entry), &.{&root});
+        const root = try scratch.create(stg.Thunk);
+        root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
+        const outputs = try machine.apply(try machine.force(entry), &.{root});
 
         var elements: std.ArrayList(*stg.Thunk) = .empty;
         defer elements.deinit(scratch);
@@ -473,7 +469,7 @@ test "the evaluator runs the prelude's append" {
     defer arena.deinit();
 
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
-    defer machine.deinit(allocator);
+    defer machine.deinit();
 
     const entry = machine.global(program.entry).?;
     const main_value = try machine.force(entry);
@@ -516,7 +512,7 @@ fn runQuery(
     defer translated.deinit();
 
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
-    defer machine.deinit(allocator);
+    defer machine.deinit();
 
     const main_value = try machine.force(machine.global(program.entry).?);
     var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
@@ -781,7 +777,7 @@ test "forcing a global cycle reports it rather than hanging" {
     defer arena.deinit();
 
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
-    defer machine.deinit(allocator);
+    defer machine.deinit();
 
     const a = program.env.interner.lookup("a").?;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));

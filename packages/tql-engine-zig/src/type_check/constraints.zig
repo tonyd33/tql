@@ -34,7 +34,7 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
             // `Sized [a]` is the one that does not descend: a list has a
             // length whatever its elements are.
             .always => .holds,
-            .fields => conjunctionOf(subst, class, c.arguments),
+            .fields => conjunction(subst, class, c.arguments),
         },
         .record => |fields| switch (class) {
             .Sized, .Ord => .{ .fails = head },
@@ -44,27 +44,13 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
     };
 }
 
-fn conjunctionOf(
-    subst: *Substitution,
-    class: types.TypeClassConstraint.Class,
-    arguments: []const types.Type,
-) Outcome {
+/// Whether `class` holds for every operand: constructor arguments, or record
+/// fields.
+fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, operands: anytype) Outcome {
     var deferred: ?types.Meta = null;
-    for (arguments) |argument| {
-        switch (entails(subst, class, argument)) {
-            .holds => {},
-            .fails => |culprit| return .{ .fails = culprit },
-            .deferred => |id| deferred = deferred orelse id,
-        }
-    }
-    if (deferred) |id| return .{ .deferred = id };
-    return .holds;
-}
-
-fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, fields: []const types.Type.Field) Outcome {
-    var deferred: ?types.Meta = null;
-    for (fields) |f| {
-        switch (entails(subst, class, f.type.*)) {
+    for (operands) |operand| {
+        const t: types.Type = if (@TypeOf(operand) == types.Type.Field) operand.type.* else operand;
+        switch (entails(subst, class, t)) {
             .holds => {},
             .fails => |culprit| return .{ .fails = culprit },
             .deferred => |id| deferred = deferred orelse id,

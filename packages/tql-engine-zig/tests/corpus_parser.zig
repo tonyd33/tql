@@ -4,7 +4,6 @@ const SECTION_QUERY = "--- tql ---";
 const SECTION_SOURCE = "--- source ---";
 const SECTION_SOURCE_TREE = "--- source tree ---";
 const SECTION_TQL_TREE = "--- tql tree ---";
-const SECTION_BYTECODE = "--- bytecode ---";
 const SECTION_VALUES = "--- values ---";
 const SECTION_CORE = "--- core ---";
 const SECTION_TYPES = "--- types ---";
@@ -15,7 +14,6 @@ pub const SectionKind = enum {
     source,
     source_tree,
     tql_tree,
-    bytecode,
     values,
     core,
     types,
@@ -27,7 +25,6 @@ pub const SectionKind = enum {
             .source => "source",
             .source_tree => "source tree",
             .tql_tree => "tql tree",
-            .bytecode => "bytecode",
             .values => "values",
             .core => "core",
             .types => "types",
@@ -41,7 +38,6 @@ pub const SectionKind = enum {
             .source => SECTION_SOURCE,
             .source_tree => SECTION_SOURCE_TREE,
             .tql_tree => SECTION_TQL_TREE,
-            .bytecode => SECTION_BYTECODE,
             .values => SECTION_VALUES,
             .core => SECTION_CORE,
             .types => SECTION_TYPES,
@@ -159,7 +155,6 @@ pub const TestCase = struct {
     /// Optional sections: content.len == 0 means not yet populated.
     source_tree: Section,
     tql_tree: Section,
-    bytecode: Section,
     values: Section,
     core: Section,
     /// The inferred scheme of each entry-module definition, in declaration
@@ -181,7 +176,6 @@ pub const TestCase = struct {
             .source => self.target,
             .source_tree => self.source_tree,
             .tql_tree => self.tql_tree,
-            .bytecode => self.bytecode,
             .values => self.values,
             .core => self.core,
             .types => self.types,
@@ -211,7 +205,6 @@ pub const TestCase = struct {
         self.target.deinit(allocator);
         self.source_tree.deinit(allocator);
         self.tql_tree.deinit(allocator);
-        self.bytecode.deinit(allocator);
         self.values.deinit(allocator);
         self.core.deinit(allocator);
         self.types.deinit(allocator);
@@ -412,8 +405,6 @@ fn parseSections(
     errdefer if (source_tree) |s| s.deinit(allocator);
     var tql_tree: ?Section = null;
     errdefer if (tql_tree) |s| s.deinit(allocator);
-    var bytecode: ?Section = null;
-    errdefer if (bytecode) |s| s.deinit(allocator);
     var values: ?Section = null;
     errdefer if (values) |s| s.deinit(allocator);
     var core: ?Section = null;
@@ -432,8 +423,6 @@ fn parseSections(
             source_tree = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_TQL_TREE)) {
             tql_tree = try extractSection(allocator, p);
-        } else if (std.mem.eql(u8, line, SECTION_BYTECODE)) {
-            bytecode = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_VALUES)) {
             values = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_CORE)) {
@@ -465,7 +454,6 @@ fn parseSections(
         .target = target orelse try dupeSection(allocator, here),
         .source_tree = source_tree orelse try dupeSection(allocator, here),
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
-        .bytecode = bytecode orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
         .types = types orelse try dupeSection(allocator, here),
@@ -516,7 +504,6 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_SOURCE,
     SECTION_SOURCE_TREE,
     SECTION_TQL_TREE,
-    SECTION_BYTECODE,
     SECTION_VALUES,
     SECTION_CORE,
     SECTION_TYPES,
@@ -601,7 +588,6 @@ pub fn applyUpdates(
         .values,
         .tql_tree,
         .source_tree,
-        .bytecode,
         .core,
         .types,
     };
@@ -693,7 +679,7 @@ const testing = std.testing;
 
 const FULL_CASE =
     \\grammar: typescript
-    \\asserts: values, tql_tree, source_tree, bytecode
+    \\asserts: values, tql_tree, source_tree, core
     \\
     \\--- tql ---
     \\. > foo
@@ -705,8 +691,8 @@ const FULL_CASE =
     \\(source_file .)
     \\--- source tree ---
     \\(program)
-    \\--- bytecode ---
-    \\0000: yield
+    \\--- core ---
+    \\children
 ;
 
 test "SectionKind.name returns correct strings" {
@@ -714,7 +700,6 @@ test "SectionKind.name returns correct strings" {
     try testing.expectEqualStrings("source", SectionKind.source.name());
     try testing.expectEqualStrings("source tree", SectionKind.source_tree.name());
     try testing.expectEqualStrings("tql tree", SectionKind.tql_tree.name());
-    try testing.expectEqualStrings("bytecode", SectionKind.bytecode.name());
     try testing.expectEqualStrings("values", SectionKind.values.name());
     try testing.expectEqualStrings("core", SectionKind.core.name());
     try testing.expectEqualStrings("error", SectionKind.@"error".name());
@@ -730,10 +715,10 @@ test "parse single full case" {
     try testing.expectEqualStrings("let x = 1;", tc.target.content);
     try testing.expectEqualStrings("(program)", tc.source_tree.content);
     try testing.expectEqualStrings("(source_file .)", tc.tql_tree.content);
-    try testing.expectEqualStrings("0000: yield", tc.bytecode.content);
+    try testing.expectEqualStrings("children", tc.core.content);
     try testing.expectEqualStrings("[\"hello\"]", tc.values.content);
     try testing.expect(tc.asserts.has(.values));
-    try testing.expect(!tc.asserts.has(.core));
+    try testing.expect(!tc.asserts.has(.types));
 }
 
 test "parse case with all optional sections empty yields empty content" {
@@ -746,7 +731,7 @@ test "parse case with all optional sections empty yields empty content" {
         \\int x;
         \\--- source tree ---
         \\--- tql tree ---
-        \\--- bytecode ---
+        \\--- core ---
         \\--- values ---
     ;
     var corpus = try parse(testing.allocator, input);
@@ -758,7 +743,7 @@ test "parse case with all optional sections empty yields empty content" {
     try testing.expectEqualStrings("int x;", tc.target.content);
     try testing.expectEqual(@as(usize, 0), tc.source_tree.content.len);
     try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
-    try testing.expectEqual(@as(usize, 0), tc.bytecode.content.len);
+    try testing.expectEqual(@as(usize, 0), tc.core.content.len);
     try testing.expectEqual(@as(usize, 0), tc.values.content.len);
 }
 
@@ -1034,7 +1019,7 @@ test "unknown section name in a header is rejected" {
 test "parse multiline section content" {
     const input =
         \\grammar: typescript
-        \\asserts: source_tree, bytecode
+        \\asserts: source_tree, core
         \\
         \\--- tql ---
         \\. > foo
@@ -1046,9 +1031,9 @@ test "parse multiline section content" {
         \\(root
         \\  (child))
         \\--- tql tree ---
-        \\--- bytecode ---
-        \\0000: a
-        \\0001: b
+        \\--- core ---
+        \\kleisli children
+        \\  parent
         \\--- values ---
     ;
     var corpus = try parse(testing.allocator, input);
@@ -1057,7 +1042,7 @@ test "parse multiline section content" {
     const tc = corpus.case;
     try testing.expectEqualStrings("line one\nline two\nline three", tc.target.content);
     try testing.expectEqualStrings("(root\n  (child))", tc.source_tree.content);
-    try testing.expectEqualStrings("0000: a\n0001: b", tc.bytecode.content);
+    try testing.expectEqualStrings("kleisli children\n  parent", tc.core.content);
     try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
     try testing.expectEqual(@as(usize, 0), tc.values.content.len);
 }
@@ -1076,7 +1061,7 @@ test "sections with leading/trailing newlines: content is trimmed" {
         \\(program)
         \\
         \\--- tql tree ---
-        \\--- bytecode ---
+        \\--- core ---
         \\--- values ---
         \\
         \\["trimmed"]
@@ -1102,7 +1087,7 @@ test "applyUpdates with no updates reproduces source exactly" {
 test "applyUpdates preserves whitespace in unchanged sections" {
     const input =
         \\grammar: typescript
-        \\asserts: values, tql_tree, source_tree, bytecode
+        \\asserts: values, tql_tree, source_tree, core
         \\
         \\--- tql ---
         \\. > foo
@@ -1116,15 +1101,15 @@ test "applyUpdates preserves whitespace in unchanged sections" {
         \\
         \\(program)
         \\
-        \\--- bytecode ---
-        \\0000: yield
+        \\--- core ---
+        \\children
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
-    // update only bytecode; source_tree whitespace must be preserved
+    // update only core; source_tree whitespace must be preserved
     const result = try applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .bytecode, .new_content = "0000: nop" },
+        .{ .kind = .core, .new_content = "parent" },
     });
     defer testing.allocator.free(result);
 
@@ -1132,7 +1117,7 @@ test "applyUpdates preserves whitespace in unchanged sections" {
     defer updated.deinit();
 
     try testing.expectEqualStrings("(program)", updated.case.source_tree.content);
-    try testing.expectEqualStrings("0000: nop", updated.case.bytecode.content);
+    try testing.expectEqualStrings("parent", updated.case.core.content);
 
     // the source_tree body in the output should still contain the surrounding blank lines
     const st = updated.case.source_tree;

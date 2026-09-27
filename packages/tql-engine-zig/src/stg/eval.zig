@@ -55,7 +55,7 @@ inline fn note(site: Site, bytes: usize) void {
     _ = site_bytes.getPtr(site).fetchAdd(bytes, .monotonic);
 }
 
-pub const Error = Allocator.Error || error{
+pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A thunk was re-entered while it was still being evaluated.
     Cycle,
     /// Division or modulo by zero.
@@ -265,7 +265,8 @@ pub const Machine = struct {
         };
     }
 
-    pub fn deinit(self: *Machine, gpa: Allocator) void {
+    pub fn deinit(self: *Machine) void {
+        const gpa = self.gpa;
         if (self.match_data) |*m| m.deinit();
         for (self.cursors.items) |c| {
             c.destroy();
@@ -1265,22 +1266,22 @@ pub const Machine = struct {
     pub fn serialize(self: *Machine, v: value.Value, jws: *std.json.Stringify) Error!void {
         try self.checkStack();
         switch (v) {
-            .number => |n| jws.write(n) catch return error.TypeError,
-            .string => |s| jws.write(s) catch return error.TypeError,
+            .number => |n| try jws.write(n),
+            .string => |s| try jws.write(s),
             .record => |fields| {
-                jws.beginObject() catch return error.TypeError;
+                try jws.beginObject();
                 for (fields) |field| {
-                    jws.objectField(field.label) catch return error.TypeError;
+                    try jws.objectField(field.label);
                     try self.serialize(try self.force(field.thunk), jws);
                 }
-                jws.endObject() catch return error.TypeError;
+                try jws.endObject();
             },
             .constructed => |c| {
                 const structural = self.program.structural;
                 if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
-                    jws.write(c.constructor == structural.true_.symbol) catch return error.TypeError;
+                    try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    jws.beginArray() catch return error.TypeError;
+                    try jws.beginArray();
                     var current = v;
                     while (true) {
                         const cell = switch (current) {
@@ -1293,7 +1294,7 @@ pub const Machine = struct {
                         try self.serialize(try self.force(cell_fields[0]), jws);
                         current = try self.force(cell_fields[1]);
                     }
-                    jws.endArray() catch return error.TypeError;
+                    try jws.endArray();
                 } else {
                     // A user datatype, which has no encoding until 0.4 gives
                     // it one.
@@ -1303,19 +1304,18 @@ pub const Machine = struct {
             .node => |n| {
                 const target = self.target orelse return error.TypeError;
                 const inner = n.inner;
-                jws.beginObject() catch return error.TypeError;
-                jws.objectField("kind") catch return error.TypeError;
-                jws.write(inner.kind()) catch return error.TypeError;
-                jws.objectField("text") catch return error.TypeError;
-                jws.write(target.source[inner.startByte()..inner.endByte()]) catch
-                    return error.TypeError;
-                writeLocation(rangeOf(inner), jws) catch return error.TypeError;
-                jws.endObject() catch return error.TypeError;
+                try jws.beginObject();
+                try jws.objectField("kind");
+                try jws.write(inner.kind());
+                try jws.objectField("text");
+                try jws.write(target.source[inner.startByte()..inner.endByte()]);
+                try writeLocation(rangeOf(inner), jws);
+                try jws.endObject();
             },
             .range => |r| {
-                jws.beginObject() catch return error.TypeError;
-                writeLocation(r, jws) catch return error.TypeError;
-                jws.endObject() catch return error.TypeError;
+                try jws.beginObject();
+                try writeLocation(r, jws);
+                try jws.endObject();
             },
             else => return error.TypeError,
         }
@@ -1471,4 +1471,111 @@ fn parseInt(text: []const u8) ?i64 {
 
     if (negative) return @intCast(-@as(i128, magnitude));
     return @intCast(magnitude);
+}
+
+// ============================================================================
+//                              Tests
+// ============================================================================
+
+const diagnostic = @import("../diagnostic.zig");
+const grammar = @import("../lang/grammar.zig");
+const root = @import("../root.zig");
+
+/// Checks and runs `query` against an empty TypeScript file, and asserts its
+/// outputs serialize to `expected`.
+fn expectValues(expected: []const u8, query: []const u8) !void {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try root.Engine.init(.{ .allocator = allocator, .io = std.testing.io });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    const json = try engine.evaluateQuery(query, "", null, g, &sink, allocator);
+    defer allocator.free(json);
+    try std.testing.expectEqualStrings(expected, json);
+}
+
+test "a constructor's fields bind in declaration order" {
+    try expectValues("[7]",
+        \\type P = Mk Int Int;
+        \\main = pure (case Mk 10 3 of { Mk a b -> a - b });
+    );
+}
+
+test "a case in a scrutinee leaves the alternative's binders in place" {
+    try expectValues("[702]",
+        \\type P = Mk Int Int;
+        \\first p = case p of { Mk a b -> a };
+        \\pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 100 * first q };
+        \\main = pure (pick (Mk 1 2) (Mk 7 8));
+    );
+}
+
+test "a let in a scrutinee leaves the alternative's binders in place" {
+    try expectValues("[765]",
+        \\type P = Mk Int Int;
+        \\first p = case p of { Mk a b -> a };
+        \\pick p q = case (let { s = 5 } in Mk s 6) of { Mk x y -> x + 10 * y + 100 * first q };
+        \\main = pure (pick (Mk 1 2) (Mk 7 8));
+    );
+}
+
+test "an alternative's body sees the binders of every enclosing alternative" {
+    try expectValues("[1234]",
+        \\type P = Mk Int Int;
+        \\main = pure (case Mk 1 2 of {
+        \\  Mk a b -> case Mk 3 4 of { Mk c d -> 1000 * a + 100 * b + 10 * c + d }
+        \\});
+    );
+}
+
+test "a closure reads its captures and parameters at their own offsets" {
+    try expectValues("[-27]",
+        \\main = pure ((\a b c -> (\x -> c - a * x - b)) 1 30 3 0);
+    );
+}
+
+test "a partial application saturates on a later call" {
+    try expectValues("[6]",
+        \\add3 a b c = a + b + c;
+        \\main = let { f = add3 1 } in let { g = f 2 } in pure (g 3);
+    );
+}
+
+test "an over-application applies the result to the rest" {
+    try expectValues("[11]",
+        \\adder a = \b -> a + b;
+        \\main = pure (adder 1 10);
+    );
+}
+
+test "a letrec's closures reach each other" {
+    try expectValues("[true,false]",
+        \\main =
+        \\  let {
+        \\    is_even n = if n = 0 then true else is_odd (n - 1);
+        \\    is_odd n = if n = 0 then false else is_even (n - 1)
+        \\  } in
+        \\    pure (is_even 4), pure (is_even 7);
+    );
+}
+
+test "a letrec binding captures an enclosing parameter" {
+    try expectValues("[10]",
+        \\count_to limit =
+        \\  let { go n = if n = limit then n else go (n + 1) } in go 0;
+        \\main = pure (count_to 10);
+    );
+}
+
+test "a regex test reuses one match scratch across calls" {
+    try expectValues("[true,false,true]",
+        \\main = pure ("abc" ~ r"b"), pure ("xyz" ~ r"b"), pure ("b" ~ r"b");
+    );
 }

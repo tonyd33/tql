@@ -315,7 +315,7 @@ pub const Inference = struct {
         self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, l.bindings.len);
         defer self.gpa.free(generalized);
-        try self.generalizeGroup(placeholders, &.{}, generalized);
+        try self.generalizeGroup(placeholders, generalized);
         for (l.bindings, generalized) |b, scheme| {
             try self.scope.push(b.name, .{ .scheme = scheme });
         }
@@ -323,8 +323,7 @@ pub const Inference = struct {
     }
 
     /// (T-Bind)      Gamma |- e_1 : [a]
-    ///               sigma = Gen(Gamma, a)       treating a as free in Gamma
-    ///               Gamma, x : sigma |- e_2 : [b]
+    ///               Gamma, x : a |- e_2 : [b]
     ///               --------------------------------
     ///               Gamma |- bind x <- e_1 in e_2 : [b]
     fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
@@ -345,9 +344,9 @@ pub const Inference = struct {
     /// `Gen(Gamma, tau)`: quantify the metavariables free in `tau`
     /// but not in the environment, and carry the residual constraints on them
     /// into the scheme.
-    pub fn generalize(self: *Inference, t: types.Type, env_extra: []const types.Type) Error!types.Scheme {
+    pub fn generalize(self: *Inference, t: types.Type) Error!types.Scheme {
         var out: [1]types.Scheme = undefined;
-        try self.generalizeGroup(&.{t}, env_extra, &out);
+        try self.generalizeGroup(&.{t}, &out);
         return out[0];
     }
 
@@ -362,7 +361,6 @@ pub const Inference = struct {
     pub fn generalizeGroup(
         self: *Inference,
         group: []const types.Type,
-        env_extra: []const types.Type,
         out: []types.Scheme,
     ) Error!void {
         if (try self.undecided.recheck(self.subst)) |v| {
@@ -377,7 +375,6 @@ pub const Inference = struct {
             // what its constraints still mention could be.
             .scheme => {},
         };
-        for (env_extra) |m| try self.subst.freeMetas(m, &env);
 
         // Every member's quantified metavariables, laid end to end. Member
         // `i`'s are `quantified[bounds[i]..bounds[i + 1]]`.
@@ -460,7 +457,7 @@ pub const Inference = struct {
         self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, members.len);
         defer self.gpa.free(generalized);
-        try self.generalizeGroup(placeholders, &.{}, generalized);
+        try self.generalizeGroup(placeholders, generalized);
 
         for (members, generalized) |index, scheme| {
             const symbol = definitions[index].symbol;
@@ -1242,7 +1239,7 @@ test "generalization quantifies what the environment does not hold" {
     const x = try fix.name("x");
     const inferred = try fix.inference.term(try fix.lam(x, fix.sym(x)));
 
-    const scheme = try fix.inference.generalize(inferred, &.{});
+    const scheme = try fix.inference.generalize(inferred);
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
     try scheme.format(&buf.writer);
@@ -1260,7 +1257,7 @@ test "generalization does not quantify a metavariable the scope still holds" {
     const outer = try fix.subst.fresh();
     try fix.inference.scope.push(try fix.name("x"), .{ .monomorphic = outer });
 
-    const scheme = try fix.inference.generalize(outer, &.{});
+    const scheme = try fix.inference.generalize(outer);
     try testing.expectEqual(0, scheme.quantified);
 }
 
@@ -1279,7 +1276,7 @@ test "generalization carries the residual constraint into the scheme" {
     const body = try fix.app(fix.sym(length_of), fix.sym(x));
     const inferred = try fix.inference.term(try fix.lam(x, body));
 
-    const scheme = try fix.inference.generalize(inferred, &.{});
+    const scheme = try fix.inference.generalize(inferred);
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
     try scheme.format(&buf.writer);

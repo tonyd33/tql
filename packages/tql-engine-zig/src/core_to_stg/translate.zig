@@ -642,3 +642,169 @@ pub fn translate(
 fn builtin(constructor: datatypes.Constructor) stg.Builtin {
     return .{ .symbol = constructor.symbol, .tag = constructor.tag };
 }
+
+// ============================================================================
+//                              Tests
+// ============================================================================
+
+const diagnostic = @import("../diagnostic.zig");
+const grammar = @import("../lang/grammar.zig");
+const root = @import("../root.zig");
+
+/// Walks translated terms, building each environment the way the evaluator
+/// does, and fails on a local whose offset reads a slot bound to another name
+/// or a global whose index names another definition.
+const Placement = struct {
+    gpa: Allocator,
+    program: *const stg.Program,
+
+    /// Spelled out because `closure` and `expr` are mutually recursive.
+    const Failure = Allocator.Error || error{ TestUnexpectedResult, TestExpectedEqual };
+
+    fn closure(self: Placement, c: *const stg.Closure, enclosing: []const core.SymbolId) Failure!void {
+        var scope: std.ArrayList(core.SymbolId) = .empty;
+        defer scope.deinit(self.gpa);
+        for (c.free) |capture| {
+            try expectLocal(capture, enclosing);
+            try scope.append(self.gpa, capture.name);
+        }
+        try scope.appendSlice(self.gpa, c.parameters);
+        try self.expr(c.body, &scope);
+    }
+
+    fn expr(self: Placement, e: stg.Expr, scope: *std.ArrayList(core.SymbolId)) Failure!void {
+        switch (e) {
+            .atom => |a| try self.atom(a, scope.items),
+            .apply => |a| {
+                try self.atom(a.callee, scope.items);
+                for (a.arguments) |argument| try self.atom(argument, scope.items);
+            },
+            .constructed => |c| for (c.fields) |field| try self.atom(field, scope.items),
+            .primitive => |p| for (p.arguments) |argument| try self.atom(argument, scope.items),
+            .case => |c| {
+                const mark = scope.items.len;
+                try self.expr(c.scrutinee, scope);
+                scope.shrinkRetainingCapacity(mark);
+                for (c.alternatives) |alternative| {
+                    try scope.appendSlice(self.gpa, alternative.binders);
+                    try self.expr(alternative.body, scope);
+                    scope.shrinkRetainingCapacity(mark);
+                }
+            },
+            .let => |let| {
+                const base = scope.items.len;
+                for (let.bindings) |binding| try scope.append(self.gpa, binding.binder);
+                const inner = if (let.recursive) scope.items else scope.items[0..base];
+                for (let.bindings) |binding| switch (binding.value) {
+                    .closure => |c| try self.closure(c, inner),
+                    .constructed => |c| for (c.fields) |field| try self.atom(field, inner),
+                };
+                try self.expr(let.body, scope);
+            },
+        }
+    }
+
+    fn atom(self: Placement, a: stg.Atom, scope: []const core.SymbolId) !void {
+        switch (a) {
+            .local => |local| try expectLocal(local, scope),
+            .global => |g| {
+                try std.testing.expect(g.index < self.program.definitions.len);
+                try std.testing.expectEqual(g.symbol, self.program.definitions[g.index].symbol);
+            },
+            .literal => {},
+        }
+    }
+
+    fn expectLocal(local: stg.Local, scope: []const core.SymbolId) !void {
+        try std.testing.expect(local.offset < scope.len);
+        try std.testing.expectEqual(local.name, scope[local.offset]);
+    }
+};
+
+/// Desugars `query` over the prelude, translates it, and checks the placement
+/// of every local and global in every definition.
+fn expectPlaced(query: []const u8) !void {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try root.Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery(query, g, &sink);
+    defer program.deinit();
+
+    var translated = try translate(allocator, &program);
+    defer translated.deinit();
+
+    const placement: Placement = .{ .gpa = allocator, .program = &translated };
+    for (translated.definitions) |definition| try placement.closure(definition.value, &.{});
+}
+
+test "every local in the prelude reads the slot it names" {
+    try expectPlaced("main = children;");
+}
+
+test "binders under a scrutinee's case and let do not shift an alternative's" {
+    try expectPlaced(
+        \\type P = Mk Int Int;
+        \\first p = case p of { Mk a b -> a };
+        \\pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 100 * first q };
+        \\pack p q = case (let { s = 5 } in Mk s 6) of { Mk x y -> x + 10 * y + 100 * first q };
+        \\main = pure (pick (Mk 1 2) (Mk 7 8)), pure (pack (Mk 1 2) (Mk 7 8));
+    );
+}
+
+test "captures resolve against the environment that allocates the closure" {
+    try expectPlaced(
+        \\count_to limit =
+        \\  let { go n = if n = limit then n else go (n + 1) } in go 0;
+        \\spread a b c = \x -> c - a * x - b;
+        \\main = pure (count_to 10), pure (spread 1 30 3 0);
+    );
+}
+
+test "a closure prints its captures, its update flag and its parameters" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try root.Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery(
+        \\spread a b = let { k = b - a } in k;
+        \\main = pure (spread 1 2);
+    , g, &sink);
+    defer program.deinit();
+
+    var translated = try translate(allocator, &program);
+    defer translated.deinit();
+
+    // The definition is a thunk around a generated binder for its function,
+    // whose name depends on the prelude. The function itself is printed.
+    const spread = program.env.interner.lookup("spread").?;
+    const definition = for (translated.definitions) |definition| {
+        if (definition.symbol == spread) break definition;
+    } else unreachable;
+    const function = definition.value.body.let.bindings[0].value.closure;
+
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    defer w.deinit();
+    const printer: stg.Printer = .{ .interner = &program.env.interner };
+    try printer.closure(function, &w.writer);
+    try std.testing.expectEqualStrings(
+        "{} \\n {a,b} -> letrec { k = {b,a} \\u {} -> op[-]# b a } in k",
+        w.written(),
+    );
+}

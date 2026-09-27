@@ -18,7 +18,6 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .values,
     .tql_tree,
     .source_tree,
-    .bytecode,
     .core,
     .types,
     .@"error",
@@ -750,7 +749,6 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
@@ -828,7 +826,6 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = core_text,
             .types = try allocator.dupe(u8, ""),
@@ -844,7 +841,6 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
@@ -856,40 +852,27 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     if (tc.isAsserted(.values) and !expects_error) {
         var eval_sink = tql.diagnostic.Sink.init(allocator);
         defer eval_sink.deinit();
-        const values = try engine.evaluateQuery(
+        const values = engine.evaluateQuery(
             tc.query.content,
             tc.target.content,
             if (tc.file.len == 0) null else tc.file,
             grammar,
             &eval_sink,
             allocator,
-        );
-        return .{
-            .source_tree = source_tree,
-            .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
-            .values = values,
-            .core = core_text,
-            .types = types_text,
-            .@"error" = try allocator.dupe(u8, ""),
+        ) catch |err| {
+            for (eval_sink.items()) |d| {
+                std.debug.print("    {s} @ {f}: {s}\n", .{
+                    d.category.name(),
+                    d.span,
+                    d.message,
+                });
+            }
+            return err;
         };
-    }
-
-    // Compilation is driven by what the case claims, not by what it contains.
-    // A case whose value-bearing sections are all `pending` has nothing for the
-    // compiler or the runtime to decide yet, so running them would be wasted
-    // work whose only effect is to fail on syntax the 0.2 compiler predates.
-    // As sections move from `pending` into `asserts`, this switches back on
-    // one fixture at a time.
-    const needs_compile = expects_error or
-        tc.isAsserted(.bytecode);
-
-    if (!needs_compile) {
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
-            .values = try allocator.dupe(u8, ""),
+            .values = values,
             .core = core_text,
             .types = types_text,
             .@"error" = try allocator.dupe(u8, ""),
@@ -904,7 +887,6 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     return .{
         .source_tree = source_tree,
         .tql_tree = tql_tree,
-        .bytecode = try allocator.dupe(u8, ""),
         .values = try allocator.dupe(u8, ""),
         .core = core_text,
         .types = types_text,
@@ -1024,7 +1006,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, bytecode, values (comma-separated); bare --update updates all",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, core, types (comma-separated); bare --update updates all",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

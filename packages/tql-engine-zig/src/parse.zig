@@ -17,14 +17,19 @@ extern fn tree_sitter_tql() *ts.Language;
 
 /// A parsed source file and the diagnostics produced building it.
 pub const ParseResult = struct {
+    /// Allocated in `arena`, and freed with it.
     source_file: cst.SourceFile,
     diagnostics: []diagnostic.Diagnostic,
     allocator: std.mem.Allocator,
+    /// Held by pointer: moving an `ArenaAllocator` struct dangles every
+    /// allocation made through it.
+    arena: *std.heap.ArenaAllocator,
 
     pub fn deinit(self: *ParseResult) void {
-        self.source_file.deinit(self.allocator);
         for (self.diagnostics) |d| d.deinit(self.allocator);
         self.allocator.free(self.diagnostics);
+        self.arena.deinit();
+        self.allocator.destroy(self.arena);
     }
 
     pub fn hasErrors(self: *const ParseResult) bool {
@@ -59,35 +64,23 @@ pub const Parser = struct {
         var sink = Sink.init(self.allocator);
         errdefer sink.deinit();
 
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        errdefer self.allocator.destroy(arena);
+        arena.* = .init(self.allocator);
+        errdefer arena.deinit();
+
         const root = tree.rootNode();
         try collectSyntaxErrors(root, &sink);
 
-        var walker: Walker = .{ .allocator = self.allocator, .source = source, .sink = &sink };
+        var walker: Walker = .{ .allocator = arena.allocator(), .source = source, .sink = &sink };
         const source_file = try walker.sourceFile(root);
-        errdefer source_file.deinit(self.allocator);
 
         return .{
             .source_file = source_file,
             .diagnostics = try sink.toOwnedSlice(),
             .allocator = self.allocator,
+            .arena = arena,
         };
-    }
-
-    /// Parses `source`, failing if it has any syntax error.
-    ///
-    /// Retained for callers that have no way to render diagnostics yet. Prefer
-    /// `parseCollecting`.
-    pub fn parse(self: *Parser, source: []const u8) !cst.SourceFile {
-        var result = try self.parseCollecting(source);
-        if (result.hasErrors()) {
-            result.deinit();
-            return error.ParseFailed;
-        }
-        defer {
-            for (result.diagnostics) |d| d.deinit(self.allocator);
-            self.allocator.free(result.diagnostics);
-        }
-        return result.source_file;
     }
 };
 
@@ -139,6 +132,8 @@ fn collectSyntaxErrors(node: ts.Node, sink: *Sink) !void {
     }
 }
 
+/// Builds the CST. Nothing it allocates is freed individually: `allocator` is
+/// the result's arena.
 const Walker = struct {
     allocator: std.mem.Allocator,
     source: []const u8,
@@ -146,14 +141,6 @@ const Walker = struct {
 
     fn dupe(self: *Walker, node: ts.Node) ![]const u8 {
         return self.allocator.dupe(u8, textOf(node, self.source));
-    }
-
-    /// Releases a declaration head on a `null` return, which `errdefer` does
-    /// not cover.
-    fn releaseHead(self: *Walker, name: []const u8, params: []const cst.Parameter) void {
-        self.allocator.free(name);
-        for (params) |p| p.deinit(self.allocator);
-        self.allocator.free(params);
     }
 
     fn boxed(self: *Walker, value: anytype) !*@TypeOf(value) {
@@ -175,10 +162,6 @@ const Walker = struct {
 
     fn sourceFile(self: *Walker, node: ts.Node) !cst.SourceFile {
         var declarations: std.ArrayList(cst.Declaration) = .empty;
-        errdefer {
-            for (declarations.items) |d| d.deinit(self.allocator);
-            declarations.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -220,11 +203,7 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
-        errdefer self.allocator.free(name);
-        const ty = try self.typeExpr(type_node) orelse {
-            self.allocator.free(name);
-            return null;
-        };
+        const ty = try self.typeExpr(type_node) orelse return null;
         return .{ .name = name, .type = ty, .span = spanOf(node) };
     }
 
@@ -234,23 +213,13 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
-        errdefer self.allocator.free(name);
-
         const params = try self.parameters(node);
-        errdefer {
-            for (params) |p| p.deinit(self.allocator);
-            self.allocator.free(params);
-        }
 
         const body_node = node.childByFieldName("body") orelse {
             try self.missingField(node, "body");
-            self.releaseHead(name, params);
             return null;
         };
-        const body = try self.expression(body_node) orelse {
-            self.releaseHead(name, params);
-            return null;
-        };
+        const body = try self.expression(body_node) orelse return null;
 
         return .{
             .name = name,
@@ -263,10 +232,6 @@ const Walker = struct {
     /// Every `parameter:`-tagged child of `node`, in order.
     fn parameters(self: *Walker, node: ts.Node) ![]const cst.Parameter {
         var collected: std.ArrayList(cst.Parameter) = .empty;
-        errdefer {
-            for (collected.items) |p| p.deinit(self.allocator);
-            collected.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -294,23 +259,13 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
-        errdefer self.allocator.free(name);
-
         const params = try self.parameters(node);
-        errdefer {
-            for (params) |p| p.deinit(self.allocator);
-            self.allocator.free(params);
-        }
 
         const value_node = node.childByFieldName("value") orelse {
             try self.missingField(node, "value");
-            self.releaseHead(name, params);
             return null;
         };
-        const value = try self.expression(value_node) orelse {
-            self.releaseHead(name, params);
-            return null;
-        };
+        const value = try self.expression(value_node) orelse return null;
 
         return .{
             .name = name,
@@ -324,10 +279,6 @@ const Walker = struct {
     /// `do`-local `let`.
     fn bindings(self: *Walker, node: ts.Node) ![]const cst.Binding {
         var collected: std.ArrayList(cst.Binding) = .empty;
-        errdefer {
-            for (collected.items) |b| b.deinit(self.allocator);
-            collected.deinit(self.allocator);
-        }
 
         if (std.mem.eql(u8, node.grammarKind(), "binding")) {
             if (try self.binding(node)) |b| try collected.append(self.allocator, b);
@@ -471,9 +422,7 @@ const Walker = struct {
             return null;
         };
         const record_expr = try self.expression(record_node) orelse return null;
-        errdefer record_expr.deinit(self.allocator);
         const field = try self.dupe(field_node);
-        errdefer self.allocator.free(field);
         return .{
             .kind = .{ .field_access = try self.boxed(cst.FieldAccess{
                 .record = record_expr,
@@ -489,7 +438,6 @@ const Walker = struct {
             return null;
         };
         const field = try self.dupe(field_node);
-        errdefer self.allocator.free(field);
         return .{
             .kind = .{ .field_access = try self.boxed(cst.FieldAccess{
                 .record = null,
@@ -509,11 +457,7 @@ const Walker = struct {
             return null;
         };
         const function = try self.expression(fn_node) orelse return null;
-        errdefer function.deinit(self.allocator);
-        const argument = try self.expression(arg_node) orelse {
-            function.deinit(self.allocator);
-            return null;
-        };
+        const argument = try self.expression(arg_node) orelse return null;
         return .{
             .kind = .{ .apply = try self.boxed(cst.Apply{
                 .function = function,
@@ -547,13 +491,7 @@ const Walker = struct {
             };
 
         const left = try self.expression(left_node) orelse return null;
-        errdefer left.deinit(self.allocator);
-        // `errdefer` does not fire on the null return, so an unparsable right
-        // operand has to release the left one explicitly.
-        const right = try self.expression(right_node) orelse {
-            left.deinit(self.allocator);
-            return null;
-        };
+        const right = try self.expression(right_node) orelse return null;
         return .{
             .kind = .{ .binary = try self.boxed(cst.Binary{
                 .operator = operator,
@@ -582,18 +520,8 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
-        errdefer self.allocator.free(name);
-
         var params: std.ArrayList(cst.Identifier) = .empty;
-        errdefer {
-            for (params.items) |p| self.allocator.free(p);
-            params.deinit(self.allocator);
-        }
         var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
-        errdefer {
-            for (constructors.items) |c| c.deinit(self.allocator);
-            constructors.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -627,13 +555,7 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
-        errdefer self.allocator.free(name);
-
         var fields: std.ArrayList(cst.Type) = .empty;
-        errdefer {
-            for (fields.items) |f| f.deinit(self.allocator);
-            fields.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -662,13 +584,7 @@ const Walker = struct {
             return null;
         };
         const scrutinee = try self.expression(scrutinee_node) orelse return null;
-        errdefer scrutinee.deinit(self.allocator);
-
         var alternatives: std.ArrayList(cst.Case.Alternative) = .empty;
-        errdefer {
-            for (alternatives.items) |a| a.deinit(self.allocator);
-            alternatives.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -703,13 +619,7 @@ const Walker = struct {
             return null;
         };
         const constructor = try self.dupe(name_node);
-        errdefer self.allocator.free(constructor);
-
         var binders: std.ArrayList(cst.Parameter) = .empty;
-        errdefer {
-            for (binders.items) |b| b.deinit(self.allocator);
-            binders.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -751,17 +661,8 @@ const Walker = struct {
             return null;
         };
         const condition = try self.expression(cond_node) orelse return null;
-        errdefer condition.deinit(self.allocator);
-        const consequence = try self.expression(then_node) orelse {
-            condition.deinit(self.allocator);
-            return null;
-        };
-        errdefer consequence.deinit(self.allocator);
-        const alternative = try self.expression(else_node) orelse {
-            condition.deinit(self.allocator);
-            consequence.deinit(self.allocator);
-            return null;
-        };
+        const consequence = try self.expression(then_node) orelse return null;
+        const alternative = try self.expression(else_node) orelse return null;
         return .{
             .kind = .{ .@"if" = try self.boxed(cst.If{
                 .condition = condition,
@@ -774,10 +675,6 @@ const Walker = struct {
 
     fn lambda(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const params = try self.parameters(node);
-        errdefer {
-            for (params) |p| p.deinit(self.allocator);
-            self.allocator.free(params);
-        }
         const body_node = node.childByFieldName("body") orelse {
             try self.missingField(node, "body");
             return null;
@@ -798,10 +695,6 @@ const Walker = struct {
             return null;
         };
         const binding_list = try self.bindings(group_node);
-        errdefer {
-            for (binding_list) |b| b.deinit(self.allocator);
-            self.allocator.free(binding_list);
-        }
         const body_node = node.childByFieldName("body") orelse {
             try self.missingField(node, "body");
             return null;
@@ -818,10 +711,6 @@ const Walker = struct {
 
     fn doExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         var statements: std.ArrayList(cst.Statement) = .empty;
-        errdefer {
-            for (statements.items) |s| s.deinit(self.allocator);
-            statements.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -841,15 +730,12 @@ const Walker = struct {
                         continue;
                     };
                     const name = try self.dupe(name_node);
-                    errdefer self.allocator.free(name);
                     if (try self.expression(value_node)) |value| {
                         try statements.append(self.allocator, .{ .bind = .{
                             .name = name,
                             .value = value,
                             .span = spanOf(child),
                         } });
-                    } else {
-                        self.allocator.free(name);
                     }
                 } else if (std.mem.eql(u8, kind, "let_statement")) {
                     const group_node = child.childByFieldName("bindings") orelse {
@@ -894,10 +780,6 @@ const Walker = struct {
 
     fn record(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         var fields: std.ArrayList(cst.RecordField) = .empty;
-        errdefer {
-            for (fields.items) |f| f.deinit(self.allocator);
-            fields.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -916,15 +798,12 @@ const Walker = struct {
                         continue;
                     };
                     const name = try self.dupe(name_node);
-                    errdefer self.allocator.free(name);
                     if (try self.expression(value_node)) |value| {
                         try fields.append(self.allocator, .{
                             .name = name,
                             .value = value,
                             .span = spanOf(child),
                         });
-                    } else {
-                        self.allocator.free(name);
                     }
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -943,13 +822,7 @@ const Walker = struct {
             return null;
         };
         const constructor = try self.dupe(name_node);
-        errdefer self.allocator.free(constructor);
-
         var arguments: std.ArrayList(cst.Type) = .empty;
-        errdefer {
-            for (arguments.items) |a| a.deinit(self.allocator);
-            arguments.deinit(self.allocator);
-        }
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -1003,11 +876,7 @@ const Walker = struct {
                 return null;
             };
             const from = try self.typeExpr(from_node) orelse return null;
-            errdefer from.deinit(self.allocator);
-            const to = try self.typeExpr(to_node) orelse {
-                from.deinit(self.allocator);
-                return null;
-            };
+            const to = try self.typeExpr(to_node) orelse return null;
             return cst.Type{
                 .kind = .{ .function = try self.boxed(cst.FunctionType{
                     .from = from,
@@ -1026,11 +895,7 @@ const Walker = struct {
                 return null;
             };
             const input = try self.typeExpr(in_node) orelse return null;
-            errdefer input.deinit(self.allocator);
-            const output = try self.typeExpr(out_node) orelse {
-                input.deinit(self.allocator);
-                return null;
-            };
+            const output = try self.typeExpr(out_node) orelse return null;
             return cst.Type{
                 .kind = .{ .filter = try self.boxed(cst.FilterType{
                     .input = input,
@@ -1063,10 +928,6 @@ const Walker = struct {
         }
         if (std.mem.eql(u8, kind, "record_type")) {
             var fields: std.ArrayList(cst.TypeField) = .empty;
-            errdefer {
-                for (fields.items) |f| f.deinit(self.allocator);
-                fields.deinit(self.allocator);
-            }
 
             var cursor = node.walk();
             defer cursor.destroy();
@@ -1085,15 +946,12 @@ const Walker = struct {
                             continue;
                         };
                         const name = try self.dupe(name_node);
-                        errdefer self.allocator.free(name);
                         if (try self.typeExpr(type_node)) |ty| {
                             try fields.append(self.allocator, .{
                                 .name = name,
                                 .type = ty,
                                 .span = spanOf(child),
                             });
-                        } else {
-                            self.allocator.free(name);
                         }
                     }
                     if (!cursor.gotoNextSibling()) break;
@@ -1307,6 +1165,25 @@ test "an unclosed group reports a missing token" {
 
     try testing.expect(result.hasErrors());
     try testing.expectEqual(diagnostic.Category.parse, result.diagnostics[0].category);
+}
+
+test "a declaration dropped by recovery leaks nothing it had built" {
+    var parser = try Parser.init(testing.allocator);
+    defer parser.deinit();
+
+    // Each literal is out of range, so the walk abandons the lambda, the case
+    // alternative and the binding around it after building their heads.
+    var result = try parser.parseCollecting(
+        \\main p = \x y -> case x of { C a b -> 99999999999999999999999 };
+        \\other = let { f q = 99999999999999999999999 } in \z -> 99999999999999999999999;
+    );
+    defer result.deinit();
+
+    try testing.expectEqual(0, result.source_file.declarations.len);
+    try testing.expectEqual(3, result.diagnostics.len);
+    for (result.diagnostics) |d| {
+        try testing.expectEqualStrings("integer literal out of range", d.message);
+    }
 }
 
 test "an incomplete declaration spans the declaration" {
