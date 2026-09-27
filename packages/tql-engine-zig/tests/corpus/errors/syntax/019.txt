@@ -1,0 +1,10 @@
+title: an empty `do` block
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {};
+
+--- error ---
+category: parse
+span: any

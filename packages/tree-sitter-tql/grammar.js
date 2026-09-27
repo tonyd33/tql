@@ -214,14 +214,10 @@ module.exports = grammar({
 
     do_expression: $ => seq("do", "{", optional($._do_items), "}"),
 
-    _do_items: $ =>
-      seq(
-        repeat(seq($._do_statement, ";")),
-        field("result", $._expression),
-        optional(";"),
-      ),
+    _do_items: $ => sep_trailing($._do_statement, ";"),
 
-    _do_statement: $ => choice($.bind_statement, $.let_statement),
+    _do_statement: $ =>
+      choice($.bind_statement, $.let_statement, $._expression),
 
     bind_statement: $ =>
       seq(field("name", $.identifier), "<-", field("value", $._expression)),

@@ -746,51 +746,57 @@ const Walker = struct {
     fn doExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         var statements: std.ArrayList(cst.Statement) = .empty;
 
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                const child = cursor.node();
-                const kind = child.grammarKind();
-                if (std.mem.eql(u8, kind, "bind_statement")) {
-                    const name_node = child.childByFieldName("name") orelse {
-                        try self.missingField(child, "name");
-                        if (!cursor.gotoNextSibling()) break;
-                        continue;
-                    };
-                    const value_node = child.childByFieldName("value") orelse {
-                        try self.missingField(child, "value");
-                        if (!cursor.gotoNextSibling()) break;
-                        continue;
-                    };
-                    const name = try self.dupe(name_node);
-                    if (try self.expression(value_node)) |value| {
-                        try statements.append(self.allocator, .{ .bind = .{
-                            .name = name,
-                            .value = value,
-                            .span = spanOf(child),
-                        } });
-                    }
-                } else if (std.mem.eql(u8, kind, "let_statement")) {
-                    const group_node = child.childByFieldName("bindings") orelse {
-                        try self.missingField(child, "bindings");
-                        if (!cursor.gotoNextSibling()) break;
-                        continue;
-                    };
-                    try statements.append(self.allocator, .{ .let = .{
-                        .bindings = try self.bindings(group_node),
+        var i: u32 = 0;
+        while (i < node.namedChildCount()) : (i += 1) {
+            const child = node.namedChild(i).?;
+            if (child.isExtra()) continue;
+            const kind = child.grammarKind();
+            if (std.mem.eql(u8, kind, "bind_statement")) {
+                const name_node = child.childByFieldName("name") orelse {
+                    try self.missingField(child, "name");
+                    continue;
+                };
+                const value_node = child.childByFieldName("value") orelse {
+                    try self.missingField(child, "value");
+                    continue;
+                };
+                const name = try self.dupe(name_node);
+                if (try self.expression(value_node)) |value| {
+                    try statements.append(self.allocator, .{ .bind = .{
+                        .name = name,
+                        .value = value,
                         .span = spanOf(child),
                     } });
                 }
-                if (!cursor.gotoNextSibling()) break;
+            } else if (std.mem.eql(u8, kind, "let_statement")) {
+                const group_node = child.childByFieldName("bindings") orelse {
+                    try self.missingField(child, "bindings");
+                    continue;
+                };
+                try statements.append(self.allocator, .{ .let = .{
+                    .bindings = try self.bindings(group_node),
+                    .span = spanOf(child),
+                } });
+            } else if (try self.expression(child)) |value| {
+                try statements.append(self.allocator, .{ .expression = value });
             }
         }
 
-        const result_node = node.childByFieldName("result") orelse {
-            try self.missingField(node, "result");
+        const last = statements.pop() orelse {
+            try self.sink.report(.parse, span, "a do block must end in an expression", .{});
             return null;
         };
-        const result = try self.expression(result_node) orelse return null;
+        const result = switch (last) {
+            .expression => |e| e,
+            .bind => |b| {
+                try self.sink.report(.parse, b.span, "a do block must end in an expression, not a bind statement", .{});
+                return null;
+            },
+            .let => |l| {
+                try self.sink.report(.parse, l.span, "a do block must end in an expression, not a let statement", .{});
+                return null;
+            },
+        };
 
         return .{
             .kind = .{ .do = try self.boxed(cst.Do{
@@ -1119,6 +1125,13 @@ test "a do block with a bind statement" {
     try expectSexpr(
         "main = do { c <- .; c.name };",
         "(source_file (define main (params) (do (<- c .) (field c name))))",
+    );
+}
+
+test "a do block with an expression statement" {
+    try expectSexpr(
+        "main = do { c <- .; guard $ c = c; c };",
+        "(source_file (define main (params) (do (<- c .) (>> (apply guard (= c c))) c)))",
     );
 }
 

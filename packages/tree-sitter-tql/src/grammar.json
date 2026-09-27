@@ -899,27 +899,23 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "SYMBOL",
+          "name": "_do_statement"
+        },
+        {
           "type": "REPEAT",
           "content": {
             "type": "SEQ",
             "members": [
               {
-                "type": "SYMBOL",
-                "name": "_do_statement"
-              },
-              {
                 "type": "STRING",
                 "value": ";"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_do_statement"
               }
             ]
-          }
-        },
-        {
-          "type": "FIELD",
-          "name": "result",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_expression"
           }
         },
         {
@@ -946,6 +942,10 @@
         {
           "type": "SYMBOL",
           "name": "let_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_expression"
         }
       ]
     },

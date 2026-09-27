@@ -234,12 +234,18 @@ pub const Do = struct {
 pub const Statement = union(enum) {
     bind: BindStatement,
     let: LetStatement,
+    expression: Expression,
 
     pub fn sexpr(self: Statement, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .bind => |b| {
                 try w.print("(<- {s} ", .{b.name});
                 try b.value.sexpr(w);
+                try w.writeByte(')');
+            },
+            .expression => |e| {
+                try w.writeAll("(>> ");
+                try e.sexpr(w);
                 try w.writeByte(')');
             },
             .let => |l| {

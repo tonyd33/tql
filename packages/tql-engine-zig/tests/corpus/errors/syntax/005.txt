@@ -2,8 +2,8 @@ title: a `do` block with no final expression
 grammar: typescript
 asserts: error
 
-Every `do` block has exactly one final expression. This block ends after a
-statement, so the `}` arrives where the final expression was required.
+Every `do` block ends in an expression. This block ends in a bind statement,
+whose name has nothing left to scope over.
 
 --- tql ---
 main root =
@@ -14,6 +14,6 @@ main root =
 --- error ---
 category: parse
 span: any
-Rejection is what matters. Whether the diagnostic points at the `}` or at the
-block it closes is a presentation choice, and pinning it here would freeze a
+Rejection is what matters. Whether the diagnostic points at the bind statement
+or at the block is a presentation choice, and pinning it here would freeze a
 recovery detail the language does not fix.
