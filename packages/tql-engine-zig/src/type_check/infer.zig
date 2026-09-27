@@ -315,8 +315,10 @@ pub const Inference = struct {
         // Generalize together, then check the body against the resulting
         // schemes rather than the placeholders.
         self.scope.truncate(mark);
-        for (l.bindings, placeholders) |b, p| {
-            const scheme = try self.generalize(p, &.{});
+        const generalized = try self.gpa.alloc(types.Scheme, l.bindings.len);
+        defer self.gpa.free(generalized);
+        try self.generalizeGroup(placeholders, &.{}, generalized);
+        for (l.bindings, generalized) |b, scheme| {
             try self.scope.push(b.name, .{ .scheme = scheme });
         }
         return try self.term(l.body);
@@ -346,13 +348,28 @@ pub const Inference = struct {
     /// but not in the environment, and carry the residual constraints on them
     /// into the scheme.
     pub fn generalize(self: *Inference, t: types.Type, env_extra: []const types.Type) Error!types.Scheme {
+        var out: [1]types.Scheme = undefined;
+        try self.generalizeGroup(&.{t}, env_extra, &out);
+        return out[0];
+    }
+
+    /// `Gen(Gamma, tau_i)` for every member of a group checked together.
+    ///
+    /// Each member quantifies the metavariables free in its own type but not
+    /// in the environment, and carries every residual constraint that mentions
+    /// one of them. A constraint shared by several members is carried by each.
+    ///
+    /// Preconditions:
+    /// - `out.len == group.len`
+    pub fn generalizeGroup(
+        self: *Inference,
+        group: []const types.Type,
+        env_extra: []const types.Type,
+        out: []types.Scheme,
+    ) Error!void {
         if (try self.undecided.recheck(self.subst)) |v| {
             return self.fail(.unsatisfied_constraint, v.origin, .t_letrec, .{ .violation = v });
         }
-
-        var free: std.ArrayList(types.Meta) = .empty;
-        defer free.deinit(self.gpa);
-        try self.subst.freeMetas(t, &free);
 
         var env: std.ArrayList(types.Meta) = .empty;
         defer env.deinit(self.gpa);
@@ -364,13 +381,26 @@ pub const Inference = struct {
         };
         for (env_extra) |m| try self.subst.freeMetas(m, &env);
 
+        // Every member's quantified metavariables, laid end to end. Member
+        // `i`'s are `quantified[bounds[i]..bounds[i + 1]]`.
         var quantified: std.ArrayList(types.Meta) = .empty;
         defer quantified.deinit(self.gpa);
-        for (free.items) |id| {
-            for (env.items) |bound| {
-                if (id == bound) break;
-            } else try quantified.append(self.gpa, id);
+        const bounds = try self.gpa.alloc(usize, group.len + 1);
+        defer self.gpa.free(bounds);
+
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        for (group, 0..) |t, i| {
+            bounds[i] = quantified.items.len;
+            free.clearRetainingCapacity();
+            try self.subst.freeMetas(t, &free);
+            for (free.items) |id| {
+                for (env.items) |bound| {
+                    if (id == bound) break;
+                } else try quantified.append(self.gpa, id);
+            }
         }
+        bounds[group.len] = quantified.items.len;
 
         var taken: std.ArrayList(constraints.Constraint) = .empty;
         defer taken.deinit(self.gpa);
@@ -379,11 +409,18 @@ pub const Inference = struct {
         // A scheme's constraints drop their origin span: the scheme outlives
         // the term that raised them, and a use site that violates one reports
         // at its own span instead.
-        const bare = try self.gpa.alloc(types.TypeClassConstraint, taken.items.len);
-        defer self.gpa.free(bare);
-        for (taken.items, bare) |c, *slot| slot.* = .{ .class = c.class, .type = c.type };
-
-        return try self.subst.quantify(t, quantified.items, bare);
+        var bare: std.ArrayList(types.TypeClassConstraint) = .empty;
+        defer bare.deinit(self.gpa);
+        for (group, out, 0..) |t, *scheme, i| {
+            const own = quantified.items[bounds[i]..bounds[i + 1]];
+            bare.clearRetainingCapacity();
+            for (taken.items) |c| {
+                if (try constraints.mentionsAny(self.subst, c.type, own, self.gpa)) {
+                    try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
+                }
+            }
+            scheme.* = try self.subst.quantify(t, own, bare.items);
+        }
     }
 
     /// Infers one strongly connected component of the definition graph
@@ -423,17 +460,20 @@ pub const Inference = struct {
         // Generalize against the environment *outside* the component, so the
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
-        for (members, placeholders) |index, p| {
+        const generalized = try self.gpa.alloc(types.Scheme, members.len);
+        defer self.gpa.free(generalized);
+        try self.generalizeGroup(placeholders, &.{}, generalized);
+
+        for (members, generalized) |index, scheme| {
             const symbol = definitions[index].symbol;
-            const generalized = try self.generalize(p, &.{});
 
             // A written signature is checked against the inferred scheme, and
             // an accepted one becomes what is exported.
             if (self.env.annotationOf(symbol)) |declared| {
-                try self.checkAnnotation(generalized, declared.scheme, declared.span);
+                try self.checkAnnotation(scheme, declared.scheme, declared.span);
                 try self.inferred.put(symbol, declared.scheme);
             } else {
-                try self.inferred.put(symbol, generalized);
+                try self.inferred.put(symbol, scheme);
             }
         }
     }
@@ -492,11 +532,16 @@ pub const Inference = struct {
             ),
         }
 
-        var id: types.Meta = @intCast(before);
-        while (id < after) : (id += 1) {
+        // What each declared variable resolved to. Each must still be an
+        // unsolved metavariable, and no two may have become the same one.
+        const representatives = try self.gpa.alloc(types.Meta, after - before);
+        defer self.gpa.free(representatives);
+        for (representatives, 0..) |*slot, i| {
+            const id: types.Meta = @intCast(before + i);
             const resolved = self.subst.resolve(.{ .meta = id });
             const still_arbitrary = resolved == .meta and
-                (resolved.meta == id or resolved.meta >= after);
+                (resolved.meta == id or resolved.meta >= after) and
+                std.mem.indexOfScalar(types.Meta, representatives[0..i], resolved.meta) == null;
             if (!still_arbitrary) {
                 return self.fail(.signature_mismatch, span, .t_letrec, .{
                     .mismatch = .{
@@ -505,6 +550,25 @@ pub const Inference = struct {
                         .found = inferred.type,
                     },
                 });
+            }
+            slot.* = resolved.meta;
+        }
+
+        // A signature carries no constraints. One the body raised on a
+        // declared variable makes the signature too general, and one on a type
+        // the signature fixed must hold at that type.
+        for (inferred.constraints) |c| {
+            const on = try self.subst.instantiateWith(c.type, flexible.metas);
+            if (try constraints.mentionsAny(self.subst, on, representatives, self.gpa)) {
+                const named = try self.subst.quantify(on, representatives, &.{});
+                return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+                    .class = c.class,
+                    .type = named.type,
+                    .origin = span,
+                } });
+            }
+            if (try self.undecided.require(self.subst, c.class, on, span)) |v| {
+                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
             }
         }
     }

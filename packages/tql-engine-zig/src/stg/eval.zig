@@ -63,6 +63,108 @@ pub const Error = Allocator.Error || error{
     DivideByZero,
     /// Reached only by a program the type checker should have rejected.
     TypeError,
+    /// A local read a slot bound under a different name. Reached only by a
+    /// translation bug, and checked only in safe builds.
+    MisplacedLocal,
+};
+
+/// Whether each environment slot records the name it was bound under, and
+/// every local read checks it.
+const check_locals = std.debug.runtime_safety;
+
+/// The slots a body reads by offset.
+const Env = struct {
+    thunks: std.ArrayList(*value.Thunk) = .empty,
+    names: if (check_locals) std.ArrayList(core.SymbolId) else void =
+        if (check_locals) .empty else {},
+
+    fn slots(self: *const Env) Slots {
+        return .{
+            .thunks = self.thunks.items,
+            .names = if (check_locals) self.names.items else {},
+        };
+    }
+
+    fn len(self: *const Env) usize {
+        return self.thunks.items.len;
+    }
+
+    fn shrink(self: *Env, n: usize) void {
+        self.thunks.shrinkRetainingCapacity(n);
+        if (check_locals) self.names.shrinkRetainingCapacity(n);
+    }
+
+    fn ensureTotalCapacity(self: *Env, gpa: Allocator, n: usize) Allocator.Error!void {
+        try self.thunks.ensureTotalCapacity(gpa, n);
+        if (check_locals) try self.names.ensureTotalCapacity(gpa, n);
+    }
+
+    fn append(self: *Env, gpa: Allocator, thunk: *value.Thunk, name: core.SymbolId) Allocator.Error!void {
+        try self.thunks.append(gpa, thunk);
+        if (check_locals) try self.names.append(gpa, name);
+    }
+
+    /// Append `thunks`, bound under `names` in order.
+    fn appendSlice(
+        self: *Env,
+        gpa: Allocator,
+        thunks: []const *value.Thunk,
+        names: []const core.SymbolId,
+    ) Allocator.Error!void {
+        try self.thunks.appendSlice(gpa, thunks);
+        if (check_locals) try self.names.appendSlice(gpa, names);
+    }
+
+    /// Append `thunks`, bound under `names` in order, into capacity already
+    /// reserved.
+    fn appendSliceAssumeCapacity(
+        self: *Env,
+        thunks: []const *value.Thunk,
+        names: []const core.SymbolId,
+    ) void {
+        self.thunks.appendSliceAssumeCapacity(thunks);
+        if (check_locals) self.names.appendSliceAssumeCapacity(names);
+    }
+
+    /// Append what a closure captured, bound under its free variables' names,
+    /// into capacity already reserved.
+    fn appendCapturesAssumeCapacity(
+        self: *Env,
+        captured: []const *value.Thunk,
+        code: *const stg.Closure,
+    ) Error!void {
+        self.thunks.appendSliceAssumeCapacity(captured);
+        if (check_locals) {
+            if (captured.len != code.free.len) return error.MisplacedLocal;
+            for (code.free) |local| self.names.appendAssumeCapacity(local.name);
+        }
+    }
+
+    fn deinit(self: *Env, gpa: Allocator) void {
+        self.thunks.deinit(gpa);
+        if (check_locals) self.names.deinit(gpa);
+    }
+};
+
+/// A read-only view of an environment's slots.
+const Slots = struct {
+    thunks: []const *value.Thunk,
+    names: if (check_locals) []const core.SymbolId else void,
+
+    fn prefix(self: Slots, n: usize) Slots {
+        return .{
+            .thunks = self.thunks[0..n],
+            .names = if (check_locals) self.names[0..n] else {},
+        };
+    }
+
+    fn get(self: Slots, local: stg.Local) Error!*value.Thunk {
+        if (local.offset >= self.thunks.len) return error.TypeError;
+        if (check_locals) {
+            if (self.names[local.offset] != local.name) return error.MisplacedLocal;
+        }
+        return self.thunks[local.offset];
+    }
 };
 
 pub const Machine = struct {
@@ -95,7 +197,7 @@ pub const Machine = struct {
     /// that nests, so the pool is as deep as a term nests rather than as long
     /// as a list. Reusing them is what keeps a saturated call from growing a
     /// fresh array: the capacity from the last call is already there.
-    env_pool: std.ArrayList(std.ArrayList(*value.Thunk)) = .empty,
+    env_pool: std.ArrayList(Env) = .empty,
 
     /// Argument slices for calls in flight, as one stack.
     ///
@@ -153,13 +255,13 @@ pub const Machine = struct {
     }
 
     /// Borrow an empty environment buffer, keeping whatever capacity it has.
-    fn takeEnv(self: *Machine) Error!std.ArrayList(*value.Thunk) {
+    fn takeEnv(self: *Machine) Error!Env {
         if (self.env_pool.pop()) |buffer| {
             var reused = buffer;
-            reused.clearRetainingCapacity();
+            reused.shrink(0);
             return reused;
         }
-        return .empty;
+        return .{};
     }
 
     /// Resolve `atoms` onto the argument stack and return them as a slice.
@@ -167,7 +269,7 @@ pub const Machine = struct {
     /// Valid until the caller truncates the stack back to the mark it took
     /// before calling. The slice must not be retained: growing the stack for
     /// a nested call can move it.
-    fn pushArgs(self: *Machine, atoms: []const stg.Atom, env: []const *value.Thunk) Error![]const *value.Thunk {
+    fn pushArgs(self: *Machine, atoms: []const stg.Atom, env: Slots) Error![]const *value.Thunk {
         const base = self.args.items.len;
         try self.args.ensureUnusedCapacity(self.gpa, atoms.len);
         for (atoms) |atom| {
@@ -176,7 +278,7 @@ pub const Machine = struct {
         return self.args.items[base..];
     }
 
-    fn giveEnv(self: *Machine, buffer: std.ArrayList(*value.Thunk)) void {
+    fn giveEnv(self: *Machine, buffer: Env) void {
         self.env_pool.append(self.gpa, buffer) catch {
             var owned = buffer;
             owned.deinit(self.envAllocator());
@@ -193,14 +295,11 @@ pub const Machine = struct {
     }
 
     /// Read an atom without forcing it.
-    fn resolve(self: *Machine, env: []const *value.Thunk, atom: stg.Atom) Error!*value.Thunk {
+    fn resolve(self: *Machine, env: Slots, atom: stg.Atom) Error!*value.Thunk {
         return switch (atom) {
             // The translator numbered every reference against the environment
             // this builds, so a local is an index rather than a search.
-            .local => |local| blk: {
-                if (local.offset >= env.len) return error.TypeError;
-                break :blk env[local.offset];
-            },
+            .local => |local| try env.get(local),
             .global => |id| self.globals.get(id) orelse return error.TypeError,
             .literal => |literal| blk: {
                 const thunk = try self.arena.create(value.Thunk);
@@ -263,8 +362,8 @@ pub const Machine = struct {
 
         note(.run_env, (captured.len + code.parameters.len) * @sizeOf(*value.Thunk));
         try env.ensureTotalCapacity(self.envAllocator(), captured.len + arguments.len);
-        env.appendSliceAssumeCapacity(captured);
-        env.appendSliceAssumeCapacity(arguments);
+        try env.appendCapturesAssumeCapacity(captured, code);
+        env.appendSliceAssumeCapacity(arguments, code.parameters);
 
         return try self.expression(code.body, &env);
     }
@@ -288,7 +387,7 @@ pub const Machine = struct {
     fn expression(
         self: *Machine,
         expr: stg.Expr,
-        env: *std.ArrayList(*value.Thunk),
+        env: *Env,
     ) Error!value.Value {
         // Rebound whenever a call enters a body, which runs in the callee's
         // own environment rather than the caller's.
@@ -298,7 +397,7 @@ pub const Machine = struct {
         // Two buffers, used alternately: building the callee's environment
         // reads the current one, so it cannot write into it. Borrowed from the
         // machine so their capacity survives the call.
-        var envs: [2]std.ArrayList(*value.Thunk) = .{ try self.takeEnv(), try self.takeEnv() };
+        var envs: [2]Env = .{ try self.takeEnv(), try self.takeEnv() };
         defer for (envs) |e| self.giveEnv(e);
         var next: usize = 0;
 
@@ -313,7 +412,7 @@ pub const Machine = struct {
             // unevaluated nullary one continues in this loop, with the thunk
             // recorded so it is updated with whatever the loop produces.
             .atom => |atom| {
-                const thunk = try self.resolve(scope.items, atom);
+                const thunk = try self.resolve(scope.slots(), atom);
                 switch (thunk.state) {
                     .evaluated => |v| break v,
                     .evaluating => return error.Cycle,
@@ -336,8 +435,9 @@ pub const Machine = struct {
                         try pending.append(self.envAllocator(), thunk);
 
                         const target = &envs[next];
-                        target.clearRetainingCapacity();
-                        try target.appendSlice(self.envAllocator(), suspended.captured);
+                        target.shrink(0);
+                        try target.ensureTotalCapacity(self.envAllocator(), suspended.captured.len);
+                        try target.appendCapturesAssumeCapacity(suspended.captured, suspended.code);
                         current = suspended.code.body;
                         scope = target;
                         next = 1 - next;
@@ -350,16 +450,16 @@ pub const Machine = struct {
                     constructed.constructor,
                     constructed.tag,
                     constructed.fields,
-                    scope.items,
+                    scope.slots(),
                 ) };
             },
 
             .let => |let| {
-                const base = scope.items.len;
-                for (0..let.bindings.len) |_| {
+                const base = scope.len();
+                for (let.bindings) |binding| {
                     note(.let_thunk, @sizeOf(value.Thunk));
                     const thunk = try self.arena.create(value.Thunk);
-                    try scope.append(self.envAllocator(), thunk);
+                    try scope.append(self.envAllocator(), thunk, binding.binder);
                 }
 
                 // A recursive group is filled against the environment holding
@@ -367,9 +467,10 @@ pub const Machine = struct {
                 // comes later. A non-recursive one is filled against the
                 // environment as it stood before the group, so a binding sees
                 // only what was already in scope.
-                const inner = if (let.recursive) scope.items else scope.items[0..base];
+                const slots = scope.slots();
+                const inner = if (let.recursive) slots else slots.prefix(base);
                 for (let.bindings, base..) |binding, i| {
-                    try self.fillAllocation(scope.items[i], binding.value, inner);
+                    try self.fillAllocation(slots.thunks[i], binding.value, inner);
                 }
                 current = let.body;
             },
@@ -378,9 +479,9 @@ pub const Machine = struct {
                 // The scrutinee runs in this environment and may push its own
                 // binders onto it. The alternative's binders are numbered from
                 // where the scrutinee started, so those are dropped first.
-                const mark = scope.items.len;
+                const mark = scope.len();
                 const scrutinee = try self.expression(case_expr.scrutinee, scope);
-                scope.shrinkRetainingCapacity(mark);
+                scope.shrink(mark);
                 const constructed = switch (scrutinee) {
                     .constructed => |c| c,
                     else => return error.TypeError,
@@ -400,18 +501,18 @@ pub const Machine = struct {
                 // Read through the local copy: inline fields live in the value
                 // itself, so a slice of it must not outlive this scope.
                 note(.case_binder, alternative.binders.len * @sizeOf(*value.Thunk));
-                try scope.appendSlice(self.envAllocator(), constructed.fields());
+                try scope.appendSlice(self.envAllocator(), constructed.fields(), alternative.binders);
                 current = alternative.body;
             },
 
             .apply => |call| {
-                const callee = try self.force(try self.resolve(scope.items, call.callee));
+                const callee = try self.force(try self.resolve(scope.slots(), call.callee));
 
                 // The arguments die with the call, so they come off the stack
                 // rather than the arena. Truncated before the loop continues,
                 // so a chain of tail calls does not grow it.
                 const mark = self.args.items.len;
-                const arguments = try self.pushArgs(call.arguments, scope.items);
+                const arguments = try self.pushArgs(call.arguments, scope.slots());
 
                 const target = &envs[next];
                 const entered = try self.enter(callee, arguments, target);
@@ -429,7 +530,7 @@ pub const Machine = struct {
             .primitive => |call| {
                 const mark = self.args.items.len;
                 defer self.args.shrinkRetainingCapacity(mark);
-                const arguments = try self.pushArgs(call.arguments, scope.items);
+                const arguments = try self.pushArgs(call.arguments, scope.slots());
                 break try self.primitive(call, arguments);
             },
         };
@@ -449,7 +550,7 @@ pub const Machine = struct {
         self: *Machine,
         callee: value.Value,
         arguments: []const *value.Thunk,
-        out: *std.ArrayList(*value.Thunk),
+        out: *Env,
     ) Error!?stg.Expr {
         const closure = switch (callee) {
             .closure => |c| c,
@@ -457,9 +558,10 @@ pub const Machine = struct {
         };
 
         const supplied = closure.applied.len + arguments.len;
-        if (supplied != closure.code.parameters.len) return null;
+        const parameters = closure.code.parameters;
+        if (supplied != parameters.len) return null;
 
-        out.clearRetainingCapacity();
+        out.shrink(0);
         note(.enter_captures, (closure.captured.len + closure.code.parameters.len) * @sizeOf(*value.Thunk));
         // Sized once: three appends onto a buffer whose capacity is already
         // known re-check it three times otherwise, and this is the hottest
@@ -468,11 +570,12 @@ pub const Machine = struct {
             self.envAllocator(),
             closure.captured.len + closure.applied.len + arguments.len,
         );
-        out.appendSliceAssumeCapacity(closure.captured);
+        try out.appendCapturesAssumeCapacity(closure.captured, closure.code);
         // Arguments in parameter order: what a partial application already
         // supplied, then what this call brought.
-        out.appendSliceAssumeCapacity(closure.applied);
-        out.appendSliceAssumeCapacity(arguments);
+        const split = closure.applied.len;
+        out.appendSliceAssumeCapacity(closure.applied, parameters[0..split]);
+        out.appendSliceAssumeCapacity(arguments, parameters[split..]);
         return closure.code.body;
     }
 
@@ -696,7 +799,7 @@ pub const Machine = struct {
         constructor: core.SymbolId,
         tag: u32,
         atoms: []const stg.Atom,
-        env: []const *value.Thunk,
+        env: Slots,
     ) Error!value.Constructed {
         if (atoms.len <= value.Constructed.inline_capacity) {
             var built: value.Constructed = .{
@@ -918,7 +1021,7 @@ pub const Machine = struct {
         self: *Machine,
         thunk: *value.Thunk,
         binding: stg.Allocation,
-        env: []const *value.Thunk,
+        env: Slots,
     ) Error!void {
         switch (binding) {
             .closure => |code| {
@@ -927,10 +1030,7 @@ pub const Machine = struct {
                 const captured: []*value.Thunk = if (code.free.len == 0) &.{} else blk: {
                     note(.alloc_captured, code.free.len * @sizeOf(*value.Thunk));
                     const slots = try self.arena.alloc(*value.Thunk, code.free.len);
-                    for (code.free, slots) |capture, *slot| {
-                        if (capture.offset >= env.len) return error.TypeError;
-                        slot.* = env[capture.offset];
-                    }
+                    for (code.free, slots) |capture, *slot| slot.* = try env.get(capture);
                     break :blk slots;
                 };
                 thunk.* = .{ .state = .{ .unevaluated = .{

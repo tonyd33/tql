@@ -202,7 +202,8 @@ pub const Violation = struct {
     }
 };
 
-fn mentionsAny(
+/// Whether `t`, under the current substitution, has any of `metas` free.
+pub fn mentionsAny(
     subst: *Substitution,
     t: types.Type,
     metas: []const types.Meta,

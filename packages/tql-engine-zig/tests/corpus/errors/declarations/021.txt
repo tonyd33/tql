@@ -1,0 +1,16 @@
+title: a signature's variables may not be identified with each other
+grammar: typescript
+asserts: error
+
+Both branches of the `if` share one type, so the body forces `a` and `b` to be
+the same. The signature claims they are independent.
+
+--- tql ---
+k : a -> b -> a;
+k x y = if true then x else y;
+main = pure (k 1 2);
+
+--- error ---
+category: signature-mismatch
+span: 1:1-1:17
+Expected `a -> b -> a`, found `a -> a -> a`.
