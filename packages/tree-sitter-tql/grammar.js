@@ -71,7 +71,10 @@ module.exports = grammar({
       ),
 
     class_constraint: $ =>
-      seq(field("class", $.type_identifier), field("variable", $.type_variable)),
+      seq(
+        field("class", $.type_identifier),
+        field("variable", $.type_variable),
+      ),
 
     definition: $ =>
       seq(

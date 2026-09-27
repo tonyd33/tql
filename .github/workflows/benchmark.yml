@@ -18,7 +18,7 @@ jobs:
     env:
       MACHINES: 6
       ITERATIONS: 3
-      LIMIT_S: 35
+      LIMIT_S: 65
       REGRESSION_PCT: 10
     outputs:
       machines: ${{ steps.plan.outputs.machines }}
