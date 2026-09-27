@@ -668,6 +668,66 @@ test "a filter chain over a long list runs in bounded stack" {
     try std.testing.expectEqual(0, out.items.len);
 }
 
+test "a tail call through an over-applied callee runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    // `compose loop identity` takes three arguments and is given four, so
+    // every iteration's tail call is over-applied. `acc < 0` forces the
+    // accumulator, so no thunk chain builds up behind it.
+    try runQuery(allocator,
+        \\loop n acc =
+        \\  if n <= 0 then acc
+        \\  else if acc < 0 then 0
+        \\  else compose loop identity (n - 1) (acc + 1);
+        \\main root = pure (loop 20000 0) root;
+    , &arena, &out);
+
+    try std.testing.expectEqual(1, out.items.len);
+    try std.testing.expectEqual(20000, out.items[0].state.evaluated.number);
+}
+
+test "equality on long lists runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try runQuery(allocator,
+        \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\main root = pure (count 20000 = count 20000) root;
+    , &arena, &out);
+
+    try std.testing.expectEqual(1, out.items.len);
+    // `True` is tag 1.
+    try std.testing.expectEqual(1, out.items[0].state.evaluated.constructed.tag);
+}
+
+test "recursion deeper than the stack budget stops with an error" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    // `n + sum (n - 1)` forces the recursive call before adding, so each level
+    // holds a native frame.
+    try std.testing.expectError(error.StackOverflow, runQuery(allocator,
+        \\sum n = if n <= 0 then 0 else n + sum (n - 1);
+        \\main root = pure (sum 1000000) root;
+    , &arena, &out));
+}
+
 test "the evaluator runs probe without forcing the whole stream" {
     const allocator = std.testing.allocator;
 

@@ -63,6 +63,8 @@ pub const Error = Allocator.Error || error{
     DivideByZero,
     /// Reached only by a program the type checker should have rejected.
     TypeError,
+    /// Evaluation nested deeper than the machine's stack budget.
+    StackOverflow,
     /// A local read a slot bound under a different name. Reached only by a
     /// translation bug, and checked only in safe builds.
     MisplacedLocal,
@@ -210,9 +212,32 @@ pub const Machine = struct {
     /// the single largest source of them.
     args: std.ArrayList(*value.Thunk) = .empty,
 
-    /// Thunks each `expression` activation entered and owes a result, as one
-    /// stack. An activation owns the entries above the mark it took on entry.
-    pending: std.ArrayList(*value.Thunk) = .empty,
+    /// What each `expression` activation owes once its loop produces a value,
+    /// as one stack. An activation owns the entries above the mark it took on
+    /// entry, and pops them in order.
+    frames: std.ArrayList(Frame) = .empty,
+
+    /// The arguments an `apply` frame is still to supply, as one stack in
+    /// frame order.
+    held: std.ArrayList(*value.Thunk) = .empty,
+
+    /// `@frameAddress` where the machine was built, or 0 where the target has
+    /// none to give.
+    stack_base: usize,
+    /// How far below `stack_base` evaluation may nest before it stops with
+    /// error.StackOverflow instead of overrunning the thread's stack.
+    stack_budget: usize = default_stack_budget,
+
+    /// Fits the 8 MiB stack a main thread usually gets. A machine run on a
+    /// smaller stack needs a smaller budget.
+    pub const default_stack_budget = 6 * 1024 * 1024;
+
+    const Frame = union(enum) {
+        /// Overwrite this entered thunk with the value.
+        update: *value.Thunk,
+        /// Apply the value to this many thunks off the top of `held`.
+        apply: usize,
+    };
 
     /// The queried file: what `text` slices, and what `filename` yields.
     pub const Target = struct {
@@ -246,6 +271,7 @@ pub const Machine = struct {
             .interner = &source.env.interner,
             .globals = globals,
             .gpa = gpa,
+            .stack_base = @frameAddress(),
         };
     }
 
@@ -260,7 +286,15 @@ pub const Machine = struct {
         for (self.env_pool.items) |*e| e.deinit(gpa);
         self.env_pool.deinit(gpa);
         self.args.deinit(gpa);
-        self.pending.deinit(gpa);
+        self.frames.deinit(gpa);
+        self.held.deinit(gpa);
+    }
+
+    /// Stop with error.StackOverflow once evaluation has nested past the
+    /// budget. Called by everything that recurses.
+    fn checkStack(self: *const Machine) Error!void {
+        if (self.stack_base == 0) return;
+        if (self.stack_base -| @frameAddress() > self.stack_budget) return error.StackOverflow;
     }
 
     /// Borrow an empty environment buffer, keeping whatever capacity it has.
@@ -395,9 +429,11 @@ pub const Machine = struct {
     /// Evaluate a term to WHNF.
     ///
     /// Tail positions loop rather than recurse: `let` and `case` bodies, and
-    /// a saturated call's body, all become the next term this loop runs. The
-    /// native stack then grows with a term's nesting rather than with the
-    /// length of a list a filter chain walks.
+    /// a call's body, all become the next term this loop runs. An
+    /// over-applied call enters its callee here too, and leaves an `apply`
+    /// frame to supply the rest once the body produces a function. The native
+    /// stack then grows with a term's nesting rather than with the length of
+    /// a list a filter chain walks.
     ///
     /// A `case` scrutinee is the one sub-term evaluated by recursion, and it
     /// is what bounds the depth.
@@ -406,6 +442,8 @@ pub const Machine = struct {
         expr: stg.Expr,
         env: *Env,
     ) Error!value.Value {
+        try self.checkStack();
+
         // Rebound whenever a call enters a body, which runs in the callee's
         // own environment rather than the caller's.
         var current = expr;
@@ -418,166 +456,276 @@ pub const Machine = struct {
         defer for (envs) |e| self.giveEnv(e);
         var next: usize = 0;
 
-        // Thunks this loop entered and owes a result, above this mark on the
-        // machine's stack. Forcing one whose body is another thunk continues
-        // here rather than recursing, so the whole chain is updated when the
-        // loop finally produces a value.
-        const pending_base = self.pending.items.len;
-        defer self.pending.shrinkRetainingCapacity(pending_base);
+        const frames_base = self.frames.items.len;
+        const held_base = self.held.items.len;
+        defer {
+            self.frames.shrinkRetainingCapacity(frames_base);
+            self.held.shrinkRetainingCapacity(held_base);
+        }
 
-        const result: value.Value = while (true) switch (current) {
-            // Forcing the named thunk is itself a tail position. An
-            // unevaluated nullary one continues in this loop, with the thunk
-            // recorded so it is updated with whatever the loop produces.
-            .atom => |atom| {
-                const thunk = try self.resolve(scope.slots(), atom);
-                switch (thunk.state) {
-                    .evaluated => |v| break v,
-                    .evaluating => return error.Cycle,
-                    .traversing => |t| {
-                        const stepped = try self.step(t);
-                        thunk.fill(stepped);
-                        break stepped;
-                    },
-                    .unevaluated => |suspended| {
-                        if (suspended.code.parameters.len > 0) {
+        while (true) {
+            var produced: value.Value = switch (current) {
+                // Forcing the named thunk is itself a tail position. An
+                // unevaluated nullary one continues in this loop, under an
+                // `update` frame that overwrites it with what the loop
+                // produces.
+                .atom => |atom| blk: {
+                    const thunk = try self.resolve(scope.slots(), atom);
+                    switch (thunk.state) {
+                        .evaluated => |v| break :blk v,
+                        .evaluating => return error.Cycle,
+                        .traversing => |t| {
+                            const stepped = try self.step(t);
+                            thunk.fill(stepped);
+                            break :blk stepped;
+                        },
+                        .unevaluated => |suspended| {
+                            if (suspended.code.parameters.len > 0) {
+                                if (!thunk.enter()) return error.Cycle;
+                                const v: value.Value = .{ .closure = .{
+                                    .code = suspended.code,
+                                    .captured = suspended.captured,
+                                } };
+                                thunk.fill(v);
+                                break :blk v;
+                            }
                             if (!thunk.enter()) return error.Cycle;
-                            const v: value.Value = .{ .closure = .{
-                                .code = suspended.code,
-                                .captured = suspended.captured,
-                            } };
-                            thunk.fill(v);
-                            break v;
-                        }
-                        if (!thunk.enter()) return error.Cycle;
-                        try self.pending.append(self.gpa, thunk);
+                            try self.frames.append(self.gpa, .{ .update = thunk });
 
-                        const target = &envs[next];
-                        target.shrink(0);
-                        try target.ensureTotalCapacity(self.gpa, suspended.captured.len);
-                        try target.appendCapturesAssumeCapacity(suspended.captured, suspended.code);
-                        current = suspended.code.body;
-                        scope = target;
-                        next = 1 - next;
-                    },
-                }
-            },
+                            const target = &envs[next];
+                            target.shrink(0);
+                            try target.ensureTotalCapacity(self.gpa, suspended.captured.len);
+                            try target.appendCapturesAssumeCapacity(suspended.captured, suspended.code);
+                            current = suspended.code.body;
+                            scope = target;
+                            next = 1 - next;
+                            continue;
+                        },
+                    }
+                },
 
-            .constructed => |constructed| {
-                break .{ .constructed = try self.construct(
+                .constructed => |constructed| .{ .constructed = try self.construct(
                     constructed.constructor,
                     constructed.tag,
                     constructed.fields,
                     scope.slots(),
-                ) };
-            },
+                ) },
 
-            .let => |let| {
-                const base = scope.len();
-                for (let.bindings) |binding| {
-                    note(.let_thunk, @sizeOf(value.Thunk));
-                    const thunk = try self.arena.create(value.Thunk);
-                    try scope.append(self.gpa, thunk, binding.binder);
+                .let => |let| {
+                    const base = scope.len();
+                    for (let.bindings) |binding| {
+                        note(.let_thunk, @sizeOf(value.Thunk));
+                        const thunk = try self.arena.create(value.Thunk);
+                        try scope.append(self.gpa, thunk, binding.binder);
+                    }
+
+                    // A recursive group is filled against the environment
+                    // holding all of its own binders, so a binding may
+                    // reference one that comes later. A non-recursive one is
+                    // filled against the environment as it stood before the
+                    // group, so a binding sees only what was already in scope.
+                    const slots = scope.slots();
+                    const inner = if (let.recursive) slots else slots.prefix(base);
+                    for (let.bindings, base..) |binding, i| {
+                        try self.fillAllocation(slots.thunks[i], binding.value, inner);
+                    }
+                    current = let.body;
+                    continue;
+                },
+
+                .case => |case_expr| {
+                    // The scrutinee runs in this environment and may push its
+                    // own binders onto it. The alternative's binders are
+                    // numbered from where the scrutinee started, so those are
+                    // dropped first.
+                    const mark = scope.len();
+                    const scrutinee = try self.expression(case_expr.scrutinee, scope);
+                    scope.shrink(mark);
+                    const constructed = switch (scrutinee) {
+                        .constructed => |c| c,
+                        else => return error.TypeError,
+                    };
+
+                    // Alternatives are in tag order and cover every
+                    // constructor, so the tag is the index.
+                    if (constructed.tag >= case_expr.alternatives.len) return error.TypeError;
+                    const alternative = case_expr.alternatives[constructed.tag];
+                    if (alternative.binders.len != constructed.len) return error.TypeError;
+
+                    // The binders stay in scope for the body, which this loop
+                    // runs next. Dropping them afterwards is what the
+                    // recursive form did; binders are globally unique, so
+                    // leaving them costs space and shadows nothing.
+                    //
+                    // Read through the local copy: inline fields live in the
+                    // value itself, so a slice of it must not outlive this
+                    // scope.
+                    note(.case_binder, alternative.binders.len * @sizeOf(*value.Thunk));
+                    try scope.appendSlice(self.gpa, constructed.fields(), alternative.binders);
+                    current = alternative.body;
+                    continue;
+                },
+
+                .apply => |call| blk: {
+                    const callee = try self.force(try self.resolve(scope.slots(), call.callee));
+
+                    // The arguments die with the call, so they come off the
+                    // stack rather than the arena. Truncated before the loop
+                    // continues, so a chain of tail calls does not grow it.
+                    const mark = self.args.items.len;
+                    defer self.args.shrinkRetainingCapacity(mark);
+                    const arguments = try self.pushArgs(call.arguments, scope.slots());
+
+                    const target = &envs[next];
+                    switch (try self.invoke(callee, arguments, target)) {
+                        .value => |v| break :blk v,
+                        .entered => |body| {
+                            current = body;
+                            scope = target;
+                            next = 1 - next;
+                            continue;
+                        },
+                    }
+                },
+
+                .primitive => |call| blk: {
+                    // Not on the argument stack: a primitive forces one
+                    // argument before reading the next, and forcing can grow
+                    // and move it.
+                    var inline_arguments: [4]*value.Thunk = undefined;
+                    const arguments = if (call.arguments.len <= inline_arguments.len)
+                        inline_arguments[0..call.arguments.len]
+                    else
+                        try self.arena.alloc(*value.Thunk, call.arguments.len);
+                    const slots = scope.slots();
+                    for (call.arguments, arguments) |atom, *argument| {
+                        argument.* = try self.resolve(slots, atom);
+                    }
+                    break :blk try self.primitive(call, arguments);
+                },
+            };
+
+            // Settle what this loop owes, innermost first. An `apply` frame
+            // may enter a body, which this loop then runs.
+            while (self.frames.items.len > frames_base) {
+                switch (self.frames.pop().?) {
+                    .update => |thunk| thunk.fill(produced),
+                    .apply => |count| {
+                        const start = self.held.items.len - count;
+                        const target = &envs[next];
+                        switch (try self.invokeHeld(produced, start, target)) {
+                            .value => |v| produced = v,
+                            .entered => |body| {
+                                current = body;
+                                scope = target;
+                                next = 1 - next;
+                                break;
+                            },
+                        }
+                    },
                 }
-
-                // A recursive group is filled against the environment holding
-                // all of its own binders, so a binding may reference one that
-                // comes later. A non-recursive one is filled against the
-                // environment as it stood before the group, so a binding sees
-                // only what was already in scope.
-                const slots = scope.slots();
-                const inner = if (let.recursive) slots else slots.prefix(base);
-                for (let.bindings, base..) |binding, i| {
-                    try self.fillAllocation(slots.thunks[i], binding.value, inner);
-                }
-                current = let.body;
-            },
-
-            .case => |case_expr| {
-                // The scrutinee runs in this environment and may push its own
-                // binders onto it. The alternative's binders are numbered from
-                // where the scrutinee started, so those are dropped first.
-                const mark = scope.len();
-                const scrutinee = try self.expression(case_expr.scrutinee, scope);
-                scope.shrink(mark);
-                const constructed = switch (scrutinee) {
-                    .constructed => |c| c,
-                    else => return error.TypeError,
-                };
-
-                // Alternatives are in tag order and cover every constructor,
-                // so the tag is the index.
-                if (constructed.tag >= case_expr.alternatives.len) return error.TypeError;
-                const alternative = case_expr.alternatives[constructed.tag];
-                if (alternative.binders.len != constructed.len) return error.TypeError;
-
-                // The binders stay in scope for the body, which this loop runs
-                // next. Dropping them afterwards is what the recursive form
-                // did; binders are globally unique, so leaving them costs
-                // space and shadows nothing.
-                //
-                // Read through the local copy: inline fields live in the value
-                // itself, so a slice of it must not outlive this scope.
-                note(.case_binder, alternative.binders.len * @sizeOf(*value.Thunk));
-                try scope.appendSlice(self.gpa, constructed.fields(), alternative.binders);
-                current = alternative.body;
-            },
-
-            .apply => |call| {
-                const callee = try self.force(try self.resolve(scope.slots(), call.callee));
-
-                // The arguments die with the call, so they come off the stack
-                // rather than the arena. Truncated before the loop continues,
-                // so a chain of tail calls does not grow it.
-                const mark = self.args.items.len;
-                const arguments = try self.pushArgs(call.arguments, scope.slots());
-
-                const target = &envs[next];
-                const entered = try self.enter(callee, arguments, target);
-                if (entered == null) {
-                    const result = try self.apply(callee, arguments);
-                    self.args.shrinkRetainingCapacity(mark);
-                    break result;
-                }
-                self.args.shrinkRetainingCapacity(mark);
-                current = entered.?;
-                scope = target;
-                next = 1 - next;
-            },
-
-            .primitive => |call| {
-                const mark = self.args.items.len;
-                defer self.args.shrinkRetainingCapacity(mark);
-                const arguments = try self.pushArgs(call.arguments, scope.slots());
-                break try self.primitive(call, arguments);
-            },
-        };
-
-        // Every thunk this loop entered gets the value it produced. They are
-        // links of one chain, so they all share it.
-        for (self.pending.items[pending_base..]) |thunk| thunk.fill(result);
-        return result;
+            } else return produced;
+        }
     }
 
-    /// Prepare a saturated call to continue in `expression`'s loop: fill `out`
-    /// with the callee's environment and return the body to run.
+    const Invoked = union(enum) {
+        /// A partial application, already a value.
+        value: value.Value,
+        /// The callee's body, to run in the environment `invoke` filled.
+        entered: stg.Expr,
+    };
+
+    /// Call `callee` with `arguments`, for `expression`'s loop to continue.
     ///
-    /// Returns null when the call is partial or over-applied, which the
-    /// general `apply` handles.
-    fn enter(
+    /// Saturated, it fills `out` with the callee's environment and returns the
+    /// body. Over-applied, it does the same with as many arguments as the
+    /// callee takes, and pushes an `apply` frame holding the rest. Partial, it
+    /// returns the closure with the arguments kept on it.
+    ///
+    /// Preconditions:
+    /// - `arguments` is not a slice of `held`
+    fn invoke(
         self: *Machine,
         callee: value.Value,
         arguments: []const *value.Thunk,
         out: *Env,
-    ) Error!?stg.Expr {
+    ) Error!Invoked {
         const closure = switch (callee) {
             .closure => |c| c,
             else => return error.TypeError,
         };
+        const needed = closure.code.parameters.len - closure.applied.len;
+        if (arguments.len < needed) return .{ .value = try self.partial(closure, arguments) };
 
+        if (arguments.len > needed) {
+            try self.held.appendSlice(self.gpa, arguments[needed..]);
+            try self.frames.append(self.gpa, .{ .apply = arguments.len - needed });
+        }
+        return .{ .entered = try self.enter(closure, arguments[0..needed], out) };
+    }
+
+    /// `invoke`, for the arguments of an `apply` frame just popped: those on
+    /// `held` from `start` to its top.
+    ///
+    /// Leaves `held` truncated to `start`, plus whatever a further `apply`
+    /// frame still holds.
+    fn invokeHeld(
+        self: *Machine,
+        callee: value.Value,
+        start: usize,
+        out: *Env,
+    ) Error!Invoked {
+        const closure = switch (callee) {
+            .closure => |c| c,
+            else => return error.TypeError,
+        };
+        const arguments = self.held.items[start..];
+        const needed = closure.code.parameters.len - closure.applied.len;
+        if (arguments.len < needed) {
+            const v = try self.partial(closure, arguments);
+            self.held.shrinkRetainingCapacity(start);
+            return .{ .value = v };
+        }
+
+        const body = try self.enter(closure, arguments[0..needed], out);
+        const rest = arguments.len - needed;
+        if (rest > 0) {
+            // The rest are already on `held`. Moved down over the ones just
+            // consumed, they become the next frame's without reallocating.
+            std.mem.copyForwards(*value.Thunk, self.held.items[start..], arguments[needed..]);
+            try self.frames.append(self.gpa, .{ .apply = rest });
+        }
+        self.held.shrinkRetainingCapacity(start + rest);
+        return .{ .entered = body };
+    }
+
+    /// A closure with `arguments` kept on it after the ones it already had.
+    fn partial(self: *Machine, closure: value.Closure, arguments: []const *value.Thunk) Error!value.Value {
         const supplied = closure.applied.len + arguments.len;
+        note(.apply_partial, supplied * @sizeOf(*value.Thunk));
+        const applied = try self.arena.alloc(*value.Thunk, supplied);
+        @memcpy(applied[0..closure.applied.len], closure.applied);
+        @memcpy(applied[closure.applied.len..], arguments);
+        return .{ .closure = .{
+            .code = closure.code,
+            .captured = closure.captured,
+            .applied = applied,
+        } };
+    }
+
+    /// Fill `out` with a saturated call's environment and return the body to
+    /// run.
+    ///
+    /// Preconditions:
+    /// - `arguments` supplies exactly the parameters `closure` still lacks
+    fn enter(
+        self: *Machine,
+        closure: value.Closure,
+        arguments: []const *value.Thunk,
+        out: *Env,
+    ) Error!stg.Expr {
         const parameters = closure.code.parameters;
-        if (supplied != parameters.len) return null;
+        if (closure.applied.len + arguments.len != parameters.len) return error.TypeError;
 
         out.shrink(0);
         note(.enter_captures, (closure.captured.len + closure.code.parameters.len) * @sizeOf(*value.Thunk));
@@ -992,52 +1140,64 @@ pub const Machine = struct {
 
     /// Structural equality. Forces both sides only as far as it must to
     /// decide.
-    fn equal(self: *Machine, left: value.Value, right: value.Value) Error!bool {
-        return switch (left) {
-            .node => |a| switch (right) {
-                .node => |b| a.inner.eql(b.inner),
-                else => error.TypeError,
-            },
-            .range => |a| switch (right) {
-                .range => |b| std.meta.eql(a, b),
-                else => error.TypeError,
-            },
-            .number => |a| switch (right) {
-                .number => |b| a == b,
-                else => error.TypeError,
-            },
-            .string => |a| switch (right) {
-                .string => |b| std.mem.eql(u8, a, b),
-                else => error.TypeError,
-            },
-            .constructed => |a| switch (right) {
-                .constructed => |b| blk: {
-                    if (a.tag != b.tag) break :blk false;
-                    if (a.len != b.len) break :blk false;
-                    for (a.fields(), b.fields()) |x, y| {
-                        if (!try self.equal(try self.force(x), try self.force(y))) break :blk false;
-                    }
-                    break :blk true;
+    fn equal(self: *Machine, left_value: value.Value, right_value: value.Value) Error!bool {
+        try self.checkStack();
+
+        var left = left_value;
+        var right = right_value;
+        while (true) {
+            switch (left) {
+                .node => |a| switch (right) {
+                    .node => |b| return a.inner.eql(b.inner),
+                    else => return error.TypeError,
                 },
-                else => error.TypeError,
-            },
-            // Labels are sorted, so the same record type gives the same order
-            // on both sides and the fields pair up positionally.
-            .record => |a| switch (right) {
-                .record => |b| blk: {
-                    if (a.len != b.len) break :blk false;
+                .range => |a| switch (right) {
+                    .range => |b| return std.meta.eql(a, b),
+                    else => return error.TypeError,
+                },
+                .number => |a| switch (right) {
+                    .number => |b| return a == b,
+                    else => return error.TypeError,
+                },
+                .string => |a| switch (right) {
+                    .string => |b| return std.mem.eql(u8, a, b),
+                    else => return error.TypeError,
+                },
+                .constructed => |a| {
+                    const b = switch (right) {
+                        .constructed => |c| c,
+                        else => return error.TypeError,
+                    };
+                    if (a.tag != b.tag or a.len != b.len) return false;
+                    if (a.len == 0) return true;
+
+                    const xs = a.fields();
+                    const ys = b.fields();
+                    for (xs[0 .. xs.len - 1], ys[0 .. ys.len - 1]) |x, y| {
+                        if (!try self.equal(try self.force(x), try self.force(y))) return false;
+                    }
+                    // The last field is compared by the next iteration rather
+                    // than by recursion, so a list's spine costs no stack.
+                    left = try self.force(xs[xs.len - 1]);
+                    right = try self.force(ys[ys.len - 1]);
+                },
+                // Labels are sorted, so the same record type gives the same
+                // order on both sides and the fields pair up positionally.
+                .record => |a| {
+                    const b = switch (right) {
+                        .record => |r| r,
+                        else => return error.TypeError,
+                    };
+                    if (a.len != b.len) return false;
                     for (a, b) |x, y| {
-                        if (!std.mem.eql(u8, x.label, y.label)) break :blk false;
-                        if (!try self.equal(try self.force(x.thunk), try self.force(y.thunk))) {
-                            break :blk false;
-                        }
+                        if (!std.mem.eql(u8, x.label, y.label)) return false;
+                        if (!try self.equal(try self.force(x.thunk), try self.force(y.thunk))) return false;
                     }
-                    break :blk true;
+                    return true;
                 },
-                else => error.TypeError,
-            },
-            else => error.TypeError,
-        };
+                else => return error.TypeError,
+            }
+        }
     }
 
     fn boolValue(self: *Machine, b: bool) Error!value.Value {
@@ -1089,40 +1249,27 @@ pub const Machine = struct {
         callee: value.Value,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
-        if (arguments.len == 0) return callee;
+        var function = callee;
+        var remaining = arguments;
+        while (remaining.len > 0) {
+            const closure = switch (function) {
+                .closure => |c| c,
+                else => return error.TypeError,
+            };
+            const needed = closure.code.parameters.len - closure.applied.len;
+            if (remaining.len < needed) return try self.partial(closure, remaining);
 
-        const closure = switch (callee) {
-            .closure => |c| c,
-            else => return error.TypeError,
-        };
+            note(.apply_all, closure.code.parameters.len * @sizeOf(*value.Thunk));
+            const all = try self.arena.alloc(*value.Thunk, closure.code.parameters.len);
+            @memcpy(all[0..closure.applied.len], closure.applied);
+            @memcpy(all[closure.applied.len..], remaining[0..needed]);
 
-        const supplied = closure.applied.len + arguments.len;
-        const arity = closure.code.parameters.len;
-
-        if (supplied < arity) {
-            // Partial: remember what was supplied and stay a value.
-            note(.apply_partial, supplied * @sizeOf(*value.Thunk));
-            const applied = try self.arena.alloc(*value.Thunk, supplied);
-            @memcpy(applied[0..closure.applied.len], closure.applied);
-            @memcpy(applied[closure.applied.len..], arguments);
-            return .{ .closure = .{
-                .code = closure.code,
-                .captured = closure.captured,
-                .applied = applied,
-            } };
+            // Over-applied, the result is a function and the rest are its
+            // arguments.
+            function = try self.run(closure.code, closure.captured, all);
+            remaining = remaining[needed..];
         }
-
-        note(.apply_all, supplied * @sizeOf(*value.Thunk));
-        const all = try self.arena.alloc(*value.Thunk, supplied);
-        @memcpy(all[0..closure.applied.len], closure.applied);
-        @memcpy(all[closure.applied.len..], arguments);
-
-        const result = try self.run(closure.code, closure.captured, all[0..arity]);
-
-        // Over-applied: the result is a function, and the rest are its
-        // arguments. `compose f g x` reaches this on every pipe.
-        if (supplied > arity) return try self.apply(result, all[arity..]);
-        return result;
+        return function;
     }
 
     /// Write a forced value as JSON. This is the `Serial` boundary: it forces
@@ -1131,6 +1278,7 @@ pub const Machine = struct {
     /// Returns error.TypeError on a value with no encoding. The checker
     /// refuses those, so reaching one is a bug rather than a bad query.
     pub fn serialize(self: *Machine, v: value.Value, jws: *std.json.Stringify) Error!void {
+        try self.checkStack();
         switch (v) {
             .number => |n| jws.write(n) catch return error.TypeError,
             .string => |s| jws.write(s) catch return error.TypeError,
