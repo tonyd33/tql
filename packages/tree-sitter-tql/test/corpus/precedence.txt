@@ -293,3 +293,75 @@ main = case b of { False -> f x; True -> g y };
         body: (application
           function: (identifier)
           argument: (identifier))))))
+
+========================================
+dollar application groups to the right
+========================================
+
+main = f $ g $ x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (dollar_application
+      function: (identifier)
+      argument: (dollar_application
+        function: (identifier)
+        argument: (identifier)))))
+
+========================================
+union binds tighter than dollar application
+========================================
+
+main = f $ a <|> b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (dollar_application
+      function: (identifier)
+      argument: (union
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+application binds tighter than dollar application
+========================================
+
+main = map text $ descendants_of_kind :field_declaration root;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (dollar_application
+      function: (application
+        function: (identifier)
+        argument: (identifier))
+      argument: (application
+        function: (application
+          function: (identifier)
+          argument: (kind))
+        argument: (identifier)))))
+
+========================================
+a lambda body extends over dollar application
+========================================
+
+main = \x -> f $ x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (lambda
+      parameter: (identifier)
+      body: (dollar_application
+        function: (identifier)
+        argument: (identifier)))))
