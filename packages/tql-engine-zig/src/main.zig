@@ -285,6 +285,7 @@ fn runQuery(
 
     return run(gpa, io, stdout, stderr, .{
         .query = query,
+        .query_path = from_file,
         .query_target_paths = files,
         .format = format,
         .grammar = grammar_resolved,
@@ -435,24 +436,12 @@ fn runDebug(
 fn reportDiagnostics(
     sink: *const tql.diagnostic.Sink,
     source: []const u8,
+    path: ?[]const u8,
     stderr: *std.Io.Writer,
 ) !void {
-    for (sink.items()) |d| {
-        try stderr.print("{d}:{d}: {t}: {s}\n", .{
-            d.span.start_point.row + 1,
-            d.span.start_point.column + 1,
-            d.category,
-            d.message,
-        });
-
-        var lines = std.mem.splitScalar(u8, source, '\n');
-        var row: u32 = 0;
-        while (lines.next()) |line| : (row += 1) {
-            if (row == d.span.start_point.row) {
-                try stderr.print("  {s}\n", .{line});
-                break;
-            }
-        }
+    for (sink.items(), 0..) |d, i| {
+        if (i > 0) try stderr.writeByte('\n');
+        try d.render(stderr, source, path);
     }
 }
 
@@ -505,7 +494,7 @@ fn runDumpInstructions(
     defer sink.deinit();
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, query, stderr);
+        try reportDiagnostics(&sink, query, from_file, stderr);
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
@@ -523,6 +512,8 @@ fn runDumpInstructions(
 
 const Config = struct {
     query: []const u8,
+    /// The file `query` was read from, or null for an inline query.
+    query_path: ?[]const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
     grammar: *const Grammar,
@@ -870,7 +861,7 @@ fn run(
     defer sink.deinit();
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, config.query, stderr);
+        try reportDiagnostics(&sink, config.query, config.query_path, stderr);
         try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
