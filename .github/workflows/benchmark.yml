@@ -90,6 +90,11 @@ jobs:
       ITERATIONS: ${{ needs.setup.outputs.iterations }}
       MACHINE: ${{ matrix.machine }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql
+
       - name: Download binaries
         uses: actions/download-artifact@v8
         with:
@@ -110,17 +115,7 @@ jobs:
         run: |
           mkdir -p results/head results/base
           workers=2
-          query='
-          . / function_definition as @fn
-          | @fn / function_declarator as @fn_decl
-          | @fn_decl / identifier as @name
-          | @fn.body as @body
-          | select(
-            any(@body // call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-            any(@body // goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
-          )
-          | { @name }
-          '
+          query=$(cat tql/packages/tql-engine-zig/benchmarks/linux/query.tql)
           for i in $(seq 1 "$ITERATIONS"); do
             # shuffle order so no possible cache pollution. need even machines
             if (( (i + MACHINE) % 2 == 0 )); then
