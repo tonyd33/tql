@@ -786,13 +786,17 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.endObject();
 }
 
+/// How much of one file's scratch a worker keeps for the next. A file that
+/// needed more has the excess released instead of held for the rest of the run.
+const worker_scratch_retained = 64 * 1024 * 1024;
+
 fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     defer arena.deinit();
 
     while (try ctx.path_queue.pop()) |entry| {
         defer {
-            _ = arena.reset(.retain_capacity);
+            _ = arena.reset(.{ .retain_with_limit = worker_scratch_retained });
             _ = ctx.progress.done.fetchAdd(1, .monotonic);
         }
 

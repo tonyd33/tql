@@ -189,6 +189,9 @@ pub const Machine = struct {
     ///
     /// A cursor holds a heap-allocated stack, so it cannot live in the arena.
     cursors: std.ArrayList(*ts.TreeCursor) = .empty,
+    /// Cursors whose walk ran out, ready to be reset onto a new node. Each is
+    /// also in `cursors`.
+    spare_cursors: std.ArrayList(*ts.TreeCursor) = .empty,
     gpa: Allocator,
 
     /// Environment buffers lent to `expression` and returned on exit.
@@ -206,6 +209,10 @@ pub const Machine = struct {
     /// unwinds with the call replaces one arena allocation per call, which is
     /// the single largest source of them.
     args: std.ArrayList(*value.Thunk) = .empty,
+
+    /// Thunks each `expression` activation entered and owes a result, as one
+    /// stack. An activation owns the entries above the mark it took on entry.
+    pending: std.ArrayList(*value.Thunk) = .empty,
 
     /// The queried file: what `text` slices, and what `filename` yields.
     pub const Target = struct {
@@ -249,9 +256,11 @@ pub const Machine = struct {
             gpa.destroy(c);
         }
         self.cursors.deinit(gpa);
-        for (self.env_pool.items) |*e| e.deinit(self.envAllocator());
+        self.spare_cursors.deinit(gpa);
+        for (self.env_pool.items) |*e| e.deinit(gpa);
         self.env_pool.deinit(gpa);
         self.args.deinit(gpa);
+        self.pending.deinit(gpa);
     }
 
     /// Borrow an empty environment buffer, keeping whatever capacity it has.
@@ -281,17 +290,32 @@ pub const Machine = struct {
     fn giveEnv(self: *Machine, buffer: Env) void {
         self.env_pool.append(self.gpa, buffer) catch {
             var owned = buffer;
-            owned.deinit(self.envAllocator());
+            owned.deinit(self.gpa);
         };
     }
 
-    /// A cursor positioned on `n`, owned by the machine.
+    /// A cursor positioned on `n`, owned by the machine. Reuses a spare one
+    /// when there is one.
     fn newCursor(self: *Machine, n: ts.Node) Error!*ts.TreeCursor {
+        if (self.spare_cursors.pop()) |cursor| {
+            cursor.reset(n);
+            return cursor;
+        }
         const cursor = try self.gpa.create(ts.TreeCursor);
         errdefer self.gpa.destroy(cursor);
         cursor.* = n.walk();
+        errdefer cursor.destroy();
         try self.cursors.append(self.gpa, cursor);
         return cursor;
+    }
+
+    /// Make the cursor of a walk that ran out available to the next one.
+    ///
+    /// Preconditions:
+    /// - nothing reads `cursor` again until `newCursor` hands it out
+    fn releaseCursor(self: *Machine, cursor: *ts.TreeCursor) void {
+        // Left in `cursors` if this fails, so it is still freed with the run.
+        self.spare_cursors.append(self.gpa, cursor) catch {};
     }
 
     /// Read an atom without forcing it.
@@ -361,18 +385,11 @@ pub const Machine = struct {
         defer self.giveEnv(env);
 
         note(.run_env, (captured.len + code.parameters.len) * @sizeOf(*value.Thunk));
-        try env.ensureTotalCapacity(self.envAllocator(), captured.len + arguments.len);
+        try env.ensureTotalCapacity(self.gpa, captured.len + arguments.len);
         try env.appendCapturesAssumeCapacity(captured, code);
         env.appendSliceAssumeCapacity(arguments, code.parameters);
 
         return try self.expression(code.body, &env);
-    }
-
-    // IMPROVE: environments are LIFO but the arena frees nothing until the run
-    // ends, so a deep recursion retains a backing array per activation whether
-    // or not it's live. A stack allocator would fit these exactly.
-    fn envAllocator(self: *Machine) Allocator {
-        return self.arena;
     }
 
     /// Evaluate a term to WHNF.
@@ -401,11 +418,12 @@ pub const Machine = struct {
         defer for (envs) |e| self.giveEnv(e);
         var next: usize = 0;
 
-        // Thunks this loop entered and owes a result. Forcing one whose body
-        // is another thunk continues here rather than recursing, so the whole
-        // chain is updated when the loop finally produces a value.
-        var pending: std.ArrayList(*value.Thunk) = .empty;
-        defer pending.deinit(self.envAllocator());
+        // Thunks this loop entered and owes a result, above this mark on the
+        // machine's stack. Forcing one whose body is another thunk continues
+        // here rather than recursing, so the whole chain is updated when the
+        // loop finally produces a value.
+        const pending_base = self.pending.items.len;
+        defer self.pending.shrinkRetainingCapacity(pending_base);
 
         const result: value.Value = while (true) switch (current) {
             // Forcing the named thunk is itself a tail position. An
@@ -432,11 +450,11 @@ pub const Machine = struct {
                             break v;
                         }
                         if (!thunk.enter()) return error.Cycle;
-                        try pending.append(self.envAllocator(), thunk);
+                        try self.pending.append(self.gpa, thunk);
 
                         const target = &envs[next];
                         target.shrink(0);
-                        try target.ensureTotalCapacity(self.envAllocator(), suspended.captured.len);
+                        try target.ensureTotalCapacity(self.gpa, suspended.captured.len);
                         try target.appendCapturesAssumeCapacity(suspended.captured, suspended.code);
                         current = suspended.code.body;
                         scope = target;
@@ -459,7 +477,7 @@ pub const Machine = struct {
                 for (let.bindings) |binding| {
                     note(.let_thunk, @sizeOf(value.Thunk));
                     const thunk = try self.arena.create(value.Thunk);
-                    try scope.append(self.envAllocator(), thunk, binding.binder);
+                    try scope.append(self.gpa, thunk, binding.binder);
                 }
 
                 // A recursive group is filled against the environment holding
@@ -501,7 +519,7 @@ pub const Machine = struct {
                 // Read through the local copy: inline fields live in the value
                 // itself, so a slice of it must not outlive this scope.
                 note(.case_binder, alternative.binders.len * @sizeOf(*value.Thunk));
-                try scope.appendSlice(self.envAllocator(), constructed.fields(), alternative.binders);
+                try scope.appendSlice(self.gpa, constructed.fields(), alternative.binders);
                 current = alternative.body;
             },
 
@@ -537,7 +555,7 @@ pub const Machine = struct {
 
         // Every thunk this loop entered gets the value it produced. They are
         // links of one chain, so they all share it.
-        for (pending.items) |thunk| thunk.fill(result);
+        for (self.pending.items[pending_base..]) |thunk| thunk.fill(result);
         return result;
     }
 
@@ -567,7 +585,7 @@ pub const Machine = struct {
         // known re-check it three times otherwise, and this is the hottest
         // path in the machine.
         try out.ensureTotalCapacity(
-            self.envAllocator(),
+            self.gpa,
             closure.captured.len + closure.applied.len + arguments.len,
         );
         try out.appendCapturesAssumeCapacity(closure.captured, closure.code);
@@ -860,7 +878,12 @@ pub const Machine = struct {
     /// The cursor sits on the node being yielded and is advanced past it
     /// before the tail is suspended.
     fn step(self: *Machine, t: value.Traversal) Error!value.Value {
-        if (!t.live) return self.nil();
+        // Only a walk that is empty from the start arrives here dead. One that
+        // runs out later ends with a plain `Nil` tail below.
+        if (!t.live) {
+            self.releaseCursor(t.cursor);
+            return self.nil();
+        }
 
         const current = t.cursor.node();
 
@@ -875,7 +898,14 @@ pub const Machine = struct {
 
         note(.step_tail, @sizeOf(value.Thunk));
         const tail = try self.arena.create(value.Thunk);
-        tail.* = .{ .state = .{ .traversing = rest } };
+        if (rest.live) {
+            tail.* = .{ .state = .{ .traversing = rest } };
+        } else {
+            // The walk is over, so the tail is already known and the cursor
+            // is free for the next one.
+            tail.* = value.Thunk.value(try self.nil());
+            self.releaseCursor(t.cursor);
+        }
         return try self.cons(try self.nodeThunk(current), tail);
     }
 

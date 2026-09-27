@@ -135,9 +135,10 @@ pub const State = union(enum) {
 /// widening this to an arbitrary callback invites primitives that Core could
 /// express to become native.
 pub const Traversal = struct {
-    /// The cursor this walk advances. Owned by the machine, which frees every
-    /// cursor it handed out when the run ends, so a walk a consumer abandons
-    /// costs one allocation until then rather than leaking.
+    /// The cursor this walk advances. Owned by the machine, which reuses it
+    /// once the walk runs out and frees every cursor when the run ends, so a
+    /// walk a consumer abandons costs one allocation until then rather than
+    /// leaking.
     ///
     /// `ts_node_next_sibling` rescans the parent's children on every call and
     /// ascends when it finds nothing, which makes a node-by-node walk
@@ -145,7 +146,7 @@ pub const Traversal = struct {
     /// stack instead.
     cursor: *ts.TreeCursor,
     /// Whether the cursor is positioned on a node still to be yielded. False
-    /// once the walk has run out.
+    /// only for a walk empty from the start.
     live: bool,
     axis: Axis,
     /// The grammar field to keep, for `field` traversals. Resolved when the
