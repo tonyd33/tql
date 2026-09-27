@@ -11,10 +11,8 @@ has a single element type. The polymorphism is in `ident`, not in the list.
 
 --- tql ---
 main =
-  let {
-    ident x = x
-  } in
-    const [ident 1, length (ident "ab")];
+  let { ident x = x; }
+  in const [ident 1, length (ident "ab")];
 
 --- source ---
 class A {}

@@ -8,9 +8,9 @@ asserts: types, values
 main =
   let {
     step = 10;
-    bump = \x -> x + step
-  } in
-    const [bump 1, bump 2];
+    bump = \x -> x + step;
+  }
+  in const [bump 1, bump 2];
 
 --- source ---
 class A {}

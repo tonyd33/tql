@@ -9,12 +9,10 @@ error — which is the evidence that naming `f` did not call it.
 
 --- tql ---
 main =
-  let {
-    f = \x -> x + 1
-  } in
-    pure { op = f };
+  let { f = \x -> x + 1; }
+  in pure { op = f };
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:1-5:21
+span: 1:1-3:22
 `Serial` is not satisfied for the `op` field, of type `int -> int`.

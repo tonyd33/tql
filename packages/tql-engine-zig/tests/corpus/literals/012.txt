@@ -8,7 +8,7 @@ output; a scalar operator has nowhere to put the absence. A `Maybe` is what
 gives this an answer, and the language does not have one yet.
 
 --- tql ---
-main = pure (1 % 0);
+main = pure $ 1 % 0;
 
 --- source ---
 class A {}

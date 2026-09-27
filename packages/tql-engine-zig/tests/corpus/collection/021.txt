@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = pure (map (\n -> n * 2) (append [1, 2] [3]));
+main = pure $ map (\n -> n * 2) (append [1, 2] [3]);
 
 --- values ---
 [[2, 4, 6]]

@@ -6,10 +6,9 @@ Group structure is delimited by braces alone, with no layout rule, so a missing
 `}` is an ordinary parse error rather than a dedicated diagnostic.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    c
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return c
 
 --- error ---
 category: parse

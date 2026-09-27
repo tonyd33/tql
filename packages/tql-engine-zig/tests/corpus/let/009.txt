@@ -9,9 +9,9 @@ one component, then generalized together.
 main =
   let {
     is_even n = if n = 0 then true else is_odd (n - 1);
-    is_odd n = if n = 0 then false else is_even (n - 1)
-  } in
-    const [is_even 4, is_even 7];
+    is_odd n = if n = 0 then false else is_even (n - 1);
+  }
+  in const [is_even 4, is_even 7];
 
 --- source ---
 class A {}

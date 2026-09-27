@@ -3,8 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main =
-  const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
+main = const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
 
 --- source ---
 class A {}

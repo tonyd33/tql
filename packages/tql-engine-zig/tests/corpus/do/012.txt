@@ -2,17 +2,15 @@ title: a bound scalar is lifted in an operator operand
 grammar: typescript
 asserts: types, values
 
-`expected` is a bound string. The comparison needs a filter operand, so the
-string is lifted to a one-result filter rather than being run.
+`expected` is a bound `String`, compared as an ordinary operand of `=`.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    let expected = "A";
-    n <- c.name;
-    pure (text n = expected) root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  let expected = "A";
+  n <- c.name;
+  return $ text n = expected;
+};
 
 --- source ---
 class A {}

@@ -8,10 +8,10 @@ generator: 10 pairs with 1 then 2, then 20 pairs with 1 then 2, giving
 and give 11, 21, 12, 22.
 
 --- tql ---
-main = \root -> do {
-  l <- const [10, 20] root;
-  r <- const [1, 2] root;
-  pure (l + r) root
+main _ = do {
+  l <- [10, 20];
+  r <- [1, 2];
+  return $ l + r;
 };
 
 --- source ---

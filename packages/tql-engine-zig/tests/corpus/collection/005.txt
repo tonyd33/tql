@@ -5,9 +5,9 @@ asserts: types, values
 One list per class, not one list overall.
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | collect (.body | children | is_kind :method_definition | .name | arr text);
+main = children | is_kind :class_declaration
+  | collect (.body | children | is_kind :method_definition | .name | arr text)
+;
 
 --- source ---
 class A { m() {} n() {} }

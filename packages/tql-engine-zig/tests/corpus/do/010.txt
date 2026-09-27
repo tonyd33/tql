@@ -2,19 +2,18 @@ title: a `do` block with no statements is permitted
 grammar: typescript
 asserts: types, values
 
-It simply evaluates its final expression against the current input.
+It evaluates to its final expression.
 
 --- tql ---
-main root =
-  do {
-    (children | is_kind :class_declaration | .name | arr text) root
-  };
+main root = do {
+  map text $ children_of_kind :class_declaration root;
+};
 
 --- source ---
 class A {}
 
 --- values ---
-["A"]
+["class A {}"]
 
 --- types ---
 main : Node -> [String]

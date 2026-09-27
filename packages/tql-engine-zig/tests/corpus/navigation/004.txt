@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 Only the top-level class is a child of `program`. The nested method is a
-descendant but not a child, so `/` must not reach it.
+descendant but not a child, so `children` does not reach it.
 
 --- tql ---
 main = children | is_kind :method_definition | .name | arr text;

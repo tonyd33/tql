@@ -3,15 +3,13 @@ grammar: typescript
 asserts: types, values
 
 A field holds one value, so a query yielding many is collected at the field.
-An empty query gives an empty list and the record is still built. The record no
-longer annihilates, because there is no product to annihilate.
+An empty query gives an empty list and the record is still built.
 
 --- tql ---
-main root =
-  do {
-    b <- collect (children | is_kind :interface_declaration | arr text) root;
-    pure { a = 1, b = b } root
-  };
+main root = do {
+  b <- collect (children | is_kind :interface_declaration | arr text) root;
+  return { a = 1, b = b };
+};
 
 --- source ---
 class A {}

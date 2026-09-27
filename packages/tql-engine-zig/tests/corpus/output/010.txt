@@ -3,13 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  collect (\r -> do {
-    c <- (children | is_kind :class_declaration) r;
-    n <- c.name;
-    methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
-    pure { name = text n, methods = methods } r
-  }) root;
+class_record c = do {
+  n <- c.name;
+  methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
+  return { name = text n, methods = methods };
+};
+main = collect $ children | is_kind :class_declaration | class_record;
 
 --- source ---
 class A { m() {} }
@@ -24,4 +23,5 @@ class B {}
 ]
 
 --- types ---
+class_record : Node -> [{methods: [String], name: String}]
 main : Node -> [[{methods: [String], name: String}]]

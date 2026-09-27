@@ -6,7 +6,7 @@ asserts: types, values
 contributes every one of its values.
 
 --- tql ---
-main = collect (const [1, 2] <|> pure 3);
+main = collect $ const [1, 2] <|> pure 3;
 
 --- source ---
 class A {}

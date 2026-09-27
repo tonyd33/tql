@@ -2,8 +2,7 @@ title: a filter passed as an argument
 grammar: typescript
 asserts: types, values
 
-`apply_to_classes` takes a filter and runs it as a pipe stage. The argument is
-already `Filter`-typed, so it is used directly rather than lifted.
+`apply_to_classes` takes a filter and runs it as a pipe stage.
 
 --- tql ---
 apply_to_classes f = children | is_kind :class_declaration | f;

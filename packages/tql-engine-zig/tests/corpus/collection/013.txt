@@ -6,12 +6,12 @@ The two record expressions list their labels in opposite order. They are the
 same value and the same type.
 
 --- tql ---
-main root =
+main =
   let {
     x = { a = 1, b = 2 };
-    y = { b = 2, a = 1 }
-  } in
-    pure (x = y) root;
+    y = { b = 2, a = 1 };
+  }
+  in pure (x = y);
 
 --- source ---
 class A {}

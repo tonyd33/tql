@@ -4,10 +4,8 @@ asserts: types, values
 
 --- tql ---
 main =
-  let {
-    is_named c = (.name | arr (\n -> text n = "A")) c
-  } in
-    children | is_kind :class_declaration | is_named;
+  let { is_named n = text n = "A"; }
+  in children | is_kind :class_declaration | .name | arr is_named;
 
 --- source ---
 class A {}

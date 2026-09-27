@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 add x y = x + y;
-main = pure (add 2 3);
+main = pure $ add 2 3;
 
 --- source ---
 class A {}

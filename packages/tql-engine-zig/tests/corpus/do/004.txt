@@ -7,14 +7,13 @@ class it came from, because the outer binding stays in scope inside the inner
 branch. A formulation that lost the outer node could not produce these pairs.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    m <- (.body | children | is_kind :method_definition) c;
-    cn <- c.name;
-    mn <- m.name;
-    pure { class = text cn, method = text mn } root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  m <- (.body | children | is_kind :method_definition) c;
+  cn <- c.name;
+  mn <- m.name;
+  return { class = text cn, method = text mn };
+};
 
 --- source ---
 class A { m() {} n() {} }

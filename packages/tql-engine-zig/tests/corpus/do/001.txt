@@ -3,18 +3,17 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    (.name | arr text) c
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ text c;
+};
 
 --- source ---
 class A {}
 class B {}
 
 --- values ---
-["A", "B"]
+["class A {}", "class B {}"]
 
 --- types ---
 main : Node -> [String]

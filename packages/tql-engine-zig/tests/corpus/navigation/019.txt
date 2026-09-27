@@ -3,16 +3,16 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-deep_fused = collect (descendants_of_kind :class_declaration | .name | arr text);
-deep_piped = collect (descendants | is_kind :class_declaration | .name | arr text);
+deep_fused = collect $ descendants_of_kind :class_declaration | .name | arr text;
+deep_piped = collect $ descendants | is_kind :class_declaration | .name | arr text;
 
-flat_fused = collect (children_of_kind :class_declaration | .name | arr text);
-flat_piped = collect (children | is_kind :class_declaration | .name | arr text);
+flat_fused = collect $ children_of_kind :class_declaration | .name | arr text;
+flat_piped = collect $ children | is_kind :class_declaration | .name | arr text;
 
-main = \r -> pure {
-  deep = deep_fused r = deep_piped r,
-  shallow = flat_fused r = flat_piped r,
-} r;
+main root = return {
+  deep = deep_fused root = deep_piped root,
+  shallow = flat_fused root = flat_piped root,
+};
 
 --- source ---
 class Outer {

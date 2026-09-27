@@ -2,18 +2,16 @@ title: application still binds tighter than `not`
 grammar: typescript
 asserts: types, values
 
-`not is_a "A" c` is `not (is_a "A" c)`. Application binds tighter than `not`, so
+`not is_a "A" n` is `not (is_a "A" n)`. Application binds tighter than `not`, so
 the looser grouping of `not` over comparison does not reach it. The rejected
-reading `(not is_a) "A" c` applies `not` to a function and does not typecheck.
+reading `(not is_a) "A" n` applies `not` to a function and does not typecheck.
 
 --- tql ---
 is_a expected n = text n = expected;
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    n <- c.name;
-    pure (not is_a "A" n) root
-  };
+main = children | is_kind :class_declaration
+  | .name
+  | arr (\n -> not is_a "A" n)
+;
 
 --- source ---
 class A {}

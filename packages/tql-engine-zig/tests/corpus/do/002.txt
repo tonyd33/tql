@@ -2,17 +2,14 @@ title: the body receives the bound value as its current input
 grammar: typescript
 asserts: types, values
 
-The final expression projects `c`, the bound name, and reports the class node
-rather than the root — so the bind rebased the current input onto the bound
-value. `kind c` is a `string`, so `pure` carries it to the `[b]` a `do` body
-must produce.
+The final expression reports the kind of `c`, the class node, rather than the
+root.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    pure (kind c) c
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ kind c;
+};
 
 --- source ---
 class A {}

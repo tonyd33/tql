@@ -6,13 +6,12 @@ Collection inside a field keeps the record single-valued: the list is one
 value, so no product fan-out occurs.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    n <- c.name;
-    methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
-    pure { name = text n, methods = methods } root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
+  return { name = text n, methods = methods };
+};
 
 --- source ---
 class A { m() {} n() {} }

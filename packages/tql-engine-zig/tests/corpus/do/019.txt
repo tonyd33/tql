@@ -3,13 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    n <- .name c;
-    _ <- guard (text n ~ r"^S");
-    [text n]
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  _ <- guard $ text n ~ r"^S";
+  return $ text n;
+};
 
 --- source ---
 class Service {}

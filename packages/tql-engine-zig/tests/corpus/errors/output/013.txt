@@ -2,18 +2,16 @@ title: a stream-bound value may not escape its input type
 grammar: typescript
 asserts: error
 
-`Gen(Gamma, a, b)` excludes variables free in the bind's input type. A
-branch-local value cannot be polymorphic over the type of the input it came
-from, so `f` cannot be used at two different types.
+A name bound by `<-` is not generalized, so `f` cannot be used at two
+different types.
 
 --- tql ---
-main root =
-  do {
-    f <- pure (\x -> x) root;
-    pure { a = f 1, b = f "s" } root
-  };
+main _ = do {
+  f <- [\x -> x];
+  return { a = f 1, b = f "s" };
+};
 
 --- error ---
 category: type-mismatch
-span: 4:27-4:30
+span: 3:27-3:30
 The second use of `f`. Expected `Int`, found `String`.

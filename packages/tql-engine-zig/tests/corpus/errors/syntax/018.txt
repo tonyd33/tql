@@ -6,12 +6,11 @@ Every `do` block ends in an expression. A let statement has no body of its
 own, so it cannot end the block.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    let n = c.name
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  let n = c.name;
+};
 
 --- error ---
 category: parse
-span: 4:5-4:19
+span: 3:3-3:17
