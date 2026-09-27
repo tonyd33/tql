@@ -172,3 +172,75 @@ main = 1;
   (definition
     name: (identifier)
     body: (number)))
+
+========================================
+a data type declaration
+========================================
+
+type Bool = False | True;
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier))))
+
+========================================
+a parameterized recursive data type
+========================================
+
+type List a = Nil | Cons a (List a);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable)
+      field: (parenthesized_type
+        (type_application
+          constructor: (type_identifier)
+          argument: (type_variable))))))
+
+========================================
+a constructor field may be a primitive or a list
+========================================
+
+type Pair = MkPair Int [String];
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_identifier)
+      field: (list_type
+        (type_identifier)))))
+
+========================================
+a signature naming a declared type at its arguments
+========================================
+
+f : List Int -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_application
+        constructor: (type_identifier)
+        argument: (type_identifier))
+      to: (type_identifier))))

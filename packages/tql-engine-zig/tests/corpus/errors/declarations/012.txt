@@ -6,8 +6,8 @@ Each signature annotates exactly one definition in the same program. `g` has no
 definition.
 
 --- tql ---
-g : Filter node string;
-main = kind;
+g : Filter Node String;
+main = arr kind;
 
 --- error ---
 category: orphan-signature

@@ -1,12 +1,18 @@
-title: record fields form a cartesian product
+title: a cross product over two streams is written with `do`
 grammar: typescript
-pending: values
+asserts: types, values
 
-Two values in `a` and two in `b` give four records. Enumeration is left-major
-in field order: `a` varies slowest.
+Record fields are scalars, so a record does not fan out. Two streams are
+combined by binding each in turn: `a` binds first and varies slowest, which is
+the enumeration order `do` gives.
 
 --- tql ---
-main = { a = (pure 1, pure 2), b = (pure "x", pure "y") };
+main root =
+  do {
+    a <- (pure 1, pure 2) root;
+    b <- (pure "x", pure "y") root;
+    pure { a = a, b = b } root
+  };
 
 --- source ---
 class A {}
@@ -18,3 +24,6 @@ class A {}
   { "a": 2, "b": "x" },
   { "a": 2, "b": "y" }
 ]
+
+--- types ---
+main : Node -> [{a: Int, b: String}]

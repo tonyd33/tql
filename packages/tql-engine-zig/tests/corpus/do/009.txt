@@ -1,17 +1,17 @@
 title: the last item in the braces is the final expression
 grammar: typescript
-pending: values
+asserts: types, values
 
 Each `name <- query` is terminated by `;`. The last item carries no `;`
-separating it from a successor, so it is the unique final expression. Compare
-DO-12, where the block has no statements at all.
+separating it from a successor, so it is the unique final expression. Compare a
+block with no statements at all, whose final expression is its only item.
 
 --- tql ---
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    m <- (children | is_kind :method_definition) c.body;
-    (.name | text) m
+    m <- (.body | children | is_kind :method_definition) c;
+    (.name | arr text) m
   };
 
 --- source ---
@@ -19,3 +19,6 @@ class A { m() {} }
 
 --- values ---
 ["m"]
+
+--- types ---
+main : Node -> [String]

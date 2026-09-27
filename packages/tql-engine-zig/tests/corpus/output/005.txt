@@ -1,12 +1,12 @@
 title: byte offsets and columns count UTF-8 bytes, not characters
 grammar: typescript
-pending: values
+asserts: types, values
 
 `é` occupies two bytes, so the `"héllo"` string node spans bytes 8 to 16 and
 ends at column 16. A character-based encoding would report 15.
 
 --- tql ---
-main = descendants | is_kind :string | range;
+main = descendants | is_kind :string | arr range;
 
 --- source ---
 let s = "héllo";
@@ -20,3 +20,6 @@ let s = "héllo";
     "end_point": { "row": 0, "column": 16 }
   }
 ]
+
+--- types ---
+main : Node -> [Range]

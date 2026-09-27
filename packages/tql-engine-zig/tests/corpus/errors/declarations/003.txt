@@ -8,7 +8,7 @@ The binding is branch-local to the block.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    (.name | text) c
+    (.name | arr text) c
   };
 after = c;
 

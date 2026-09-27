@@ -1,14 +1,14 @@
 title: a `do` bind over a non-node stream
 grammar: typescript
-pending: values
+asserts: types, values
 
 Stream binding is not node-specific; it binds any filter's outputs.
 
 --- tql ---
 main _root =
   do {
-    n <- [1, 2, 3];
-    [n * 10]
+    n <- (pure 1, pure 2, pure 3) _root;
+    pure (n * 10) _root
   };
 
 --- source ---
@@ -16,3 +16,6 @@ class A {}
 
 --- values ---
 [10, 20, 30]
+
+--- types ---
+main : Node -> [Int]

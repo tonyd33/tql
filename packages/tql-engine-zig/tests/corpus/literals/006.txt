@@ -1,11 +1,11 @@
 title: `!~` is the negated match
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | \c -> text c.name !~ r"^Ser";
+  | .name | arr (\n -> text n !~ r"^Ser");
 
 --- source ---
 class Service {}
@@ -13,3 +13,6 @@ class Other {}
 
 --- values ---
 [false, true]
+
+--- types ---
+main : Node -> [Bool]

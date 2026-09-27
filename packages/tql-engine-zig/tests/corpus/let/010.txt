@@ -1,6 +1,6 @@
 title: a local binding shadows a global definition
 grammar: typescript
-pending: values
+asserts: types, values
 
 Resolution is lexical first, then global. The local `label` wins inside the
 `let` body. The global `other`, defined after `main`, still resolves `label` to
@@ -21,3 +21,8 @@ class A {}
 
 --- values ---
 ["local", "global"]
+
+--- types ---
+label : String
+main : Node -> [String]
+other : String

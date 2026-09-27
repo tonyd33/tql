@@ -1,6 +1,6 @@
 title: modulo
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure (7 % 3);
@@ -10,3 +10,6 @@ class A {}
 
 --- values ---
 [1]
+
+--- types ---
+main : Node -> [Int]

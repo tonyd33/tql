@@ -1,15 +1,20 @@
-title: a filter output is not serializable
+title: `main` bound to a projection is not a filter
 grammar: typescript
 
-`main` yields a filter value. Filters have no JSON encoding and fail `Serial`
-before the query runs.
+`main` must be `Filter Node output`. A projection is `Node -> String`, which
+is an ordinary function rather than a filter, so it does not unify with
+`Node -> [output]` for any `output`.
+
+This fixture once claimed a `Serial` failure, back when `kind` was
+`Filter Node String` and `main = kind` was the eta-reduction of a correct
+program — so it did not fail at all. Projections are now functions, and the
+failure is in `main`'s own type rather than in `Serial`.
 
 --- tql ---
 main = kind;
 
 --- error ---
-category: unsatisfied-constraint
+category: main-type
 span: 1:8-1:12
-`Serial (Filter node string)` is not satisfied. Note the distinction from a
-correct program: `. | kind` yields strings and is accepted, while `kind` here
-is a bare filter *value* in a value position.
+`main` must be `Filter Node output`. Found `Node -> String`; a projection
+reaches filter position through `arr`.

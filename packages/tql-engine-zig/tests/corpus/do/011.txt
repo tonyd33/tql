@@ -1,6 +1,6 @@
 title: a bound node is lifted when it begins navigation
 grammar: typescript
-pending: values
+asserts: types, values
 
 `c` is a node value, not a filter. Navigation requires a filter input, so the
 node is lifted to a one-result filter and navigation starts from it.
@@ -9,7 +9,7 @@ node is lifted to a one-result filter and navigation starts from it.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    (descendants | is_kind :property_identifier | text) c
+    (descendants | is_kind :property_identifier | arr text) c
   };
 
 --- source ---
@@ -17,3 +17,6 @@ class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

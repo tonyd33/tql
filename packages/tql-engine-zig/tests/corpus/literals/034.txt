@@ -1,6 +1,6 @@
 title: parentheses override precedence
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure ((2 + 3) * 4);
@@ -10,3 +10,6 @@ class A {}
 
 --- values ---
 [20]
+
+--- types ---
+main : Node -> [Int]

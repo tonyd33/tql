@@ -1,12 +1,15 @@
-title: `not` negates each boolean output
+title: `not` negates a boolean
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main = not (pure true, pure false);
+main = pure (not true), pure (not false);
 
 --- source ---
 class A {}
 
 --- values ---
 [false, true]
+
+--- types ---
+main : Node -> [Bool]

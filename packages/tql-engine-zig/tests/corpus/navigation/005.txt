@@ -1,12 +1,15 @@
 title: static descendant navigation reaches nested nodes
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main = descendants | is_kind :method_definition | .name | text;
+main = descendants | is_kind :method_definition | .name | arr text;
 
 --- source ---
 class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

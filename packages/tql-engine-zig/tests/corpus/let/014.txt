@@ -1,12 +1,12 @@
 title: `let` inside a pipe stage
 grammar: typescript
-pending: values
+asserts: types, values
 
 The group is evaluated once per input value from the left stage.
 
 --- tql ---
 main =
-  children | is_kind :class_declaration | let { n = .name | text } in n;
+  children | is_kind :class_declaration | let { n = .name | arr text } in n;
 
 --- source ---
 class A {}
@@ -14,3 +14,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+main : Node -> [String]

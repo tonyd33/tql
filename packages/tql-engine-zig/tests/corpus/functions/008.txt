@@ -1,13 +1,16 @@
 title: a signature on `main` is permitted
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main : Filter node string;
-main = children | is_kind :class_declaration | .name | text;
+main : Filter Node String;
+main = children | is_kind :class_declaration | .name | arr text;
 
 --- source ---
 class A {}
 
 --- values ---
 ["A"]
+
+--- types ---
+main : Node -> [String]

@@ -1,12 +1,15 @@
 title: nested lists and records encode recursively
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main =
-  [children | is_kind :class_declaration
-   | { name = .name | text,
-       methods = [.body | children | is_kind :method_definition | .name | text] }];
+main root =
+  [\r -> do {
+    c <- (children | is_kind :class_declaration) r;
+    n <- c.name;
+    methods <- [.body | children | is_kind :method_definition | .name | arr text] c;
+    pure { name = text n, methods = methods } r
+  }] root;
 
 --- source ---
 class A { m() {} }
@@ -15,7 +18,10 @@ class B {}
 --- values ---
 [
   [
-    { "name": "A", "methods": ["m"] },
-    { "name": "B", "methods": [] }
+    { "methods": ["m"], "name": "A" },
+    { "methods": [], "name": "B" }
   ]
 ]
+
+--- types ---
+main : Node -> [[{methods: [String], name: String}]]

@@ -1,6 +1,6 @@
 title: a lambda with one parameter
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
@@ -14,3 +14,6 @@ class A {}
 
 --- values ---
 [5]
+
+--- types ---
+main : Node -> [Int]

@@ -9,4 +9,4 @@ main = r"^abc";
 --- error ---
 category: unsatisfied-constraint
 span: 1:8-1:14
-`Serial regex` is not satisfied.
+`Serial Regex` is not satisfied.

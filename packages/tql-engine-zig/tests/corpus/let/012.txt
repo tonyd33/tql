@@ -1,6 +1,6 @@
 title: a binding evaluates as a value and does not run a filter
 grammar: typescript
-pending: values
+asserts: types, values
 
 Binding `k` does not execute it. Two uses of `k` on different inputs give
 different results, which is only possible if the binding stored the filter
@@ -9,7 +9,7 @@ rather than its output.
 --- tql ---
 main =
   let {
-    k = kind
+    k = arr kind
   } in
     (children | is_kind :class_declaration | k),
     (descendants | is_kind :property_identifier | k);
@@ -19,3 +19,6 @@ class A { m() {} }
 
 --- values ---
 ["class_declaration", "property_identifier"]
+
+--- types ---
+main : Node -> [String]

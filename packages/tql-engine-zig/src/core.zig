@@ -5,19 +5,35 @@
 //!        | literal
 //!        | \x -> expr
 //!        | expr_1 expr_2
-//!        | if expr_1 then expr_2 else expr_3
+//!        | case expr of { C x_1 .. x_n -> expr; ... }
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //!        | bind x <- expr_1 in expr_2
 //! ```
 
 const std = @import("std");
 const diagnostic = @import("diagnostic.zig");
-const symbols = @import("symbols.zig");
+
+pub const symbols = @import("core/symbols.zig");
+pub const details = @import("core/details.zig");
+pub const env = @import("core/env.zig");
+pub const types = @import("core/types.zig");
+pub const datatypes = @import("core/datatypes.zig");
+const program = @import("core/program.zig");
+
+/// A linked program, and what every stage after desugaring reads.
+pub const Program = program.Program;
+pub const printProgram = program.printProgram;
+
+pub const Synthesized = details.Synthesized;
+pub const PrimOp = details.PrimOp;
+pub const Scalar = details.Scalar;
+
+pub const SymbolId = symbols.SymbolId;
+pub const SymbolTable = symbols.SymbolTable;
+pub const Interner = symbols.Interner;
+pub const InsertError = symbols.InsertError;
 
 const Allocator = std.mem.Allocator;
-
-pub const Span = diagnostic.Span;
-pub const SymbolId = symbols.SymbolId;
 
 // ============================================================================
 //                              Terms
@@ -26,23 +42,24 @@ pub const SymbolId = symbols.SymbolId;
 pub const Term = struct {
     kind: Kind,
     /// Where this term came from, before desugaring.
-    span: Span,
+    // IMPROVE: parameterize this
+    span: diagnostic.Span,
 
     pub const Kind = union(enum) {
         symbol: SymbolId,
         literal: Literal,
         lambda: *const Lambda,
         apply: *const Apply,
-        conditional: *const Conditional,
+        case: *const Case,
         letrec: *const Letrec,
         bind: *const Bind,
     };
 };
 
 pub const Literal = union(enum) {
-    boolean: bool,
     number: i64,
     string: []const u8,
+    /// The pattern as written. Desugaring has checked that it compiles.
     regex: []const u8,
 };
 
@@ -56,10 +73,15 @@ pub const Apply = struct {
     argument: Term,
 };
 
-pub const Conditional = struct {
-    condition: Term,
-    consequence: Term,
-    alternative: Term,
+pub const Case = struct {
+    scrutinee: Term,
+    alternatives: []const Alternative,
+
+    pub const Alternative = struct {
+        constructor: SymbolId,
+        binders: []const SymbolId,
+        body: Term,
+    };
 };
 
 pub const Letrec = struct {
@@ -82,68 +104,84 @@ pub const Bind = struct {
 pub const Definition = struct {
     symbol: SymbolId,
     body: Term,
+    span: diagnostic.Span,
 };
 
 /// Builds the compound terms into an arena. Every term outlives the builder.
 pub const Builder = struct {
     allocator: Allocator,
 
-    pub fn symbol(self: Builder, id: SymbolId, span: Span) Term {
+    pub fn dupe(self: Builder, text: []const u8) ![]const u8 {
+        return try self.allocator.dupe(u8, text);
+    }
+
+    pub fn slice(self: Builder, comptime T: type, n: usize) ![]T {
+        return try self.allocator.alloc(T, n);
+    }
+
+    pub fn dupeSlice(self: Builder, comptime T: type, values: []const T) ![]T {
+        return try self.allocator.dupe(T, values);
+    }
+
+    pub fn join(self: Builder, separator: []const u8, parts: []const []const u8) ![]const u8 {
+        return try std.mem.join(self.allocator, separator, parts);
+    }
+
+    pub fn print(self: Builder, comptime format: []const u8, args: anytype) ![]const u8 {
+        return try std.fmt.allocPrint(self.allocator, format, args);
+    }
+
+    pub fn symbol(self: Builder, id: SymbolId, span: diagnostic.Span) Term {
         _ = self;
         return .{ .kind = .{ .symbol = id }, .span = span };
     }
 
-    pub fn literal(self: Builder, value: Literal, span: Span) Term {
+    pub fn literal(self: Builder, value: Literal, span: diagnostic.Span) Term {
         _ = self;
         return .{ .kind = .{ .literal = value }, .span = span };
     }
-    pub fn lambda(self: Builder, parameter: SymbolId, body: Term, span: Span) !Term {
+    pub fn lambda(self: Builder, parameter: SymbolId, body: Term, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Lambda);
         node.* = .{ .parameter = parameter, .body = body };
         return .{ .kind = .{ .lambda = node }, .span = span };
     }
 
-    pub fn apply(self: Builder, function: Term, argument: Term, span: Span) !Term {
+    pub fn apply(self: Builder, function: Term, argument: Term, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Apply);
         node.* = .{ .function = function, .argument = argument };
         return .{ .kind = .{ .apply = node }, .span = span };
     }
 
     /// `f a b` as `(f a) b`, sharing one span.
-    pub fn applyMany(self: Builder, function: Term, arguments: []const Term, span: Span) !Term {
+    pub fn applyMany(self: Builder, function: Term, arguments: []const Term, span: diagnostic.Span) !Term {
         var result = function;
         for (arguments) |argument| result = try self.apply(result, argument, span);
         return result;
     }
 
-    pub fn conditional(
+    pub fn case(
         self: Builder,
-        condition: Term,
-        consequence: Term,
-        alternative: Term,
-        span: Span,
+        scrutinee: Term,
+        alternatives: []const Case.Alternative,
+        span: diagnostic.Span,
     ) !Term {
-        const node = try self.allocator.create(Conditional);
-        node.* = .{
-            .condition = condition,
-            .consequence = consequence,
-            .alternative = alternative,
-        };
-        return .{ .kind = .{ .conditional = node }, .span = span };
+        const node = try self.allocator.create(Case);
+        node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives };
+        return .{ .kind = .{ .case = node }, .span = span };
     }
 
     pub fn letrec(
         self: Builder,
         bindings: []const Letrec.Binding,
         body: Term,
-        span: Span,
+        span: diagnostic.Span,
     ) !Term {
         const node = try self.allocator.create(Letrec);
         node.* = .{ .bindings = bindings, .body = body };
         return .{ .kind = .{ .letrec = node }, .span = span };
     }
 
-    pub fn bind(self: Builder, name: SymbolId, value: Term, body: Term, span: Span) !Term {
+    pub fn bind(self: Builder, name: SymbolId, value: Term, body: Term, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Bind);
         node.* = .{ .name = name, .value = value, .body = body };
         return .{ .kind = .{ .bind = node }, .span = span };
@@ -153,7 +191,7 @@ pub const Builder = struct {
 /// Emits one line per term. Terms are compared structurally, so line breaks
 /// carry no meaning.
 pub const Printer = struct {
-    interner: *const symbols.Interner,
+    interner: *const Interner,
 
     pub fn term(self: Printer, t: Term, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try self.write(t, w, .top);
@@ -193,15 +231,22 @@ pub const Printer = struct {
                 try self.write(a.argument, w, .operand);
                 if (wrap) try w.writeByte(')');
             },
-            .conditional => |c| {
+            .case => |c| {
                 const wrap = position != .top;
                 if (wrap) try w.writeByte('(');
-                try w.writeAll("if ");
-                try self.write(c.condition, w, .top);
-                try w.writeAll(" then ");
-                try self.write(c.consequence, w, .top);
-                try w.writeAll(" else ");
-                try self.write(c.alternative, w, .top);
+                try w.writeAll("case ");
+                try self.write(c.scrutinee, w, .top);
+                try w.writeAll(" of { ");
+                for (c.alternatives, 0..) |alternative, i| {
+                    if (i > 0) try w.writeAll("; ");
+                    try w.writeAll(self.interner.spelling(alternative.constructor));
+                    for (alternative.binders) |binder| {
+                        try w.print(" {s}", .{self.interner.spelling(binder)});
+                    }
+                    try w.writeAll(" -> ");
+                    try self.write(alternative.body, w, .top);
+                }
+                try w.writeAll(" }");
                 if (wrap) try w.writeByte(')');
             },
             .letrec => |l| {
@@ -231,10 +276,9 @@ pub const Printer = struct {
 
     fn writeLiteral(value: Literal, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("\"{s}\"", .{s}),
-            .regex => |r| try w.print("r\"{s}\"", .{r}),
+            .regex => |pattern| try w.print("r\"{s}\"", .{pattern}),
         }
     }
 };

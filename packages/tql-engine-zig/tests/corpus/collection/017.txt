@@ -1,9 +1,14 @@
 title: a list of records
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main = [children | is_kind :class_declaration | { name = .name | text }];
+main root =
+  [\r -> do {
+    c <- (children | is_kind :class_declaration) r;
+    n <- c.name;
+    pure { name = text n } r
+  }] root;
 
 --- source ---
 class A {}
@@ -11,3 +16,6 @@ class B {}
 
 --- values ---
 [[{ "name": "A" }, { "name": "B" }]]
+
+--- types ---
+main : Node -> [[{name: String}]]

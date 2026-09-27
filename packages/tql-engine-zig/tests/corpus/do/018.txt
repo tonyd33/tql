@@ -1,6 +1,6 @@
 title: `do` and explicit pipe agree when no correlation is needed
 grammar: typescript
-pending: values
+asserts: types, values
 
 Stream bind degenerates to pipe when the body does not need the binding. Both
 spellings appear in one union, so their streams are directly comparable: the
@@ -10,9 +10,9 @@ first two values come from the `do` form and the last two from the pipe form.
 main =
   (\root -> do {
      c <- (children | is_kind :class_declaration) root;
-     (.name | text) c
+     (.name | arr text) c
    }),
-  (children | is_kind :class_declaration | .name | text);
+  (children | is_kind :class_declaration | .name | arr text);
 
 --- source ---
 class A {}
@@ -20,3 +20,6 @@ class B {}
 
 --- values ---
 ["A", "B", "A", "B"]
+
+--- types ---
+main : Node -> [String]

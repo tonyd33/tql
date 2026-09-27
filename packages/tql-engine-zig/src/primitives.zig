@@ -1,403 +1,232 @@
 const std = @import("std");
-const symbols = @import("symbols.zig");
-const types = @import("types.zig");
+const core = @import("core.zig");
+const datatypes = core.datatypes;
+const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
-const Scheme = types.Scheme;
-const SymbolId = symbols.SymbolId;
+const Scalar = core.Scalar;
+const PrimOp = core.PrimOp;
 
-pub const Lowering = enum {
-    identity,
-    pure,
-    compose,
-    @"union",
-    flat_map,
-    branch,
-    not,
-    @"and",
-    @"or",
-    empty,
-    probe,
-    collect,
-    text,
-    kind,
-    range,
-    length,
-    unnest,
-    toint,
-    filename,
-    parent,
-    ancestors,
-    children,
-    descendants,
-    is_kind,
-    field,
-    operator,
-    record_filter,
-};
+/// Builds the primitive schemes into `arena`.
+///
+/// `[a]` and `Bool` are declared types, so a scheme mentioning either needs
+/// the registry that declared them. Hence runtime rather than comptime.
+fn primitiveSchemes(
+    arena: Allocator,
+    declared: *const datatypes.Registry,
+    out: *std.ArrayList(Row),
+    gpa: Allocator,
+) !void {
+    const B = Builder{ .arena = arena, .declared = declared };
 
-const primitive_meta = [_]struct {
-    name: []const u8,
-    scheme: Scheme,
-    lowering: Lowering,
-}{
-    .{
-        .name = "identity",
-        .scheme = .{ .quantified = 1, .type = types.filter_type(
-            types.variable_type(0),
-            types.variable_type(0),
-        ) },
-        .lowering = .identity,
-    },
-    .{
-        .name = "pure",
-        .scheme = .{ .quantified = 2, .type = types.func_type(
-            types.variable_type(0),
-            types.filter_type(types.variable_type(1), types.variable_type(0)),
-        ) },
-        .lowering = .pure,
-    },
-    .{
-        .name = "compose",
-        .scheme = .{
-            .quantified = 3,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.variable_type(1)),
-                types.func_type(
-                    types.filter_type(types.variable_type(1), types.variable_type(2)),
-                    types.filter_type(types.variable_type(0), types.variable_type(2)),
-                ),
-            ),
-        },
-        .lowering = .compose,
-    },
-    .{
-        .name = "union",
-        .scheme = .{
-            .quantified = 2,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.variable_type(1)),
-                types.func_type(
-                    types.filter_type(types.variable_type(0), types.variable_type(1)),
-                    types.filter_type(types.variable_type(0), types.variable_type(1)),
-                ),
-            ),
-        },
-        .lowering = .@"union",
-    },
-    .{
-        .name = "flat_map",
-        .scheme = .{
-            .quantified = 2,
-            .type = types.func_type(
-                types.list_type(types.variable_type(0)),
-                types.func_type(
-                    types.func_type(types.variable_type(0), types.list_type(types.variable_type(1))),
-                    types.list_type(types.variable_type(1)),
-                ),
-            ),
-        },
-        .lowering = .flat_map,
-    },
-    .{
-        .name = "branch",
-        .scheme = .{
-            .quantified = 2,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.bool_type),
-                types.func_type(
-                    types.filter_type(types.variable_type(0), types.variable_type(1)),
-                    types.func_type(
-                        types.filter_type(types.variable_type(0), types.variable_type(1)),
-                        types.filter_type(types.variable_type(0), types.variable_type(1)),
-                    ),
-                ),
-            ),
-        },
-        .lowering = .branch,
-    },
-    .{
-        .name = "not",
-        .scheme = .{
-            .quantified = 1,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.bool_type),
-                types.filter_type(types.variable_type(0), types.bool_type),
-            ),
-        },
-        .lowering = .not,
-    },
-    .{
-        .name = "and",
-        .scheme = .{
-            .quantified = 1,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.bool_type),
-                types.func_type(
-                    types.filter_type(types.variable_type(0), types.bool_type),
-                    types.filter_type(types.variable_type(0), types.bool_type),
-                ),
-            ),
-        },
-        .lowering = .@"and",
-    },
-    .{
-        .name = "or",
-        .scheme = .{
-            .quantified = 1,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.bool_type),
-                types.func_type(
-                    types.filter_type(types.variable_type(0), types.bool_type),
-                    types.filter_type(types.variable_type(0), types.bool_type),
-                ),
-            ),
-        },
-        .lowering = .@"or",
-    },
-    .{
-        .name = "empty",
-        .scheme = .{ .quantified = 2, .type = types.filter_type(
-            types.variable_type(0),
-            types.variable_type(1),
-        ) },
-        .lowering = .empty,
-    },
-    .{
-        .name = "probe",
-        .scheme = .{
-            .quantified = 2,
-            .type = types.func_type(
-                types.filter_type(
-                    types.variable_type(0),
-                    types.variable_type(1),
-                ),
-                types.filter_type(types.variable_type(0), types.bool_type),
-            ),
-        },
-        .lowering = .probe,
-    },
-    .{
-        .name = "collect",
-        .scheme = .{
-            .quantified = 2,
-            .type = types.func_type(
-                types.filter_type(types.variable_type(0), types.variable_type(1)),
-                types.filter_type(types.variable_type(0), types.list_type(types.variable_type(1))),
-            ),
-        },
-        .lowering = .collect,
-    },
-    .{
+    const a = types.variable_type(0);
+
+    try out.append(gpa, .{
         .name = "text",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
-        .lowering = .text,
-    },
-    .{
+        .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
+        .primop = .text,
+    });
+    try out.append(gpa, .{
         .name = "kind",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
-        .lowering = .kind,
-    },
-    .{
+        .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
+        .primop = .kind,
+    });
+    try out.append(gpa, .{
         .name = "range",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.range_type) },
-        .lowering = .range,
-    },
-    .{
+        .scheme = .{ .type = try B.func(types.node_type, types.range_type) },
+        .primop = .range,
+    });
+    try out.append(gpa, .{
         .name = "length",
         .scheme = .{
             .quantified = 1,
-            .constraints = &.{.{ .class = .Sized, .type = types.variable_type(0) }},
-            .type = types.filter_type(types.variable_type(0), types.int_type),
+            .constraints = try arena.dupe(types.TypeClassConstraint, &.{
+                .{ .class = .Sized, .type = a },
+            }),
+            .type = try B.func(a, types.int_type),
         },
-        .lowering = .length,
-    },
-    .{
-        .name = "unnest",
-        .scheme = .{
-            .quantified = 1,
-            .type = types.filter_type(types.list_type(types.variable_type(0)), types.variable_type(0)),
-        },
-        .lowering = .unnest,
-    },
-    .{
+        .primop = .length,
+    });
+    try out.append(gpa, .{
         .name = "toint",
-        .scheme = .{ .type = types.filter_type(types.string_type, types.int_type) },
-        .lowering = .toint,
-    },
-    .{
+        .scheme = .{ .type = try B.filter(types.string_type, types.int_type) },
+        .primop = .toint,
+    });
+    try out.append(gpa, .{
         .name = "filename",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.string_type) },
-        .lowering = .filename,
-    },
-    .{
-        .name = "parent",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.node_type) },
-        .lowering = .parent,
-    },
-    .{
-        .name = "ancestors",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.node_type) },
-        .lowering = .ancestors,
-    },
-    .{
-        .name = "children",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.node_type) },
-        .lowering = .children,
-    },
-    .{
-        .name = "descendants",
-        .scheme = .{ .type = types.filter_type(types.node_type, types.node_type) },
-        .lowering = .descendants,
-    },
+        .scheme = .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
+        .primop = .filename,
+    });
+    inline for (.{
+        .{ "parent", PrimOp.parent },
+        .{ "ancestors", PrimOp.ancestors },
+        .{ "children", PrimOp.children },
+        .{ "descendants", PrimOp.descendants },
+    }) |axis| {
+        try out.append(gpa, .{
+            .name = axis[0],
+            .scheme = .{ .type = try B.filter(types.node_type, types.node_type) },
+            .primop = axis[1],
+        });
+    }
+}
+
+const Row = struct {
+    name: []const u8,
+    scheme: types.Scheme,
+    primop: PrimOp,
 };
 
-const operator_meta = [_]struct {
-    spelling: []const u8,
-    scheme: Scheme,
-}{
-    .{ .spelling = "=", .scheme = comparison(.Eq) },
-    .{ .spelling = "!=", .scheme = comparison(.Eq) },
-    .{ .spelling = "<", .scheme = comparison(.Ord) },
-    .{ .spelling = "<=", .scheme = comparison(.Ord) },
-    .{ .spelling = ">", .scheme = comparison(.Ord) },
-    .{ .spelling = ">=", .scheme = comparison(.Ord) },
-    .{ .spelling = "~", .scheme = matching() },
-    .{ .spelling = "!~", .scheme = matching() },
-    .{ .spelling = "+", .scheme = arithmetic() },
-    .{ .spelling = "-", .scheme = arithmetic() },
-    .{ .spelling = "*", .scheme = arithmetic() },
-    .{ .spelling = "/", .scheme = arithmetic() },
-    .{ .spelling = "%", .scheme = arithmetic() },
+/// Type construction against one arena and registry.
+const Builder = struct {
+    arena: Allocator,
+    declared: *const datatypes.Registry,
+
+    fn func(self: Builder, from: types.Type, to: types.Type) !types.Type {
+        return try types.func(self.arena, from, to);
+    }
+
+    fn list(self: Builder, element: types.Type) !types.Type {
+        return try self.declared.list(self.arena, element);
+    }
+
+    fn filter(self: Builder, input: types.Type, output: types.Type) !types.Type {
+        return try self.declared.filter(self.arena, input, output);
+    }
+
+    fn boolType(self: Builder) !types.Type {
+        return try self.declared.boolType(self.arena);
+    }
 };
 
-fn comparison(comptime class: types.TypeClassConstraint.Class) Scheme {
-    return .{
-        .quantified = 1,
-        .constraints = &.{.{ .class = class, .type = types.variable_type(0) }},
-        .type = types.func_type(types.variable_type(0), types.func_type(types.variable_type(0), types.bool_type)),
+/// The scheme of a scalar operator, built against `arena` and `declared`.
+pub fn operatorScheme(
+    arena: Allocator,
+    declared: *const datatypes.Registry,
+    operator: Scalar,
+) !types.Scheme {
+    const B = Builder{ .arena = arena, .declared = declared };
+    const a = types.variable_type(0);
+
+    const class: ?types.TypeClassConstraint.Class = switch (operator) {
+        .eq, .ne => .Eq,
+        .lt, .lte, .gt, .gte => .Ord,
+        else => null,
+    };
+
+    if (class) |k| {
+        return .{
+            .quantified = 1,
+            .constraints = try arena.dupe(types.TypeClassConstraint, &.{
+                .{ .class = k, .type = a },
+            }),
+            .type = try B.func(a, try B.func(a, try B.boolType())),
+        };
+    }
+
+    return switch (operator) {
+        .match, .not_match => .{ .type = try B.func(
+            types.string_type,
+            try B.func(types.regex_type, try B.boolType()),
+        ) },
+        .add, .subtract, .multiply, .divide, .modulo => .{ .type = try B.func(
+            types.int_type,
+            try B.func(types.int_type, types.int_type),
+        ) },
+        .eq, .ne, .lt, .lte, .gt, .gte => unreachable,
     };
 }
 
-fn matching() Scheme {
-    return .{ .type = types.func_type(types.string_type, types.func_type(types.regex_type, types.bool_type)) };
+/// Declares the structural types, then interns the primitives with their
+/// schemes. Called once on a fresh environment, before any body is resolved,
+/// so a declaration colliding with a primitive's name fails on intern.
+pub fn populate(target: *core.env.Env) !void {
+    const arena = target.allocator();
+    try target.datatypes.reserveStructural(&target.interner);
+
+    var rows: std.ArrayList(Row) = .empty;
+    defer rows.deinit(target.gpa);
+    try primitiveSchemes(arena, &target.datatypes, &rows, target.gpa);
+
+    for (rows.items) |row| {
+        const id = try target.interner.intern(row.name, .{ .primop = row.primop });
+        try target.setScheme(id, row.scheme);
+    }
 }
 
-fn arithmetic() Scheme {
-    return .{ .type = types.func_type(types.int_type, types.func_type(types.int_type, types.int_type)) };
-}
-
-/// What each primitive is, keyed by the id it was interned as.
-pub const Table = struct {
-    schemes: symbols.SymbolTable(Scheme),
-    lowerings: symbols.SymbolTable(Lowering),
-
-    pub fn deinit(self: *Table) void {
-        self.schemes.deinit();
-        self.lowerings.deinit();
-    }
-
-    pub fn scheme(self: *const Table, id: SymbolId) ?Scheme {
-        return self.schemes.get(id);
-    }
-
-    pub fn lowering(self: *const Table, id: SymbolId) ?Lowering {
-        return self.lowerings.get(id);
-    }
-
-    pub fn contains(self: *const Table, id: SymbolId) bool {
-        return self.lowerings.get(id) != null;
-    }
-};
-
-/// An interner with the primitives already interned, paired with the table
-/// saying what they are. The two are created and destroyed together because the
-/// ids in one only mean anything against the other.
-pub const Interned = struct {
-    interner: symbols.Interner,
-    table: Table,
-
-    /// Interns the primitives. Called once, before any body is resolved, so a
-    /// declaration colliding with a primitive's name fails on intern.
-    pub fn init(allocator: Allocator) !Interned {
-        var interner = try symbols.Interner.init(allocator);
-        errdefer interner.deinit();
-
-        var table: Table = .{
-            .schemes = symbols.SymbolTable(Scheme).init(allocator),
-            .lowerings = symbols.SymbolTable(Lowering).init(allocator),
-        };
-        errdefer table.deinit();
-
-        for (primitive_meta) |row| {
-            const id = try interner.intern(row.name);
-            try table.schemes.put(id, row.scheme);
-            try table.lowerings.put(id, row.lowering);
-        }
-        return .{ .interner = interner, .table = table };
-    }
-
-    pub fn deinit(self: *Interned) void {
-        self.table.deinit();
-        self.interner.deinit();
-    }
-};
-
-/// The scheme for a scalar operator spelling. A property of the spelling, not
-/// of an interned id, so it is a lookup rather than a table entry.
-pub fn operatorScheme(spelling_text: []const u8) ?Scheme {
-    for (operator_meta) |row| {
-        if (std.mem.eql(u8, row.spelling, spelling_text)) return row.scheme;
-    }
-    return null;
+/// An environment with the primitives already in it.
+fn fixture(gpa: Allocator) !core.env.Env {
+    var target = try core.env.Env.init(gpa);
+    errdefer target.deinit();
+    try populate(&target);
+    return target;
 }
 
 test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "identity",  "pure",     "compose",     "union",
-        "flat_map",  "branch",   "not",         "and",
-        "or",        "empty",    "probe",       "collect",
-        "text",      "kind",     "range",       "length",
-        "unnest",    "toint",    "filename",    "parent",
-        "ancestors", "children", "descendants",
+        "text",     "kind",        "range",  "length",
+        "toint",    "filename",    "parent", "ancestors",
+        "children", "descendants",
     };
-    try std.testing.expectEqual(expected.len, primitive_meta.len);
-    for (expected, primitive_meta) |name, row| {
+
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var declared = datatypes.Registry.init(arena.allocator());
+    var interner = core.Interner.init(arena.allocator());
+    try declared.declareStructural(&interner, arena.allocator());
+
+    var rows: std.ArrayList(Row) = .empty;
+    defer rows.deinit(std.testing.allocator);
+    try primitiveSchemes(arena.allocator(), &declared, &rows, std.testing.allocator);
+
+    try std.testing.expectEqual(expected.len, rows.items.len);
+    for (expected, rows.items) |name, row| {
         try std.testing.expectEqualStrings(name, row.name);
     }
 }
 
-test "every primitive is interned, and its scheme and lowering are recorded" {
-    var interned = try Interned.init(std.testing.allocator);
-    defer interned.deinit();
+test "every primitive is interned, and its scheme and primop are recorded" {
+    var target = try fixture(std.testing.allocator);
+    defer target.deinit();
 
-    try std.testing.expectEqual(primitive_meta.len, interned.interner.count());
-
-    const compose = interned.interner.lookup("compose") orelse return error.Missing;
-    try std.testing.expectEqualStrings("compose", interned.interner.spelling(compose));
-    try std.testing.expect(interned.table.contains(compose));
-    try std.testing.expectEqual(Lowering.compose, interned.table.lowering(compose).?);
-    try std.testing.expect(interned.table.scheme(compose) != null);
+    const text = target.interner.lookup("text") orelse return error.Missing;
+    try std.testing.expectEqualStrings("text", target.interner.spelling(text));
+    try std.testing.expectEqual(PrimOp.text, target.interner.details(text).primop);
+    try std.testing.expect(target.schemeOf(text) != null);
 }
 
 test "a declaration colliding with a primitive's name is rejected" {
-    var interned = try Interned.init(std.testing.allocator);
-    defer interned.deinit();
+    var target = try fixture(std.testing.allocator);
+    defer target.deinit();
 
-    try std.testing.expectError(error.Collision, interned.interner.intern("children"));
+    try std.testing.expectError(
+        error.Collision,
+        target.interner.intern("children", .vanilla),
+    );
 }
 
 test "operator schemes take scalars, not filters" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    const gpa = std.testing.allocator;
+    var target = try fixture(gpa);
+    defer target.deinit();
+    const arena = target.allocator();
+
+    var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
 
-    try operatorScheme("=").?.format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> bool", buf.written());
+    try (try operatorScheme(arena, &target.datatypes, .eq)).format(&buf.writer);
+    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
 
     buf.clearRetainingCapacity();
-    try operatorScheme("+").?.format(&buf.writer);
-    try std.testing.expectEqualStrings("int -> int -> int", buf.written());
+    try (try operatorScheme(arena, &target.datatypes, .add)).format(&buf.writer);
+    try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
+
+    // Every operator has one, so a new member fails here rather than at
+    // evaluation.
+    for (std.enums.values(Scalar)) |operator| {
+        _ = try operatorScheme(arena, &target.datatypes, operator);
+    }
 }

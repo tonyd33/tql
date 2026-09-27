@@ -1,13 +1,20 @@
 title: structural equality on records
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main =
-  (pure ({ a = 1 } = { a = 1 }), pure ({ a = 1 } = { a = 2 }));
+main root =
+  let {
+    x = { a = 1 };
+    y = { a = 2 }
+  } in
+    (pure (x = x), pure (x = y)) root;
 
 --- source ---
 class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,6 +1,6 @@
 title: mutually recursive globals are one SCC
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 is_even n = if n = 0 then true else is_odd (n - 1);
@@ -12,3 +12,8 @@ class A {}
 
 --- values ---
 [true, false]
+
+--- types ---
+is_even : Int -> Bool
+is_odd : Int -> Bool
+main : Node -> [Bool]

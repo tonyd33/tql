@@ -1,15 +1,18 @@
 title: field navigation and kind navigation compose
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   children | is_kind :class_declaration
   | .body | children | is_kind :method_definition
-  | .name | text;
+  | .name | arr text;
 
 --- source ---
 class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

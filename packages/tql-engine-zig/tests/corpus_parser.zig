@@ -4,9 +4,9 @@ const SECTION_QUERY = "--- tql ---";
 const SECTION_SOURCE = "--- source ---";
 const SECTION_SOURCE_TREE = "--- source tree ---";
 const SECTION_TQL_TREE = "--- tql tree ---";
-const SECTION_BYTECODE = "--- bytecode ---";
 const SECTION_VALUES = "--- values ---";
 const SECTION_CORE = "--- core ---";
+const SECTION_TYPES = "--- types ---";
 const SECTION_ERROR = "--- error ---";
 
 pub const SectionKind = enum {
@@ -14,9 +14,9 @@ pub const SectionKind = enum {
     source,
     source_tree,
     tql_tree,
-    bytecode,
     values,
     core,
+    types,
     @"error",
 
     pub fn name(self: SectionKind) []const u8 {
@@ -25,9 +25,9 @@ pub const SectionKind = enum {
             .source => "source",
             .source_tree => "source tree",
             .tql_tree => "tql tree",
-            .bytecode => "bytecode",
             .values => "values",
             .core => "core",
+            .types => "types",
             .@"error" => "error",
         };
     }
@@ -38,9 +38,9 @@ pub const SectionKind = enum {
             .source => SECTION_SOURCE,
             .source_tree => SECTION_SOURCE_TREE,
             .tql_tree => SECTION_TQL_TREE,
-            .bytecode => SECTION_BYTECODE,
             .values => SECTION_VALUES,
             .core => SECTION_CORE,
+            .types => SECTION_TYPES,
             .@"error" => SECTION_ERROR,
         };
     }
@@ -145,23 +145,22 @@ pub const TestCase = struct {
     /// section it carries cannot be asserted yet.
     description: Section,
     /// Sections this case asserts today. A populated section outside this set
-    /// is a defect unless it is listed in `pending` or `unassertable`.
+    /// is a defect unless it is listed in `pending`.
     asserts: SectionSet,
     /// Sections written but not yet assertable. Counted, not compared, so a
     /// hand-written expectation cannot sit inert without being visible.
     pending: SectionSet,
-    /// Sections no implementation can ever assert, because running the query
-    /// would not terminate. Excluded from the pending count: these never
-    /// resolve, so counting them would put a floor under the budget.
-    unassertable: SectionSet,
     query: Section,
     target: Section,
     /// Optional sections: content.len == 0 means not yet populated.
     source_tree: Section,
     tql_tree: Section,
-    bytecode: Section,
     values: Section,
     core: Section,
+    /// The inferred scheme of each entry-module definition, in declaration
+    /// order. Independent of `core`: a program has an untyped Core term
+    /// whether or not it typechecks.
+    types: Section,
     /// Expected diagnostics, in the order the engine must report them. A case
     /// with any diagnostic asserts the query is rejected, and the sections that
     /// only exist for an accepted query are not compared.
@@ -177,9 +176,9 @@ pub const TestCase = struct {
             .source => self.target,
             .source_tree => self.source_tree,
             .tql_tree => self.tql_tree,
-            .bytecode => self.bytecode,
             .values => self.values,
             .core => self.core,
+            .types => self.types,
             .@"error" => if (self.diagnostics.len > 0)
                 self.diagnostics[0].section
             else
@@ -191,8 +190,8 @@ pub const TestCase = struct {
         return self.diagnostics.len > 0;
     }
 
-    /// A section is compared only when the case claims it. `pending` and
-    /// `unassertable` sections are written but deliberately unchecked.
+    /// A section is compared only when the case claims it. `pending` sections
+    /// are written but deliberately unchecked.
     pub fn isAsserted(self: TestCase, kind: SectionKind) bool {
         return self.asserts.has(kind);
     }
@@ -206,9 +205,9 @@ pub const TestCase = struct {
         self.target.deinit(allocator);
         self.source_tree.deinit(allocator);
         self.tql_tree.deinit(allocator);
-        self.bytecode.deinit(allocator);
         self.values.deinit(allocator);
         self.core.deinit(allocator);
+        self.types.deinit(allocator);
         for (self.diagnostics) |d| d.deinit(allocator);
         allocator.free(self.diagnostics);
     }
@@ -284,7 +283,6 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
     };
     var asserts: SectionSet = .{};
     var pending: SectionSet = .{};
-    var unassertable: SectionSet = .{};
 
     // The header runs to the first blank line or section marker; prose after it
     // belongs to the description.
@@ -311,12 +309,6 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
             asserts = try SectionSet.parseList(value);
         } else if (std.mem.eql(u8, key, "pending")) {
             pending = try SectionSet.parseList(value);
-        } else if (std.mem.eql(u8, key, "expect")) {
-            // `divergence` is the only expectation that changes what can be
-            // asserted: the query never returns, so its outputs are unwitnessable
-            // rather than merely unimplemented.
-            if (!std.mem.eql(u8, value, "divergence")) return error.UnknownExpectation;
-            unassertable.add(.values);
         } else {
             return error.UnknownHeader;
         }
@@ -332,7 +324,7 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
     errdefer description.deinit(allocator);
 
     header_owned = false;
-    var case = try parseSections(allocator, &p, t, g, f, description, asserts, pending, unassertable);
+    var case = try parseSections(allocator, &p, t, g, f, description, asserts, pending);
     errdefer case.deinit(allocator);
 
     try validate(&case);
@@ -359,14 +351,10 @@ fn validate(case: *const TestCase) !void {
         if (kind == .@"error") continue;
 
         const populated = case.section(kind).content.len > 0;
-        const claimed = case.asserts.has(kind) or case.pending.has(kind) or case.unassertable.has(kind);
+        const claimed = case.asserts.has(kind) or case.pending.has(kind);
         if (populated and !claimed) return error.UnassertedSection;
 
-        var claims: usize = 0;
-        if (case.asserts.has(kind)) claims += 1;
-        if (case.pending.has(kind)) claims += 1;
-        if (case.unassertable.has(kind)) claims += 1;
-        if (claims > 1) return error.SectionClaimedTwice;
+        if (case.asserts.has(kind) and case.pending.has(kind)) return error.SectionClaimedTwice;
     }
 }
 
@@ -395,7 +383,6 @@ fn parseSections(
     description: Section,
     asserts: SectionSet,
     pending: SectionSet,
-    unassertable: SectionSet,
 ) !TestCase {
     // Owned on entry: freed here if the sections fail to parse, since no case
     // exists yet to own them.
@@ -418,12 +405,12 @@ fn parseSections(
     errdefer if (source_tree) |s| s.deinit(allocator);
     var tql_tree: ?Section = null;
     errdefer if (tql_tree) |s| s.deinit(allocator);
-    var bytecode: ?Section = null;
-    errdefer if (bytecode) |s| s.deinit(allocator);
     var values: ?Section = null;
     errdefer if (values) |s| s.deinit(allocator);
     var core: ?Section = null;
     errdefer if (core) |s| s.deinit(allocator);
+    var types: ?Section = null;
+    errdefer if (types) |s| s.deinit(allocator);
 
     while (p.peekLine()) |line| {
         _ = p.nextLine(); // consume the marker line just peeked
@@ -436,12 +423,12 @@ fn parseSections(
             source_tree = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_TQL_TREE)) {
             tql_tree = try extractSection(allocator, p);
-        } else if (std.mem.eql(u8, line, SECTION_BYTECODE)) {
-            bytecode = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_VALUES)) {
             values = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_CORE)) {
             core = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_TYPES)) {
+            types = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
             // Repeatable: a case asserting several diagnostics writes one
             // section each, and their order is the order the engine must
@@ -463,14 +450,13 @@ fn parseSections(
         .description = description,
         .asserts = asserts,
         .pending = pending,
-        .unassertable = unassertable,
         .query = query orelse return error.MissingQuery,
         .target = target orelse try dupeSection(allocator, here),
         .source_tree = source_tree orelse try dupeSection(allocator, here),
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
-        .bytecode = bytecode orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
+        .types = types orelse try dupeSection(allocator, here),
         .diagnostics = try diagnostics.toOwnedSlice(allocator),
     };
 }
@@ -518,9 +504,9 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_SOURCE,
     SECTION_SOURCE_TREE,
     SECTION_TQL_TREE,
-    SECTION_BYTECODE,
     SECTION_VALUES,
     SECTION_CORE,
+    SECTION_TYPES,
     SECTION_ERROR,
 };
 
@@ -602,8 +588,8 @@ pub fn applyUpdates(
         .values,
         .tql_tree,
         .source_tree,
-        .bytecode,
         .core,
+        .types,
     };
 
     var ordered: [order.len]SectionKind = order;
@@ -659,10 +645,13 @@ fn emitSectionWithGap(
     if (new_content) |nc| {
         if (section.content.len == 0) {
             if (!marker_present) {
-                // A synthesized marker must start its own line; the section it
-                // follows may have been emitted without a trailing newline.
-                if (buf.items.len > 0 and !std.mem.endsWith(u8, buf.items, "\n")) {
-                    try buf.append(allocator, '\n');
+                if (buf.items.len > 0) {
+                    if (!std.mem.endsWith(u8, buf.items, "\n")) {
+                        try buf.append(allocator, '\n');
+                    }
+                    if (!std.mem.endsWith(u8, buf.items, "\n\n")) {
+                        try buf.append(allocator, '\n');
+                    }
                 }
                 try buf.appendSlice(allocator, kind.marker());
                 try buf.appendSlice(allocator, "\n");
@@ -690,7 +679,7 @@ const testing = std.testing;
 
 const FULL_CASE =
     \\grammar: typescript
-    \\asserts: values, tql_tree, source_tree, bytecode
+    \\asserts: values, tql_tree, source_tree, core
     \\
     \\--- tql ---
     \\. > foo
@@ -702,8 +691,8 @@ const FULL_CASE =
     \\(source_file .)
     \\--- source tree ---
     \\(program)
-    \\--- bytecode ---
-    \\0000: yield
+    \\--- core ---
+    \\children
 ;
 
 test "SectionKind.name returns correct strings" {
@@ -711,7 +700,6 @@ test "SectionKind.name returns correct strings" {
     try testing.expectEqualStrings("source", SectionKind.source.name());
     try testing.expectEqualStrings("source tree", SectionKind.source_tree.name());
     try testing.expectEqualStrings("tql tree", SectionKind.tql_tree.name());
-    try testing.expectEqualStrings("bytecode", SectionKind.bytecode.name());
     try testing.expectEqualStrings("values", SectionKind.values.name());
     try testing.expectEqualStrings("core", SectionKind.core.name());
     try testing.expectEqualStrings("error", SectionKind.@"error".name());
@@ -727,10 +715,10 @@ test "parse single full case" {
     try testing.expectEqualStrings("let x = 1;", tc.target.content);
     try testing.expectEqualStrings("(program)", tc.source_tree.content);
     try testing.expectEqualStrings("(source_file .)", tc.tql_tree.content);
-    try testing.expectEqualStrings("0000: yield", tc.bytecode.content);
+    try testing.expectEqualStrings("children", tc.core.content);
     try testing.expectEqualStrings("[\"hello\"]", tc.values.content);
     try testing.expect(tc.asserts.has(.values));
-    try testing.expect(!tc.asserts.has(.core));
+    try testing.expect(!tc.asserts.has(.types));
 }
 
 test "parse case with all optional sections empty yields empty content" {
@@ -743,7 +731,7 @@ test "parse case with all optional sections empty yields empty content" {
         \\int x;
         \\--- source tree ---
         \\--- tql tree ---
-        \\--- bytecode ---
+        \\--- core ---
         \\--- values ---
     ;
     var corpus = try parse(testing.allocator, input);
@@ -755,7 +743,7 @@ test "parse case with all optional sections empty yields empty content" {
     try testing.expectEqualStrings("int x;", tc.target.content);
     try testing.expectEqual(@as(usize, 0), tc.source_tree.content.len);
     try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
-    try testing.expectEqual(@as(usize, 0), tc.bytecode.content.len);
+    try testing.expectEqual(@as(usize, 0), tc.core.content.len);
     try testing.expectEqual(@as(usize, 0), tc.values.content.len);
 }
 
@@ -871,39 +859,29 @@ test "a case needs no description" {
     try testing.expectEqual(@as(usize, 0), corpus.case.description.content.len);
 }
 
-test "expect: divergence makes values unassertable rather than pending" {
+test "a populated section claimed by neither asserts nor pending is rejected" {
     const input =
-        \\title: collecting an infinite filter does not terminate
         \\grammar: typescript
-        \\expect: divergence
-        \\
-        \\Collecting requires materializing every element, so this program does
-        \\not terminate. No implementation can assert the values below.
         \\
         \\--- tql ---
-        \\main = [nats];
+        \\main = .;
         \\--- source ---
         \\x
         \\--- values ---
         \\["never"]
     ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expect(corpus.case.unassertable.has(.values));
-    try testing.expect(!corpus.case.pending.has(.values));
-    try testing.expect(!corpus.case.asserts.has(.values));
+    try testing.expectError(error.UnassertedSection, parse(testing.allocator, input));
 }
 
-test "an unknown expectation is rejected" {
+test "an unknown header is rejected" {
     const input =
         \\grammar: typescript
-        \\expect: someday
+        \\expect: divergence
         \\
         \\--- tql ---
         \\main = .;
     ;
-    try testing.expectError(error.UnknownExpectation, parse(testing.allocator, input));
+    try testing.expectError(error.UnknownHeader, parse(testing.allocator, input));
 }
 
 test "a diagnostic splits into category, span, and commentary" {
@@ -1041,7 +1019,7 @@ test "unknown section name in a header is rejected" {
 test "parse multiline section content" {
     const input =
         \\grammar: typescript
-        \\asserts: source_tree, bytecode
+        \\asserts: source_tree, core
         \\
         \\--- tql ---
         \\. > foo
@@ -1053,9 +1031,9 @@ test "parse multiline section content" {
         \\(root
         \\  (child))
         \\--- tql tree ---
-        \\--- bytecode ---
-        \\0000: a
-        \\0001: b
+        \\--- core ---
+        \\kleisli children
+        \\  parent
         \\--- values ---
     ;
     var corpus = try parse(testing.allocator, input);
@@ -1064,7 +1042,7 @@ test "parse multiline section content" {
     const tc = corpus.case;
     try testing.expectEqualStrings("line one\nline two\nline three", tc.target.content);
     try testing.expectEqualStrings("(root\n  (child))", tc.source_tree.content);
-    try testing.expectEqualStrings("0000: a\n0001: b", tc.bytecode.content);
+    try testing.expectEqualStrings("kleisli children\n  parent", tc.core.content);
     try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
     try testing.expectEqual(@as(usize, 0), tc.values.content.len);
 }
@@ -1083,7 +1061,7 @@ test "sections with leading/trailing newlines: content is trimmed" {
         \\(program)
         \\
         \\--- tql tree ---
-        \\--- bytecode ---
+        \\--- core ---
         \\--- values ---
         \\
         \\["trimmed"]
@@ -1109,7 +1087,7 @@ test "applyUpdates with no updates reproduces source exactly" {
 test "applyUpdates preserves whitespace in unchanged sections" {
     const input =
         \\grammar: typescript
-        \\asserts: values, tql_tree, source_tree, bytecode
+        \\asserts: values, tql_tree, source_tree, core
         \\
         \\--- tql ---
         \\. > foo
@@ -1123,15 +1101,15 @@ test "applyUpdates preserves whitespace in unchanged sections" {
         \\
         \\(program)
         \\
-        \\--- bytecode ---
-        \\0000: yield
+        \\--- core ---
+        \\children
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
-    // update only bytecode; source_tree whitespace must be preserved
+    // update only core; source_tree whitespace must be preserved
     const result = try applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .bytecode, .new_content = "0000: nop" },
+        .{ .kind = .core, .new_content = "parent" },
     });
     defer testing.allocator.free(result);
 
@@ -1139,7 +1117,7 @@ test "applyUpdates preserves whitespace in unchanged sections" {
     defer updated.deinit();
 
     try testing.expectEqualStrings("(program)", updated.case.source_tree.content);
-    try testing.expectEqualStrings("0000: nop", updated.case.bytecode.content);
+    try testing.expectEqualStrings("parent", updated.case.core.content);
 
     // the source_tree body in the output should still contain the surrounding blank lines
     const st = updated.case.source_tree;

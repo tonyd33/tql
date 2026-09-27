@@ -1,0 +1,22 @@
+title: mutually recursive definitions share their constraints
+grammar: typescript
+asserts: types, values
+
+`f` raises `Eq a`, and `g` has the same type through the recursion. Both
+schemes carry the constraint.
+
+--- tql ---
+f x = if x = x then 1 else g x;
+g x = f x;
+main = pure (g 1), pure (f "s");
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 1]
+
+--- types ---
+f : Eq a => a -> Int
+g : Eq a => a -> Int
+main : Node -> [Int]

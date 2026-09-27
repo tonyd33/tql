@@ -1,13 +1,13 @@
 title: `or_else` yields every primary result, not just the first
 grammar: typescript
-pending: values
+asserts: types, values
 
 The probe only decides which branch runs; the chosen branch then runs in full.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | or_else (.body | children | is_kind :method_definition | .name | text)
+  | or_else (.body | children | is_kind :method_definition | .name | arr text)
             (pure "none");
 
 --- source ---
@@ -15,3 +15,6 @@ class A { m() {} n() {} }
 
 --- values ---
 ["m", "n"]
+
+--- types ---
+main : Node -> [String]

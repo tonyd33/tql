@@ -1,6 +1,6 @@
 title: a `do`-local `let` group binds several names
 grammar: typescript
-pending: values
+asserts: types, values
 
 Two bindings in one group, both used in the result record.
 
@@ -19,15 +19,19 @@ written as the durable part.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
+    cn <- c.name;
     let {
-      name = text c.name;
+      name = text cn;
       k = kind c
     };
-    [{ n = name, k = k }]
+    pure { n = name, k = k } root
   };
 
 --- source ---
 class A {}
 
 --- values ---
-[{ "n": "A", "k": "class_declaration" }]
+[{ "k": "class_declaration", "n": "A" }]
+
+--- types ---
+main : Node -> [{k: String, n: String}]

@@ -7,7 +7,6 @@ const fmt = @import("fmt.zig");
 
 const Engine = tql.Engine;
 const GrammarRegistry = tql.GrammarRegistry;
-const Value = tql.Value;
 
 const SectionKind = corpus_parser.SectionKind;
 
@@ -19,8 +18,8 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .values,
     .tql_tree,
     .source_tree,
-    .bytecode,
     .core,
+    .types,
     .@"error",
 };
 
@@ -441,8 +440,6 @@ fn testFile(
         .failed => result.failed += 1,
         .skipped => result.skipped += 1,
     }
-    // `unassertable` sections are deliberately excluded: they never resolve, so
-    // counting them would put a permanent floor under the budget.
     result.pending = @intCast(corpus.case.pending.count());
 
     if (case_result == .modified) {
@@ -493,7 +490,7 @@ fn testCase(
         if (kind == .@"error") break :skip;
         // The ratchet: a section is compared only while the case claims it.
         // Anything else populated was rejected at parse time as unasserted, so
-        // silence here can only mean a recorded `pending` or `unassertable`.
+        // silence here can only mean a recorded `pending`.
         if (!tc.asserts.has(kind)) break :skip;
 
         const actual_val = @field(actual, @tagName(kind));
@@ -501,7 +498,7 @@ fn testCase(
         const exp = section.content;
 
         if (exp.len > 0) {
-            if (!std.mem.eql(u8, exp, actual_val)) {
+            if (!try sectionsMatch(gpa, kind, exp, actual_val)) {
                 if (ctx.opts.update.get(kind)) {
                     try updates.append(gpa, .{ .kind = kind, .new_content = try gpa.dupe(u8, actual_val) });
                     test_modified = true;
@@ -579,6 +576,58 @@ fn testCase(
         }
         return .passed;
     }
+}
+
+/// Whether a produced section matches what the case asserts.
+///
+/// `values` compares as JSON with insignificant whitespace removed. Fixtures
+/// lay their expected values out by hand, one output per line with short
+/// objects inline, and reformatting 174 of them to match a serializer would
+/// cost more than it buys.
+fn sectionsMatch(
+    gpa: std.mem.Allocator,
+    kind: corpus_parser.SectionKind,
+    expected: []const u8,
+    actual: []const u8,
+) !bool {
+    if (kind != .values) return std.mem.eql(u8, expected, actual);
+
+    const want = try stripJsonWhitespace(gpa, expected);
+    defer gpa.free(want);
+    const got = try stripJsonWhitespace(gpa, actual);
+    defer gpa.free(got);
+    return std.mem.eql(u8, want, got);
+}
+
+/// Drops whitespace outside string literals.
+fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+
+    var in_string = false;
+    var escaped = false;
+    for (text) |c| {
+        if (in_string) {
+            try out.append(gpa, c);
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        switch (c) {
+            ' ', '\t', '\n', '\r' => {},
+            '"' => {
+                in_string = true;
+                try out.append(gpa, c);
+            },
+            else => try out.append(gpa, c),
+        }
+    }
+    return try out.toOwnedSlice(gpa);
 }
 
 /// Compares expected diagnostics against what the engine reported. Only the
@@ -700,9 +749,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .types = try allocator.dupe(u8, ""),
             .@"error" = try renderDiagnostics(allocator, parsed.diagnostics),
         };
     }
@@ -714,7 +763,12 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     var desugar_diagnostics: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(desugar_diagnostics);
 
-    if (tc.isAsserted(.core) or expects_error) {
+    var types_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(types_text);
+    var type_diagnostics: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(type_diagnostics);
+
+    {
         var sink = tql.diagnostic.Sink.init(allocator);
         defer sink.deinit();
 
@@ -726,6 +780,31 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             defer program.deinit();
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
+
+            if (tc.isAsserted(.types) or expects_error) {
+                var type_sink = tql.diagnostic.Sink.init(allocator);
+                defer type_sink.deinit();
+
+                if (tql.type_check.check(allocator, &program, &type_sink)) {
+                    allocator.free(types_text);
+                    types_text = try fmt.formatTypes(allocator, &program);
+                } else |err| switch (err) {
+                    error.TypeCheckFailed => {
+                        allocator.free(type_diagnostics);
+                        type_diagnostics = try renderDiagnostics(allocator, type_sink.items());
+                        if (!expects_error) {
+                            for (type_sink.items()) |d| {
+                                std.debug.print("    {s} @ {f}: {s}\n", .{
+                                    d.category.name(),
+                                    d.span,
+                                    d.message,
+                                });
+                            }
+                        }
+                    },
+                    else => |e| return e,
+                }
+            }
         } else |err| switch (err) {
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
@@ -733,6 +812,25 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             },
             else => return err,
         }
+    }
+
+    // A rejection found by type checking. Core is still reported: the program
+    // desugared fine, and its untyped term is what the case may assert.
+    if (type_diagnostics.len > 0) {
+        // A case that does not expect a rejection has no `--- error ---` to
+        // diff against, so the diagnostic would otherwise be discarded with
+        // only the error name surviving. Print it: an unexpected type error is
+        // exactly the thing the reader needs to see.
+        if (!expects_error) return error.UnexpectedTypeError;
+        allocator.free(types_text);
+        return .{
+            .source_tree = source_tree,
+            .tql_tree = tql_tree,
+            .values = try allocator.dupe(u8, ""),
+            .core = core_text,
+            .types = try allocator.dupe(u8, ""),
+            .@"error" = type_diagnostics,
+        };
     }
 
     // A rejection found by desugaring is the case's expected outcome, and
@@ -743,76 +841,55 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .types = try allocator.dupe(u8, ""),
             .@"error" = desugar_diagnostics,
         };
     }
 
-    // Compilation is driven by what the case claims, not by what it contains.
-    // A case whose value-bearing sections are all `pending` has nothing for the
-    // compiler or the runtime to decide yet, so running them would be wasted
-    // work whose only effect is to fail on syntax the 0.2 compiler predates.
-    // As sections move from `pending` into `asserts`, this switches back on
-    // one fixture at a time.
-    const needs_compile = expects_error or
-        tc.isAsserted(.bytecode) or
-        tc.isAsserted(.values);
-
-    if (!needs_compile) {
+    // A case asserting values runs on the evaluator against the parsed target.
+    if (tc.isAsserted(.values) and !expects_error) {
+        var eval_sink = tql.diagnostic.Sink.init(allocator);
+        defer eval_sink.deinit();
+        const values = engine.evaluateQuery(
+            tc.query.content,
+            tc.target.content,
+            if (tc.file.len == 0) null else tc.file,
+            grammar,
+            &eval_sink,
+            allocator,
+        ) catch |err| {
+            for (eval_sink.items()) |d| {
+                std.debug.print("    {s} @ {f}: {s}\n", .{
+                    d.category.name(),
+                    d.span,
+                    d.message,
+                });
+            }
+            return err;
+        };
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
-            .values = try allocator.dupe(u8, ""),
+            .values = values,
             .core = core_text,
+            .types = types_text,
             .@"error" = try allocator.dupe(u8, ""),
         };
     }
 
-    var query = engine.compile(tc.query.content, grammar) catch |err| {
-        if (!expects_error) return err;
-        // Compilation past the parser still reports a bare Zig error, with no
-        // category and no span, so a fixture only matches if it was written
-        // `span: any` and a multi-diagnostic case can never match.
-        //
-        // IMPROVE: desugaring, resolution and typing should report structured
-        // diagnostics the way the parser now does, and this should render them.
-        const message = try std.fmt.allocPrint(allocator, "{t}/", .{err});
-        errdefer allocator.free(message);
-        return .{
-            .source_tree = source_tree,
-            .tql_tree = tql_tree,
-            .bytecode = try allocator.dupe(u8, ""),
-            .values = try allocator.dupe(u8, ""),
-            .core = core_text,
-            .@"error" = message,
-        };
-    };
-    defer query.deinit();
-
+    // Desugaring and type checking already returned above with their
+    // diagnostics, so a case reaching here expected a rejection that no stage
+    // made.
     if (expects_error) return error.ExpectedCompileError;
-
-    var run_result = try query.run(tc.target.content, allocator, allocator);
-    defer run_result.deinit();
-
-    const bytecode_raw = try fmt.formatBytecode(allocator, query.instructions());
-    defer allocator.free(bytecode_raw);
-    const bytecode = try allocator.dupe(u8, std.mem.trimEnd(u8, bytecode_raw, "\n"));
-    errdefer allocator.free(bytecode);
-
-    const values_raw = try fmt.formatValues(allocator, run_result.values.items);
-    defer allocator.free(values_raw);
-    const actual_values = try allocator.dupe(u8, std.mem.trimEnd(u8, values_raw, "\n"));
-    errdefer allocator.free(actual_values);
 
     return .{
         .source_tree = source_tree,
         .tql_tree = tql_tree,
-        .bytecode = bytecode,
-        .values = actual_values,
+        .values = try allocator.dupe(u8, ""),
         .core = core_text,
+        .types = types_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
 }
@@ -929,7 +1006,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, bytecode, values (comma-separated); bare --update updates all",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, core, types (comma-separated); bare --update updates all",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

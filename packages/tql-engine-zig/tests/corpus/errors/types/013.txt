@@ -9,4 +9,4 @@ main = if 1 then "yes" else "no";
 --- error ---
 category: type-mismatch
 span: 1:11-1:12
-The condition. Expected `Filter node bool`, found `Filter node int`.
+The condition. Expected `Filter Node Bool`, found `Filter Node Int`.

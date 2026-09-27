@@ -1,14 +1,17 @@
 title: a boolean-valued query used as a condition
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   descendants | is_kind :method_definition
-  | branch (\m -> [text m.name ~ r"^get"]) (.name | text) empty;
+   | branch (.name | arr (\n -> text n ~ r"^get")) (.name | arr text) none;
 
 --- source ---
 class A { getX() {} setY() {} getZ() {} }
 
 --- values ---
 ["getX", "getZ"]
+
+--- types ---
+main : Node -> [String]

@@ -1,12 +1,12 @@
 title: application binds tighter than pipe
 grammar: typescript
-pending: values
+asserts: types, values
 
 `. / :class_declaration | name_of .` groups as
 `. / :class_declaration | (name_of .)`.
 
 --- tql ---
-name_of n = (.name | text) n;
+name_of n = (.name | arr text) n;
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---
@@ -15,3 +15,7 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+name_of : Node -> [String]
+main : Node -> [String]

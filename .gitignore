@@ -31,3 +31,5 @@ __pycache__
 # nix build outputs
 /result
 /result-*
+
+.nvim.lua

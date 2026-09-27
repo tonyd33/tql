@@ -1,6 +1,6 @@
 title: a bind whose query is empty yields no output
 grammar: typescript
-pending: values
+asserts: types, values
 
 The body never runs.
 
@@ -8,7 +8,7 @@ The body never runs.
 main root =
   do {
     c <- (children | is_kind :interface_declaration) root;
-    (.name | text) c
+    (.name | arr text) c
   };
 
 --- source ---
@@ -16,3 +16,6 @@ class A {}
 
 --- values ---
 []
+
+--- types ---
+main : Node -> [String]

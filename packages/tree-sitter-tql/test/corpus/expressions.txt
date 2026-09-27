@@ -178,3 +178,86 @@ main = . | kind | text;
         left: (identity)
         right: (identifier))
       right: (identifier))))
+
+========================================
+a case expression
+========================================
+
+main = case b of { False -> 1; True -> 2 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        constructor: (type_identifier)
+        body: (number))
+      (case_alternative
+        constructor: (type_identifier)
+        body: (number)))))
+
+========================================
+a case alternative binds one name per field
+========================================
+
+main = case xs of { Nil -> 0; Cons h t -> h };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        constructor: (type_identifier)
+        body: (number))
+      (case_alternative
+        constructor: (type_identifier)
+        binder: (identifier)
+        binder: (identifier)
+        body: (identifier)))))
+
+========================================
+a constructor is an ordinary value
+========================================
+
+main = Cons 1 Nil;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (application
+        function: (type_identifier)
+        argument: (number))
+      argument: (type_identifier))))
+
+========================================
+a case scrutinee may be any expression
+========================================
+
+main = case f x of { Nil -> Nil; Cons h t -> t };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (application
+        function: (identifier)
+        argument: (identifier))
+      (case_alternative
+        constructor: (type_identifier)
+        body: (type_identifier))
+      (case_alternative
+        constructor: (type_identifier)
+        binder: (identifier)
+        binder: (identifier)
+        body: (identifier)))))

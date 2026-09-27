@@ -1,16 +1,21 @@
-title: `Eq` on a list containing filters
+title: `Eq` on a list containing functions
 grammar: typescript
 
-A container holding a filter is outside `Eq`, recursively.
+A container holding a function is outside `Eq`, recursively.
+
+`[e]` is collection, not a list literal: it collects the outputs of `e` into
+one list. `pure kind` is `Filter b (node -> string)`, so the collected element
+type is `Node -> String` and the list is `[Node -> String]`. Functions have no
+`Eq`, and the list inherits that.
 
 --- tql ---
 main =
   let {
-    fs = [kind, text]
+    fs = [pure kind, pure text]
   } in
     fs = fs;
 
 --- error ---
 category: unsatisfied-constraint
 span: 5:5-5:12
-`Eq [Filter node string]` is not satisfied.
+`Eq [Node -> String]` is not satisfied.

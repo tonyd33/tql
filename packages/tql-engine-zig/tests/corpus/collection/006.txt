@@ -1,13 +1,13 @@
 title: nested collection
 grammar: typescript
-pending: values
+asserts: types, values
 
 The outer bracket collects the per-class lists into one list of lists.
 
 --- tql ---
 main =
   [children | is_kind :class_declaration
-   | [.body | children | is_kind :method_definition | .name | text]];
+   | [.body | children | is_kind :method_definition | .name | arr text]];
 
 --- source ---
 class A { m() {} n() {} }
@@ -15,3 +15,6 @@ class B { p() {} }
 
 --- values ---
 [[["m", "n"], ["p"]]]
+
+--- types ---
+main : Node -> [[[String]]]

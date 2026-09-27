@@ -1,6 +1,6 @@
 title: equality and inequality
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
@@ -11,3 +11,6 @@ class A {}
 
 --- values ---
 [true, false, true, false]
+
+--- types ---
+main : Node -> [Bool]

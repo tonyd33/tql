@@ -1,16 +1,16 @@
-title: `all` is true only when every element satisfies the predicate
+title: `all_m` is true only when every element satisfies the predicate
 grammar: typescript
-pending: values
+asserts: types, values
 
-`all` probes for a *violating* element by swapping the inner branch arms
-(`branch predicate empty identity`), then negates the result. Its scheme
-matches `any`: `Filter a b -> Filter b bool -> Filter a bool`.
+`all_m` probes for a *violating* element by selecting the inputs whose
+predicate is false, then inverts the result. Its scheme matches `any_m`:
+`Filter a b -> Filter b Bool -> Filter a Bool`.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | all (.body | children | is_kind :method_definition)
-        (\m -> [text m.name ~ r"^get"]);
+  | all_m (.body | children | is_kind :method_definition)
+        (.name | arr (\n -> text n ~ r"^get"));
 
 --- source ---
 class A { getX() {} getY() {} }
@@ -18,3 +18,6 @@ class B { getZ() {} setW() {} }
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

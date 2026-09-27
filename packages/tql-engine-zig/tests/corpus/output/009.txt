@@ -1,14 +1,20 @@
 title: a record encodes as a JSON object
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | { name = .name | text, size = text | length };
+main root =
+  do {
+    c <- (children | is_kind :class_declaration) root;
+    n <- c.name;
+    pure { name = text n, size = length (text c) } root
+  };
 
 --- source ---
 class A {}
 
 --- values ---
 [{ "name": "A", "size": 10 }]
+
+--- types ---
+main : Node -> [{name: String, size: Int}]

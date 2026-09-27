@@ -1,6 +1,6 @@
-title: `any` and `all` share one scheme
+title: `any_m` and `all_m` share one scheme
 grammar: typescript
-pending: values
+asserts: types, values
 
 Both helpers are applied to the same source and predicate, confirming they
 accept identical argument types.
@@ -9,14 +9,18 @@ accept identical argument types.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    [{ some = any ((children | is_kind :method_definition) c.body)
-                  (\m -> [text m.name ~ r"^get"]),
-       every = all ((children | is_kind :method_definition) c.body)
-                   (\m -> [text m.name ~ r"^get"]) }]
+    some <- any_m (.body | children | is_kind :method_definition)
+                (.name | arr (\n -> text n ~ r"^get")) c;
+    every <- all_m (.body | children | is_kind :method_definition)
+                 (.name | arr (\n -> text n ~ r"^get")) c;
+    pure { some = some, every = every } c
   };
 
 --- source ---
 class A { getX() {} setY() {} }
 
 --- values ---
-[{ "some": true, "every": false }]
+[{ "every": false, "some": true }]
+
+--- types ---
+main : Node -> [{every: Bool, some: Bool}]

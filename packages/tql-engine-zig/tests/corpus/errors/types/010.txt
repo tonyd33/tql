@@ -1,8 +1,8 @@
-title: `unnest` requires a list input
+title: `identity` as a filter requires a list input
 grammar: typescript
 
 --- tql ---
-main = 42 | unnest;
+main = 42 | identity;
 
 --- error ---
 category: type-mismatch

@@ -4,9 +4,9 @@ grammar: typescript
 `Serial` fails recursively through a record.
 
 --- tql ---
-main = { name = .name | text, f = kind };
+main = { name = .name | arr text, f = arr kind };
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:31-1:39
-`Serial (Filter node string)` is not satisfied, reached through field `f`.
+span: 1:36-1:49
+`Serial (Filter Node String)` is not satisfied, reached through field `f`.

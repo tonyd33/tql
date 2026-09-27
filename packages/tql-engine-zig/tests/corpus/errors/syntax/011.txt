@@ -2,12 +2,13 @@ title: there is no null literal
 grammar: typescript
 asserts: error
 
-Absence is the empty stream.
+Absence is the empty stream. `null` resolves to the list layer's emptiness
+test, so the rejection is about its type rather than its name.
 
 --- tql ---
 main = null;
 
 --- error ---
-category: unresolved-name
-span: 1:8-1:12
-`null`.
+category: main-type
+span: 1:1-1:13
+The `main` definition. Expected `Filter Node _`, found `[a] -> Bool`.

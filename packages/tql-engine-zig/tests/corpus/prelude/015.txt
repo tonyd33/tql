@@ -1,11 +1,11 @@
 title: `or_else` yields the fallback when the primary is empty
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | or_else (.body | children | is_kind :method_definition | .name | text)
+  | or_else (.body | children | is_kind :method_definition | .name | arr text)
             (pure "none");
 
 --- source ---
@@ -13,3 +13,6 @@ class A {}
 
 --- values ---
 ["none"]
+
+--- types ---
+main : Node -> [String]

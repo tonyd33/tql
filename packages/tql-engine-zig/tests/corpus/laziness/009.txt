@@ -1,12 +1,13 @@
 title: forcing a cyclic thunk diverges
 grammar: typescript
-expect: divergence
+asserts: types
 
 `loop` is defined as itself with no intervening constructor, so forcing it
 re-enters an `evaluating` thunk. An implementation may detect the cycle with a
 black-hole marker and report it, but the specified semantics is divergence.
 
 --- tql ---
+loop : Node -> [String];
 loop = loop;
 main = loop;
 
@@ -15,3 +16,7 @@ class A {}
 
 Forcing an `evaluating` thunk. A black-hole detection error is a permitted
 implementation behavior; a value is not.
+
+--- types ---
+loop : Node -> [String]
+main : Node -> [String]

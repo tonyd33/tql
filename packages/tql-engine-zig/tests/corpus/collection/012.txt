@@ -1,15 +1,23 @@
-title: an empty field stream yields no records
+title: a multi-valued field is collected into a list field
 grammar: typescript
-pending: values
+asserts: types, values
 
-One empty field annihilates the whole product, exactly as for scalar operators.
+A field holds one value, so a query yielding many is collected at the field.
+An empty query gives an empty list and the record is still built. The record no
+longer annihilates, because there is no product to annihilate.
 
 --- tql ---
-main =
-  { a = pure 1, b = (children | is_kind :interface_declaration | text) };
+main root =
+  do {
+    b <- [children | is_kind :interface_declaration | arr text] root;
+    pure { a = 1, b = b } root
+  };
 
 --- source ---
 class A {}
 
 --- values ---
-[]
+[{ "a": 1, "b": [] }]
+
+--- types ---
+main : Node -> [{a: Int, b: [String]}]

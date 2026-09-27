@@ -1,13 +1,13 @@
 title: a `let` group with a single binding
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   let {
     target = "A"
   } in
-    children | is_kind :class_declaration | \c -> text c.name = target;
+    children | is_kind :class_declaration | .name | arr (\n -> text n = target);
 
 --- source ---
 class A {}
@@ -15,3 +15,6 @@ class B {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

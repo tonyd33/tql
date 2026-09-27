@@ -1,15 +1,15 @@
 title: `select` keeps inputs whose predicate holds
 grammar: typescript
-pending: values
+asserts: types, values
 
-`select p = branch p identity empty`. Unifying `identity : Filter a a` against
-the sibling `empty` arm pins the result type, giving
-`select : Filter a bool -> Filter a a`.
+`select p = branch p (arr identity) none`. Unifying `arr identity :
+Filter a a` against the sibling `none` arm pins the result type, giving
+`select : Filter a Bool -> Filter a a`.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (\c -> [text c.name ~ r"^S"]) | .name | text;
+  | select (.name | arr (\n -> text n ~ r"^S")) | .name | arr text;
 
 --- source ---
 class Service {}
@@ -18,3 +18,6 @@ class Store {}
 
 --- values ---
 ["Service", "Store"]
+
+--- types ---
+main : Node -> [String]

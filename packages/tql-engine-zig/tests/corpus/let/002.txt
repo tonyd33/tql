@@ -1,6 +1,6 @@
 title: multiple bindings in one group are siblings
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
@@ -15,3 +15,6 @@ class A {}
 
 --- values ---
 [7]
+
+--- types ---
+main : Node -> [Int]

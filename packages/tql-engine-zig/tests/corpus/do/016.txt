@@ -1,6 +1,6 @@
 title: the binding is branch-local and immutable
 grammar: typescript
-pending: values
+asserts: types, values
 
 Each branch of the outer bind has its own `c`. The inner record sees the `c` of
 its own branch, never a later one.
@@ -9,8 +9,9 @@ its own branch, never a later one.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    n <- [1, 2];
-    [{ class = text c.name, n = n }]
+    n <- (pure 1, pure 2) root;
+    cn <- c.name;
+    pure { class = text cn, n = n } root
   };
 
 --- source ---
@@ -24,3 +25,6 @@ class B {}
   { "class": "B", "n": 1 },
   { "class": "B", "n": 2 }
 ]
+
+--- types ---
+main : Node -> [{class: String, n: Int}]

@@ -1,12 +1,15 @@
 title: named-field navigation selects children under that field
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main = children | is_kind :class_declaration | .name | text;
+main = children | is_kind :class_declaration | .name | arr text;
 
 --- source ---
 class Service {}
 
 --- values ---
 ["Service"]
+
+--- types ---
+main : Node -> [String]

@@ -1,6 +1,6 @@
 title: a `let` binding holds a filter value used as a pipe stage
 grammar: typescript
-pending: values
+asserts: types, values
 
 `names` is bound to a filter, not to its results. Binding does not run it; the
 pipe does.
@@ -8,7 +8,7 @@ pipe does.
 --- tql ---
 main =
   let {
-    names = .name | text
+    names = .name | arr text
   } in
     children | is_kind :class_declaration | names;
 
@@ -18,3 +18,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+main : Node -> [String]

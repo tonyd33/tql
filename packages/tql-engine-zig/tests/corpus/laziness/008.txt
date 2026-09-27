@@ -1,15 +1,20 @@
-title: collecting an infinite filter does not terminate
+title: taking the length of an infinite collected list does not terminate
 grammar: typescript
-expect: divergence
+asserts: types
 
-Collection must observe every output, so it cannot be lazy. This fixture pins
-the semantics; it is not executed.
+`arr` is lazy: `[from 0]` is one output, and that output is the infinite
+list, unforced. The pipe then runs `arr length` on that element, and `length`
+walks a spine with no end. This fixture pins the semantics; it is not executed.
 
 --- tql ---
 from n = pure n, from (n + 1);
-main = [from 0] | length;
+main = [from 0] | arr length;
 
 --- source ---
 class A {}
 
-`collect` forces the whole stream. No finite output exists.
+`length` forces the spine of the collected list. No finite output exists.
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Int]

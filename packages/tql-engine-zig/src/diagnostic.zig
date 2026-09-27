@@ -171,10 +171,10 @@ test "span join covers both operands" {
         .end_point = .{ .row = 1, .column = 12 },
     };
     const joined = Span.join(a, b);
-    try std.testing.expectEqual(@as(u32, 4), joined.start_byte);
-    try std.testing.expectEqual(@as(u32, 20), joined.end_byte);
-    try std.testing.expectEqual(@as(u32, 0), joined.start_point.row);
-    try std.testing.expectEqual(@as(u32, 1), joined.end_point.row);
+    try std.testing.expectEqual(4, joined.start_byte);
+    try std.testing.expectEqual(20, joined.end_byte);
+    try std.testing.expectEqual(0, joined.start_point.row);
+    try std.testing.expectEqual(1, joined.end_point.row);
 }
 
 test "spans render as one-based line:col" {
@@ -198,7 +198,7 @@ test "sink collects several diagnostics" {
     try sink.report(.unresolved_name, Span.unknown, "second {s}", .{"arg"});
 
     try std.testing.expect(sink.hasErrors());
-    try std.testing.expectEqual(@as(usize, 2), sink.items().len);
+    try std.testing.expectEqual(2, sink.items().len);
     try std.testing.expectEqualStrings("parse", sink.items()[0].category.name());
     try std.testing.expectEqualStrings("unresolved-name", sink.items()[1].category.name());
     try std.testing.expectEqualStrings("second arg", sink.items()[1].message);

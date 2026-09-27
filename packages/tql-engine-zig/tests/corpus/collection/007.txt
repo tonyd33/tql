@@ -1,9 +1,9 @@
-title: `unnest` inverts collection
+title: `identity` inverts collection
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
-main = [children | is_kind :class_declaration | .name | text] | unnest;
+main = [children | is_kind :class_declaration | .name | arr text] | identity;
 
 --- source ---
 class A {}
@@ -11,3 +11,6 @@ class B {}
 
 --- values ---
 ["A", "B"]
+
+--- types ---
+main : Node -> [String]

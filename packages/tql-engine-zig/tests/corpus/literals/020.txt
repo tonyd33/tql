@@ -1,16 +1,19 @@
 title: both operands run on the same current input
 grammar: typescript
-pending: values
+asserts: types, values
 
 Each operand independently navigates from the same class node.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | \c -> text c.name = text c;
+  | arr (\c -> text c = text c);
 
 --- source ---
 class A {}
 
 --- values ---
 [true]
+
+--- types ---
+main : Node -> [Bool]

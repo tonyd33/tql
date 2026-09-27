@@ -1,6 +1,6 @@
 title: an infinite filter as program output does not terminate
 grammar: typescript
-expect: divergence
+asserts: types
 
 The runner serializes every output. The program is well-typed and its output
 type is `Serial`, so it is accepted; it simply never finishes.
@@ -13,3 +13,7 @@ main = from 0;
 class A {}
 
 Well-typed and accepted. Output is unbounded.
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Int]

@@ -1,6 +1,6 @@
 title: stream binding preserves correlation between outputs
 grammar: typescript
-pending: values
+asserts: types, values
 
 This is the case that motivated replacing `as`. Each method is paired with the
 class it came from, because the outer binding stays in scope inside the inner
@@ -10,8 +10,10 @@ branch. A formulation that lost the outer node could not produce these pairs.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    m <- (children | is_kind :method_definition) c.body;
-    [{ class = text c.name, method = text m.name }]
+    m <- (.body | children | is_kind :method_definition) c;
+    cn <- c.name;
+    mn <- m.name;
+    pure { class = text cn, method = text mn } root
   };
 
 --- source ---
@@ -24,3 +26,6 @@ class B { p() {} }
   { "class": "A", "method": "n" },
   { "class": "B", "method": "p" }
 ]
+
+--- types ---
+main : Node -> [{class: String, method: String}]

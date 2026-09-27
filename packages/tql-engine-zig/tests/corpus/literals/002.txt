@@ -1,7 +1,6 @@
 title: bool literals in filter position
 grammar: typescript
-asserts: core
-pending: values
+asserts: core, types, values
 
 Union requires one element type, so this fixture unions bools only. LIT-01
 covers `int` and REGEX-05 covers a `string`-producing program.
@@ -16,4 +15,7 @@ class A {}
 [true, false, true]
 
 --- core ---
-main = union (union (pure true) (pure false)) (pure true)
+main = alt (alt (pure True) (pure False)) (pure True)
+
+--- types ---
+main : Node -> [Bool]

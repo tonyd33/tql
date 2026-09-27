@@ -1,6 +1,6 @@
 title: application is left-associative
 grammar: typescript
-pending: values
+asserts: types, values
 
 `add 2 3` is `(add 2) 3`. The explicit grouping produces the same value, which
 is what left-associativity means here.
@@ -14,3 +14,7 @@ class A {}
 
 --- values ---
 [5, 5]
+
+--- types ---
+add : Int -> Int -> Int
+main : Node -> [Int]

@@ -1,15 +1,17 @@
 title: the body receives the bound value as its current input
 grammar: typescript
-pending: values
+asserts: types, values
 
-The final expression is `kind`, which takes no explicit input. It reports the
-class node, so the bind rebased the current input onto the bound value.
+The final expression projects `c`, the bound name, and reports the class node
+rather than the root — so the bind rebased the current input onto the bound
+value. `kind c` is a `string`, so `pure` carries it to the `[b]` a `do` body
+must produce.
 
 --- tql ---
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    kind c
+    pure (kind c) c
   };
 
 --- source ---
@@ -17,3 +19,6 @@ class A {}
 
 --- values ---
 ["class_declaration"]
+
+--- types ---
+main : Node -> [String]

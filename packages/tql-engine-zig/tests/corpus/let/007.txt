@@ -1,13 +1,13 @@
 title: a `let` binding holds a function value
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
   let {
-    is_named n = text n.name = "A"
+    is_named c = (.name | arr (\n -> text n = "A")) c
   } in
-    children | is_kind :class_declaration | \c -> [is_named c];
+    children | is_kind :class_declaration | is_named;
 
 --- source ---
 class A {}
@@ -15,3 +15,6 @@ class B {}
 
 --- values ---
 [true, false]
+
+--- types ---
+main : Node -> [Bool]

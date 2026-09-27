@@ -1,15 +1,19 @@
-title: `and` propagates a multi-output right operand
+title: `and` and `or` truth tables
 grammar: typescript
-pending: values
-
-The left `true` contributes the whole right stream; the left `false`
-contributes exactly one `false`.
+asserts: types, values
 
 --- tql ---
-main = (pure true, pure false) and (pure true, pure false);
+main =
+  pure (and true true), pure (and true false),
+  pure (and false true), pure (and false false),
+  pure (or true true), pure (or true false),
+  pure (or false true), pure (or false false);
 
 --- source ---
 class A {}
 
 --- values ---
-[true, false, false]
+[true, false, false, false, true, true, true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,6 +1,6 @@
 title: scalars encode naturally
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure 42, pure (0 - 1);
@@ -10,3 +10,6 @@ class A {}
 
 --- values ---
 [42, -1]
+
+--- types ---
+main : Node -> [Int]

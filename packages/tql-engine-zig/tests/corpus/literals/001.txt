@@ -1,6 +1,6 @@
 title: a scalar literal in filter position yields itself once
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main = pure 42;
@@ -10,3 +10,6 @@ class A {}
 
 --- values ---
 [42]
+
+--- types ---
+main : Node -> [Int]

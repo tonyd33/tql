@@ -1,14 +1,14 @@
 title: `do` nested inside a pipe stage
 grammar: typescript
-pending: values
+asserts: types, values
 
 The block runs once per input value from the left stage.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | \c -> do { m <- (children | is_kind :method_definition) c.body;
-               (.name | text) m };
+  | \c -> do { m <- (.body | children | is_kind :method_definition) c;
+               (.name | arr text) m };
 
 --- source ---
 class A { m() {} }
@@ -16,3 +16,6 @@ class B { p() {} }
 
 --- values ---
 ["m", "p"]
+
+--- types ---
+main : Node -> [String]

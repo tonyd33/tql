@@ -1,6 +1,6 @@
 title: comparison operators on integers
 grammar: typescript
-pending: values
+asserts: types, values
 
 --- tql ---
 main =
@@ -11,3 +11,6 @@ class A {}
 
 --- values ---
 [true, true, false, true]
+
+--- types ---
+main : Node -> [Bool]

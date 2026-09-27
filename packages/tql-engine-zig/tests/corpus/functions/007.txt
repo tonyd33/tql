@@ -1,13 +1,13 @@
 title: a checked signature is accepted
 grammar: typescript
-pending: values
+asserts: types, values
 
 The annotation is an instance of the inferred principal scheme, so it is
 accepted and becomes the exported scheme.
 
 --- tql ---
-name_of : node -> [string];
-name_of n = (.name | text) n;
+name_of : Node -> [String];
+name_of n = (.name | arr text) n;
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---
@@ -15,3 +15,7 @@ class A {}
 
 --- values ---
 ["A"]
+
+--- types ---
+name_of : Node -> [String]
+main : Node -> [String]

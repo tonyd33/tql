@@ -9,4 +9,4 @@ main = r"a" = r"a";
 --- error ---
 category: unsatisfied-constraint
 span: 1:8-1:17
-`Eq regex` is not satisfied.
+`Eq Regex` is not satisfied.

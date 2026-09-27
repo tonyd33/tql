@@ -7,4 +7,4 @@ main = \x -> x + 1;
 --- error ---
 category: unsatisfied-constraint
 span: 1:8-1:19
-`Serial (int -> int)` is not satisfied.
+`Serial (Int -> Int)` is not satisfied.

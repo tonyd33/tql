@@ -1,11 +1,11 @@
 title: a node nested inside a record encodes as a node
 grammar: typescript
-pending: values
+asserts: types, values
 
 `node` is `Serial`, so it may appear inside a serializable container.
 
 --- tql ---
-main = children | is_kind :class_declaration | { at = range, k = kind };
+main = children | is_kind :class_declaration | arr (\c -> { at = range c, k = kind c });
 
 --- source ---
 class A {}
@@ -22,3 +22,6 @@ class A {}
     "k": "class_declaration"
   }
 ]
+
+--- types ---
+main : Node -> [{at: Range, k: String}]
