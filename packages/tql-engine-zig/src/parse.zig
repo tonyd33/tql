@@ -390,7 +390,7 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "leading_field")) {
             return self.leadingField(node, span);
         }
-        if (std.mem.eql(u8, kind, "application")) {
+        if (std.mem.eql(u8, kind, "application") or std.mem.eql(u8, kind, "dollar_application")) {
             return self.application(node, span);
         }
         if (std.mem.eql(u8, kind, "logical_not")) {
@@ -1183,6 +1183,13 @@ test "union is spelled <|>" {
     try expectSexpr(
         "main = a <|> b | c;",
         "(source_file (define main (params) (<|> a (| b c))))",
+    );
+}
+
+test "dollar application is right-associative plain application" {
+    try expectSexpr(
+        "main = f $ g $ a <|> b;",
+        "(source_file (define main (params) (apply f (apply g (<|> a b)))))",
     );
 }
 

@@ -8,16 +8,17 @@
 // @ts-check
 
 const PREC = {
-  union: 1,
-  pipe: 2,
-  or: 3,
-  and: 4,
-  not: 5,
-  cmp: 6,
-  add: 7,
-  mul: 8,
-  app: 9,
-  field: 10,
+  dollar: 1,
+  union: 2,
+  pipe: 3,
+  or: 4,
+  and: 5,
+  not: 6,
+  cmp: 7,
+  add: 8,
+  mul: 9,
+  app: 10,
+  field: 11,
 };
 
 module.exports = grammar({
@@ -87,6 +88,7 @@ module.exports = grammar({
 
     _expression: $ =>
       choice(
+        $.dollar_application,
         $.union,
         $.pipe,
         $.logical_or,
@@ -98,6 +100,18 @@ module.exports = grammar({
         $.application,
         $.field_access,
         $._primary,
+      ),
+
+    // Ideally, this would be regular token to TQL but the precedence
+    // is what keeps it hardcoded into the grammar.
+    dollar_application: $ =>
+      prec.right(
+        PREC.dollar,
+        seq(
+          field("function", $._expression),
+          "$",
+          field("argument", $._expression),
+        ),
       ),
 
     union: $ =>
