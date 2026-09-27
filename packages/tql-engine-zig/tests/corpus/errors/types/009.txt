@@ -1,5 +1,6 @@
 title: `text` requires a node input
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = 42 | arr text;

@@ -1,0 +1,15 @@
+title: a context may constrain only a variable of the type
+grammar: typescript
+asserts: error
+
+No use of `f` could fix `b`, so the constraint could never be decided.
+
+--- tql ---
+f : Eq b => a -> a;
+f x = x;
+main = const [f 1];
+
+--- error ---
+category: unresolved-name
+span: 1:5-1:9
+`b` is constrained but does not appear in the type

@@ -1,5 +1,6 @@
 title: an unconstrained collected output is ambiguous
 grammar: typescript
+asserts: error
 
 `collect none` has type `Filter a [b]` with `b` free. Wrapping in a list does
 not resolve the variable.
@@ -9,5 +10,5 @@ main = collect none;
 
 --- error ---
 category: ambiguous-output
-span: 1:8-1:20
+span: 1:1-1:21
 The element type variable is unresolved.

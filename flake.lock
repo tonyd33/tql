@@ -77,6 +77,26 @@
         "type": "github"
       }
     },
+    "editorenv": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790460100,
+        "narHash": "sha256-4Ks83g8jc/1yn6XxUUR9Ufv6CPk/y6XBYYUMREFsorM=",
+        "owner": "tonyd33",
+        "repo": "editorenv",
+        "rev": "510e7994af9e20f34c658ed4d7dc2bc306c5fc10",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tonyd33",
+        "repo": "editorenv",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -328,6 +348,7 @@
     "root": {
       "inputs": {
         "devenv": "devenv",
+        "editorenv": "editorenv",
         "nixpkgs": "nixpkgs_2",
         "zig-overlay": "zig-overlay"
       }

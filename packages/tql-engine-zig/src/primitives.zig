@@ -107,25 +107,10 @@ pub fn operatorScheme(
     operator: Scalar,
 ) !types.Scheme {
     const B = Builder{ .arena = arena, .declared = declared };
-    const a = types.variable_type(0);
-
-    const class: ?types.TypeClassConstraint.Class = switch (operator) {
-        .eq, .ne => .Eq,
-        .lt, .lte, .gt, .gte => .Ord,
-        else => null,
-    };
-
-    if (class) |k| {
-        return .{
-            .quantified = 1,
-            .constraints = try arena.dupe(types.TypeClassConstraint, &.{
-                .{ .class = k, .type = a },
-            }),
-            .type = try B.func(a, try B.func(a, try B.boolType())),
-        };
-    }
 
     return switch (operator) {
+        .eq, .ne => try comparisonScheme(B, .Eq),
+        .lt, .lte, .gt, .gte => try comparisonScheme(B, .Ord),
         .match, .not_match => .{ .type = try B.func(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
@@ -134,7 +119,18 @@ pub fn operatorScheme(
             types.int_type,
             try B.func(types.int_type, types.int_type),
         ) },
-        .eq, .ne, .lt, .lte, .gt, .gte => unreachable,
+    };
+}
+
+/// `class a => a -> a -> Bool`.
+fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.Scheme {
+    const a = types.variable_type(0);
+    return .{
+        .quantified = 1,
+        .constraints = try B.arena.dupe(types.TypeClassConstraint, &.{
+            .{ .class = class, .type = a },
+        }),
+        .type = try B.func(a, try B.func(a, try B.boolType())),
     };
 }
 

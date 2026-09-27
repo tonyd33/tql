@@ -147,7 +147,7 @@ pub const Engine = struct {
         var parsed = try self.tql_parser.parseCollecting(prelude_source);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
-        std.debug.assert(!parsed.hasErrors());
+        if (parsed.hasErrors()) return error.PreludeInvalid;
 
         try desugarer.add(parsed.source_file, g, sink);
     }
@@ -821,7 +821,7 @@ test "isLocal separates locals from globals in a real program" {
     // A binder is a local, and is what a closure must capture.
     const append_body = for (program.definitions) |definition| {
         if (definition.symbol == program.env.interner.lookup("append").?) break definition.body;
-    } else unreachable;
+    } else return error.TestUnexpectedResult;
     const xs = append_body.kind.lambda.parameter;
     try std.testing.expect(isLocal(&translator, xs));
 }

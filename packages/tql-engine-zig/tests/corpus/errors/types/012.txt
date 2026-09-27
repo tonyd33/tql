@@ -1,5 +1,6 @@
 title: applying a non-function
 grammar: typescript
+asserts: error
 
 --- tql ---
 main =
@@ -10,5 +11,5 @@ main =
 
 --- error ---
 category: over-application
-span: 5:5-5:8
-The application. `n : int` has no arrow type.
+span: 5:7-5:8
+The argument. `n : int` has no arrow type.

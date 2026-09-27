@@ -1042,6 +1042,34 @@ pub const Machine = struct {
         return try self.cons(try self.nodeThunk(current), tail);
     }
 
+    fn numbers(left: value.Value, right: value.Value) Error!struct { i64, i64 } {
+        const a = switch (left) {
+            .number => |n| n,
+            else => return error.TypeError,
+        };
+        const b = switch (right) {
+            .number => |n| n,
+            else => return error.TypeError,
+        };
+        return .{ a, b };
+    }
+
+    fn ordering(left: value.Value, right: value.Value) Error!std.math.Order {
+        // `Ord` holds for `Int` and `String` only, so these two cases
+        // are the whole of ordering.
+        return switch (left) {
+            .number => |a| switch (right) {
+                .number => |b| std.math.order(a, b),
+                else => error.TypeError,
+            },
+            .string => |a| switch (right) {
+                .string => |b| std.mem.order(u8, a, b),
+                else => error.TypeError,
+            },
+            else => error.TypeError,
+        };
+    }
+
     fn operator(
         self: *Machine,
         call: *const stg.Expr.Primitive,
@@ -1059,54 +1087,40 @@ pub const Machine = struct {
         const right = try self.force(arguments[1]);
 
         switch (scalar) {
-            .add, .subtract, .multiply, .divide, .modulo => {
-                const a = switch (left) {
-                    .number => |n| n,
-                    else => return error.TypeError,
-                };
-                const b = switch (right) {
-                    .number => |n| n,
-                    else => return error.TypeError,
-                };
-                // Division and modulo by zero are undefined until the language
-                // has a Maybe. A scalar operator has no way to yield nothing,
-                // so the old "empty stream" answer stopped being expressible
-                // when these became scalars.
-                return .{ .number = switch (scalar) {
-                    .add => a + b,
-                    .subtract => a - b,
-                    .multiply => a * b,
-                    .divide => if (b == 0) return error.DivideByZero else @divTrunc(a, b),
-                    .modulo => if (b == 0) return error.DivideByZero else @rem(a, b),
-                    else => unreachable,
-                } };
+            .add => {
+                const a, const b = try numbers(left, right);
+                return .{ .number = a + b };
+            },
+            .subtract => {
+                const a, const b = try numbers(left, right);
+                return .{ .number = a - b };
+            },
+            .multiply => {
+                const a, const b = try numbers(left, right);
+                return .{ .number = a * b };
+            },
+            // Division and modulo by zero are undefined until the language
+            // has a Maybe. A scalar operator has no way to yield nothing,
+            // so the old "empty stream" answer stopped being expressible
+            // when these became scalars.
+            .divide => {
+                const a, const b = try numbers(left, right);
+                if (b == 0) return error.DivideByZero;
+                return .{ .number = @divTrunc(a, b) };
+            },
+            .modulo => {
+                const a, const b = try numbers(left, right);
+                if (b == 0) return error.DivideByZero;
+                return .{ .number = @rem(a, b) };
             },
 
             .eq => return try self.boolValue(try self.equal(left, right)),
             .ne => return try self.boolValue(!try self.equal(left, right)),
 
-            .lt, .lte, .gt, .gte => {
-                // `Ord` holds for `Int` and `String` only, so these two cases
-                // are the whole of ordering.
-                const order: std.math.Order = switch (left) {
-                    .number => |a| switch (right) {
-                        .number => |b| std.math.order(a, b),
-                        else => return error.TypeError,
-                    },
-                    .string => |a| switch (right) {
-                        .string => |b| std.mem.order(u8, a, b),
-                        else => return error.TypeError,
-                    },
-                    else => return error.TypeError,
-                };
-                return try self.boolValue(switch (scalar) {
-                    .lt => order == .lt,
-                    .lte => order != .gt,
-                    .gt => order == .gt,
-                    .gte => order != .lt,
-                    else => unreachable,
-                });
-            },
+            .lt => return try self.boolValue(try ordering(left, right) == .lt),
+            .lte => return try self.boolValue(try ordering(left, right) != .gt),
+            .gt => return try self.boolValue(try ordering(left, right) == .gt),
+            .gte => return try self.boolValue(try ordering(left, right) != .lt),
 
             .match, .not_match => {
                 const haystack = switch (left) {

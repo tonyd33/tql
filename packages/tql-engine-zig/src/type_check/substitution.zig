@@ -44,9 +44,12 @@ pub const Substitution = struct {
         return self.solutions.items[id];
     }
 
-    /// Binds `id` to `t`. The caller has already run the occurs check.
+    /// Binds `id` to `t`.
+    ///
+    /// Preconditions:
+    /// - `id` is unsolved.
+    /// - The occurs check has passed for `id` in `t`.
     pub fn bind(self: *Substitution, id: types.Meta, t: types.Type) void {
-        std.debug.assert(self.solutions.items[id] == null);
         self.solutions.items[id] = t;
     }
 
@@ -158,7 +161,6 @@ pub const Substitution = struct {
 
         fn replace(self: Substituted, head: types.Type) types.Type {
             if (head != .variable) return head;
-            std.debug.assert(head.variable < self.metas.len);
             return self.metas[head.variable];
         }
     };
@@ -231,13 +233,16 @@ pub const Substitution = struct {
 
     /// The inverse of `instantiate`: turns the given free metavariables into
     /// bound `forall` positions, numbered by their order in `metas`.
+    ///
+    /// Returns `error.TooManyVariables` if `metas` has more entries than a
+    /// `TypeVar` can number.
     pub fn quantify(
         self: *Substitution,
         t: types.Type,
         metas: []const types.Meta,
         constraint_list: []const types.TypeClassConstraint,
-    ) !types.Scheme {
-        std.debug.assert(metas.len <= std.math.maxInt(types.TypeVar));
+    ) (error{TooManyVariables} || Allocator.Error)!types.Scheme {
+        if (metas.len > std.math.maxInt(types.TypeVar)) return error.TooManyVariables;
 
         const bound = try self.arena.alloc(types.TypeClassConstraint, constraint_list.len);
         for (constraint_list, bound) |c, *slot| {

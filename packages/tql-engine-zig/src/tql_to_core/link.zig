@@ -344,8 +344,6 @@ pub const Desugarer = struct {
         entry_span: diagnostic.Span,
         sink: *diagnostic.Sink,
     ) Error!Program {
-        std.debug.assert(self.modules.items.len > 0);
-
         const scratch = self.env.?.allocator();
 
         var total: usize = 0;

@@ -42,15 +42,14 @@ pub fn unify(
 
     if (a == .meta and b == .meta and a.meta == b.meta) return .unified;
 
-    if (a == .meta) return bindMeta(subst, a.meta, b);
-    if (b == .meta) return bindMeta(subst, b.meta, a);
+    if (a != .meta and b == .meta) return bindMeta(subst, b.meta, a);
 
     switch (a) {
-        .meta => unreachable,
+        .meta => |id| return bindMeta(subst, id, b),
         // A bound variable reaching unification means a scheme was used
         // without instantiation, which is a bug in the caller rather than a
         // type error in the program.
-        .variable => unreachable,
+        .variable => @panic("a bound type variable reached unification"),
         .primitive => |p| {
             if (b != .primitive or b.primitive != p) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };

@@ -1,5 +1,6 @@
 title: `~` requires a string and a regex
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = 1 ~ r"a";

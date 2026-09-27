@@ -34,6 +34,7 @@ pub const Failure = struct {
         violation: constraints.Violation,
         over_application: types.Type,
         unbound: core.SymbolId,
+        too_many_variables: usize,
     };
 };
 
@@ -265,7 +266,7 @@ pub const Inference = struct {
         const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
         try self.expect(scrutinee, scrutinee_type, c.scrutinee.span, .t_case);
 
-        var result: ?types.Type = null;
+        var first: ?struct { type: types.Type, span: diagnostic.Span } = null;
         for (c.alternatives, declared.constructors) |alternative, constructor| {
             const mark = self.scope.mark();
             defer self.scope.truncate(mark);
@@ -276,14 +277,20 @@ pub const Inference = struct {
             }
 
             const body = try self.term(alternative.body);
-            if (result) |expected| {
-                try self.expect(body, expected, alternative.body.span, .t_case);
+            if (first) |f| {
+                // Alternatives are checked in constructor order. Of two that
+                // disagree, blame the one later in the source.
+                if (alternative.body.span.start_byte >= f.span.start_byte) {
+                    try self.expect(body, f.type, alternative.body.span, .t_case);
+                } else {
+                    try self.expect(f.type, body, f.span, .t_case);
+                }
             } else {
-                result = body;
+                first = .{ .type = body, .span = alternative.body.span };
             }
         }
 
-        return result.?;
+        return first.?.type;
     }
 
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)
@@ -315,7 +322,10 @@ pub const Inference = struct {
         self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, l.bindings.len);
         defer self.gpa.free(generalized);
-        try self.generalizeGroup(placeholders, generalized);
+        const spans = try self.gpa.alloc(diagnostic.Span, l.bindings.len);
+        defer self.gpa.free(spans);
+        for (l.bindings, spans) |b, *span| span.* = b.value.span;
+        try self.generalizeGroup(placeholders, spans, generalized);
         for (l.bindings, generalized) |b, scheme| {
             try self.scope.push(b.name, .{ .scheme = scheme });
         }
@@ -343,10 +353,10 @@ pub const Inference = struct {
 
     /// `Gen(Gamma, tau)`: quantify the metavariables free in `tau`
     /// but not in the environment, and carry the residual constraints on them
-    /// into the scheme.
-    pub fn generalize(self: *Inference, t: types.Type) Error!types.Scheme {
+    /// into the scheme. A scheme with too many variables is reported at `span`.
+    pub fn generalize(self: *Inference, t: types.Type, span: diagnostic.Span) Error!types.Scheme {
         var out: [1]types.Scheme = undefined;
-        try self.generalizeGroup(&.{t}, &out);
+        try self.generalizeGroup(&.{t}, &.{span}, &out);
         return out[0];
     }
 
@@ -355,12 +365,15 @@ pub const Inference = struct {
     /// Each member quantifies the metavariables free in its own type but not
     /// in the environment, and carries every residual constraint that mentions
     /// one of them. A constraint shared by several members is carried by each.
+    /// A member with too many variables is reported at its span.
     ///
     /// Preconditions:
+    /// - `spans.len == group.len`
     /// - `out.len == group.len`
     pub fn generalizeGroup(
         self: *Inference,
         group: []const types.Type,
+        spans: []const diagnostic.Span,
         out: []types.Scheme,
     ) Error!void {
         if (try self.undecided.recheck(self.subst)) |v| {
@@ -406,7 +419,7 @@ pub const Inference = struct {
         // at its own span instead.
         var bare: std.ArrayList(types.TypeClassConstraint) = .empty;
         defer bare.deinit(self.gpa);
-        for (group, out, 0..) |t, *scheme, i| {
+        for (group, spans, out, 0..) |t, span, *scheme, i| {
             const own = quantified.items[bounds[i]..bounds[i + 1]];
             bare.clearRetainingCapacity();
             for (taken.items) |c| {
@@ -414,7 +427,12 @@ pub const Inference = struct {
                     try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
                 }
             }
-            scheme.* = try self.subst.quantify(t, own, bare.items);
+            scheme.* = self.subst.quantify(t, own, bare.items) catch |err| switch (err) {
+                error.TooManyVariables => return self.fail(.limit, span, .t_letrec, .{
+                    .too_many_variables = own.len,
+                }),
+                error.OutOfMemory => |e| return e,
+            };
         }
     }
 
@@ -457,7 +475,10 @@ pub const Inference = struct {
         self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, members.len);
         defer self.gpa.free(generalized);
-        try self.generalizeGroup(placeholders, generalized);
+        const spans = try self.gpa.alloc(diagnostic.Span, members.len);
+        defer self.gpa.free(spans);
+        for (members, spans) |index, *span| span.* = definitions[index].span;
+        try self.generalizeGroup(placeholders, spans, generalized);
 
         for (members, generalized) |index, scheme| {
             const symbol = definitions[index].symbol;
@@ -502,7 +523,8 @@ pub const Inference = struct {
     /// Checks the inferred scheme against a written signature.
     ///
     /// The declared type must be an *instance* of the inferred one: a
-    /// signature may be more specific than the body supports.
+    /// signature may be more specific than the body supports. Its context must
+    /// cover every constraint the body raises on a declared variable.
     ///
     /// An accepted annotation becomes the exported scheme.
     fn checkAnnotation(
@@ -549,21 +571,36 @@ pub const Inference = struct {
             slot.* = resolved.meta;
         }
 
-        // A signature carries no constraints. One the body raised on a
-        // declared variable makes the signature too general, and one on a type
-        // the signature fixed must hold at that type.
+        // Each constraint the body raised, reduced to bare variables. One on a
+        // declared variable must be in the declared context, and one on any
+        // other variable is still owed.
+        var residuals: std.ArrayList(constraints.Residual) = .empty;
+        defer residuals.deinit(self.gpa);
         for (inferred.constraints) |c| {
             const on = try self.subst.instantiateWith(c.type, flexible.metas);
-            if (try constraints.mentionsAny(self.subst, on, representatives, self.gpa)) {
-                const named = try self.subst.quantify(on, representatives, &.{});
-                return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+            residuals.clearRetainingCapacity();
+            if (try constraints.reduce(self.subst, c.class, on, &residuals, self.gpa)) |culprit| {
+                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = .{
                     .class = c.class,
-                    .type = named.type,
+                    .type = culprit,
                     .origin = span,
                 } });
             }
-            if (try self.undecided.require(self.subst, c.class, on, span)) |v| {
-                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+            for (residuals.items) |r| {
+                const index = std.mem.indexOfScalar(types.Meta, representatives, r.meta) orelse {
+                    if (try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, span)) |v| {
+                        return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+                    }
+                    continue;
+                };
+                const on_declared = types.variable_type(@intCast(index));
+                for (declared.constraints) |d| {
+                    if (d.class == r.class and d.type == .variable and d.type.variable == on_declared.variable) break;
+                } else return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+                    .class = r.class,
+                    .type = on_declared,
+                    .origin = span,
+                } });
             }
         }
     }
@@ -745,6 +782,10 @@ pub fn check(
                 .unbound => |id| try buf.writer.print(
                     "`{s}` is not defined.",
                     .{program.env.interner.spelling(id)},
+                ),
+                .too_many_variables => |n| try buf.writer.print(
+                    "The type has {d} variables, more than the {d} a scheme can quantify.",
+                    .{ n, std.math.maxInt(types.TypeVar) },
                 ),
             }
 
@@ -1239,7 +1280,7 @@ test "generalization quantifies what the environment does not hold" {
     const x = try fix.name("x");
     const inferred = try fix.inference.term(try fix.lam(x, fix.sym(x)));
 
-    const scheme = try fix.inference.generalize(inferred);
+    const scheme = try fix.inference.generalize(inferred, diagnostic.Span.unknown);
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
     try scheme.format(&buf.writer);
@@ -1257,7 +1298,7 @@ test "generalization does not quantify a metavariable the scope still holds" {
     const outer = try fix.subst.fresh();
     try fix.inference.scope.push(try fix.name("x"), .{ .monomorphic = outer });
 
-    const scheme = try fix.inference.generalize(outer);
+    const scheme = try fix.inference.generalize(outer, diagnostic.Span.unknown);
     try testing.expectEqual(0, scheme.quantified);
 }
 
@@ -1276,7 +1317,7 @@ test "generalization carries the residual constraint into the scheme" {
     const body = try fix.app(fix.sym(length_of), fix.sym(x));
     const inferred = try fix.inference.term(try fix.lam(x, body));
 
-    const scheme = try fix.inference.generalize(inferred);
+    const scheme = try fix.inference.generalize(inferred, diagnostic.Span.unknown);
     var buf: std.Io.Writer.Allocating = .init(gpa);
     defer buf.deinit();
     try scheme.format(&buf.writer);

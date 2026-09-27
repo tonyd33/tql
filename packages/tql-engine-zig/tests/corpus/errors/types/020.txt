@@ -1,12 +1,13 @@
 title: `Sized` on an int
 grammar: typescript
+asserts: error
 
 `Sized` holds for `string` and `[a]` only.
 
 --- tql ---
-main = 42 | length;
+main = pure 42 | arr length;
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:8-1:10
+span: 1:22-1:28
 `Sized int` is not satisfied.

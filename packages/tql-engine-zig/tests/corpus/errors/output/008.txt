@@ -1,5 +1,6 @@
 title: an unconstrained output type is an ambiguity error
 grammar: typescript
+asserts: error
 
 `none : Filter a b` leaves `b` free. Nothing in the program fixes it, so no
 `Serial` instance can be selected. This is the case named explicitly in
@@ -10,5 +11,5 @@ main = none;
 
 --- error ---
 category: ambiguous-output
-span: 1:8-1:13
+span: 1:1-1:13
 The output type variable is unresolved.

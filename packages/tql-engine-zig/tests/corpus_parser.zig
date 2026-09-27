@@ -112,6 +112,9 @@ pub const Diagnostic = struct {
     span: []const u8,
     commentary: []const u8,
     section: Section,
+    /// Source offset just past the `span:` value. The `category:` and `span:`
+    /// lines occupy `section.content_start..header_end`.
+    header_end: usize,
 
     pub const SPAN_ANY = "any";
 
@@ -321,7 +324,6 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
     file = f;
 
     const description = try extractDescription(allocator, &p);
-    errdefer description.deinit(allocator);
 
     header_owned = false;
     var case = try parseSections(allocator, &p, t, g, f, description, asserts, pending);
@@ -342,13 +344,6 @@ pub fn parse(allocator: std.mem.Allocator, content: []const u8) !CorpusHandle {
 fn validate(case: *const TestCase) !void {
     inline for (comptime std.enums.values(SectionKind)) |kind| {
         if (kind == .query or kind == .source) continue;
-        // diagnostics escape the ratchet entirely right now. rejection is
-        // exempt from `asserts`/`pending`, so an error expectation cannot be
-        // counted as deferred the way a value can.
-        // IMPROVE: make the engine reports a category and span of its own.
-        // Then, `error` should become an ordinary section and this exemption
-        // can go.
-        if (kind == .@"error") continue;
 
         const populated = case.section(kind).content.len > 0;
         const claimed = case.asserts.has(kind) or case.pending.has(kind);
@@ -469,6 +464,7 @@ fn parseDiagnostic(allocator: std.mem.Allocator, s: Section) !Diagnostic {
     errdefer if (category) |c| allocator.free(c);
     var span: ?[]const u8 = null;
     errdefer if (span) |v| allocator.free(v);
+    var header_end = s.content_start;
 
     var rest: []const u8 = s.content;
     while (rest.len > 0) {
@@ -484,6 +480,7 @@ fn parseDiagnostic(allocator: std.mem.Allocator, s: Section) !Diagnostic {
             category = try allocator.dupe(u8, value);
         } else if (std.mem.eql(u8, key, "span") and category != null and span == null) {
             span = try allocator.dupe(u8, value);
+            header_end = s.content_start + (s.content.len - rest.len) + std.mem.trimEnd(u8, line, " \t\r").len;
         } else {
             break;
         }
@@ -496,8 +493,23 @@ fn parseDiagnostic(allocator: std.mem.Allocator, s: Section) !Diagnostic {
         .span = span orelse return error.DiagnosticMissingSpan,
         .commentary = try allocator.dupe(u8, std.mem.trim(u8, rest, "\n")),
         .section = s,
+        .header_end = header_end,
     };
 }
+
+/// A diagnostic as the runner renders it: `category/span`.
+pub const Reported = struct {
+    category: []const u8,
+    span: []const u8,
+
+    pub fn parse(line: []const u8) Reported {
+        const slash = std.mem.indexOfScalar(u8, line, '/') orelse line.len;
+        return .{
+            .category = std.mem.trim(u8, line[0..slash], " \t"),
+            .span = if (slash < line.len) std.mem.trim(u8, line[slash + 1 ..], " \t") else "",
+        };
+    }
+};
 
 const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_QUERY,
@@ -578,10 +590,19 @@ pub fn applyUpdates(
     const tc = handle.case;
     var cursor: usize = 0;
 
+    var headers: []const []const u8 = &.{};
+    defer {
+        for (headers) |h| allocator.free(h);
+        allocator.free(headers);
+    }
+    if (findUpdate(updates, .@"error")) |rendered| {
+        headers = try diagnosticHeaders(allocator, tc.diagnostics, rendered);
+    }
+
     // Emitted in source order so the byte gaps line up; a section absent from
     // the file has zero-width bounds at the point it would have appeared.
-    // `error` is omitted: it is never regenerated, so its bytes are copied as
-    // part of the gap preceding whatever follows it.
+    // `error` is omitted: its bytes are copied as part of the gap preceding
+    // whatever follows it, with any rewritten headers spliced in.
     const order = [_]SectionKind{
         .query,
         .source,
@@ -599,6 +620,7 @@ pub fn applyUpdates(
         }
     }.lt);
 
+    const splices: Splices = .{ .diagnostics = tc.diagnostics, .headers = headers };
     for (ordered) |kind| {
         cursor = try emitSectionWithGap(
             allocator,
@@ -608,13 +630,70 @@ pub fn applyUpdates(
             tc.section(kind),
             findUpdate(updates, kind),
             cursor,
+            splices,
         );
     }
 
-    try buf.appendSlice(allocator, handle.source[cursor..]);
+    try splices.append(allocator, &buf, handle.source, cursor, handle.source.len);
 
     return buf.toOwnedSlice(allocator);
 }
+
+/// Returns one `category:`/`span:` header per diagnostic, from `rendered`'s
+/// `category/span` lines. A `span: any` is kept.
+///
+/// Preconditions:
+/// - `rendered` has exactly one non-blank line per diagnostic.
+fn diagnosticHeaders(
+    allocator: std.mem.Allocator,
+    diagnostics: []const Diagnostic,
+    rendered: []const u8,
+) ![]const []const u8 {
+    var headers: std.ArrayList([]const u8) = .empty;
+    errdefer {
+        for (headers.items) |h| allocator.free(h);
+        headers.deinit(allocator);
+    }
+    var lines = std.mem.tokenizeScalar(u8, rendered, '\n');
+    for (diagnostics) |d| {
+        const got = Reported.parse(lines.next() orelse return error.DiagnosticCountChanged);
+        const span = if (std.mem.eql(u8, d.span, Diagnostic.SPAN_ANY)) d.span else got.span;
+        try headers.append(allocator, try std.fmt.allocPrint(
+            allocator,
+            "category: {s}\nspan: {s}",
+            .{ got.category, span },
+        ));
+    }
+    if (lines.next() != null) return error.DiagnosticCountChanged;
+    return headers.toOwnedSlice(allocator);
+}
+
+/// Replacement headers for the diagnostics, applied while copying source
+/// bytes. Empty `headers` copies verbatim.
+const Splices = struct {
+    diagnostics: []const Diagnostic,
+    headers: []const []const u8,
+
+    /// Copy `source[from..to]`, replacing each diagnostic header inside it.
+    fn append(
+        self: Splices,
+        allocator: std.mem.Allocator,
+        buf: *std.ArrayList(u8),
+        source: []const u8,
+        from: usize,
+        to: usize,
+    ) !void {
+        var at = from;
+        for (self.headers, 0..) |header, i| {
+            const d = self.diagnostics[i];
+            if (d.section.content_start < at or d.header_end > to) continue;
+            try buf.appendSlice(allocator, source[at..d.section.content_start]);
+            try buf.appendSlice(allocator, header);
+            at = d.header_end;
+        }
+        try buf.appendSlice(allocator, source[at..to]);
+    }
+};
 
 fn findUpdate(updates: []const SectionUpdate, kind: SectionKind) ?[]const u8 {
     for (updates) |u| {
@@ -637,10 +716,11 @@ fn emitSectionWithGap(
     section: Section,
     new_content: ?[]const u8,
     cursor: usize,
+    splices: Splices,
 ) !usize {
     // emit the gap (marker line + any inter-section bytes)
     const gap = source[cursor..section.start];
-    try buf.appendSlice(allocator, gap);
+    try splices.append(allocator, buf, source, cursor, section.start);
     const marker_present = std.mem.endsWith(u8, std.mem.trimEnd(u8, gap, "\n"), kind.marker());
     if (new_content) |nc| {
         if (section.content.len == 0) {
@@ -873,6 +953,37 @@ test "a populated section claimed by neither asserts nor pending is rejected" {
     try testing.expectError(error.UnassertedSection, parse(testing.allocator, input));
 }
 
+test "an error section claimed by neither asserts nor pending is rejected" {
+    const input =
+        \\grammar: typescript
+        \\
+        \\--- tql ---
+        \\main = double "text";
+        \\--- error ---
+        \\category: type-mismatch
+        \\span: 1:15-1:21
+    ;
+    try testing.expectError(error.UnassertedSection, parse(testing.allocator, input));
+}
+
+test "a pending error section still expects a rejection" {
+    const input =
+        \\grammar: typescript
+        \\pending: error
+        \\
+        \\--- tql ---
+        \\main = double "text";
+        \\--- error ---
+        \\category: type-mismatch
+        \\span: 1:15-1:21
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expect(corpus.case.expectsError());
+    try testing.expect(!corpus.case.isAsserted(.@"error"));
+}
+
 test "an unknown header is rejected" {
     const input =
         \\grammar: typescript
@@ -1082,6 +1193,73 @@ test "applyUpdates with no updates reproduces source exactly" {
     defer testing.allocator.free(result);
 
     try testing.expectEqualStrings(FULL_CASE, result);
+}
+
+test "applyUpdates rewrites diagnostic headers and keeps commentary" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error, tql_tree
+        \\
+        \\--- tql ---
+        \\main = x;
+        \\--- error ---
+        \\category: parse
+        \\span: 1:1-1:2
+        \\The first.
+        \\
+        \\--- tql tree ---
+        \\(source_file)
+        \\--- error ---
+        \\category: parse
+        \\span: any
+        \\The second.
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const result = try applyUpdates(testing.allocator, corpus, &.{
+        .{ .kind = .@"error", .new_content = "type-mismatch/2:3-2:4\nunresolved-name/1:8-1:9" },
+        .{ .kind = .tql_tree, .new_content = "(source_file x)" },
+    });
+    defer testing.allocator.free(result);
+
+    try testing.expectEqualStrings(
+        \\grammar: typescript
+        \\asserts: error, tql_tree
+        \\
+        \\--- tql ---
+        \\main = x;
+        \\--- error ---
+        \\category: type-mismatch
+        \\span: 2:3-2:4
+        \\The first.
+        \\
+        \\--- tql tree ---
+        \\(source_file x)
+        \\--- error ---
+        \\category: unresolved-name
+        \\span: any
+        \\The second.
+    , result);
+}
+
+test "applyUpdates refuses a changed diagnostic count" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = x;
+        \\--- error ---
+        \\category: parse
+        \\span: 1:1-1:2
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    try testing.expectError(error.DiagnosticCountChanged, applyUpdates(testing.allocator, corpus, &.{
+        .{ .kind = .@"error", .new_content = "parse/1:1-1:2\nparse/1:3-1:4" },
+    }));
 }
 
 test "applyUpdates preserves whitespace in unchanged sections" {

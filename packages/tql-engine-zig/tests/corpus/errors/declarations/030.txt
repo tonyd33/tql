@@ -1,0 +1,16 @@
+title: `Eq` does not cover `Ord`
+grammar: typescript
+asserts: error
+
+`<` needs `Ord a`. There are no superclasses, so neither class covers the
+other.
+
+--- tql ---
+less : Eq a => a -> a -> Bool;
+less x y = x < y;
+main = const [less 1 2];
+
+--- error ---
+category: signature-mismatch
+span: 1:1-1:31
+`Ord a` is not satisfied.

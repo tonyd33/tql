@@ -25,6 +25,9 @@ pub const Error = Allocator.Error || error{
     /// A regex pattern failed to compile. Desugaring validated every one, so
     /// this is not reached by a query that checked.
     InvalidRegex,
+    /// A local name no enclosing binder introduced. The free-variable pass
+    /// captures every such name, so this is not reached by a checked query.
+    UnboundLocal,
 };
 
 /// What a Core symbol resolves to at a use site.
@@ -138,7 +141,7 @@ pub const Translator = struct {
     }
 
     /// Where `name` sits in the environment of the closure being translated.
-    fn place(self: *Translator, name: core.SymbolId) stg.Local {
+    fn place(self: *Translator, name: core.SymbolId) Error!stg.Local {
         // Innermost first, so the scope reads as a stack.
         var i = self.scope.items.len;
         while (i > 0) {
@@ -149,7 +152,7 @@ pub const Translator = struct {
         }
         // Reached only for a name no enclosing binder introduced, which the
         // free-variable pass would have captured.
-        unreachable;
+        return error.UnboundLocal;
     }
 
     /// Whether a symbol is a local rather than something reached by identity.
@@ -205,7 +208,7 @@ pub const Translator = struct {
         switch (term.kind) {
             .literal => |source| return .{ .literal = try self.literal(source) },
             .symbol => |name| switch (self.resolve(name)) {
-                .local => |id| return .{ .local = self.place(id) },
+                .local => |id| return .{ .local = try self.place(id) },
                 .global => |id| return .{ .global = id },
                 .constructor => |c| {
                     // A nullary constructor is a value, allocated directly.
@@ -565,7 +568,7 @@ pub const Translator = struct {
         // is what the evaluator copies from. Resolved before the scope is
         // switched, because that is the scope they name.
         const captures = try self.arena.alloc(stg.Local, free_names.len);
-        for (free_names, captures) |name, *capture| capture.* = self.place(name);
+        for (free_names, captures) |name, *capture| capture.* = try self.place(name);
 
         // The body is translated in this closure's scope, not the enclosing
         // one: a reference means an offset, and the offsets differ per
@@ -796,7 +799,7 @@ test "a closure prints its captures, its update flag and its parameters" {
     const spread = program.env.interner.lookup("spread").?;
     const definition = for (translated.definitions) |definition| {
         if (definition.symbol == spread) break definition;
-    } else unreachable;
+    } else return error.TestUnexpectedResult;
     const function = definition.value.body.let.bindings[0].value.closure;
 
     var w: std.Io.Writer.Allocating = .init(allocator);
