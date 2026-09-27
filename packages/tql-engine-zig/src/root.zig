@@ -19,6 +19,7 @@ pub const tql_to_core = @import("tql_to_core.zig");
 pub const type_check = @import("type_check.zig");
 pub const core_to_core = @import("core_to_core.zig");
 pub const core_to_stg = @import("core_to_stg.zig");
+pub const stg = @import("stg.zig");
 
 const grammar = @import("lang/grammar.zig");
 const pcre2 = @import("regex.zig");
@@ -43,10 +44,10 @@ pub const Config = struct {
 ///
 /// Diverges on an infinite list.
 fn listElements(
-    machine: *core_to_stg.Machine,
+    machine: *stg.Machine,
     gpa: Allocator,
-    head: core_to_stg.Value,
-    out: *std.ArrayList(*core_to_stg.Thunk),
+    head: stg.Value,
+    out: *std.ArrayList(*stg.Thunk),
 ) !void {
     const nil_tag = machine.datatypes.nilConstructor().tag;
     var current = head;
@@ -217,7 +218,7 @@ pub const Engine = struct {
 /// A query checked and translated once, run against many targets.
 pub const CompiledQuery = struct {
     checked: tql_to_core.Program,
-    translated: core_to_stg.Program,
+    translated: stg.Program,
     grammar: *const Grammar,
     allocator: Allocator,
     io: std.Io,
@@ -252,7 +253,7 @@ pub const CompiledQuery = struct {
 
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
-        var machine = try core_to_stg.Machine.init(
+        var machine = try stg.Machine.init(
             scratch,
             self.allocator,
             &self.translated,
@@ -264,10 +265,10 @@ pub const CompiledQuery = struct {
         const entry = machine.globals.get(self.checked.entry) orelse
             return error.MissingEntry;
 
-        var root: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
+        var root: stg.Thunk = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
         const outputs = try machine.apply(try machine.force(entry), &.{&root});
 
-        var elements: std.ArrayList(*core_to_stg.Thunk) = .empty;
+        var elements: std.ArrayList(*stg.Thunk) = .empty;
         defer elements.deinit(scratch);
         try listElements(&machine, scratch, outputs, &elements);
 
@@ -317,6 +318,7 @@ test {
     refAllDecls(types);
     refAllDecls(type_check);
     refAllDecls(core_to_stg);
+    refAllDecls(stg);
 }
 
 test "synthesized symbols carry the grammar ids they resolved" {
@@ -381,14 +383,14 @@ test "a constructor field that is not an atom becomes a thunk" {
     // argument, so it must be let-bound to a thunk before the `Cons` rather
     // than evaluated into the field. This is what `laziness/005` depends on.
     const append = program.env.interner.lookup("append").?;
-    var body: ?*const core_to_stg.Closure = null;
+    var body: ?*const stg.Closure = null;
     for (translated.definitions) |definition| {
         if (definition.symbol == append) body = definition.value;
     }
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: core_to_stg.Printer = .{ .interner = &program.env.interner };
+    const printer: stg.Printer = .{ .interner = &program.env.interner };
     try printer.closure(body.?, &w.writer);
 
     // The recursive call is let-bound to a thunk and the `Cons` takes that
@@ -434,14 +436,14 @@ test "a stream bind translates to a concat_map call" {
     var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var body: ?*const core_to_stg.Closure = null;
+    var body: ?*const stg.Closure = null;
     for (translated.definitions) |definition| {
         if (definition.symbol == program.entry) body = definition.value;
     }
 
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
-    const printer: core_to_stg.Printer = .{ .interner = &program.env.interner };
+    const printer: stg.Printer = .{ .interner = &program.env.interner };
     try printer.closure(body.?, &w.writer);
 
     // `bind` is not a machine form: the receiver becomes a one-argument
@@ -475,17 +477,17 @@ test "the evaluator runs the prelude's append" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const entry = machine.globals.get(program.entry).?;
     const main_value = try machine.force(entry);
 
     // `main` takes the root, which nothing here reads, so any thunk does.
-    var unit: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .number = 0 });
+    var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
     const applied = try machine.apply(main_value, &.{&unit});
 
-    var elements: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var elements: std.ArrayList(*stg.Thunk) = .empty;
     defer elements.deinit(arena.allocator());
     try listElements(&machine, arena.allocator(), applied, &elements);
 
@@ -500,7 +502,7 @@ fn runQuery(
     allocator: std.mem.Allocator,
     source: []const u8,
     arena: *std.heap.ArenaAllocator,
-    out: *std.ArrayList(*core_to_stg.Thunk),
+    out: *std.ArrayList(*stg.Thunk),
 ) !void {
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
@@ -518,11 +520,11 @@ fn runQuery(
     var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const main_value = try machine.force(machine.globals.get(program.entry).?);
-    var unit: core_to_stg.Thunk = core_to_stg.Thunk.value(.{ .number = 0 });
+    var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
     try listElements(
         &machine,
         arena.allocator(),
@@ -540,7 +542,7 @@ test "the evaluator runs pure, kleisli and the scalar operators" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `pure` builds a one-element list, the operator is scalar under Q16, and
@@ -557,7 +559,7 @@ test "the evaluator orders ints and strings" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `Ord` holds for `Int` and `String` only, and `<=`/`>=` are the two that
@@ -581,7 +583,7 @@ test "the evaluator runs arr and select" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `select` keeps the inputs its predicate accepts. `arr` carries the
@@ -601,7 +603,7 @@ test "the evaluator runs exists, any_m and all_m" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `all_m` over an empty source is vacuously true, and its arms must be
@@ -630,7 +632,7 @@ test "the evaluator runs or_else" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // The fallback runs only when the primary yields nothing.
@@ -649,7 +651,7 @@ test "a filter chain over a long list runs in bounded stack" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `count` builds a list of `n` elements and `concat_map` runs a filter
@@ -672,7 +674,7 @@ test "the evaluator runs probe without forcing the whole stream" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
+    var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
     // `laziness/005`: the left operand satisfies the probe, so the infinite
@@ -717,7 +719,7 @@ test "forcing a global cycle reports it rather than hanging" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try core_to_stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
     defer machine.deinit(allocator);
 
     const a = program.env.interner.lookup("a").?;
@@ -740,31 +742,32 @@ test "isLocal separates locals from globals in a real program" {
     var program = try engine.desugarQuery("main root = pure 1 root;", g, &sink);
     defer program.deinit();
 
-    const translate_mod = @import("core_to_stg/translate.zig");
-    var translator: translate_mod.Translator = .{
+    var translator: core_to_stg.Translator = .{
         .arena = allocator,
         .gpa = allocator,
         .program = &program,
         .interner = &program.env.interner,
     };
 
+    const isLocal = core_to_stg.Translator.isLocal;
+
     // Reached by identity: never captured.
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("Cons").?));
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("kleisli").?));
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("append").?));
+    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("Cons").?));
+    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("kleisli").?));
+    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("append").?));
 
     // A synthesized primitive is reached by identity like any other.
     {
         var ops = try engine.desugarQuery("main root = pure (1 + 2) root;", g, &sink);
         defer ops.deinit();
-        var t2: translate_mod.Translator = .{
+        var t2: core_to_stg.Translator = .{
             .arena = allocator,
             .gpa = allocator,
             .program = &ops,
             .interner = &ops.env.interner,
         };
         const plus = ops.env.interner.lookup("op[+]").?;
-        try std.testing.expect(!translate_mod.Translator.isLocal(&t2, plus));
+        try std.testing.expect(!isLocal(&t2, plus));
     }
 
     // A binder is a local, and is what a closure must capture.
@@ -772,7 +775,7 @@ test "isLocal separates locals from globals in a real program" {
         if (definition.symbol == program.env.interner.lookup("append").?) break definition.body;
     } else unreachable;
     const xs = append_body.kind.lambda.parameter;
-    try std.testing.expect(translate_mod.Translator.isLocal(&translator, xs));
+    try std.testing.expect(isLocal(&translator, xs));
 }
 
 test "the prelude's bodies compile to Core" {

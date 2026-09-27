@@ -508,7 +508,7 @@ fn runDumpInstructions(
     };
     defer compiled.deinit();
 
-    const printer = tql.core_to_stg.Printer{ .interner = &compiled.checked.env.interner };
+    const printer = tql.stg.Printer{ .interner = &compiled.checked.env.interner };
     for (compiled.translated.definitions) |definition| {
         try stdout.print("{s} = ", .{compiled.checked.env.interner.spelling(definition.symbol)});
         try printer.closure(definition.value, stdout);
@@ -832,15 +832,15 @@ fn run(
     }
     writer_thread.join();
 
-    if (tql.core_to_stg.count_allocations) {
+    if (tql.stg.count_allocations) {
         var total: u64 = 0;
-        for (tql.core_to_stg.site_counts.values) |c| total += c;
+        for (tql.stg.site_counts.values) |c| total += c;
         try stderr.print("allocations by site (total {d}):\n", .{total});
-        inline for (@typeInfo(tql.core_to_stg.Site).@"enum".fields) |f| {
-            const site: tql.core_to_stg.Site = @enumFromInt(f.value);
-            const n = tql.core_to_stg.site_counts.get(site);
+        inline for (@typeInfo(tql.stg.Site).@"enum".fields) |f| {
+            const site: tql.stg.Site = @enumFromInt(f.value);
+            const n = tql.stg.site_counts.get(site);
             if (n > 0) try stderr.print("  {d:>10}  {d:>10} B  {s}\n", .{
-                n, tql.core_to_stg.site_bytes.get(site), f.name,
+                n, tql.stg.site_bytes.get(site), f.name,
             });
         }
     }

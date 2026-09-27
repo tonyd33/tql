@@ -5,7 +5,7 @@
 //! `\n` not.
 
 const std = @import("std");
-const stg = @import("stg.zig");
+const stg = @import("terms.zig");
 const core = @import("../core.zig");
 
 pub const Printer = struct {

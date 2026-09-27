@@ -15,7 +15,7 @@ const core = @import("../core.zig");
 const tql_to_core = @import("../tql_to_core.zig");
 const free = @import("free.zig");
 const primitives = @import("../primitives.zig");
-const stg = @import("stg.zig");
+const stg = @import("../stg.zig");
 const datatypes = core.datatypes;
 
 const Allocator = std.mem.Allocator;

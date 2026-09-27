@@ -14,7 +14,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const core = @import("../core.zig");
-const stg = @import("stg.zig");
+const stg = @import("terms.zig");
 
 const Allocator = std.mem.Allocator;
 
