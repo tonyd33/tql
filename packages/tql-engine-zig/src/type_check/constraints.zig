@@ -27,7 +27,7 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
     const head = subst.resolve(t);
     return switch (head) {
         .meta => |id| .{ .deferred = id },
-        .variable => unreachable,
+        .variable => @panic("a bound type variable reached constraint solving"),
         .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = head },
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => .{ .fails = head },
@@ -80,7 +80,7 @@ pub fn reduce(
     const head = subst.resolve(t);
     switch (head) {
         .meta => |id| try out.append(gpa, .{ .class = class, .meta = id }),
-        .variable => unreachable,
+        .variable => @panic("a bound type variable reached constraint solving"),
         .primitive => |p| if (!holdsForPrimitive(class, p)) return head,
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => return head,

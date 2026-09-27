@@ -75,6 +75,7 @@ pub const Category = enum {
     main_type,
     main_parameters,
     signature_mismatch,
+    limit,
 
     pub fn name(self: Category) []const u8 {
         return switch (self) {
@@ -95,6 +96,7 @@ pub const Category = enum {
             .main_type => "main-type",
             .main_parameters => "main-parameters",
             .signature_mismatch => "signature-mismatch",
+            .limit => "limit",
         };
     }
 };

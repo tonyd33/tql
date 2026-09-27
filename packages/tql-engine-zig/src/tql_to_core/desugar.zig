@@ -483,25 +483,13 @@ pub const Lowerer = struct {
         const left = try self.expression(b.left, scope);
         const right = try self.expression(b.right, scope);
 
-        const combinator: ?[]const u8 = switch (b.operator) {
-            .pipe => "kleisli",
-            .stream_union => "alt",
-            .@"and" => "and",
-            .@"or" => "or",
-            else => null,
-        };
-
-        if (combinator) |name| {
-            return try self.builder.applyMany(
-                try self.primitive(name, span),
-                &.{ left, right },
-                span,
-            );
-        }
-
         // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
         // never lifted over filters.
         const scalar: core.Scalar = switch (b.operator) {
+            .pipe => return try self.combinator("kleisli", left, right, span),
+            .stream_union => return try self.combinator("alt", left, right, span),
+            .@"and" => return try self.combinator("and", left, right, span),
+            .@"or" => return try self.combinator("or", left, right, span),
             .divide => .divide,
             .multiply => .multiply,
             .modulo => .modulo,
@@ -515,7 +503,6 @@ pub const Lowerer = struct {
             .gte => .gte,
             .match => .match,
             .not_match => .not_match,
-            .pipe, .stream_union, .@"and", .@"or" => unreachable,
         };
         const operator = try self.synthesize(
             "op[{s}]",
@@ -524,6 +511,14 @@ pub const Lowerer = struct {
         );
         return try self.builder.applyMany(
             self.builder.symbol(operator, span),
+            &.{ left, right },
+            span,
+        );
+    }
+
+    fn combinator(self: *Lowerer, name: []const u8, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
+        return try self.builder.applyMany(
+            try self.primitive(name, span),
             &.{ left, right },
             span,
         );

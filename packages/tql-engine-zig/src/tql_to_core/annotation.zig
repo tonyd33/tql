@@ -76,7 +76,7 @@ const Translator = struct {
         return switch (node.kind) {
             .constructor => |name| try self.named(name, node.span),
             .application => |a| try self.application(a.*, node.span),
-            .variable => |name| .{ .variable = try self.binder(name) },
+            .variable => |name| .{ .variable = try self.binder(name, node.span) },
             .list => |element| try self.datatypes.list(self.arena, try self.type(element.*)),
             .parenthesized => |inner| try self.type(inner.*),
             .function => |f| try types.func(self.arena, try self.type(f.from), try self.type(f.to)),
@@ -157,16 +157,16 @@ const Translator = struct {
     }
 
     /// The `forall` position of a type variable, assigned on first appearance.
-    fn binder(self: *Translator, name: []const u8) Error!types.TypeVar {
+    fn binder(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.TypeVar {
         for (self.vars.items, 0..) |seen, i| {
             if (std.mem.eql(u8, seen, name)) return @intCast(i);
         }
-        if (self.vars.items.len > std.math.maxInt(types.TypeVar)) {
+        if (self.vars.items.len == std.math.maxInt(types.TypeVar)) {
             try self.sink.report(
-                .type_mismatch,
-                diagnostic.Span.unknown,
-                "a signature has more type variables than can be indexed",
-                .{},
+                .limit,
+                span,
+                "a signature has more than {d} type variables",
+                .{std.math.maxInt(types.TypeVar)},
             );
             return error.BadAnnotation;
         }
@@ -391,6 +391,50 @@ test "a context follows the type's variable order" {
         written,
         "(Eq b, Ord a) => a -> b",
     );
+}
+
+/// `v0 -> v1 -> ... -> Int` over `count` distinct variables.
+fn manyVariables(fix: *Fixture, count: usize) !cst.Type {
+    const arena = fix.env.allocator();
+    var t = fix.node(.{ .constructor = "Int" });
+    var i = count;
+    while (i > 0) {
+        i -= 1;
+        const arrow = try arena.create(cst.FunctionType);
+        arrow.* = .{
+            .from = fix.node(.{ .variable = try std.fmt.allocPrint(arena, "v{d}", .{i}) }),
+            .to = t,
+        };
+        t = fix.node(.{ .function = arrow });
+    }
+    return t;
+}
+
+test "a signature may have as many variables as a scheme can number" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const signature: cst.Signature = .{ .name = "f", .type = try manyVariables(fix, 255) };
+    const scheme = try translate(fix.env.allocator(), gpa, &signature, &fix.env.datatypes, &fix.sink);
+    try testing.expectEqual(255, scheme.quantified);
+}
+
+test "a signature with one variable too many is a limit" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const signature: cst.Signature = .{ .name = "f", .type = try manyVariables(fix, 256) };
+    try testing.expectError(error.BadAnnotation, translate(
+        fix.env.allocator(),
+        gpa,
+        &signature,
+        &fix.env.datatypes,
+        &fix.sink,
+    ));
+    try testing.expectEqual(1, fix.sink.items().len);
+    try testing.expectEqual(diagnostic.Category.limit, fix.sink.items()[0].category);
 }
 
 test "an unknown class is rejected" {
