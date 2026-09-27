@@ -11,7 +11,6 @@
 //! ```
 
 const std = @import("std");
-const pcre2 = @import("regex.zig");
 const diagnostic = @import("diagnostic.zig");
 
 pub const symbols = @import("core/symbols.zig");
@@ -55,16 +54,8 @@ pub const Term = struct {
 pub const Literal = union(enum) {
     number: i64,
     string: []const u8,
-    regex: Regex,
-};
-
-/// A regex literal: the pattern as written, and the program compiled from it.
-///
-/// Compiled once, when the literal is desugared. The pattern is kept because
-/// printing a term must show what the source said.
-pub const Regex = struct {
-    pattern: []const u8,
-    compiled: pcre2.Regex,
+    /// The pattern as written. Desugaring has checked that it compiles.
+    regex: []const u8,
 };
 
 pub const Lambda = struct {
@@ -282,7 +273,7 @@ pub const Printer = struct {
         switch (value) {
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("\"{s}\"", .{s}),
-            .regex => |r| try w.print("r\"{s}\"", .{r.pattern}),
+            .regex => |pattern| try w.print("r\"{s}\"", .{pattern}),
         }
     }
 };

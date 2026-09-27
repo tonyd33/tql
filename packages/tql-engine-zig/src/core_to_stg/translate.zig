@@ -15,12 +15,18 @@ const core = @import("../core.zig");
 const tql_to_core = @import("../tql_to_core.zig");
 const free = @import("free.zig");
 const primitives = @import("../primitives.zig");
+const pcre2 = @import("../regex.zig");
 const stg = @import("../stg.zig");
 const datatypes = core.datatypes;
 
 const Allocator = std.mem.Allocator;
 
-pub const Error = Allocator.Error || error{Unsupported};
+pub const Error = Allocator.Error || error{
+    Unsupported,
+    /// A regex pattern failed to compile. Desugaring validated every one, so
+    /// this is not reached by a query that checked.
+    InvalidRegex,
+};
 
 /// What a Core symbol resolves to at a use site.
 const Callee = union(enum) {
@@ -49,6 +55,27 @@ pub const Translator = struct {
     /// Nothing here is searched at run time; this pass turns every name into
     /// an offset into it.
     scope: std.ArrayList(core.SymbolId) = .empty,
+
+    /// Every regex literal compiled so far. The caller frees their programs.
+    regexes: std.ArrayList(*stg.Regex) = .empty,
+
+    /// Lower a Core literal, compiling a regex pattern into the program.
+    fn literal(self: *Translator, source: core.Literal) Error!stg.Literal {
+        return switch (source) {
+            .number => |n| .{ .number = n },
+            .string => |s| .{ .string = s },
+            .regex => |pattern| blk: {
+                try self.regexes.ensureUnusedCapacity(self.gpa, 1);
+                const regex = try self.arena.create(stg.Regex);
+                regex.* = .{
+                    .pattern = try self.arena.dupe(u8, pattern),
+                    .compiled = pcre2.Regex.compile(pattern) catch return error.InvalidRegex,
+                };
+                self.regexes.appendAssumeCapacity(regex);
+                break :blk .{ .regex = regex };
+            },
+        };
+    }
 
     /// Where `name` sits in the environment of the closure being translated.
     fn place(self: *Translator, name: core.SymbolId) stg.Local {
@@ -121,7 +148,7 @@ pub const Translator = struct {
         hoisted: *Hoisted,
     ) Error!stg.Atom {
         switch (term.kind) {
-            .literal => |literal| return .{ .literal = literal },
+            .literal => |source| return .{ .literal = try self.literal(source) },
             .symbol => |name| switch (self.resolve(name)) {
                 .local => |id| return .{ .local = self.place(id) },
                 .global => |id| return .{ .global = id },
@@ -225,7 +252,7 @@ pub const Translator = struct {
     /// binds outside the expression that uses it.
     fn open(self: *Translator, term: core.Term, hoisted: *Hoisted) Error!stg.Expr {
         switch (term.kind) {
-            .literal => |literal| return .{ .atom = .{ .literal = literal } },
+            .literal => |source| return .{ .atom = .{ .literal = try self.literal(source) } },
 
             .symbol => return .{ .atom = try self.atomize(term, hoisted) },
 
@@ -522,6 +549,8 @@ pub fn translate(
         .program = program,
         .interner = &program.env.interner,
     };
+    defer translator.regexes.deinit(gpa);
+    errdefer for (translator.regexes.items) |regex| regex.compiled.deinit();
 
     const definitions = try arena.allocator().alloc(stg.Definition, program.definitions.len);
     for (program.definitions, definitions) |source, *definition| {
@@ -535,5 +564,6 @@ pub fn translate(
         .definitions = definitions,
         .entry = program.entry,
         .arena = arena,
+        .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),
     };
 }

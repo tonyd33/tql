@@ -5,7 +5,6 @@ const constraints = @import("constraints.zig");
 const core = @import("../core.zig");
 const tql_to_core = @import("../tql_to_core.zig");
 const diagnostic = @import("../diagnostic.zig");
-const pcre2 = @import("../regex.zig");
 const schemes = @import("schemes.zig");
 const types = core.types;
 const unify = @import("unify.zig");
@@ -851,13 +850,8 @@ const Fixture = struct {
         return .{ .kind = .{ .literal = l }, .span = diagnostic.Span.unknown };
     }
 
-    /// A regex literal term. The compiled program leaks for the length of the
-    /// test, which is what the arena would do for it anyway.
-    fn regexLit(self: *Fixture, pattern: []const u8) !core.Term {
-        return self.lit(.{ .regex = .{
-            .pattern = pattern,
-            .compiled = try pcre2.Regex.compile(pattern),
-        } });
+    fn regexLit(self: *Fixture, pattern: []const u8) core.Term {
+        return self.lit(.{ .regex = pattern });
     }
 
     fn app(self: *Fixture, function: core.Term, argument: core.Term) !core.Term {
@@ -939,7 +933,7 @@ test "a literal has its scalar type" {
 
     try fix.expectType(fix.lit(.{ .number = 1 }), "Int");
     try fix.expectType(fix.lit(.{ .string = "s" }), "String");
-    try fix.expectType(try fix.regexLit("r"), "Regex");
+    try fix.expectType(fix.regexLit("r"), "Regex");
 }
 
 test "a symbol's scheme is instantiated at its use" {
@@ -1447,8 +1441,8 @@ test "an operator's constraint is refuted on a regex" {
     // `errors/types/015`: `r"a" = r"a"` fails `Eq regex`.
     const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
     const applied = try fix.app(
-        try fix.app(fix.sym(eq), try fix.regexLit("a")),
-        try fix.regexLit("a"),
+        try fix.app(fix.sym(eq), fix.regexLit("a")),
+        fix.regexLit("a"),
     );
     try fix.expectFails(applied, .unsatisfied_constraint);
 }

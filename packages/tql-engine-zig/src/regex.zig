@@ -16,7 +16,7 @@ pub const Regex = struct {
     }
 
     pub fn compile(needle: []const u8) !Self {
-        const pattern: re.PCRE2_SPTR8 = &needle[0];
+        const pattern: re.PCRE2_SPTR8 = needle.ptr;
         var errornumber: c_int = undefined;
         var erroroffset: re.PCRE2_SIZE = undefined;
 
@@ -40,7 +40,7 @@ pub const Regex = struct {
     }
 
     pub fn match(self: *const Self, haystack: []const u8) !RegexSearch {
-        const subject: re.PCRE2_SPTR8 = &haystack[0];
+        const subject: re.PCRE2_SPTR8 = haystack.ptr;
         const subj_len: re.PCRE2_SIZE = haystack.len;
 
         const match_data = re.pcre2_match_data_create_from_pattern_8(self.regex, null);

@@ -317,11 +317,10 @@ pub const Lowerer = struct {
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
             ),
-            // The pattern is compiled here, so a malformed one is a compile
-            // error rather than a runtime failure. The program is kept and
-            // matched against; nothing recompiles it per evaluation.
+            // Compiled here only to reject a malformed pattern as a compile
+            // error rather than a runtime failure. Core keeps the pattern.
             .regex => |r| {
-                const compiled = pcre2.Regex.compile(r) catch {
+                var compiled = pcre2.Regex.compile(r) catch {
                     try self.sink.report(
                         .invalid_regex,
                         e.span,
@@ -330,13 +329,8 @@ pub const Lowerer = struct {
                     );
                     return error.DesugarFailed;
                 };
-                return self.builder.literal(
-                    .{ .regex = .{
-                        .pattern = try self.builder.dupe(r),
-                        .compiled = compiled,
-                    } },
-                    e.span,
-                );
+                compiled.deinit();
+                return self.builder.literal(.{ .regex = try self.builder.dupe(r) }, e.span);
             },
 
             // Parentheses are grouping only; the CST keeps them, Core does not.

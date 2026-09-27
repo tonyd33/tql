@@ -108,7 +108,7 @@ pub const Value = union(enum) {
     closure: Closure,
     number: i64,
     string: []const u8,
-    regex: core.Regex,
+    regex: *const stg.Regex,
     node: Node,
     range: Range,
 };

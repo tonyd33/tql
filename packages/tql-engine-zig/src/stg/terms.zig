@@ -29,6 +29,7 @@ const std = @import("std");
 const core = @import("../core.zig");
 const datatypes = core.datatypes;
 const primitives = @import("../primitives.zig");
+const pcre2 = @import("../regex.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -47,7 +48,20 @@ pub const Local = struct {
 pub const Atom = union(enum) {
     local: Local,
     global: core.SymbolId,
-    literal: core.Literal,
+    literal: Literal,
+};
+
+pub const Literal = union(enum) {
+    number: i64,
+    string: []const u8,
+    regex: *const Regex,
+};
+
+/// A regex literal: the pattern as written, and the program compiled from it.
+/// Owned by the `Program` it appears in.
+pub const Regex = struct {
+    pattern: []const u8,
+    compiled: pcre2.Regex,
 };
 
 /// Whether entering this closure overwrites it with its result.
@@ -137,10 +151,14 @@ pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
     arena: *std.heap.ArenaAllocator,
+    /// Every regex literal the terms reference. Their compiled programs are
+    /// allocated outside the arena.
+    regexes: []const *Regex = &.{},
 
     /// Held by pointer: moving an `ArenaAllocator` struct dangles every
     /// allocation made through it.
     pub fn deinit(self: *Program) void {
+        for (self.regexes) |regex| regex.compiled.deinit();
         const gpa = self.arena.child_allocator;
         self.arena.deinit();
         gpa.destroy(self.arena);

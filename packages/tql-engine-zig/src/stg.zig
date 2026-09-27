@@ -8,6 +8,8 @@ const value = @import("stg/value.zig");
 /// The term language the evaluator walks.
 pub const Expr = terms.Expr;
 pub const Atom = terms.Atom;
+pub const Literal = terms.Literal;
+pub const Regex = terms.Regex;
 pub const Local = terms.Local;
 pub const Closure = terms.Closure;
 pub const Constructed = terms.Constructed;
