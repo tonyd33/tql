@@ -30,7 +30,7 @@ pub const Error = Allocator.Error || error{
 /// What a Core symbol resolves to at a use site.
 const Callee = union(enum) {
     local: core.SymbolId,
-    global: core.SymbolId,
+    global: stg.Global,
     constructor: *const datatypes.Constructor,
     primitive: core.PrimOp,
 };
@@ -57,6 +57,29 @@ pub const Translator = struct {
 
     /// Every regex literal compiled so far. The caller frees their programs.
     regexes: std.ArrayList(*stg.Regex) = .empty,
+
+    /// Each top-level definition's position in `program.definitions`.
+    indices: core.SymbolTable(u32),
+
+    pub fn init(arena: Allocator, gpa: Allocator, program: *core.Program) Allocator.Error!Translator {
+        var indices = core.SymbolTable(u32).init(gpa);
+        errdefer indices.deinit();
+        for (program.definitions, 0..) |definition, i| try indices.put(definition.symbol, @intCast(i));
+        return .{
+            .arena = arena,
+            .gpa = gpa,
+            .program = program,
+            .interner = &program.env.interner,
+            .indices = indices,
+        };
+    }
+
+    /// Frees the translator's own tables. The regex programs it compiled are
+    /// the caller's.
+    pub fn deinit(self: *Translator) void {
+        self.indices.deinit();
+        self.regexes.deinit(self.gpa);
+    }
 
     /// What `name` denotes if it is synthesized, copied into the program.
     fn synthesized(self: *Translator, name: core.SymbolId) Error!?core.Synthesized {
@@ -87,9 +110,11 @@ pub const Translator = struct {
         };
     }
 
-    /// Lower a Core literal, compiling a regex pattern into the program.
-    fn literal(self: *Translator, source: core.Literal) Error!stg.Literal {
-        return switch (source) {
+    /// Lower a Core literal to its evaluated thunk, compiling a regex pattern
+    /// into the program.
+    fn literal(self: *Translator, source: core.Literal) Error!*stg.Thunk {
+        const thunk = try self.arena.create(stg.Thunk);
+        thunk.* = stg.Thunk.value(switch (source) {
             .number => |n| .{ .number = n },
             .string => |s| .{ .string = try self.arena.dupe(u8, s) },
             .regex => |pattern| blk: {
@@ -102,7 +127,14 @@ pub const Translator = struct {
                 self.regexes.appendAssumeCapacity(regex);
                 break :blk .{ .regex = regex };
             },
-        };
+        });
+        return thunk;
+    }
+
+    /// `name` as a global atom, if it is a top-level definition.
+    fn global(self: *const Translator, name: core.SymbolId) ?stg.Global {
+        const index = self.indices.get(name) orelse return null;
+        return .{ .index = index, .symbol = name };
     }
 
     /// Where `name` sits in the environment of the closure being translated.
@@ -129,10 +161,7 @@ pub const Translator = struct {
             .constructor, .primop, .synthesized => return false,
             .vanilla => {},
         }
-        for (self.program.definitions) |definition| {
-            if (definition.symbol == symbol) return false;
-        }
-        return true;
+        return self.global(symbol) == null;
     }
 
     fn resolve(self: *Translator, name: core.SymbolId) Callee {
@@ -145,9 +174,7 @@ pub const Translator = struct {
             .synthesized => |s| return .{ .primitive = s.primop() },
             .vanilla => {},
         }
-        for (self.program.definitions) |definition| {
-            if (definition.symbol == name) return .{ .global = name };
-        }
+        if (self.global(name)) |g| return .{ .global = g };
         return .{ .local = name };
     }
 
@@ -371,7 +398,10 @@ pub const Translator = struct {
                 arguments[1] = source;
 
                 const node = try self.arena.create(stg.Expr.Apply);
-                node.* = .{ .callee = .{ .global = concat_map }, .arguments = arguments };
+                node.* = .{
+                    .callee = .{ .global = self.global(concat_map) orelse return error.Unsupported },
+                    .arguments = arguments,
+                };
                 return .{ .apply = node };
             },
         }
@@ -573,13 +603,8 @@ pub fn translate(
     arena.* = .init(gpa);
     errdefer arena.deinit();
 
-    var translator: Translator = .{
-        .arena = arena.allocator(),
-        .gpa = gpa,
-        .program = program,
-        .interner = &program.env.interner,
-    };
-    defer translator.regexes.deinit(gpa);
+    var translator = try Translator.init(arena.allocator(), gpa, program);
+    defer translator.deinit();
     errdefer for (translator.regexes.items) |regex| regex.compiled.deinit();
 
     const definitions = try arena.allocator().alloc(stg.Definition, program.definitions.len);
@@ -591,15 +616,24 @@ pub fn translate(
     }
 
     const registry = &program.env.datatypes;
+    const nil = builtin(registry.nilConstructor());
+    const nil_thunk = try arena.allocator().create(stg.Thunk);
+    nil_thunk.* = stg.Thunk.value(.{ .constructed = .{
+        .constructor = nil.symbol,
+        .tag = nil.tag,
+        .len = 0,
+        .storage = undefined,
+    } });
     return .{
         .definitions = definitions,
         .entry = program.entry,
         .structural = .{
-            .nil = builtin(registry.nilConstructor()),
+            .nil = nil,
             .cons = builtin(registry.consConstructor()),
             .false_ = builtin(registry.boolConstructor(false)),
             .true_ = builtin(registry.boolConstructor(true)),
         },
+        .nil = nil_thunk,
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),
     };

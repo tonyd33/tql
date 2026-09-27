@@ -114,6 +114,36 @@ test "a kind test fuses under a surrounding composition" {
     );
 }
 
+test "a kind test fuses into an axis after an earlier stage" {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+
+    try simplified(
+        std.testing.allocator,
+        "main = children | descendants | is_kind :class_declaration | .name;",
+        &w,
+    );
+    try std.testing.expectEqualStrings(
+        "kleisli (kleisli children descendants_of_kind[class_declaration]) field[name]",
+        w.written(),
+    );
+}
+
+test "a kind test after an earlier non-axis stage is left alone" {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+
+    try simplified(
+        std.testing.allocator,
+        "main = children | parent | is_kind :class_declaration;",
+        &w,
+    );
+    try std.testing.expectEqualStrings(
+        "kleisli (kleisli children parent) is_kind[class_declaration]",
+        w.written(),
+    );
+}
+
 test "a kind test on a non-axis is left alone" {
     var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer w.deinit();
@@ -214,6 +244,11 @@ const Pass = struct {
     ///
     /// Both spellings are writable by hand and denote the same list, so this
     /// removes the intermediate list without changing what the query means.
+    ///
+    /// `|` associates left, so an axis after an earlier stage arrives as
+    /// `kleisli (kleisli p <axis>) is_kind[k]`. That is
+    /// `kleisli p (kleisli <axis> is_kind[k])`, and becomes `kleisli p` of the
+    /// fused axis.
     fn fuseKindAxis(
         self: *Pass,
         function: core.Term,
@@ -221,22 +256,47 @@ const Pass = struct {
         span: diagnostic.Span,
     ) Error!?core.Term {
         const kind = self.kindTested(argument) orelse return null;
+        const composed = self.kleisliOperand(function) orelse return null;
 
-        const inner = switch (function.kind) {
+        switch (composed.kind) {
+            .symbol => |axis| {
+                const fused = try self.fusedAxis(axis, kind) orelse return null;
+                return self.builder.symbol(fused, span);
+            },
+            .apply => |a| {
+                const before = self.kleisliOperand(a.function) orelse return null;
+                const axis = switch (a.argument.kind) {
+                    .symbol => |id| id,
+                    else => return null,
+                };
+                const fused = try self.fusedAxis(axis, kind) orelse return null;
+                return try self.builder.applyMany(
+                    self.builder.symbol(self.kleisli, span),
+                    &.{ before, self.builder.symbol(fused, span) },
+                    span,
+                );
+            },
+            else => return null,
+        }
+    }
+
+    /// `p`, when `t` is `kleisli p`.
+    fn kleisliOperand(self: *const Pass, t: core.Term) ?core.Term {
+        const a = switch (t.kind) {
             .apply => |a| a,
             else => return null,
         };
-        if (inner.function.kind != .symbol) return null;
-        if (inner.function.kind.symbol != self.kleisli) return null;
+        if (a.function.kind != .symbol) return null;
+        if (a.function.kind.symbol != self.kleisli) return null;
+        return a.argument;
+    }
 
-        const axis = switch (inner.argument.kind) {
-            .symbol => |id| id,
-            else => return null,
-        };
+    /// The symbol for `axis` with the test for `kind` folded in, when `axis`
+    /// has a fused form.
+    fn fusedAxis(self: *Pass, axis: core.SymbolId, kind: Kind) Error!?core.SymbolId {
         const primop = self.primopOf(axis) orelse return null;
         const fused = primop.fusedWithKindTest() orelse return null;
-
-        return self.builder.symbol(try self.kindAxisSymbol(fused, kind), span);
+        return try self.kindAxisSymbol(fused, kind);
     }
 
     /// The kind a term tests, when it is an `is_kind[k]` symbol.

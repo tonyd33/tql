@@ -30,6 +30,15 @@ pub const Regex = struct {
         re.pcre2_code_free_8(self.regex);
     }
 
+    /// Whether `haystack` contains a match, using `scratch` instead of
+    /// allocating.
+    pub fn isMatch(self: *const Self, haystack: []const u8, scratch: *MatchData) bool {
+        const rc = re.pcre2_match_8(self.regex, haystack.ptr, haystack.len, 0, 0, scratch.data, null);
+        // Zero means a match whose groups did not all fit the one-pair
+        // ovector.
+        return rc >= 0;
+    }
+
     pub fn do_test(self: *const Self, haystack: []const u8) bool {
         var matches = self.match(haystack) catch {
             return false;
@@ -72,6 +81,22 @@ pub const Regex = struct {
             .rc = rc,
             .ovector = ovector,
         };
+    }
+};
+
+/// Match scratch for `Regex.isMatch`, reusable across patterns and calls.
+/// Not safe to share between threads.
+pub const MatchData = struct {
+    data: *re.pcre2_match_data_8,
+
+    pub fn create() error{OutOfMemory}!MatchData {
+        // One pair: a test reads only whether there was a match.
+        const data = re.pcre2_match_data_create_8(1, null) orelse return error.OutOfMemory;
+        return .{ .data = data };
+    }
+
+    pub fn deinit(self: *MatchData) void {
+        re.pcre2_match_data_free_8(self.data);
     }
 };
 

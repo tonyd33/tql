@@ -30,6 +30,7 @@ const core = @import("../core.zig");
 const datatypes = core.datatypes;
 const primitives = @import("../primitives.zig");
 const pcre2 = @import("../regex.zig");
+const value = @import("value.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -47,14 +48,16 @@ pub const Local = struct {
 /// An argument. Never a compound expression.
 pub const Atom = union(enum) {
     local: Local,
-    global: core.SymbolId,
-    literal: Literal,
+    global: Global,
+    /// Already evaluated, so the machine never writes it and every run of the
+    /// program shares it.
+    literal: *value.Thunk,
 };
 
-pub const Literal = union(enum) {
-    number: i64,
-    string: []const u8,
-    regex: *const Regex,
+/// A top-level definition, by its position in `Program.definitions`.
+pub const Global = struct {
+    index: u32,
+    symbol: core.SymbolId,
 };
 
 /// A regex literal: the pattern as written, and the program compiled from it.
@@ -171,6 +174,8 @@ pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
     structural: Structural,
+    /// An evaluated `Nil`, shared the way a literal atom's thunk is.
+    nil: *value.Thunk,
     arena: *std.heap.ArenaAllocator,
     /// Every regex literal the terms reference. Their compiled programs are
     /// allocated outside the arena.
@@ -191,9 +196,11 @@ test "an alternative's position is its tag" {
     // searching for a matching constructor, which is only sound while the
     // translation keeps them in tag order.
     const pair = [_]core.SymbolId{ @enumFromInt(7), @enumFromInt(8) };
+    var one = value.Thunk.value(.{ .number = 1 });
+    var two = value.Thunk.value(.{ .number = 2 });
     const alternatives = [_]Alternative{
-        .{ .constructor = @enumFromInt(0), .tag = 0, .binders = &.{}, .body = .{ .atom = .{ .literal = .{ .number = 1 } } } },
-        .{ .constructor = @enumFromInt(1), .tag = 1, .binders = &pair, .body = .{ .atom = .{ .literal = .{ .number = 2 } } } },
+        .{ .constructor = @enumFromInt(0), .tag = 0, .binders = &.{}, .body = .{ .atom = .{ .literal = &one } } },
+        .{ .constructor = @enumFromInt(1), .tag = 1, .binders = &pair, .body = .{ .atom = .{ .literal = &two } } },
     };
     for (alternatives, 0..) |alternative, i| {
         try std.testing.expectEqual(i, alternative.tag);

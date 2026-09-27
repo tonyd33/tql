@@ -257,7 +257,7 @@ pub const CompiledQuery = struct {
         defer machine.deinit(self.allocator);
         machine.target = .{ .source = target, .path = target_path };
 
-        const entry = machine.globals.get(self.checked.entry) orelse
+        const entry = machine.global(self.checked.entry) orelse
             return error.MissingEntry;
 
         var root: stg.Thunk = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
@@ -475,7 +475,7 @@ test "the evaluator runs the prelude's append" {
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit(allocator);
 
-    const entry = machine.globals.get(program.entry).?;
+    const entry = machine.global(program.entry).?;
     const main_value = try machine.force(entry);
 
     // `main` takes the root, which nothing here reads, so any thunk does.
@@ -518,7 +518,7 @@ fn runQuery(
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit(allocator);
 
-    const main_value = try machine.force(machine.globals.get(program.entry).?);
+    const main_value = try machine.force(machine.global(program.entry).?);
     var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
     try listElements(
         &machine,
@@ -527,8 +527,14 @@ fn runQuery(
         out,
     );
 
-    // Forced here, while the machine is alive.
-    for (out.items) |thunk| _ = try machine.force(thunk);
+    // Forced here, while the machine is alive, and copied out: a literal's
+    // thunk belongs to the translated program, freed on return.
+    for (out.items) |*thunk| {
+        _ = try machine.force(thunk.*);
+        const copy = try arena.allocator().create(stg.Thunk);
+        copy.* = thunk.*.*;
+        thunk.* = copy;
+    }
 }
 
 test "the evaluator runs pure, kleisli and the scalar operators" {
@@ -778,7 +784,7 @@ test "forcing a global cycle reports it rather than hanging" {
     defer machine.deinit(allocator);
 
     const a = program.env.interner.lookup("a").?;
-    try std.testing.expectError(error.Cycle, machine.force(machine.globals.get(a).?));
+    try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
 }
 
 test "isLocal separates locals from globals in a real program" {
@@ -797,12 +803,8 @@ test "isLocal separates locals from globals in a real program" {
     var program = try engine.desugarQuery("main root = pure 1 root;", g, &sink);
     defer program.deinit();
 
-    var translator: core_to_stg.Translator = .{
-        .arena = allocator,
-        .gpa = allocator,
-        .program = &program,
-        .interner = &program.env.interner,
-    };
+    var translator = try core_to_stg.Translator.init(allocator, allocator, &program);
+    defer translator.deinit();
 
     const isLocal = core_to_stg.Translator.isLocal;
 
@@ -815,12 +817,8 @@ test "isLocal separates locals from globals in a real program" {
     {
         var ops = try engine.desugarQuery("main root = pure (1 + 2) root;", g, &sink);
         defer ops.deinit();
-        var t2: core_to_stg.Translator = .{
-            .arena = allocator,
-            .gpa = allocator,
-            .program = &ops,
-            .interner = &ops.env.interner,
-        };
+        var t2 = try core_to_stg.Translator.init(allocator, allocator, &ops);
+        defer t2.deinit();
         const plus = ops.env.interner.lookup("op[+]").?;
         try std.testing.expect(!isLocal(&t2, plus));
     }

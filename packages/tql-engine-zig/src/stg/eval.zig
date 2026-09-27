@@ -9,6 +9,7 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
+const pcre2 = @import("../regex.zig");
 const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
@@ -40,8 +41,9 @@ pub const Site = enum {
     apply_partial,
     apply_all,
 };
-pub var site_counts: std.EnumArray(Site, u64) = .initFill(0);
-pub var site_bytes: std.EnumArray(Site, u64) = .initFill(0);
+/// Shared by every machine, so every worker thread writes them.
+pub var site_counts: std.EnumArray(Site, std.atomic.Value(u64)) = .initFill(.init(0));
+pub var site_bytes: std.EnumArray(Site, std.atomic.Value(u64)) = .initFill(.init(0));
 
 /// Counting every allocation costs about 4x on a release build, so it is off
 /// unless a profiling run turns it on.
@@ -49,8 +51,8 @@ pub const count_allocations = false;
 
 inline fn note(site: Site, bytes: usize) void {
     if (!count_allocations) return;
-    site_counts.getPtr(site).* += 1;
-    site_bytes.getPtr(site).* += bytes;
+    _ = site_counts.getPtr(site).fetchAdd(1, .monotonic);
+    _ = site_bytes.getPtr(site).fetchAdd(bytes, .monotonic);
 }
 
 pub const Error = Allocator.Error || error{
@@ -169,8 +171,11 @@ const Slots = struct {
 pub const Machine = struct {
     arena: Allocator,
     program: *const stg.Program,
-    /// One thunk per global, allocated before the run and forced at most once.
-    globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk),
+    /// One thunk per global, in `program.definitions` order, allocated before
+    /// the run and forced at most once.
+    globals: []value.Thunk,
+    /// Scratch for every regex test this run makes, created on the first.
+    match_data: ?pcre2.MatchData = null,
     /// The file being queried. Absent when the machine runs hand-built terms,
     /// in which case every tree primitive is a type error rather than a
     /// wrong answer.
@@ -241,18 +246,14 @@ pub const Machine = struct {
         gpa: Allocator,
         program: *const stg.Program,
     ) Allocator.Error!Machine {
-        var globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk) = .empty;
-        errdefer globals.deinit(gpa);
-
         // Every global is allocated before any is filled, so one may reference
         // another in any order.
-        for (program.definitions) |definition| {
-            const thunk = try arena.create(value.Thunk);
+        const globals = try arena.alloc(value.Thunk, program.definitions.len);
+        for (program.definitions, globals) |definition, *thunk| {
             thunk.* = .{ .state = .{ .unevaluated = .{
                 .code = definition.value,
                 .captured = &.{},
             } } };
-            try globals.put(gpa, definition.symbol, thunk);
         }
 
         return .{
@@ -265,7 +266,7 @@ pub const Machine = struct {
     }
 
     pub fn deinit(self: *Machine, gpa: Allocator) void {
-        self.globals.deinit(gpa);
+        if (self.match_data) |*m| m.deinit();
         for (self.cursors.items) |c| {
             c.destroy();
             gpa.destroy(c);
@@ -347,17 +348,17 @@ pub const Machine = struct {
             // The translator numbered every reference against the environment
             // this builds, so a local is an index rather than a search.
             .local => |local| try env.get(local),
-            .global => |id| self.globals.get(id) orelse return error.TypeError,
-            .literal => |literal| blk: {
-                const thunk = try self.arena.create(value.Thunk);
-                thunk.* = value.Thunk.value(switch (literal) {
-                    .number => |n| .{ .number = n },
-                    .string => |s| .{ .string = s },
-                    .regex => |r| .{ .regex = r },
-                });
-                break :blk thunk;
-            },
+            .global => |g| &self.globals[g.index],
+            .literal => |thunk| thunk,
         };
+    }
+
+    /// The thunk of the top-level definition `symbol`, if there is one.
+    pub fn global(self: *const Machine, symbol: core.SymbolId) ?*value.Thunk {
+        for (self.program.definitions, self.globals) |definition, *thunk| {
+            if (definition.symbol == symbol) return thunk;
+        }
+        return null;
     }
 
     /// Force a thunk to a value and memoize it. A closure of one or more
@@ -984,10 +985,7 @@ pub const Machine = struct {
     }
 
     fn nilThunk(self: *Machine) Error!*value.Thunk {
-        note(.nil_thunk, @sizeOf(value.Thunk));
-        const thunk = try self.arena.create(value.Thunk);
-        thunk.* = value.Thunk.value(try self.nil());
-        return thunk;
+        return self.program.nil;
     }
 
     fn cons(self: *Machine, head: *value.Thunk, tail: *value.Thunk) Error!value.Value {
@@ -1118,7 +1116,8 @@ pub const Machine = struct {
                     .regex => |r| r,
                     else => return error.TypeError,
                 };
-                const hit = pattern.compiled.do_test(haystack);
+                if (self.match_data == null) self.match_data = try pcre2.MatchData.create();
+                const hit = pattern.compiled.isMatch(haystack, &self.match_data.?);
                 return try self.boolValue(if (scalar == .match) hit else !hit);
             },
         }

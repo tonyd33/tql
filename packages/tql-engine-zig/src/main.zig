@@ -921,13 +921,13 @@ fn run(
 
     if (tql.stg.count_allocations) {
         var total: u64 = 0;
-        for (tql.stg.site_counts.values) |c| total += c;
+        for (tql.stg.site_counts.values) |c| total += c.load(.monotonic);
         try stderr.print("allocations by site (total {d}):\n", .{total});
         inline for (@typeInfo(tql.stg.Site).@"enum".fields) |f| {
             const site: tql.stg.Site = @enumFromInt(f.value);
-            const n = tql.stg.site_counts.get(site);
+            const n = tql.stg.site_counts.get(site).load(.monotonic);
             if (n > 0) try stderr.print("  {d:>10}  {d:>10} B  {s}\n", .{
-                n, tql.stg.site_bytes.get(site), f.name,
+                n, tql.stg.site_bytes.get(site).load(.monotonic), f.name,
             });
         }
     }

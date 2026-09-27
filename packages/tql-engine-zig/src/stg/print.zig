@@ -18,11 +18,12 @@ pub const Printer = struct {
     fn atom(self: Printer, a: stg.Atom, w: *std.Io.Writer) !void {
         switch (a) {
             .local => |local| try w.writeAll(self.interner.spelling(local.name)),
-            .global => |id| try w.writeAll(self.interner.spelling(id)),
-            .literal => |literal| switch (literal) {
+            .global => |g| try w.writeAll(self.interner.spelling(g.symbol)),
+            .literal => |thunk| switch (thunk.state.evaluated) {
                 .number => |n| try w.print("{d}", .{n}),
                 .string => |s| try w.print("\"{s}\"", .{s}),
                 .regex => |r| try w.print("r\"{s}\"", .{r.pattern}),
+                else => unreachable,
             },
         }
     }
