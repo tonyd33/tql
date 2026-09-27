@@ -111,7 +111,96 @@ pub const Diagnostic = struct {
     pub fn deinit(self: Diagnostic, allocator: std.mem.Allocator) void {
         allocator.free(self.message);
     }
+
+    /// Write the diagnostic followed by the lines of `source` its span covers,
+    /// with the span underlined. `path` names `source` in the location line;
+    /// pass null for a query given inline.
+    ///
+    /// A span equal to `Span.unknown` gets neither location nor excerpt.
+    pub fn render(
+        self: Diagnostic,
+        w: *std.Io.Writer,
+        source: []const u8,
+        path: ?[]const u8,
+    ) std.Io.Writer.Error!void {
+        try w.print("error[{s}]: {s}\n", .{ self.category.name(), self.message });
+        if (std.meta.eql(self.span, Span.unknown)) return;
+
+        const start = self.span.start_point;
+        var end = self.span.end_point;
+        // A span ending at column 0 stops at the end of the line before it.
+        if (end.row > start.row and end.column == 0) {
+            end.row -= 1;
+            end.column = std.math.maxInt(u32);
+        }
+
+        const shown_rows = end.row - start.row + 1;
+        const gutter = digitCount(end.row + 1);
+
+        try w.splatByteAll(' ', gutter);
+        try w.writeAll("--> ");
+        if (path) |p| try w.print("{s}:", .{p});
+        try start.format(w);
+        try w.writeByte('\n');
+
+        var lines = std.mem.splitScalar(u8, source, '\n');
+        var row: u32 = 0;
+        while (row < start.row) : (row += 1) {
+            if (lines.next() == null) return;
+        }
+
+        try w.splatByteAll(' ', gutter);
+        try w.writeAll(" |\n");
+        while (row <= end.row) : (row += 1) {
+            const raw = lines.next() orelse break;
+            const line = std.mem.trimEnd(u8, raw, "\r");
+
+            const index = row - start.row;
+            if (shown_rows > MAX_EXCERPT_ROWS and
+                index >= MAX_EXCERPT_ROWS / 2 and index < shown_rows - MAX_EXCERPT_ROWS / 2)
+            {
+                if (index == MAX_EXCERPT_ROWS / 2) try w.writeAll("...\n");
+                continue;
+            }
+
+            const indent = line.len - std.mem.trimStart(u8, line, " \t").len;
+            const from: usize = if (row == start.row) @min(start.column, line.len) else indent;
+            const to: usize = if (row == end.row) @min(end.column, line.len) else line.len;
+            const at_edge = row == start.row or row == end.row;
+
+            try w.print("{d: >[1]} | {[2]s}\n", .{ row + 1, gutter, line });
+            if (to <= from and !at_edge) continue;
+            try w.splatByteAll(' ', gutter);
+            try w.writeAll(" | ");
+            for (line[0..from]) |c| {
+                if (isContinuationByte(c)) continue;
+                try w.writeByte(if (c == '\t') '\t' else ' ');
+            }
+            var carets: usize = 0;
+            if (to > from) {
+                for (line[from..to]) |c| {
+                    if (!isContinuationByte(c)) carets += 1;
+                }
+            }
+            try w.splatByteAll('^', @max(carets, 1));
+            try w.writeByte('\n');
+        }
+    }
 };
+
+/// An excerpt longer than this many rows has its middle elided.
+const MAX_EXCERPT_ROWS = 4;
+
+fn digitCount(n: u32) usize {
+    var count: usize = 1;
+    var rest = n / 10;
+    while (rest > 0) : (rest /= 10) count += 1;
+    return count;
+}
+
+fn isContinuationByte(c: u8) bool {
+    return c & 0b1100_0000 == 0b1000_0000;
+}
 
 /// Collects diagnostics so a pass can report every problem it finds rather than
 /// failing at the first.
@@ -204,4 +293,143 @@ test "sink collects several diagnostics" {
     try std.testing.expectEqualStrings("parse", sink.items()[0].category.name());
     try std.testing.expectEqualStrings("unresolved-name", sink.items()[1].category.name());
     try std.testing.expectEqualStrings("second arg", sink.items()[1].message);
+}
+
+fn expectRender(
+    expected: []const u8,
+    source: []const u8,
+    path: ?[]const u8,
+    start: Point,
+    end: Point,
+) !void {
+    const d: Diagnostic = .{
+        .category = .type_mismatch,
+        .span = .{ .start_byte = 1, .end_byte = 1, .start_point = start, .end_point = end },
+        .message = "Expected `Int`, found `String`.",
+    };
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try d.render(&buf.writer, source, path);
+    try std.testing.expectEqualStrings(expected, buf.written());
+}
+
+test "render underlines a span within one line" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:8
+        \\  |
+        \\1 | main = text + 1;
+        \\  |        ^^^^
+        \\
+    , "main = text + 1;", null, .{ .row = 0, .column = 7 }, .{ .row = 0, .column = 11 });
+}
+
+test "render names the path in the location line" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> q.tql:2:3
+        \\  |
+        \\2 |   x
+        \\  |   ^
+        \\
+    , "a\n  x\n", "q.tql", .{ .row = 1, .column = 2 }, .{ .row = 1, .column = 3 });
+}
+
+test "render widens the gutter to the last row shown" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\  --> 10:1
+        \\   |
+        \\10 | x
+        \\   | ^
+        \\
+    , "\n\n\n\n\n\n\n\n\nx", null, .{ .row = 9, .column = 0 }, .{ .row = 9, .column = 1 });
+}
+
+test "render underlines every line of a multi-line span" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:8
+        \\  |
+        \\1 | main = do {
+        \\  |        ^^^^
+        \\2 |   return 1;
+        \\  |   ^^^^^^^^^
+        \\3 | };
+        \\  | ^
+        \\
+    , "main = do {\n  return 1;\n};", null, .{ .row = 0, .column = 7 }, .{ .row = 2, .column = 1 });
+}
+
+test "render stops a span ending at column 0 on the line before" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:1
+        \\  |
+        \\1 | ab
+        \\  | ^^
+        \\
+    , "ab\ncd", null, .{ .row = 0, .column = 0 }, .{ .row = 1, .column = 0 });
+}
+
+test "render elides the middle of a long span" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:1
+        \\  |
+        \\1 | a
+        \\  | ^
+        \\2 | b
+        \\  | ^
+        \\...
+        \\5 | e
+        \\  | ^
+        \\6 | f
+        \\  | ^
+        \\
+    , "a\nb\nc\nd\ne\nf", null, .{ .row = 0, .column = 0 }, .{ .row = 5, .column = 1 });
+}
+
+test "render keeps tabs so the underline lines up" {
+    try expectRender(
+        "error[type-mismatch]: Expected `Int`, found `String`.\n" ++
+            " --> 1:3\n" ++
+            "  |\n" ++
+            "1 | \t x\n" ++
+            "  | \t ^\n",
+        "\t x",
+        null,
+        .{ .row = 0, .column = 2 },
+        .{ .row = 0, .column = 3 },
+    );
+}
+
+test "render counts one caret per character, not per byte" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:8
+        \\  |
+        \\1 | "é" + "ü"
+        \\  |       ^^^
+        \\
+    , "\"é\" + \"ü\"", null, .{ .row = 0, .column = 7 }, .{ .row = 0, .column = 11 });
+}
+
+test "render marks a zero-width span with one caret" {
+    try expectRender(
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:4
+        \\  |
+        \\1 | f x
+        \\  |    ^
+        \\
+    , "f x", null, .{ .row = 0, .column = 3 }, .{ .row = 0, .column = 3 });
+}
+
+test "render omits location and excerpt for an unknown span" {
+    const d: Diagnostic = .{ .category = .missing_main, .span = .unknown, .message = "No `main`." };
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try d.render(&buf.writer, "f = 1;", null);
+    try std.testing.expectEqualStrings("error[missing-main]: No `main`.\n", buf.written());
 }

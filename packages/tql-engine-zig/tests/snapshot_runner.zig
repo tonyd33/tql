@@ -866,18 +866,21 @@ fn renderDiagnostics(
     return w.toOwnedSlice();
 }
 
-/// One `category @ span: message` line per diagnostic, for a case that did not
-/// expect them.
+/// Each diagnostic rendered against `source`, separated by blank lines, for a
+/// case that did not expect them.
 fn describeDiagnostics(
     allocator: std.mem.Allocator,
     diagnostics: []const tql.diagnostic.Diagnostic,
+    source: []const u8,
 ) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
     for (diagnostics, 0..) |d, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} @ {f}: {s}", .{ d.category.name(), d.span, d.message });
+        try d.render(&w.writer, source, null);
     }
+    const rendered = w.written();
+    w.shrinkRetainingCapacity(std.mem.trimEnd(u8, rendered, "\n").len);
     return w.toOwnedSlice();
 }
 
@@ -926,7 +929,7 @@ fn runTestCase(
     // before compilation is even attempted.
     if (parsed.hasErrors()) {
         if (!expects_error) {
-            unexpected.* = try describeDiagnostics(allocator, parsed.diagnostics);
+            unexpected.* = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content);
             return error.UnexpectedParseError;
         }
         return .{
@@ -976,7 +979,7 @@ fn runTestCase(
                         allocator.free(type_diagnostics);
                         type_diagnostics = try renderDiagnostics(allocator, type_sink.items());
                         if (!expects_error) {
-                            unexpected.* = try describeDiagnostics(allocator, type_sink.items());
+                            unexpected.* = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
                         }
                     },
                     else => |e| return e,
@@ -987,7 +990,7 @@ fn runTestCase(
                 allocator.free(desugar_diagnostics);
                 desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
                 if (!expects_error) {
-                    unexpected.* = try describeDiagnostics(allocator, sink.items());
+                    unexpected.* = try describeDiagnostics(allocator, sink.items(), tc.query.content);
                 }
             },
             else => return err,
@@ -1037,7 +1040,7 @@ fn runTestCase(
             allocator,
         ) catch |err| {
             if (eval_sink.items().len > 0) {
-                unexpected.* = try describeDiagnostics(allocator, eval_sink.items());
+                unexpected.* = try describeDiagnostics(allocator, eval_sink.items(), tc.query.content);
             }
             return err;
         };
