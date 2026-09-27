@@ -1,5 +1,6 @@
 title: a signature whose constraints are not entailed
 grammar: typescript
+asserts: error
 
 The annotation claims `Ord` for any `a`, but `Ord` is closed over `int` and
 `string` and cannot be assumed for a variable.
@@ -11,5 +12,5 @@ main = . | smaller;
 
 --- error ---
 category: signature-mismatch
-span: 1:1-1:24
+span: 1:1-1:25
 The annotation.

@@ -1,5 +1,6 @@
 title: a heterogeneous list
 grammar: typescript
+asserts: error
 
 `[a]` is homogeneous. `[1, "two"]` is a list literal, so its elements must
 have one type.

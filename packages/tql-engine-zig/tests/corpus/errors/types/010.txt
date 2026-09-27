@@ -1,5 +1,6 @@
 title: `identity` as a filter requires a list input
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = 42 | identity;

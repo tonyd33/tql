@@ -1,5 +1,6 @@
 title: applying too many arguments is a compile error
 grammar: typescript
+asserts: error
 
 `inc` takes one argument. Applying two is not a runtime arity check; the
 inferred type has no arrow left to consume the third term.
@@ -10,5 +11,5 @@ main = inc 1 2;
 
 --- error ---
 category: over-application
-span: 1:15-1:16
+span: 2:14-2:15
 The extra argument.

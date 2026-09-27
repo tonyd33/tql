@@ -1,5 +1,6 @@
 title: `main` may not have a function type
 grammar: typescript
+asserts: error
 
 The output of a query is not a function. Two parameters on the head is one
 spelling of that error, and `main a = \b -> e` and `main = \a -> \b -> e` are

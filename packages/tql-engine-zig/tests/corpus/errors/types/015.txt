@@ -1,5 +1,6 @@
 title: `Eq` on a regex
 grammar: typescript
+asserts: error
 
 `regex` has none of `Eq`, `Ord`, or `Serial`.
 
@@ -8,5 +9,5 @@ main = r"a" = r"a";
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:8-1:17
+span: 1:8-1:19
 `Eq Regex` is not satisfied.

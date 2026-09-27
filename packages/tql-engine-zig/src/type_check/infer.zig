@@ -265,7 +265,7 @@ pub const Inference = struct {
         const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
         try self.expect(scrutinee, scrutinee_type, c.scrutinee.span, .t_case);
 
-        var result: ?types.Type = null;
+        var first: ?struct { type: types.Type, span: diagnostic.Span } = null;
         for (c.alternatives, declared.constructors) |alternative, constructor| {
             const mark = self.scope.mark();
             defer self.scope.truncate(mark);
@@ -276,14 +276,20 @@ pub const Inference = struct {
             }
 
             const body = try self.term(alternative.body);
-            if (result) |expected| {
-                try self.expect(body, expected, alternative.body.span, .t_case);
+            if (first) |f| {
+                // Alternatives are checked in constructor order. Of two that
+                // disagree, blame the one later in the source.
+                if (alternative.body.span.start_byte >= f.span.start_byte) {
+                    try self.expect(body, f.type, alternative.body.span, .t_case);
+                } else {
+                    try self.expect(f.type, body, f.span, .t_case);
+                }
             } else {
-                result = body;
+                first = .{ .type = body, .span = alternative.body.span };
             }
         }
 
-        return result.?;
+        return first.?.type;
     }
 
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)

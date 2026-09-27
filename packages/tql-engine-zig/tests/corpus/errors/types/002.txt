@@ -1,5 +1,6 @@
 title: mixed operand types in a comparison
 grammar: typescript
+asserts: error
 
 `=` compares equal types only.
 

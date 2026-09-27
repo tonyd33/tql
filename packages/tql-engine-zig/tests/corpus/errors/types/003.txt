@@ -1,5 +1,6 @@
 title: arithmetic on a string
 grammar: typescript
+asserts: error
 
 `+`, `-`, `*`, `/`, `%` require `int`.
 

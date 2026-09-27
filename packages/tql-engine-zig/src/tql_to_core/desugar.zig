@@ -464,10 +464,12 @@ pub const Lowerer = struct {
                 var i = elements.len;
                 while (i > 0) {
                     i -= 1;
+                    // An inner cell spans its head element.
+                    const cell = if (i == 0) e.span else elements[i].span;
                     spine = try self.builder.applyMany(
-                        try self.constructorRef("Cons", e.span),
+                        try self.constructorRef("Cons", cell),
                         &.{ try self.expression(elements[i], scope), spine },
-                        e.span,
+                        cell,
                     );
                 }
                 return spine;

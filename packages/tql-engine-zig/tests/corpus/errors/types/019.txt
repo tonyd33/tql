@@ -1,5 +1,6 @@
 title: `Ord` on a node
 grammar: typescript
+asserts: error
 
 `node` has `Eq` but not `Ord`, so ordering two nodes is rejected even though
 comparing them for equality is not.
@@ -11,5 +12,5 @@ main root =
 
 --- error ---
 category: unsatisfied-constraint
-span: 2:9-3:56
+span: 2:9-3:55
 `Ord Node` is not satisfied.
