@@ -375,7 +375,12 @@ pub const Machine = struct {
             },
 
             .case => |case_expr| {
+                // The scrutinee runs in this environment and may push its own
+                // binders onto it. The alternative's binders are numbered from
+                // where the scrutinee started, so those are dropped first.
+                const mark = scope.items.len;
                 const scrutinee = try self.expression(case_expr.scrutinee, scope);
+                scope.shrinkRetainingCapacity(mark);
                 const constructed = switch (scrutinee) {
                     .constructed => |c| c,
                     else => return error.TypeError,
