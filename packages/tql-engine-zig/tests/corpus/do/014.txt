@@ -7,7 +7,7 @@ Stream binding is not node-specific; it binds any filter's outputs.
 --- tql ---
 main _root =
   do {
-    n <- (pure 1, pure 2, pure 3) _root;
+    n <- const [1, 2, 3] _root;
     pure (n * 10) _root
   };
 

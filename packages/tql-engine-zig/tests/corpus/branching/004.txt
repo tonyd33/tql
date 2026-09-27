@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 main =
-  branch (pure true, pure false, pure true) (pure "y") (pure "n");
+  branch (const [true, false, true]) (pure "y") (pure "n");
 
 --- source ---
 class A {}
@@ -13,7 +13,7 @@ class A {}
 ["y", "n", "y"]
 
 --- core ---
-main = branch (alt (alt (pure True) (pure False)) (pure True)) (pure "y") (pure "n")
+main = branch (const (Cons True (Cons False (Cons True Nil)))) (pure "y") (pure "n")
 
 --- types ---
 main : Node -> [String]

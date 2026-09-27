@@ -18,9 +18,6 @@ compose f g x = f (g x);
 flip : (a -> b -> c) -> b -> a -> c;
 flip f x y = f y x;
 
-empty : [a];
-empty = Nil;
-
 null : [a] -> Bool;
 null xs = case xs of {
   Nil -> True;
@@ -101,10 +98,10 @@ all p xs = case xs of {
 -- into it.
 
 pure : a -> Filter b a;
-pure v x = Cons v Nil;
+pure v x = [v];
 
 none : Filter a b;
-none x = Nil;
+none x = [];
 
 kleisli : Filter a b -> Filter b c -> Filter a c;
 kleisli p q x = concat_map q (p x);
@@ -113,10 +110,13 @@ alt : Filter a b -> Filter a b -> Filter a b;
 alt p q x = append (p x) (q x);
 
 arr : (a -> b) -> Filter a b;
-arr f x = Cons (f x) Nil;
+arr f x = [f x];
+
+collect : Filter a b -> Filter a [b];
+collect p x = [p x];
 
 probe : Filter a b -> Filter a Bool;
-probe p x = Cons (not (null (p x))) Nil;
+probe p x = [not (null (p x))];
 
 branch : Filter a Bool -> Filter a b -> Filter a b -> Filter a b;
 branch condition consequence alternative x =

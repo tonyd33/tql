@@ -6,7 +6,7 @@ asserts: types, values
 arguments are `Filter Node String`, which is what lets the union unify.
 
 --- tql ---
-both f g = f, g;
+both f g = f <|> g;
 main = children | is_kind :class_declaration | both (.name | arr text) (arr kind);
 
 --- source ---

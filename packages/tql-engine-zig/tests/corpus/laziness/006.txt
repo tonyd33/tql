@@ -8,7 +8,7 @@ is forced at most once is not something a value assertion can witness.
 
 --- tql ---
 shared = 6 * 7;
-main = pure shared, pure shared;
+main = const [shared, shared];
 
 --- source ---
 class A {}

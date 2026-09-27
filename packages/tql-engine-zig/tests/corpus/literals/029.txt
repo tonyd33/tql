@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = [pure 3, pure 1, pure 2] | identity;
+main = pure [3, 1, 2] | identity;
 
 --- source ---
 class A {}

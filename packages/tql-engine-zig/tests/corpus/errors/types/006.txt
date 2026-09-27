@@ -1,13 +1,13 @@
 title: a heterogeneous list
 grammar: typescript
 
-`[a]` is homogeneous. `[1, "two"]` collects a union, which must have one
-element type.
+`[a]` is homogeneous. `[1, "two"]` is a list literal, so its elements must
+have one type.
 
 --- tql ---
-main = [1, "two"];
+main = pure [1, "two"];
 
 --- error ---
 category: type-mismatch
-span: 1:12-1:17
+span: 1:17-1:22
 The second element. Expected `int`, found `string`.

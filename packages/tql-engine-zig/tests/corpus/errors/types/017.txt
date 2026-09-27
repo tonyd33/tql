@@ -1,17 +1,16 @@
 title: `Eq` on a list containing functions
 grammar: typescript
+asserts: error
 
 A container holding a function is outside `Eq`, recursively.
 
-`[e]` is collection, not a list literal: it collects the outputs of `e` into
-one list. `pure kind` is `Filter b (node -> string)`, so the collected element
-type is `Node -> String` and the list is `[Node -> String]`. Functions have no
-`Eq`, and the list inherits that.
+`[kind, text]` is a list literal of two functions, so it is `[Node -> String]`.
+Functions have no `Eq`, and the list inherits that.
 
 --- tql ---
 main =
   let {
-    fs = [pure kind, pure text]
+    fs = [kind, text]
   } in
     fs = fs;
 

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = [pure 1, pure 2, pure 3] | arr length;
+main = pure (length [1, 2, 3]);
 
 --- source ---
 class A {}

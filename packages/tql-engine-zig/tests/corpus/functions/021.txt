@@ -8,7 +8,7 @@ schemes carry the constraint.
 --- tql ---
 f x = if x = x then 1 else g x;
 g x = f x;
-main = pure (g 1), pure (f "s");
+main = const [g 1, f "s"];
 
 --- source ---
 class A {}

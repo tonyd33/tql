@@ -4,11 +4,11 @@ asserts: types, values
 
 --- tql ---
 main root =
-  [\r -> do {
+  collect (\r -> do {
     c <- (children | is_kind :class_declaration) r;
     n <- c.name;
     pure { name = text n } r
-  }] root;
+  }) root;
 
 --- source ---
 class A {}

@@ -80,7 +80,7 @@ module.exports = grammar({
     union: $ =>
       prec.left(
         PREC.union,
-        seq(field("left", $._expression), ",", field("right", $._expression)),
+        seq(field("left", $._expression), "<|>", field("right", $._expression)),
       ),
 
     pipe: $ =>
@@ -259,17 +259,12 @@ module.exports = grammar({
 
     parenthesized: $ => seq("(", $._expression, ")"),
 
-    // One expression, not a separated list: `,` inside the brackets is stream
-    // union, so `[a, b]` collects the union and yields a single list.
-    list: $ => seq("[", optional($._expression), "]"),
+    list: $ => seq("[", optional(sep_trailing($._expression, ",")), "]"),
 
     record: $ => seq("{", optional(sep_trailing($.record_field, ",")), "}"),
 
     record_field: $ =>
-      prec(
-        PREC.union + 1,
-        seq(field("name", $.identifier), "=", field("value", $._expression)),
-      ),
+      seq(field("name", $.identifier), "=", field("value", $._expression)),
 
     _type: $ => choice($.function_type, $._type_atom),
 

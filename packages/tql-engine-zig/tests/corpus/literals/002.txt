@@ -2,11 +2,11 @@ title: bool literals in filter position
 grammar: typescript
 asserts: core, types, values
 
-Union requires one element type, so this fixture unions bools only. LIT-01
+A list has one element type, so this fixture lists bools only. LIT-01
 covers `int` and REGEX-05 covers a `string`-producing program.
 
 --- tql ---
-main = (pure true, pure false, pure true);
+main = const [true, false, true];
 
 --- source ---
 class A {}
@@ -15,7 +15,7 @@ class A {}
 [true, false, true]
 
 --- core ---
-main = alt (alt (pure True) (pure False)) (pure True)
+main = const (Cons True (Cons False (Cons True Nil)))
 
 --- types ---
 main : Node -> [Bool]

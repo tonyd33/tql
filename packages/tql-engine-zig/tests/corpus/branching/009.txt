@@ -8,7 +8,7 @@ contributes nothing, which is where the annihilation lives now.
 --- tql ---
 main root =
   do {
-    a <- (pure true, pure false) root;
+    a <- const [true, false] root;
     b <- (children | is_kind :interface_declaration | pure true) root;
     pure (a and b) root
   };

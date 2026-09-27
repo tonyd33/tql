@@ -1,15 +1,12 @@
-title: `not` negates a boolean
+title: an empty list literal is Nil
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = const [not true, not false];
-
---- source ---
-class A {}
+main = const [null [], null [1]];
 
 --- values ---
-[false, true]
+[true, false]
 
 --- types ---
 main : Node -> [Bool]

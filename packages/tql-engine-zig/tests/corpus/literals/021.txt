@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 main root =
-  do { l <- (pure 1, pure 2) root;
+  do { l <- const [1, 2] root;
        r <- (children | is_kind :interface_declaration | pure 0) root;
        pure (l + r) root };
 

@@ -2,12 +2,12 @@ title: the closing quote ends the literal
 grammar: typescript
 asserts: types, values
 
-`r"^A"` is a complete regex literal; the following `,` begins a union, not more
-pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly
+`r"^A"` is a complete regex literal; the following `,` ends the element, not
+more pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly
 one meaning in every position.
 
 --- tql ---
-main = (pure ("A" ~ r"^A"), pure ("B" ~ r"^A"));
+main = const ["A" ~ r"^A", "B" ~ r"^A"];
 
 --- source ---
 class A {}

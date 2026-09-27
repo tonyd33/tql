@@ -6,7 +6,7 @@ The empty pattern matches everything, the empty string included. A non-empty
 pattern does not match the empty string.
 
 --- tql ---
-main = pure ("" ~ r""), pure ("abc" ~ r""), pure ("" ~ r"a");
+main = const ["" ~ r"", "abc" ~ r"", "" ~ r"a"];
 
 --- source ---
 class A {}

@@ -7,7 +7,7 @@ thunk. The outer branch's own let must still read `n`.
 
 --- tql ---
 choose n = if (if n > 0 then n - 1 > 0 else false) then n * 2 + 1 else n * 3 + 1;
-main = pure (choose 5), pure (choose 1), pure (choose 0);
+main = const [choose 5, choose 1, choose 0];
 
 --- source ---
 class A {}

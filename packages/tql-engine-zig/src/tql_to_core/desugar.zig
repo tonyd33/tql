@@ -459,22 +459,18 @@ pub const Lowerer = struct {
 
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
-            // `[p]` is `arr p`; `[]` is `arr (const empty)`, which is why it
-            // yields one empty list rather than no output.
-            .list => |maybe| {
-                const inner = if (maybe) |p|
-                    try self.expression(p.*, scope)
-                else
-                    try self.builder.apply(
-                        try self.primitive("const", e.span),
-                        try self.primitive("empty", e.span),
+            .list => |elements| {
+                var spine = try self.constructorRef("Nil", e.span);
+                var i = elements.len;
+                while (i > 0) {
+                    i -= 1;
+                    spine = try self.builder.applyMany(
+                        try self.constructorRef("Cons", e.span),
+                        &.{ try self.expression(elements[i], scope), spine },
                         e.span,
                     );
-                return try self.builder.apply(
-                    try self.primitive("arr", e.span),
-                    inner,
-                    e.span,
-                );
+                }
+                return spine;
             },
 
             .record => |r| return try self.record(r, e.span, scope),

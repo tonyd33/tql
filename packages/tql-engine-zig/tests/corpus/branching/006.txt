@@ -7,7 +7,7 @@ rather than a property of `not` itself. `not` is an operator, not an
 identifier, so the lifted function is written as a lambda.
 
 --- tql ---
-main = (pure true, pure false) | arr (\b -> not b);
+main = const [true, false] | arr (\b -> not b);
 
 --- source ---
 class A {}

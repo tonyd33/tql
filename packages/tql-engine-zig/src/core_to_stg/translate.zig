@@ -756,7 +756,7 @@ test "binders under a scrutinee's case and let do not shift an alternative's" {
         \\first p = case p of { Mk a b -> a };
         \\pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 100 * first q };
         \\pack p q = case (let { s = 5 } in Mk s 6) of { Mk x y -> x + 10 * y + 100 * first q };
-        \\main = pure (pick (Mk 1 2) (Mk 7 8)), pure (pack (Mk 1 2) (Mk 7 8));
+        \\main = const [pick (Mk 1 2) (Mk 7 8), pack (Mk 1 2) (Mk 7 8)];
     );
 }
 
@@ -765,7 +765,7 @@ test "captures resolve against the environment that allocates the closure" {
         \\count_to limit =
         \\  let { go n = if n = limit then n else go (n + 1) } in go 0;
         \\spread a b c = \x -> c - a * x - b;
-        \\main = pure (count_to 10), pure (spread 1 30 3 0);
+        \\main = const [count_to 10, spread 1 30 3 0];
     );
 }
 

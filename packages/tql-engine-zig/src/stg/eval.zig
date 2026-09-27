@@ -1562,7 +1562,7 @@ test "a letrec's closures reach each other" {
         \\    is_even n = if n = 0 then true else is_odd (n - 1);
         \\    is_odd n = if n = 0 then false else is_even (n - 1)
         \\  } in
-        \\    pure (is_even 4), pure (is_even 7);
+        \\    const [is_even 4, is_even 7];
     );
 }
 
@@ -1576,6 +1576,18 @@ test "a letrec binding captures an enclosing parameter" {
 
 test "a regex test reuses one match scratch across calls" {
     try expectValues("[true,false,true]",
-        \\main = pure ("abc" ~ r"b"), pure ("xyz" ~ r"b"), pure ("b" ~ r"b");
+        \\main = const ["abc" ~ r"b", "xyz" ~ r"b", "b" ~ r"b"];
+    );
+}
+
+test "a list literal builds its elements in order" {
+    try expectValues("[[1,2,3],[]]",
+        \\main = const [[1, 1 + 1, 3], []];
+    );
+}
+
+test "collect gathers every output into one list" {
+    try expectValues("[[1,2],[]]",
+        \\main = collect (const [1, 2]) <|> collect none;
     );
 }

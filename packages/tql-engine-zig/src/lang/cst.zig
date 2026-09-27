@@ -168,7 +168,7 @@ pub const BinaryOperator = enum {
             .@"and" => "and",
             .@"or" => "or",
             .pipe => "|",
-            .stream_union => ",",
+            .stream_union => "<|>",
         };
     }
 };
@@ -285,8 +285,8 @@ pub const Expression = struct {
         lambda: *Lambda,
         let: *Let,
         do: *Do,
-        /// A collected stream: `[e]` or `[]`.
-        list: ?*Expression,
+        /// A list literal: `[a, b, c]` or `[]`.
+        list: []const Expression,
         record: Record,
         parenthesized: *Expression,
     };
@@ -380,9 +380,9 @@ pub const Expression = struct {
                 try d.result.sexpr(w);
                 try w.writeByte(')');
             },
-            .list => |maybe| {
+            .list => |elements| {
                 try w.writeAll("(list");
-                if (maybe) |e| {
+                for (elements) |e| {
                     try w.writeByte(' ');
                     try e.sexpr(w);
                 }

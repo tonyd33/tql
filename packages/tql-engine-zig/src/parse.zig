@@ -768,12 +768,15 @@ const Walker = struct {
     }
 
     fn list(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const inner_node = node.namedChild(0) orelse {
-            return cst.Expression{ .kind = .{ .list = null }, .span = span };
-        };
-        const inner = try self.expression(inner_node) orelse return null;
+        var elements: std.ArrayList(cst.Expression) = .empty;
+        var i: u32 = 0;
+        while (i < node.namedChildCount()) : (i += 1) {
+            const child = node.namedChild(i).?;
+            if (child.isExtra()) continue;
+            try elements.append(self.allocator, try self.expression(child) orelse return null);
+        }
         return .{
-            .kind = .{ .list = try self.boxed(inner) },
+            .kind = .{ .list = try elements.toOwnedSlice(self.allocator) },
             .span = span,
         };
     }
@@ -1125,6 +1128,20 @@ test "an empty list" {
     try expectSexpr(
         "main = [];",
         "(source_file (define main (params) (list)))",
+    );
+}
+
+test "a list literal keeps its elements in order" {
+    try expectSexpr(
+        "main = [1, a | b, -- two\n c,];",
+        "(source_file (define main (params) (list 1 (| a b) c)))",
+    );
+}
+
+test "union is spelled <|>" {
+    try expectSexpr(
+        "main = a <|> b | c;",
+        "(source_file (define main (params) (<|> a (| b c))))",
     );
 }
 

@@ -3,12 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
+main =
   let {
     x = { a = 1 };
     y = { a = 2 }
   } in
-    (pure (x = x), pure (x = y)) root;
+    const [x = x, x = y];
 
 --- source ---
 class A {}

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = pure 42, pure (0 - 1);
+main = const [42, 0 - 1];
 
 --- source ---
 class A {}

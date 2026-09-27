@@ -7,7 +7,7 @@ an internal space, and the empty string. None is an error.
 
 --- tql ---
 main =
-  (pure "abc", pure "1.5", pure "+3", pure "1 2", pure "") | toint;
+  const ["abc", "1.5", "+3", "1 2", ""] | toint;
 
 --- source ---
 class A {}

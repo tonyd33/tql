@@ -1,11 +1,11 @@
-title: `[p]` collects every output of `p` into exactly one list
+title: `collect p` collects every output of `p` into exactly one list
 grammar: typescript
 asserts: core, types, values
 
 The result is one value, not three: collection changes multiplicity.
 
 --- tql ---
-main = [children | is_kind :class_declaration | .name | arr text];
+main = collect (children | is_kind :class_declaration | .name | arr text);
 
 --- source ---
 class A {}
@@ -16,7 +16,7 @@ class C {}
 [["A", "B", "C"]]
 
 --- core ---
-main = arr (kleisli (kleisli (kleisli children is_kind[class_declaration]) field[name]) (arr text))
+main = collect (kleisli (kleisli (kleisli children is_kind[class_declaration]) field[name]) (arr text))
 
 --- types ---
 main : Node -> [[String]]

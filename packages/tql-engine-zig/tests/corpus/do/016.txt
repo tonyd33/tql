@@ -9,7 +9,7 @@ its own branch, never a later one.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    n <- (pure 1, pure 2) root;
+    n <- const [1, 2] root;
     cn <- c.name;
     pure { class = text cn, n = n } root
   };

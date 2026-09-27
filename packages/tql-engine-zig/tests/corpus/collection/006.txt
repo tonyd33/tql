@@ -2,12 +2,12 @@ title: nested collection
 grammar: typescript
 asserts: types, values
 
-The outer bracket collects the per-class lists into one list of lists.
+The outer `collect` gathers the per-class lists into one list of lists.
 
 --- tql ---
 main =
-  [children | is_kind :class_declaration
-   | [.body | children | is_kind :method_definition | .name | arr text]];
+  collect (children | is_kind :class_declaration
+   | collect (.body | children | is_kind :method_definition | .name | arr text));
 
 --- source ---
 class A { m() {} n() {} }

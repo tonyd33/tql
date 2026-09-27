@@ -44,7 +44,7 @@ main = c.name;
 literals
 ========================================
 
-main = 42, "text", true, false, r"^A";
+main = 42 <|> "text" <|> true <|> false <|> r"^A";
 
 ---
 
@@ -73,11 +73,47 @@ main = [1, 2, 3];
   (definition
     name: (identifier)
     body: (list
-      (union
-        left: (union
-          left: (number)
-          right: (number))
-        right: (number)))))
+      (number)
+      (number)
+      (number))))
+
+========================================
+a list with a trailing comma
+========================================
+
+main = [a | b, c,];
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (list
+      (pipe
+        left: (identifier)
+        right: (identifier))
+      (identifier))))
+
+========================================
+a list inside a record field
+========================================
+
+main = { a = [1, 2], b = 3 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (record
+      (record_field
+        name: (identifier)
+        value: (list
+          (number)
+          (number)))
+      (record_field
+        name: (identifier)
+        value: (number)))))
 
 ========================================
 an empty list

@@ -1,13 +1,13 @@
 title: an unconstrained collected output is ambiguous
 grammar: typescript
 
-`[empty]` has type `Filter a [b]` with `b` free. Wrapping in a list does not
-resolve the variable.
+`collect none` has type `Filter a [b]` with `b` free. Wrapping in a list does
+not resolve the variable.
 
 --- tql ---
-main = [none];
+main = collect none;
 
 --- error ---
 category: ambiguous-output
-span: 1:8-1:15
+span: 1:8-1:20
 The element type variable is unresolved.

@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 main =
-  (pure (1 = 1), pure (1 != 1), pure ("a" = "a"), pure ("a" = "b"));
+  const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
 
 --- source ---
 class A {}

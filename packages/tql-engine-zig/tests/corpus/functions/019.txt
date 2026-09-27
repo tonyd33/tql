@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 n = 100;
 shadowed n = n + 1;
-main = pure (shadowed 1), pure n;
+main = const [shadowed 1, n];
 
 --- source ---
 class A {}

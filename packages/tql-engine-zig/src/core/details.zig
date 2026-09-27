@@ -4,7 +4,7 @@ const symbols = @import("symbols.zig");
 
 /// A scalar operator, which desugaring synthesizes an `op[...]` symbol for.
 ///
-/// The surface has four more binary operators. `|`, `,`, `and` and `or`
+/// The surface has four more binary operators. `|`, `<|>`, `and` and `or`
 /// desugar to prelude combinators and never reach here.
 pub const Scalar = enum {
     eq,
