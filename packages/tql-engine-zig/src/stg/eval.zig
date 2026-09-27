@@ -1525,8 +1525,8 @@ test "a constructor's fields bind in declaration order" {
 test "a case in a scrutinee leaves the alternative's binders in place" {
     try expectValues("[702]",
         \\type P = Mk Int Int;
-        \\first p = case p of { Mk a b -> a };
-        \\pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 100 * first q };
+        \\fst p = case p of { Mk a b -> a };
+        \\pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 100 * fst q };
         \\main = pure (pick (Mk 1 2) (Mk 7 8));
     );
 }
@@ -1534,8 +1534,8 @@ test "a case in a scrutinee leaves the alternative's binders in place" {
 test "a let in a scrutinee leaves the alternative's binders in place" {
     try expectValues("[765]",
         \\type P = Mk Int Int;
-        \\first p = case p of { Mk a b -> a };
-        \\pick p q = case (let { s = 5 } in Mk s 6) of { Mk x y -> x + 10 * y + 100 * first q };
+        \\fst p = case p of { Mk a b -> a };
+        \\pick p q = case (let { s = 5 } in Mk s 6) of { Mk x y -> x + 10 * y + 100 * fst q };
         \\main = pure (pick (Mk 1 2) (Mk 7 8));
     );
 }
