@@ -1,15 +1,15 @@
-title: `any` is true when some element satisfies the predicate
+title: `any_m` is true when some element satisfies the predicate
 grammar: typescript
 asserts: types, values
 
-`any source predicate = probe (compose source (select predicate))`, typed
-`Filter a b -> Filter b bool -> Filter a bool`.
+`any_m source predicate = probe (kleisli source (select predicate))`, typed
+`Filter a b -> Filter b Bool -> Filter a Bool`.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | any (.body | children | is_kind :method_definition)
-        (.name | lift (\n -> text n ~ r"^get"));
+  | any_m (.body | children | is_kind :method_definition)
+        (.name | arr (\n -> text n ~ r"^get"));
 
 --- source ---
 class A { getX() {} setY() {} }

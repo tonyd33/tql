@@ -9,7 +9,7 @@ longer annihilates, because there is no product to annihilate.
 --- tql ---
 main root =
   do {
-    b <- [children | is_kind :interface_declaration | lift text] root;
+    b <- [children | is_kind :interface_declaration | arr text] root;
     pure { a = 1, b = b } root
   };
 

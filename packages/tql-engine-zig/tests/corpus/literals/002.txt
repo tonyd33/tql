@@ -15,7 +15,7 @@ class A {}
 [true, false, true]
 
 --- core ---
-main = union (union (pure True) (pure False)) (pure True)
+main = alt (alt (pure True) (pure False)) (pure True)
 
 --- types ---
 main : Node -> [Bool]

@@ -1,4 +1,10 @@
-{ pkgs, lib, config, inputs, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  inputs,
+  ...
+}:
 
 let
   version = "0.2.1";
@@ -13,12 +19,13 @@ let
   # Every engine artifact comes from the same source tree and dependency set;
   # only the build step and what it installs differ.
   mkEngine =
-    { pname
-    , zigBuildFlags
-    , doCheck ? false
-    , description
-    , mainProgram ? null
-    , installPhase ? null
+    {
+      pname,
+      zigBuildFlags,
+      doCheck ? false,
+      description,
+      mainProgram ? null,
+      installPhase ? null,
     }:
     pkgs.stdenv.mkDerivation {
       inherit pname version doCheck;
@@ -45,12 +52,16 @@ let
         homepage = "https://github.com/tonyd33/tql";
         license = lib.licenses.mit;
         platforms = lib.platforms.unix;
-      } // lib.optionalAttrs (mainProgram != null) { inherit mainProgram; };
+      }
+      // lib.optionalAttrs (mainProgram != null) { inherit mainProgram; };
     };
 
   tql-cli = mkEngine {
     pname = "tql";
-    zigBuildFlags = [ "-Doptimize=ReleaseFast" "-Dgrammars=available" ];
+    zigBuildFlags = [
+      "-Doptimize=ReleaseFast"
+      "-Dgrammars=available"
+    ];
     doCheck = true;
     description = "Tree query language";
     mainProgram = "tql";
@@ -58,7 +69,10 @@ let
 
   tql-wasm = mkEngine {
     pname = "tql-wasm";
-    zigBuildFlags = [ "wasm" "-Dgrammars=none" ];
+    zigBuildFlags = [
+      "wasm"
+      "-Dgrammars=none"
+    ];
     description = "Tree query language engine, as WebAssembly";
     installPhase = ''
       runHook preInstall
@@ -81,17 +95,26 @@ let
 
   tql-wasm-assets = pkgs.symlinkJoin {
     name = "tql-wasm-assets";
-    paths = [ tql-wasm tql-wasm-grammars ];
+    paths = [
+      tql-wasm
+      tql-wasm-grammars
+    ];
   };
 
   # Both JS packages install from the same pnpm workspace lockfile, so they
   # share a dependency set.
-  mkPnpmDeps = { pname, version, src }: pkgs.fetchPnpmDeps {
-    inherit pname version src;
-    pnpm = pkgs.pnpm_10;
-    fetcherVersion = 3;
-    hash = "sha256-pqFjya865PkAyMqMuRSAOaPKcs16Bo8IxFJoYoyyfYg=";
-  };
+  mkPnpmDeps =
+    {
+      pname,
+      version,
+      src,
+    }:
+    pkgs.fetchPnpmDeps {
+      inherit pname version src;
+      pnpm = pkgs.pnpm_10;
+      fetcherVersion = 3;
+      hash = "sha256-pqFjya865PkAyMqMuRSAOaPKcs16Bo8IxFJoYoyyfYg=";
+    };
 
   jsNativeBuildInputs = [
     pkgs.nodejs
@@ -131,44 +154,48 @@ let
     };
   });
 
-  mkPlayground = { basePath ? "" }: pkgs.stdenv.mkDerivation (finalAttrs: {
-    pname = "tql-playground";
-    version = "0.0.1";
+  mkPlayground =
+    {
+      basePath ? "",
+    }:
+    pkgs.stdenv.mkDerivation (finalAttrs: {
+      pname = "tql-playground";
+      version = "0.0.1";
 
-    src = ./.;
+      src = ./.;
 
-    nativeBuildInputs = jsNativeBuildInputs;
+      nativeBuildInputs = jsNativeBuildInputs;
 
-    pnpmDeps = mkPnpmDeps { inherit (finalAttrs) pname version src; };
+      pnpmDeps = mkPnpmDeps { inherit (finalAttrs) pname version src; };
 
-    # The engine wasm and the per-grammar side modules are fetched at runtime
-    # from the site root, so they have to be in static/ before vite builds.
-    preBuild = ''
-      install -m644 ${tql-wasm-assets}/*.wasm packages/playground/static/
-    '';
+      # The engine wasm and the per-grammar side modules are fetched at runtime
+      # from the site root, so they have to be in static/ before vite builds.
+      preBuild = ''
+        install -m644 ${tql-wasm-assets}/*.wasm packages/playground/static/
+      '';
 
-    env.BASE_PATH = basePath;
+      env.BASE_PATH = basePath;
 
-    buildPhase = ''
-      runHook preBuild
-      pnpm --filter tql run build
-      pnpm --filter @tql/playground run build
-      runHook postBuild
-    '';
+      buildPhase = ''
+        runHook preBuild
+        pnpm --filter tql run build
+        pnpm --filter @tql/playground run build
+        runHook postBuild
+      '';
 
-    installPhase = ''
-      runHook preInstall
-      cp -r packages/playground/build "$out"
-      runHook postInstall
-    '';
+      installPhase = ''
+        runHook preInstall
+        cp -r packages/playground/build "$out"
+        runHook postInstall
+      '';
 
-    meta = {
-      description = "Tree query language playground";
-      homepage = "https://github.com/tonyd33/tql";
-      license = lib.licenses.mit;
-      platforms = lib.platforms.unix;
-    };
-  });
+      meta = {
+        description = "Tree query language playground";
+        homepage = "https://github.com/tonyd33/tql";
+        license = lib.licenses.mit;
+        platforms = lib.platforms.unix;
+      };
+    });
 
   tql-playground = mkPlayground { };
 
@@ -197,7 +224,13 @@ in
   # https://devenv.sh/outputs/
   outputs = {
     tql = tql-cli;
-    inherit tql-wasm tql-wasm-grammars tql-wasm-assets tql-js tql-playground;
+    inherit
+      tql-wasm
+      tql-wasm-grammars
+      tql-wasm-assets
+      tql-js
+      tql-playground
+      ;
   };
 
   # https://devenv.sh/languages/
@@ -220,12 +253,15 @@ in
 
   cachix = {
     enable = true;
-    pull = [ "devenv" "tql" ];
+    pull = [
+      "devenv"
+      "tql"
+    ];
   };
 
   # https://devenv.sh/git-hooks/
   git-hooks.hooks = {
-    nixpkgs-fmt.enable = true;
+    nixfmt.enable = true;
     actionlint.enable = true;
     # zizmor.enable = true;
 
@@ -237,6 +273,8 @@ in
     };
 
   };
+
+  editors.neovim.enable = true;
 
   # See full reference at https://devenv.sh/reference/options/
 }

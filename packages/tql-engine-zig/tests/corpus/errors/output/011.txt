@@ -7,7 +7,7 @@ that the body does not support.
 --- tql ---
 f : a -> a;
 f = kind;
-main = . | lift f;
+main = . | arr f;
 
 --- error ---
 category: signature-mismatch

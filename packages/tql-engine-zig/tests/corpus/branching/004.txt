@@ -13,7 +13,7 @@ class A {}
 ["y", "n", "y"]
 
 --- core ---
-main = branch (union (union (pure True) (pure False)) (pure True)) (pure "y") (pure "n")
+main = branch (alt (alt (pure True) (pure False)) (pure True)) (pure "y") (pure "n")
 
 --- types ---
 main : Node -> [String]

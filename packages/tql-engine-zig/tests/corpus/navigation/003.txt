@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = children | lift kind;
+main = children | arr kind;
 
 --- source ---
 function f() {}

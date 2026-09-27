@@ -7,7 +7,7 @@ declaration.
 
 --- tql ---
 kind : Node -> String;
-main = lift kind;
+main = arr kind;
 
 --- error ---
 category: symbol-collision

@@ -4,73 +4,148 @@ type List a = Nil | Cons a (List a);
 
 type Bool = False | True;
 
-identity x = Cons x Nil;
+-- Functional helpers
 
-pure v x = Cons v Nil;
+identity : a -> a;
+identity x = x;
 
-empty x = Nil;
+const : a -> b -> a;
+const x y = x;
 
-unnest : [a] -> [a];
-unnest xs = xs;
+compose : (b -> c) -> (a -> b) -> a -> c;
+compose f g x = f (g x);
 
+flip : (a -> b -> c) -> b -> a -> c;
+flip f x y = f y x;
+
+empty : [a];
+empty = Nil;
+
+null : [a] -> Bool;
+null xs = case xs of {
+  Nil -> True;
+  Cons h t -> False;
+};
+
+append : [a] -> [a] -> [a];
 append xs ys = case xs of {
   Nil -> ys;
   Cons h t -> Cons h (append t ys);
 };
 
-flat_map xs f = case xs of {
+concat : [[a]] -> [a];
+concat xss = case xss of {
   Nil -> Nil;
-  Cons h t -> append (f h) (flat_map t f);
+  Cons h t -> append h (concat t);
 };
 
-compose p q x = flat_map (p x) q;
-
-probe p x = case p x of {
-  Nil -> Cons False Nil;
-  Cons h t -> Cons True Nil;
+map : (a -> b) -> [a] -> [b];
+map f xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> Cons (f h) (map f t);
 };
 
-union p q = \x -> append (p x) (q x);
+concat_map : (a -> [b]) -> [a] -> [b];
+concat_map f xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> append (f h) (concat_map f t);
+};
 
-collect p = \x -> Cons (p x) Nil;
+filter : (a -> Bool) -> [a] -> [a];
+filter p xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> case p h of {
+    False -> filter p t;
+    True -> Cons h (filter p t);
+  };
+};
 
+foldr : (a -> b -> b) -> b -> [a] -> b;
+foldr f z xs = case xs of {
+  Nil -> z;
+  Cons h t -> f h (foldr f z t);
+};
+
+not : Bool -> Bool;
 not b = case b of {
   False -> True;
   True -> False;
 };
 
+and : Bool -> Bool -> Bool;
 and a b = case a of {
   False -> False;
   True -> b;
 };
 
+or : Bool -> Bool -> Bool;
 or a b = case a of {
   False -> b;
   True -> True;
 };
 
-branch condition consequence alternative =
-  \x -> flat_map (condition x) (\c -> case c of {
+any : (a -> Bool) -> [a] -> Bool;
+any p xs = case xs of {
+  Nil -> False;
+  Cons h t -> or (p h) (any p t);
+};
+
+all : (a -> Bool) -> [a] -> Bool;
+all p xs = case xs of {
+  Nil -> True;
+  Cons h t -> and (p h) (all p t);
+};
+
+-- The query layer. `Filter a b` is `a -> [b]`, the Kleisli category of the
+-- list monad. Every name below is that monad's, or a list function lifted
+-- into it.
+
+pure : a -> Filter b a;
+pure v x = Cons v Nil;
+
+none : Filter a b;
+none x = Nil;
+
+kleisli : Filter a b -> Filter b c -> Filter a c;
+kleisli p q x = concat_map q (p x);
+
+alt : Filter a b -> Filter a b -> Filter a b;
+alt p q x = append (p x) (q x);
+
+arr : (a -> b) -> Filter a b;
+arr f x = Cons (f x) Nil;
+
+probe : Filter a b -> Filter a Bool;
+probe p x = Cons (not (null (p x))) Nil;
+
+branch : Filter a Bool -> Filter a b -> Filter a b -> Filter a b;
+branch condition consequence alternative x =
+  concat_map (\c -> case c of {
     False -> alternative x;
     True -> consequence x;
-  });
+  }) (condition x);
 
-lift f x = pure (f x) x;
+select : Filter a Bool -> Filter a a;
+select p = branch p (arr identity) none;
 
-select p = branch p identity empty;
-
+exists : Filter a b -> Filter a Bool;
 exists p = probe p;
 
-any source predicate = probe (compose source (select predicate));
+any_m : Filter a b -> Filter b Bool -> Filter a Bool;
+any_m source predicate = probe (kleisli source (select predicate));
 
-all source predicate =
+all_m : Filter a b -> Filter b Bool -> Filter a Bool;
+all_m source predicate =
   branch
-    (probe (compose source (branch predicate empty identity)))
+    (probe (kleisli source (select (kleisli predicate (arr (\b -> not b))))))
     (pure False)
     (pure True);
 
-contains predicate = exists (descendants | select predicate);
+contains : Filter Node Bool -> Filter Node Bool;
+contains predicate = exists (kleisli descendants (select predicate));
 
-within predicate = exists (ancestors | select predicate);
+within : Filter Node Bool -> Filter Node Bool;
+within predicate = exists (kleisli ancestors (select predicate));
 
+or_else : Filter a b -> Filter a b -> Filter a b;
 or_else primary fallback = branch (probe primary) primary fallback;

@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main =
   descendants | is_kind :method_definition
-  | branch (.name | lift (\n -> text n ~ r"^get")) (.name | lift text) empty;
+   | branch (.name | arr (\n -> text n ~ r"^get")) (.name | arr text) none;
 
 --- source ---
 class A { getX() {} setY() {} getZ() {} }

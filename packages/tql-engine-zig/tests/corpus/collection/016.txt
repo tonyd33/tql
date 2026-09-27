@@ -10,7 +10,7 @@ main root =
   do {
     c <- (children | is_kind :class_declaration) root;
     n <- c.name;
-    methods <- [.body | children | is_kind :method_definition | .name | lift text] c;
+    methods <- [.body | children | is_kind :method_definition | .name | arr text] c;
     pure { name = text n, methods = methods } root
   };
 

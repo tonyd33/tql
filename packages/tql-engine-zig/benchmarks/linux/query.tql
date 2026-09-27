@@ -1,4 +1,4 @@
-matches re = select (lift (\n -> text n ~ re));
+matches re = select (arr (\n -> text n ~ re));
 
 allocator_call =
   descendants
@@ -19,4 +19,4 @@ main =
   | select (.body | exists error_goto)
   | children | is_kind :function_declarator
   | children | is_kind :identifier
-  | lift (\n -> { name = text n });
+  | arr (\n -> { name = text n });

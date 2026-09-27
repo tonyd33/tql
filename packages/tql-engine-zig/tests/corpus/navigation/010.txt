@@ -7,7 +7,7 @@ an initializer is written. The uninitialized declarator yields nothing rather
 than failing.
 
 --- tql ---
-main = descendants | is_kind :variable_declarator | .value | lift text;
+main = descendants | is_kind :variable_declarator | .value | arr text;
 
 --- source ---
 let a;

@@ -6,7 +6,7 @@ asserts: types, values
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    (.name | lift text) c
+    (.name | arr text) c
   };
 
 --- source ---

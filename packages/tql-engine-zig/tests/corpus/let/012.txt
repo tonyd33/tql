@@ -9,7 +9,7 @@ rather than its output.
 --- tql ---
 main =
   let {
-    k = lift kind
+    k = arr kind
   } in
     (children | is_kind :class_declaration | k),
     (descendants | is_kind :property_identifier | k);

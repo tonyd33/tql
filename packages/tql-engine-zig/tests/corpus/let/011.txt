@@ -6,7 +6,7 @@ asserts: types, values
 group to generalize before the body is checked; a monomorphic binding would
 force one type and reject the other use site.
 
-Both uses are projected to `int` before the union, since `union` requires a
+Both uses are projected to `int` before the union, since `alt` requires a
 single element type. The polymorphism is in `ident`, not in the union.
 
 --- tql ---

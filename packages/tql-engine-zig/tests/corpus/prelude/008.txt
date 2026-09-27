@@ -1,17 +1,17 @@
-title: `all` over an empty source is true
+title: `all_m` over an empty source is true
 grammar: typescript
 asserts: types, values
 
 Vacuous truth, and the dual of PRE-06. No violating element exists, so the
-inner probe is false and `all` yields true. A definition with the branch arms
+inner probe is false and `all_m` yields true. A definition with the branch arms
 in the wrong order would yield `false` here, so this fixture pins the arm
 ordering.
 
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | all (.body | children | is_kind :method_definition)
-        (.name | lift (\n -> text n ~ r"^get"));
+  | all_m (.body | children | is_kind :method_definition)
+        (.name | arr (\n -> text n ~ r"^get"));
 
 --- source ---
 class B {}

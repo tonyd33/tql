@@ -17,4 +17,4 @@ main = kind;
 category: main-type
 span: 1:8-1:12
 `main` must be `Filter Node output`. Found `Node -> String`; a projection
-reaches filter position through `lift`.
+reaches filter position through `arr`.

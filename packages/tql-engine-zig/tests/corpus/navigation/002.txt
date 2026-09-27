@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main = children | is_kind :class_declaration | .name | lift text;
+main = children | is_kind :class_declaration | .name | arr text;
 
 --- source ---
 class A {}
@@ -14,7 +14,7 @@ class B {}
 ["A", "B"]
 
 --- core ---
-main = compose (compose (compose children is_kind[class_declaration]) field[name]) (lift text)
+main = kleisli (kleisli (kleisli children is_kind[class_declaration]) field[name]) (arr text)
 
 --- types ---
 main : Node -> [String]

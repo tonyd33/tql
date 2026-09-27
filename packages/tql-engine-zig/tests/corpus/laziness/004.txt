@@ -1,4 +1,4 @@
-title: `all` short-circuits on the first violation
+title: `all_m` short-circuits on the first violation
 grammar: typescript
 asserts: types, values
 
@@ -7,7 +7,7 @@ stops there despite the infinite source.
 
 --- tql ---
 from n = pure n, from (n + 1);
-main = all (from 0) (lift (\x -> x < 0));
+main = all_m (from 0) (arr (\x -> x < 0));
 
 --- source ---
 class A {}

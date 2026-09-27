@@ -11,7 +11,7 @@ main root =
   do {
     c <- (children | is_kind :class_declaration) root;
     m <- (.body | children | is_kind :method_definition) c;
-    (.name | lift text) m
+    (.name | arr text) m
   };
 
 --- source ---

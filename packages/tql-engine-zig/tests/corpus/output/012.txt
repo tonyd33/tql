@@ -5,7 +5,7 @@ asserts: types, values
 Absence is the empty stream, not `null`. No error is raised.
 
 --- tql ---
-main = children | is_kind :interface_declaration | .name | lift text;
+main = children | is_kind :interface_declaration | .name | arr text;
 
 --- source ---
 class A {}

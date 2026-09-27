@@ -8,7 +8,7 @@ class node, so it can navigate again.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | branch (.name | lift (\n -> text n = "A")) (lift kind) (pure "other");
+  | branch (.name | arr (\n -> text n = "A")) (arr kind) (pure "other");
 
 --- source ---
 class A {}

@@ -299,7 +299,13 @@ pub const Lowerer = struct {
 
     pub fn expression(self: *Lowerer, e: cst.Expression, scope: ?*const resolve.Scope) Error!core.Term {
         switch (e.kind) {
-            .identity => return try self.primitive("identity", e.span),
+            // `.` is the singleton filter `\x -> [x]`, confusingly.
+            // Unclear about the future of `.`
+            .identity => return try self.builder.apply(
+                try self.primitive("arr", e.span),
+                try self.primitive("identity", e.span),
+                e.span,
+            ),
 
             // Literal payloads are duped: the CST they point into is freed
             // before the Core program is used.
@@ -456,15 +462,19 @@ pub const Lowerer = struct {
 
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
-            // `[p]` is `collect p`; `[]` is `collect empty`, which is why it
+            // `[p]` is `arr p`; `[]` is `arr (const empty)`, which is why it
             // yields one empty list rather than no output.
             .list => |maybe| {
                 const inner = if (maybe) |p|
                     try self.expression(p.*, scope)
                 else
-                    try self.primitive("empty", e.span);
+                    try self.builder.apply(
+                        try self.primitive("const", e.span),
+                        try self.primitive("empty", e.span),
+                        e.span,
+                    );
                 return try self.builder.apply(
-                    try self.primitive("collect", e.span),
+                    try self.primitive("arr", e.span),
                     inner,
                     e.span,
                 );
@@ -479,8 +489,8 @@ pub const Lowerer = struct {
         const right = try self.expression(b.right, scope);
 
         const combinator: ?[]const u8 = switch (b.operator) {
-            .pipe => "compose",
-            .stream_union => "union",
+            .pipe => "kleisli",
+            .stream_union => "alt",
             .@"and" => "and",
             .@"or" => "or",
             else => null,

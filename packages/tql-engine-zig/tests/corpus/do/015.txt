@@ -8,7 +8,7 @@ The body never runs.
 main root =
   do {
     c <- (children | is_kind :interface_declaration) root;
-    (.name | lift text) c
+    (.name | arr text) c
   };
 
 --- source ---

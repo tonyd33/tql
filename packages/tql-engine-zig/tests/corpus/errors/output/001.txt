@@ -5,7 +5,7 @@ grammar: typescript
 over a different input type cannot be the entrypoint.
 
 --- tql ---
-main = unnest;
+main = identity;
 
 --- error ---
 category: main-type

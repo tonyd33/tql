@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | contains (lift (\n -> kind n = "method_definition"));
+  | contains (arr (\n -> kind n = "method_definition"));
 
 --- source ---
 class A { m() {} }

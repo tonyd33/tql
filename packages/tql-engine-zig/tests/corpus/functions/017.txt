@@ -6,7 +6,7 @@ asserts: types, values
 `. / :class_declaration | (name_of .)`.
 
 --- tql ---
-name_of n = (.name | lift text) n;
+name_of n = (.name | arr text) n;
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---

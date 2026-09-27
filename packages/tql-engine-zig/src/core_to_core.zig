@@ -21,12 +21,12 @@ pub const Error = Allocator.Error;
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
 pub fn run(program: *tql_to_core.Program) Error!void {
-    const compose = program.env.interner.lookup("compose") orelse return;
+    const kleisli = program.env.interner.lookup("kleisli") orelse return;
 
     var pass: Pass = .{
         .builder = .{ .allocator = program.env.allocator() },
         .interner = &program.env.interner,
-        .compose = compose,
+        .kleisli = kleisli,
     };
 
     const definitions = try program.env.allocator().alloc(
@@ -110,7 +110,7 @@ test "a kind test fuses under a surrounding composition" {
         &w,
     );
     try std.testing.expectEqualStrings(
-        "compose descendants_of_kind[class_declaration] field[name]",
+        "kleisli descendants_of_kind[class_declaration] field[name]",
         w.written(),
     );
 }
@@ -126,7 +126,7 @@ test "a kind test on a non-axis is left alone" {
         &w,
     );
     try std.testing.expectEqualStrings(
-        "compose parent is_kind[class_declaration]",
+        "kleisli parent is_kind[class_declaration]",
         w.written(),
     );
 }
@@ -135,14 +135,14 @@ test "an axis with no kind test is left alone" {
     var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer w.deinit();
 
-    try simplified(std.testing.allocator, "main = descendants | lift kind;", &w);
-    try std.testing.expectEqualStrings("compose descendants (lift kind)", w.written());
+    try simplified(std.testing.allocator, "main = descendants | arr kind;", &w);
+    try std.testing.expectEqualStrings("kleisli descendants (arr kind)", w.written());
 }
 
 const Pass = struct {
     builder: core.Builder,
     interner: *core.Interner,
-    compose: core.SymbolId,
+    kleisli: core.SymbolId,
 
     /// Rewrite `t`, bottom up. A rewrite sees operands that are already
     /// rewritten, so one traversal reaches a fused axis nested in a fused axis.
@@ -211,7 +211,7 @@ const Pass = struct {
         return try self.builder.apply(function, argument, span);
     }
 
-    /// `compose <axis> is_kind[k]` becomes the axis that yields only `k`.
+    /// `kleisli <axis> is_kind[k]` becomes the axis that yields only `k`.
     ///
     /// Both spellings are writable by hand and denote the same list, so this
     /// removes the intermediate list without changing what the query means.
@@ -228,7 +228,7 @@ const Pass = struct {
             else => return null,
         };
         if (inner.function.kind != .symbol) return null;
-        if (inner.function.kind.symbol != self.compose) return null;
+        if (inner.function.kind.symbol != self.kleisli) return null;
 
         const axis = switch (inner.argument.kind) {
             .symbol => |id| id,

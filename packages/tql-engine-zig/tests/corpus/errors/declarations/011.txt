@@ -6,7 +6,7 @@ asserts: error
 f : Node -> String;
 f : Node -> String;
 f = kind;
-main = lift f;
+main = arr f;
 
 --- error ---
 category: duplicate-signature

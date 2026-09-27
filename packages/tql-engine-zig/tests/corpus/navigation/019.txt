@@ -3,11 +3,11 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-deep_fused = [descendants_of_kind :class_declaration | .name | lift text];
-deep_piped = [descendants | is_kind :class_declaration | .name | lift text];
+deep_fused = [descendants_of_kind :class_declaration | .name | arr text];
+deep_piped = [descendants | is_kind :class_declaration | .name | arr text];
 
-flat_fused = [children_of_kind :class_declaration | .name | lift text];
-flat_piped = [children | is_kind :class_declaration | .name | lift text];
+flat_fused = [children_of_kind :class_declaration | .name | arr text];
+flat_piped = [children | is_kind :class_declaration | .name | arr text];
 
 main = \r -> pure {
   deep = deep_fused r = deep_piped r,

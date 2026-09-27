@@ -1,4 +1,4 @@
-title: `any` over an empty source is false
+title: `any_m` over an empty source is false
 grammar: typescript
 asserts: types, values
 
@@ -7,8 +7,8 @@ The source yields nothing, so the probe finds no first result.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | any (.body | children | is_kind :method_definition)
-        (.name | lift (\n -> text n ~ r"^get"));
+  | any_m (.body | children | is_kind :method_definition)
+        (.name | arr (\n -> text n ~ r"^get"));
 
 --- source ---
 class B {}

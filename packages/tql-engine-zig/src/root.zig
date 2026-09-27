@@ -413,7 +413,7 @@ test "a constructor field that is not an atom becomes a thunk" {
     try std.testing.expectEqualStrings(expected.written(), printed);
 }
 
-test "a stream bind translates to a flat_map call" {
+test "a stream bind translates to a concat_map call" {
     const allocator = std.testing.allocator;
 
     var grammars = grammar.Registry.init(allocator, &.{});
@@ -446,7 +446,7 @@ test "a stream bind translates to a flat_map call" {
 
     // `bind` is not a machine form: the receiver becomes a one-argument
     // closure and the whole thing is an ordinary call to the prelude.
-    try std.testing.expect(std.mem.indexOf(u8, w.written(), "flat_map ") != null);
+    try std.testing.expect(std.mem.indexOf(u8, w.written(), "concat_map ") != null);
 }
 
 test "the evaluator runs the prelude's append" {
@@ -534,7 +534,7 @@ fn runQuery(
     for (out.items) |thunk| _ = try machine.force(thunk);
 }
 
-test "the evaluator runs pure, compose and the scalar operators" {
+test "the evaluator runs pure, kleisli and the scalar operators" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -545,7 +545,7 @@ test "the evaluator runs pure, compose and the scalar operators" {
 
     // `pure` builds a one-element list, the operator is scalar under Q16, and
     // `compose` is the pipe.
-    try runQuery(allocator, "main root = (pure 1 | lift (\\n -> n + 2)) root;", &arena, &out);
+    try runQuery(allocator, "main root = (pure 1 | arr (\\n -> n + 2)) root;", &arena, &out);
 
     try std.testing.expectEqual(1, out.items.len);
     try std.testing.expectEqual(@as(i64, 3), out.items[0].state.evaluated.number);
@@ -575,7 +575,7 @@ test "the evaluator orders ints and strings" {
     }
 }
 
-test "the evaluator runs lift and select" {
+test "the evaluator runs arr and select" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -584,10 +584,10 @@ test "the evaluator runs lift and select" {
     var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `select` keeps the inputs its predicate accepts. `lift` carries the
+    // `select` keeps the inputs its predicate accepts. `arr` carries the
     // scalar predicate into filter position.
     try runQuery(allocator,
-        \\main root = ((pure 1, pure 2, pure 3) | select (lift (\n -> n > 1))) root;
+        \\main root = ((pure 1, pure 2, pure 3) | select (arr (\n -> n > 1))) root;
     , &arena, &out);
 
     try std.testing.expectEqual(2, out.items.len);
@@ -595,7 +595,7 @@ test "the evaluator runs lift and select" {
     try std.testing.expectEqual(@as(i64, 3), out.items[1].state.evaluated.number);
 }
 
-test "the evaluator runs exists, any and all" {
+test "the evaluator runs exists, any_m and all_m" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -604,17 +604,17 @@ test "the evaluator runs exists, any and all" {
     var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `all` over an empty source is vacuously true, and its arms must be in
-    // the right order: swapped, this yields false.
+    // `all_m` over an empty source is vacuously true, and its arms must be
+    // in the right order: swapped, this yields false.
     try runQuery(allocator,
         \\main root =
         \\  (exists (pure 1),
-        \\   exists empty,
-        \\   any (pure 1, pure 2) (lift (\n -> n > 1)),
-        \\   any (pure 1) (lift (\n -> n > 1)),
-        \\   all (pure 2, pure 3) (lift (\n -> n > 1)),
-        \\   all (pure 1, pure 2) (lift (\n -> n > 1)),
-        \\   all empty (lift (\n -> n > 1))) root;
+        \\   exists none,
+        \\   any_m (pure 1, pure 2) (arr (\n -> n > 1)),
+        \\   any_m (pure 1) (arr (\n -> n > 1)),
+        \\   all_m (pure 2, pure 3) (arr (\n -> n > 1)),
+        \\   all_m (pure 1, pure 2) (arr (\n -> n > 1)),
+        \\   all_m none (arr (\n -> n > 1))) root;
     , &arena, &out);
 
     try std.testing.expectEqual(7, out.items.len);
@@ -635,7 +635,7 @@ test "the evaluator runs or_else" {
 
     // The fallback runs only when the primary yields nothing.
     try runQuery(allocator,
-        \\main root = (or_else (pure 1) (pure 2), or_else empty (pure 3)) root;
+        \\main root = (or_else (pure 1) (pure 2), or_else none (pure 3)) root;
     , &arena, &out);
 
     try std.testing.expectEqual(2, out.items.len);
@@ -652,14 +652,15 @@ test "a filter chain over a long list runs in bounded stack" {
     var out: std.ArrayList(*core_to_stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `count` builds a list of `n` elements and `compose` runs a filter over
-    // it that keeps none, so reaching the end walks a chain of `append Nil`.
+    // `count` builds a list of `n` elements and `concat_map` runs a filter
+    // over it that keeps none, so reaching the end walks a chain of `append
+    // Nil`.
     // Every step of that walk is a tail call: at 3000 elements this overflows
     // a 16 MiB stack unless the evaluator loops rather than recurses.
     try runQuery(allocator,
         \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
         \\keep_none x = Nil;
-        \\main root = flat_map (count 3000) keep_none;
+        \\main root = concat_map keep_none (count 3000);
     , &arena, &out);
 
     try std.testing.expectEqual(0, out.items.len);
@@ -749,7 +750,7 @@ test "isLocal separates locals from globals in a real program" {
 
     // Reached by identity: never captured.
     try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("Cons").?));
-    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("compose").?));
+    try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("kleisli").?));
     try std.testing.expect(!translate_mod.Translator.isLocal(&translator, program.env.interner.lookup("append").?));
 
     // A synthesized primitive is reached by identity like any other.
@@ -800,27 +801,36 @@ test "the prelude's bodies compile to Core" {
     }
 
     try std.testing.expectEqualStrings(
-        \\identity = \x -> Cons x Nil
-        \\pure = \v -> \x -> Cons v Nil
-        \\empty = \x -> Nil
-        \\unnest = \xs -> xs
+        \\identity = \x -> x
+        \\const = \x -> \y -> x
+        \\compose = \f -> \g -> \x -> f (g x)
+        \\flip = \f -> \x -> \y -> f y x
+        \\empty = Nil
+        \\null = \xs -> case xs of { Nil -> True; Cons h t -> False }
         \\append = \xs -> \ys -> case xs of { Nil -> ys; Cons h t -> Cons h (append t ys) }
-        \\flat_map = \xs -> \f -> case xs of { Nil -> Nil; Cons h t -> append (f h) (flat_map t f) }
-        \\compose = \p -> \q -> \x -> flat_map (p x) q
-        \\probe = \p -> \x -> case p x of { Nil -> Cons False Nil; Cons h t -> Cons True Nil }
-        \\union = \p -> \q -> \x -> append (p x) (q x)
-        \\collect = \p -> \x -> Cons (p x) Nil
+        \\concat = \xss -> case xss of { Nil -> Nil; Cons h t -> append h (concat t) }
+        \\map = \f -> \xs -> case xs of { Nil -> Nil; Cons h t -> Cons (f h) (map f t) }
+        \\concat_map = \f -> \xs -> case xs of { Nil -> Nil; Cons h t -> append (f h) (concat_map f t) }
+        \\filter = \p -> \xs -> case xs of { Nil -> Nil; Cons h t -> case p h of { False -> filter p t; True -> Cons h (filter p t) } }
+        \\foldr = \f -> \z -> \xs -> case xs of { Nil -> z; Cons h t -> f h (foldr f z t) }
         \\not = \b -> case b of { False -> True; True -> False }
         \\and = \a -> \b -> case a of { False -> False; True -> b }
         \\or = \a -> \b -> case a of { False -> b; True -> True }
-        \\branch = \condition -> \consequence -> \alternative -> \x -> flat_map (condition x) (\c -> case c of { False -> alternative x; True -> consequence x })
-        \\lift = \f -> \x -> pure (f x) x
-        \\select = \p -> branch p identity empty
+        \\any = \p -> \xs -> case xs of { Nil -> False; Cons h t -> or (p h) (any p t) }
+        \\all = \p -> \xs -> case xs of { Nil -> True; Cons h t -> and (p h) (all p t) }
+        \\pure = \v -> \x -> Cons v Nil
+        \\none = \x -> Nil
+        \\kleisli = \p -> \q -> \x -> concat_map q (p x)
+        \\alt = \p -> \q -> \x -> append (p x) (q x)
+        \\arr = \f -> \x -> Cons (f x) Nil
+        \\probe = \p -> \x -> Cons (not (null (p x))) Nil
+        \\branch = \condition -> \consequence -> \alternative -> \x -> concat_map (\c -> case c of { False -> alternative x; True -> consequence x }) (condition x)
+        \\select = \p -> branch p (arr identity) none
         \\exists = \p -> probe p
-        \\any = \source -> \predicate -> probe (compose source (select predicate))
-        \\all = \source -> \predicate -> branch (probe (compose source (branch predicate empty identity))) (pure False) (pure True)
-        \\contains = \predicate -> exists (compose descendants (select predicate))
-        \\within = \predicate -> exists (compose ancestors (select predicate))
+        \\any_m = \source -> \predicate -> probe (kleisli source (select predicate))
+        \\all_m = \source -> \predicate -> branch (probe (kleisli source (select (kleisli predicate (arr (\b -> not b)))))) (pure False) (pure True)
+        \\contains = \predicate -> exists (kleisli descendants (select predicate))
+        \\within = \predicate -> exists (kleisli ancestors (select predicate))
         \\or_else = \primary -> \fallback -> branch (probe primary) primary fallback
     , w.written());
 }
@@ -851,25 +861,34 @@ test "the prelude's schemes are inferred" {
     }
 
     try std.testing.expectEqualStrings(
-        \\identity : a -> [a]
-        \\pure : a -> b -> [a]
-        \\empty : a -> [b]
-        \\unnest : [a] -> [a]
+        \\identity : a -> a
+        \\const : a -> b -> a
+        \\compose : (a -> b) -> (c -> a) -> c -> b
+        \\flip : (a -> b -> c) -> b -> a -> c
+        \\empty : [a]
+        \\null : [a] -> Bool
         \\append : [a] -> [a] -> [a]
-        \\flat_map : [a] -> (a -> [b]) -> [b]
-        \\compose : (a -> [b]) -> (b -> [c]) -> a -> [c]
-        \\probe : (a -> [b]) -> a -> [Bool]
-        \\union : (a -> [b]) -> (a -> [b]) -> a -> [b]
-        \\collect : (a -> b) -> a -> [b]
+        \\concat : [[a]] -> [a]
+        \\map : (a -> b) -> [a] -> [b]
+        \\concat_map : (a -> [b]) -> [a] -> [b]
+        \\filter : (a -> Bool) -> [a] -> [a]
+        \\foldr : (a -> b -> b) -> b -> [a] -> b
         \\not : Bool -> Bool
         \\and : Bool -> Bool -> Bool
         \\or : Bool -> Bool -> Bool
+        \\any : (a -> Bool) -> [a] -> Bool
+        \\all : (a -> Bool) -> [a] -> Bool
+        \\pure : a -> b -> [a]
+        \\none : a -> [b]
+        \\kleisli : (a -> [b]) -> (b -> [c]) -> a -> [c]
+        \\alt : (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\arr : (a -> b) -> a -> [b]
+        \\probe : (a -> [b]) -> a -> [Bool]
         \\branch : (a -> [Bool]) -> (a -> [b]) -> (a -> [b]) -> a -> [b]
-        \\lift : (a -> b) -> a -> [b]
         \\select : (a -> [Bool]) -> a -> [a]
         \\exists : (a -> [b]) -> a -> [Bool]
-        \\any : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
-        \\all : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\any_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\all_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
         \\contains : (Node -> [Bool]) -> Node -> [Bool]
         \\within : (Node -> [Bool]) -> Node -> [Bool]
         \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]

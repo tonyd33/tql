@@ -9,7 +9,7 @@ so the `c` it was meant to bind is an ordinary operand rather than a binder, and
 the `c` in `c.name` has nothing to resolve against either.
 
 --- tql ---
-main = children | is_kind :class_declaration as c | c.name | lift text;
+main = children | is_kind :class_declaration as c | c.name | arr text;
 
 --- error ---
 category: unresolved-name

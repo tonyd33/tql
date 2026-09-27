@@ -1,4 +1,4 @@
-title: `empty` as a branch yields nothing for that input
+title: `none` as a branch yields nothing for that input
 grammar: typescript
 asserts: core, types, values
 
@@ -7,7 +7,7 @@ composed filter is then applied to an ignored input.
 
 --- tql ---
 main =
-  (pure 1, pure 2, pure 3) | branch (lift (\n -> n = 2)) identity empty;
+   (pure 1, pure 2, pure 3) | branch (arr (\n -> n = 2)) (arr identity) none;
 
 --- source ---
 class A {}
@@ -16,7 +16,7 @@ class A {}
 [2]
 
 --- core ---
-main = compose (union (union (pure 1) (pure 2)) (pure 3)) (branch (lift (\n -> op[=] n 2)) identity empty)
+main = kleisli (alt (alt (pure 1) (pure 2)) (pure 3)) (branch (arr (\n -> op[=] n 2)) (arr identity) none)
 
 --- types ---
 main : Node -> [Int]

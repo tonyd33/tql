@@ -4,7 +4,7 @@ grammar: typescript
 `Serial` fails recursively through a record.
 
 --- tql ---
-main = { name = .name | lift text, f = lift kind };
+main = { name = .name | arr text, f = arr kind };
 
 --- error ---
 category: unsatisfied-constraint

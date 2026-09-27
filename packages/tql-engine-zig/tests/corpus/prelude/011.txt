@@ -7,7 +7,7 @@ Descendants are proper, so a class does not contain itself.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | contains (lift (\n -> kind n = "class_declaration"));
+  | contains (arr (\n -> kind n = "class_declaration"));
 
 --- source ---
 class A {}

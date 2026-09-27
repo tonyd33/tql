@@ -6,3 +6,11 @@ inputs:
     url: github:cachix/devenv-nixpkgs/rolling
   zig-overlay:
     url: github:mitchellh/zig-overlay
+  editorenv:
+    url: github:tonyd33/editorenv
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+
+imports:
+- editorenv/integrations/devenv

@@ -10,9 +10,9 @@ first two values come from the `do` form and the last two from the pipe form.
 main =
   (\root -> do {
      c <- (children | is_kind :class_declaration) root;
-     (.name | lift text) c
+     (.name | arr text) c
    }),
-  (children | is_kind :class_declaration | .name | lift text);
+  (children | is_kind :class_declaration | .name | arr text);
 
 --- source ---
 class A {}

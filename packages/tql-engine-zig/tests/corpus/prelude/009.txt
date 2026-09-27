@@ -1,4 +1,4 @@
-title: `any` and `all` share one scheme
+title: `any_m` and `all_m` share one scheme
 grammar: typescript
 asserts: types, values
 
@@ -9,10 +9,10 @@ accept identical argument types.
 main root =
   do {
     c <- (children | is_kind :class_declaration) root;
-    some <- any (.body | children | is_kind :method_definition)
-                (.name | lift (\n -> text n ~ r"^get")) c;
-    every <- all (.body | children | is_kind :method_definition)
-                 (.name | lift (\n -> text n ~ r"^get")) c;
+    some <- any_m (.body | children | is_kind :method_definition)
+                (.name | arr (\n -> text n ~ r"^get")) c;
+    every <- all_m (.body | children | is_kind :method_definition)
+                 (.name | arr (\n -> text n ~ r"^get")) c;
     pure { some = some, every = every } c
   };
 

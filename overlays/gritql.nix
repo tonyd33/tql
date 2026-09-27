@@ -12,13 +12,15 @@ final: prev: {
     };
 
     cargoLock = {
-      lockFile = "${prev.fetchFromGitHub {
-        owner = "biomejs";
-        repo = "gritql";
-        rev = "c80b3026471b229f41b279c3eb0c162dcdacfdb1";
-        fetchSubmodules = true;
-        hash = "sha256-0JAymeEgbBmWEsTDY/JIFEBoJzuimi9jmdfwZamSF+Y=";
-      }}/Cargo.lock";
+      lockFile = "${
+        prev.fetchFromGitHub {
+          owner = "biomejs";
+          repo = "gritql";
+          rev = "c80b3026471b229f41b279c3eb0c162dcdacfdb1";
+          fetchSubmodules = true;
+          hash = "sha256-0JAymeEgbBmWEsTDY/JIFEBoJzuimi9jmdfwZamSF+Y=";
+        }
+      }/Cargo.lock";
       outputHashes = {
         "ai_builtins-0.1.0" = "sha256-gw6gYqjBdm3zYzR21J7uJ+gCksYEkMsb4i5JEnD6wY0=";
         "biome_console-0.5.7" = "sha256-Eq1Lml72wS9+Oo7CPtfAGNFMy54HZ3bMjFtS/GXLYUE=";
@@ -32,8 +34,14 @@ final: prev: {
     buildAndTestSubdir = "crates/cli_bin";
     buildNoDefaultFeatures = true;
 
-    nativeBuildInputs = [ prev.pkg-config prev.perl ];
-    buildInputs = [ prev.openssl ] ++ prev.lib.optionals prev.stdenv.isDarwin [
+    nativeBuildInputs = [
+      prev.pkg-config
+      prev.perl
+    ];
+    buildInputs = [
+      prev.openssl
+    ]
+    ++ prev.lib.optionals prev.stdenv.isDarwin [
       prev.darwin.apple_sdk.frameworks.Security
       prev.darwin.apple_sdk.frameworks.SystemConfiguration
     ];

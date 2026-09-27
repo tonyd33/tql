@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 main : Filter Node String;
-main = children | is_kind :class_declaration | .name | lift text;
+main = children | is_kind :class_declaration | .name | arr text;
 
 --- source ---
 class A {}

@@ -6,7 +6,7 @@ asserts: types, values
 query started from. Every navigation chain starts from it.
 
 --- tql ---
-main = . | lift kind;
+main = . | arr kind;
 
 --- source ---
 class A {}

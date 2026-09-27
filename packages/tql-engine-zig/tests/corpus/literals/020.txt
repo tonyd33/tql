@@ -7,7 +7,7 @@ Each operand independently navigates from the same class node.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | lift (\c -> text c = text c);
+  | arr (\c -> text c = text c);
 
 --- source ---
 class A {}

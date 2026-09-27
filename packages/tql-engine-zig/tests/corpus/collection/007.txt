@@ -1,9 +1,9 @@
-title: `unnest` inverts collection
+title: `identity` inverts collection
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = [children | is_kind :class_declaration | .name | lift text] | unnest;
+main = [children | is_kind :class_declaration | .name | arr text] | identity;
 
 --- source ---
 class A {}

@@ -8,7 +8,7 @@ the 10 bytes of the first line plus one newline.
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | select (.name | lift (\n -> text n = "B"));
+  | select (.name | arr (\n -> text n = "B"));
 
 --- source ---
 class A {}

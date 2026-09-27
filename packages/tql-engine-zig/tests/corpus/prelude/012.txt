@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 main =
   descendants | is_kind :property_identifier
-  | within (lift (\n -> kind n = "class_declaration"));
+  | within (arr (\n -> kind n = "class_declaration"));
 
 --- source ---
 class A { m() {} }

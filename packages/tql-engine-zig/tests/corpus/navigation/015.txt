@@ -10,7 +10,7 @@ main =
   children | is_kind :class_declaration
   | children | is_kind :class_body
   | children | is_kind :method_definition
-  | .name | lift text;
+  | .name | arr text;
 
 --- source ---
 class A { m() {} n() {} }

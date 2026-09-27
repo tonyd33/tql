@@ -21,7 +21,7 @@ class A {}
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = letrec { add10 = add 10 } in union (pure (add10 1)) (pure (add10 2))
+main = letrec { add10 = add 10 } in alt (pure (add10 1)) (pure (add10 2))
 
 --- types ---
 add : Int -> Int -> Int

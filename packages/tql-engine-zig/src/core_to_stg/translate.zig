@@ -317,9 +317,9 @@ pub const Translator = struct {
             },
 
             .bind => |bind_term| {
-                // `bind x <- v in body` is `flat_map v (\x -> body)`, an
+                // `bind x <- v in body` is `concat_map (\x -> body) v`, an
                 // ordinary call. The evaluator never sees a bind.
-                const flat_map = self.program.env.interner.lookup("flat_map") orelse
+                const concat_map = self.program.env.interner.lookup("concat_map") orelse
                     return error.Unsupported;
 
                 const source = try self.atomize(bind_term.value, hoisted);
@@ -330,11 +330,11 @@ pub const Translator = struct {
                 );
 
                 const arguments = try self.arena.alloc(stg.Atom, 2);
-                arguments[0] = source;
-                arguments[1] = try self.bindClosure(receiver, hoisted);
+                arguments[0] = try self.bindClosure(receiver, hoisted);
+                arguments[1] = source;
 
                 const node = try self.arena.create(stg.Expr.Apply);
-                node.* = .{ .callee = .{ .global = flat_map }, .arguments = arguments };
+                node.* = .{ .callee = .{ .global = concat_map }, .arguments = arguments };
                 return .{ .apply = node };
             },
         }

@@ -6,7 +6,7 @@ asserts: types, values
 ends at column 16. A character-based encoding would report 15.
 
 --- tql ---
-main = descendants | is_kind :string | lift range;
+main = descendants | is_kind :string | arr range;
 
 --- source ---
 let s = "héllo";

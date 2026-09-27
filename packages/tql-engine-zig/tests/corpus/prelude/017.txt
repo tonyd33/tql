@@ -9,10 +9,10 @@ is ordinary higher-order TQL.
 --- tql ---
 main =
   let {
-    keep p = branch p identity empty
+    keep p = branch p (arr identity) none
   } in
     children | is_kind :class_declaration
-    | keep (.name | lift (\n -> text n ~ r"^S")) | .name | lift text;
+    | keep (.name | arr (\n -> text n ~ r"^S")) | .name | arr text;
 
 --- source ---
 class Service {}

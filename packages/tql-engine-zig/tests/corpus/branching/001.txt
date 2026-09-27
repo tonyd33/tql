@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | branch (.name | lift (\n -> text n = "A")) (pure "yes") (pure "no");
+  | branch (.name | arr (\n -> text n = "A")) (pure "yes") (pure "no");
 
 --- source ---
 class A {}

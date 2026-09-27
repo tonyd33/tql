@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 main =
   children | is_kind :class_declaration
-  | or_else (.name | lift text) (pure "anonymous");
+  | or_else (.name | arr text) (pure "anonymous");
 
 --- source ---
 class A {}
