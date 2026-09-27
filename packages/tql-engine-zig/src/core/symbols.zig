@@ -42,6 +42,12 @@ pub fn SymbolTable(comptime T: type) type {
             return self.entries.items[index];
         }
 
+        pub fn reserve(self: *Self, len: usize) Allocator.Error!void {
+            if (len <= self.entries.items.len) return;
+            try self.entries.ensureTotalCapacityPrecise(self.allocator, len);
+            self.entries.appendNTimesAssumeCapacity(null, len - self.entries.items.len);
+        }
+
         pub fn put(self: *Self, id: SymbolId, value: T) Allocator.Error!void {
             const index = @intFromEnum(id);
             while (self.entries.items.len <= index) {

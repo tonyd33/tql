@@ -53,6 +53,33 @@ pub const Type = union(enum) {
         try self.write(w, false);
     }
 
+    /// Copy every node of `self` into `allocator`. Labels and spellings are
+    /// shared, not copied.
+    pub fn clone(self: Type, allocator: std.mem.Allocator) std.mem.Allocator.Error!Type {
+        switch (self) {
+            .variable, .meta, .primitive => return self,
+            .constructor => |c| {
+                const arguments = try allocator.alloc(Type, c.arguments.len);
+                for (c.arguments, arguments) |argument, *copy| copy.* = try argument.clone(allocator);
+                const node = try allocator.create(Constructed);
+                node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = arguments };
+                return .{ .constructor = node };
+            },
+            .record => |fields| {
+                const copies = try allocator.alloc(Field, fields.len);
+                for (fields, copies) |f, *copy| {
+                    copy.* = .{ .label = f.label, .type = try store(allocator, try f.type.clone(allocator)) };
+                }
+                return .{ .record = copies };
+            },
+            .function => |arrow| return try func(
+                allocator,
+                try arrow.from.clone(allocator),
+                try arrow.to.clone(allocator),
+            ),
+        }
+    }
+
     fn write(self: Type, w: *std.Io.Writer, parenthesize_arrow: bool) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
@@ -132,6 +159,19 @@ pub const Scheme = struct {
             try w.writeAll(" => ");
         }
         try self.type.format(w);
+    }
+
+    /// Copy the type and every constraint into `allocator`.
+    pub fn clone(self: Scheme, allocator: std.mem.Allocator) std.mem.Allocator.Error!Scheme {
+        const constraints = try allocator.alloc(TypeClassConstraint, self.constraints.len);
+        for (self.constraints, constraints) |c, *copy| {
+            copy.* = .{ .class = c.class, .type = try c.type.clone(allocator) };
+        }
+        return .{
+            .quantified = self.quantified,
+            .constraints = constraints,
+            .type = try self.type.clone(allocator),
+        };
     }
 };
 

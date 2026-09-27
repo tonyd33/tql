@@ -674,20 +674,25 @@ fn constructorSchemeOf(
 /// or a synthesized symbol's constructed one.
 const ProgramGlobals = struct {
     program: *const tql_to_core.Program,
+    /// Constructed schemes, built once per symbol.
+    built: *core.SymbolTable(types.Scheme),
 
     fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
         const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
         if (self.program.env.schemeOf(id)) |s| return s;
-        switch (self.program.env.interner.details(id)) {
-            .synthesized => |s| return try schemes.schemeFor(subst, s),
-            else => {},
-        }
-        return try constructorSchemeOf(
-            subst,
-            &self.program.env.datatypes,
-            &self.program.env.interner,
-            id,
-        );
+        if (self.built.get(id)) |s| return s;
+
+        const scheme = switch (self.program.env.interner.details(id)) {
+            .synthesized => |s| try schemes.schemeFor(subst, s),
+            else => try constructorSchemeOf(
+                subst,
+                &self.program.env.datatypes,
+                &self.program.env.interner,
+                id,
+            ) orelse return null,
+        };
+        try self.built.put(id, scheme);
+        return scheme;
     }
 };
 
@@ -701,12 +706,19 @@ pub fn check(
     program: *tql_to_core.Program,
     sink: *diagnostic.Sink,
 ) !void {
-    var subst = Substitution.init(gpa, program.env.allocator(), &program.env.datatypes);
+    // Every type inference builds lives here. Only the final schemes are
+    // copied out into the environment.
+    var scratch: std.heap.ArenaAllocator = .init(gpa);
+    defer scratch.deinit();
+
+    var subst = Substitution.init(gpa, scratch.allocator(), &program.env.datatypes);
     defer subst.deinit();
     var undecided = constraints.Set.init(gpa);
     defer undecided.deinit();
 
-    var globals = ProgramGlobals{ .program = program };
+    var built = core.SymbolTable(types.Scheme).init(gpa);
+    defer built.deinit();
+    var globals = ProgramGlobals{ .program = program, .built = &built };
     var inference = Inference.init(gpa, &subst, &undecided, .{
         .context = &globals,
         .lookupFn = ProgramGlobals.lookup,
@@ -757,8 +769,11 @@ pub fn check(
 
     var found = inference.takeSchemes();
     defer found.deinit();
+    try program.env.schemes.reserve(found.entries.items.len);
     var it = found.iterator();
-    while (it.next()) |entry| try program.env.setScheme(entry.id, entry.value);
+    while (it.next()) |entry| {
+        try program.env.setScheme(entry.id, try entry.value.clone(program.env.allocator()));
+    }
 }
 
 const testing = std.testing;

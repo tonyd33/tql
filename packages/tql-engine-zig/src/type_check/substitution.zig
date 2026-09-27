@@ -78,25 +78,39 @@ pub const Substitution = struct {
         switch (head) {
             .variable, .meta, .primitive => return head,
             .constructor => |c| {
-                var changed = false;
-                const copies = try self.arena.alloc(types.Type, c.arguments.len);
-                for (c.arguments, copies) |argument, *copy| {
-                    copy.* = try self.resolveDeep(argument);
-                    if (!std.meta.eql(copy.*, argument)) changed = true;
+                // Allocated at the first child that changes, seeded with the
+                // unchanged ones before it.
+                var copies: ?[]types.Type = null;
+                for (c.arguments, 0..) |argument, i| {
+                    const resolved = try self.resolveDeep(argument);
+                    if (copies) |slots| {
+                        slots[i] = resolved;
+                    } else if (!std.meta.eql(resolved, argument)) {
+                        const slots = try self.arena.alloc(types.Type, c.arguments.len);
+                        @memcpy(slots[0..i], c.arguments[0..i]);
+                        slots[i] = resolved;
+                        copies = slots;
+                    }
                 }
-                if (!changed) return head;
-                return try types.constructed(self.arena, c.name, c.spelling, copies);
+                const changed = copies orelse return head;
+                const node = try self.arena.create(types.Type.Constructed);
+                node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = changed };
+                return .{ .constructor = node };
             },
             .record => |fields| {
-                var changed = false;
-                const copies = try self.arena.alloc(types.Type.Field, fields.len);
-                for (fields, copies) |f, *copy| {
+                var copies: ?[]types.Type.Field = null;
+                for (fields, 0..) |f, i| {
                     const resolved = try self.resolveDeep(f.type.*);
-                    if (!std.meta.eql(resolved, f.type.*)) changed = true;
-                    copy.* = .{ .label = f.label, .type = try types.store(self.arena, resolved) };
+                    if (copies) |slots| {
+                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, resolved) };
+                    } else if (!std.meta.eql(resolved, f.type.*)) {
+                        const slots = try self.arena.alloc(types.Type.Field, fields.len);
+                        @memcpy(slots[0..i], fields[0..i]);
+                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, resolved) };
+                        copies = slots;
+                    }
                 }
-                if (!changed) return head;
-                return .{ .record = copies };
+                return .{ .record = copies orelse return head };
             },
             .function => |arrow| {
                 const from = try self.resolveDeep(arrow.from);
@@ -150,6 +164,8 @@ pub const Substitution = struct {
     /// Returns the instantiated type together with the metavariables the bound
     /// variables became.
     pub fn instantiate(self: *Substitution, scheme: types.Scheme) !Instantiated {
+        // A monomorphic scheme's type has no bound variable to replace.
+        if (scheme.quantified == 0) return .{ .type = scheme.type, .metas = &.{} };
         const metas = try self.arena.alloc(types.Type, scheme.quantified);
         for (metas) |*m| m.* = try self.fresh();
         return .{
@@ -167,6 +183,7 @@ pub const Substitution = struct {
     /// `t` with each `.variable` replaced by `metas[index]`, for a type whose
     /// bound variables index the same `forall` a scheme was instantiated with.
     pub fn instantiateWith(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
+        if (metas.len == 0) return t;
         return self.substituteVars(t, metas);
     }
 
