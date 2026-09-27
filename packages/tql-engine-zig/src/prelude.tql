@@ -4,6 +4,8 @@ type List a = Nil | Cons a (List a);
 
 type Bool = False | True;
 
+type Unit = Unit;
+
 -- Functional helpers
 
 identity : a -> a;
@@ -93,6 +95,33 @@ all p xs = case xs of {
   Cons h t -> and (p h) (all p t);
 };
 
+guard : Bool -> [Unit];
+guard b = case b of {
+  False -> Nil;
+  True -> Cons Unit Nil;
+};
+
+return : a -> List a;
+return a = [a];
+
+take : Int -> [a] -> [a];
+take n xs = if n <= 0 then Nil else case xs of {
+  Nil -> Nil;
+  Cons h t -> Cons h (take (n - 1) t);
+};
+
+drop : Int -> [a] -> [a];
+drop n xs = if n <= 0 then xs else case xs of {
+  Nil -> Nil;
+  Cons h t -> drop (n - 1) t;
+};
+
+head : [a] -> [a];
+head xs = take 1 xs;
+
+tail : [a] -> [a];
+tail xs = drop 1 xs;
+
 -- The query layer. `Filter a b` is `a -> [b]`, the Kleisli category of the
 -- list monad. Every name below is that monad's, or a list function lifted
 -- into it.
@@ -128,6 +157,12 @@ branch condition consequence alternative x =
 select : Filter a Bool -> Filter a a;
 select p = branch p (arr identity) none;
 
+keep : (a -> Bool) -> Filter a a;
+keep p x = case p x of {
+  False -> Nil;
+  True -> Cons x Nil;
+};
+
 exists : Filter a b -> Filter a Bool;
 exists p = probe p;
 
@@ -140,6 +175,13 @@ all_m source predicate =
     (probe (kleisli source (select (kleisli predicate (arr (\b -> not b))))))
     (pure False)
     (pure True);
+
+none_m : Filter a b -> Filter b Bool -> Filter a Bool;
+none_m source predicate =
+  branch (any_m source predicate) (pure False) (pure True);
+
+first : Filter a b -> Filter a b;
+first p x = head (p x);
 
 contains : Filter Node Bool -> Filter Node Bool;
 contains predicate = exists (kleisli descendants (select predicate));

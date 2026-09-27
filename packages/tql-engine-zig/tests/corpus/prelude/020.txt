@@ -1,0 +1,16 @@
+title: `first` keeps only a filter's first output
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = first (children | is_kind :class_declaration | .name) | arr text;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A"]
+
+--- types ---
+main : Node -> [String]

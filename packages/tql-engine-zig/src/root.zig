@@ -868,6 +868,12 @@ test "the prelude's bodies compile to Core" {
         \\or = \a -> \b -> case a of { False -> b; True -> True }
         \\any = \p -> \xs -> case xs of { Nil -> False; Cons h t -> or (p h) (any p t) }
         \\all = \p -> \xs -> case xs of { Nil -> True; Cons h t -> and (p h) (all p t) }
+        \\guard = \b -> case b of { False -> Nil; True -> Cons Unit Nil }
+        \\return = \a -> Cons a Nil
+        \\take = \n -> \xs -> case op[<=] n 0 of { False -> case xs of { Nil -> Nil; Cons h t -> Cons h (take (op[-] n 1) t) }; True -> Nil }
+        \\drop = \n -> \xs -> case op[<=] n 0 of { False -> case xs of { Nil -> Nil; Cons h t -> drop (op[-] n 1) t }; True -> xs }
+        \\head = \xs -> take 1 xs
+        \\tail = \xs -> drop 1 xs
         \\pure = \v -> \x -> Cons v Nil
         \\none = \x -> Nil
         \\kleisli = \p -> \q -> \x -> concat_map q (p x)
@@ -877,9 +883,12 @@ test "the prelude's bodies compile to Core" {
         \\probe = \p -> \x -> Cons (not (null (p x))) Nil
         \\branch = \condition -> \consequence -> \alternative -> \x -> concat_map (\c -> case c of { False -> alternative x; True -> consequence x }) (condition x)
         \\select = \p -> branch p (arr identity) none
+        \\keep = \p -> \x -> case p x of { False -> Nil; True -> Cons x Nil }
         \\exists = \p -> probe p
         \\any_m = \source -> \predicate -> probe (kleisli source (select predicate))
         \\all_m = \source -> \predicate -> branch (probe (kleisli source (select (kleisli predicate (arr (\b -> not b)))))) (pure False) (pure True)
+        \\none_m = \source -> \predicate -> branch (any_m source predicate) (pure False) (pure True)
+        \\first = \p -> \x -> head (p x)
         \\contains = \predicate -> exists (kleisli descendants (select predicate))
         \\within = \predicate -> exists (kleisli ancestors (select predicate))
         \\or_else = \primary -> \fallback -> branch (probe primary) primary fallback
@@ -928,6 +937,12 @@ test "the prelude's schemes are inferred" {
         \\or : Bool -> Bool -> Bool
         \\any : (a -> Bool) -> [a] -> Bool
         \\all : (a -> Bool) -> [a] -> Bool
+        \\guard : Bool -> [Unit]
+        \\return : a -> [a]
+        \\take : Int -> [a] -> [a]
+        \\drop : Int -> [a] -> [a]
+        \\head : [a] -> [a]
+        \\tail : [a] -> [a]
         \\pure : a -> b -> [a]
         \\none : a -> [b]
         \\kleisli : (a -> [b]) -> (b -> [c]) -> a -> [c]
@@ -937,9 +952,12 @@ test "the prelude's schemes are inferred" {
         \\probe : (a -> [b]) -> a -> [Bool]
         \\branch : (a -> [Bool]) -> (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\select : (a -> [Bool]) -> a -> [a]
+        \\keep : (a -> Bool) -> a -> [a]
         \\exists : (a -> [b]) -> a -> [Bool]
         \\any_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
         \\all_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\none_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\first : (a -> [b]) -> a -> [b]
         \\contains : (Node -> [Bool]) -> Node -> [Bool]
         \\within : (Node -> [Bool]) -> Node -> [Bool]
         \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]

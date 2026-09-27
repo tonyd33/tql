@@ -1,0 +1,20 @@
+title: `keep` passes its input through when a plain predicate holds
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | keep (\c -> any (\n -> text n ~ r"^S") (.name c))
+  | .name | arr text;
+
+--- source ---
+class Service {}
+class Other {}
+class Store {}
+
+--- values ---
+["Service", "Store"]
+
+--- types ---
+main : Node -> [String]

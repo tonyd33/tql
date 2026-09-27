@@ -1,0 +1,21 @@
+title: `none_m` is true when no output of the source satisfies the predicate
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  children | is_kind :class_declaration
+  | select (none_m (.body | children | is_kind :method_definition | .name)
+                   (arr (\n -> text n = "run")))
+  | .name | arr text;
+
+--- source ---
+class A { run() {} }
+class B { stop() {} }
+class C {}
+
+--- values ---
+["B", "C"]
+
+--- types ---
+main : Node -> [String]
