@@ -203,8 +203,42 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
+        const constraints = if (node.childByFieldName("context")) |c|
+            try self.context(c) orelse return null
+        else
+            &.{};
         const ty = try self.typeExpr(type_node) orelse return null;
-        return .{ .name = name, .type = ty, .span = spanOf(node) };
+        return .{ .name = name, .context = constraints, .type = ty, .span = spanOf(node) };
+    }
+
+    fn context(self: *Walker, node: ts.Node) !?[]const cst.ClassConstraint {
+        var collected: std.ArrayList(cst.ClassConstraint) = .empty;
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (std.mem.eql(u8, child.grammarKind(), "class_constraint")) {
+                    const class_node = child.childByFieldName("class") orelse {
+                        try self.missingField(child, "class");
+                        return null;
+                    };
+                    const variable_node = child.childByFieldName("variable") orelse {
+                        try self.missingField(child, "variable");
+                        return null;
+                    };
+                    try collected.append(self.allocator, .{
+                        .class = try self.dupe(class_node),
+                        .variable = try self.dupe(variable_node),
+                        .span = spanOf(child),
+                    });
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return try collected.toOwnedSlice(self.allocator);
     }
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
@@ -768,12 +802,15 @@ const Walker = struct {
     }
 
     fn list(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const inner_node = node.namedChild(0) orelse {
-            return cst.Expression{ .kind = .{ .list = null }, .span = span };
-        };
-        const inner = try self.expression(inner_node) orelse return null;
+        var elements: std.ArrayList(cst.Expression) = .empty;
+        var i: u32 = 0;
+        while (i < node.namedChildCount()) : (i += 1) {
+            const child = node.namedChild(i).?;
+            if (child.isExtra()) continue;
+            try elements.append(self.allocator, try self.expression(child) orelse return null);
+        }
         return .{
-            .kind = .{ .list = try self.boxed(inner) },
+            .kind = .{ .list = try elements.toOwnedSlice(self.allocator) },
             .span = span,
         };
     }
@@ -1107,6 +1144,13 @@ test "a function-typed signature" {
     );
 }
 
+test "a signature with a context" {
+    try expectSexpr(
+        "f : (Eq a, Sized b) => a -> b -> Int;",
+        "(source_file (signature f (=> (Eq a) (Sized b)) (-> a (-> b Int))))",
+    );
+}
+
 test "a lambda with several parameters" {
     try expectSexpr(
         "main = \\x y -> x + y;",
@@ -1125,6 +1169,20 @@ test "an empty list" {
     try expectSexpr(
         "main = [];",
         "(source_file (define main (params) (list)))",
+    );
+}
+
+test "a list literal keeps its elements in order" {
+    try expectSexpr(
+        "main = [1, a | b, -- two\n c,];",
+        "(source_file (define main (params) (list 1 (| a b) c)))",
+    );
+}
+
+test "union is spelled <|>" {
+    try expectSexpr(
+        "main = a <|> b | c;",
+        "(source_file (define main (params) (<|> a (| b c))))",
     );
 }
 

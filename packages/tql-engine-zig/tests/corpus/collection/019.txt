@@ -1,0 +1,12 @@
+title: an empty list literal is Nil
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [null [], null [1]];
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

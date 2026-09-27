@@ -43,16 +43,30 @@ pub const Declaration = union(enum) {
     }
 };
 
+/// `name : context => type;`, where the context may be absent.
 pub const Signature = struct {
     name: Identifier,
+    context: []const ClassConstraint = &.{},
     type: Type,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(signature {s} ", .{self.name});
+        if (self.context.len > 0) {
+            try w.writeAll("(=>");
+            for (self.context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+            try w.writeAll(") ");
+        }
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
+};
+
+/// `Sized a` in a signature's context.
+pub const ClassConstraint = struct {
+    class: Identifier,
+    variable: Identifier,
+    span: diagnostic.Span = .unknown,
 };
 
 pub const Definition = struct {
@@ -168,7 +182,7 @@ pub const BinaryOperator = enum {
             .@"and" => "and",
             .@"or" => "or",
             .pipe => "|",
-            .stream_union => ",",
+            .stream_union => "<|>",
         };
     }
 };
@@ -285,8 +299,8 @@ pub const Expression = struct {
         lambda: *Lambda,
         let: *Let,
         do: *Do,
-        /// A collected stream: `[e]` or `[]`.
-        list: ?*Expression,
+        /// A list literal: `[a, b, c]` or `[]`.
+        list: []const Expression,
         record: Record,
         parenthesized: *Expression,
     };
@@ -380,9 +394,9 @@ pub const Expression = struct {
                 try d.result.sexpr(w);
                 try w.writeByte(')');
             },
-            .list => |maybe| {
+            .list => |elements| {
                 try w.writeAll("(list");
-                if (maybe) |e| {
+                for (elements) |e| {
                     try w.writeByte(' ');
                     try e.sexpr(w);
                 }

@@ -169,7 +169,7 @@ main = a or b | c;
 pipe binds tighter than union
 ========================================
 
-main = a | b, c;
+main = a | b <|> c;
 
 ---
 

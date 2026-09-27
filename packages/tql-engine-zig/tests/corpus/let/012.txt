@@ -11,8 +11,8 @@ main =
   let {
     k = arr kind
   } in
-    (children | is_kind :class_declaration | k),
-    (descendants | is_kind :property_identifier | k);
+    (children | is_kind :class_declaration | k)
+    <|> (descendants | is_kind :property_identifier | k);
 
 --- source ---
 class A { m() {} }

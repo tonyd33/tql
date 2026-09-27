@@ -1,5 +1,6 @@
 title: a signature that is not an instance of the inferred scheme
 grammar: typescript
+asserts: error
 
 The body infers `Node -> String`. The annotation claims a more general scheme
 that the body does not support.
@@ -11,6 +12,6 @@ main = . | arr f;
 
 --- error ---
 category: signature-mismatch
-span: 1:1-1:11
+span: 1:1-1:12
 The annotation. Inferred `Node -> String` is not an instance of the declared
 `a -> a`.

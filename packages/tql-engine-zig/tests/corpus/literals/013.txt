@@ -8,7 +8,7 @@ drop a pair, so the whole query is undefined once a zero divisor reaches one.
 It typechecks; it has no value.
 
 --- tql ---
-main = \root -> do { d <- (pure 5, pure 0, pure 7) root; pure (12 % d) root };
+main = \root -> do { d <- const [5, 0, 7] root; pure (12 % d) root };
 
 --- source ---
 class A {}

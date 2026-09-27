@@ -13,7 +13,7 @@ main =
   let {
     label = "local"
   } in
-    pure label, pure other;
+    const [label, other];
 other = label;
 
 --- source ---

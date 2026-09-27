@@ -11,7 +11,7 @@ main =
   let {
     add10 = add 10
   } in
-    pure (add10 1), pure (add10 2);
+    const [add10 1, add10 2];
 
 --- source ---
 class A {}
@@ -21,7 +21,7 @@ class A {}
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = letrec { add10 = add 10 } in alt (pure (add10 1)) (pure (add10 2))
+main = letrec { add10 = add 10 } in const (Cons (add10 1) (Cons (add10 2) Nil))
 
 --- types ---
 add : Int -> Int -> Int

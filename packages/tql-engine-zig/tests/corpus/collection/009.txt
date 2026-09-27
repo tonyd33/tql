@@ -6,12 +6,12 @@ Lists are ordered, so a different order is a different value. Lists of
 different length are never equal.
 
 --- tql ---
-main root =
+main =
   let {
-    ab = [pure "a", pure "b"] root;
-    a = [pure "a"] root
+    ab = ["a", "b"];
+    a = ["a"]
   } in
-    (pure (ab = ab), pure (a = ab)) root;
+    const [ab = ab, a = ab];
 
 --- source ---
 class A {}

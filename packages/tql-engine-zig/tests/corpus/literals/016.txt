@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = (pure ("a" < "b"), pure ("b" < "a"));
+main = const ["a" < "b", "b" < "a"];
 
 --- source ---
 class A {}

@@ -4,10 +4,10 @@ asserts: types, values
 
 --- tql ---
 main =
-  pure (and true true), pure (and true false),
-  pure (and false true), pure (and false false),
-  pure (or true true), pure (or true false),
-  pure (or false true), pure (or false false);
+  const [
+    and true true, and true false, and false true, and false false,
+    or true true, or true false, or false true, or false false,
+  ];
 
 --- source ---
 class A {}

@@ -2,13 +2,13 @@ title: taking the length of an infinite collected list does not terminate
 grammar: typescript
 asserts: types
 
-`arr` is lazy: `[from 0]` is one output, and that output is the infinite
+`collect` is lazy: `collect (from 0)` is one output, and that output is the infinite
 list, unforced. The pipe then runs `arr length` on that element, and `length`
 walks a spine with no end. This fixture pins the semantics; it is not executed.
 
 --- tql ---
-from n = pure n, from (n + 1);
-main = [from 0] | arr length;
+from n = pure n <|> from (n + 1);
+main = collect (from 0) | arr length;
 
 --- source ---
 class A {}

@@ -1,5 +1,6 @@
 title: `main` bound to a projection is not a filter
 grammar: typescript
+asserts: error
 
 `main` must be `Filter Node output`. A projection is `Node -> String`, which
 is an ordinary function rather than a filter, so it does not unify with
@@ -15,6 +16,6 @@ main = kind;
 
 --- error ---
 category: main-type
-span: 1:8-1:12
+span: 1:1-1:13
 `main` must be `Filter Node output`. Found `Node -> String`; a projection
 reaches filter position through `arr`.

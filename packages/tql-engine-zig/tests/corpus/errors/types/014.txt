@@ -1,5 +1,6 @@
 title: a node is not a condition
 grammar: typescript
+asserts: error
 
 A non-empty navigation result is not implicitly true.
 

@@ -1,5 +1,6 @@
 title: a regex-match chain does not type
 grammar: typescript
+asserts: error
 
 Well-formed syntax, rejected by typing. Parses as
 `("a" ~ r"a") ~ r"b"`, so the left operand of the second `~` is a `bool`
@@ -10,5 +11,5 @@ main = "a" ~ r"a" ~ r"b";
 
 --- error ---
 category: type-mismatch
-span: 1:8-1:25
-The whole chain.
+span: 1:8-1:18
+The inner match, the left operand of the second `~`.

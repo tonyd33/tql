@@ -6,15 +6,15 @@ asserts: types, values
 group to generalize before the body is checked; a monomorphic binding would
 force one type and reject the other use site.
 
-Both uses are projected to `int` before the union, since `alt` requires a
-single element type. The polymorphism is in `ident`, not in the union.
+Both uses are projected to `int` before they meet in one list, since a list
+has a single element type. The polymorphism is in `ident`, not in the list.
 
 --- tql ---
 main =
   let {
     ident x = x
   } in
-    pure (ident 1), pure (length (ident "ab"));
+    const [ident 1, length (ident "ab")];
 
 --- source ---
 class A {}

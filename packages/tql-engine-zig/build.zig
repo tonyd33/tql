@@ -10,6 +10,8 @@ const TreeSitterGrammar = struct {
     flags: []const []const u8 = &.{
         "-std=c11",
         "-fPIC",
+        // HACK: Most scanners define `external_scanner_create()` without a prototype.
+        "-fno-sanitize=function",
     },
     /// Name used for the .so artifact and grammar lookup (defaults to dep_name
     /// stripped of "tree-sitter-" prefix). Required when one dep produces

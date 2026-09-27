@@ -147,7 +147,7 @@ pub const Engine = struct {
         var parsed = try self.tql_parser.parseCollecting(prelude_source);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
-        std.debug.assert(!parsed.hasErrors());
+        if (parsed.hasErrors()) return error.PreludeInvalid;
 
         try desugarer.add(parsed.source_file, g, sink);
     }
@@ -563,8 +563,7 @@ test "the evaluator orders ints and strings" {
     // an `== .lt` reading would get wrong on equal operands.
     try runQuery(allocator,
         \\main root =
-        \\  (pure (1 < 2), pure (2 <= 2), pure (2 > 1), pure (1 >= 2),
-        \\   pure ("a" < "b"), pure ("b" <= "a")) root;
+        \\  const [1 < 2, 2 <= 2, 2 > 1, 1 >= 2, "a" < "b", "b" <= "a"] root;
     , &arena, &out);
 
     try std.testing.expectEqual(6, out.items.len);
@@ -586,7 +585,7 @@ test "the evaluator runs arr and select" {
     // `select` keeps the inputs its predicate accepts. `arr` carries the
     // scalar predicate into filter position.
     try runQuery(allocator,
-        \\main root = ((pure 1, pure 2, pure 3) | select (arr (\n -> n > 1))) root;
+        \\main root = (const [1, 2, 3] | select (arr (\n -> n > 1))) root;
     , &arena, &out);
 
     try std.testing.expectEqual(2, out.items.len);
@@ -607,13 +606,13 @@ test "the evaluator runs exists, any_m and all_m" {
     // in the right order: swapped, this yields false.
     try runQuery(allocator,
         \\main root =
-        \\  (exists (pure 1),
-        \\   exists none,
-        \\   any_m (pure 1, pure 2) (arr (\n -> n > 1)),
-        \\   any_m (pure 1) (arr (\n -> n > 1)),
-        \\   all_m (pure 2, pure 3) (arr (\n -> n > 1)),
-        \\   all_m (pure 1, pure 2) (arr (\n -> n > 1)),
-        \\   all_m none (arr (\n -> n > 1))) root;
+        \\  (exists (pure 1)
+        \\   <|> exists none
+        \\   <|> any_m (const [1, 2]) (arr (\n -> n > 1))
+        \\   <|> any_m (pure 1) (arr (\n -> n > 1))
+        \\   <|> all_m (const [2, 3]) (arr (\n -> n > 1))
+        \\   <|> all_m (const [1, 2]) (arr (\n -> n > 1))
+        \\   <|> all_m none (arr (\n -> n > 1))) root;
     , &arena, &out);
 
     try std.testing.expectEqual(7, out.items.len);
@@ -634,7 +633,7 @@ test "the evaluator runs or_else" {
 
     // The fallback runs only when the primary yields nothing.
     try runQuery(allocator,
-        \\main root = (or_else (pure 1) (pure 2), or_else none (pure 3)) root;
+        \\main root = (or_else (pure 1) (pure 2) <|> or_else none (pure 3)) root;
     , &arena, &out);
 
     try std.testing.expectEqual(2, out.items.len);
@@ -738,8 +737,8 @@ test "the evaluator runs probe without forcing the whole stream" {
     // right operand is never forced. This is the fixture the thunk-per-field
     // obligation exists for.
     try runQuery(allocator,
-        \\from n = pure n, from (n + 1);
-        \\main root = probe (pure 0, from 1) root;
+        \\from n = pure n <|> from (n + 1);
+        \\main root = probe (pure 0 <|> from 1) root;
     , &arena, &out);
 
     try std.testing.expectEqual(1, out.items.len);
@@ -822,7 +821,7 @@ test "isLocal separates locals from globals in a real program" {
     // A binder is a local, and is what a closure must capture.
     const append_body = for (program.definitions) |definition| {
         if (definition.symbol == program.env.interner.lookup("append").?) break definition.body;
-    } else unreachable;
+    } else return error.TestUnexpectedResult;
     const xs = append_body.kind.lambda.parameter;
     try std.testing.expect(isLocal(&translator, xs));
 }
@@ -857,7 +856,6 @@ test "the prelude's bodies compile to Core" {
         \\const = \x -> \y -> x
         \\compose = \f -> \g -> \x -> f (g x)
         \\flip = \f -> \x -> \y -> f y x
-        \\empty = Nil
         \\null = \xs -> case xs of { Nil -> True; Cons h t -> False }
         \\append = \xs -> \ys -> case xs of { Nil -> ys; Cons h t -> Cons h (append t ys) }
         \\concat = \xss -> case xss of { Nil -> Nil; Cons h t -> append h (concat t) }
@@ -875,6 +873,7 @@ test "the prelude's bodies compile to Core" {
         \\kleisli = \p -> \q -> \x -> concat_map q (p x)
         \\alt = \p -> \q -> \x -> append (p x) (q x)
         \\arr = \f -> \x -> Cons (f x) Nil
+        \\collect = \p -> \x -> Cons (p x) Nil
         \\probe = \p -> \x -> Cons (not (null (p x))) Nil
         \\branch = \condition -> \consequence -> \alternative -> \x -> concat_map (\c -> case c of { False -> alternative x; True -> consequence x }) (condition x)
         \\select = \p -> branch p (arr identity) none
@@ -917,7 +916,6 @@ test "the prelude's schemes are inferred" {
         \\const : a -> b -> a
         \\compose : (a -> b) -> (c -> a) -> c -> b
         \\flip : (a -> b -> c) -> b -> a -> c
-        \\empty : [a]
         \\null : [a] -> Bool
         \\append : [a] -> [a] -> [a]
         \\concat : [[a]] -> [a]
@@ -935,6 +933,7 @@ test "the prelude's schemes are inferred" {
         \\kleisli : (a -> [b]) -> (b -> [c]) -> a -> [c]
         \\alt : (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\arr : (a -> b) -> a -> [b]
+        \\collect : (a -> [b]) -> a -> [[b]]
         \\probe : (a -> [b]) -> a -> [Bool]
         \\branch : (a -> [Bool]) -> (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\select : (a -> [Bool]) -> a -> [a]

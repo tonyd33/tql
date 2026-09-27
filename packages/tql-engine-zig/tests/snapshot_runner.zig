@@ -53,21 +53,18 @@ const CompareSections = struct {
 
     fields: Fields = .{},
 
-    /// The `error` section is written by hand as the spec for a rejection, so
-    /// `--update` never regenerates it.
     fn get(self: CompareSections, comptime kind: SectionKind) bool {
-        if (kind == .@"error") return false;
         return @field(self.fields, @tagName(kind));
     }
 
+    /// Every section except `error`, which is updated only when named.
     fn addAll(self: *CompareSections) void {
         inline for (COMPARABLE_SECTIONS) |kind| {
-            @field(self.fields, @tagName(kind)) = true;
+            if (kind != .@"error") @field(self.fields, @tagName(kind)) = true;
         }
     }
 
     fn addSection(self: *CompareSections, s: []const u8) !void {
-        if (std.mem.eql(u8, s, @tagName(SectionKind.@"error"))) return error.SectionNotUpdatable;
         inline for (COMPARABLE_SECTIONS) |kind| {
             if (std.mem.eql(u8, s, @tagName(kind))) {
                 @field(self.fields, @tagName(kind)) = true;
@@ -466,8 +463,10 @@ fn testCase(
     const gpa = ctx.gpa;
     var test_gpa: std.heap.DebugAllocator(.{}) = .init;
     const test_alloc = test_gpa.allocator();
-    const actual = runTestCase(test_alloc, io, tc) catch |err| {
-        _ = test_gpa.deinit();
+    var unexpected: ?[]const u8 = null;
+    const actual = runTestCase(test_alloc, io, tc, &unexpected) catch |err| {
+        defer _ = test_gpa.deinit();
+        defer if (unexpected) |text| test_alloc.free(text);
         if (ctx.opts.color) {
             try ctx.stdout.print(
                 "  {s}✗{s} {s} {s}({s}){s}\n",
@@ -475,6 +474,16 @@ fn testCase(
             );
         } else {
             try ctx.stdout.print("  FAIL {s} ({t})\n", .{ name, err });
+        }
+        if (unexpected) |text| {
+            var lines = std.mem.splitScalar(u8, text, '\n');
+            while (lines.next()) |line| {
+                if (ctx.opts.color) {
+                    try ctx.stdout.print("    {s}{s}{s}\n", .{ ansi.red, line, ansi.reset });
+                } else {
+                    try ctx.stdout.print("    {s}\n", .{line});
+                }
+            }
         }
         return .failed;
     };
@@ -535,7 +544,19 @@ fn testCase(
     }
 
     if (expects_error and tc.asserts.has(.@"error")) {
-        if (try compareDiagnostics(ctx, tc, actual.@"error", name, group, test_failed)) {
+        var reported: std.ArrayList(corpus_parser.Reported) = .empty;
+        defer reported.deinit(gpa);
+        var lines = std.mem.tokenizeScalar(u8, actual.@"error", '\n');
+        while (lines.next()) |line| try reported.append(gpa, .parse(line));
+
+        // Commentary is paired with diagnostics by position, so a changed
+        // count cannot be updated.
+        if (ctx.opts.update.get(.@"error") and reported.items.len == tc.diagnostics.len) {
+            if (!diagnosticsMatch(tc.diagnostics, reported.items)) {
+                try updates.append(gpa, .{ .kind = .@"error", .new_content = try gpa.dupe(u8, actual.@"error") });
+                test_modified = true;
+            }
+        } else if (try compareDiagnostics(ctx, tc, reported.items, name, group, test_failed)) {
             test_failed = true;
         }
     }
@@ -634,11 +655,11 @@ fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
 /// category and span are normative; the message is commentary, so rewording a
 /// diagnostic never breaks a fixture. Returns true if the case failed.
 ///
-/// `actual` is one `category/span` pair per line, in report order.
+/// `actual` is in report order.
 fn compareDiagnostics(
     ctx: *TestRunContext,
     tc: corpus_parser.TestCase,
-    actual: []const u8,
+    actual: []const corpus_parser.Reported,
     name: []const u8,
     group: []const u8,
     already_failed: bool,
@@ -647,15 +668,7 @@ fn compareDiagnostics(
     var failed = false;
     var reported = false;
 
-    var actual_lines: std.ArrayList([]const u8) = .empty;
-    defer actual_lines.deinit(gpa);
-    var it = std.mem.splitScalar(u8, actual, '\n');
-    while (it.next()) |line| {
-        const trimmed = std.mem.trim(u8, line, " \t\r");
-        if (trimmed.len > 0) try actual_lines.append(gpa, trimmed);
-    }
-
-    if (actual_lines.items.len != tc.diagnostics.len) {
+    if (actual.len != tc.diagnostics.len) {
         failed = true;
         if (!already_failed and !reported) {
             try ctx.printCaseFailure(name);
@@ -663,20 +676,14 @@ fn compareDiagnostics(
         }
         const expected = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{tc.diagnostics.len});
         defer gpa.free(expected);
-        const got = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{actual_lines.items.len});
+        const got = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{actual.len});
         defer gpa.free(got);
         try ctx.addDiff(group, name, "error count", expected, got);
         return failed;
     }
 
-    for (tc.diagnostics, actual_lines.items) |want, got| {
-        const slash = std.mem.indexOfScalar(u8, got, '/') orelse got.len;
-        const got_category = std.mem.trim(u8, got[0..slash], " \t");
-        const got_span = if (slash < got.len) std.mem.trim(u8, got[slash + 1 ..], " \t") else "";
-
-        const category_ok = std.mem.eql(u8, want.category, got_category);
-        const span_ok = want.spanMatches(got_span);
-        if (category_ok and span_ok) continue;
+    for (tc.diagnostics, actual) |want, got| {
+        if (diagnosticMatches(want, got)) continue;
 
         failed = true;
         if (!already_failed and !reported) {
@@ -685,10 +692,23 @@ fn compareDiagnostics(
         }
         const expected = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ want.category, want.span });
         defer gpa.free(expected);
-        try ctx.addDiff(group, name, "error", expected, got);
+        const found = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ got.category, got.span });
+        defer gpa.free(found);
+        try ctx.addDiff(group, name, "error", expected, found);
     }
 
     return failed;
+}
+
+fn diagnosticMatches(want: corpus_parser.Diagnostic, got: corpus_parser.Reported) bool {
+    return std.mem.eql(u8, want.category, got.category) and want.spanMatches(got.span);
+}
+
+/// Preconditions:
+/// - `want` and `got` have the same length.
+fn diagnosticsMatch(want: []const corpus_parser.Diagnostic, got: []const corpus_parser.Reported) bool {
+    for (want, got) |w, g| if (!diagnosticMatches(w, g)) return false;
+    return true;
 }
 
 /// One `category/span` line per diagnostic, in report order, which is the form
@@ -709,7 +729,30 @@ fn renderDiagnostics(
     return w.toOwnedSlice();
 }
 
-fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestCase) !TestOutputs {
+/// One `category @ span: message` line per diagnostic, for a case that did not
+/// expect them.
+fn describeDiagnostics(
+    allocator: std.mem.Allocator,
+    diagnostics: []const tql.diagnostic.Diagnostic,
+) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    for (diagnostics, 0..) |d, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        try w.writer.print("{s} @ {f}: {s}", .{ d.category.name(), d.span, d.message });
+    }
+    return w.toOwnedSlice();
+}
+
+/// Postconditions:
+/// - On an unexpected parse, desugar, type or evaluation error, `unexpected`
+///   holds the diagnostics, owned by `allocator`.
+fn runTestCase(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    tc: corpus_parser.TestCase,
+    unexpected: *?[]const u8,
+) !TestOutputs {
     var registry = GrammarRegistry.init(allocator, &.{});
     defer registry.deinit();
     const grammar = try registry.get(tc.grammar);
@@ -745,7 +788,10 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     // Syntax errors are decided by the parser alone, so they are reported
     // before compilation is even attempted.
     if (parsed.hasErrors()) {
-        if (!expects_error) return error.UnexpectedParseError;
+        if (!expects_error) {
+            unexpected.* = try describeDiagnostics(allocator, parsed.diagnostics);
+            return error.UnexpectedParseError;
+        }
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
@@ -793,13 +839,7 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
                         allocator.free(type_diagnostics);
                         type_diagnostics = try renderDiagnostics(allocator, type_sink.items());
                         if (!expects_error) {
-                            for (type_sink.items()) |d| {
-                                std.debug.print("    {s} @ {f}: {s}\n", .{
-                                    d.category.name(),
-                                    d.span,
-                                    d.message,
-                                });
-                            }
+                            unexpected.* = try describeDiagnostics(allocator, type_sink.items());
                         }
                     },
                     else => |e| return e,
@@ -809,6 +849,9 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
                 desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
+                if (!expects_error) {
+                    unexpected.* = try describeDiagnostics(allocator, sink.items());
+                }
             },
             else => return err,
         }
@@ -817,10 +860,6 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
     // A rejection found by type checking. Core is still reported: the program
     // desugared fine, and its untyped term is what the case may assert.
     if (type_diagnostics.len > 0) {
-        // A case that does not expect a rejection has no `--- error ---` to
-        // diff against, so the diagnostic would otherwise be discarded with
-        // only the error name surviving. Print it: an unexpected type error is
-        // exactly the thing the reader needs to see.
         if (!expects_error) return error.UnexpectedTypeError;
         allocator.free(types_text);
         return .{
@@ -860,12 +899,8 @@ fn runTestCase(allocator: std.mem.Allocator, io: std.Io, tc: corpus_parser.TestC
             &eval_sink,
             allocator,
         ) catch |err| {
-            for (eval_sink.items()) |d| {
-                std.debug.print("    {s} @ {f}: {s}\n", .{
-                    d.category.name(),
-                    d.span,
-                    d.message,
-                });
+            if (eval_sink.items().len > 0) {
+                unexpected.* = try describeDiagnostics(allocator, eval_sink.items());
             }
             return err;
         };
@@ -1006,7 +1041,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, values, core, types (comma-separated); bare --update updates all",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, core, types, error (comma-separated); bare --update updates all but error",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

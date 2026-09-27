@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-from n = pure n, from (n + 1);
+from n = pure n <|> from (n + 1);
 main = exists (from 0);
 
 --- source ---

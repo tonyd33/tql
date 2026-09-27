@@ -1,5 +1,6 @@
 title: a non-boolean condition is a compile error
 grammar: typescript
+asserts: error
 
 There is no truthiness. A condition must have type `Filter a bool`.
 

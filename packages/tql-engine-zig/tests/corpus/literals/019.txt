@@ -9,8 +9,8 @@ and give 11, 21, 12, 22.
 
 --- tql ---
 main = \root -> do {
-  l <- (pure 10, pure 20) root;
-  r <- (pure 1, pure 2) root;
+  l <- const [10, 20] root;
+  r <- const [1, 2] root;
   pure (l + r) root
 };
 

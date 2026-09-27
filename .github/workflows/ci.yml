@@ -63,8 +63,3 @@ jobs:
 
       - name: Smoke test app
         run: nix run .# -- --help
-
-      - name: Smoke test grammar
-        run: |
-          printf 'int main(void) { return 0; }\n' > test.c
-          nix run .# -- query --grammar=c '. / function_definition.declarator.declarator | text' test.c

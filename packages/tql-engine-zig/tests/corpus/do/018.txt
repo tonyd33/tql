@@ -11,8 +11,8 @@ main =
   (\root -> do {
      c <- (children | is_kind :class_declaration) root;
      (.name | arr text) c
-   }),
-  (children | is_kind :class_declaration | .name | arr text);
+   })
+  <|> (children | is_kind :class_declaration | .name | arr text);
 
 --- source ---
 class A {}

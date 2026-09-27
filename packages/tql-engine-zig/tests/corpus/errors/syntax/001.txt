@@ -1,10 +1,12 @@
 title: unterminated parenthesis
 grammar: typescript
+asserts: error
 
 --- tql ---
 main = (1 + 2;
 
 --- error ---
 category: parse
-span: 1:8-1:14
-The unclosed group. A parser must not silently accept end-of-input as a close.
+span: 1:14-1:14
+Where the missing `)` belongs. A parser must not silently accept end-of-input
+as a close.

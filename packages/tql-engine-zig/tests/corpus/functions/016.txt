@@ -7,7 +7,7 @@ asserts: types, values
 
 --- tql ---
 pick x y = x;
-main = pure (pick 1 2), pure (length (pick "ab" "cd"));
+main = const [pick 1 2, length (pick "ab" "cd")];
 
 --- source ---
 class A {}

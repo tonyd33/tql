@@ -27,7 +27,7 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
     const head = subst.resolve(t);
     return switch (head) {
         .meta => |id| .{ .deferred = id },
-        .variable => unreachable,
+        .variable => @panic("a bound type variable reached constraint solving"),
         .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = head },
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => .{ .fails = head },
@@ -58,6 +58,46 @@ fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, ope
     }
     if (deferred) |id| return .{ .deferred = id };
     return .holds;
+}
+
+/// A constraint on a bare metavariable.
+pub const Residual = struct {
+    class: types.TypeClassConstraint.Class,
+    meta: types.Meta,
+};
+
+/// Reduces `class t` to the constraints on bare metavariables it holds under,
+/// appending them to `out`.
+///
+/// Returns the refuted part of `t`, if any.
+pub fn reduce(
+    subst: *Substitution,
+    class: types.TypeClassConstraint.Class,
+    t: types.Type,
+    out: *std.ArrayList(Residual),
+    gpa: std.mem.Allocator,
+) std.mem.Allocator.Error!?types.Type {
+    const head = subst.resolve(t);
+    switch (head) {
+        .meta => |id| try out.append(gpa, .{ .class = class, .meta = id }),
+        .variable => @panic("a bound type variable reached constraint solving"),
+        .primitive => |p| if (!holdsForPrimitive(class, p)) return head,
+        .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
+            .never => return head,
+            .always => {},
+            .fields => for (c.arguments) |argument| {
+                if (try reduce(subst, class, argument, out, gpa)) |culprit| return culprit;
+            },
+        },
+        .record => |fields| switch (class) {
+            .Sized, .Ord => return head,
+            .Eq, .Serial => for (fields) |f| {
+                if (try reduce(subst, class, f.type.*, out, gpa)) |culprit| return culprit;
+            },
+        },
+        .function => return head,
+    }
+    return null;
 }
 
 fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {

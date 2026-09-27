@@ -1,12 +1,13 @@
 title: a regex output is not serializable
 grammar: typescript
+asserts: error
 
 Compiled `regex` values intentionally have no JSON encoding.
 
 --- tql ---
-main = r"^abc";
+main = pure r"^abc";
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:8-1:14
+span: 1:1-1:21
 `Serial Regex` is not satisfied.

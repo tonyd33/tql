@@ -2,7 +2,6 @@
   pkgs,
   lib,
   config,
-  inputs,
   ...
 }:
 
@@ -264,6 +263,10 @@ in
     nixfmt.enable = true;
     actionlint.enable = true;
     # zizmor.enable = true;
+    biome = {
+      enable = true;
+      args = [ "--no-errors-on-unmatched" ];
+    };
 
     zig-fmt = {
       enable = true;

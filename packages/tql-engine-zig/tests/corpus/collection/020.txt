@@ -1,0 +1,15 @@
+title: list literal elements are ordinary expressions
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = children | is_kind :class_declaration | arr (\c -> [kind c, text c]);
+
+--- source ---
+class A {}
+
+--- values ---
+[["class_declaration", "class A {}"]]
+
+--- types ---
+main : Node -> [[String]]

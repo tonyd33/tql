@@ -9,8 +9,8 @@ the enumeration order `do` gives.
 --- tql ---
 main root =
   do {
-    a <- (pure 1, pure 2) root;
-    b <- (pure "x", pure "y") root;
+    a <- const [1, 2] root;
+    b <- const ["x", "y"] root;
     pure { a = a, b = b } root
   };
 

@@ -1,5 +1,6 @@
 title: `Ord` on a bool
 grammar: typescript
+asserts: error
 
 Only `int` and `string` have `Ord`.
 

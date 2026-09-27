@@ -5,6 +5,8 @@
     nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
     devenv.url = "github:cachix/devenv";
     zig-overlay.url = "github:mitchellh/zig-overlay";
+    editorenv.url = "github:tonyd33/editorenv";
+    editorenv.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -26,7 +28,10 @@
 
       mkArgs = pkgs: {
         inherit inputs pkgs;
-        modules = [ ./devenv.nix ];
+        modules = [
+          "${inputs.editorenv}/integrations/devenv/devenv.nix"
+          ./devenv.nix
+        ];
       };
     in
     {
