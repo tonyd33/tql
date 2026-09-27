@@ -133,7 +133,7 @@ main root = do { c <- (children | is_kind :class_declaration) root; c.name };
                 function: (identifier)
                 argument: (kind))))
           argument: (identifier)))
-      result: (field_access
+      (field_access
         record: (identifier)
         field: (field_name)))))
 
@@ -150,7 +150,7 @@ main root = do { (children | is_kind :class_declaration) root };
     name: (identifier)
     parameter: (identifier)
     body: (do_expression
-      result: (application
+      (application
         function: (parenthesized
           (pipe
             left: (identifier)
@@ -174,7 +174,7 @@ main = do { c <- .; c; };
       (bind_statement
         name: (identifier)
         value: (identity))
-      result: (identifier))))
+      (identifier))))
 
 ========================================
 a do-local let statement with one binding
@@ -197,7 +197,7 @@ main = do { c <- .; let name = c.name; name };
           value: (field_access
             record: (identifier)
             field: (field_name))))
-      result: (identifier))))
+      (identifier))))
 
 ========================================
 a do-local let statement with a brace group
@@ -222,7 +222,7 @@ main = do { c <- .; let { a = 1; b = 2 }; a + b };
           (binding
             name: (identifier)
             value: (number))))
-      result: (additive
+      (additive
         left: (identifier)
         right: (identifier)))))
 
@@ -246,7 +246,7 @@ main = do { c <- .; m <- c.body; m };
         value: (field_access
           record: (identifier)
           field: (field_name)))
-      result: (identifier))))
+      (identifier))))
 
 ========================================
 a do block as a pipe operand
@@ -270,7 +270,61 @@ main = children | is_kind :class_declaration | do { m <- .body; m };
           name: (identifier)
           value: (leading_field
             field: (field_name)))
-        result: (identifier)))))
+        (identifier)))))
+
+========================================
+an expression statement
+========================================
+
+main = do { c <- .; guard $ c = c; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity))
+      (dollar_application
+        function: (identifier)
+        argument: (comparison
+          left: (identifier)
+          right: (identifier)))
+      (identifier))))
+
+========================================
+several expression statements
+========================================
+
+main = do { a; b; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (identifier)
+      (identifier)
+      (identifier))))
+
+========================================
+a do block ending in a bind statement parses
+========================================
+
+main = do { c <- . };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (identity)))))
 
 ========================================
 an empty record is not an empty do block

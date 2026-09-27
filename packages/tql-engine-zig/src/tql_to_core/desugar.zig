@@ -614,6 +614,14 @@ pub const Lowerer = struct {
                     b.span,
                 );
             },
+            .expression => |e| {
+                return try self.builder.bind(
+                    try self.interner.fresh("_"),
+                    try self.expression(e, scope),
+                    try self.doBlock(statements[1..], result, scope, span),
+                    e.span,
+                );
+            },
             .let => |l| {
                 const group = try self.bindingGroup(l.bindings, scope, l.span);
                 return try self.builder.letrec(

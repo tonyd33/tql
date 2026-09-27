@@ -1,0 +1,24 @@
+title: an expression statement is a bind whose value is discarded
+grammar: typescript
+asserts: types, values
+
+`guard $ ...;` needs no `_ <-`.
+
+--- tql ---
+main root = do {
+  class_decl <- children_of_kind :class_declaration root;
+  name <- .name class_decl;
+  guard $ text name ~ r"^S";
+  return $ text name;
+};
+
+--- source ---
+class Service {}
+class Other {}
+class Store {}
+
+--- values ---
+["Service", "Store"]
+
+--- types ---
+main : Node -> [String]
