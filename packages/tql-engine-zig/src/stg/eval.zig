@@ -9,13 +9,10 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
-const pcre2 = @import("../regex.zig");
-const tql_to_core = @import("../tql_to_core.zig");
 const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
 const value = @import("value.zig");
-const datatypes = core.datatypes;
 
 const Allocator = std.mem.Allocator;
 
@@ -172,12 +169,6 @@ const Slots = struct {
 pub const Machine = struct {
     arena: Allocator,
     program: *const stg.Program,
-    /// Constructors of `List` and `Bool`, which primitives build directly.
-    datatypes: *const datatypes.Registry,
-    /// Reaches the prelude definitions a primitive delegates to, and says what
-    /// each synthesized primitive denotes. `op[+]` and `op[-]` share a
-    /// `PrimOp`, so the operator comes from here.
-    interner: *const core.Interner,
     /// One thunk per global, allocated before the run and forced at most once.
     globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk),
     /// The file being queried. Absent when the machine runs hand-built terms,
@@ -249,9 +240,9 @@ pub const Machine = struct {
         arena: Allocator,
         gpa: Allocator,
         program: *const stg.Program,
-        source: *const tql_to_core.Program,
     ) Allocator.Error!Machine {
         var globals: std.AutoHashMapUnmanaged(core.SymbolId, *value.Thunk) = .empty;
+        errdefer globals.deinit(gpa);
 
         // Every global is allocated before any is filled, so one may reference
         // another in any order.
@@ -267,8 +258,6 @@ pub const Machine = struct {
         return .{
             .arena = arena,
             .program = program,
-            .datatypes = &source.env.datatypes,
-            .interner = &source.env.interner,
             .globals = globals,
             .gpa = gpa,
             .stack_base = @frameAddress(),
@@ -768,7 +757,7 @@ pub const Machine = struct {
                                 .constructed => |k| k,
                                 else => return error.TypeError,
                             };
-                            if (c.tag == self.datatypes.nilConstructor().tag) break;
+                            if (c.tag == self.program.structural.nil.tag) break;
                             if (c.len != 2) return error.TypeError;
                             count += 1;
                             current = try self.force(c.fields()[1]);
@@ -784,7 +773,7 @@ pub const Machine = struct {
             // Fields are scalars and stay unforced. The labels come from the
             // symbol's details, already sorted.
             .record => {
-                const labels = switch (try self.synthesized(call.symbol)) {
+                const labels = switch (try synthesized(call)) {
                     .record => |l| l,
                     else => return error.TypeError,
                 };
@@ -816,7 +805,7 @@ pub const Machine = struct {
             // `[x]` when the static kind matches, otherwise `[]`.
             .is_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const wanted = switch (try self.synthesized(call.symbol)) {
+                const wanted = switch (try synthesized(call)) {
                     .kind_test => |k| k.id,
                     else => return error.TypeError,
                 };
@@ -903,7 +892,7 @@ pub const Machine = struct {
             // grammar knows but this node lacks yields no output.
             .field => {
                 const subject = try self.nodeArgument(arguments);
-                const field_id = switch (try self.synthesized(call.symbol)) {
+                const field_id = switch (try synthesized(call)) {
                     .field => |f| f.id,
                     else => return error.TypeError,
                 };
@@ -920,7 +909,7 @@ pub const Machine = struct {
             // into the advance, so the list holds only matches.
             .children_of_kind, .descendants_of_kind => {
                 const subject = try self.nodeArgument(arguments);
-                const kind_id = switch (try self.synthesized(call.symbol)) {
+                const kind_id = switch (try synthesized(call)) {
                     .kind_axis => |k| k.id,
                     else => return error.TypeError,
                 };
@@ -940,11 +929,8 @@ pub const Machine = struct {
     }
 
     /// What a synthesized primitive denotes.
-    fn synthesized(self: *Machine, symbol: core.SymbolId) Error!core.Synthesized {
-        return switch (self.interner.details(symbol)) {
-            .synthesized => |s| s,
-            else => error.TypeError,
-        };
+    fn synthesized(call: *const stg.Expr.Primitive) Error!core.Synthesized {
+        return call.synthesized orelse error.TypeError;
     }
 
     /// The single node argument of a tree primitive.
@@ -993,7 +979,7 @@ pub const Machine = struct {
     }
 
     fn nil(self: *Machine) Error!value.Value {
-        const c = self.datatypes.nilConstructor();
+        const c = self.program.structural.nil;
         return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
     }
 
@@ -1005,7 +991,7 @@ pub const Machine = struct {
     }
 
     fn cons(self: *Machine, head: *value.Thunk, tail: *value.Thunk) Error!value.Value {
-        const c = self.datatypes.consConstructor();
+        const c = self.program.structural.cons;
         return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{ head, tail }) };
     }
 
@@ -1063,7 +1049,7 @@ pub const Machine = struct {
         arguments: []const *value.Thunk,
     ) Error!value.Value {
         if (arguments.len != 2) return error.TypeError;
-        const scalar = switch (try self.synthesized(call.symbol)) {
+        const scalar = switch (try synthesized(call)) {
             .operator => |o| o,
             else => return error.TypeError,
         };
@@ -1201,7 +1187,7 @@ pub const Machine = struct {
     }
 
     fn boolValue(self: *Machine, b: bool) Error!value.Value {
-        const c = self.datatypes.boolConstructor(b);
+        const c = self.program.structural.boolean(b);
         return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
     }
 
@@ -1291,12 +1277,10 @@ pub const Machine = struct {
                 jws.endObject() catch return error.TypeError;
             },
             .constructed => |c| {
-                const owner = datatypes.ownerOf(self.interner, c.constructor) orelse
-                    return error.TypeError;
-                if (owner == self.datatypes.boolId()) {
-                    const t = self.datatypes.boolConstructor(true);
-                    jws.write(c.tag == t.tag) catch return error.TypeError;
-                } else if (owner == self.datatypes.listId()) {
+                const structural = self.program.structural;
+                if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
+                    jws.write(c.constructor == structural.true_.symbol) catch return error.TypeError;
+                } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
                     jws.beginArray() catch return error.TypeError;
                     var current = v;
                     while (true) {
@@ -1304,7 +1288,7 @@ pub const Machine = struct {
                             .constructed => |k| k,
                             else => return error.TypeError,
                         };
-                        if (cell.tag == self.datatypes.nilConstructor().tag) break;
+                        if (cell.tag == structural.nil.tag) break;
                         if (cell.len != 2) return error.TypeError;
                         const cell_fields = cell.fields();
                         try self.serialize(try self.force(cell_fields[0]), jws);

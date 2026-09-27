@@ -49,10 +49,13 @@ pub const Lowerer = struct {
         self.references.deinit(self.builder.allocator);
     }
 
-    /// A primitive by name. Every one is interned before desugaring runs, so a
-    /// miss is a bug in the table rather than a user error.
-    fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) !core.Term {
-        const id = self.interner.lookup(name).?;
+    /// A primitive or prelude name that sugar desugars to. Missing only when
+    /// the prelude was not linked beneath this module.
+    fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
+        const id = self.interner.lookup(name) orelse {
+            try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
+            return error.DesugarFailed;
+        };
         return self.builder.symbol(id, span);
     }
 

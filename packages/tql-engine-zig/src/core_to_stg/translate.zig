@@ -12,7 +12,6 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
-const tql_to_core = @import("../tql_to_core.zig");
 const free = @import("free.zig");
 const primitives = @import("../primitives.zig");
 const pcre2 = @import("../regex.zig");
@@ -43,7 +42,7 @@ const Hoisted = std.ArrayList(stg.Binding);
 pub const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
-    program: *const tql_to_core.Program,
+    program: *const core.Program,
     /// Names for the thunks atomization introduces. From the interner, so they
     /// cannot collide with a source binder.
     interner: *core.Interner,
@@ -59,11 +58,40 @@ pub const Translator = struct {
     /// Every regex literal compiled so far. The caller frees their programs.
     regexes: std.ArrayList(*stg.Regex) = .empty,
 
+    /// What `name` denotes if it is synthesized, copied into the program.
+    fn synthesized(self: *Translator, name: core.SymbolId) Error!?core.Synthesized {
+        const source = switch (self.program.env.interner.details(name)) {
+            .synthesized => |s| s,
+            else => return null,
+        };
+        return switch (source) {
+            .kind_test => |k| .{ .kind_test = .{
+                .name = try self.arena.dupe(u8, k.name),
+                .id = k.id,
+            } },
+            .kind_axis => |k| .{ .kind_axis = .{
+                .name = try self.arena.dupe(u8, k.name),
+                .id = k.id,
+                .primop = k.primop,
+            } },
+            .field => |f| .{ .field = .{
+                .name = try self.arena.dupe(u8, f.name),
+                .id = f.id,
+            } },
+            .operator => source,
+            .record => |labels| blk: {
+                const copies = try self.arena.alloc([]const u8, labels.len);
+                for (labels, copies) |label, *copy| copy.* = try self.arena.dupe(u8, label);
+                break :blk .{ .record = copies };
+            },
+        };
+    }
+
     /// Lower a Core literal, compiling a regex pattern into the program.
     fn literal(self: *Translator, source: core.Literal) Error!stg.Literal {
         return switch (source) {
             .number => |n| .{ .number = n },
-            .string => |s| .{ .string = s },
+            .string => |s| .{ .string = try self.arena.dupe(u8, s) },
             .regex => |pattern| blk: {
                 try self.regexes.ensureUnusedCapacity(self.gpa, 1);
                 const regex = try self.arena.create(stg.Regex);
@@ -175,7 +203,7 @@ pub const Translator = struct {
         }
 
         // A thunk is a closure of no arguments.
-        const thunk = try self.closure(&.{}, term, .updatable);
+        const thunk = try self.closure(&.{}, term);
         return try self.bindClosure(thunk, hoisted);
     }
 
@@ -269,21 +297,7 @@ pub const Translator = struct {
                 return try self.call(head, atoms, hoisted);
             },
 
-            .lambda => {
-                // Collect the whole parameter list: `\x -> \y -> e` is one
-                // closure of arity two, not two of arity one.
-                var parameters: std.ArrayList(core.SymbolId) = .empty;
-                defer parameters.deinit(self.gpa);
-
-                var body = term;
-                while (body.kind == .lambda) {
-                    try parameters.append(self.gpa, body.kind.lambda.parameter);
-                    body = body.kind.lambda.body;
-                }
-
-                const allocated = try self.closure(parameters.items, body, .single_entry);
-                return .{ .atom = try self.bindClosure(allocated, hoisted) };
-            },
+            .lambda => return .{ .atom = try self.bindClosure(try self.closureOf(term), hoisted) },
 
             .case => |case_term| {
                 const scrutinee = try self.open(case_term.scrutinee, hoisted);
@@ -330,7 +344,7 @@ pub const Translator = struct {
                 for (letrec.bindings, bindings) |source, *binding| {
                     binding.* = .{
                         .binder = source.name,
-                        .value = .{ .closure = try self.closure(&.{}, source.value, .updatable) },
+                        .value = .{ .closure = try self.closureOf(source.value) },
                     };
                 }
 
@@ -350,11 +364,7 @@ pub const Translator = struct {
                     return error.Unsupported;
 
                 const source = try self.atomize(bind_term.value, hoisted);
-                const receiver = try self.closure(
-                    &.{bind_term.name},
-                    bind_term.body,
-                    .single_entry,
-                );
+                const receiver = try self.closure(&.{bind_term.name}, bind_term.body);
 
                 const arguments = try self.arena.alloc(stg.Atom, 2);
                 arguments[0] = try self.bindClosure(receiver, hoisted);
@@ -399,6 +409,7 @@ pub const Translator = struct {
                         node.* = .{
                             .primop = primop,
                             .symbol = head.kind.symbol,
+                            .synthesized = try self.synthesized(head.kind.symbol),
                             .arguments = arguments,
                         };
                         return .{ .primitive = node };
@@ -468,16 +479,37 @@ pub const Translator = struct {
         }
 
         const call_node = try self.arena.create(stg.Expr.Primitive);
-        call_node.* = .{ .primop = primop, .symbol = name, .arguments = arguments };
+        call_node.* = .{
+            .primop = primop,
+            .symbol = name,
+            .synthesized = try self.synthesized(name),
+            .arguments = arguments,
+        };
 
         const node = try self.arena.create(stg.Closure);
         node.* = .{
             .free = &.{},
-            .update = .single_entry,
             .parameters = parameters,
             .body = .{ .primitive = call_node },
         };
         return node;
+    }
+
+    /// The closure allocating `term` builds: for a lambda, a function taking
+    /// its whole parameter list, so `\x -> \y -> e` has arity two; otherwise
+    /// a thunk.
+    fn closureOf(self: *Translator, term: core.Term) Error!*const stg.Closure {
+        if (term.kind != .lambda) return try self.closure(&.{}, term);
+
+        var parameters: std.ArrayList(core.SymbolId) = .empty;
+        defer parameters.deinit(self.gpa);
+
+        var body = term;
+        while (body.kind == .lambda) {
+            try parameters.append(self.gpa, body.kind.lambda.parameter);
+            body = body.kind.lambda.body;
+        }
+        return try self.closure(parameters.items, body);
     }
 
     /// Build a closure over `body`, collecting the free variables it reads.
@@ -485,7 +517,6 @@ pub const Translator = struct {
         self: *Translator,
         parameters: []const core.SymbolId,
         body: core.Term,
-        update: stg.Update,
     ) Error!*const stg.Closure {
         var collector: free.Collector = .{
             .gpa = self.gpa,
@@ -522,7 +553,6 @@ pub const Translator = struct {
         const node = try self.arena.create(stg.Closure);
         node.* = .{
             .free = captures,
-            .update = update,
             .parameters = parameter_names,
             .body = try self.expression(body),
         };
@@ -536,7 +566,7 @@ pub const Translator = struct {
 /// the desugar.Program it came from.
 pub fn translate(
     gpa: Allocator,
-    program: *tql_to_core.Program,
+    program: *core.Program,
 ) Error!stg.Program {
     const arena = try gpa.create(std.heap.ArenaAllocator);
     errdefer gpa.destroy(arena);
@@ -556,14 +586,25 @@ pub fn translate(
     for (program.definitions, definitions) |source, *definition| {
         definition.* = .{
             .symbol = source.symbol,
-            .value = try translator.closure(&.{}, source.body, .updatable),
+            .value = try translator.closure(&.{}, source.body),
         };
     }
 
+    const registry = &program.env.datatypes;
     return .{
         .definitions = definitions,
         .entry = program.entry,
+        .structural = .{
+            .nil = builtin(registry.nilConstructor()),
+            .cons = builtin(registry.consConstructor()),
+            .false_ = builtin(registry.boolConstructor(false)),
+            .true_ = builtin(registry.boolConstructor(true)),
+        },
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),
     };
+}
+
+fn builtin(constructor: datatypes.Constructor) stg.Builtin {
+    return .{ .symbol = constructor.symbol, .tag = constructor.tag };
 }

@@ -20,49 +20,7 @@ const types = core.types;
 
 pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 
-/// A linked program: definitions, the SCCs type checking consumes, and the
-/// entrypoint.
-///
-/// Terms and the strings they reference live in `arena`, which is heap-owned so
-/// the program can be returned by value: an `ArenaAllocator`'s allocator holds
-/// a pointer to the arena itself, which moving the struct would dangle.
-pub const Program = struct {
-    /// Symbols, declared types, and what passes have learned about them.
-    /// Owns the arena every definition is allocated from.
-    env: core.env.Env,
-    definitions: []const core.Definition,
-    /// Indices into `definitions`, grouped by strongly connected component in
-    /// dependency order.
-    components: []const []const u32,
-    /// The linked program's `main`.
-    entry: core.SymbolId,
-    /// Where the entry module's definitions begin; everything below it was
-    /// linked in from a library module.
-    entry_offset: u32,
-
-    /// The definitions the entry module declared, in declaration order.
-    pub fn entryDefinitions(self: *const Program) []const core.Definition {
-        return self.definitions[self.entry_offset..];
-    }
-
-    pub fn deinit(self: *Program) void {
-        self.env.deinit();
-    }
-};
-
-/// One `name = term` line per definition the entry module declared, in
-/// declaration order. Library definitions linked in beneath it are omitted.
-pub fn printProgram(
-    p: *const Program,
-    w: *std.Io.Writer,
-) std.Io.Writer.Error!void {
-    const printer: core.Printer = .{ .interner = &p.env.interner };
-    for (p.entryDefinitions(), 0..) |d, i| {
-        if (i > 0) try w.writeByte('\n');
-        try w.print("{s} = ", .{p.env.interner.spelling(d.symbol)});
-        try printer.term(d.body, w);
-    }
-}
+const Program = core.Program;
 
 /// Desugars source files into one linked program.
 ///
@@ -103,6 +61,18 @@ pub const Desugarer = struct {
             // opening a new one.
             const structural = datatypes.Registry.structuralNamed(declared.name);
             const existing = self.env.?.datatypes.lookup(declared.name);
+
+            // A declared type is found before a primitive one, so this would
+            // silently replace `Int` in every signature.
+            if (annotation.primitiveNamed(declared.name) != null) {
+                try sink.report(
+                    .symbol_collision,
+                    declared.span,
+                    "`{s}` is a built-in type",
+                    .{declared.name},
+                );
+                continue;
+            }
 
             if (existing != null and structural == null) {
                 try sink.report(
@@ -214,6 +184,16 @@ pub const Desugarer = struct {
             },
             .constructor => |name| {
                 if (self.env.?.datatypes.lookup(name)) |id| {
+                    const parameters = self.env.?.datatypes.get(id).parameters;
+                    if (parameters != 0) {
+                        try sink.report(
+                            .type_mismatch,
+                            written.span,
+                            "`{s}` takes {d} type argument(s), given 0",
+                            .{ name, parameters },
+                        );
+                        return null;
+                    }
                     return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
                 }
                 if (annotation.primitiveNamed(name)) |t| return t;
@@ -230,6 +210,16 @@ pub const Desugarer = struct {
                     );
                     return null;
                 };
+                const parameters = self.env.?.datatypes.get(id).parameters;
+                if (a.arguments.len != parameters) {
+                    try sink.report(
+                        .type_mismatch,
+                        written.span,
+                        "`{s}` takes {d} type argument(s), given {d}",
+                        .{ a.constructor, parameters, a.arguments.len },
+                    );
+                    return null;
+                }
                 const arguments = try arena.alloc(types.Type, a.arguments.len);
                 for (a.arguments, arguments) |argument, *slot| {
                     slot.* = try self.fieldType(argument, declared, sink) orelse return null;

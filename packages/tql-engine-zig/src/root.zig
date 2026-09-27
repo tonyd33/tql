@@ -49,7 +49,7 @@ fn listElements(
     head: stg.Value,
     out: *std.ArrayList(*stg.Thunk),
 ) !void {
-    const nil_tag = machine.datatypes.nilConstructor().tag;
+    const nil_tag = machine.program.structural.nil.tag;
     var current = head;
     while (true) {
         const constructed = switch (current) {
@@ -101,7 +101,7 @@ pub const Engine = struct {
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !tql_to_core.Program {
+    ) !core.Program {
         var parsed = try self.tql_parser.parseCollecting(query_source);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
@@ -130,7 +130,7 @@ pub const Engine = struct {
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
-    ) !tql_to_core.Program {
+    ) !core.Program {
         var program = try self.desugarQuery(query_source, g, sink);
         errdefer program.deinit();
 
@@ -217,7 +217,7 @@ pub const Engine = struct {
 
 /// A query checked and translated once, run against many targets.
 pub const CompiledQuery = struct {
-    checked: tql_to_core.Program,
+    checked: core.Program,
     translated: stg.Program,
     grammar: *const Grammar,
     allocator: Allocator,
@@ -253,12 +253,7 @@ pub const CompiledQuery = struct {
 
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
-        var machine = try stg.Machine.init(
-            scratch,
-            self.allocator,
-            &self.translated,
-            &self.checked,
-        );
+        var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
         defer machine.deinit(self.allocator);
         machine.target = .{ .source = target, .path = target_path };
 
@@ -477,7 +472,7 @@ test "the evaluator runs the prelude's append" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit(allocator);
 
     const entry = machine.globals.get(program.entry).?;
@@ -520,7 +515,7 @@ fn runQuery(
     var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit(allocator);
 
     const main_value = try machine.force(machine.globals.get(program.entry).?);
@@ -779,7 +774,7 @@ test "forcing a global cycle reports it rather than hanging" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated, &program);
+    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit(allocator);
 
     const a = program.env.interner.lookup("a").?;

@@ -3,7 +3,6 @@
 const std = @import("std");
 const constraints = @import("constraints.zig");
 const core = @import("../core.zig");
-const tql_to_core = @import("../tql_to_core.zig");
 const diagnostic = @import("../diagnostic.zig");
 const schemes = @import("schemes.zig");
 const types = core.types;
@@ -487,7 +486,7 @@ pub const Inference = struct {
     }
 
     /// A linked program: every component, then `main`'s three extra checks.
-    pub fn check(self: *Inference, p: *const tql_to_core.Program) Error!void {
+    pub fn check(self: *Inference, p: *const core.Program) Error!void {
         try self.program(p.definitions, p.components);
 
         // Only after the body has a type, and spanning the whole definition
@@ -673,7 +672,7 @@ fn constructorSchemeOf(
 /// Resolves a global symbol against the program: a primitive's table scheme,
 /// or a synthesized symbol's constructed one.
 const ProgramGlobals = struct {
-    program: *const tql_to_core.Program,
+    program: *const core.Program,
     /// Constructed schemes, built once per symbol.
     built: *core.SymbolTable(types.Scheme),
 
@@ -703,7 +702,7 @@ const ProgramGlobals = struct {
 /// A body that failed to infer produces no `main-type` diagnostic on top.
 pub fn check(
     gpa: Allocator,
-    program: *tql_to_core.Program,
+    program: *core.Program,
     sink: *diagnostic.Sink,
 ) !void {
     // Every type inference builds lives here. Only the final schemes are

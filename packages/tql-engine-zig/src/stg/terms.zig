@@ -16,8 +16,8 @@
 //! ```
 //!
 //! Core is what the type checker validated; this is what the evaluator walks.
-//! It adds three annotations inference never needed: a closure's free
-//! variables, its update flag, and the arity of every application.
+//! It adds two annotations inference never needed: a closure's free
+//! variables, and the arity of every application.
 //!
 //! A binder is the SymbolId resolution interned for it. The evaluator looks it
 //! up in an environment; nothing here assigns frame slots.
@@ -64,15 +64,13 @@ pub const Regex = struct {
     compiled: pcre2.Regex,
 };
 
-/// Whether entering this closure overwrites it with its result.
-pub const Update = enum { updatable, single_entry };
-
+/// A closure of no parameters is a thunk, which entering overwrites with its
+/// result. One with parameters is a function, already a value.
 pub const Closure = struct {
     /// The free variables the body reads, as offsets into the *enclosing*
     /// environment. Read at allocation and copied, so the closure outlives the
     /// scope it was written in.
     free: []const Local,
-    update: Update,
     parameters: []const core.SymbolId,
     body: Expr,
 };
@@ -117,9 +115,12 @@ pub const Expr = union(enum) {
 
     pub const Primitive = struct {
         primop: core.PrimOp,
-        /// The symbol it was reached through. `op[+]` and `op[-]` share a
-        /// PrimOp; look this up in the details table to tell them apart.
+        /// The symbol it was reached through, for printing.
         symbol: core.SymbolId,
+        /// What a synthesized symbol resolved to: the kind or field id, the
+        /// operator, or the record labels. `op[+]` and `op[-]` share a PrimOp
+        /// and are told apart here. Owned by the program.
+        synthesized: ?core.Synthesized,
         arguments: []const Atom,
     };
 
@@ -146,10 +147,30 @@ pub const Definition = struct {
     value: *const Closure,
 };
 
+/// A constructor the machine builds or recognizes itself.
+pub const Builtin = struct {
+    symbol: core.SymbolId,
+    tag: u32,
+};
+
+/// The constructors of `List` and `Bool`, which primitives build directly and
+/// serialization encodes specially.
+pub const Structural = struct {
+    nil: Builtin,
+    cons: Builtin,
+    false_: Builtin,
+    true_: Builtin,
+
+    pub fn boolean(self: Structural, b: bool) Builtin {
+        return if (b) self.true_ else self.false_;
+    }
+};
+
 /// A translated program, and the arena its terms live in.
 pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
+    structural: Structural,
     arena: *std.heap.ArenaAllocator,
     /// Every regex literal the terms reference. Their compiled programs are
     /// allocated outside the arena.
@@ -177,15 +198,4 @@ test "an alternative's position is its tag" {
     for (alternatives, 0..) |alternative, i| {
         try std.testing.expectEqual(i, alternative.tag);
     }
-}
-
-test "a thunk is a closure of no arguments that updates" {
-    const body: Expr = .{ .atom = .{ .literal = .{ .number = 1 } } };
-    const one = [_]core.SymbolId{@enumFromInt(1)};
-    const thunk: Closure = .{ .free = &.{}, .update = .updatable, .parameters = &.{}, .body = body };
-    const function: Closure = .{ .free = &.{}, .update = .single_entry, .parameters = &one, .body = body };
-
-    try std.testing.expectEqual(0, thunk.parameters.len);
-    try std.testing.expectEqual(Update.updatable, thunk.update);
-    try std.testing.expectEqual(Update.single_entry, function.update);
 }

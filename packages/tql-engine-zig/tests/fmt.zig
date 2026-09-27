@@ -20,10 +20,10 @@ pub fn formatCst(allocator: std.mem.Allocator, tree: tql.cst.SourceFile) ![]cons
     return tree.sexprAlloc(allocator);
 }
 
-pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.tql_to_core.Program) ![]const u8 {
+pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.core.Program) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
-    try tql.tql_to_core.printProgram(program, &w.writer);
+    try tql.core.printProgram(program, &w.writer);
     return w.toOwnedSlice();
 }
 
@@ -34,7 +34,7 @@ pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.tql_to_core.
 /// every fixture's types section.
 pub fn formatTypes(
     allocator: std.mem.Allocator,
-    program: *const tql.tql_to_core.Program,
+    program: *const tql.core.Program,
 ) ![]const u8 {
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();

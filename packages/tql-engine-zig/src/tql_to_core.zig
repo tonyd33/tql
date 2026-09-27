@@ -4,13 +4,8 @@
 const link = @import("tql_to_core/link.zig");
 const desugar = @import("tql_to_core/desugar.zig");
 
-/// Desugars source files into one linked `Program`.
+/// Desugars source files into one linked `core.Program`.
 pub const Desugarer = link.Desugarer;
-
-/// A linked program: the stage's output, and what type checking consumes.
-pub const Program = link.Program;
-
-pub const printProgram = link.printProgram;
 
 test {
     const std = @import("std");

@@ -1,0 +1,13 @@
+title: a constructor field may not give a type too many arguments
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Box a = B a;
+type T = C (Box Int String);
+main = pure 1;
+
+--- error ---
+category: type-mismatch
+span: 2:13-2:27
+`Box` takes 1 type argument(s), given 2

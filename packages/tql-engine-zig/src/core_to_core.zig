@@ -9,7 +9,6 @@
 
 const std = @import("std");
 const core = @import("core.zig");
-const tql_to_core = @import("tql_to_core.zig");
 const diagnostic = @import("diagnostic.zig");
 
 const Allocator = std.mem.Allocator;
@@ -20,7 +19,7 @@ pub const Error = Allocator.Error;
 ///
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
-pub fn run(program: *tql_to_core.Program) Error!void {
+pub fn run(program: *core.Program) Error!void {
     const kleisli = program.env.interner.lookup("kleisli") orelse return;
 
     var pass: Pass = .{

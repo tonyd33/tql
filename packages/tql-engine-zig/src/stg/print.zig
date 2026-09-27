@@ -1,8 +1,8 @@
 //! Renders STG-shaped terms, for tests and for reading what translation
 //! produced.
 //!
-//! A closure prints as `{free} \u {args} -> body`, with `\u` updatable and
-//! `\n` not.
+//! A closure prints as `{free} \u {args} -> body`, with `\u` for a thunk,
+//! which updates, and `\n` for a function, which does not.
 
 const std = @import("std");
 const stg = @import("terms.zig");
@@ -41,10 +41,7 @@ pub const Printer = struct {
             try w.writeAll(self.interner.spelling(capture.name));
         }
         try w.writeAll("} ");
-        try w.writeAll(switch (c.update) {
-            .updatable => "\\u",
-            .single_entry => "\\n",
-        });
+        try w.writeAll(if (c.parameters.len == 0) "\\u" else "\\n");
         try w.writeByte(' ');
         try w.writeByte('{');
         for (c.parameters, 0..) |p, i| {

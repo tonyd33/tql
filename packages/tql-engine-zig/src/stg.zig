@@ -17,7 +17,8 @@ pub const Alternative = terms.Alternative;
 pub const Allocation = terms.Allocation;
 pub const Binding = terms.Binding;
 pub const Definition = terms.Definition;
-pub const Update = terms.Update;
+pub const Builtin = terms.Builtin;
+pub const Structural = terms.Structural;
 
 /// A translated program and the arena its terms live in.
 pub const Program = terms.Program;

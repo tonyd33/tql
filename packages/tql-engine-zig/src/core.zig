@@ -18,6 +18,11 @@ pub const details = @import("core/details.zig");
 pub const env = @import("core/env.zig");
 pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
+const program = @import("core/program.zig");
+
+/// A linked program, and what every stage after desugaring reads.
+pub const Program = program.Program;
+pub const printProgram = program.printProgram;
 
 pub const Synthesized = details.Synthesized;
 pub const PrimOp = details.PrimOp;
