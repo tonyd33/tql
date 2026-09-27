@@ -42,7 +42,7 @@ const main_cmds = .{
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
-            .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: json)" },
+            .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: text)" },
         },
     },
     .version = .{
@@ -229,9 +229,12 @@ fn runQuery(
             },
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
-                .workers => workers = std.fmt.parseInt(usize, kv.value, 10) catch {
-                    try stderr.print("Error: --workers requires a positive integer\n", .{});
-                    return @intFromEnum(ExitCode.invalid_args);
+                .workers => {
+                    workers = std.fmt.parseInt(usize, kv.value, 10) catch 0;
+                    if (workers == 0) {
+                        try stderr.print("Error: --workers requires a positive integer\n", .{});
+                        return @intFromEnum(ExitCode.invalid_args);
+                    }
                 },
                 .grammar => grammar = registry.get(kv.value) catch |err| {
                     try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
@@ -551,15 +554,28 @@ fn renderProgress(w: *std.Io.Writer, done: usize, total: usize, done_walk: bool)
     w.flush() catch {};
 }
 
-fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), w: *std.Io.Writer) !void {
+fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), stderr: *Stderr) !void {
     while (!stop.load(.acquire)) {
-        renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
+        {
+            try stderr.lock.lock(io);
+            defer stderr.lock.unlock(io);
+            renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+        }
         try io.sleep(std.Io.Duration.fromMilliseconds(1), .real);
     }
-    renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
-    w.print("\n", .{}) catch {};
-    w.flush() catch {};
+    try stderr.lock.lock(io);
+    defer stderr.lock.unlock(io);
+    renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+    stderr.writer.print("\n", .{}) catch {};
+    stderr.writer.flush() catch {};
 }
+
+/// stderr, shared by the progress bar and the per-file error reports.
+// FIXME: I'm pretty sure there is a threadsafe version of this in 0.16 stdlib
+const Stderr = struct {
+    writer: *std.Io.Writer,
+    lock: std.Io.Mutex = .init,
+};
 
 // IMPROVE: almost much everything below belongs in the lib. We're trying to
 // "feel out" an appropriate engine API from CLI usage.
@@ -603,6 +619,8 @@ const FileResult = struct {
     values: []const u8,
     count: usize,
     stats: FileStats,
+    /// Why the file produced no outputs, when reading or running it failed.
+    failure: ?anyerror = null,
 
     fn deinit(self: FileResult) void {
         self.arena.deinit();
@@ -615,7 +633,11 @@ const ResultQueue = tql.ds.BlockingQueue(FileResult);
 const Progress = struct {
     done: std.atomic.Value(usize) = .init(0),
     total: std.atomic.Value(usize) = .init(0),
-    done_walk: bool = false,
+    done_walk: std.atomic.Value(bool) = .init(false),
+    /// Files that produced at least one output.
+    matched: std.atomic.Value(usize) = .init(0),
+    /// Paths that could not be walked, read or run.
+    failed: std.atomic.Value(usize) = .init(0),
 };
 
 const SharedContext = struct {
@@ -630,25 +652,64 @@ const SharedContext = struct {
     format: OutputFormat,
 };
 
-fn pushFile(ctx: *SharedContext, path: []const u8) !void {
+/// A fresh arena holding a copy of `path`.
+fn ownPath(ctx: *SharedContext, path: []const u8) !PathEntry {
     const arena = try ctx.allocator.create(std.heap.ArenaAllocator);
     errdefer ctx.allocator.destroy(arena);
-    arena.* = std.heap.ArenaAllocator.init(ctx.*.allocator);
+    arena.* = std.heap.ArenaAllocator.init(ctx.allocator);
     errdefer arena.deinit();
-    const owned = try arena.allocator().dupe(u8, path);
-    try ctx.path_queue.push(.{ .arena = arena, .path = owned });
-    _ = ctx.*.progress.total.fetchAdd(1, .monotonic);
+    return .{ .arena = arena, .path = try arena.allocator().dupe(u8, path) };
+}
+
+fn pushFile(ctx: *SharedContext, path: []const u8) !void {
+    const entry = try ownPath(ctx, path);
+    errdefer {
+        entry.arena.deinit();
+        ctx.allocator.destroy(entry.arena);
+    }
+    try ctx.path_queue.push(entry);
+    _ = ctx.progress.total.fetchAdd(1, .monotonic);
+}
+
+/// Report `path` as failed without queueing it for a worker.
+///
+/// Preconditions:
+/// - the path queue is still open, so the result queue is too
+fn pushFailure(ctx: *SharedContext, path: []const u8, err: anyerror) !void {
+    const entry = try ownPath(ctx, path);
+    _ = ctx.progress.total.fetchAdd(1, .monotonic);
+    _ = ctx.progress.done.fetchAdd(1, .monotonic);
+    const result = failedResult(ctx, entry, err);
+    ctx.result_queue.push(result) catch |push_err| {
+        result.deinit();
+        return push_err;
+    };
+}
+
+fn failedResult(ctx: *SharedContext, entry: PathEntry, err: anyerror) FileResult {
+    _ = ctx.progress.failed.fetchAdd(1, .monotonic);
+    return .{
+        .arena = entry.arena,
+        .gpa = ctx.allocator,
+        .filename = entry.path,
+        .values = "",
+        .count = 0,
+        .stats = .{},
+        .failure = err,
+    };
 }
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
-    const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.*.io, path, ctx.allocator);
+    const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.io, path, ctx.allocator);
     defer ctx.allocator.free(abs);
-    var root_dir = try std.Io.Dir.openDirAbsolute(ctx.*.io, abs, .{
+    var root_dir = try std.Io.Dir.openDirAbsolute(ctx.io, abs, .{
         .iterate = true,
     });
+    defer root_dir.close(ctx.io);
 
-    var walker = try root_dir.walk(ctx.*.allocator);
-    while (try walker.next(ctx.*.io)) |entry| {
+    var walker = try root_dir.walk(ctx.allocator);
+    defer walker.deinit();
+    while (try walker.next(ctx.io)) |entry| {
         if (entry.kind == .file and ctx.*.grammar.matchesFileName(entry.basename)) {
             const joined = try std.fs.path.join(
                 ctx.*.allocator,
@@ -658,27 +719,32 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
             try pushFile(ctx, joined);
         }
     }
-    walker.deinit();
-    root_dir.close(ctx.io);
-    ctx.*.progress.*.done_walk = true;
 }
 
 fn walkerThread(ctx: *SharedContext) !void {
-    for (ctx.*.paths) |path| {
-        walkPush(ctx, path) catch |err| {
-            if (err == error.NotDir) {
-                try pushFile(ctx, path);
-            } else {
-                return err;
-            }
+    // Workers wait on the path queue until it closes, so it closes however
+    // the walk ends.
+    defer ctx.path_queue.close() catch {};
+    defer ctx.progress.done_walk.store(true, .release);
+
+    for (ctx.paths) |path| {
+        walkPush(ctx, path) catch |err| switch (err) {
+            error.NotDir => try pushFile(ctx, path),
+            else => try pushFailure(ctx, path, err),
         };
     }
-    try ctx.path_queue.close();
 }
 
-fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer) !void {
+fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr) !void {
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
+        if (result.failure) |err| {
+            try stderr.lock.lock(ctx.io);
+            defer stderr.lock.unlock(ctx.io);
+            try stderr.writer.print("{s}: error: {t}\n", .{ result.filename, err });
+            try stderr.writer.flush();
+            continue;
+        }
         if (result.count == 0) continue;
         try stdout.print("{s}: {s}\n", .{ result.filename, result.values });
     }
@@ -691,6 +757,15 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.beginArray();
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
+        if (result.failure) |err| {
+            try jws.beginObject();
+            try jws.objectField("file");
+            try jws.write(result.filename);
+            try jws.objectField("error");
+            try jws.write(@errorName(err));
+            try jws.endObject();
+            continue;
+        }
         totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
         totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
@@ -716,55 +791,62 @@ fn workerThread(ctx: *SharedContext) !void {
     defer arena.deinit();
 
     while (try ctx.path_queue.pop()) |entry| {
-        const result_arena = entry.arena;
-        errdefer {
-            result_arena.deinit();
-            ctx.allocator.destroy(result_arena);
+        defer {
+            _ = arena.reset(.retain_capacity);
+            _ = ctx.progress.done.fetchAdd(1, .monotonic);
         }
-        const result_alloc = result_arena.allocator();
-        const query_target_path = entry.path;
 
-        const read_start = std.Io.Timestamp.now(ctx.io, .real);
-        const query_target: []align(std.heap.page_size_min) const u8 = blk: {
-            const file = try std.Io.Dir.cwd().openFile(ctx.io, query_target_path, .{});
-            defer file.close(ctx.io);
-            const stat = try file.stat(ctx.io);
-            if (stat.size == 0) break :blk &[_]u8{};
-            break :blk try std.posix.mmap(
-                null,
-                stat.size,
-                .{ .READ = true },
-                .{ .TYPE = .PRIVATE },
-                file.handle,
-                0,
-            );
+        // A file that cannot be read or run is reported and skipped.
+        const result = queryFile(ctx, entry, arena.allocator()) catch |err|
+            failedResult(ctx, entry, err);
+        if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
+
+        ctx.result_queue.push(result) catch |err| {
+            result.deinit();
+            return err;
         };
-        const read_time = read_start.untilNow(ctx.io, .real);
-        defer if (query_target.len > 0) std.posix.munmap(query_target);
-
-        const run_result = try ctx.compiled.run(
-            query_target,
-            query_target_path,
-            result_alloc,
-            arena.allocator(),
-        );
-
-        try ctx.result_queue.push(.{
-            .arena = result_arena,
-            .gpa = ctx.allocator,
-            .filename = query_target_path,
-            .values = run_result.json,
-            .count = run_result.count,
-            .stats = .{
-                .read_time = read_time,
-                .parse_time = run_result.parse_time,
-                .query_time = run_result.query_time,
-            },
-        });
-
-        _ = arena.reset(.retain_capacity);
-        _ = ctx.*.progress.done.fetchAdd(1, .monotonic);
     }
+}
+
+/// Read and run one target, rendering its outputs into the entry's arena.
+fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
+    const read_start = std.Io.Timestamp.now(ctx.io, .real);
+    const query_target: []align(std.heap.page_size_min) const u8 = blk: {
+        const file = try std.Io.Dir.cwd().openFile(ctx.io, entry.path, .{});
+        defer file.close(ctx.io);
+        const stat = try file.stat(ctx.io);
+        if (stat.size == 0) break :blk &[_]u8{};
+        break :blk try std.posix.mmap(
+            null,
+            stat.size,
+            .{ .READ = true },
+            .{ .TYPE = .PRIVATE },
+            file.handle,
+            0,
+        );
+    };
+    const read_time = read_start.untilNow(ctx.io, .real);
+    defer if (query_target.len > 0) std.posix.munmap(query_target);
+
+    const run_result = try ctx.compiled.run(
+        query_target,
+        entry.path,
+        entry.arena.allocator(),
+        scratch,
+    );
+
+    return .{
+        .arena = entry.arena,
+        .gpa = ctx.allocator,
+        .filename = entry.path,
+        .values = run_result.json,
+        .count = run_result.count,
+        .stats = .{
+            .read_time = read_time,
+            .parse_time = run_result.parse_time,
+            .query_time = run_result.query_time,
+        },
+    };
 }
 
 fn run(
@@ -807,13 +889,14 @@ fn run(
         .format = config.format,
     };
 
+    var shared_stderr: Stderr = .{ .writer = stderr };
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = switch (config.format) {
-        .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout }),
+        .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout, &shared_stderr }),
         .json, .locations => try std.Thread.spawn(.{}, writerThreadJson, .{ &ctx, &jws }),
     };
-    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, stderr }) else null;
+    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, &shared_stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
 
     for (0..config.workers) |i| {
@@ -848,5 +931,8 @@ fn run(
     path_queue.deinit(allocator);
     result_queue.deinit(allocator);
     allocator.free(workers);
-    return 0;
+
+    if (progress.failed.load(.monotonic) > 0) return @intFromEnum(ExitCode.runtime_error);
+    if (progress.matched.load(.monotonic) == 0) return @intFromEnum(ExitCode.no_matches);
+    return @intFromEnum(ExitCode.success);
 }

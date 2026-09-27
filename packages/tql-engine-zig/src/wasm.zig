@@ -25,6 +25,7 @@ fn runImpl(
     query_source: []const u8,
     query_target: []const u8,
     buf: *std.Io.Writer.Allocating,
+    sink: *tql.diagnostic.Sink,
 ) !void {
     var single_threaded = std.Io.Threaded.init_single_threaded;
     const io = single_threaded.io();
@@ -34,10 +35,7 @@ fn runImpl(
     });
     defer engine.deinit();
 
-    var sink = tql.diagnostic.Sink.init(gpa);
-    defer sink.deinit();
-
-    var compiled = try engine.compileQuery(query_source, grammar, &sink);
+    var compiled = try engine.compileQuery(query_source, grammar, sink);
     defer compiled.deinit();
 
     var arena = std.heap.ArenaAllocator.init(gpa);
@@ -68,12 +66,32 @@ fn runImpl(
 
 fn finishErr(buf: *std.Io.Writer.Allocating, out: *Result, msg: []const u8) void {
     buf.clearRetainingCapacity();
-    buf.writer.writeAll(msg) catch return fail(out);
-    const slice = buf.toOwnedSlice() catch return fail(out);
+    buf.writer.writeAll(msg) catch return fail(buf, out);
+    const slice = buf.toOwnedSlice() catch return fail(buf, out);
     out.* = .{ .status = 1, .ptr = slice.ptr, .len = slice.len };
 }
 
-fn fail(out: *Result) void {
+/// Report `err` with every diagnostic the compilation collected, one per
+/// line. Falls back to the error's name when there are none.
+fn finishDiagnostics(
+    buf: *std.Io.Writer.Allocating,
+    out: *Result,
+    sink: *const tql.diagnostic.Sink,
+    err: anyerror,
+) void {
+    if (sink.items().len == 0) return finishErr(buf, out, @errorName(err));
+    buf.clearRetainingCapacity();
+    for (sink.items(), 0..) |d, i| {
+        if (i > 0) buf.writer.writeByte('\n') catch return fail(buf, out);
+        buf.writer.print("{f}: {s}: {s}", .{ d.span, d.category.name(), d.message }) catch
+            return fail(buf, out);
+    }
+    const slice = buf.toOwnedSlice() catch return fail(buf, out);
+    out.* = .{ .status = 1, .ptr = slice.ptr, .len = slice.len };
+}
+
+fn fail(buf: *std.Io.Writer.Allocating, out: *Result) void {
+    buf.deinit();
     out.* = .{ .status = 2, .ptr = undefined, .len = 0 };
 }
 
@@ -86,7 +104,6 @@ export fn tql_run_dynamic(
     out: *Result,
 ) void {
     var buf = std.Io.Writer.Allocating.init(gpa);
-    errdefer buf.deinit();
 
     if (language_ptr == 0) return finishErr(&buf, out, "null language pointer");
     const language: *const tql.ts.Language = @ptrFromInt(language_ptr);
@@ -96,11 +113,14 @@ export fn tql_run_dynamic(
         .language = language,
     };
 
-    runImpl(&grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf) catch |err| {
-        return finishErr(&buf, out, @errorName(err));
+    var sink = tql.diagnostic.Sink.init(gpa);
+    defer sink.deinit();
+
+    runImpl(&grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf, &sink) catch |err| {
+        return finishDiagnostics(&buf, out, &sink, err);
     };
 
-    const slice = buf.toOwnedSlice() catch return fail(out);
+    const slice = buf.toOwnedSlice() catch return fail(&buf, out);
     out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
 }
 
@@ -111,7 +131,6 @@ export fn tql_parse_tree(
     out: *Result,
 ) void {
     var buf = std.Io.Writer.Allocating.init(gpa);
-    errdefer buf.deinit();
 
     if (language_ptr == 0) return finishErr(&buf, out, "null language pointer");
     const language: *const tql.ts.Language = @ptrFromInt(language_ptr);
@@ -120,7 +139,7 @@ export fn tql_parse_tree(
         return finishErr(&buf, out, @errorName(err));
     };
 
-    const slice = buf.toOwnedSlice() catch return fail(out);
+    const slice = buf.toOwnedSlice() catch return fail(&buf, out);
     out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
 }
 
