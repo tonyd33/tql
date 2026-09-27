@@ -51,7 +51,27 @@ module.exports = grammar({
       ),
 
     signature: $ =>
-      seq(field("name", $.identifier), ":", field("type", $._type), ";"),
+      seq(
+        field("name", $.identifier),
+        ":",
+        optional(seq(field("context", $.context), "=>")),
+        field("type", $._type),
+        ";",
+      ),
+
+    context: $ =>
+      choice(
+        $.class_constraint,
+        seq(
+          "(",
+          $.class_constraint,
+          repeat1(seq(",", $.class_constraint)),
+          ")",
+        ),
+      ),
+
+    class_constraint: $ =>
+      seq(field("class", $.type_identifier), field("variable", $.type_variable)),
 
     definition: $ =>
       seq(

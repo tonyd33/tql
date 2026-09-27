@@ -203,8 +203,42 @@ const Walker = struct {
             return null;
         };
         const name = try self.dupe(name_node);
+        const constraints = if (node.childByFieldName("context")) |c|
+            try self.context(c) orelse return null
+        else
+            &.{};
         const ty = try self.typeExpr(type_node) orelse return null;
-        return .{ .name = name, .type = ty, .span = spanOf(node) };
+        return .{ .name = name, .context = constraints, .type = ty, .span = spanOf(node) };
+    }
+
+    fn context(self: *Walker, node: ts.Node) !?[]const cst.ClassConstraint {
+        var collected: std.ArrayList(cst.ClassConstraint) = .empty;
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (std.mem.eql(u8, child.grammarKind(), "class_constraint")) {
+                    const class_node = child.childByFieldName("class") orelse {
+                        try self.missingField(child, "class");
+                        return null;
+                    };
+                    const variable_node = child.childByFieldName("variable") orelse {
+                        try self.missingField(child, "variable");
+                        return null;
+                    };
+                    try collected.append(self.allocator, .{
+                        .class = try self.dupe(class_node),
+                        .variable = try self.dupe(variable_node),
+                        .span = spanOf(child),
+                    });
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return try collected.toOwnedSlice(self.allocator);
     }
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
@@ -1107,6 +1141,13 @@ test "a function-typed signature" {
     try expectSexpr(
         "f : Filter node node -> Filter node string;",
         "(source_file (signature f (-> (Filter node node) (Filter node string))))",
+    );
+}
+
+test "a signature with a context" {
+    try expectSexpr(
+        "f : (Eq a, Sized b) => a -> b -> Int;",
+        "(source_file (signature f (=> (Eq a) (Sized b)) (-> a (-> b Int))))",
     );
 }
 

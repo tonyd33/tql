@@ -508,7 +508,8 @@ pub const Inference = struct {
     /// Checks the inferred scheme against a written signature.
     ///
     /// The declared type must be an *instance* of the inferred one: a
-    /// signature may be more specific than the body supports.
+    /// signature may be more specific than the body supports. Its context must
+    /// cover every constraint the body raises on a declared variable.
     ///
     /// An accepted annotation becomes the exported scheme.
     fn checkAnnotation(
@@ -555,21 +556,36 @@ pub const Inference = struct {
             slot.* = resolved.meta;
         }
 
-        // A signature carries no constraints. One the body raised on a
-        // declared variable makes the signature too general, and one on a type
-        // the signature fixed must hold at that type.
+        // Each constraint the body raised, reduced to bare variables. One on a
+        // declared variable must be in the declared context, and one on any
+        // other variable is still owed.
+        var residuals: std.ArrayList(constraints.Residual) = .empty;
+        defer residuals.deinit(self.gpa);
         for (inferred.constraints) |c| {
             const on = try self.subst.instantiateWith(c.type, flexible.metas);
-            if (try constraints.mentionsAny(self.subst, on, representatives, self.gpa)) {
-                const named = try self.subst.quantify(on, representatives, &.{});
-                return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+            residuals.clearRetainingCapacity();
+            if (try constraints.reduce(self.subst, c.class, on, &residuals, self.gpa)) |culprit| {
+                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = .{
                     .class = c.class,
-                    .type = named.type,
+                    .type = culprit,
                     .origin = span,
                 } });
             }
-            if (try self.undecided.require(self.subst, c.class, on, span)) |v| {
-                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+            for (residuals.items) |r| {
+                const index = std.mem.indexOfScalar(types.Meta, representatives, r.meta) orelse {
+                    if (try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, span)) |v| {
+                        return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+                    }
+                    continue;
+                };
+                const on_declared = types.variable_type(@intCast(index));
+                for (declared.constraints) |d| {
+                    if (d.class == r.class and d.type == .variable and d.type.variable == on_declared.variable) break;
+                } else return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+                    .class = r.class,
+                    .type = on_declared,
+                    .origin = span,
+                } });
             }
         }
     }

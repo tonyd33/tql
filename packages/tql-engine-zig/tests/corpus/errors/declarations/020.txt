@@ -2,9 +2,9 @@ title: a signature may not drop a constraint the body raises
 grammar: typescript
 asserts: error
 
-The body compares its arguments, so it needs `Eq a`. A signature cannot write
-a constraint, so `a -> a -> Bool` claims more than the body supports, even
-though every use here is at `Int`.
+The body compares its arguments, so it needs `Eq a`. The signature does not
+write it, so `a -> a -> Bool` claims more than the body supports, even though
+every use here is at `Int`.
 
 --- tql ---
 same : a -> a -> Bool;

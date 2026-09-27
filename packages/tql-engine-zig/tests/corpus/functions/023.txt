@@ -1,0 +1,18 @@
+title: a signature may write several constraints
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pick : (Eq a, Sized a) => a -> a -> Int;
+pick x y = if x = y then length x else 0;
+main = const [pick "ab" "ab", pick "ab" "cd"];
+
+--- source ---
+class A {}
+
+--- values ---
+[2, 0]
+
+--- types ---
+pick : (Eq a, Sized a) => a -> a -> Int
+main : Node -> [Int]

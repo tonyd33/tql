@@ -133,6 +133,67 @@ name_of : Filter node node -> Filter node string;
         output: (type_variable)))))
 
 ========================================
+a signature with one constraint
+========================================
+
+size : Sized a => a -> Int;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    type: (function_type
+      from: (type_variable)
+      to: (type_identifier))))
+
+========================================
+a signature with several constraints
+========================================
+
+f : (Eq a, Ord b) => a -> b -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable))
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    type: (function_type
+      from: (type_variable)
+      to: (function_type
+        from: (type_variable)
+        to: (type_identifier)))))
+
+========================================
+a parenthesized type application is not a context
+========================================
+
+f : (Maybe a) -> Int;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (parenthesized_type
+        (type_application
+          constructor: (type_identifier)
+          argument: (type_variable)))
+      to: (type_identifier))))
+
+========================================
 list and record types
 ========================================
 

@@ -43,16 +43,30 @@ pub const Declaration = union(enum) {
     }
 };
 
+/// `name : context => type;`, where the context may be absent.
 pub const Signature = struct {
     name: Identifier,
+    context: []const ClassConstraint = &.{},
     type: Type,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(signature {s} ", .{self.name});
+        if (self.context.len > 0) {
+            try w.writeAll("(=>");
+            for (self.context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+            try w.writeAll(") ");
+        }
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
+};
+
+/// `Sized a` in a signature's context.
+pub const ClassConstraint = struct {
+    class: Identifier,
+    variable: Identifier,
+    span: diagnostic.Span = .unknown,
 };
 
 pub const Definition = struct {

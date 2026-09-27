@@ -1,0 +1,15 @@
+title: a signature may name only a known type
+grammar: typescript
+asserts: error
+
+A signature resolves type names as a type declaration does.
+
+--- tql ---
+f : Foo -> Int;
+f x = 1;
+main = const [1];
+
+--- error ---
+category: unresolved-name
+span: 1:5-1:8
+`Foo` is not a type

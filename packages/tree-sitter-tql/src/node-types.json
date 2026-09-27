@@ -1042,6 +1042,32 @@
     }
   },
   {
+    "type": "class_constraint",
+    "named": true,
+    "fields": {
+      "class": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "variable": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "comparison",
     "named": true,
     "fields": {
@@ -1353,6 +1379,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "context",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "class_constraint",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -4160,6 +4201,16 @@
     "type": "signature",
     "named": true,
     "fields": {
+      "context": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "context",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -4620,6 +4671,10 @@
   },
   {
     "type": "=",
+    "named": false
+  },
+  {
+    "type": "=>",
     "named": false
   },
   {

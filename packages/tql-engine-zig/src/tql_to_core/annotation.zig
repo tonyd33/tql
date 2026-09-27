@@ -55,13 +55,12 @@ pub fn translate(
         .sink = sink,
     };
     const translated = try t.type(signature.type);
+    const context = try arena.alloc(types.TypeClassConstraint, signature.context.len);
+    for (signature.context, context) |c, *slot| slot.* = try t.constraint(c);
 
     return .{
         .quantified = @intCast(vars.items.len),
-        // A signature cannot write a constraint: the grammar has no `=>`
-        // production. An annotation whose inferred scheme carries one is
-        // still checked with it attached.
-        .constraints = &.{},
+        .constraints = context,
         .type = translated,
     };
 }
@@ -107,7 +106,7 @@ const Translator = struct {
             return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
         }
         if (primitiveNamed(name)) |t| return t;
-        try self.sink.report(.type_mismatch, span, "`{s}` is not a type", .{name});
+        try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
         return error.BadAnnotation;
     }
 
@@ -117,7 +116,7 @@ const Translator = struct {
         span: diagnostic.Span,
     ) Error!types.Type {
         const declared = self.datatypes.lookup(node.constructor) orelse {
-            try self.sink.report(.type_mismatch, span, "`{s}` is not a type", .{node.constructor});
+            try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{node.constructor});
             return error.BadAnnotation;
         };
         const parameters = self.datatypes.get(declared).parameters;
@@ -133,6 +132,28 @@ const Translator = struct {
         const arguments = try self.arena.alloc(types.Type, node.arguments.len);
         for (node.arguments, arguments) |argument, *copy| copy.* = try self.type(argument);
         return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, arguments);
+    }
+
+    /// Preconditions:
+    /// - The signature's type is already translated, so every variable it
+    ///   binds has its `forall` position.
+    fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
+        const class = std.meta.stringToEnum(types.TypeClassConstraint.Class, c.class) orelse {
+            try self.sink.report(.unresolved_name, c.span, "`{s}` is not a class", .{c.class});
+            return error.BadAnnotation;
+        };
+        for (self.vars.items, 0..) |seen, i| {
+            if (std.mem.eql(u8, seen, c.variable)) {
+                return .{ .class = class, .type = .{ .variable = @intCast(i) } };
+            }
+        }
+        try self.sink.report(
+            .unresolved_name,
+            c.span,
+            "`{s}` is constrained but does not appear in the type",
+            .{c.variable},
+        );
+        return error.BadAnnotation;
     }
 
     /// The `forall` position of a type variable, assigned on first appearance.
@@ -201,7 +222,16 @@ const Fixture = struct {
     }
 
     fn expectScheme(self: *Fixture, written: cst.Type, expected: []const u8) !void {
-        const signature: cst.Signature = .{ .name = "f", .type = written };
+        try self.expectConstrained(&.{}, written, expected);
+    }
+
+    fn expectConstrained(
+        self: *Fixture,
+        context: []const cst.ClassConstraint,
+        written: cst.Type,
+        expected: []const u8,
+    ) !void {
+        const signature: cst.Signature = .{ .name = "f", .context = context, .type = written };
         const scheme = try translate(
             self.env.allocator(),
             testing.allocator,
@@ -331,6 +361,76 @@ test "a record type keeps its labels" {
     fields[1] = .{ .name = "n", .type = fix.node(.{ .constructor = "Int" }) };
 
     try fix.expectScheme(fix.node(.{ .record = fields }), "{k: String, n: Int}");
+}
+
+test "a context constrains a variable of the type" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
+    written.kind.function.* = .{
+        .from = fix.node(.{ .variable = "a" }),
+        .to = fix.node(.{ .constructor = "Int" }),
+    };
+    try fix.expectConstrained(&.{.{ .class = "Sized", .variable = "a" }}, written, "Sized a => a -> Int");
+}
+
+test "a context follows the type's variable order" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
+    written.kind.function.* = .{
+        .from = fix.node(.{ .variable = "x" }),
+        .to = fix.node(.{ .variable = "y" }),
+    };
+    try fix.expectConstrained(
+        &.{ .{ .class = "Eq", .variable = "y" }, .{ .class = "Ord", .variable = "x" } },
+        written,
+        "(Eq b, Ord a) => a -> b",
+    );
+}
+
+test "an unknown class is rejected" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const signature: cst.Signature = .{
+        .name = "f",
+        .context = &.{.{ .class = "Show", .variable = "a" }},
+        .type = fix.node(.{ .variable = "a" }),
+    };
+    try testing.expectError(error.BadAnnotation, translate(
+        fix.env.allocator(),
+        gpa,
+        &signature,
+        &fix.env.datatypes,
+        &fix.sink,
+    ));
+    try testing.expectEqual(1, fix.sink.items().len);
+}
+
+test "a constrained variable absent from the type is rejected" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const signature: cst.Signature = .{
+        .name = "f",
+        .context = &.{.{ .class = "Eq", .variable = "b" }},
+        .type = fix.node(.{ .variable = "a" }),
+    };
+    try testing.expectError(error.BadAnnotation, translate(
+        fix.env.allocator(),
+        gpa,
+        &signature,
+        &fix.env.datatypes,
+        &fix.sink,
+    ));
+    try testing.expectEqual(1, fix.sink.items().len);
 }
 
 test "the primitive table is the five primitives and nothing else" {
