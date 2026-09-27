@@ -93,7 +93,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          path: tql
+          path: tql-head
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: tql-base
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Download binaries
         uses: actions/download-artifact@v8
@@ -115,7 +122,16 @@ jobs:
         run: |
           mkdir -p results/head results/base
           workers=2
-          query=$(cat tql/packages/tql-engine-zig/benchmarks/linux/query.tql)
+          query_head=$(cat tql-head/packages/tql-engine-zig/benchmarks/linux/query.tql)
+          query_base=$(cat tql-base/packages/tql-engine-zig/benchmarks/linux/query.tql)
+
+          query_for() {
+            case "$1" in
+              base) echo "$query_base"; return 0;;
+              head) echo "$query_head"; return 0;;
+              *)    echo "never"      ; return 1;;
+            esac
+          }
           for i in $(seq 1 "$ITERATIONS"); do
             # shuffle order so no possible cache pollution. need even machines
             if (( (i + MACHINE) % 2 == 0 )); then
@@ -124,6 +140,7 @@ jobs:
               order="base head"
             fi
             for side in $order; do
+              query=$(query_for "$side")
               "$GITHUB_WORKSPACE/bin/tql-$side/tql" query --workers="$workers" --grammar=c --format=json "$query" \
                 "$GITHUB_WORKSPACE/linux" \
                 | jq --argjson m "$MACHINE" '.stats + {machine: $m}' \
