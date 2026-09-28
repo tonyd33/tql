@@ -33,6 +33,11 @@ fn primitiveSchemes(
         .primop = .kind,
     });
     try out.append(gpa, .{
+        .name = "is_named",
+        .scheme = .{ .type = try B.func(types.node_type, try B.boolType()) },
+        .primop = .is_named,
+    });
+    try out.append(gpa, .{
         .name = "range",
         .scheme = .{ .type = try B.func(types.node_type, types.range_type) },
         .primop = .range,
@@ -163,9 +168,9 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",     "kind",        "range",  "length",
-        "toint",    "filename",    "parent", "ancestors",
-        "children", "descendants",
+        "text",      "kind",     "is_named",    "range",
+        "length",    "toint",    "filename",    "parent",
+        "ancestors", "children", "descendants",
     };
 
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);

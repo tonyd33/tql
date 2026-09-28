@@ -1,0 +1,17 @@
+title: `keep is_named` drops the anonymous tokens a field yields
+grammar: python
+asserts: types, values
+
+`for_in_clause.right` holds the iterables and the commas between them.
+
+--- tql ---
+main = descendants_of_kind :for_in_clause | .right | keep is_named | arr text;
+
+--- source ---
+ys = [x for x in a, b]
+
+--- values ---
+["a", "b"]
+
+--- types ---
+main : Node -> [String]

@@ -799,6 +799,10 @@ pub const Machine = struct {
                 const subject = try self.nodeArgument(arguments);
                 return .{ .string = subject.kind() };
             },
+            .is_named => {
+                const subject = try self.nodeArgument(arguments);
+                return try self.boolValue(subject.isNamed());
+            },
             .range => {
                 const subject = try self.nodeArgument(arguments);
                 return .{ .range = rangeOf(subject) };
@@ -1376,17 +1380,17 @@ fn advanceNamedSibling(cursor: *ts.TreeCursor) bool {
     return false;
 }
 
-/// Move `cursor` to the first named child under `field_id`.
+/// Move `cursor` to the first child under `field_id`, named or anonymous.
 fn descendToFieldChild(cursor: *ts.TreeCursor, field_id: u16) bool {
     if (!cursor.gotoFirstChild()) return false;
-    if (cursor.node().isNamed() and cursor.fieldId() == field_id) return true;
+    if (cursor.fieldId() == field_id) return true;
     return advanceFieldSibling(cursor, field_id);
 }
 
-/// Move `cursor` to the next named sibling under `field_id`.
+/// Move `cursor` to the next sibling under `field_id`, named or anonymous.
 fn advanceFieldSibling(cursor: *ts.TreeCursor, field_id: u16) bool {
     while (cursor.gotoNextSibling()) {
-        if (cursor.node().isNamed() and cursor.fieldId() == field_id) return true;
+        if (cursor.fieldId() == field_id) return true;
     }
     return false;
 }

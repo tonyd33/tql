@@ -1,0 +1,19 @@
+title: `children` and `descendants` skip anonymous tokens
+grammar: typescript
+asserts: types, values
+
+`type` in `import type` is an anonymous keyword outside any field, so the two
+imports have the same children.
+
+--- tql ---
+main = descendants_of_kind :import_statement | collect children | arr (map kind);
+
+--- source ---
+import type {a} from "./b";
+import {a} from "./b";
+
+--- values ---
+[["import_clause", "string"], ["import_clause", "string"]]
+
+--- types ---
+main : Node -> [[String]]
