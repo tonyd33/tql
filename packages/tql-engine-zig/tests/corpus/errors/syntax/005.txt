@@ -6,10 +6,9 @@ Every `do` block ends in an expression. This block ends in a bind statement,
 whose name has nothing left to scope over.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+};
 
 --- error ---
 category: parse

@@ -9,9 +9,9 @@ the same way.
 main =
   let {
     a = \x y -> x + y;
-    b = \x -> \y -> x + y
-  } in
-    const [a 1 2, b 1 2];
+    b = \x -> \y -> x + y;
+  }
+  in const [a 1 2, b 1 2];
 
 --- source ---
 class A {}

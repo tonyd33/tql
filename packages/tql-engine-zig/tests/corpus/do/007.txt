@@ -16,16 +16,15 @@ values below are what the program must yield under either spelling, so they are
 written as the durable part.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    cn <- c.name;
-    let {
-      name = text cn;
-      k = kind c
-    };
-    pure { n = name, k = k } root
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  cn <- c.name;
+  let {
+    name = text cn;
+    k = kind c
   };
+  return { n = name, k = k };
+};
 
 --- source ---
 class A {}

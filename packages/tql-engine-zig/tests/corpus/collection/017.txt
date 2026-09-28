@@ -3,12 +3,10 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  collect (\r -> do {
-    c <- (children | is_kind :class_declaration) r;
-    n <- c.name;
-    pure { name = text n } r
-  }) root;
+main = collect $ children | is_kind :class_declaration
+  | .name
+  | arr (\n -> { name = text n })
+;
 
 --- source ---
 class A {}

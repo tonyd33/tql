@@ -3,12 +3,11 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    n <- c.name;
-    pure { name = text n, meta = { k = kind c, n = 1 } } root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return { name = text n, meta = { k = kind c, n = 1 } };
+};
 
 --- source ---
 class A {}

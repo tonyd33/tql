@@ -6,9 +6,9 @@ asserts: types, values
 main =
   let {
     x = { a = 1 };
-    y = { a = 2 }
-  } in
-    const [x = x, x = y];
+    y = { a = 2 };
+  }
+  in const [x = x, x = y];
 
 --- source ---
 class A {}

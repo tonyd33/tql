@@ -3,10 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | .body | children | is_kind :method_definition
-  | .name | arr text;
+main = children | is_kind :class_declaration
+  | .body
+  | children | is_kind :method_definition
+  | .name
+  | arr text
+;
 
 --- source ---
 class A { m() {} n() {} }

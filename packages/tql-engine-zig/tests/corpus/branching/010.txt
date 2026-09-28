@@ -6,7 +6,7 @@ asserts: types, values
 would be `[true]`.
 
 --- tql ---
-main = pure (not false and false);
+main = pure $ not false and false;
 
 --- source ---
 class A {}

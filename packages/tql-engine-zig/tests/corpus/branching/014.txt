@@ -6,7 +6,7 @@ asserts: types, values
 grouping `false and (true or true)` would yield `false`.
 
 --- tql ---
-main = pure (false and true or true);
+main = pure $ false and true or true;
 
 --- source ---
 class A {}

@@ -4,12 +4,10 @@ asserts: error
 
 --- tql ---
 main =
-  let {
-    n = 5
-  } in
-    n 1;
+  let { n = 5; }
+  in n 1;
 
 --- error ---
 category: over-application
-span: 5:7-5:8
+span: 3:8-3:9
 The argument. `n : int` has no arrow type.

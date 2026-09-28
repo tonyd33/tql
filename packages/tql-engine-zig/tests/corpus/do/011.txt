@@ -2,15 +2,12 @@ title: a bound node is lifted when it begins navigation
 grammar: typescript
 asserts: types, values
 
-`c` is a node value, not a filter. Navigation requires a filter input, so the
-node is lifted to a one-result filter and navigation starts from it.
-
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    (descendants | is_kind :property_identifier | arr text) c
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  p <- descendants_of_kind :property_identifier c;
+  return $ text p;
+};
 
 --- source ---
 class A { m() {} n() {} }

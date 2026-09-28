@@ -6,8 +6,7 @@ asserts: types, values
 the empty stream rather than overflowing.
 
 --- tql ---
-main =
-  const ["9223372036854775807", "9223372036854775808"] | toint;
+main = const ["9223372036854775807", "9223372036854775808"] | toint;
 
 --- source ---
 class A {}

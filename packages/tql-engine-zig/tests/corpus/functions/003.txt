@@ -8,10 +8,8 @@ a reusable value rather than an error.
 --- tql ---
 add x y = x + y;
 main =
-  let {
-    add10 = add 10
-  } in
-    const [add10 1, add10 2];
+  let { add10 = add 10; }
+  in const [add10 1, add10 2];
 
 --- source ---
 class A {}

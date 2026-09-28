@@ -6,7 +6,7 @@ asserts: types, values
 the comparison to its right and stops before `and`.
 
 --- tql ---
-main = pure (not 1 = 2 and false);
+main = pure $ not 1 = 2 and false;
 
 --- source ---
 class A {}

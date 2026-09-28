@@ -10,10 +10,8 @@ declared later also exercises forward reference.
 --- tql ---
 label = "global";
 main =
-  let {
-    label = "local"
-  } in
-    const [label, other];
+  let { label = "local" }
+  in const [label, other];
 other = label;
 
 --- source ---

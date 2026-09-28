@@ -6,9 +6,9 @@ asserts: types, values
 main =
   let {
     lo = 2;
-    hi = 5
-  } in
-    pure (lo + hi);
+    hi = 5;
+  }
+  in pure (lo + hi);
 
 --- source ---
 class A {}

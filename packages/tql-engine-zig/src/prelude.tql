@@ -101,6 +101,8 @@ guard b = case b of {
   True -> Cons Unit Nil;
 };
 
+-- FIXME: Consider removing this while we don't truly have functors as it can
+-- be confused with `pure`
 return : a -> List a;
 return a = [a];
 
@@ -126,6 +128,8 @@ tail xs = drop 1 xs;
 -- list monad. Every name below is that monad's, or a list function lifted
 -- into it.
 
+-- FIXME: Consider removing this while we don't truly have functors as it can
+-- be confused with `return`
 pure : a -> Filter b a;
 pure v x = [v];
 

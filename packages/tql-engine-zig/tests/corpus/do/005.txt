@@ -6,12 +6,11 @@ asserts: types, values
 node after the current input has been rebased onto a class node.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    cn <- c.name;
-    pure { root = kind root, class = text cn } root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  cn <- c.name;
+  return { root = kind root, class = text cn };
+};
 
 --- source ---
 class A {}

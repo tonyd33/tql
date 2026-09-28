@@ -2,22 +2,26 @@ title: pipe binds looser than comparison, union looser than pipe
 grammar: typescript
 asserts: types, values
 
-`. / :class_declaration | .name | text = "A" <|> false` groups as
-`((. / :class_declaration | .name | text) = "A") <|> false`. Union is the loosest
-operator, so it splits the expression last; pipe splits before comparison.
+The whole pipeline is the left operand of `<|>`. Union is the loosest
+operator, so it splits the expression last. Were it tighter than pipe, the last
+stage would be `arr (...) <|> pure false` and every class would yield an extra
+`false`.
 
-Both union operands are `bool`, since union requires a single element type.
+Both union operands yield `Bool`, since union requires a single element type.
 
 --- tql ---
-main =
-  (children | is_kind :class_declaration
-  | .name | arr (\n -> text n = "A")) <|> pure false;
+main = children | is_kind :class_declaration
+  | .name
+  | arr (\n -> text n = "A")
+  <|> pure false
+;
 
 --- source ---
 class A {}
+class B {}
 
 --- values ---
-[true, false]
+[true, false, false]
 
 --- types ---
 main : Node -> [Bool]

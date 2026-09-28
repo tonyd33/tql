@@ -5,11 +5,11 @@ asserts: error
 The binding is branch-local to the block.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    (.name | arr text) c
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return $ text n;
+};
 after = c;
 
 --- error ---

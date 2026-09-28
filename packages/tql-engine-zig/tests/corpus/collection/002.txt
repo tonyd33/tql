@@ -6,7 +6,10 @@ asserts: types, values
 output at all. The distinction is the rule.
 
 --- tql ---
-main root = do { xs <- pure [] root; pure (length xs) root };
+main root = do {
+  xs <- pure [] root;
+  return $ length xs;
+};
 
 --- source ---
 class A {}

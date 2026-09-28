@@ -9,9 +9,9 @@ different length are never equal.
 main =
   let {
     ab = ["a", "b"];
-    a = ["a"]
-  } in
-    const [ab = ab, a = ab];
+    a = ["a"];
+  }
+  in const [ab = ab, a = ab];
 
 --- source ---
 class A {}

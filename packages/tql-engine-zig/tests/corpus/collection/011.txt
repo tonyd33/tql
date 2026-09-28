@@ -7,12 +7,11 @@ combined by binding each in turn: `a` binds first and varies slowest, which is
 the enumeration order `do` gives.
 
 --- tql ---
-main root =
-  do {
-    a <- const [1, 2] root;
-    b <- const ["x", "y"] root;
-    pure { a = a, b = b } root
-  };
+main _ = do {
+  a <- [1, 2];
+  b <- ["x", "y"];
+  return { a = a, b = b };
+};
 
 --- source ---
 class A {}

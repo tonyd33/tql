@@ -3,10 +3,11 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root =
-  do { l <- const [1, 2] root;
-       r <- (children | is_kind :interface_declaration | pure 0) root;
-       pure (l + r) root };
+main root = do {
+  l <- [1, 2];
+  r <- (children | is_kind :interface_declaration | pure 0) root;
+  return $ l + r;
+};
 
 --- source ---
 class A {}

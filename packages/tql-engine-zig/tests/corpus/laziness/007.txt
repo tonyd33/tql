@@ -12,10 +12,8 @@ rather than building a thunk, which is a different claim.
 
 --- tql ---
 main =
-  let {
-    step n = if n <= 0 then 0 else step (n - 1)
-  } in
-    pure (step 3);
+  let { step n = if n <= 0 then 0 else step (n - 1); }
+  in pure (step 3);
 
 --- source ---
 class A {}

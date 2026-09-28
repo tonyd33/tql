@@ -2,14 +2,13 @@ title: a `do` bind over a non-node stream
 grammar: typescript
 asserts: types, values
 
-Stream binding is not node-specific; it binds any filter's outputs.
+A bind is not node-specific; it binds each element of any list.
 
 --- tql ---
-main _root =
-  do {
-    n <- const [1, 2, 3] _root;
-    pure (n * 10) _root
-  };
+main _ = do {
+  n <- [1, 2, 3];
+  return $ n * 10;
+};
 
 --- source ---
 class A {}

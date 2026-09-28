@@ -7,13 +7,12 @@ file: src/service.ts
 record field beside node projections.
 
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    n <- c.name;
-    f <- filename c;
-    pure { file = f, name = text n } root
-  };
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  f <- filename c;
+  return { file = f, name = text n };
+};
 
 --- source ---
 class A {}

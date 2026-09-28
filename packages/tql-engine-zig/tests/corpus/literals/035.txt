@@ -2,14 +2,13 @@ title: field access binds tighter than application
 grammar: typescript
 asserts: types, values
 
-`name_of c` applies `name_of` to `c`; inside, `n.name` is field access on the
-parameter before any application is considered.
+`map text n.name` groups as `map text (n.name)`, not `(map text n).name`.
 
-Field access yields a stream, so `n.name` is a `[Node]` rather than a `Node`.
-Its element is bound before the projection applies.
+Field access yields a list, so `n.name` is a `[Node]` rather than a `Node`, and
+`map text` maps over it.
 
 --- tql ---
-name_of n = do { f <- n.name; pure (text f) n };
+name_of n = map text n.name;
 main = children | is_kind :class_declaration | name_of;
 
 --- source ---
