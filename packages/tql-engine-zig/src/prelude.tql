@@ -148,50 +148,20 @@ arr f x = [f x];
 collect : Filter a b -> Filter a [b];
 collect p x = [p x];
 
-probe : Filter a b -> Filter a Bool;
-probe p x = [not (null (p x))];
-
-branch : Filter a Bool -> Filter a b -> Filter a b -> Filter a b;
-branch condition consequence alternative x =
-  concat_map (\c -> case c of {
-    False -> alternative x;
-    True -> consequence x;
-  }) (condition x);
-
-select : Filter a Bool -> Filter a a;
-select p = branch p (arr identity) none;
-
 keep : (a -> Bool) -> Filter a a;
 keep p x = case p x of {
   False -> Nil;
   True -> Cons x Nil;
 };
 
-exists : Filter a b -> Filter a Bool;
-exists p = probe p;
-
-any_m : Filter a b -> Filter b Bool -> Filter a Bool;
-any_m source predicate = probe (kleisli source (select predicate));
-
-all_m : Filter a b -> Filter b Bool -> Filter a Bool;
-all_m source predicate =
-  branch
-    (probe (kleisli source (select (kleisli predicate (arr (\b -> not b))))))
-    (pure False)
-    (pure True);
-
-none_m : Filter a b -> Filter b Bool -> Filter a Bool;
-none_m source predicate =
-  branch (any_m source predicate) (pure False) (pure True);
+has : Filter a b -> a -> Bool;
+has p x = not (null (p x));
 
 first : Filter a b -> Filter a b;
 first p x = head (p x);
 
-contains : Filter Node Bool -> Filter Node Bool;
-contains predicate = exists (kleisli descendants (select predicate));
-
-within : Filter Node Bool -> Filter Node Bool;
-within predicate = exists (kleisli ancestors (select predicate));
-
 or_else : Filter a b -> Filter a b -> Filter a b;
-or_else primary fallback = branch (probe primary) primary fallback;
+or_else primary fallback x = case primary x of {
+  Nil -> fallback x;
+  Cons h t -> Cons h t;
+};

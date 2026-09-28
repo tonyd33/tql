@@ -1,20 +1,20 @@
-title: `all_m` short-circuits on the first violation
+title: `or_else` does not force its fallback when the primary yields
 grammar: typescript
 asserts: types, values
 
-The inner probe searches for a violating element and finds one at 0, so it
-stops there despite the infinite source.
+The fallback is infinite, but the primary yields, so `or_else` never looks at
+it.
 
 --- tql ---
 from n = pure n <|> from (n + 1);
-main = all_m (from 0) (arr (\x -> x < 0));
+main = or_else (pure 0) (from 1);
 
 --- source ---
 class A {}
 
 --- values ---
-[false]
+[0]
 
 --- types ---
 from : Int -> a -> [Int]
-main : Node -> [Bool]
+main : Node -> [Int]

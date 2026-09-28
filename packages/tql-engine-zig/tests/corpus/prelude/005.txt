@@ -1,15 +1,19 @@
-title: `any_m` is true when some element satisfies the predicate
+title: `has` is true when some output of the query passes its guard
 grammar: typescript
 asserts: types, values
 
-`any_m source predicate = probe (kleisli source (select predicate))`, typed
-`Filter a b -> Filter b Bool -> Filter a Bool`.
-
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | any_m (.body | children | is_kind :method_definition)
-        (.name | arr (\n -> text n ~ r"^get"));
+getters c = do {
+  m <- (.body | children | is_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n ~ r"^get";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has getters c;
+};
 
 --- source ---
 class A { getX() {} setY() {} }
@@ -19,4 +23,5 @@ class B { setZ() {} }
 [true, false]
 
 --- types ---
+getters : Node -> [Node]
 main : Node -> [Bool]

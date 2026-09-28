@@ -2,13 +2,15 @@ title: `or_else` yields every primary result, not just the first
 grammar: typescript
 asserts: types, values
 
-The probe only decides which branch runs; the chosen branch then runs in full.
+Checking whether the primary yields anything forces only its first result, but
+when it does yield, every result is returned.
 
 --- tql ---
+method_names = .body | children | is_kind :method_definition | .name | arr text;
+
 main =
   children | is_kind :class_declaration
-  | or_else (.body | children | is_kind :method_definition | .name | arr text)
-            (pure "none");
+  | or_else method_names (pure "none");
 
 --- source ---
 class A { m() {} n() {} }
@@ -17,4 +19,5 @@ class A { m() {} n() {} }
 ["m", "n"]
 
 --- types ---
+method_names : Node -> [String]
 main : Node -> [String]

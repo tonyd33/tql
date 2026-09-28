@@ -575,7 +575,7 @@ test "the evaluator orders ints and strings" {
     }
 }
 
-test "the evaluator runs arr and select" {
+test "the evaluator runs keep" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -584,10 +584,8 @@ test "the evaluator runs arr and select" {
     var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `select` keeps the inputs its predicate accepts. `arr` carries the
-    // scalar predicate into filter position.
     try runQuery(allocator,
-        \\main root = (const [1, 2, 3] | select (arr (\n -> n > 1))) root;
+        \\main root = (const [1, 2, 3] | keep (\n -> n > 1)) root;
     , &arena, &out);
 
     try std.testing.expectEqual(2, out.items.len);
@@ -595,7 +593,7 @@ test "the evaluator runs arr and select" {
     try std.testing.expectEqual(@as(i64, 3), out.items[1].state.evaluated.number);
 }
 
-test "the evaluator runs exists, any_m and all_m" {
+test "the evaluator runs has" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -604,21 +602,17 @@ test "the evaluator runs exists, any_m and all_m" {
     var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `all_m` over an empty source is vacuously true, and its arms must be
-    // in the right order: swapped, this yields false.
     try runQuery(allocator,
-        \\main root =
-        \\  (exists (pure 1)
-        \\   <|> exists none
-        \\   <|> any_m (const [1, 2]) (arr (\n -> n > 1))
-        \\   <|> any_m (pure 1) (arr (\n -> n > 1))
-        \\   <|> all_m (const [2, 3]) (arr (\n -> n > 1))
-        \\   <|> all_m (const [1, 2]) (arr (\n -> n > 1))
-        \\   <|> all_m none (arr (\n -> n > 1))) root;
+        \\main root = const [
+        \\  has (pure 1) root,
+        \\  has none root,
+        \\  has (const [1, 2] | keep (\n -> n > 1)) root,
+        \\  has (pure 1 | keep (\n -> n > 1)) root
+        \\] root;
     , &arena, &out);
 
-    try std.testing.expectEqual(7, out.items.len);
-    const expected = [_]u32{ 1, 0, 1, 0, 1, 0, 1 };
+    try std.testing.expectEqual(4, out.items.len);
+    const expected = [_]u32{ 1, 0, 1, 0 };
     for (out.items, expected) |thunk, tag| {
         try std.testing.expectEqual(tag, thunk.state.evaluated.constructed.tag);
     }
@@ -726,7 +720,7 @@ test "recursion deeper than the stack budget stops with an error" {
     , &arena, &out));
 }
 
-test "the evaluator runs probe without forcing the whole stream" {
+test "the evaluator runs has without forcing the whole stream" {
     const allocator = std.testing.allocator;
 
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -735,12 +729,12 @@ test "the evaluator runs probe without forcing the whole stream" {
     var out: std.ArrayList(*stg.Thunk) = .empty;
     defer out.deinit(arena.allocator());
 
-    // `laziness/005`: the left operand satisfies the probe, so the infinite
+    // `laziness/005`: the left operand satisfies `has`, so the infinite
     // right operand is never forced. This is the fixture the thunk-per-field
     // obligation exists for.
     try runQuery(allocator,
         \\from n = pure n <|> from (n + 1);
-        \\main root = probe (pure 0 <|> from 1) root;
+        \\main root = pure (has (pure 0 <|> from 1) root) root;
     , &arena, &out);
 
     try std.testing.expectEqual(1, out.items.len);
@@ -882,18 +876,10 @@ test "the prelude's bodies compile to Core" {
         \\alt = \p -> \q -> \x -> append (p x) (q x)
         \\arr = \f -> \x -> Cons (f x) Nil
         \\collect = \p -> \x -> Cons (p x) Nil
-        \\probe = \p -> \x -> Cons (not (null (p x))) Nil
-        \\branch = \condition -> \consequence -> \alternative -> \x -> concat_map (\c -> case c of { False -> alternative x; True -> consequence x }) (condition x)
-        \\select = \p -> branch p (arr identity) none
         \\keep = \p -> \x -> case p x of { False -> Nil; True -> Cons x Nil }
-        \\exists = \p -> probe p
-        \\any_m = \source -> \predicate -> probe (kleisli source (select predicate))
-        \\all_m = \source -> \predicate -> branch (probe (kleisli source (select (kleisli predicate (arr (\b -> not b)))))) (pure False) (pure True)
-        \\none_m = \source -> \predicate -> branch (any_m source predicate) (pure False) (pure True)
+        \\has = \p -> \x -> not (null (p x))
         \\first = \p -> \x -> head (p x)
-        \\contains = \predicate -> exists (kleisli descendants (select predicate))
-        \\within = \predicate -> exists (kleisli ancestors (select predicate))
-        \\or_else = \primary -> \fallback -> branch (probe primary) primary fallback
+        \\or_else = \primary -> \fallback -> \x -> case primary x of { Nil -> fallback x; Cons h t -> Cons h t }
     , w.written());
 }
 
@@ -951,17 +937,9 @@ test "the prelude's schemes are inferred" {
         \\alt : (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\arr : (a -> b) -> a -> [b]
         \\collect : (a -> [b]) -> a -> [[b]]
-        \\probe : (a -> [b]) -> a -> [Bool]
-        \\branch : (a -> [Bool]) -> (a -> [b]) -> (a -> [b]) -> a -> [b]
-        \\select : (a -> [Bool]) -> a -> [a]
         \\keep : (a -> Bool) -> a -> [a]
-        \\exists : (a -> [b]) -> a -> [Bool]
-        \\any_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
-        \\all_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
-        \\none_m : (a -> [b]) -> (b -> [Bool]) -> a -> [Bool]
+        \\has : (a -> [b]) -> a -> Bool
         \\first : (a -> [b]) -> a -> [b]
-        \\contains : (Node -> [Bool]) -> Node -> [Bool]
-        \\within : (Node -> [Bool]) -> Node -> [Bool]
         \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]
     , w.written());
 }
@@ -979,25 +957,25 @@ test "linked components order prelude callees before user callers" {
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
-    var program = try engine.desugarQuery("main = contains (\\n -> [true]);", g, &sink);
+    var program = try engine.desugarQuery("main = keep (has children);", g, &sink);
     defer program.deinit();
 
     try std.testing.expectEqualStrings("main", program.env.interner.spelling(program.entry));
 
-    var seen_select = false;
-    var seen_contains = false;
+    var seen_null = false;
+    var seen_has = false;
     for (program.components) |component| {
         for (component) |index| {
             const spelling = program.env.interner.spelling(program.definitions[index].symbol);
-            if (std.mem.eql(u8, spelling, "select")) seen_select = true;
-            if (std.mem.eql(u8, spelling, "contains")) {
-                try std.testing.expect(seen_select);
-                seen_contains = true;
+            if (std.mem.eql(u8, spelling, "null")) seen_null = true;
+            if (std.mem.eql(u8, spelling, "has")) {
+                try std.testing.expect(seen_null);
+                seen_has = true;
             }
-            if (std.mem.eql(u8, spelling, "main")) try std.testing.expect(seen_contains);
+            if (std.mem.eql(u8, spelling, "main")) try std.testing.expect(seen_has);
         }
     }
-    try std.testing.expect(seen_contains);
+    try std.testing.expect(seen_has);
 }
 
 test "a case binds a constructor's field at its instantiated type" {

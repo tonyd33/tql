@@ -1,17 +1,29 @@
-title: `select` with a never-true predicate yields nothing
+title: `guard $ has q x` drops `x` when `q x` yields nothing
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | select (.name | arr (\n -> text n = "Nope")) | .name | arr text;
+getters c = do {
+  m <- (.body | children | is_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n ~ r"^get";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  guard $ has getters c;
+  n <- c.name;
+  return $ text n;
+};
 
 --- source ---
-class A {}
+class Other { setY() {} }
+class Empty {}
 
 --- values ---
 []
 
 --- types ---
+getters : Node -> [Node]
 main : Node -> [String]

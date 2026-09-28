@@ -1,4 +1,4 @@
-matches re = select (arr (\n -> text n ~ re));
+matches re = keep (\n -> text n ~ re);
 
 allocator_call =
   descendants
@@ -15,8 +15,8 @@ error_goto =
 main =
   descendants
   | is_kind :function_definition
-  | select (.body | exists allocator_call)
-  | select (.body | exists error_goto)
+  | keep (has (.body | allocator_call))
+  | keep (has (.body | error_goto))
   | children | is_kind :function_declarator
   | children | is_kind :identifier
   | arr (\n -> { name = text n });
