@@ -7,6 +7,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const primitives = @import("../primitives.zig");
 const resolve = @import("resolve.zig");
+const match = @import("match.zig");
 const pcre2 = @import("../regex.zig");
 const datatypes = core.datatypes;
 const types = core.types;
@@ -73,119 +74,6 @@ pub const Lowerer = struct {
             return error.DesugarFailed;
         }
         return self.builder.symbol(id, span);
-    }
-
-    fn caseOf(
-        self: *Lowerer,
-        c: cst.Case,
-        scope: ?*const resolve.Scope,
-        span: diagnostic.Span,
-    ) Error!core.Term {
-        const scrutinee = try self.expression(c.scrutinee, scope);
-
-        if (c.alternatives.len == 0) {
-            try self.sink.report(.type_mismatch, span, "a case has no alternatives", .{});
-            return error.DesugarFailed;
-        }
-
-        const first = self.interner.lookup(c.alternatives[0].constructor) orelse {
-            try self.sink.report(
-                .unresolved_name,
-                c.alternatives[0].span,
-                "`{s}` is not a constructor",
-                .{c.alternatives[0].constructor},
-            );
-            return error.DesugarFailed;
-        };
-        const owner = datatypes.ownerOf(self.interner, first) orelse {
-            try self.sink.report(
-                .unresolved_name,
-                c.alternatives[0].span,
-                "`{s}` is not a constructor",
-                .{c.alternatives[0].constructor},
-            );
-            return error.DesugarFailed;
-        };
-
-        const declared = self.datatypes.get(owner);
-        const slots = try self.builder.slice(?core.Case.Alternative, declared.constructors.len);
-        @memset(slots, null);
-
-        for (c.alternatives) |alternative| {
-            const id = self.interner.lookup(alternative.constructor) orelse {
-                try self.sink.report(
-                    .unresolved_name,
-                    alternative.span,
-                    "`{s}` is not a constructor",
-                    .{alternative.constructor},
-                );
-                return error.DesugarFailed;
-            };
-            const constructor = self.datatypes.constructorOf(self.interner, id) orelse {
-                try self.sink.report(
-                    .unresolved_name,
-                    alternative.span,
-                    "`{s}` is not a constructor",
-                    .{alternative.constructor},
-                );
-                return error.DesugarFailed;
-            };
-            if (datatypes.ownerOf(self.interner, id).? != owner) {
-                try self.sink.report(
-                    .type_mismatch,
-                    alternative.span,
-                    "`{s}` is not a constructor of `{s}`",
-                    .{ alternative.constructor, declared.name },
-                );
-                return error.DesugarFailed;
-            }
-            if (slots[constructor.tag] != null) {
-                try self.sink.report(
-                    .type_mismatch,
-                    alternative.span,
-                    "`{s}` is matched more than once",
-                    .{alternative.constructor},
-                );
-                return error.DesugarFailed;
-            }
-            if (alternative.binders.len != constructor.fields.len) {
-                try self.sink.report(
-                    .type_mismatch,
-                    alternative.span,
-                    "`{s}` binds {d} field(s), given {d}",
-                    .{ alternative.constructor, constructor.fields.len, alternative.binders.len },
-                );
-                return error.DesugarFailed;
-            }
-
-            const binders = try self.builder.slice(core.SymbolId, alternative.binders.len);
-            const entries = try self.builder.slice(resolve.Scope.Entry, alternative.binders.len);
-            for (alternative.binders, binders, entries) |binder, *slot, *entry| {
-                slot.* = try self.interner.fresh(binder.name);
-                entry.* = .{ .name = binder.name, .symbol = slot.* };
-            }
-            const inner: resolve.Scope = .{ .parent = scope, .names = entries };
-
-            slots[constructor.tag] = .{
-                .constructor = id,
-                .binders = binders,
-                .body = try self.expression(alternative.body, &inner),
-            };
-        }
-
-        const alternatives = try self.builder.slice(core.Case.Alternative, slots.len);
-        for (slots, alternatives, declared.constructors) |slot, *out, constructor| {
-            out.* = slot orelse {
-                try self.sink.report(
-                    .type_mismatch,
-                    span,
-                    "`{s}` is not matched",
-                    .{self.interner.spelling(constructor.symbol)},
-                );
-                return error.DesugarFailed;
-            };
-        }
-        return try self.builder.case(scrutinee, alternatives, span);
     }
 
     fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
@@ -401,7 +289,7 @@ pub const Lowerer = struct {
 
             .constructor => |name| return try self.constructorRef(name, e.span),
 
-            .case => |c| return try self.caseOf(c.*, scope, e.span),
+            .case => |c| return try match.caseOf(self, c.*, scope, e.span),
 
             .lambda => |l| return try self.parameterized(l.parameters, l.body, scope, e.span),
 

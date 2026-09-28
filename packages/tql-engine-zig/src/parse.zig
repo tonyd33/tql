@@ -636,41 +636,73 @@ const Walker = struct {
     }
 
     fn caseAlternative(self: *Walker, node: ts.Node) !?cst.Case.Alternative {
-        const name_node = node.childByFieldName("constructor") orelse {
-            try self.missingField(node, "constructor");
+        const pattern_node = node.childByFieldName("pattern") orelse {
+            try self.missingField(node, "pattern");
             return null;
         };
         const body_node = node.childByFieldName("body") orelse {
             try self.missingField(node, "body");
             return null;
         };
-        const constructor = try self.dupe(name_node);
-        var binders: std.ArrayList(cst.Parameter) = .empty;
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "binder")) {
-                        const child = cursor.node();
-                        try binders.append(self.allocator, .{
-                            .name = try self.dupe(child),
-                            .span = spanOf(child),
-                        });
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
-
+        const pattern = try self.casePattern(pattern_node) orelse return null;
         const body = try self.expression(body_node) orelse return null;
         return .{
-            .constructor = constructor,
-            .binders = try binders.toOwnedSlice(self.allocator),
+            .pattern = pattern,
             .body = body,
             .span = spanOf(node),
         };
+    }
+
+    fn casePattern(self: *Walker, node: ts.Node) error{OutOfMemory}!?cst.Pattern {
+        const span = spanOf(node);
+        const kind = node.grammarKind();
+        if (std.mem.eql(u8, kind, "identifier")) {
+            return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
+        }
+        if (std.mem.eql(u8, kind, "type_identifier")) {
+            return .{
+                .kind = .{ .constructor = .{ .name = try self.dupe(node), .arguments = &.{} } },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "parenthesized_pattern")) {
+            const inner = node.namedChild(0) orelse {
+                try self.missingField(node, "pattern");
+                return null;
+            };
+            return try self.casePattern(inner);
+        }
+        if (std.mem.eql(u8, kind, "constructor_pattern")) {
+            const name_node = node.childByFieldName("constructor") orelse {
+                try self.missingField(node, "constructor");
+                return null;
+            };
+            var arguments: std.ArrayList(cst.Pattern) = .empty;
+            var cursor = node.walk();
+            defer cursor.destroy();
+            if (cursor.gotoFirstChild()) {
+                while (true) {
+                    if (cursor.fieldName()) |field| {
+                        if (std.mem.eql(u8, field, "argument")) {
+                            const argument = try self.casePattern(cursor.node()) orelse return null;
+                            try arguments.append(self.allocator, argument);
+                        }
+                    }
+                    if (!cursor.gotoNextSibling()) break;
+                }
+            }
+            return .{
+                .kind = .{ .constructor = .{
+                    .name = try self.dupe(name_node),
+                    .arguments = try arguments.toOwnedSlice(self.allocator),
+                } },
+                .span = span,
+            };
+        }
+        if (node.isError() or node.isMissing()) return null;
+
+        try self.sink.report(.parse, span, "unexpected {s}", .{kind});
+        return null;
     }
 
     fn ifExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
@@ -1102,6 +1134,14 @@ test "a bare axis is the wildcard navigation" {
     try expectSexpr(
         "main root = children root;",
         "(source_file (define main (params root) (apply children root)))",
+    );
+}
+
+test "a case pattern nests constructors and binds variables" {
+    try expectSexpr(
+        "main = case xs of { Cons a (Cons _ Nil) -> a; ys -> 0 };",
+        "(source_file (define main (params) " ++
+            "(case xs (alt (Cons a (Cons _ Nil)) a) (alt ys 0))))",
     );
 }
 

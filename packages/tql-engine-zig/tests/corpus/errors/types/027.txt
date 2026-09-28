@@ -1,0 +1,15 @@
+title: a nested pattern that leaves a shape out names it
+grammar: typescript
+asserts: error
+
+A one-element list reaches no alternative.
+
+--- tql ---
+f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };
+
+main = pure (f [1, 2]);
+
+--- error ---
+category: type-mismatch
+span: 1:8-1:61
+The whole `case`, reported as `Cons _ Nil` is not matched.

@@ -1,0 +1,13 @@
+title: a pattern binds each variable once
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { Cons a a -> a; Nil -> 0; };
+
+main = pure (f [1]);
+
+--- error ---
+category: duplicate-definition
+span: 1:28-1:29
+The second `a`.

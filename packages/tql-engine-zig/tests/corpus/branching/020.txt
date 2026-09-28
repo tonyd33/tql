@@ -1,0 +1,21 @@
+title: a wildcard alternative covers the constructors before it leaves out
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+first_or_zero xs = case xs of {
+  Cons a _ -> a;
+  _ -> 0;
+};
+
+main = const [first_or_zero [7, 8], first_or_zero []];
+
+--- source ---
+class A {}
+
+--- values ---
+[7, 0]
+
+--- types ---
+first_or_zero : [Int] -> Int
+main : Node -> [Int]
