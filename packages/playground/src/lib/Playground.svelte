@@ -6,14 +6,21 @@
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
 
-  let query = $state(`. > function_definition.declarator as @func_decl
-| [
-  .parameters > parameter_declaration
-  | select(.type | text = 'int')
+  let query = $state(`int_type = .type | arr text | keep (\\t -> t = "int");
+
+int_params =
+  .declarator
+  | .parameters
+  | children_of_kind :parameter_declaration
+  | keep (has int_type)
   | .declarator
-  | text
-] as @int_param_names
-| { func: @func_decl.declarator, @int_param_names }`);
+  | arr text;
+
+main root = do {
+  f <- descendants_of_kind :function_definition root;
+  name <- (.declarator | .declarator) f;
+  return { func = text name, int_params = int_params f };
+};`);
   let target = $state(`#include <stddef.h>
 #include <stdio.h>
 
@@ -60,13 +67,20 @@ int main(int argc, char **argv) {
   );
 
   let result = $state<QueryResult | null>(null);
+  let error = $state<string | null>(null);
   function run() {
     if (!loaded) return;
-    result = engine.query({
-      querySource: query,
-      queryTarget: target,
-      grammar: loaded,
-    });
+    try {
+      result = engine.query({
+        querySource: query,
+        queryTarget: target,
+        grammar: loaded,
+      });
+      error = null;
+    } catch (e) {
+      result = null;
+      error = e instanceof Error ? e.message : String(e);
+    }
   }
 </script>
 
@@ -108,7 +122,11 @@ int main(int argc, char **argv) {
   <section class="panel panel-output">
     <header>Output</header>
     <div class="panel-body">
-      <pre>{result ? JSON.stringify(result, null, 2) : ""}</pre>
+      {#if error}
+        <pre class="error">{error}</pre>
+      {:else}
+        <pre>{result ? JSON.stringify(result, null, 2) : ""}</pre>
+      {/if}
     </div>
   </section>
 </div>
@@ -217,6 +235,10 @@ int main(int argc, char **argv) {
     padding: 8px;
     font-family: ui-monospace, monospace;
     font-size: 13px;
+  }
+  .panel-body pre.error {
+    color: #c62828;
+    white-space: pre-wrap;
   }
   .panel-body :global(.editor) {
     height: 100%;
