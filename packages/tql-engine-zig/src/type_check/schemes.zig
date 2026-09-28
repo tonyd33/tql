@@ -1,17 +1,9 @@
-//! Schemes for the four synthesized symbol families.
+//! Schemes for the synthesized symbol families.
 //!
 //! A synthesized symbol is one the desugarer generated rather than the user
-//! wrote: `is_kind[k]`, `field[l]`, `op[+]`, `record[l,...]`. Stage 2
+//! wrote: `field[l]`, `op[+]`, `record[l,...]`. Stage 2
 //! recorded what each was generated from in `desugar.Synthesis`, because
 //! nothing downstream has the grammar.
-//!
-//! Everything here goes through `schemeFor`, which takes the whole `Synthesis`
-//! rather than pattern-matching to a constant. Two of the four arms ignore
-//! their metadata today. Narrowed node types are why they still receive it:
-//! under narrowing `is_kind[class_declaration]` would become
-//! `Filter Node class_declaration` and `field[arguments]` would become
-//! `Filter call_expression argument_list`, both derived from the resolved id
-//! these arms already carry.
 
 const std = @import("std");
 const primitives = @import("../primitives.zig");
@@ -35,10 +27,9 @@ pub const Error = error{TooManyRecordFields} || Allocator.Error;
 /// and touch it not at all.
 pub fn schemeFor(subst: *Substitution, synthesized: core.Synthesized) Error!types.Scheme {
     return switch (synthesized) {
-        // The kind id is resolved and carried, and deliberately unused: a kind
-        // test narrows the *value* but not yet the type. W4 is where it starts
-        // mattering.
-        .kind_test, .kind_axis, .field => try nodeFilter(subst),
+        // The field id is resolved and carried, and deliberately unused: a
+        // field narrows the *value* but not yet the type.
+        .field => try nodeFilter(subst),
         // Already written and unit-tested in `primitives.zig`; a property of
         // the operator, not of the interned id.
         .operator => |operator| try primitives.operatorScheme(
@@ -74,8 +65,7 @@ pub fn constructorScheme(
     return .{ .quantified = declared.parameters, .type = result };
 }
 
-/// `Filter node node`: the scheme of `is_kind[k]`, `children_of_kind[k]`,
-/// `descendants_of_kind[k]` and `field[l]`.
+/// `Filter node node`: the scheme of `field[l]`.
 fn nodeFilter(subst: *Substitution) !types.Scheme {
     return .{ .type = try subst.datatypes.filter(subst.arena, types.node_type, types.node_type) };
 }
@@ -137,17 +127,6 @@ const Fixture = struct {
     }
 };
 
-test "a kind test filters nodes to nodes" {
-    const gpa = testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
-
-    try fix.expectScheme(
-        .{ .kind_test = .{ .name = "class_declaration", .id = 42 } },
-        "Node -> [Node]",
-    );
-}
-
 test "a field access filters nodes to nodes" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
@@ -161,16 +140,10 @@ test "the resolved id does not change the scheme today" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // Two different kinds, one scheme. Narrowing node types is the change
+    // Two different fields, one scheme. Narrowing node types is the change
     // that would make this test wrong on purpose.
-    try fix.expectScheme(
-        .{ .kind_test = .{ .name = "class_declaration", .id = 1 } },
-        "Node -> [Node]",
-    );
-    try fix.expectScheme(
-        .{ .kind_test = .{ .name = "interface_declaration", .id = 2 } },
-        "Node -> [Node]",
-    );
+    try fix.expectScheme(.{ .field = .{ .name = "name", .id = 1 } }, "Node -> [Node]");
+    try fix.expectScheme(.{ .field = .{ .name = "body", .id = 2 } }, "Node -> [Node]");
 }
 
 test "an operator's scheme comes from the primitive table" {

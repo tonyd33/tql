@@ -10,7 +10,7 @@ stage would be `arr (...) <|> pure false` and every class would yield an extra
 Both union operands yield `Bool`, since union requires a single element type.
 
 --- tql ---
-main = children | is_kind :class_declaration
+main = children | of_kind :class_declaration
   | .name
   | arr (\n -> text n = "A")
   <|> pure false

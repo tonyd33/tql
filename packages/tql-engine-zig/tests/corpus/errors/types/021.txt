@@ -5,7 +5,7 @@ asserts: error
 A node is not sized; its text is.
 
 --- tql ---
-main = children | is_kind :class_declaration | arr length;
+main = children | of_kind :class_declaration | arr length;
 
 --- error ---
 category: unsatisfied-constraint

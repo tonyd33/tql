@@ -42,9 +42,6 @@ pub fn run(program: *core.Program) Error!void {
     program.definitions = definitions;
 }
 
-/// A grammar node kind, as desugaring resolved it.
-const Kind = struct { name: []const u8, id: u16 };
-
 // ============================================================================
 //                              Tests
 // ============================================================================
@@ -81,10 +78,10 @@ test "a kind test on a child axis fuses into the axis" {
 
     try simplified(
         std.testing.allocator,
-        "main = children | is_kind :class_declaration;",
+        "main = children | of_kind :class_declaration;",
         &w,
     );
-    try std.testing.expectEqualStrings("children_of_kind[class_declaration]", w.written());
+    try std.testing.expectEqualStrings("children_of_kind :class_declaration", w.written());
 }
 
 test "a kind test on a descendant axis fuses into the axis" {
@@ -93,10 +90,10 @@ test "a kind test on a descendant axis fuses into the axis" {
 
     try simplified(
         std.testing.allocator,
-        "main = descendants | is_kind :class_declaration;",
+        "main = descendants | of_kind :class_declaration;",
         &w,
     );
-    try std.testing.expectEqualStrings("descendants_of_kind[class_declaration]", w.written());
+    try std.testing.expectEqualStrings("descendants_of_kind :class_declaration", w.written());
 }
 
 test "a kind test fuses under a surrounding composition" {
@@ -105,11 +102,11 @@ test "a kind test fuses under a surrounding composition" {
 
     try simplified(
         std.testing.allocator,
-        "main = descendants | is_kind :class_declaration | .name;",
+        "main = descendants | of_kind :class_declaration | .name;",
         &w,
     );
     try std.testing.expectEqualStrings(
-        "kleisli descendants_of_kind[class_declaration] field[name]",
+        "kleisli (descendants_of_kind :class_declaration) field[name]",
         w.written(),
     );
 }
@@ -120,11 +117,11 @@ test "a kind test fuses into an axis after an earlier stage" {
 
     try simplified(
         std.testing.allocator,
-        "main = children | descendants | is_kind :class_declaration | .name;",
+        "main = children | descendants | of_kind :class_declaration | .name;",
         &w,
     );
     try std.testing.expectEqualStrings(
-        "kleisli (kleisli children descendants_of_kind[class_declaration]) field[name]",
+        "kleisli (kleisli children (descendants_of_kind :class_declaration)) field[name]",
         w.written(),
     );
 }
@@ -135,11 +132,11 @@ test "a kind test after an earlier non-axis stage is left alone" {
 
     try simplified(
         std.testing.allocator,
-        "main = children | parent | is_kind :class_declaration;",
+        "main = children | parent | of_kind :class_declaration;",
         &w,
     );
     try std.testing.expectEqualStrings(
-        "kleisli (kleisli children parent) is_kind[class_declaration]",
+        "kleisli (kleisli children parent) (of_kind :class_declaration)",
         w.written(),
     );
 }
@@ -151,11 +148,26 @@ test "a kind test on a non-axis is left alone" {
     // `parent` has no fused form, so the composition must survive.
     try simplified(
         std.testing.allocator,
-        "main = parent | is_kind :class_declaration;",
+        "main = parent | of_kind :class_declaration;",
         &w,
     );
     try std.testing.expectEqualStrings(
-        "kleisli parent is_kind[class_declaration]",
+        "kleisli parent (of_kind :class_declaration)",
+        w.written(),
+    );
+}
+
+test "a kind test on a parameter fuses into the axis" {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+
+    try simplified(
+        std.testing.allocator,
+        "main = (\\k -> descendants | of_kind k) :class_declaration;",
+        &w,
+    );
+    try std.testing.expectEqualStrings(
+        "(\\k -> descendants_of_kind k) :class_declaration",
         w.written(),
     );
 }
@@ -240,14 +252,15 @@ const Pass = struct {
         return try self.builder.apply(function, argument, span);
     }
 
-    /// `kleisli <axis> is_kind[k]` becomes the axis that yields only `k`.
+    /// `kleisli <axis> (of_kind k)` becomes the axis that yields only `k`.
     ///
     /// Both spellings are writable by hand and denote the same list, so this
     /// removes the intermediate list without changing what the query means.
+    /// `k` need not be a literal.
     ///
     /// `|` associates left, so an axis after an earlier stage arrives as
-    /// `kleisli (kleisli p <axis>) is_kind[k]`. That is
-    /// `kleisli p (kleisli <axis> is_kind[k])`, and becomes `kleisli p` of the
+    /// `kleisli (kleisli p <axis>) (of_kind k)`. That is
+    /// `kleisli p (kleisli <axis> (of_kind k))`, and becomes `kleisli p` of the
     /// fused axis.
     fn fuseKindAxis(
         self: *Pass,
@@ -260,8 +273,8 @@ const Pass = struct {
 
         switch (composed.kind) {
             .symbol => |axis| {
-                const fused = try self.fusedAxis(axis, kind) orelse return null;
-                return self.builder.symbol(fused, span);
+                const fused = self.fusedAxis(axis) orelse return null;
+                return try self.builder.apply(self.builder.symbol(fused, span), kind, span);
             },
             .apply => |a| {
                 const before = self.kleisliOperand(a.function) orelse return null;
@@ -269,10 +282,10 @@ const Pass = struct {
                     .symbol => |id| id,
                     else => return null,
                 };
-                const fused = try self.fusedAxis(axis, kind) orelse return null;
+                const fused = self.fusedAxis(axis) orelse return null;
                 return try self.builder.applyMany(
                     self.builder.symbol(self.kleisli, span),
-                    &.{ before, self.builder.symbol(fused, span) },
+                    &.{ before, try self.builder.apply(self.builder.symbol(fused, span), kind, span) },
                     span,
                 );
             },
@@ -291,27 +304,26 @@ const Pass = struct {
         return a.argument;
     }
 
-    /// The symbol for `axis` with the test for `kind` folded in, when `axis`
-    /// has a fused form.
-    fn fusedAxis(self: *Pass, axis: core.SymbolId, kind: Kind) Error!?core.SymbolId {
+    /// The primitive for `axis` with a kind test folded in, when `axis` has a
+    /// fused form.
+    fn fusedAxis(self: *const Pass, axis: core.SymbolId) ?core.SymbolId {
         const primop = self.primopOf(axis) orelse return null;
         const fused = primop.fusedWithKindTest() orelse return null;
-        return try self.kindAxisSymbol(fused, kind);
+        return self.interner.lookup(@tagName(fused));
     }
 
-    /// The kind a term tests, when it is an `is_kind[k]` symbol.
-    fn kindTested(self: *const Pass, t: core.Term) ?Kind {
-        const id = switch (t.kind) {
+    /// `k`, when `t` is `of_kind k`.
+    fn kindTested(self: *const Pass, t: core.Term) ?core.Term {
+        const a = switch (t.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        const id = switch (a.function.kind) {
             .symbol => |s| s,
             else => return null,
         };
-        return switch (self.interner.details(id)) {
-            .synthesized => |s| switch (s) {
-                .kind_test => |k| .{ .name = k.name, .id = k.id },
-                else => null,
-            },
-            else => null,
-        };
+        if (self.primopOf(id) != .of_kind) return null;
+        return a.argument;
     }
 
     /// The primitive a symbol names, when it names one. A local binding that
@@ -321,23 +333,5 @@ const Pass = struct {
             .primop => |p| p,
             else => null,
         };
-    }
-
-    /// The synthesized symbol for a fused axis, interned and recorded the way
-    /// desugaring would have written it.
-    fn kindAxisSymbol(
-        self: *Pass,
-        primop: core.PrimOp,
-        kind: Kind,
-    ) Error!core.SymbolId {
-        const spelling = try self.builder.print("{s}[{s}]", .{
-            @tagName(primop),
-            kind.name,
-        });
-        return try self.interner.internOrGet(spelling, .{ .synthesized = .{ .kind_axis = .{
-            .name = kind.name,
-            .id = kind.id,
-            .primop = primop,
-        } } });
     }
 };

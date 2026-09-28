@@ -104,19 +104,19 @@ fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive)
     return switch (class) {
         .Eq => switch (p) {
             .Int, .String, .Range, .Node => true,
-            .Regex => false,
+            .Regex, .Kind => false,
         },
         .Ord => switch (p) {
             .Int, .String => true,
-            .Regex, .Node, .Range => false,
+            .Regex, .Node, .Range, .Kind => false,
         },
         .Sized => switch (p) {
             .String => true,
-            .Int, .Regex, .Node, .Range => false,
+            .Int, .Regex, .Node, .Range, .Kind => false,
         },
         .Serial => switch (p) {
             .Int, .String, .Node, .Range => true,
-            .Regex => false,
+            .Regex, .Kind => false,
         },
     };
 }

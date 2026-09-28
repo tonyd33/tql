@@ -57,13 +57,14 @@ pub const PrimOp = enum {
     children_of_kind,
     descendants_of_kind,
     is_kind,
+    of_kind,
     field,
     operator,
     record,
 
     /// The single axis this one becomes when composed with a kind test, if
-    /// there is one. `children` then `is_kind[k]` walks the same nodes as
-    /// `children_of_kind[k]` without building the list between them.
+    /// there is one. `children` then `of_kind k` walks the same nodes as
+    /// `children_of_kind k` without building the list between them.
     pub fn fusedWithKindTest(self: PrimOp) ?PrimOp {
         return switch (self) {
             .children => .children_of_kind,
@@ -76,11 +77,6 @@ pub const PrimOp = enum {
 /// What a synthesized symbol denotes. The payload is resolved during
 /// desugaring and is unrecoverable from the spelling afterwards.
 pub const Synthesized = union(enum) {
-    /// `is_kind[k]`, carrying the resolved grammar kind ID.
-    kind_test: struct { name: []const u8, id: u16 },
-    /// `descendants_of_kind[k]` or `children_of_kind[k]`, carrying the
-    /// resolved grammar kind ID.
-    kind_axis: struct { name: []const u8, id: u16, primop: PrimOp },
     /// `field[l]`, carrying the resolved grammar field ID.
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
@@ -93,8 +89,6 @@ pub const Synthesized = union(enum) {
     /// The machine operation this denotes.
     pub fn primop(self: Synthesized) PrimOp {
         return switch (self) {
-            .kind_test => .is_kind,
-            .kind_axis => |k| k.primop,
             .field => .field,
             .operator => .operator,
             .record => .record,

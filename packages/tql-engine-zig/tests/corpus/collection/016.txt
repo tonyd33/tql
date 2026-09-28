@@ -9,7 +9,7 @@ value, so no product fan-out occurs.
 main root = do {
   c <- children_of_kind :class_declaration root;
   n <- c.name;
-  methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
+  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
   return { name = text n, methods = methods };
 };
 

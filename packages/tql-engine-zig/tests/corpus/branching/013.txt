@@ -9,7 +9,7 @@ application.
 is_a expected n = text n = expected;
 
 main =
-  children | is_kind :class_declaration
+  children | of_kind :class_declaration
   | .name
   | arr (\n -> not $ is_a "A" n);
 

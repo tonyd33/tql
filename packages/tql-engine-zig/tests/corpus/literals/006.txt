@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = children | is_kind :class_declaration
+main = children | of_kind :class_declaration
   | .name
   | arr (\n -> text n !~ r"^Ser")
 ;

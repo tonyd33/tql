@@ -1,0 +1,13 @@
+title: a kind output is not serializable
+grammar: typescript
+asserts: error
+
+A kind is only an argument to `is_kind`, `of_kind` and the `_of_kind` axes.
+
+--- tql ---
+main = pure :class_declaration;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:1-1:32
+`Serial Kind` is not satisfied.

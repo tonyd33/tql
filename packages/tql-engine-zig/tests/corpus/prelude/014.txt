@@ -7,7 +7,7 @@ has none.
 
 --- tql ---
 main =
-  children | is_kind :class_declaration
+  children | of_kind :class_declaration
   | or_else (.name | arr text) (pure "anonymous");
 
 --- source ---

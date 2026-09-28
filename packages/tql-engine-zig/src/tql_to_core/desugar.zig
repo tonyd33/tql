@@ -196,43 +196,9 @@ pub const Lowerer = struct {
         try self.references.append(self.builder.allocator, index);
     }
 
-    /// The primitives spelled `name :k`, taking a kind token rather than a
-    /// value. Each is one Core symbol, not an application.
-    const kind_forms = [_]struct { spelling: []const u8, axis: ?core.PrimOp }{
-        .{ .spelling = "is_kind", .axis = null },
-        .{ .spelling = "children_of_kind", .axis = .children_of_kind },
-        .{ .spelling = "descendants_of_kind", .axis = .descendants_of_kind },
-    };
-
-    /// Recognizes `is_kind :k` and the `_of_kind` axes, whose two surface
-    /// tokens are one Core symbol. Returns null when this is an ordinary
-    /// application. The inner error is the unknown-kind rejection.
-    fn kindApplication(self: *Lowerer, a: cst.Apply) ?(Error!core.SymbolId) {
-        const function = unwrap(a.function);
-        const name = switch (function.kind) {
-            .name => |n| n,
-            else => return null,
-        };
-        const form = for (kind_forms) |candidate| {
-            if (std.mem.eql(u8, name, candidate.spelling)) break candidate;
-        } else return null;
-
-        const argument = unwrap(a.argument);
-        const kind = switch (argument.kind) {
-            .kind_test => |k| k,
-            else => return null,
-        };
-        // The rejection names the kind token, not the whole application.
-        return self.synthesizeKindForm(form.spelling, form.axis, kind, argument.span);
-    }
-
-    fn synthesizeKindForm(
-        self: *Lowerer,
-        spelling: []const u8,
-        axis: ?core.PrimOp,
-        name: []const u8,
-        span: diagnostic.Span,
-    ) Error!core.SymbolId {
+    /// Resolve a `:k` literal against the target grammar. These literals are
+    /// the only source of kind values.
+    fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const id = self.language.idForNodeKind(name, true);
         if (id == 0) {
             try self.sink.report(
@@ -252,12 +218,10 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         }
-        const duped = try self.builder.dupe(name);
-        const what: Synthesized = if (axis) |primop|
-            .{ .kind_axis = .{ .name = duped, .id = id, .primop = primop } }
-        else
-            .{ .kind_test = .{ .name = duped, .id = id } };
-        return try self.synthesize("{s}[{s}]", .{ spelling, name }, what);
+        return self.builder.literal(
+            .{ .kind = .{ .name = try self.builder.dupe(name), .id = id } },
+            span,
+        );
     }
 
     /// Formats as `; use one of its subtypes: ...`, or nothing when the
@@ -288,13 +252,6 @@ pub const Lowerer = struct {
     ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
         return try self.interner.internOrGet(spelling, .{ .synthesized = what });
-    }
-
-    /// Parentheses are grouping only, so a form is recognized through them.
-    fn unwrap(e: cst.Expression) cst.Expression {
-        var current = e;
-        while (current.kind == .parenthesized) current = current.kind.parenthesized.*;
-        return current;
     }
 
     /// `f x_1 ... x_n = e` is nested unary lambdas. One desugaring, used by
@@ -382,18 +339,7 @@ pub const Lowerer = struct {
                 return error.DesugarFailed;
             },
 
-            // A kind is not a first-class value: it reaches Core only through
-            // the `name :k` forms, which `.apply` handles.
-            .kind_test => |name| {
-                try self.sink.report(
-                    .unresolved_name,
-                    e.span,
-                    "`:{s}` is only meaningful as the argument of `is_kind`, " ++
-                        "`children_of_kind` or `descendants_of_kind`",
-                    .{name},
-                );
-                return error.DesugarFailed;
-            },
+            .kind_test => |name| return try self.kindLiteral(name, e.span),
 
             // A leading `.l` is the bare `field[l]`.
             .field_access => |fa| {
@@ -423,20 +369,11 @@ pub const Lowerer = struct {
                 );
             },
 
-            // `is_kind :k` is one synthesized symbol, not an application of a
-            // the `is_kind` primitive to a kind value: the kind resolves against the
-            // target grammar at desugaring time, and there is no first-class
-            // kind value for a general application to take.
-            .apply => |a| {
-                if (self.kindApplication(a.*)) |symbol| {
-                    return self.builder.symbol(try symbol, e.span);
-                }
-                return try self.builder.apply(
-                    try self.expression(a.function, scope),
-                    try self.expression(a.argument, scope),
-                    e.span,
-                );
-            },
+            .apply => |a| return try self.builder.apply(
+                try self.expression(a.function, scope),
+                try self.expression(a.argument, scope),
+                e.span,
+            ),
 
             .binary => |b| return try self.binary(b.*, e.span, scope),
 

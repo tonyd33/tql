@@ -8,7 +8,7 @@ pipe does.
 --- tql ---
 main =
   let { names = .name | arr text; }
-  in children | is_kind :class_declaration | names;
+  in children | of_kind :class_declaration | names;
 
 --- source ---
 class A {}

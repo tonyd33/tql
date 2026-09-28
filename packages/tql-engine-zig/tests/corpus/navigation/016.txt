@@ -3,8 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = children | is_kind :interface_declaration
-  | descendants | is_kind :property_identifier
+main = children | of_kind :interface_declaration
+  | descendants | of_kind :property_identifier
   | arr text
 ;
 

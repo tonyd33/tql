@@ -7,7 +7,7 @@ starts_with_s n = text n ~ r"^S";
 named_s c = any starts_with_s (.name c);
 
 main =
-  children | is_kind :class_declaration
+  children | of_kind :class_declaration
   | keep named_s
   | .name | arr text;
 

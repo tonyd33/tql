@@ -7,7 +7,7 @@ filter; the pipe executes it.
 
 --- tql ---
 matcher expected = .name | arr (\n -> text n = expected);
-main = children | is_kind :class_declaration | matcher "A";
+main = children | of_kind :class_declaration | matcher "A";
 
 --- source ---
 class A {}

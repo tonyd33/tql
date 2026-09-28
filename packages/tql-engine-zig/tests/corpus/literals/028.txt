@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = children | is_kind :class_declaration | arr (\c -> { k = kind c, t = text c });
+main = children | of_kind :class_declaration | arr (\c -> { k = kind c, t = text c });
 
 --- source ---
 class A {}

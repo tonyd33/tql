@@ -5,7 +5,7 @@ asserts: error
 Source files never rely on an implicit trailing expression.
 
 --- tql ---
-helper = children | is_kind :class_declaration;
+helper = children | of_kind :class_declaration;
 
 --- error ---
 category: missing-main

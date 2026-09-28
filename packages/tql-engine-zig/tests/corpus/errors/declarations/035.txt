@@ -1,0 +1,13 @@
+title: a kind bound to a name is still checked against the grammar
+grammar: typescript
+asserts: error
+
+--- tql ---
+k = :function_definition;
+
+main = descendants | of_kind k;
+
+--- error ---
+category: unknown-kind
+span: 1:5-1:25
+The `:function_definition` literal.
