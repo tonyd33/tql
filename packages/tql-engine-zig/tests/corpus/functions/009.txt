@@ -1,0 +1,20 @@
+title: a filter passed as an argument
+grammar: typescript
+asserts: types, values
+
+`apply_to_classes` takes a filter and runs it as a pipe stage.
+
+--- tql ---
+apply_to_classes f = children | of_kind :class_declaration | f;
+main = apply_to_classes (.name | arr text);
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]
+
+--- types ---
+apply_to_classes : (Node -> [a]) -> Node -> [a]
+main : Node -> [String]

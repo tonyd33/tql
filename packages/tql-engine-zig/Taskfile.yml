@@ -10,13 +10,16 @@ tasks:
 
   build-wasm:
     vars:
-      ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
+      ARGS: '{{.CLI_ARGS | default "-Dgrammars=none"}}'
     cmd: zig build wasm {{.ARGS}}
 
   build-grammars:
     vars:
       ARGS: '{{.CLI_ARGS | default "-Dgrammars=available"}}'
     cmd: zig build grammars {{.ARGS}}
+
+  build-wasm-grammars:
+    cmd: zig build wasm-grammars
 
   build:
     vars:
@@ -26,8 +29,7 @@ tasks:
         vars:
           ARGS: "{{.ARGS}}"
       - task: build-wasm
-        vars:
-          ARGS: "{{.ARGS}}"
+      - task: build-wasm-grammars
       - task: build-grammars
         vars:
           ARGS: "{{.ARGS}}"

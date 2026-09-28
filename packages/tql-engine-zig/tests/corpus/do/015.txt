@@ -1,0 +1,21 @@
+title: a bind whose query is empty yields no output
+grammar: typescript
+asserts: types, values
+
+The body never runs.
+
+--- tql ---
+main root = do {
+  i <- children_of_kind :interface_declaration root;
+  n <- i.name;
+  return $ text n;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+main : Node -> [String]

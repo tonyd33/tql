@@ -1,0 +1,19 @@
+title: a known field absent from a node yields the empty stream
+grammar: typescript
+asserts: types, values
+
+`value` is a known typescript field, present on `variable_declarator` only when
+an initializer is written. The uninitialized declarator yields nothing rather
+than failing.
+
+--- tql ---
+main = descendants | of_kind :variable_declarator | .value | arr text;
+
+--- source ---
+let a;
+
+--- values ---
+[]
+
+--- types ---
+main : Node -> [String]

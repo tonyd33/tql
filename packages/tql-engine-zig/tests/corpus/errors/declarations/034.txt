@@ -1,0 +1,14 @@
+title: a supertype kind is rejected in a grammar without a subtype table
+grammar: typescript
+asserts: error
+
+The typescript grammar marks `expression` as a supertype but does not list
+its subtypes, so the diagnostic names only the kind.
+
+--- tql ---
+main = children | of_kind :expression;
+
+--- error ---
+category: supertype-kind
+span: 1:27-1:38
+The `:expression` selector.

@@ -1,0 +1,20 @@
+title: taking the length of an infinite collected list does not terminate
+grammar: typescript
+asserts: types
+
+`collect` is lazy: `collect (from 0)` is one output, and that output is the infinite
+list, unforced. The pipe then runs `arr length` on that element, and `length`
+walks a spine with no end. This fixture pins the semantics; it is not executed.
+
+--- tql ---
+from n = pure n <|> from (n + 1);
+main = collect (from 0) | arr length;
+
+--- source ---
+class A {}
+
+`length` forces the spine of the collected list. No finite output exists.
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Int]

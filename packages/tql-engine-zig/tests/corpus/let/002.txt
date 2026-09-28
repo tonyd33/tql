@@ -1,0 +1,20 @@
+title: multiple bindings in one group are siblings
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  let {
+    lo = 2;
+    hi = 5;
+  }
+  in pure (lo + hi);
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- types ---
+main : Node -> [Int]

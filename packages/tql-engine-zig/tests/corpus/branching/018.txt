@@ -1,0 +1,20 @@
+title: an if whose condition is itself an if binds the outer branch's locals
+grammar: typescript
+asserts: types, values
+
+The condition is a nested `case` on `Bool`, and its branch builds a let-bound
+thunk. The outer branch's own let must still read `n`.
+
+--- tql ---
+choose n = if (if n > 0 then n - 1 > 0 else false) then n * 2 + 1 else n * 3 + 1;
+main = const [choose 5, choose 1, choose 0];
+
+--- source ---
+class A {}
+
+--- values ---
+[11, 4, 1]
+
+--- types ---
+choose : Int -> Int
+main : Node -> [Int]

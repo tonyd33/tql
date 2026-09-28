@@ -1,0 +1,20 @@
+title: `or_else` yields the fallback when the primary is empty
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+method_names = .body | children | of_kind :method_definition | .name | arr text;
+
+main =
+  children | of_kind :class_declaration
+  | or_else method_names (pure "none");
+
+--- source ---
+class A {}
+
+--- values ---
+["none"]
+
+--- types ---
+method_names : Node -> [String]
+main : Node -> [String]

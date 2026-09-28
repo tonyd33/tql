@@ -1,0 +1,14 @@
+title: a user definition may not collide with a wired symbol
+grammar: typescript
+asserts: error
+
+`text` is a wired operation supplied by the implementation.
+
+--- tql ---
+text = "shadowed";
+main = text;
+
+--- error ---
+category: symbol-collision
+span: 1:1-1:19
+The colliding definition.

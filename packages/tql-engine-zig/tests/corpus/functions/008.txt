@@ -1,0 +1,16 @@
+title: a signature on `main` is permitted
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main : Filter Node String;
+main = children | of_kind :class_declaration | .name | arr text;
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]
+
+--- types ---
+main : Node -> [String]

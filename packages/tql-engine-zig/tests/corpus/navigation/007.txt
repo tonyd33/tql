@@ -1,0 +1,19 @@
+title: descendants are proper; a node is not its own descendant
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = children | of_kind :class_declaration
+  | descendants | of_kind :class_declaration
+  | .name
+  | arr text
+;
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+main : Node -> [String]

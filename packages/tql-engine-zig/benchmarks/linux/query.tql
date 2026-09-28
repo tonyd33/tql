@@ -1,9 +1,19 @@
-. > function_definition as @fn
-| @fn > function_declarator as @fn_decl
-| @fn_decl > identifier as @name
-| @fn.body as @body
-| select(
-    any(@body >> call_expression; ( .function | text() ) ~ /^(k|v|kv)(z|m|c|re)?alloc/) and
-    any(@body >> goto_statement; ( .label | text() ) ~ /^(err|out)(_\w+)?$/)
-)
-| { @name }
+matches re = keep (\n -> text n ~ re);
+
+allocator_call =
+  descendants_of_kind :call_expression
+  | .function
+  | matches r"^(k|v|kv)(z|m|c|re)?alloc";
+
+error_goto =
+  descendants_of_kind :goto_statement
+  | .label
+  | matches r"^(err|out)(_\w+)?$";
+
+main =
+  descendants_of_kind :function_definition
+  | keep (has (.body | allocator_call))
+  | keep (has (.body | error_goto))
+  | children_of_kind :function_declarator
+  | children_of_kind :identifier
+  | arr (\n -> { name = text n });

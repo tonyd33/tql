@@ -1,0 +1,15 @@
+title: comparison operators on integers
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [1 < 2, 2 <= 2, 3 > 4, 3 >= 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, true, false, true]
+
+--- types ---
+main : Node -> [Bool]

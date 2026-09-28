@@ -1,0 +1,20 @@
+title: `or_else` does not force its fallback when the primary yields
+grammar: typescript
+asserts: types, values
+
+The fallback is infinite, but the primary yields, so `or_else` never looks at
+it.
+
+--- tql ---
+from n = pure n <|> from (n + 1);
+main = or_else (pure 0) (from 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[0]
+
+--- types ---
+from : Int -> a -> [Int]
+main : Node -> [Int]

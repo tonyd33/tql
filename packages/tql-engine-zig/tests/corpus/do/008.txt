@@ -1,0 +1,27 @@
+title: a `do`-local `let` sees bindings from earlier statements
+grammar: typescript
+asserts: core, types, values
+
+`prefix` is computed from `c`, bound by the preceding statement, and is then
+used by the final expression.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  let prefix = text n;
+  m <- (.body | children | of_kind :method_definition) c;
+  return prefix;
+};
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["A", "A"]
+
+--- core ---
+main = \root -> bind c <- children_of_kind :class_declaration root in bind n <- field[name] c in letrec { prefix = text n } in bind m <- kleisli (kleisli field[body] children) (of_kind :method_definition) c in return prefix
+
+--- types ---
+main : Node -> [String]

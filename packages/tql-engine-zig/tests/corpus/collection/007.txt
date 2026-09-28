@@ -1,0 +1,16 @@
+title: `identity` inverts collection
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = collect (children | of_kind :class_declaration | .name | arr text) | identity;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]
+
+--- types ---
+main : Node -> [String]

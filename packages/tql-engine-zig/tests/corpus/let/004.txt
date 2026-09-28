@@ -1,0 +1,15 @@
+title: brace form is order-independent too
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = let { first = second + 1; second = 10; } in pure first;
+
+--- source ---
+class A {}
+
+--- values ---
+[11]
+
+--- types ---
+main : Node -> [Int]

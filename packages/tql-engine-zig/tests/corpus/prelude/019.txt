@@ -1,0 +1,17 @@
+title: `take`, `drop`, `head` and `tail` are total on short and empty lists
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  const [take 2 [1, 2, 3], drop 2 [1, 2, 3], head [1, 2, 3], tail [1, 2, 3],
+         take 5 [1], drop 5 [1], head [], tail [], take 0 [1]];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1, 2], [3], [1], [2, 3], [1], [], [], [], []]
+
+--- types ---
+main : Node -> [[Int]]

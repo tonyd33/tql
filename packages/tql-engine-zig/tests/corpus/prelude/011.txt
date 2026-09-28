@@ -1,0 +1,18 @@
+title: `descendants` does not include the node itself
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has (descendants_of_kind :class_declaration) c;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[false]
+
+--- types ---
+main : Node -> [Bool]

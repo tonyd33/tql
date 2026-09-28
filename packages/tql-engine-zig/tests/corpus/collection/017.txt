@@ -1,0 +1,19 @@
+title: a list of records
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = collect $ children | of_kind :class_declaration
+  | .name
+  | arr (\n -> { name = text n })
+;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[[{ "name": "A" }, { "name": "B" }]]
+
+--- types ---
+main : Node -> [[{name: String}]]

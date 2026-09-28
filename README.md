@@ -41,90 +41,101 @@ int main(int argc, char **argv) {
 Find all function names
 
 ```sh
-tql query --grammar=c ". > function_definition.declarator.declarator | text" main.c
+tql query --grammar=c '
+main = descendants_of_kind :function_definition | .declarator | .declarator | arr text;
+' main.c
 ```
 
 Output:
 
 ```
-main.c: add
-main.c: strlen
-main.c: main
+main.c: ["add","strlen","main"]
 ```
 
 Find all function argument names
 
 ```sh
-tql query --grammar=c ". > function_definition.declarator > parameter_list >> identifier | text" main.c
+tql query --grammar=c '
+main =
+  descendants_of_kind :function_definition
+  | .declarator
+  | .parameters
+  | descendants_of_kind :identifier
+  | arr text;
+' main.c
 ```
 
 Output:
 
 ```
-main.c: a
-main.c: b
-main.c: s
-main.c: argc
-main.c: argv
+main.c: ["a","b","s","argc","argv"]
 ```
 
 Find all function argument names with type int
 
 ```sh
-tql query --grammar=c "
-. > function_definition.declarator
-| .parameters > parameter_declaration
-| select(.type | text = 'int')
-| .declarator
-| text
-" main.c
+tql query --grammar=c '
+int_type = .type | arr text | keep (\t -> t = "int");
 
+main =
+  descendants_of_kind :function_definition
+  | .declarator
+  | .parameters
+  | children_of_kind :parameter_declaration
+  | keep (has int_type)
+  | .declarator
+  | arr text;
+' main.c
 ```
 
 Output:
 
 ```
-main.c: a
-main.c: b
-main.c: argc
+main.c: ["a","b","argc"]
 ```
 
 Find all function names with an argument with type int
 
 ```sh
-tql query --grammar=c "
-. > function_definition.declarator as @func_decl
-| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
-| @func_decl.declarator
-| text
-" main.c
+tql query --grammar=c '
+int_type = .type | arr text | keep (\t -> t = "int");
+int_params = .declarator | .parameters | children_of_kind :parameter_declaration | keep (has int_type);
+
+main =
+  descendants_of_kind :function_definition
+  | keep (has int_params)
+  | .declarator
+  | .declarator
+  | arr text;
+' main.c
 ```
 
 Output:
 
 ```
-main.c: add
-main.c: main
+main.c: ["add","main"]
 ```
 
 Find all function names with an argument with type int, along with that function's parameters
 
 ```sh
-tql query --grammar=c "
-. > function_definition.declarator as @func_decl
-| select(any(@func_decl.parameters > parameter_declaration; .type | text = 'int'))
-| {
-    name: @func_decl.declarator | text,
-    params: [@func_decl.parameters > parameter_declaration | text]
-  }
-" main.c
+tql query --grammar=c '
+params = .declarator | .parameters | children_of_kind :parameter_declaration;
+int_type = .type | arr text | keep (\t -> t = "int");
+
+main root = do {
+  f <- descendants_of_kind :function_definition root;
+  guard $ has (params | keep (has int_type)) f;
+  name <- (.declarator | .declarator) f;
+  return { name = text name, params = (params | arr text) f };
+};
+' main.c
 ```
 
 Output:
 
 ```
-main.c: {"name": "add", "params": ["int a", "int b"]}
-main.c: {"name": "main", "params": ["int argc", "char **argv"]}
+main.c: [{"name":"add","params":["int a","int b"]},{"name":"main","params":["int argc","char **argv"]}]
 ```
 
 ### Grammars
@@ -139,18 +150,13 @@ Example output:
 
 ```
 Built-in grammars:
-  c
+  (none)
 
 Dynamic grammars:
-  javascript  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  zig  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  rust  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  tsx  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  python  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  typescript  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  go  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  cpp  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
-  c  /home/tony/code/tql/packages/tql-engine-zig/zig-out/lib/tql/grammars
+  c  /home/user/.local/share/tql/grammars
+  python  /home/user/.local/share/tql/grammars
+  rust  /home/user/.local/share/tql/grammars
+  typescript  /home/user/.local/share/tql/grammars
 ```
 
 ## Installation

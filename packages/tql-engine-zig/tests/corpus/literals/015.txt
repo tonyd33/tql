@@ -1,0 +1,15 @@
+title: equality and inequality
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false, true, false]
+
+--- types ---
+main : Node -> [Bool]

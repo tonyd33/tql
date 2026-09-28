@@ -1,0 +1,13 @@
+title: `not` applied to a comparison's left operand is a type error
+grammar: typescript
+asserts: error
+
+`not 1 = 1` groups as `(not 1) = 1`, and `not` takes a `Bool`.
+
+--- tql ---
+main = pure $ not 1 = 1;
+
+--- error ---
+category: type-mismatch
+span: 1:19-1:20
+The `1` that `not` is applied to.

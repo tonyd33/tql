@@ -1,0 +1,22 @@
+title: `has` over a kept stream stops at the first match
+grammar: typescript
+asserts: types, values
+
+The source is infinite but the predicate holds at 0, so `has` stops at the
+first element. Termination is the evidence.
+
+--- tql ---
+from n = pure n <|> from (n + 1);
+non_negative x = x >= 0;
+main root = return $ has (from 0 | keep non_negative) root;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+from : Int -> a -> [Int]
+non_negative : Int -> Bool
+main : Node -> [Bool]

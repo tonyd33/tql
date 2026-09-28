@@ -1,0 +1,19 @@
+title: descendants_of_kind finds a match nested under a non-match
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = descendants_of_kind :class_declaration | .name | arr text;
+
+--- source ---
+class Outer {
+  m() {
+    class Inner {}
+  }
+}
+
+--- values ---
+["Outer", "Inner"]
+
+--- types ---
+main : Node -> [String]

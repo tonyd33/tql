@@ -1,0 +1,22 @@
+title: a binding evaluates as a value and does not run a filter
+grammar: typescript
+asserts: types, values
+
+`k` is bound to a filter. Its two uses apply it to different inputs and give
+different results.
+
+--- tql ---
+main =
+  let { k = arr kind; }
+  in
+    (children | of_kind :class_declaration | k)
+    <|> (descendants | of_kind :property_identifier | k);
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["class_declaration", "property_identifier"]
+
+--- types ---
+main : Node -> [String]

@@ -1,0 +1,26 @@
+title: partial application yields a function value
+grammar: typescript
+asserts: core, types, values
+
+`add 10` is applied to two different arguments, so the partial application was
+a reusable value rather than an error.
+
+--- tql ---
+add x y = x + y;
+main =
+  let { add10 = add 10; }
+  in const [add10 1, add10 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[11, 12]
+
+--- core ---
+add = \x -> \y -> op[+] x y
+main = letrec { add10 = add 10 } in const (Cons (add10 1) (Cons (add10 2) Nil))
+
+--- types ---
+add : Int -> Int -> Int
+main : Node -> [Int]

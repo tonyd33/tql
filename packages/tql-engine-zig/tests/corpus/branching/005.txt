@@ -1,0 +1,15 @@
+title: `not` negates a boolean
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [not true, not false];
+
+--- source ---
+class A {}
+
+--- values ---
+[false, true]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,0 +1,27 @@
+title: nested lists and records encode recursively
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class_record c = do {
+  n <- c.name;
+  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
+  return { name = text n, methods = methods };
+};
+main = collect $ children | of_kind :class_declaration | class_record;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[
+  [
+    { "methods": ["m"], "name": "A" },
+    { "methods": [], "name": "B" }
+  ]
+]
+
+--- types ---
+class_record : Node -> [{methods: [String], name: String}]
+main : Node -> [[{methods: [String], name: String}]]

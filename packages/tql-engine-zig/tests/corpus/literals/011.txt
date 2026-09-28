@@ -1,0 +1,15 @@
+title: modulo
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure $ 7 % 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+main : Node -> [Int]

@@ -1,0 +1,18 @@
+title: a `let` binding holds a function value
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  let { is_named n = text n = "A"; }
+  in children | of_kind :class_declaration | .name | arr is_named;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

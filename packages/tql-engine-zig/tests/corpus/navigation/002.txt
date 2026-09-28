@@ -1,0 +1,20 @@
+title: static child navigation keeps only matching kinds
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+main = children | of_kind :class_declaration | .name | arr text;
+
+--- source ---
+class A {}
+function f() {}
+class B {}
+
+--- values ---
+["A", "B"]
+
+--- core ---
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr text)
+
+--- types ---
+main : Node -> [String]

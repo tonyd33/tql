@@ -1,0 +1,27 @@
+title: `has` does not change the input it tests
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+getters c = do {
+  m <- (.body | children | of_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n ~ r"^get";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  guard $ has getters c;
+  return $ kind c;
+};
+
+--- source ---
+class A { getX() {} }
+
+--- values ---
+["class_declaration"]
+
+--- types ---
+getters : Node -> [Node]
+main : Node -> [String]

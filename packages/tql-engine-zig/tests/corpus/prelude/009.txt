@@ -1,0 +1,22 @@
+title: `keep (has q)` keeps its input once however many outputs `q` has
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+methods = .body | children | of_kind :method_definition;
+
+main =
+  children | of_kind :class_declaration
+  | keep (has methods)
+  | .name | arr text;
+
+--- source ---
+class A { m() {} n() {} o() {} }
+class B {}
+
+--- values ---
+["A"]
+
+--- types ---
+methods : Node -> [Node]
+main : Node -> [String]

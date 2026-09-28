@@ -1,0 +1,18 @@
+title: a function stored in a record is data, never executed
+grammar: typescript
+asserts: error
+
+A record field holds whatever its expression evaluates to, and `f` is a
+function, so the record carries it as data. The rejection comes when the record
+reaches output and its field fails `Serial`, not from an arity or application
+error — which is the evidence that naming `f` did not call it.
+
+--- tql ---
+main =
+  let { f = \x -> x + 1; }
+  in pure { op = f };
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:1-3:22
+`Serial` is not satisfied for the `op` field, of type `int -> int`.

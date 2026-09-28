@@ -1,0 +1,19 @@
+title: regex match against node text
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = children | of_kind :class_declaration
+  | .name
+  | arr (\n -> text n ~ r"^Ser")
+;
+
+--- source ---
+class Service {}
+class Other {}
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,0 +1,18 @@
+title: an empty regex and an empty subject are ordinary operands
+grammar: typescript
+asserts: types, values
+
+The empty pattern matches everything, the empty string included. A non-empty
+pattern does not match the empty string.
+
+--- tql ---
+main = const ["" ~ r"", "abc" ~ r"", "" ~ r"a"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, true, false]
+
+--- types ---
+main : Node -> [Bool]

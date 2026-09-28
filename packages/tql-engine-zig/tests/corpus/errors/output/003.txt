@@ -1,0 +1,11 @@
+title: a function output is not serializable
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure (\x -> x + 1);
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:1-1:27
+`Serial (Int -> Int)` is not satisfied.

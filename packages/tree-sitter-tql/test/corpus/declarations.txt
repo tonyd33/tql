@@ -1,0 +1,307 @@
+========================================
+a definition with no parameters
+========================================
+
+main = 1;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (number)))
+
+========================================
+a definition with parameters
+========================================
+
+add x y = x + y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    parameter: (identifier)
+    body: (additive
+      left: (identifier)
+      right: (identifier))))
+
+========================================
+main takes the parsed root as its parameter
+========================================
+
+main root = (children | is_kind :class_declaration) root;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (application
+      function: (parenthesized
+        (pipe
+          left: (identifier)
+          right: (application
+            function: (identifier)
+            argument: (kind))))
+      argument: (identifier))))
+
+========================================
+several declarations in sequence
+========================================
+
+is_even n = if n = 0 then true else is_odd (n - 1);
+is_odd n = if n = 0 then false else is_even (n - 1);
+main = is_even 4;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (if_expression
+      condition: (comparison
+        left: (identifier)
+        right: (number))
+      consequence: (boolean)
+      alternative: (application
+        function: (identifier)
+        argument: (parenthesized
+          (additive
+            left: (identifier)
+            right: (number))))))
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (if_expression
+      condition: (comparison
+        left: (identifier)
+        right: (number))
+      consequence: (boolean)
+      alternative: (application
+        function: (identifier)
+        argument: (parenthesized
+          (additive
+            left: (identifier)
+            right: (number))))))
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (number))))
+
+========================================
+a signature
+========================================
+
+main : Filter node string;
+main = kind;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (filter_type
+      input: (type_variable)
+      output: (type_variable)))
+  (definition
+    name: (identifier)
+    body: (identifier)))
+
+========================================
+a function-typed signature
+========================================
+
+name_of : Filter node node -> Filter node string;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (filter_type
+        input: (type_variable)
+        output: (type_variable))
+      to: (filter_type
+        input: (type_variable)
+        output: (type_variable)))))
+
+========================================
+a signature with one constraint
+========================================
+
+size : Sized a => a -> Int;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    type: (function_type
+      from: (type_variable)
+      to: (type_identifier))))
+
+========================================
+a signature with several constraints
+========================================
+
+f : (Eq a, Ord b) => a -> b -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable))
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    type: (function_type
+      from: (type_variable)
+      to: (function_type
+        from: (type_variable)
+        to: (type_identifier)))))
+
+========================================
+a parenthesized type application is not a context
+========================================
+
+f : (Maybe a) -> Int;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (parenthesized_type
+        (type_application
+          constructor: (type_identifier)
+          argument: (type_variable)))
+      to: (type_identifier))))
+
+========================================
+list and record types
+========================================
+
+f : [Filter node string];
+g : { name: string, size: int };
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (list_type
+      (filter_type
+        input: (type_variable)
+        output: (type_variable))))
+  (signature
+    name: (identifier)
+    type: (record_type
+      (record_type_field
+        name: (identifier)
+        type: (type_variable))
+      (record_type_field
+        name: (identifier)
+        type: (type_variable)))))
+
+========================================
+a comment
+========================================
+
+-- the entrypoint
+main = 1;
+
+---
+
+(source_file
+  (comment)
+  (definition
+    name: (identifier)
+    body: (number)))
+
+========================================
+a data type declaration
+========================================
+
+type Bool = False | True;
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier))))
+
+========================================
+a parameterized recursive data type
+========================================
+
+type List a = Nil | Cons a (List a);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable)
+      field: (parenthesized_type
+        (type_application
+          constructor: (type_identifier)
+          argument: (type_variable))))))
+
+========================================
+a constructor field may be a primitive or a list
+========================================
+
+type Pair = MkPair Int [String];
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_identifier)
+      field: (list_type
+        (type_identifier)))))
+
+========================================
+a signature naming a declared type at its arguments
+========================================
+
+f : List Int -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_application
+        constructor: (type_identifier)
+        argument: (type_identifier))
+      to: (type_identifier))))

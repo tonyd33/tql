@@ -1,0 +1,15 @@
+title: `parent` yields exactly one node below the root
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = descendants | of_kind :method_definition | parent | arr kind;
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["class_body"]
+
+--- types ---
+main : Node -> [String]

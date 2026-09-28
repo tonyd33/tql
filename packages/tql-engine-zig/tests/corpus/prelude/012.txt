@@ -1,0 +1,18 @@
+title: `has` over `ancestors` searches ancestors
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  n <- descendants_of_kind :property_identifier root;
+  return $ has (ancestors | of_kind :class_declaration) n;
+};
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+[true]
+
+--- types ---
+main : Node -> [Bool]

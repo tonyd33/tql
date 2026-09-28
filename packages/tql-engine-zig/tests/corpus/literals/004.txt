@@ -1,0 +1,15 @@
+title: negative integer literal
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure $ 0 - 7;
+
+--- source ---
+class A {}
+
+--- values ---
+[-7]
+
+--- types ---
+main : Node -> [Int]

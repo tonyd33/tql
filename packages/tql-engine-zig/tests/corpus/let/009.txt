@@ -1,0 +1,26 @@
+title: mutual recursion inside one group
+grammar: typescript
+asserts: core, types, values
+
+`is_even` and `is_odd` refer to each other. Both are checked monomorphically as
+one component, then generalized together.
+
+--- tql ---
+main =
+  let {
+    is_even n = if n = 0 then true else is_odd (n - 1);
+    is_odd n = if n = 0 then false else is_even (n - 1);
+  }
+  in const [is_even 4, is_even 7];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- core ---
+main = letrec { is_even = \n -> case op[=] n 0 of { False -> is_odd (op[-] n 1); True -> True }; is_odd = \n -> case op[=] n 0 of { False -> is_even (op[-] n 1); True -> False } } in const (Cons (is_even 4) (Cons (is_even 7) Nil))
+
+--- types ---
+main : Node -> [Bool]

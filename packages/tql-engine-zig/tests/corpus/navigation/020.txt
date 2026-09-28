@@ -1,0 +1,16 @@
+title: field navigation reaches anonymous tokens
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = descendants_of_kind :binary_expression | .operator | arr text;
+
+--- source ---
+x = a || b;
+y = a === b;
+
+--- values ---
+["||", "==="]
+
+--- types ---
+main : Node -> [String]

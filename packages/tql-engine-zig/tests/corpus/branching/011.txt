@@ -1,0 +1,18 @@
+title: `not` over a comparison takes `$`
+grammar: typescript
+asserts: types, values
+
+`not` is an ordinary function, so `not 1 = 1` would apply it to `1`. `$` hands
+it the whole comparison.
+
+--- tql ---
+main = pure $ not $ 1 = 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[false]
+
+--- types ---
+main : Node -> [Bool]

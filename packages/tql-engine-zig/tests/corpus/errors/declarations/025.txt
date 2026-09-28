@@ -1,0 +1,15 @@
+title: a type may not be named after a built-in one
+grammar: typescript
+asserts: error
+
+A declared type is found before a built-in one, so `type Int` would change
+what `Int` means in every signature while primitives kept the real one.
+
+--- tql ---
+type Int = I;
+main = pure 1;
+
+--- error ---
+category: symbol-collision
+span: 1:1-1:14
+`Int` is a built-in type

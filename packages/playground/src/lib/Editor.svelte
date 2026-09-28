@@ -8,7 +8,7 @@
   import { python } from "@codemirror/lang-python";
   import { rust } from "@codemirror/lang-rust";
 
-  type Lang = "cpp" | "c" | "go" | "javascript" | "python" | "rust" | "tsx" | "typescript" | "zig";
+  type Lang = string;
 
   let {
     value = $bindable(""),

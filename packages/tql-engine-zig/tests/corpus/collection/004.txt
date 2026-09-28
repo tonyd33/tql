@@ -1,0 +1,18 @@
+title: `collect (a <|> b)` collects the union of `a` and `b`
+grammar: typescript
+asserts: types, values
+
+`collect` gathers whatever the union yields, so a multi-output operand
+contributes every one of its values.
+
+--- tql ---
+main = collect $ const [1, 2] <|> pure 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[[1, 2, 3]]
+
+--- types ---
+main : Node -> [[Int]]

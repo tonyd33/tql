@@ -1,0 +1,20 @@
+title: `or_else` yields the primary when it has results
+grammar: typescript
+asserts: types, values
+
+`or_else` runs `primary` once and yields its results, or `fallback`'s when it
+has none.
+
+--- tql ---
+main =
+  children | of_kind :class_declaration
+  | or_else (.name | arr text) (pure "anonymous");
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]
+
+--- types ---
+main : Node -> [String]

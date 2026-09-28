@@ -1,0 +1,19 @@
+title: a `do` block with no statements is permitted
+grammar: typescript
+asserts: types, values
+
+It evaluates to its final expression.
+
+--- tql ---
+main root = do {
+  map text $ children_of_kind :class_declaration root;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["class A {}"]
+
+--- types ---
+main : Node -> [String]

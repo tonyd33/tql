@@ -1,0 +1,17 @@
+title: a signature may not drop a constraint the body raises
+grammar: typescript
+asserts: error
+
+The body compares its arguments, so it needs `Eq a`. The signature does not
+write it, so `a -> a -> Bool` claims more than the body supports, even though
+every use here is at `Int`.
+
+--- tql ---
+same : a -> a -> Bool;
+same x y = x = y;
+main = pure (same 1 1);
+
+--- error ---
+category: signature-mismatch
+span: 1:1-1:23
+`Eq a` is not satisfied.

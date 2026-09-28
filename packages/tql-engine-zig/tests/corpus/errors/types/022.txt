@@ -1,0 +1,14 @@
+title: tuple types do not exist
+grammar: typescript
+asserts: error
+
+There is no tuple type or tuple literal. `,` is only a separator, so a
+parenthesized comma expression does not parse.
+
+--- tql ---
+main = (1, "a");
+
+--- error ---
+category: parse
+span: 1:10-1:11
+The stray `,`. It never constructs a pair.

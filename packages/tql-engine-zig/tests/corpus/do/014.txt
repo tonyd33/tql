@@ -1,0 +1,20 @@
+title: a `do` bind over a non-node stream
+grammar: typescript
+asserts: types, values
+
+A bind is not node-specific; it binds each element of any list.
+
+--- tql ---
+main _ = do {
+  n <- [1, 2, 3];
+  return $ n * 10;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[10, 20, 30]
+
+--- types ---
+main : Node -> [Int]

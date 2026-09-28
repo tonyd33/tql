@@ -1,0 +1,21 @@
+title: `pure []` is an empty list, not an empty query
+grammar: typescript
+asserts: types, values
+
+`pure []` yields one value, and that value is the empty list. `none` yields no
+output at all. The distinction is the rule.
+
+--- tql ---
+main root = do {
+  xs <- pure [] root;
+  return $ length xs;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[0]
+
+--- types ---
+main : Node -> [Int]

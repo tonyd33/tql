@@ -1,0 +1,20 @@
+title: nested collection
+grammar: typescript
+asserts: types, values
+
+The outer `collect` gathers the per-class lists into one list of lists.
+
+--- tql ---
+method_names = collect $ .body | children | of_kind :method_definition | .name | arr text;
+main = collect $ children | of_kind :class_declaration | method_names;
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+[[["m", "n"], ["p"]]]
+
+--- types ---
+method_names : Node -> [[String]]
+main : Node -> [[[String]]]

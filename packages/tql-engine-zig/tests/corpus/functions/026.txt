@@ -1,0 +1,15 @@
+title: dollar applies a function to everything on its right
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = map text $ descendants_of_kind :class_declaration root;
+
+--- source ---
+class A {}
+
+--- values ---
+["class A {}"]
+
+--- types ---
+main : Node -> [String]

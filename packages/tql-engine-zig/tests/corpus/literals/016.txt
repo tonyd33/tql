@@ -1,0 +1,15 @@
+title: string ordering
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const ["a" < "b", "b" < "a"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

@@ -8,11 +8,12 @@
       "scope": "source.tql",
       "file-types": ["tql"],
       "injection-regex": "^tql$",
-      "class-name": "TreeSitterTql"
+      "class-name": "TreeSitterTql",
+      "highlights": ["queries/highlights.scm"]
     }
   ],
   "metadata": {
-    "version": "0.1.1",
+    "version": "0.3.0",
     "license": "MIT",
     "description": "Tql grammar for tree-sitter",
     "authors": [

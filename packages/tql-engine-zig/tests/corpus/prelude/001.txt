@@ -1,0 +1,30 @@
+title: `guard $ has q x` keeps `x` when `q x` yields something
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+getters c = do {
+  m <- (.body | children | of_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n ~ r"^get";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  guard $ has getters c;
+  n <- c.name;
+  return $ text n;
+};
+
+--- source ---
+class Service { getX() {} }
+class Other { setY() {} }
+class Store { getA() {} }
+
+--- values ---
+["Service", "Store"]
+
+--- types ---
+getters : Node -> [Node]
+main : Node -> [String]

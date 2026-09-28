@@ -1,0 +1,18 @@
+title: `filename` yields the empty stream when no path is available
+grammar: typescript
+asserts: types, values
+
+No `file:` header, so there is no path. Absence is the empty stream, not an
+error and not an empty string.
+
+--- tql ---
+main = filename;
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+main : Node -> [String]

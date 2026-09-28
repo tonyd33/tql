@@ -1,0 +1,19 @@
+title: records nest and hold heterogeneous fields
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return { name = text n, meta = { k = kind c, n = 1 } };
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "meta": { "k": "class_declaration", "n": 1 }, "name": "A" }]
+
+--- types ---
+main : Node -> [{meta: {k: String, n: Int}, name: String}]

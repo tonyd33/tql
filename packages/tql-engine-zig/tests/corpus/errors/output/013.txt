@@ -1,0 +1,17 @@
+title: a stream-bound value may not escape its input type
+grammar: typescript
+asserts: error
+
+A name bound by `<-` is not generalized, so `f` cannot be used at two
+different types.
+
+--- tql ---
+main _ = do {
+  f <- [\x -> x];
+  return { a = f 1, b = f "s" };
+};
+
+--- error ---
+category: type-mismatch
+span: 3:27-3:30
+The second use of `f`. Expected `Int`, found `String`.

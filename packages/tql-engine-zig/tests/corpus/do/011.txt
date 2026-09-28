@@ -1,0 +1,19 @@
+title: a bound node is lifted when it begins navigation
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  p <- descendants_of_kind :property_identifier c;
+  return $ text p;
+};
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["m", "n"]
+
+--- types ---
+main : Node -> [String]

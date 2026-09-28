@@ -1,0 +1,167 @@
+-- TQL prelude.
+
+type List a = Nil | Cons a (List a);
+
+type Bool = False | True;
+
+type Unit = Unit;
+
+-- Functional helpers
+
+identity : a -> a;
+identity x = x;
+
+const : a -> b -> a;
+const x y = x;
+
+compose : (b -> c) -> (a -> b) -> a -> c;
+compose f g x = f (g x);
+
+flip : (a -> b -> c) -> b -> a -> c;
+flip f x y = f y x;
+
+null : [a] -> Bool;
+null xs = case xs of {
+  Nil -> True;
+  Cons h t -> False;
+};
+
+append : [a] -> [a] -> [a];
+append xs ys = case xs of {
+  Nil -> ys;
+  Cons h t -> Cons h (append t ys);
+};
+
+concat : [[a]] -> [a];
+concat xss = case xss of {
+  Nil -> Nil;
+  Cons h t -> append h (concat t);
+};
+
+map : (a -> b) -> [a] -> [b];
+map f xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> Cons (f h) (map f t);
+};
+
+concat_map : (a -> [b]) -> [a] -> [b];
+concat_map f xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> append (f h) (concat_map f t);
+};
+
+filter : (a -> Bool) -> [a] -> [a];
+filter p xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> case p h of {
+    False -> filter p t;
+    True -> Cons h (filter p t);
+  };
+};
+
+foldr : (a -> b -> b) -> b -> [a] -> b;
+foldr f z xs = case xs of {
+  Nil -> z;
+  Cons h t -> f h (foldr f z t);
+};
+
+not : Bool -> Bool;
+not b = case b of {
+  False -> True;
+  True -> False;
+};
+
+and : Bool -> Bool -> Bool;
+and a b = case a of {
+  False -> False;
+  True -> b;
+};
+
+or : Bool -> Bool -> Bool;
+or a b = case a of {
+  False -> b;
+  True -> True;
+};
+
+any : (a -> Bool) -> [a] -> Bool;
+any p xs = case xs of {
+  Nil -> False;
+  Cons h t -> or (p h) (any p t);
+};
+
+all : (a -> Bool) -> [a] -> Bool;
+all p xs = case xs of {
+  Nil -> True;
+  Cons h t -> and (p h) (all p t);
+};
+
+guard : Bool -> [Unit];
+guard b = case b of {
+  False -> Nil;
+  True -> Cons Unit Nil;
+};
+
+-- FIXME: Consider removing this while we don't truly have functors as it can
+-- be confused with `pure`
+return : a -> List a;
+return a = [a];
+
+take : Int -> [a] -> [a];
+take n xs = if n <= 0 then Nil else case xs of {
+  Nil -> Nil;
+  Cons h t -> Cons h (take (n - 1) t);
+};
+
+drop : Int -> [a] -> [a];
+drop n xs = if n <= 0 then xs else case xs of {
+  Nil -> Nil;
+  Cons h t -> drop (n - 1) t;
+};
+
+head : [a] -> [a];
+head xs = take 1 xs;
+
+tail : [a] -> [a];
+tail xs = drop 1 xs;
+
+-- The query layer. `Filter a b` is `a -> [b]`, the Kleisli category of the
+-- list monad. Every name below is that monad's, or a list function lifted
+-- into it.
+
+-- FIXME: Consider removing this while we don't truly have functors as it can
+-- be confused with `return`
+pure : a -> Filter b a;
+pure v x = [v];
+
+none : Filter a b;
+none x = [];
+
+kleisli : Filter a b -> Filter b c -> Filter a c;
+kleisli p q x = concat_map q (p x);
+
+alt : Filter a b -> Filter a b -> Filter a b;
+alt p q x = append (p x) (q x);
+
+arr : (a -> b) -> Filter a b;
+arr f x = [f x];
+
+collect : Filter a b -> Filter a [b];
+collect p x = [p x];
+
+keep : (a -> Bool) -> Filter a a;
+keep p x = case p x of {
+  False -> Nil;
+  True -> Cons x Nil;
+};
+
+has : Filter a b -> a -> Bool;
+has p x = not (null (p x));
+
+first : Filter a b -> Filter a b;
+first p x = head (p x);
+
+or_else : Filter a b -> Filter a b -> Filter a b;
+or_else primary fallback x = case primary x of {
+  Nil -> fallback x;
+  Cons h t -> Cons h t;
+};

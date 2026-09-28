@@ -1,59 +1,18 @@
 <script lang="ts">
-  import type { Tree } from "web-tree-sitter";
+  import type { TreeRow } from "tql";
 
-  type Row = {
-    depth: number;
-    fieldName: string | null;
-    type: string;
-    isNamed: boolean;
-    isError: boolean;
-    isMissing: boolean;
-    startIndex: number;
-    endIndex: number;
-    startRow: number;
-    startCol: number;
-    endRow: number;
-    endCol: number;
-  };
+  type Row = TreeRow & { isError: boolean };
 
-  let { tree, onSelect }: { tree: Tree; onSelect: (start: number, end: number) => void } = $props();
+  let { tree, onSelect }: { tree: TreeRow[]; onSelect: (start: number, end: number) => void } =
+    $props();
 
   let showAnonymous = $state(false);
 
-  const rows = $derived.by<Row[]>(() => {
-    const out: Row[] = [];
-    const cursor = tree.walk();
-    let depth = 0;
-    const visit = () => {
-      if (showAnonymous || cursor.nodeIsNamed) {
-        out.push({
-        depth,
-        fieldName: cursor.currentFieldName ?? null,
-        type: cursor.nodeType,
-        isNamed: cursor.nodeIsNamed,
-        isError: cursor.nodeType === "ERROR",
-        isMissing: cursor.nodeIsMissing,
-        startIndex: cursor.startIndex,
-        endIndex: cursor.endIndex,
-        startRow: cursor.startPosition.row,
-        startCol: cursor.startPosition.column,
-        endRow: cursor.endPosition.row,
-        endCol: cursor.endPosition.column,
-        });
-      }
-      if (cursor.gotoFirstChild()) {
-        depth++;
-        do {
-          visit();
-        } while (cursor.gotoNextSibling());
-        cursor.gotoParent();
-        depth--;
-      }
-    };
-    visit();
-    cursor.delete();
-    return out;
-  });
+  const rows = $derived.by<Row[]>(() =>
+    tree
+      .filter((r) => showAnonymous || r.isNamed)
+      .map((r) => ({ ...r, isError: r.type === "ERROR" })),
+  );
 </script>
 
 <label class="toggle">

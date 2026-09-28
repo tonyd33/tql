@@ -1,0 +1,24 @@
+title: a case whose scrutinee is itself a case binds the outer alternative's fields
+grammar: typescript
+asserts: types, values
+
+The inner alternative's binders `a` and `b` are out of scope in the outer
+alternative. Each reference there must see `x`, `y` and `q`, not a leftover
+inner binder.
+
+--- tql ---
+type P = Mk Int Int;
+fst p = case p of { Mk a b -> a };
+pick p q = case (case p of { Mk a b -> Mk b a }) of { Mk x y -> x + 10 * y + 100 * fst q };
+main = pure $ pick (Mk 1 2) (Mk 7 8);
+
+--- source ---
+class A {}
+
+--- values ---
+[712]
+
+--- types ---
+fst : P -> Int
+pick : P -> P -> Int
+main : Node -> [Int]

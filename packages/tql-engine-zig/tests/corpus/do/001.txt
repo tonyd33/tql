@@ -1,0 +1,19 @@
+title: a single stream bind runs the body once per output
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ text c;
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["class A {}", "class B {}"]
+
+--- types ---
+main : Node -> [String]

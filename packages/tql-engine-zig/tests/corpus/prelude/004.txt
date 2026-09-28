@@ -1,0 +1,22 @@
+title: `has` yields one boolean, never prunes
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+methods = .body | children | of_kind :method_definition;
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has methods c;
+};
+
+--- source ---
+class A { m() {} n() {} }
+class B {}
+
+--- values ---
+[true, false]
+
+--- types ---
+methods : Node -> [Node]
+main : Node -> [Bool]

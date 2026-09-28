@@ -1,0 +1,19 @@
+title: a function parameter shadows a global of the same name
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+n = 100;
+shadowed n = n + 1;
+main = const [shadowed 1, n];
+
+--- source ---
+class A {}
+
+--- values ---
+[2, 100]
+
+--- types ---
+n : Int
+shadowed : Int -> Int
+main : Node -> [Int]

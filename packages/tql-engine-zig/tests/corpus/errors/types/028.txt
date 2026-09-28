@@ -1,0 +1,13 @@
+title: an alternative after a wildcard is never matched
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { Nil -> 0; _ -> 1; Cons a t -> 2; };
+
+main = pure (f [1]);
+
+--- error ---
+category: type-mismatch
+span: 1:39-1:47
+The `Cons a t` pattern.

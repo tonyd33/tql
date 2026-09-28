@@ -1,0 +1,12 @@
+title: a lambda parameter is not visible outside its body
+grammar: typescript
+asserts: error
+
+--- tql ---
+f = \x -> x + 1;
+main = x;
+
+--- error ---
+category: unresolved-name
+span: 2:8-2:9
+`x`.

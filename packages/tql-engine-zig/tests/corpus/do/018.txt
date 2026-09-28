@@ -1,0 +1,30 @@
+title: `do` and explicit pipe agree when no correlation is needed
+grammar: typescript
+asserts: types, values
+
+Stream bind degenerates to pipe when the body does not need the binding. Both
+spellings appear in one union, so their streams are directly comparable: the
+first two values come from the `do` form and the last two from the pipe form.
+
+--- tql ---
+with_do root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return $ text n;
+};
+
+with_pipe = children | of_kind :class_declaration | .name | arr text;
+
+main = with_do <|> with_pipe;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B", "A", "B"]
+
+--- types ---
+with_do : Node -> [String]
+with_pipe : Node -> [String]
+main : Node -> [String]

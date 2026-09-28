@@ -1,0 +1,23 @@
+title: a bound scalar is lifted in an operator operand
+grammar: typescript
+asserts: types, values
+
+`expected` is a bound `String`, compared as an ordinary operand of `=`.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  let expected = "A";
+  n <- c.name;
+  return $ text n = expected;
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

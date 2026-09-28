@@ -1,0 +1,21 @@
+title: a multi-valued field is collected into a list field
+grammar: typescript
+asserts: types, values
+
+A field holds one value, so a query yielding many is collected at the field.
+An empty query gives an empty list and the record is still built.
+
+--- tql ---
+main root = do {
+  b <- collect (children | of_kind :interface_declaration | arr text) root;
+  return { a = 1, b = b };
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "a": 1, "b": [] }]
+
+--- types ---
+main : Node -> [{a: Int, b: [String]}]

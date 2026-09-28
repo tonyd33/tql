@@ -1,0 +1,18 @@
+title: a function nested in a list is not serializable
+grammar: typescript
+asserts: error
+
+`[kind, text]` is `[Node -> String]`, a list of functions. `Serial` fails
+through the list to its element type.
+
+`collect (kind <|> text)` looks similar and does not fail at all: it collects
+the union of two filters into `[String]`. `collection/003` is the same shape
+and is a passing fixture.
+
+--- tql ---
+main = pure [kind, text];
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:1-1:26
+`Serial [Node -> String]` is not satisfied.

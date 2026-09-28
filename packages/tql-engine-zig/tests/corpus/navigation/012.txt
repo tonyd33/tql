@@ -1,0 +1,15 @@
+title: `parent` yields no result at the root
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = parent | arr kind;
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+main : Node -> [String]

@@ -1,0 +1,23 @@
+title: a record of scalars is built from bound nodes
+grammar: typescript
+asserts: types, values
+
+Record fields are scalars, so the record is a scalar too. Navigation stays a
+filter, because a field may hold several nodes. A field read is bound first and
+the record is built from the bound name.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return { kind = kind c, name = text n };
+};
+
+--- source ---
+class Service {}
+
+--- values ---
+[{ "kind": "class_declaration", "name": "Service" }]
+
+--- types ---
+main : Node -> [{kind: String, name: String}]

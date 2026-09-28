@@ -1,0 +1,27 @@
+title: a node encodes with exactly six fields
+grammar: typescript
+asserts: types, values
+
+The one fixture that spells out full node JSON. `class Service {}` is 16 bytes
+on one row, so the node spans byte 0 to 16 and column 0 to 16.
+
+--- tql ---
+main = children | of_kind :class_declaration;
+
+--- source ---
+class Service {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class Service {}",
+    "start_byte": 0,
+    "end_byte": 16,
+    "start_point": { "row": 0, "column": 0 },
+    "end_point": { "row": 0, "column": 16 }
+  }
+]
+
+--- types ---
+main : Node -> [Node]

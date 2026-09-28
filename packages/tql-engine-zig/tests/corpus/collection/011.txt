@@ -1,0 +1,28 @@
+title: a cross product over two streams is written with `do`
+grammar: typescript
+asserts: types, values
+
+Record fields are scalars, so a record does not fan out. Two streams are
+combined by binding each in turn: `a` binds first and varies slowest, which is
+the enumeration order `do` gives.
+
+--- tql ---
+main _ = do {
+  a <- [1, 2];
+  b <- ["x", "y"];
+  return { a = a, b = b };
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[
+  { "a": 1, "b": "x" },
+  { "a": 1, "b": "y" },
+  { "a": 2, "b": "x" },
+  { "a": 2, "b": "y" }
+]
+
+--- types ---
+main : Node -> [{a: Int, b: String}]

@@ -1,0 +1,22 @@
+title: `do` nested inside a pipe stage
+grammar: typescript
+asserts: types, values
+
+The block runs once per input value from the left stage.
+
+--- tql ---
+main = children | of_kind :class_declaration | \c -> do {
+  m <- (.body | children | of_kind :method_definition) c;
+  n <- m.name;
+  return $ text n;
+};
+
+--- source ---
+class A { m() {} }
+class B { p() {} }
+
+--- values ---
+["m", "p"]
+
+--- types ---
+main : Node -> [String]

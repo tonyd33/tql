@@ -1,0 +1,20 @@
+title: structural equality on lists
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  let {
+    a = [1, 2];
+    b = [2, 1];
+  }
+  in const [a = a, a = b];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- types ---
+main : Node -> [Bool]

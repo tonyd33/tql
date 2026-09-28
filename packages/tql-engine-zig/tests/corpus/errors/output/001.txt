@@ -1,0 +1,14 @@
+title: `main` must have type `Filter Node _`
+grammar: typescript
+asserts: error
+
+`main` is applied to the parsed root, so its input type is `node`. A filter
+over a different input type cannot be the entrypoint.
+
+--- tql ---
+main = identity;
+
+--- error ---
+category: main-type
+span: 1:1-1:17
+The `main` definition. Expected `Filter Node _`, found `Filter [a] a`.

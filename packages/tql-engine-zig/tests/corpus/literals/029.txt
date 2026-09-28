@@ -1,0 +1,15 @@
+title: `identity` streams list elements in order
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure [3, 1, 2] | identity;
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 1, 2]
+
+--- types ---
+main : Node -> [Int]

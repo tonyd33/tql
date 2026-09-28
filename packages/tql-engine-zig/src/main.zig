@@ -3,7 +3,6 @@ const tql = @import("tql");
 const goz = @import("goz");
 const Engine = tql.Engine;
 const Grammar = tql.Grammar;
-const Value = tql.Value;
 
 const VERSION = tql.VERSION;
 
@@ -22,7 +21,6 @@ const OutputFormat = enum {
 
 const ExitCode = enum(u8) {
     success = 0,
-    no_matches = 1,
     parse_error = 2,
     compilation_error = 3,
     runtime_error = 4,
@@ -43,7 +41,7 @@ const main_cmds = .{
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
-            .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: json)" },
+            .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: text)" },
         },
     },
     .version = .{
@@ -129,11 +127,12 @@ pub fn main(init: std.process.Init) !u8 {
 
     _ = iter.next();
 
-    var tokenizer = ArgTokenizer(main_opts).init(&iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_opts).init(&iter, &arg_diagnostic);
     var show_help = false;
     var subcmd: ?[]const u8 = null;
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -211,7 +210,8 @@ fn runQuery(
     var registry = tql.GrammarRegistry.init(gpa, search_paths);
     defer registry.deinit();
 
-    var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter, &arg_diagnostic);
 
     var show_help = false;
     var from_file: ?[]const u8 = null;
@@ -222,7 +222,7 @@ fn runQuery(
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -230,9 +230,12 @@ fn runQuery(
             },
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
-                .workers => workers = std.fmt.parseInt(usize, kv.value, 10) catch {
-                    try stderr.print("Error: --workers requires a positive integer\n", .{});
-                    return @intFromEnum(ExitCode.invalid_args);
+                .workers => {
+                    workers = std.fmt.parseInt(usize, kv.value, 10) catch 0;
+                    if (workers == 0) {
+                        try stderr.print("Error: --workers requires a positive integer\n", .{});
+                        return @intFromEnum(ExitCode.invalid_args);
+                    }
                 },
                 .grammar => grammar = registry.get(kv.value) catch |err| {
                     try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
@@ -255,10 +258,10 @@ fn runQuery(
     // If --from-file, positionals are all target files.
     // Otherwise, first positional is the inline query, rest are target files.
     const query: []const u8 = if (from_file) |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
-        defer file.close(io);
-        var file_reader = file.reader(io, &.{});
-        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+        break :blk readQueryFile(io, gpa, query_file) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
+            return @intFromEnum(ExitCode.invalid_args);
+        };
     } else blk: {
         if (positionals.items.len == 0) {
             try stderr.print("Error: query is required\n", .{});
@@ -283,6 +286,7 @@ fn runQuery(
 
     return run(gpa, io, stdout, stderr, .{
         .query = query,
+        .query_path = from_file,
         .query_target_paths = files,
         .format = format,
         .grammar = grammar_resolved,
@@ -304,14 +308,15 @@ fn runGrammar(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter, &arg_diagnostic);
 
     var show_help = false;
     var install_dir: ?[]const u8 = null;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -392,14 +397,15 @@ fn runDebug(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    var tokenizer = ArgTokenizer(main_cmds.debug.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.debug.opts).init(iter, &arg_diagnostic);
 
     var from_file: ?[]const u8 = null;
     var grammar_name: ?[]const u8 = null;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => {},
@@ -428,6 +434,44 @@ fn runDebug(
     }
 }
 
+/// Print the argument error and return the invalid-arguments exit code.
+fn reportArgError(stderr: *std.Io.Writer, err: goz.ParseError, diag: goz.Diagnostic) !u8 {
+    const line_end = std.mem.indexOfScalar(u8, diag.arg, '\n') orelse diag.arg.len;
+    const arg = diag.arg[0..line_end];
+    switch (err) {
+        error.UnknownArg => try stderr.print("Error: unknown option '{s}'\n", .{arg}),
+        error.MissingArg => try stderr.print("Error: option '{s}' requires a value\n", .{arg}),
+        error.ExtraArg => try stderr.print("Error: option '{s}' takes no value\n", .{arg}),
+        error.InvalidArgSyntax => try stderr.print("Error: malformed option '{s}'\n", .{arg}),
+    }
+    const looks_like_query = std.mem.startsWith(u8, diag.arg, "-- ") or line_end < diag.arg.len;
+    if (err == error.UnknownArg and looks_like_query) {
+        try stderr.writeAll("A query starting with a `--` comment must follow `--`, or be passed with -f.\n");
+    }
+    return @intFromEnum(ExitCode.invalid_args);
+}
+
+fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
+    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+    defer file.close(io);
+    var file_reader = file.reader(io, &.{});
+    return file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+}
+
+/// Print every diagnostic a compilation collected, one per line, with the
+/// source line it points at.
+fn reportDiagnostics(
+    sink: *const tql.diagnostic.Sink,
+    source: []const u8,
+    path: ?[]const u8,
+    stderr: *std.Io.Writer,
+) !void {
+    for (sink.items(), 0..) |d, i| {
+        if (i > 0) try stderr.writeByte('\n');
+        try d.render(stderr, source, path);
+    }
+}
+
 fn runDumpInstructions(
     io: std.Io,
     gpa: std.mem.Allocator,
@@ -447,10 +491,10 @@ fn runDumpInstructions(
     defer registry.deinit();
 
     const query: []const u8 = if (from_file) |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
-        defer file.close(io);
-        var file_reader = file.reader(io, &.{});
-        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+        break :blk readQueryFile(io, gpa, query_file) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
+            return @intFromEnum(ExitCode.invalid_args);
+        };
     } else blk: {
         if (positionals.len == 0) {
             try stderr.print("Error: query is required\n", .{});
@@ -473,15 +517,20 @@ fn runDumpInstructions(
     var engine = try Engine.init(.{ .allocator = gpa, .io = io });
     defer engine.deinit();
 
-    var compiled = engine.compile(query, grammar) catch |err| {
-        try stderr.print("Error: {}\n", .{err});
+    var sink = tql.diagnostic.Sink.init(gpa);
+    defer sink.deinit();
+
+    var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
+        try reportDiagnostics(&sink, query, from_file, stderr);
+        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
     defer compiled.deinit();
 
-    for (compiled.instructions(), 0..) |instr, i| {
-        try stdout.print("{d:4}: ", .{i});
-        try instr.print(stdout);
+    const printer = tql.stg.Printer{ .interner = &compiled.checked.env.interner };
+    for (compiled.translated.definitions) |definition| {
+        try stdout.print("{s} = ", .{compiled.checked.env.interner.spelling(definition.symbol)});
+        try printer.closure(definition.value, stdout);
         try stdout.writeAll("\n");
     }
 
@@ -490,6 +539,8 @@ fn runDumpInstructions(
 
 const Config = struct {
     query: []const u8,
+    /// The file `query` was read from, or null for an inline query.
+    query_path: ?[]const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
     grammar: *const Grammar,
@@ -521,21 +572,37 @@ fn renderProgress(w: *std.Io.Writer, done: usize, total: usize, done_walk: bool)
     w.flush() catch {};
 }
 
-fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), w: *std.Io.Writer) !void {
+fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), stderr: *Stderr) !void {
     while (!stop.load(.acquire)) {
-        renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
+        {
+            try stderr.lock.lock(io);
+            defer stderr.lock.unlock(io);
+            renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+        }
         try io.sleep(std.Io.Duration.fromMilliseconds(1), .real);
     }
-    renderProgress(w, p.done.load(.monotonic), p.total.load(.monotonic), p.*.done_walk);
-    w.print("\n", .{}) catch {};
-    w.flush() catch {};
+    try stderr.lock.lock(io);
+    defer stderr.lock.unlock(io);
+    renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+    stderr.writer.print("\n", .{}) catch {};
+    stderr.writer.flush() catch {};
 }
+
+/// stderr, shared by the progress bar and the per-file error reports.
+// FIXME: I'm pretty sure there is a threadsafe version of this in 0.16 stdlib
+const Stderr = struct {
+    writer: *std.Io.Writer,
+    lock: std.Io.Mutex = .init,
+};
 
 // IMPROVE: almost much everything below belongs in the lib. We're trying to
 // "feel out" an appropriate engine API from CLI usage.
 
 const PathEntry = struct {
-    arena: std.heap.ArenaAllocator,
+    /// Held by pointer: an `ArenaAllocator`'s `allocator()` vtable points at
+    /// the struct, so moving one through a queue dangles every allocation
+    /// made through it.
+    arena: *std.heap.ArenaAllocator,
     path: []const u8,
 };
 
@@ -547,14 +614,35 @@ const FileStats = struct {
     query_time: std.Io.Duration = .zero,
 };
 
+fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
+    try jws.beginObject();
+    try jws.objectField("read_time_ns");
+    try jws.write(stats.read_time.nanoseconds);
+    try jws.objectField("parse_time_ns");
+    try jws.write(stats.parse_time.nanoseconds);
+    try jws.objectField("query_time_ns");
+    try jws.write(stats.query_time.nanoseconds);
+    try jws.endObject();
+}
+
 const FileResult = struct {
-    arena: std.heap.ArenaAllocator,
+    /// Held by pointer for the same reason as `PathEntry.arena`, and owned by
+    /// the consumer: `deinit` frees the arena and the cell holding it.
+    arena: *std.heap.ArenaAllocator,
+    gpa: std.mem.Allocator,
     filename: []const u8,
-    values: std.ArrayList(Value),
+    /// The file's outputs, already rendered as a JSON array. Serialization
+    /// happens on the worker, while the parsed tree a node value borrows is
+    /// still alive.
+    values: []const u8,
+    count: usize,
     stats: FileStats,
+    /// Why the file produced no outputs, when reading or running it failed.
+    failure: ?anyerror = null,
 
     fn deinit(self: FileResult) void {
         self.arena.deinit();
+        self.gpa.destroy(self.arena);
     }
 };
 
@@ -563,11 +651,15 @@ const ResultQueue = tql.ds.BlockingQueue(FileResult);
 const Progress = struct {
     done: std.atomic.Value(usize) = .init(0),
     total: std.atomic.Value(usize) = .init(0),
-    done_walk: bool = false,
+    done_walk: std.atomic.Value(bool) = .init(false),
+    /// Files that produced at least one output.
+    matched: std.atomic.Value(usize) = .init(0),
+    /// Paths that could not be walked, read or run.
+    failed: std.atomic.Value(usize) = .init(0),
 };
 
 const SharedContext = struct {
-    compiled: *tql.Query,
+    compiled: *const tql.CompiledQuery,
     paths: []const []const u8,
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,
@@ -578,23 +670,64 @@ const SharedContext = struct {
     format: OutputFormat,
 };
 
-fn pushFile(ctx: *SharedContext, path: []const u8) !void {
-    var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
+/// A fresh arena holding a copy of `path`.
+fn ownPath(ctx: *SharedContext, path: []const u8) !PathEntry {
+    const arena = try ctx.allocator.create(std.heap.ArenaAllocator);
+    errdefer ctx.allocator.destroy(arena);
+    arena.* = std.heap.ArenaAllocator.init(ctx.allocator);
     errdefer arena.deinit();
-    const owned = try arena.allocator().dupe(u8, path);
-    try ctx.path_queue.push(.{ .arena = arena, .path = owned });
-    _ = ctx.*.progress.total.fetchAdd(1, .monotonic);
+    return .{ .arena = arena, .path = try arena.allocator().dupe(u8, path) };
+}
+
+fn pushFile(ctx: *SharedContext, path: []const u8) !void {
+    const entry = try ownPath(ctx, path);
+    errdefer {
+        entry.arena.deinit();
+        ctx.allocator.destroy(entry.arena);
+    }
+    try ctx.path_queue.push(entry);
+    _ = ctx.progress.total.fetchAdd(1, .monotonic);
+}
+
+/// Report `path` as failed without queueing it for a worker.
+///
+/// Preconditions:
+/// - the path queue is still open, so the result queue is too
+fn pushFailure(ctx: *SharedContext, path: []const u8, err: anyerror) !void {
+    const entry = try ownPath(ctx, path);
+    _ = ctx.progress.total.fetchAdd(1, .monotonic);
+    _ = ctx.progress.done.fetchAdd(1, .monotonic);
+    const result = failedResult(ctx, entry, err);
+    ctx.result_queue.push(result) catch |push_err| {
+        result.deinit();
+        return push_err;
+    };
+}
+
+fn failedResult(ctx: *SharedContext, entry: PathEntry, err: anyerror) FileResult {
+    _ = ctx.progress.failed.fetchAdd(1, .monotonic);
+    return .{
+        .arena = entry.arena,
+        .gpa = ctx.allocator,
+        .filename = entry.path,
+        .values = "",
+        .count = 0,
+        .stats = .{},
+        .failure = err,
+    };
 }
 
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
-    const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.*.io, path, ctx.allocator);
+    const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.io, path, ctx.allocator);
     defer ctx.allocator.free(abs);
-    var root_dir = try std.Io.Dir.openDirAbsolute(ctx.*.io, abs, .{
+    var root_dir = try std.Io.Dir.openDirAbsolute(ctx.io, abs, .{
         .iterate = true,
     });
+    defer root_dir.close(ctx.io);
 
-    var walker = try root_dir.walk(ctx.*.allocator);
-    while (try walker.next(ctx.*.io)) |entry| {
+    var walker = try root_dir.walk(ctx.allocator);
+    defer walker.deinit();
+    while (try walker.next(ctx.io)) |entry| {
         if (entry.kind == .file and ctx.*.grammar.matchesFileName(entry.basename)) {
             const joined = try std.fs.path.join(
                 ctx.*.allocator,
@@ -604,32 +737,34 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
             try pushFile(ctx, joined);
         }
     }
-    walker.deinit();
-    root_dir.close(ctx.io);
-    ctx.*.progress.*.done_walk = true;
 }
 
 fn walkerThread(ctx: *SharedContext) !void {
-    for (ctx.*.paths) |path| {
-        walkPush(ctx, path) catch |err| {
-            if (err == error.NotDir) {
-                try pushFile(ctx, path);
-            } else {
-                return err;
-            }
+    // Workers wait on the path queue until it closes, so it closes however
+    // the walk ends.
+    defer ctx.path_queue.close() catch {};
+    defer ctx.progress.done_walk.store(true, .release);
+
+    for (ctx.paths) |path| {
+        walkPush(ctx, path) catch |err| switch (err) {
+            error.NotDir => try pushFile(ctx, path),
+            else => try pushFailure(ctx, path, err),
         };
     }
-    try ctx.path_queue.close();
 }
 
-fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer) !void {
+fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr) !void {
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        for (result.values.items) |v| {
-            try stdout.print("{s}: ", .{result.filename});
-            try v.toString(stdout);
-            try stdout.writeByte('\n');
+        if (result.failure) |err| {
+            try stderr.lock.lock(ctx.io);
+            defer stderr.lock.unlock(ctx.io);
+            try stderr.writer.print("{s}: error: {t}\n", .{ result.filename, err });
+            try stderr.writer.flush();
+            continue;
         }
+        if (result.count == 0) continue;
+        try stdout.print("{s}: {s}\n", .{ result.filename, result.values });
     }
 }
 
@@ -640,76 +775,100 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.beginArray();
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
+        if (result.failure) |err| {
+            try jws.beginObject();
+            try jws.objectField("file");
+            try jws.write(result.filename);
+            try jws.objectField("error");
+            try jws.write(@errorName(err));
+            try jws.endObject();
+            continue;
+        }
         totals.read_time = std.Io.Duration.fromNanoseconds(totals.read_time.nanoseconds + result.stats.read_time.nanoseconds);
         totals.parse_time = std.Io.Duration.fromNanoseconds(totals.parse_time.nanoseconds + result.stats.parse_time.nanoseconds);
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
-        if (result.values.items.len == 0) continue;
         try jws.beginObject();
         try jws.objectField("file");
         try jws.write(result.filename);
         try jws.objectField("values");
-        try jws.beginArray();
-        for (result.values.items) |v| try v.jsonStringify(jws);
-        try jws.endArray();
+        try jws.beginWriteRaw();
+        try jws.writer.writeAll(result.values);
+        jws.endWriteRaw();
+        try jws.objectField("stats");
+        try writeStats(jws, result.stats);
         try jws.endObject();
     }
     try jws.endArray();
     try jws.objectField("stats");
-    try jws.beginObject();
-    try jws.objectField("read_time_ns");
-    try jws.write(totals.read_time.nanoseconds);
-    try jws.objectField("parse_time_ns");
-    try jws.write(totals.parse_time.nanoseconds);
-    try jws.objectField("query_time_ns");
-    try jws.write(totals.query_time.nanoseconds);
-    try jws.endObject();
+    try writeStats(jws, totals);
     try jws.endObject();
 }
+
+/// How much of one file's scratch a worker keeps for the next. A file that
+/// needed more has the excess released instead of held for the rest of the run.
+const worker_scratch_retained = 64 * 1024 * 1024;
 
 fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     defer arena.deinit();
 
     while (try ctx.path_queue.pop()) |entry| {
-        var result_arena = entry.arena;
-        errdefer result_arena.deinit();
-        const result_alloc = result_arena.allocator();
-        const query_target_path = entry.path;
+        defer {
+            _ = arena.reset(.{ .retain_with_limit = worker_scratch_retained });
+            _ = ctx.progress.done.fetchAdd(1, .monotonic);
+        }
 
-        const read_start = std.Io.Timestamp.now(ctx.io, .real);
-        const query_target: []align(std.heap.page_size_min) const u8 = blk: {
-            const file = try std.Io.Dir.cwd().openFile(ctx.io, query_target_path, .{});
-            defer file.close(ctx.io);
-            const stat = try file.stat(ctx.io);
-            if (stat.size == 0) break :blk &[_]u8{};
-            break :blk try std.posix.mmap(
-                null,
-                stat.size,
-                .{ .READ = true },
-                .{ .TYPE = .PRIVATE },
-                file.handle,
-                0,
-            );
+        // A file that cannot be read or run is reported and skipped.
+        const result = queryFile(ctx, entry, arena.allocator()) catch |err|
+            failedResult(ctx, entry, err);
+        if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
+
+        ctx.result_queue.push(result) catch |err| {
+            result.deinit();
+            return err;
         };
-        const read_time = read_start.untilNow(ctx.io, .real);
-        defer if (query_target.len > 0) std.posix.munmap(query_target);
-
-        const run_result = try ctx.compiled.run(query_target, result_alloc, arena.allocator());
-
-        try ctx.result_queue.push(.{
-            .arena = result_arena,
-            .filename = query_target_path,
-            .values = run_result.values,
-            .stats = .{
-                .read_time = read_time,
-                .parse_time = run_result.stats.parse_time,
-                .query_time = run_result.stats.query_time,
-            },
-        });
-
-        _ = arena.reset(.retain_capacity);
-        _ = ctx.*.progress.done.fetchAdd(1, .monotonic);
     }
+}
+
+/// Read and run one target, rendering its outputs into the entry's arena.
+fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
+    const read_start = std.Io.Timestamp.now(ctx.io, .real);
+    const query_target: []align(std.heap.page_size_min) const u8 = blk: {
+        const file = try std.Io.Dir.cwd().openFile(ctx.io, entry.path, .{});
+        defer file.close(ctx.io);
+        const stat = try file.stat(ctx.io);
+        if (stat.size == 0) break :blk &[_]u8{};
+        break :blk try std.posix.mmap(
+            null,
+            stat.size,
+            .{ .READ = true },
+            .{ .TYPE = .PRIVATE },
+            file.handle,
+            0,
+        );
+    };
+    const read_time = read_start.untilNow(ctx.io, .real);
+    defer if (query_target.len > 0) std.posix.munmap(query_target);
+
+    const run_result = try ctx.compiled.run(
+        query_target,
+        entry.path,
+        entry.arena.allocator(),
+        scratch,
+    );
+
+    return .{
+        .arena = entry.arena,
+        .gpa = ctx.allocator,
+        .filename = entry.path,
+        .values = run_result.json,
+        .count = run_result.count,
+        .stats = .{
+            .read_time = read_time,
+            .parse_time = run_result.parse_time,
+            .query_time = run_result.query_time,
+        },
+    };
 }
 
 fn run(
@@ -725,7 +884,14 @@ fn run(
     });
     defer engine.deinit();
 
-    var compiled = try engine.compile(config.query, config.grammar);
+    var sink = tql.diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
+        try reportDiagnostics(&sink, config.query, config.query_path, stderr);
+        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
+        return @intFromEnum(ExitCode.compilation_error);
+    };
     defer compiled.deinit();
 
     // real shit
@@ -745,13 +911,14 @@ fn run(
         .format = config.format,
     };
 
+    var shared_stderr: Stderr = .{ .writer = stderr };
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = switch (config.format) {
-        .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout }),
+        .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout, &shared_stderr }),
         .json, .locations => try std.Thread.spawn(.{}, writerThreadJson, .{ &ctx, &jws }),
     };
-    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, stderr }) else null;
+    const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, &shared_stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
 
     for (0..config.workers) |i| {
@@ -770,8 +937,23 @@ fn run(
     }
     writer_thread.join();
 
+    if (tql.stg.count_allocations) {
+        var total: u64 = 0;
+        for (tql.stg.site_counts.values) |c| total += c.load(.monotonic);
+        try stderr.print("allocations by site (total {d}):\n", .{total});
+        inline for (@typeInfo(tql.stg.Site).@"enum".fields) |f| {
+            const site: tql.stg.Site = @enumFromInt(f.value);
+            const n = tql.stg.site_counts.get(site).load(.monotonic);
+            if (n > 0) try stderr.print("  {d:>10}  {d:>10} B  {s}\n", .{
+                n, tql.stg.site_bytes.get(site).load(.monotonic), f.name,
+            });
+        }
+    }
+
     path_queue.deinit(allocator);
     result_queue.deinit(allocator);
     allocator.free(workers);
-    return 0;
+
+    if (progress.failed.load(.monotonic) > 0) return @intFromEnum(ExitCode.runtime_error);
+    return @intFromEnum(ExitCode.success);
 }

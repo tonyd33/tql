@@ -1,0 +1,16 @@
+title: a single constraint is not parenthesized
+grammar: typescript
+asserts: error
+
+Parentheses around a context are for two or more constraints. `(Sized a)`
+is a parenthesized type, so the `=>` after it does not parse.
+
+--- tql ---
+size : (Sized a) => a -> Int;
+size x = length x;
+main = const [size "abc"];
+
+--- error ---
+category: parse
+span: 1:18-1:22
+The `=>` and the `a` after it, which recovery skips.

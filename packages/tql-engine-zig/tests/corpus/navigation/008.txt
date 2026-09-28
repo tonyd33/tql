@@ -1,0 +1,18 @@
+title: wildcard child navigation keeps every named child
+grammar: typescript
+asserts: types, values
+
+`class_declaration` has two named children, `name` and `body`. Anonymous tokens
+such as `class`, `{`, and `}` are not visited.
+
+--- tql ---
+main = children | of_kind :class_declaration | children | arr kind;
+
+--- source ---
+class A {}
+
+--- values ---
+["type_identifier", "class_body"]
+
+--- types ---
+main : Node -> [String]

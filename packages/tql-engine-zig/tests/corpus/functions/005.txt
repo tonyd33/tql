@@ -1,0 +1,17 @@
+title: a lambda with one parameter
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  let { inc = \x -> x + 1; }
+  in pure (inc 4);
+
+--- source ---
+class A {}
+
+--- values ---
+[5]
+
+--- types ---
+main : Node -> [Int]

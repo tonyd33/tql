@@ -1,0 +1,16 @@
+title: `Eq` on a function value
+grammar: typescript
+asserts: error
+
+--- tql ---
+main =
+  let {
+    f = \x -> x + 1;
+    g = \x -> x + 1;
+  }
+  in f = g;
+
+--- error ---
+category: unsatisfied-constraint
+span: 6:6-6:11
+`Eq (int -> int)` is not satisfied.

@@ -1,0 +1,19 @@
+title: a record encodes as a JSON object
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  return { name = text n, size = length (text c) };
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "name": "A", "size": 10 }]
+
+--- types ---
+main : Node -> [{name: String, size: Int}]

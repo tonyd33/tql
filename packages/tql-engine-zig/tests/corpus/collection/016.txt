@@ -1,0 +1,23 @@
+title: a record holding a collected list
+grammar: typescript
+asserts: types, values
+
+Collection inside a field keeps the record single-valued: the list is one
+value, so no product fan-out occurs.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c.name;
+  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
+  return { name = text n, methods = methods };
+};
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+[{ "methods": ["m", "n"], "name": "A" }]
+
+--- types ---
+main : Node -> [{methods: [String], name: String}]

@@ -1,0 +1,24 @@
+title: a `let` group generalizes, allowing two use sites at different types
+grammar: typescript
+asserts: types, values
+
+`ident` is used at `int` and at `string` in the same body. That requires the
+group to generalize before the body is checked; a monomorphic binding would
+force one type and reject the other use site.
+
+Both uses are projected to `int` before they meet in one list, since a list
+has a single element type. The polymorphism is in `ident`, not in the list.
+
+--- tql ---
+main =
+  let { ident x = x; }
+  in const [ident 1, length (ident "ab")];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2]
+
+--- types ---
+main : Node -> [Int]

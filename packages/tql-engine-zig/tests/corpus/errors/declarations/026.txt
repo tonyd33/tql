@@ -1,0 +1,15 @@
+title: a written context must cover the body's constraints
+grammar: typescript
+asserts: error
+
+The signature writes `Eq a`, but `length` needs `Sized a`.
+
+--- tql ---
+size : Eq a => a -> Int;
+size x = length x;
+main = const [size "abc"];
+
+--- error ---
+category: signature-mismatch
+span: 1:1-1:25
+`Sized a` is not satisfied.

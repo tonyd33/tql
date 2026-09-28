@@ -1,0 +1,13 @@
+title: a duplicate definition is a compile error
+grammar: typescript
+asserts: error
+
+--- tql ---
+f = 1;
+f = 2;
+main = f;
+
+--- error ---
+category: duplicate-definition
+span: 2:1-2:7
+The second definition.

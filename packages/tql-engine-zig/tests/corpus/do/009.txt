@@ -1,0 +1,24 @@
+title: the last item in the braces is the final expression
+grammar: typescript
+asserts: types, values
+
+Each `name <- query` is terminated by `;`. The last item has no successor, so
+it is the unique final expression. Compare a block with no statements at all,
+whose final expression is its only item.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  m <- (.body | children | of_kind :method_definition) c;
+  n <- m.name;
+  return $ text n
+};
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["m"]
+
+--- types ---
+main : Node -> [String]

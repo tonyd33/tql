@@ -1,0 +1,14 @@
+title: a heterogeneous list
+grammar: typescript
+asserts: error
+
+`[a]` is homogeneous. `[1, "two"]` is a list literal, so its elements must
+have one type.
+
+--- tql ---
+main = pure [1, "two"];
+
+--- error ---
+category: type-mismatch
+span: 1:17-1:22
+The second element. Expected `int`, found `string`.

@@ -1,0 +1,17 @@
+title: `not` binds tighter than `and`, like any application
+grammar: typescript
+asserts: types, values
+
+`not true and false` groups as `(not true) and false`.
+
+--- tql ---
+main = pure $ not true and false;
+
+--- source ---
+class A {}
+
+--- values ---
+[false]
+
+--- types ---
+main : Node -> [Bool]

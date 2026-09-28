@@ -1,0 +1,22 @@
+title: `all` short-circuits on the first violation
+grammar: typescript
+asserts: types, values
+
+`and` does not force its second operand once the first is false, so `all`
+stops at 0 despite the infinite source.
+
+--- tql ---
+from n = pure n <|> from (n + 1);
+negative n = n < 0;
+main root = return $ all negative (from 0 root);
+
+--- source ---
+class A {}
+
+--- values ---
+[false]
+
+--- types ---
+from : Int -> a -> [Int]
+negative : Int -> Bool
+main : Node -> [Bool]
