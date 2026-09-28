@@ -1225,7 +1225,7 @@ const snapshot_cmd = .{
 
 fn parseArgs(iter: *std.process.Args.Iterator) !Options {
     var opts = Options{};
-    var tokenizer = goz.ArgTokenizer(cli_opts).init(iter);
+    var tokenizer = goz.ArgTokenizer(cli_opts).init(iter, null);
     while (try tokenizer.next()) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {

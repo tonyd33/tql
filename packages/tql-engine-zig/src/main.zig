@@ -21,7 +21,6 @@ const OutputFormat = enum {
 
 const ExitCode = enum(u8) {
     success = 0,
-    no_matches = 1,
     parse_error = 2,
     compilation_error = 3,
     runtime_error = 4,
@@ -128,11 +127,12 @@ pub fn main(init: std.process.Init) !u8 {
 
     _ = iter.next();
 
-    var tokenizer = ArgTokenizer(main_opts).init(&iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_opts).init(&iter, &arg_diagnostic);
     var show_help = false;
     var subcmd: ?[]const u8 = null;
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -210,7 +210,8 @@ fn runQuery(
     var registry = tql.GrammarRegistry.init(gpa, search_paths);
     defer registry.deinit();
 
-    var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter, &arg_diagnostic);
 
     var show_help = false;
     var from_file: ?[]const u8 = null;
@@ -221,7 +222,7 @@ fn runQuery(
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -257,10 +258,10 @@ fn runQuery(
     // If --from-file, positionals are all target files.
     // Otherwise, first positional is the inline query, rest are target files.
     const query: []const u8 = if (from_file) |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
-        defer file.close(io);
-        var file_reader = file.reader(io, &.{});
-        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+        break :blk readQueryFile(io, gpa, query_file) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
+            return @intFromEnum(ExitCode.invalid_args);
+        };
     } else blk: {
         if (positionals.items.len == 0) {
             try stderr.print("Error: query is required\n", .{});
@@ -307,14 +308,15 @@ fn runGrammar(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.grammar.opts).init(iter, &arg_diagnostic);
 
     var show_help = false;
     var install_dir: ?[]const u8 = null;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => show_help = true,
@@ -395,14 +397,15 @@ fn runDebug(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    var tokenizer = ArgTokenizer(main_cmds.debug.opts).init(iter);
+    var arg_diagnostic: goz.Diagnostic = .{};
+    var tokenizer = ArgTokenizer(main_cmds.debug.opts).init(iter, &arg_diagnostic);
 
     var from_file: ?[]const u8 = null;
     var grammar_name: ?[]const u8 = null;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
-    while (try tokenizer.next()) |tok| {
+    while (tokenizer.next() catch |err| return reportArgError(stderr, err, arg_diagnostic)) |tok| {
         switch (tok) {
             .flag => |f| switch (f) {
                 .help => {},
@@ -429,6 +432,30 @@ fn runDebug(
             return @intFromEnum(ExitCode.invalid_args);
         },
     }
+}
+
+/// Print the argument error and return the invalid-arguments exit code.
+fn reportArgError(stderr: *std.Io.Writer, err: goz.ParseError, diag: goz.Diagnostic) !u8 {
+    const line_end = std.mem.indexOfScalar(u8, diag.arg, '\n') orelse diag.arg.len;
+    const arg = diag.arg[0..line_end];
+    switch (err) {
+        error.UnknownArg => try stderr.print("Error: unknown option '{s}'\n", .{arg}),
+        error.MissingArg => try stderr.print("Error: option '{s}' requires a value\n", .{arg}),
+        error.ExtraArg => try stderr.print("Error: option '{s}' takes no value\n", .{arg}),
+        error.InvalidArgSyntax => try stderr.print("Error: malformed option '{s}'\n", .{arg}),
+    }
+    const looks_like_query = std.mem.startsWith(u8, diag.arg, "-- ") or line_end < diag.arg.len;
+    if (err == error.UnknownArg and looks_like_query) {
+        try stderr.writeAll("A query starting with a `--` comment must follow `--`, or be passed with -f.\n");
+    }
+    return @intFromEnum(ExitCode.invalid_args);
+}
+
+fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
+    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+    defer file.close(io);
+    var file_reader = file.reader(io, &.{});
+    return file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
 }
 
 /// Print every diagnostic a compilation collected, one per line, with the
@@ -464,10 +491,10 @@ fn runDumpInstructions(
     defer registry.deinit();
 
     const query: []const u8 = if (from_file) |query_file| blk: {
-        const file = try std.Io.Dir.cwd().openFile(io, query_file, .{});
-        defer file.close(io);
-        var file_reader = file.reader(io, &.{});
-        break :blk try file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+        break :blk readQueryFile(io, gpa, query_file) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
+            return @intFromEnum(ExitCode.invalid_args);
+        };
     } else blk: {
         if (positionals.len == 0) {
             try stderr.print("Error: query is required\n", .{});
@@ -495,7 +522,7 @@ fn runDumpInstructions(
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
         try reportDiagnostics(&sink, query, from_file, stderr);
-        try stderr.print("Error: {}\n", .{err});
+        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
     defer compiled.deinit();
@@ -862,7 +889,7 @@ fn run(
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
         try reportDiagnostics(&sink, config.query, config.query_path, stderr);
-        try stderr.print("Error: {}\n", .{err});
+        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
     defer compiled.deinit();
@@ -928,6 +955,5 @@ fn run(
     allocator.free(workers);
 
     if (progress.failed.load(.monotonic) > 0) return @intFromEnum(ExitCode.runtime_error);
-    if (progress.matched.load(.monotonic) == 0) return @intFromEnum(ExitCode.no_matches);
     return @intFromEnum(ExitCode.success);
 }
