@@ -84,20 +84,21 @@ main = 1 + 1 = 2;
       right: (number))))
 
 ========================================
-comparison binds tighter than not
+not is a function, so it binds tighter than comparison
 ========================================
 
-main = not 1 = 1;
+main = not a = b;
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (logical_not
-      operand: (comparison
-        left: (number)
-        right: (number)))))
+    body: (comparison
+      left: (application
+        function: (identifier)
+        argument: (identifier))
+      right: (identifier))))
 
 ========================================
 not binds tighter than and
@@ -111,12 +112,13 @@ main = not false and false;
   (definition
     name: (identifier)
     body: (logical_and
-      left: (logical_not
-        operand: (boolean))
+      left: (application
+        function: (identifier)
+        argument: (boolean))
       right: (boolean))))
 
 ========================================
-application binds tighter than not
+not applies like any function
 ========================================
 
 main = not f x;
@@ -126,10 +128,43 @@ main = not f x;
 (source_file
   (definition
     name: (identifier)
-    body: (logical_not
-      operand: (application
+    body: (application
+      function: (application
+        function: (identifier)
+        argument: (identifier))
+      argument: (identifier))))
+
+========================================
+not over an application takes $
+========================================
+
+main = not $ f x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (dollar_application
+      function: (identifier)
+      argument: (application
         function: (identifier)
         argument: (identifier)))))
+
+========================================
+not is a value
+========================================
+
+main = arr not;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (identifier))))
 
 ========================================
 and binds tighter than or

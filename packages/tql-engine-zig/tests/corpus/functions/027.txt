@@ -1,0 +1,17 @@
+title: `not` is a function value
+grammar: typescript
+asserts: types, values
+
+`not` can be passed like any other function.
+
+--- tql ---
+main = const [true, false] | (arr not <|> arr (compose not identity));
+
+--- source ---
+class A {}
+
+--- values ---
+[false, false, true, true]
+
+--- types ---
+main : Node -> [Bool]

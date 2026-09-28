@@ -76,10 +76,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -208,10 +204,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -332,10 +324,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -447,10 +435,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -581,10 +565,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -725,10 +705,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -882,10 +858,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -1013,10 +985,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -1176,10 +1144,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -1329,10 +1293,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -1513,10 +1473,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -1665,10 +1621,6 @@
           "named": true
         },
         {
-          "type": "logical_not",
-          "named": true
-        },
-        {
           "type": "logical_or",
           "named": true
         },
@@ -1788,10 +1740,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -1903,10 +1851,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -2037,10 +1981,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -2305,10 +2245,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -2423,10 +2359,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -2538,10 +2470,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -2662,10 +2590,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -2825,10 +2749,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -2966,10 +2886,6 @@
         },
         {
           "type": "logical_and",
-          "named": true
-        },
-        {
-          "type": "logical_not",
           "named": true
         },
         {
@@ -3135,10 +3051,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -3250,134 +3162,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
-            "named": true
-          },
-          {
-            "type": "logical_or",
-            "named": true
-          },
-          {
-            "type": "multiplicative",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized",
-            "named": true
-          },
-          {
-            "type": "pipe",
-            "named": true
-          },
-          {
-            "type": "record",
-            "named": true
-          },
-          {
-            "type": "regex",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
-            "named": true
-          },
-          {
-            "type": "union",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "logical_not",
-    "named": true,
-    "fields": {
-      "operand": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "additive",
-            "named": true
-          },
-          {
-            "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "case_expression",
-            "named": true
-          },
-          {
-            "type": "comparison",
-            "named": true
-          },
-          {
-            "type": "do_expression",
-            "named": true
-          },
-          {
-            "type": "dollar_application",
-            "named": true
-          },
-          {
-            "type": "field_access",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
-            "named": true
-          },
-          {
-            "type": "if_expression",
-            "named": true
-          },
-          {
-            "type": "kind",
-            "named": true
-          },
-          {
-            "type": "lambda",
-            "named": true
-          },
-          {
-            "type": "leading_field",
-            "named": true
-          },
-          {
-            "type": "let_expression",
-            "named": true
-          },
-          {
-            "type": "list",
-            "named": true
-          },
-          {
-            "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -3501,10 +3285,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -3616,10 +3396,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -3740,10 +3516,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -3879,10 +3651,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -4000,10 +3768,6 @@
         },
         {
           "type": "logical_and",
-          "named": true
-        },
-        {
-          "type": "logical_not",
           "named": true
         },
         {
@@ -4169,10 +3933,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -4284,10 +4044,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -4433,10 +4189,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -4795,10 +4547,6 @@
             "named": true
           },
           {
-            "type": "logical_not",
-            "named": true
-          },
-          {
             "type": "logical_or",
             "named": true
           },
@@ -4910,10 +4658,6 @@
           },
           {
             "type": "logical_and",
-            "named": true
-          },
-          {
-            "type": "logical_not",
             "named": true
           },
           {
@@ -5115,10 +4859,6 @@
   },
   {
     "type": "let",
-    "named": false
-  },
-  {
-    "type": "not",
     "named": false
   },
   {
