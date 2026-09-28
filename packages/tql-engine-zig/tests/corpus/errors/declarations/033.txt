@@ -1,0 +1,14 @@
+title: a supertype kind is a compile error
+grammar: python
+asserts: error
+
+No node has a supertype's kind, so `:expression_statement` would match
+nothing. The diagnostic lists the subtypes to use instead.
+
+--- tql ---
+main = descendants_of_kind :expression_statement;
+
+--- error ---
+category: supertype-kind
+span: 1:28-1:49
+The `:expression_statement` selector.
