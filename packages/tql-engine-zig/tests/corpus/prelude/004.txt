@@ -1,21 +1,22 @@
-title: `exists` yields one boolean, never prunes
+title: `has` yields one boolean, never prunes
 grammar: typescript
 asserts: types, values
 
-`exists q = probe q`. It reports presence rather than filtering, so a false
-result is still one output value.
-
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | exists (.body | children | is_kind :method_definition);
+methods = .body | children | is_kind :method_definition;
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has methods c;
+};
 
 --- source ---
-class A { m() {} }
+class A { m() {} n() {} }
 class B {}
 
 --- values ---
 [true, false]
 
 --- types ---
+methods : Node -> [Node]
 main : Node -> [Bool]

@@ -737,7 +737,7 @@ pub const Machine = struct {
     }
 
     /// Run a primitive, forcing exactly what its denotation forces and no
-    /// more. `pure` forces nothing, `probe` forces at most the first result,
+    /// more. `pure` forces nothing, `null` forces at most the first cell,
     /// `length` forces a whole spine.
     fn primitive(
         self: *Machine,

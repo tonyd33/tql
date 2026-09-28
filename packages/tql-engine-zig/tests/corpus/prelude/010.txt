@@ -1,13 +1,12 @@
-title: `contains` searches descendants
+title: `has` over `descendants` searches descendants
 grammar: typescript
 asserts: types, values
 
-`contains p = exists (descendants | select p)`.
-
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | contains (arr (\n -> kind n = "method_definition"));
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has (descendants_of_kind :method_definition) c;
+};
 
 --- source ---
 class A { m() {} }

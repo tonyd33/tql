@@ -1,26 +1,22 @@
-title: `any_m` and `all_m` share one scheme
+title: `keep (has q)` keeps its input once however many outputs `q` has
 grammar: typescript
 asserts: types, values
 
-Both helpers are applied to the same source and predicate, confirming they
-accept identical argument types.
-
 --- tql ---
-main root =
-  do {
-    c <- (children | is_kind :class_declaration) root;
-    some <- any_m (.body | children | is_kind :method_definition)
-                (.name | arr (\n -> text n ~ r"^get")) c;
-    every <- all_m (.body | children | is_kind :method_definition)
-                 (.name | arr (\n -> text n ~ r"^get")) c;
-    pure { some = some, every = every } c
-  };
+methods = .body | children | is_kind :method_definition;
+
+main =
+  children | is_kind :class_declaration
+  | keep (has methods)
+  | .name | arr text;
 
 --- source ---
-class A { getX() {} setY() {} }
+class A { m() {} n() {} o() {} }
+class B {}
 
 --- values ---
-[{ "every": false, "some": true }]
+["A"]
 
 --- types ---
-main : Node -> [{every: Bool, some: Bool}]
+methods : Node -> [Node]
+main : Node -> [String]

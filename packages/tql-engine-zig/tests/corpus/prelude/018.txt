@@ -3,9 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+starts_with_s n = text n ~ r"^S";
+named_s c = any starts_with_s (.name c);
+
 main =
   children | is_kind :class_declaration
-  | keep (\c -> any (\n -> text n ~ r"^S") (.name c))
+  | keep named_s
   | .name | arr text;
 
 --- source ---
@@ -17,4 +20,6 @@ class Store {}
 ["Service", "Store"]
 
 --- types ---
+starts_with_s : Node -> Bool
+named_s : Node -> Bool
 main : Node -> [String]

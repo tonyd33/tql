@@ -1,13 +1,12 @@
-title: `within` searches ancestors
+title: `has` over `ancestors` searches ancestors
 grammar: typescript
 asserts: types, values
 
-`within p = exists (ancestors | select p)`.
-
 --- tql ---
-main =
-  descendants | is_kind :property_identifier
-  | within (arr (\n -> kind n = "class_declaration"));
+main root = do {
+  n <- descendants_of_kind :property_identifier root;
+  return $ has (ancestors | is_kind :class_declaration) n;
+};
 
 --- source ---
 class A { m() {} }

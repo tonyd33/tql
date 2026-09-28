@@ -1,20 +1,22 @@
-title: `any_m` short-circuits on the first match
+title: `all` short-circuits on the first violation
 grammar: typescript
 asserts: types, values
 
-The source is infinite but the predicate holds at 0, so the probe stops at the
-first element. Termination is the evidence.
+`and` does not force its second operand once the first is false, so `all`
+stops at 0 despite the infinite source.
 
 --- tql ---
 from n = pure n <|> from (n + 1);
-main = any_m (from 0) (arr (\x -> x >= 0));
+negative n = n < 0;
+main root = return $ all negative (from 0 root);
 
 --- source ---
 class A {}
 
 --- values ---
-[true]
+[false]
 
 --- types ---
 from : Int -> a -> [Int]
+negative : Int -> Bool
 main : Node -> [Bool]

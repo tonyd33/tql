@@ -2,24 +2,24 @@ title: the prelude is ordinary TQL and can be redefined locally
 grammar: typescript
 asserts: types, values
 
-A local binding named `keep` shadows the prelude's and behaves exactly as
-`select` does, since `select` has no compiler special casing. This is evidence
-for the claim that the prelude is ordinary higher-order TQL.
+A local binding named `has` shadows the prelude's and behaves exactly as it
+does, since `has` has no compiler special casing. This is evidence for the
+claim that the prelude is ordinary higher-order TQL.
 
 --- tql ---
+methods = .body | children | is_kind :method_definition;
+
 main =
-  let {
-    keep p = branch p (arr identity) none
-  } in
-    children | is_kind :class_declaration
-    | keep (.name | arr (\n -> text n ~ r"^S")) | .name | arr text;
+  let { has p x = not (null (p x)); }
+  in children | is_kind :class_declaration | keep (has methods) | .name | arr text;
 
 --- source ---
-class Service {}
+class Service { m() {} }
 class Other {}
 
 --- values ---
 ["Service"]
 
 --- types ---
+methods : Node -> [Node]
 main : Node -> [String]

@@ -3,10 +3,11 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+method_names = .body | children | is_kind :method_definition | .name | arr text;
+
 main =
   children | is_kind :class_declaration
-  | or_else (.body | children | is_kind :method_definition | .name | arr text)
-            (pure "none");
+  | or_else method_names (pure "none");
 
 --- source ---
 class A {}
@@ -15,4 +16,5 @@ class A {}
 ["none"]
 
 --- types ---
+method_names : Node -> [String]
 main : Node -> [String]

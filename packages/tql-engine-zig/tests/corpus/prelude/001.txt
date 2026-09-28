@@ -1,23 +1,30 @@
-title: `select` keeps inputs whose predicate holds
+title: `guard $ has q x` keeps `x` when `q x` yields something
 grammar: typescript
 asserts: types, values
 
-`select p = branch p (arr identity) none`. Unifying `arr identity :
-Filter a a` against the sibling `none` arm pins the result type, giving
-`select : Filter a Bool -> Filter a a`.
-
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | select (.name | arr (\n -> text n ~ r"^S")) | .name | arr text;
+getters c = do {
+  m <- (.body | children | is_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n ~ r"^get";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  guard $ has getters c;
+  n <- c.name;
+  return $ text n;
+};
 
 --- source ---
-class Service {}
-class Other {}
-class Store {}
+class Service { getX() {} }
+class Other { setY() {} }
+class Store { getA() {} }
 
 --- values ---
 ["Service", "Store"]
 
 --- types ---
+getters : Node -> [Node]
 main : Node -> [String]

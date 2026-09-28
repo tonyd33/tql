@@ -1,13 +1,12 @@
-title: `contains` does not match the node itself
+title: `descendants` does not include the node itself
 grammar: typescript
 asserts: types, values
 
-Descendants are proper, so a class does not contain itself.
-
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | contains (arr (\n -> kind n = "class_declaration"));
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  return $ has (descendants_of_kind :class_declaration) c;
+};
 
 --- source ---
 class A {}

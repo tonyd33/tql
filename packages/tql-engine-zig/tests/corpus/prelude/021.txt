@@ -1,13 +1,21 @@
-title: `none_m` is true when no output of the source satisfies the predicate
+title: `guard $ not (has q x)` keeps `x` when `q x` yields nothing
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main =
-  children | is_kind :class_declaration
-  | select (none_m (.body | children | is_kind :method_definition | .name)
-                   (arr (\n -> text n = "run")))
-  | .name | arr text;
+runs c = do {
+  m <- (.body | children | is_kind :method_definition) c;
+  n <- m.name;
+  guard $ text n = "run";
+  return n;
+};
+
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  guard $ not (has runs c);
+  n <- c.name;
+  return $ text n;
+};
 
 --- source ---
 class A { run() {} }
@@ -18,4 +26,5 @@ class C {}
 ["B", "C"]
 
 --- types ---
+runs : Node -> [Node]
 main : Node -> [String]

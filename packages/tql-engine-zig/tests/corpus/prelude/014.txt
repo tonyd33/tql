@@ -2,7 +2,8 @@ title: `or_else` yields the primary when it has results
 grammar: typescript
 asserts: types, values
 
-`or_else primary fallback = branch (probe primary) primary fallback`.
+`or_else` runs `primary` once and yields its results, or `fallback`'s when it
+has none.
 
 --- tql ---
 main =
