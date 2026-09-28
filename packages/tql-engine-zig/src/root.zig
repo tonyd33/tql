@@ -944,6 +944,31 @@ test "the prelude's schemes are inferred" {
     , w.written());
 }
 
+fn expectTypeErrorMessage(query: []const u8, expected: []const u8) !void {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    try std.testing.expectError(error.TypeCheckFailed, engine.checkQuery(query, g, &sink));
+    try std.testing.expectEqual(1, sink.items().len);
+    try std.testing.expectEqualStrings(expected, sink.items()[0].message);
+}
+
+test "a type mismatch names its metavariables by letter" {
+    try expectTypeErrorMessage(
+        "main = children_of_kind :class_declaration | text;",
+        "Expected `[a]`, found `String`.",
+    );
+}
+
 test "linked components order prelude callees before user callers" {
     const allocator = std.testing.allocator;
 

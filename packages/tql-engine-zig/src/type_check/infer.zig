@@ -765,20 +765,17 @@ pub fn check(
             var buf: std.Io.Writer.Allocating = .init(sink.allocator);
             defer buf.deinit();
 
+            var names: types.MetaNames = .{};
             switch (failure.detail) {
-                .mismatch => |m| {
-                    try buf.writer.writeAll("Expected `");
-                    try m.expected.format(&buf.writer);
-                    try buf.writer.writeAll("`, found `");
-                    try m.found.format(&buf.writer);
-                    try buf.writer.writeAll("`.");
-                },
+                .mismatch => |m| try buf.writer.print("Expected `{f}`, found `{f}`.", .{
+                    (try subst.resolveDeep(m.expected)).named(&names),
+                    (try subst.resolveDeep(m.found)).named(&names),
+                }),
                 .violation => |v| try v.format(&buf.writer),
-                .over_application => |t| {
-                    try buf.writer.writeAll("`");
-                    try t.format(&buf.writer);
-                    try buf.writer.writeAll("` has no argument left to take.");
-                },
+                .over_application => |t| try buf.writer.print(
+                    "`{f}` has no argument left to take.",
+                    .{(try subst.resolveDeep(t)).named(&names)},
+                ),
                 .unbound => |id| try buf.writer.print(
                     "`{s}` is not defined.",
                     .{program.env.interner.spelling(id)},
