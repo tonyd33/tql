@@ -112,7 +112,7 @@ pub const Desugarer = struct {
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
                 &.{},
-                .{ .Eq = .fields, .Serial = .fields },
+                .{ .Eq = .fields },
             );
 
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);

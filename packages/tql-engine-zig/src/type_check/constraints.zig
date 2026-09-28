@@ -222,9 +222,7 @@ pub const Violation = struct {
     origin: diagnostic.Span,
 
     pub fn format(self: Violation, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("`{s} ", .{self.class.spelling()});
-        try self.type.format(w);
-        try w.writeAll("` is not satisfied.");
+        try w.print("`{s} {f}` is not satisfied.", .{ self.class.spelling(), self.type.operand() });
     }
 };
 

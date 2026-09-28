@@ -51,8 +51,25 @@ pub const Type = union(enum) {
     };
 
     pub fn format(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try self.write(w, false, null);
+        try self.write(w, .top, null);
     }
+
+    /// Format as the argument of a type constructor or a class, parenthesized
+    /// when it is an applied constructor or a function.
+    pub fn operand(self: Type) Operand {
+        return .{ .type = self };
+    }
+
+    pub const Operand = struct {
+        type: Type,
+
+        pub fn format(self: Operand, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            try self.type.write(w, .argument, null);
+        }
+    };
+
+    /// Where a type is written, which decides whether it needs parentheses.
+    const Position = enum { top, arrow_from, argument };
 
     /// Format with metavariables named `a`, `b`, ... in order of first
     /// appearance. Share one `names` across every type in a message so a
@@ -66,7 +83,7 @@ pub const Type = union(enum) {
         names: *MetaNames,
 
         pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            try self.type.write(w, false, self.names);
+            try self.type.write(w, .top, self.names);
         }
     };
 
@@ -97,27 +114,32 @@ pub const Type = union(enum) {
         }
     }
 
-    fn write(self: Type, w: *std.Io.Writer, parenthesize_arrow: bool, names: ?*MetaNames) std.Io.Writer.Error!void {
+    fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MetaNames) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
             .meta => |id| if (names) |n| try n.write(id, w) else try w.print("?{d}", .{id}),
             .primitive => |p| try w.writeAll(p.spelling()),
-            .constructor => |c| try writeConstructed(c, w, names),
+            .constructor => |c| {
+                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c);
+                if (parenthesize) try w.writeByte('(');
+                try writeConstructed(c, w, names);
+                if (parenthesize) try w.writeByte(')');
+            },
             .record => |fields| {
                 try w.writeByte('{');
                 for (fields, 0..) |f, i| {
                     if (i > 0) try w.writeAll(", ");
                     try w.print("{s}: ", .{f.label});
-                    try f.type.write(w, false, names);
+                    try f.type.write(w, .top, names);
                 }
                 try w.writeByte('}');
             },
             .function => |arrow| {
-                if (parenthesize_arrow) try w.writeByte('(');
-                try arrow.from.write(w, true, names);
+                if (position != .top) try w.writeByte('(');
+                try arrow.from.write(w, .arrow_from, names);
                 try w.writeAll(" -> ");
-                try arrow.to.write(w, false, names);
-                if (parenthesize_arrow) try w.writeByte(')');
+                try arrow.to.write(w, .top, names);
+                if (position != .top) try w.writeByte(')');
             },
         }
     }
@@ -148,17 +170,21 @@ fn writeConstructed(
     w: *std.Io.Writer,
     names: ?*MetaNames,
 ) std.Io.Writer.Error!void {
-    if (c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling)) {
+    if (isListSugar(c)) {
         try w.writeByte('[');
-        try c.arguments[0].write(w, false, names);
+        try c.arguments[0].write(w, .top, names);
         try w.writeByte(']');
         return;
     }
     try w.writeAll(c.spelling);
     for (c.arguments) |argument| {
         try w.writeByte(' ');
-        try argument.write(w, true, names);
+        try argument.write(w, .argument, names);
     }
+}
+
+fn isListSugar(c: *const Type.Constructed) bool {
+    return c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling);
 }
 
 // For now, a closed constraint set is fine.
@@ -190,8 +216,7 @@ pub const Scheme = struct {
             if (self.constraints.len > 1) try w.writeByte('(');
             for (self.constraints, 0..) |c, i| {
                 if (i > 0) try w.writeAll(", ");
-                try w.print("{s} ", .{c.class.spelling()});
-                try c.type.format(w);
+                try w.print("{s} {f}", .{ c.class.spelling(), c.type.operand() });
             }
             if (self.constraints.len > 1) try w.writeByte(')');
             try w.writeAll(" => ");
@@ -319,6 +344,35 @@ test "constrained scheme renders its context" {
     };
     try eq.format(&buf.writer);
     try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
+}
+
+test "an applied constructor is parenthesized as an argument" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const inner = try constructed(t, @enumFromInt(2), "Maybe", &.{int_type});
+    const outer = try constructed(t, @enumFromInt(2), "Maybe", &.{inner});
+    const nested = try constructed(t, @enumFromInt(2), "Maybe", &.{try testList(t, inner)});
+    try buf.writer.print("{f}; {f}", .{ outer, nested });
+    try std.testing.expectEqualStrings("Maybe (Maybe Int); Maybe [Maybe Int]", buf.written());
+}
+
+test "a constraint parenthesizes an applied constructor" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const maybe = try constructed(t, @enumFromInt(2), "Maybe", &.{variable_type(0)});
+    const scheme: Scheme = .{
+        .quantified = 1,
+        .constraints = &.{.{ .class = .Serial, .type = maybe }},
+        .type = maybe,
+    };
+    try scheme.format(&buf.writer);
+    try std.testing.expectEqualStrings("Serial (Maybe a) => Maybe a", buf.written());
 }
 
 test "metavariables are named by first appearance across one message" {
