@@ -1,0 +1,14 @@
+title: `is_kind` is a test, not a `do` statement
+grammar: typescript
+asserts: error
+
+`is_kind` returns a `Bool`. A statement needs a list; `guard $ is_kind :k c;`
+is the statement form.
+
+--- tql ---
+main root = do { c <- children root; is_kind :class_declaration c; return c; };
+
+--- error ---
+category: type-mismatch
+span: 1:38-1:66
+The `is_kind :class_declaration c` statement.

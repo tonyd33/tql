@@ -5,7 +5,7 @@ asserts: types, values
 `apply_to_classes` takes a filter and runs it as a pipe stage.
 
 --- tql ---
-apply_to_classes f = children | is_kind :class_declaration | f;
+apply_to_classes f = children | of_kind :class_declaration | f;
 main = apply_to_classes (.name | arr text);
 
 --- source ---

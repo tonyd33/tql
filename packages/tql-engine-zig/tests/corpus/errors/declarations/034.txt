@@ -6,7 +6,7 @@ The typescript grammar marks `expression` as a supertype but does not list
 its subtypes, so the diagnostic names only the kind.
 
 --- tql ---
-main = children | is_kind :expression;
+main = children | of_kind :expression;
 
 --- error ---
 category: supertype-kind

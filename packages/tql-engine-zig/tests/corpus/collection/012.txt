@@ -7,7 +7,7 @@ An empty query gives an empty list and the record is still built.
 
 --- tql ---
 main root = do {
-  b <- collect (children | is_kind :interface_declaration | arr text) root;
+  b <- collect (children | of_kind :interface_declaration | arr text) root;
   return { a = 1, b = b };
 };
 

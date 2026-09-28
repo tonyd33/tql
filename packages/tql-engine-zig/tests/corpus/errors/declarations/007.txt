@@ -7,7 +7,7 @@ A `:kind` selector is static syntax. A computed string cannot stand in for one.
 --- tql ---
 main =
   let { k = "class_declaration"; }
-  in children | is_kind :k;
+  in children | of_kind :k;
 
 --- error ---
 category: unknown-kind

@@ -75,6 +75,28 @@ fn primitiveSchemes(
             .primop = axis[1],
         });
     }
+    try out.append(gpa, .{
+        .name = "is_kind",
+        .scheme = .{ .type = try B.func(
+            types.kind_type,
+            try B.func(types.node_type, try B.boolType()),
+        ) },
+        .primop = .is_kind,
+    });
+    inline for (.{
+        .{ "of_kind", PrimOp.of_kind },
+        .{ "children_of_kind", PrimOp.children_of_kind },
+        .{ "descendants_of_kind", PrimOp.descendants_of_kind },
+    }) |row| {
+        try out.append(gpa, .{
+            .name = row[0],
+            .scheme = .{ .type = try B.func(
+                types.kind_type,
+                try B.filter(types.node_type, types.node_type),
+            ) },
+            .primop = row[1],
+        });
+    }
 }
 
 const Row = struct {
@@ -168,9 +190,10 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",      "kind",     "is_named",    "range",
-        "length",    "toint",    "filename",    "parent",
-        "ancestors", "children", "descendants",
+        "text",      "kind",             "is_named",            "range",
+        "length",    "toint",            "filename",            "parent",
+        "ancestors", "children",         "descendants",         "is_kind",
+        "of_kind",   "children_of_kind", "descendants_of_kind",
     };
 
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);

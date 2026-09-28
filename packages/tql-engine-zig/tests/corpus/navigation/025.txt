@@ -1,0 +1,22 @@
+title: a kind parameter passes through to `is_kind`
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+k_of k = is_kind k;
+
+main = descendants | keep (k_of :string) | arr text;
+
+--- source ---
+const s = "x";
+
+--- values ---
+["\"x\""]
+
+--- core ---
+k_of = \k -> is_kind k
+main = kleisli (kleisli descendants (keep (k_of :string))) (arr text)
+
+--- types ---
+k_of : Kind -> Node -> Bool
+main : Node -> [String]

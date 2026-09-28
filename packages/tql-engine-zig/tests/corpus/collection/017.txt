@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = collect $ children | is_kind :class_declaration
+main = collect $ children | of_kind :class_declaration
   | .name
   | arr (\n -> { name = text n })
 ;

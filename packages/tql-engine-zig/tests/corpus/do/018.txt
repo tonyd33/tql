@@ -13,7 +13,7 @@ with_do root = do {
   return $ text n;
 };
 
-with_pipe = children | is_kind :class_declaration | .name | arr text;
+with_pipe = children | of_kind :class_declaration | .name | arr text;
 
 main = with_do <|> with_pipe;
 

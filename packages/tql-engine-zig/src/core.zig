@@ -62,6 +62,10 @@ pub const Literal = union(enum) {
     string: []const u8,
     /// The pattern as written. Desugaring has checked that it compiles.
     regex: []const u8,
+    /// A node kind, resolved against the target grammar during desugaring.
+    kind: Kind,
+
+    pub const Kind = struct { name: []const u8, id: u16 };
 };
 
 pub const Lambda = struct {
@@ -280,6 +284,7 @@ pub const Printer = struct {
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("\"{f}\"", .{string_literal.fmt(s)}),
             .regex => |pattern| try w.print("r\"{s}\"", .{pattern}),
+            .kind => |k| try w.print(":{s}", .{k.name}),
         }
     }
 };

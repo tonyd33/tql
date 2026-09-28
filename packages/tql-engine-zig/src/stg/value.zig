@@ -109,6 +109,7 @@ pub const Value = union(enum) {
     number: i64,
     string: []const u8,
     regex: *const stg.Regex,
+    kind: core.Literal.Kind,
     node: Node,
     range: Range,
 };

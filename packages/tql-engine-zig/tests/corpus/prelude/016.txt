@@ -6,10 +6,10 @@ Checking whether the primary yields anything forces only its first result, but
 when it does yield, every result is returned.
 
 --- tql ---
-method_names = .body | children | is_kind :method_definition | .name | arr text;
+method_names = .body | children | of_kind :method_definition | .name | arr text;
 
 main =
-  children | is_kind :class_declaration
+  children | of_kind :class_declaration
   | or_else method_names (pure "none");
 
 --- source ---

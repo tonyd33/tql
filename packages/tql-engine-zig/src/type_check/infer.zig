@@ -166,6 +166,7 @@ pub const Inference = struct {
             .number => types.int_type,
             .string => types.string_type,
             .regex => types.regex_type,
+            .kind => types.kind_type,
         };
     }
 
@@ -1456,16 +1457,12 @@ test "a recursive definition stays monomorphic within its own component" {
     try fix.expectScheme(loop, "a -> b");
 }
 
-test "a synthesized kind test infers through the scheme builder" {
+test "a kind literal is a Kind" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const is_kind = try fix.synthesize(
-        "is_kind[class_declaration]",
-        .{ .kind_test = .{ .name = "class_declaration", .id = 42 } },
-    );
-    try fix.expectType(fix.sym(is_kind), "Node -> [Node]");
+    try fix.expectType(fix.lit(.{ .kind = .{ .name = "class_declaration", .id = 42 } }), "Kind");
 }
 
 test "a synthesized operator takes scalars, not filters" {
@@ -1558,7 +1555,7 @@ test "a synthesized field access composes with a kind test" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `children | is_kind :class_declaration | .name`, the navigation chain
+    // `children | of_kind :class_declaration | .name`, the navigation chain
     // every fixture opens with, as Core composition.
     const compose = try fix.define("compose", .{
         .quantified = 3,
@@ -1575,13 +1572,20 @@ test "a synthesized field access composes with a kind test" {
     const children = try fix.define("children", .{
         .type = try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.node_type),
     });
-    const is_kind = try fix.synthesize(
-        "is_kind[class_declaration]",
-        .{ .kind_test = .{ .name = "class_declaration", .id = 1 } },
+    const of_kind = try fix.define("of_kind", .{
+        .type = try types.func(
+            fix.subst.arena,
+            types.kind_type,
+            try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.node_type),
+        ),
+    });
+    const class_declaration = try fix.app(
+        fix.sym(of_kind),
+        fix.lit(.{ .kind = .{ .name = "class_declaration", .id = 1 } }),
     );
     const field = try fix.synthesize("field[name]", .{ .field = .{ .name = "name", .id = 2 } });
 
-    const first = try fix.app(try fix.app(fix.sym(compose), fix.sym(children)), fix.sym(is_kind));
+    const first = try fix.app(try fix.app(fix.sym(compose), fix.sym(children)), class_declaration);
     const chain = try fix.app(try fix.app(fix.sym(compose), first), fix.sym(field));
     try fix.expectType(chain, "Node -> [Node]");
 }

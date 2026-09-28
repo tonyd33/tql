@@ -5,7 +5,7 @@ asserts: types, values
 `node` is `Serial`, so it may appear inside a serializable container.
 
 --- tql ---
-main = children | is_kind :class_declaration | arr (\c -> { at = range c, k = kind c });
+main = children | of_kind :class_declaration | arr (\c -> { at = range c, k = kind c });
 
 --- source ---
 class A {}

@@ -91,15 +91,6 @@ pub const Translator = struct {
             else => return null,
         };
         return switch (source) {
-            .kind_test => |k| .{ .kind_test = .{
-                .name = try self.arena.dupe(u8, k.name),
-                .id = k.id,
-            } },
-            .kind_axis => |k| .{ .kind_axis = .{
-                .name = try self.arena.dupe(u8, k.name),
-                .id = k.id,
-                .primop = k.primop,
-            } },
             .field => |f| .{ .field = .{
                 .name = try self.arena.dupe(u8, f.name),
                 .id = f.id,
@@ -130,6 +121,7 @@ pub const Translator = struct {
                 self.regexes.appendAssumeCapacity(regex);
                 break :blk .{ .regex = regex };
             },
+            .kind => |k| .{ .kind = .{ .name = try self.arena.dupe(u8, k.name), .id = k.id } },
         });
         return thunk;
     }
@@ -474,11 +466,10 @@ pub const Translator = struct {
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
         switch (self.program.env.interner.details(name)) {
-            // `is_kind[k]`, `field[l]` and the `_of_kind` axes are
-            // `Filter Node Node`, one argument; an operator takes two
-            // scalars.
+            // `field[l]` is `Filter Node Node`, one argument; an operator
+            // takes two scalars.
             .synthesized => |s| return switch (s) {
-                .kind_test, .kind_axis, .field => 1,
+                .field => 1,
                 .operator => 2,
                 .record => |labels| @intCast(labels.len),
             },

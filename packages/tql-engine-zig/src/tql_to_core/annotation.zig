@@ -22,6 +22,7 @@ const primitive_names = [_]struct { name: []const u8, type: types.Type }{
     .{ .name = "Regex", .type = types.regex_type },
     .{ .name = "Node", .type = types.node_type },
     .{ .name = "Range", .type = types.range_type },
+    .{ .name = "Kind", .type = types.kind_type },
 };
 
 pub fn primitiveNamed(name: []const u8) ?types.Type {
@@ -477,10 +478,10 @@ test "a constrained variable absent from the type is rejected" {
     try testing.expectEqual(1, fix.sink.items().len);
 }
 
-test "the primitive table is the five primitives and nothing else" {
+test "the primitive table is the six primitives and nothing else" {
     // A change to what a signature may name should fail here first. `Bool` is
     // absent because it is a declared type, resolved through the registry.
-    try testing.expectEqual(5, primitive_names.len);
+    try testing.expectEqual(6, primitive_names.len);
     try testing.expect(primitiveNamed("Node") != null);
     try testing.expect(primitiveNamed("Bool") == null);
     try testing.expect(primitiveNamed("node") == null);

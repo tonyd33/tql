@@ -808,15 +808,16 @@ pub const Machine = struct {
                 return .{ .range = rangeOf(subject) };
             },
 
-            // `[x]` when the static kind matches, otherwise `[]`.
             .is_kind => {
-                const subject = try self.nodeArgument(arguments);
-                const wanted = switch (try synthesized(call)) {
-                    .kind_test => |k| k.id,
-                    else => return error.TypeError,
-                };
-                if (subject.kindId() != wanted) return self.nil();
-                return self.singleton(arguments[0]);
+                const tested = try self.kindTestArguments(arguments);
+                return try self.boolValue(tested.subject.kindId() == tested.kind_id);
+            },
+
+            // `[x]` when the kind matches, otherwise `[]`.
+            .of_kind => {
+                const tested = try self.kindTestArguments(arguments);
+                if (tested.subject.kindId() != tested.kind_id) return self.nil();
+                return self.singleton(arguments[1]);
             },
 
             // `[parent]`, or `[]` at the root.
@@ -914,11 +915,9 @@ pub const Machine = struct {
             // The `children`/`descendants` walks with the kind test folded
             // into the advance, so the list holds only matches.
             .children_of_kind, .descendants_of_kind => {
-                const subject = try self.nodeArgument(arguments);
-                const kind_id = switch (try synthesized(call)) {
-                    .kind_axis => |k| k.id,
-                    else => return error.TypeError,
-                };
+                const tested = try self.kindTestArguments(arguments);
+                const subject = tested.subject;
+                const kind_id = tested.kind_id;
                 const descendants = call.primop == .descendants_of_kind;
                 const cursor = try self.newCursor(subject);
                 return try self.step(.{
@@ -946,6 +945,24 @@ pub const Machine = struct {
             .node => |n| n.inner,
             else => error.TypeError,
         };
+    }
+
+    /// The kind and node arguments of `is_kind`, `of_kind` and the `_of_kind`
+    /// axes.
+    fn kindTestArguments(
+        self: *Machine,
+        arguments: []const *value.Thunk,
+    ) Error!struct { kind_id: u16, subject: ts.Node } {
+        if (arguments.len != 2) return error.TypeError;
+        const kind_id = switch (try self.force(arguments[0])) {
+            .kind => |k| k.id,
+            else => return error.TypeError,
+        };
+        const subject = switch (try self.force(arguments[1])) {
+            .node => |n| n.inner,
+            else => return error.TypeError,
+        };
+        return .{ .kind_id = kind_id, .subject = subject };
     }
 
     /// Resolve a constructor's field atoms into a value.

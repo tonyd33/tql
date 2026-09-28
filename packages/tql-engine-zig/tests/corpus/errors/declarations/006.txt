@@ -7,7 +7,7 @@ is `function_declaration`, so this must be rejected rather than silently
 yielding nothing.
 
 --- tql ---
-main = descendants | is_kind :function_definition;
+main = descendants | of_kind :function_definition;
 
 --- error ---
 category: unknown-kind

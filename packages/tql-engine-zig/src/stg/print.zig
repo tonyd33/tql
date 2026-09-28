@@ -24,6 +24,7 @@ pub const Printer = struct {
                 .number => |n| try w.print("{d}", .{n}),
                 .string => |s| try w.print("\"{f}\"", .{string_literal.fmt(s)}),
                 .regex => |r| try w.print("r\"{s}\"", .{r.pattern}),
+                .kind => |k| try w.print(":{s}", .{k.name}),
                 else => unreachable,
             },
         }

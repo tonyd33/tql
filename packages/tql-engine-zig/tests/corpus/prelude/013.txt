@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main root = do {
   n <- descendants_of_kind :property_identifier root;
-  return $ has (ancestors | is_kind :interface_declaration) n;
+  return $ has (ancestors | of_kind :interface_declaration) n;
 };
 
 --- source ---

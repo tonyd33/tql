@@ -1,22 +1,19 @@
 matches re = keep (\n -> text n ~ re);
 
 allocator_call =
-  descendants
-  | is_kind :call_expression
+  descendants_of_kind :call_expression
   | .function
   | matches r"^(k|v|kv)(z|m|c|re)?alloc";
 
 error_goto =
-  descendants
-  | is_kind :goto_statement
+  descendants_of_kind :goto_statement
   | .label
   | matches r"^(err|out)(_\w+)?$";
 
 main =
-  descendants
-  | is_kind :function_definition
+  descendants_of_kind :function_definition
   | keep (has (.body | allocator_call))
   | keep (has (.body | error_goto))
-  | children | is_kind :function_declarator
-  | children | is_kind :identifier
+  | children_of_kind :function_declarator
+  | children_of_kind :identifier
   | arr (\n -> { name = text n });

@@ -137,8 +137,9 @@ pub const Engine = struct {
     /// Parses and desugars `prelude.tql` into the link.
     ///
     /// Recompiled per link: a module's `SymbolId`s index the registry it was
-    /// desugared against, and `is_kind` resolves kind IDs from the grammar, so
-    /// a cached one would be valid only per grammar and per registry prefix.
+    /// desugared against, and a `:k` literal resolves its kind ID from the
+    /// grammar, so a cached one would be valid only per grammar and per
+    /// registry prefix.
     fn addPrelude(
         self: *Engine,
         desugarer: *tql_to_core.Desugarer,
@@ -314,7 +315,7 @@ test {
     refAllDecls(stg);
 }
 
-test "synthesized symbols carry the grammar ids they resolved" {
+test "a field symbol carries the grammar id it resolved" {
     const allocator = std.testing.allocator;
 
     var grammars = grammar.Registry.init(allocator, &.{});
@@ -328,19 +329,11 @@ test "synthesized symbols carry the grammar ids they resolved" {
     defer sink.deinit();
 
     var program = try engine.desugarQuery(
-        "main = children | is_kind :class_declaration | .name;",
+        "main = children | of_kind :class_declaration | .name;",
         g,
         &sink,
     );
     defer program.deinit();
-
-    const kind = program.env.interner.lookup("is_kind[class_declaration]").?;
-    const kind_what = program.env.interner.details(kind).synthesized;
-    try std.testing.expectEqualStrings("class_declaration", kind_what.kind_test.name);
-    try std.testing.expectEqual(
-        g.language.idForNodeKind("class_declaration", true),
-        kind_what.kind_test.id,
-    );
 
     const field = program.env.interner.lookup("field[name]").?;
     const field_what = program.env.interner.details(field).synthesized;
@@ -350,7 +343,31 @@ test "synthesized symbols carry the grammar ids they resolved" {
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
     const text = program.env.interner.lookup("text").?;
     try std.testing.expectEqual(core.PrimOp.text, program.env.interner.details(text).primop);
-    try std.testing.expect(program.env.interner.details(kind) == .synthesized);
+    try std.testing.expect(program.env.interner.details(field) == .synthesized);
+}
+
+test "a kind literal carries the grammar id it resolved" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery("main = is_kind :class_declaration;", g, &sink);
+    defer program.deinit();
+
+    const body = program.entryDefinitions()[0].body;
+    const function = body.kind.apply.function.kind.symbol;
+    try std.testing.expectEqual(core.PrimOp.is_kind, program.env.interner.details(function).primop);
+    const kind = body.kind.apply.argument.kind.literal.kind;
+    try std.testing.expectEqualStrings("class_declaration", kind.name);
+    try std.testing.expectEqual(g.language.idForNodeKind("class_declaration", true), kind.id);
 }
 
 test "a constructor field that is not an atom becomes a thunk" {

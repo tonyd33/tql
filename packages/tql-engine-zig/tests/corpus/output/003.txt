@@ -7,7 +7,7 @@ the 10 bytes of the first line plus one newline.
 
 --- tql ---
 main =
-  children | is_kind :class_declaration
+  children | of_kind :class_declaration
   | keep (has (.name | keep (\n -> text n = "B")));
 
 --- source ---

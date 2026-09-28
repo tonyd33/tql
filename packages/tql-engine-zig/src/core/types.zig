@@ -16,6 +16,7 @@ pub const Primitive = enum {
     Regex,
     Node,
     Range,
+    Kind,
 
     pub fn spelling(self: Primitive) []const u8 {
         return @tagName(self);
@@ -217,6 +218,7 @@ pub const string_type: Type = .{ .primitive = .String };
 pub const regex_type: Type = .{ .primitive = .Regex };
 pub const node_type: Type = .{ .primitive = .Node };
 pub const range_type: Type = .{ .primitive = .Range };
+pub const kind_type: Type = .{ .primitive = .Kind };
 
 pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };

@@ -171,12 +171,12 @@ test "internOrGet returns one symbol for one spelling" {
     defer arena.deinit();
     var interner = Interner.init(arena.allocator());
 
-    const what: Details = .{ .synthesized = .{ .kind_test = .{ .name = "k", .id = 1 } } };
-    const first = try interner.internOrGet("is_kind[class_declaration]", what);
-    const second = try interner.internOrGet("is_kind[class_declaration]", what);
+    const what: Details = .{ .synthesized = .{ .field = .{ .name = "f", .id = 1 } } };
+    const first = try interner.internOrGet("field[name]", what);
+    const second = try interner.internOrGet("field[name]", what);
     try std.testing.expectEqual(first, second);
 
-    const other = try interner.internOrGet("is_kind[method_definition]", what);
+    const other = try interner.internOrGet("field[body]", what);
     try std.testing.expect(first != other);
 }
 

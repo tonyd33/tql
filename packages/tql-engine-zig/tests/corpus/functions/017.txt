@@ -2,11 +2,11 @@ title: application binds tighter than pipe
 grammar: typescript
 asserts: types, values
 
-`children | is_kind :class_declaration` groups as
-`children | (is_kind :class_declaration)`.
+`children | of_kind :class_declaration` groups as
+`children | (of_kind :class_declaration)`.
 
 --- tql ---
-main = children | is_kind :class_declaration | .name | arr text;
+main = children | of_kind :class_declaration | .name | arr text;
 
 --- source ---
 class A {}

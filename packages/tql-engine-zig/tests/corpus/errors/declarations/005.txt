@@ -6,7 +6,7 @@ asserts: error
 matched at runtime against nothing.
 
 --- tql ---
-main = children | is_kind :not_a_kind;
+main = children | of_kind :not_a_kind;
 
 --- error ---
 category: unknown-kind

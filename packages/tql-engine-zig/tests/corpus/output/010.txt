@@ -5,10 +5,10 @@ asserts: types, values
 --- tql ---
 class_record c = do {
   n <- c.name;
-  methods <- collect (.body | children | is_kind :method_definition | .name | arr text) c;
+  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
   return { name = text n, methods = methods };
 };
-main = collect $ children | is_kind :class_declaration | class_record;
+main = collect $ children | of_kind :class_declaration | class_record;
 
 --- source ---
 class A { m() {} }
