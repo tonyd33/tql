@@ -45,6 +45,7 @@ pub const Scalar = enum {
 pub const PrimOp = enum {
     text,
     kind,
+    is_named,
     range,
     length,
     toint,
