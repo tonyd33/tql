@@ -22,6 +22,7 @@ pub const core_to_stg = @import("core_to_stg.zig");
 pub const stg = @import("stg.zig");
 
 const grammar = @import("lang/grammar.zig");
+const string_literal = @import("lang/string_literal.zig");
 const pcre2 = @import("regex.zig");
 
 /// The prelude, linked beneath every query.
@@ -301,6 +302,7 @@ test {
     refAllDecls(diagnostic);
     refAllDecls(parse);
     refAllDecls(grammar);
+    refAllDecls(string_literal);
     refAllDecls(core);
     refAllDecls(core.symbols);
     refAllDecls(core.datatypes);

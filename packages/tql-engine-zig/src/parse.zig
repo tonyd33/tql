@@ -8,6 +8,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const cst = @import("lang/cst.zig");
+const string_literal = @import("lang/string_literal.zig");
 const diagnostic = @import("diagnostic.zig");
 
 const Span = diagnostic.Span;
@@ -366,14 +367,20 @@ const Walker = struct {
             };
         }
         if (std.mem.eql(u8, kind, "string")) {
-            // Strip the delimiting quotes. Escapes stay as written: decoding
-            // them is not a parse-shape question.
             const text = textOf(node, self.source);
             const body = if (text.len >= 2) text[1 .. text.len - 1] else text;
-            return .{
-                .kind = .{ .string = try self.allocator.dupe(u8, body) },
-                .span = span,
-            };
+            switch (try string_literal.decode(self.allocator, body)) {
+                .bytes => |bytes| return .{ .kind = .{ .string = bytes }, .span = span },
+                .invalid_escape => |at| {
+                    try self.sink.report(
+                        .parse,
+                        span,
+                        "`{s}` is not an escape; write `\\\\` for a backslash",
+                        .{body[at .. at + 2]},
+                    );
+                    return null;
+                },
+            }
         }
         if (std.mem.eql(u8, kind, "regex")) {
             // `r"..."`: two leading bytes, one trailing.
