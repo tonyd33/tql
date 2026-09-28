@@ -231,12 +231,21 @@ module.exports = grammar({
       ),
 
     case_alternative: $ =>
+      seq(field("pattern", $._pattern), "->", field("body", $._expression)),
+
+    _pattern: $ =>
+      choice($.constructor_pattern, $.identifier, $.parenthesized_pattern),
+
+    constructor_pattern: $ =>
       seq(
         field("constructor", $.type_identifier),
-        repeat(field("binder", $.identifier)),
-        "->",
-        field("body", $._expression),
+        repeat(field("argument", $._atomic_pattern)),
       ),
+
+    _atomic_pattern: $ =>
+      choice($.identifier, $.type_identifier, $.parenthesized_pattern),
+
+    parenthesized_pattern: $ => seq("(", $._pattern, ")"),
 
     if_expression: $ =>
       prec.right(

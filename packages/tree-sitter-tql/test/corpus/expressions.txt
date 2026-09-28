@@ -229,10 +229,12 @@ main = case b of { False -> 1; True -> 2 };
     body: (case_expression
       scrutinee: (identifier)
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (number))
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (number)))))
 
 ========================================
@@ -249,13 +251,94 @@ main = case xs of { Nil -> 0; Cons h t -> h };
     body: (case_expression
       scrutinee: (identifier)
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (number))
       (case_alternative
-        constructor: (type_identifier)
-        binder: (identifier)
-        binder: (identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (identifier)
+          argument: (identifier))
         body: (identifier)))))
+
+========================================
+a case pattern nests constructors in parentheses
+========================================
+
+main = case xs of { Cons a (Cons b Nil) -> a; Cons a t -> a };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (identifier)
+          argument: (parenthesized_pattern
+            (constructor_pattern
+              constructor: (type_identifier)
+              argument: (identifier)
+              argument: (type_identifier))))
+        body: (identifier))
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (identifier)
+          argument: (identifier))
+        body: (identifier)))))
+
+========================================
+a case pattern is a variable or a wildcard
+========================================
+
+main = case xs of { Cons _ t -> t; ys -> ys };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (identifier)
+          argument: (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (identifier)))))
+
+========================================
+a nullary constructor argument needs no parentheses
+========================================
+
+main = case p of { Mk True x -> x; Mk False _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (type_identifier)
+          argument: (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (type_identifier)
+          argument: (identifier))
+        body: (number)))))
 
 ========================================
 a constructor is an ordinary value
@@ -290,10 +373,12 @@ main = case f x of { Nil -> Nil; Cons h t -> t };
         function: (identifier)
         argument: (identifier))
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (type_identifier))
       (case_alternative
-        constructor: (type_identifier)
-        binder: (identifier)
-        binder: (identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (identifier)
+          argument: (identifier))
         body: (identifier)))))

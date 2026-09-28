@@ -1,0 +1,21 @@
+title: a variable alternative binds a scrutinee that is not a name
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+count n = case pure n 1 of {
+  Cons x Nil -> x;
+  ys -> length ys;
+};
+
+main = pure $ count 5;
+
+--- source ---
+class A {}
+
+--- values ---
+[5]
+
+--- core ---
+count = \n -> letrec { alternative = \ys -> length ys } in letrec { scrutinee = pure n 1 } in case scrutinee of { Nil -> alternative scrutinee; Cons x cons1 -> case cons1 of { Nil -> x; Cons _ _ -> alternative scrutinee } }
+main = pure (count 5)

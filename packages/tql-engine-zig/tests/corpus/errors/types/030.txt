@@ -1,0 +1,15 @@
+title: constructors of two datatypes in one position are rejected
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Maybe a = Just a | Nothing;
+
+f xs = case xs of { Cons a t -> a; Nothing -> 0; };
+
+main = pure (f [1]);
+
+--- error ---
+category: type-mismatch
+span: 3:36-3:43
+The `Nothing` pattern.

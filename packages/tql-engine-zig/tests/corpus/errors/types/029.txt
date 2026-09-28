@@ -1,0 +1,13 @@
+title: a nested constructor with too few arguments names its pattern
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { Cons a (Cons b) -> a; _ -> 0; };
+
+main = pure (f [1]);
+
+--- error ---
+category: type-mismatch
+span: 1:29-1:35
+The inner `Cons b`.

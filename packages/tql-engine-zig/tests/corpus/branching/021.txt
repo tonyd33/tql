@@ -1,0 +1,24 @@
+title: the first alternative that matches wins
+grammar: typescript
+asserts: types, values
+
+`[1]` matches both `Cons x Nil` and `Cons x t`.
+
+--- tql ---
+shape xs = case xs of {
+  Cons x Nil -> 1;
+  Cons x t -> 2;
+  Nil -> 0;
+};
+
+main = const [shape [1], shape [1, 2], shape []];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2, 0]
+
+--- types ---
+shape : [a] -> Int
+main : Node -> [Int]

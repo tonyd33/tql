@@ -319,12 +319,14 @@ main = case b of { False -> f x; True -> g y };
     body: (case_expression
       scrutinee: (identifier)
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (application
           function: (identifier)
           argument: (identifier)))
       (case_alternative
-        constructor: (type_identifier)
+        pattern: (constructor_pattern
+          constructor: (type_identifier))
         body: (application
           function: (identifier)
           argument: (identifier))))))

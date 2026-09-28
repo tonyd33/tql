@@ -343,9 +343,9 @@ pub const Expression = struct {
                 try w.writeAll("(case ");
                 try c.scrutinee.sexpr(w);
                 for (c.alternatives) |a| {
-                    try w.print(" (alt {s} (binders", .{a.constructor});
-                    for (a.binders) |b| try w.print(" {s}", .{b.name});
-                    try w.writeAll(") ");
+                    try w.writeAll(" (alt ");
+                    try a.pattern.sexpr(w);
+                    try w.writeByte(' ');
                     try a.body.sexpr(w);
                     try w.writeByte(')');
                 }
@@ -442,17 +442,48 @@ pub const TypeField = struct {
     span: diagnostic.Span = .unknown,
 };
 
-/// `case e of { C x -> e; ... }`
+/// `case e of { p -> e; ... }`
 pub const Case = struct {
     scrutinee: Expression,
     alternatives: []const Alternative,
 
     pub const Alternative = struct {
-        constructor: Identifier,
-        binders: []const Parameter,
+        pattern: Pattern,
         body: Expression,
         span: diagnostic.Span = .unknown,
     };
+};
+
+/// The left side of a `case` alternative.
+pub const Pattern = struct {
+    kind: Kind,
+    span: diagnostic.Span = .unknown,
+
+    pub const Kind = union(enum) {
+        /// `x` binds the matched value. `_` binds nothing.
+        variable: Identifier,
+        constructor: Constructor,
+    };
+
+    pub const Constructor = struct {
+        name: Identifier,
+        arguments: []const Pattern,
+    };
+
+    pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self.kind) {
+            .variable => |name| try w.writeAll(name),
+            .constructor => |c| {
+                if (c.arguments.len == 0) return w.writeAll(c.name);
+                try w.print("({s}", .{c.name});
+                for (c.arguments) |argument| {
+                    try w.writeByte(' ');
+                    try argument.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
+        }
+    }
 };
 
 pub const Type = struct {
