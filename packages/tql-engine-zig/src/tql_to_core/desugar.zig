@@ -243,6 +243,15 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         }
+        if (self.language.nodeKindIsSupertype(id)) {
+            try self.sink.report(
+                .supertype_kind,
+                span,
+                "`{s}` is a supertype, so no node has this kind{f}",
+                .{ name, SubtypeList{ .language = self.language, .supertype = id } },
+            );
+            return error.DesugarFailed;
+        }
         const duped = try self.builder.dupe(name);
         const what: Synthesized = if (axis) |primop|
             .{ .kind_axis = .{ .name = duped, .id = id, .primop = primop } }
@@ -250,6 +259,23 @@ pub const Lowerer = struct {
             .{ .kind_test = .{ .name = duped, .id = id } };
         return try self.synthesize("{s}[{s}]", .{ spelling, name }, what);
     }
+
+    /// Formats as `; use one of its subtypes: ...`, or nothing when the
+    /// grammar does not record them.
+    const SubtypeList = struct {
+        language: *const ts.Language,
+        supertype: u16,
+
+        pub fn format(self: SubtypeList, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            const subtypes = self.language.subtypesForSupertype(self.supertype);
+            if (subtypes.len == 0) return;
+            try w.writeAll("; use one of its subtypes:");
+            for (subtypes, 0..) |subtype, i| {
+                const separator = if (i == 0) " " else ", ";
+                try w.print("{s}`{s}`", .{ separator, self.language.nodeKindForId(subtype) orelse "?" });
+            }
+        }
+    };
 
     /// Interns a synthesized symbol under its bracketed spelling and records
     /// what it was generated from.
