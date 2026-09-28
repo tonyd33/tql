@@ -440,12 +440,6 @@ pub const Lowerer = struct {
 
             .binary => |b| return try self.binary(b.*, e.span, scope),
 
-            .not => |n| return try self.builder.apply(
-                try self.primitive("not", e.span),
-                try self.expression(n.operand, scope),
-                e.span,
-            ),
-
             // The scalar conditional is `case` on `Bool`. Alternatives go in
             // tag order, so `False` precedes `True` and the alternative
             // bodies are the *opposite* order from how they are written.

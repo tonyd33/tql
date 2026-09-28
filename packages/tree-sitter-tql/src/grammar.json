@@ -318,10 +318,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "logical_not"
-        },
-        {
-          "type": "SYMBOL",
           "name": "comparison"
         },
         {
@@ -483,27 +479,6 @@
           {
             "type": "FIELD",
             "name": "right",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_expression"
-            }
-          }
-        ]
-      }
-    },
-    "logical_not": {
-      "type": "PREC_RIGHT",
-      "value": 6,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "STRING",
-            "value": "not"
-          },
-          {
-            "type": "FIELD",
-            "name": "operand",
             "content": {
               "type": "SYMBOL",
               "name": "_expression"

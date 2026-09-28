@@ -205,10 +205,6 @@ pub const FieldAccess = struct {
     field: Identifier,
 };
 
-pub const Not = struct {
-    operand: Expression,
-};
-
 pub const If = struct {
     condition: Expression,
     consequence: Expression,
@@ -298,7 +294,6 @@ pub const Expression = struct {
         field_access: *FieldAccess,
         apply: *Apply,
         binary: *Binary,
-        not: *Not,
         @"if": *If,
         case: *Case,
         /// A data constructor used as a value: `Nil`, `True`.
@@ -342,11 +337,6 @@ pub const Expression = struct {
                 try b.left.sexpr(w);
                 try w.writeByte(' ');
                 try b.right.sexpr(w);
-                try w.writeByte(')');
-            },
-            .not => |n| {
-                try w.writeAll("(not ");
-                try n.operand.sexpr(w);
                 try w.writeByte(')');
             },
             .case => |c| {

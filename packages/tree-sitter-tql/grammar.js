@@ -13,7 +13,6 @@ const PREC = {
   pipe: 3,
   or: 4,
   and: 5,
-  not: 6,
   cmp: 7,
   add: 8,
   mul: 9,
@@ -93,7 +92,6 @@ module.exports = grammar({
         $.pipe,
         $.logical_or,
         $.logical_and,
-        $.logical_not,
         $.comparison,
         $.additive,
         $.multiplicative,
@@ -137,9 +135,6 @@ module.exports = grammar({
         PREC.and,
         seq(field("left", $._expression), "and", field("right", $._expression)),
       ),
-
-    logical_not: $ =>
-      prec.right(PREC.not, seq("not", field("operand", $._expression))),
 
     comparison: $ =>
       prec.left(

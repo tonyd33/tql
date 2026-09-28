@@ -400,9 +400,6 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "application") or std.mem.eql(u8, kind, "dollar_application")) {
             return self.application(node, span);
         }
-        if (std.mem.eql(u8, kind, "logical_not")) {
-            return self.notExpr(node, span);
-        }
         if (std.mem.eql(u8, kind, "if_expression")) {
             return self.ifExpr(node, span);
         }
@@ -539,18 +536,6 @@ const Walker = struct {
                 .left = left,
                 .right = right,
             }) },
-            .span = span,
-        };
-    }
-
-    fn notExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const operand_node = node.childByFieldName("operand") orelse {
-            try self.missingField(node, "operand");
-            return null;
-        };
-        const operand = try self.expression(operand_node) orelse return null;
-        return .{
-            .kind = .{ .not = try self.boxed(cst.Not{ .operand = operand }) },
             .span = span,
         };
     }

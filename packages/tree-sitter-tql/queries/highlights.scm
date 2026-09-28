@@ -6,7 +6,6 @@
   "else"
   "and"
   "or"
-  "not"
 ] @keyword
 
 (comment) @comment
