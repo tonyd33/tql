@@ -7,6 +7,7 @@
 const std = @import("std");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
+const string_literal = @import("../lang/string_literal.zig");
 
 pub const Printer = struct {
     interner: *const core.Interner,
@@ -21,7 +22,7 @@ pub const Printer = struct {
             .global => |g| try w.writeAll(self.interner.spelling(g.symbol)),
             .literal => |thunk| switch (thunk.state.evaluated) {
                 .number => |n| try w.print("{d}", .{n}),
-                .string => |s| try w.print("\"{s}\"", .{s}),
+                .string => |s| try w.print("\"{f}\"", .{string_literal.fmt(s)}),
                 .regex => |r| try w.print("r\"{s}\"", .{r.pattern}),
                 else => unreachable,
             },

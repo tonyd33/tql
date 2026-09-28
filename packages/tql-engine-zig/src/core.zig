@@ -12,6 +12,7 @@
 
 const std = @import("std");
 const diagnostic = @import("diagnostic.zig");
+const string_literal = @import("lang/string_literal.zig");
 
 pub const symbols = @import("core/symbols.zig");
 pub const details = @import("core/details.zig");
@@ -277,7 +278,7 @@ pub const Printer = struct {
     fn writeLiteral(value: Literal, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
             .number => |n| try w.print("{d}", .{n}),
-            .string => |s| try w.print("\"{s}\"", .{s}),
+            .string => |s| try w.print("\"{f}\"", .{string_literal.fmt(s)}),
             .regex => |pattern| try w.print("r\"{s}\"", .{pattern}),
         }
     }

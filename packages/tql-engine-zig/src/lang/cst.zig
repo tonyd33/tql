@@ -1,5 +1,6 @@
 const std = @import("std");
 const diagnostic = @import("../diagnostic.zig");
+const string_literal = @import("string_literal.zig");
 
 pub const Identifier = []const u8;
 
@@ -317,7 +318,7 @@ pub const Expression = struct {
             .kind_test => |k| try w.print("(kind {s})", .{k}),
             .name => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
-            .string => |s| try w.print("(string \"{s}\")", .{s}),
+            .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
             .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .regex => |r| try w.print("(regex \"{s}\")", .{r}),
             .field_access => |fa| {

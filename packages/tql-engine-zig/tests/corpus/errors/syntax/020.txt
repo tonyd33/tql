@@ -1,0 +1,14 @@
+title: an undefined string escape is a parse error
+grammar: typescript
+asserts: error
+
+Only `\"`, `\\`, `\n`, `\t` and `\r` are escapes. Any other is rejected
+rather than kept as written.
+
+--- tql ---
+main = const ["a\qb"];
+
+--- error ---
+category: parse
+span: 1:15-1:21
+The whole string literal.
