@@ -69,6 +69,13 @@ pub const ParseError = error{
     InvalidArgSyntax,
 };
 
+/// Filled in when `ArgTokenizer.next` returns a `ParseError`.
+pub const Diagnostic = struct {
+    /// The command-line argument being parsed. For a bundle of short options,
+    /// the whole bundle.
+    arg: []const u8 = "",
+};
+
 fn flagsStr(
     comptime short: ?u8,
     comptime long: ?[]const u8,
@@ -310,13 +317,17 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
         };
 
         iter: *std.process.Args.Iterator,
-        continuation: ?[]const u8,
+        diagnostic: ?*Diagnostic,
+        continuation: ?[]const u8 = null,
+        /// Set once `--` is read. Every later argument is a positional.
+        terminated: bool = false,
+        current: []const u8 = "",
 
-        pub fn init(iter: *std.process.Args.Iterator) Self {
-            return .{ .iter = iter, .continuation = null };
+        pub fn init(iter: *std.process.Args.Iterator, diagnostic: ?*Diagnostic) Self {
+            return .{ .iter = iter, .diagnostic = diagnostic };
         }
 
-        fn parseShort(self: *Self, rest: []const u8) !?Token {
+        fn parseShort(self: *Self, rest: []const u8) ParseError!?Token {
             const ch = rest[0];
             inline for (std.meta.fields(T)) |f| {
                 const opt: Opt = @field(opts, f.name);
@@ -365,14 +376,27 @@ pub fn ArgTokenizer(comptime opts: anytype) type {
             return error.UnknownArg;
         }
 
-        pub fn next(self: *Self) !?Token {
+        /// Returns the next token, or null when the arguments run out.
+        pub fn next(self: *Self) ParseError!?Token {
+            return self.advance() catch |err| {
+                if (self.diagnostic) |d| d.* = .{ .arg = self.current };
+                return err;
+            };
+        }
+
+        fn advance(self: *Self) ParseError!?Token {
             if (self.continuation) |cont| {
                 return try self.parseShort(cont);
             }
 
             const arg = self.iter.next() orelse return null;
+            self.current = arg;
 
-            if (std.mem.eql(u8, arg, "--")) return null;
+            if (self.terminated) return .{ .positional = arg };
+            if (std.mem.eql(u8, arg, "--")) {
+                self.terminated = true;
+                return self.advance();
+            }
 
             if (std.mem.startsWith(u8, arg, "--")) {
                 const rest = arg[2..];
@@ -454,7 +478,7 @@ test "tokenize" {
         "world",
     } };
     var iterator = args.iterate();
-    var tokenizer = ArgTokenizer(opts).init(&iterator);
+    var tokenizer = ArgTokenizer(opts).init(&iterator, null);
 
     const T = @TypeOf(tokenizer).Token;
     try testing.expectEqualDeep(try tokenizer.next(), T{ .flag = .a });
@@ -484,7 +508,7 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"--update"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = null } });
         try testing.expectEqualDeep(try tok.next(), null);
         it.deinit();
@@ -492,7 +516,7 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"--update=ast"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
         try testing.expectEqualDeep(try tok.next(), null);
         it.deinit();
@@ -500,14 +524,14 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"--update="} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectError(error.InvalidArgSyntax, tok.next());
         it.deinit();
     }
     {
         var args = std.process.Args{ .vector = &.{"-u"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = null } });
         try testing.expectEqualDeep(try tok.next(), null);
         it.deinit();
@@ -515,7 +539,7 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"-uast"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
         try testing.expectEqualDeep(try tok.next(), null);
         it.deinit();
@@ -523,7 +547,7 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"-u=ast"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectEqualDeep(try tok.next(), T{ .named_opt = .{ .field = .update, .value = "ast" } });
         try testing.expectEqualDeep(try tok.next(), null);
         it.deinit();
@@ -531,15 +555,71 @@ test "optional_argument" {
     {
         var args = std.process.Args{ .vector = &.{"--flag=x"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectError(error.ExtraArg, tok.next());
         it.deinit();
     }
     {
         var args = std.process.Args{ .vector = &.{"--req"} };
         var it = args.iterate();
-        var tok = ArgTokenizer(opts).init(&it);
+        var tok = ArgTokenizer(opts).init(&it, null);
         try testing.expectError(error.MissingArg, tok.next());
+        it.deinit();
+    }
+}
+
+test "arguments after -- are positionals" {
+    const opts = .{
+        .alpha = Opt{ .names = .{ .long = "alpha", .short = 'a' } },
+        .bravo = Opt{ .names = .{ .long = "bravo" }, .has_arg = .required_argument },
+    };
+    const T = ArgTokenizer(opts).Token;
+
+    var args = std.process.Args{ .vector = &.{ "-a", "--", "-a", "--alpha", "--", "-- x" } };
+    var it = args.iterate();
+    var tok = ArgTokenizer(opts).init(&it, null);
+    try testing.expectEqualDeep(try tok.next(), T{ .flag = .alpha });
+    try testing.expectEqualDeep(try tok.next(), T{ .positional = "-a" });
+    try testing.expectEqualDeep(try tok.next(), T{ .positional = "--alpha" });
+    try testing.expectEqualDeep(try tok.next(), T{ .positional = "--" });
+    try testing.expectEqualDeep(try tok.next(), T{ .positional = "-- x" });
+    try testing.expectEqualDeep(try tok.next(), null);
+    it.deinit();
+}
+
+test "diagnostic names the argument that failed" {
+    const opts = .{
+        .alpha = Opt{ .names = .{ .long = "alpha", .short = 'a' } },
+        .bravo = Opt{ .names = .{ .long = "bravo", .short = 'b' }, .has_arg = .required_argument },
+    };
+
+    {
+        var args = std.process.Args{ .vector = &.{ "-a", "--nope" } };
+        var it = args.iterate();
+        var diag: Diagnostic = .{};
+        var tok = ArgTokenizer(opts).init(&it, &diag);
+        _ = try tok.next();
+        try testing.expectError(error.UnknownArg, tok.next());
+        try testing.expectEqualStrings("--nope", diag.arg);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"-ax"} };
+        var it = args.iterate();
+        var diag: Diagnostic = .{};
+        var tok = ArgTokenizer(opts).init(&it, &diag);
+        _ = try tok.next();
+        try testing.expectError(error.UnknownArg, tok.next());
+        try testing.expectEqualStrings("-ax", diag.arg);
+        it.deinit();
+    }
+    {
+        var args = std.process.Args{ .vector = &.{"--bravo"} };
+        var it = args.iterate();
+        var diag: Diagnostic = .{};
+        var tok = ArgTokenizer(opts).init(&it, &diag);
+        try testing.expectError(error.MissingArg, tok.next());
+        try testing.expectEqualStrings("--bravo", diag.arg);
         it.deinit();
     }
 }
