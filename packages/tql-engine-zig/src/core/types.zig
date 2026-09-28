@@ -50,8 +50,24 @@ pub const Type = union(enum) {
     };
 
     pub fn format(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try self.write(w, false);
+        try self.write(w, false, null);
     }
+
+    /// Format with metavariables named `a`, `b`, ... in order of first
+    /// appearance. Share one `names` across every type in a message so a
+    /// metavariable keeps its letter.
+    pub fn named(self: Type, names: *MetaNames) Named {
+        return .{ .type = self, .names = names };
+    }
+
+    pub const Named = struct {
+        type: Type,
+        names: *MetaNames,
+
+        pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            try self.type.write(w, false, self.names);
+        }
+    };
 
     /// Copy every node of `self` into `allocator`. Labels and spellings are
     /// shared, not copied.
@@ -80,46 +96,67 @@ pub const Type = union(enum) {
         }
     }
 
-    fn write(self: Type, w: *std.Io.Writer, parenthesize_arrow: bool) std.Io.Writer.Error!void {
+    fn write(self: Type, w: *std.Io.Writer, parenthesize_arrow: bool, names: ?*MetaNames) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
-            .meta => |id| try w.print("?{d}", .{id}),
+            .meta => |id| if (names) |n| try n.write(id, w) else try w.print("?{d}", .{id}),
             .primitive => |p| try w.writeAll(p.spelling()),
-            .constructor => |c| try writeConstructed(c, w),
+            .constructor => |c| try writeConstructed(c, w, names),
             .record => |fields| {
                 try w.writeByte('{');
                 for (fields, 0..) |f, i| {
                     if (i > 0) try w.writeAll(", ");
                     try w.print("{s}: ", .{f.label});
-                    try f.type.write(w, false);
+                    try f.type.write(w, false, names);
                 }
                 try w.writeByte('}');
             },
             .function => |arrow| {
                 if (parenthesize_arrow) try w.writeByte('(');
-                try arrow.from.write(w, true);
+                try arrow.from.write(w, true, names);
                 try w.writeAll(" -> ");
-                try arrow.to.write(w, false);
+                try arrow.to.write(w, false, names);
                 if (parenthesize_arrow) try w.writeByte(')');
             },
         }
     }
 };
 
+/// Letters for metavariables within one message.
+pub const MetaNames = struct {
+    seen: [26]Meta = undefined,
+    len: usize = 0,
+
+    /// Write the letter `id` was given, giving it the next one if it has none.
+    /// Past `z`, write `?id`.
+    fn write(self: *MetaNames, id: Meta, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        const index = for (self.seen[0..self.len], 0..) |m, i| {
+            if (m == id) break i;
+        } else blk: {
+            if (self.len == self.seen.len) return w.print("?{d}", .{id});
+            self.seen[self.len] = id;
+            self.len += 1;
+            break :blk self.len - 1;
+        };
+        try w.writeByte('a' + @as(u8, @intCast(index)));
+    }
+};
+
 fn writeConstructed(
     c: *const Type.Constructed,
     w: *std.Io.Writer,
+    names: ?*MetaNames,
 ) std.Io.Writer.Error!void {
     if (c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling)) {
         try w.writeByte('[');
-        try c.arguments[0].write(w, false);
+        try c.arguments[0].write(w, false, names);
         try w.writeByte(']');
         return;
     }
     try w.writeAll(c.spelling);
     for (c.arguments) |argument| {
         try w.writeByte(' ');
-        try argument.write(w, true);
+        try argument.write(w, true, names);
     }
 }
 
@@ -280,4 +317,17 @@ test "constrained scheme renders its context" {
     };
     try eq.format(&buf.writer);
     try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
+}
+
+test "metavariables are named by first appearance across one message" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    var names: MetaNames = .{};
+    const first = try testFilter(t, Type{ .meta = 477 }, Type{ .meta = 12 });
+    const second = try func(t, Type{ .meta = 12 }, Type{ .meta = 900 });
+    try buf.writer.print("{f} / {f}", .{ first.named(&names), second.named(&names) });
+    try std.testing.expectEqualStrings("a -> [b] / b -> c", buf.written());
 }
