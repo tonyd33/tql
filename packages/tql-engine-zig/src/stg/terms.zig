@@ -174,6 +174,8 @@ pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
     structural: Structural,
+    /// Every declared constructor's spelling, by symbol.
+    constructor_spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8) = .empty,
     /// An evaluated `Nil`, shared the way a literal atom's thunk is.
     nil: *value.Thunk,
     arena: *std.heap.ArenaAllocator,

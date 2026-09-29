@@ -1569,6 +1569,22 @@
     }
   },
   {
+    "type": "deriving",
+    "named": true,
+    "fields": {
+      "class": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "do_expression",
     "named": true,
     "fields": {},
@@ -4503,6 +4519,16 @@
           }
         ]
       },
+      "deriving": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "deriving",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -4879,6 +4905,10 @@
     "type": "comment",
     "named": true,
     "extra": true
+  },
+  {
+    "type": "deriving",
+    "named": false
   },
   {
     "type": "do",

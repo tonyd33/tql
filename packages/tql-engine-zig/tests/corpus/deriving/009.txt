@@ -1,0 +1,15 @@
+title: comparing an infinite list terminates once an element differs
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [let { ones = Cons 1 ones } in ones < [1, 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+main : Node -> [Bool]

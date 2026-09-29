@@ -1,0 +1,16 @@
+title: a derived Eq compares constructors and then fields
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Shape = Circle Int | Square Int deriving (Eq);
+main = const [Circle 1 = Circle 1, Circle 1 = Circle 2, Circle 1 = Square 1, Circle 1 != Square 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,false,true]
+
+--- types ---
+main : Node -> [Bool]

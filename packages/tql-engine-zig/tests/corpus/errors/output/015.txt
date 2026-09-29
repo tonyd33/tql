@@ -2,7 +2,7 @@ title: a declared datatype output is not serializable
 grammar: typescript
 asserts: error
 
-A declared type has no JSON encoding.
+A declared type that does not derive `Serial` has no JSON encoding.
 
 --- tql ---
 type Maybe a = Just a | Nothing;

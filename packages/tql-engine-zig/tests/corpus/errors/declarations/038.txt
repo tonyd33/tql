@@ -1,0 +1,12 @@
+title: a class is derived at most once
+grammar: typescript
+asserts: error
+
+--- tql ---
+type T = T Int deriving (Eq, Ord, Eq);
+main = pure 1;
+
+--- error ---
+category: invalid-deriving
+span: 1:35-1:37
+`Eq` is derived more than once

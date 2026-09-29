@@ -107,12 +107,17 @@ pub const Desugarer = struct {
                 }
             }
 
-            const id = existing orelse try self.env.?.datatypes.declare(
+            const builtin: datatypes.ClassRow = if (structural) |s| s.classes else .{};
+            const classes = try derivedClasses(declared.*, builtin, sink);
+            const id = if (existing) |id| blk: {
+                self.env.?.datatypes.setClasses(id, classes);
+                break :blk id;
+            } else try self.env.?.datatypes.declare(
                 interner,
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
                 &.{},
-                .{ .Eq = .fields },
+                classes,
             );
 
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
@@ -145,6 +150,64 @@ pub const Desugarer = struct {
             if (failed) continue;
 
             self.env.?.datatypes.setConstructors(interner, id, constructors);
+            try self.checkDerived(id, declared.*, sink);
+        }
+    }
+
+    /// `builtin` with each class a declaration's `deriving` clause names added,
+    /// holding when it holds for every field.
+    fn derivedClasses(
+        declared: cst.TypeDeclaration,
+        builtin: datatypes.ClassRow,
+        sink: *diagnostic.Sink,
+    ) !datatypes.ClassRow {
+        var row = builtin;
+        const clause = declared.deriving orelse return row;
+        for (clause.classes) |c| {
+            const class = std.meta.stringToEnum(types.TypeClassConstraint.Class, c.name) orelse {
+                try sink.report(.unresolved_name, c.span, "`{s}` is not a class", .{c.name});
+                continue;
+            };
+            const slot = switch (class) {
+                .Eq => &row.Eq,
+                .Ord => &row.Ord,
+                .Serial => &row.Serial,
+                .Sized => {
+                    try sink.report(.invalid_deriving, c.span, "`Sized` cannot be derived", .{});
+                    continue;
+                },
+            };
+            if (builtin.forClass(class) != .never) {
+                try sink.report(.invalid_deriving, c.span, "`{s}` is built in for `{s}`", .{ c.name, declared.name });
+                continue;
+            }
+            if (slot.* != .never) {
+                try sink.report(.invalid_deriving, c.span, "`{s}` is derived more than once", .{c.name});
+                continue;
+            }
+            slot.* = .fields;
+        }
+        return row;
+    }
+
+    /// Reports each constructor field that does not admit a class its type
+    /// derives, assuming the class for every type parameter.
+    fn checkDerived(self: *Desugarer, id: datatypes.TypeId, declared: cst.TypeDeclaration, sink: *diagnostic.Sink) !void {
+        const registry = &self.env.?.datatypes;
+        const datatype = registry.get(id);
+        for (std.enums.values(types.TypeClassConstraint.Class)) |class| {
+            if (datatype.classes.forClass(class) == .never) continue;
+            for (datatype.constructors, declared.constructors) |constructor, written| {
+                for (constructor.fields, written.fields) |field, written_field| {
+                    const culprit = registry.refutes(class, field) orelse continue;
+                    try sink.report(
+                        .unsatisfied_constraint,
+                        written_field.span,
+                        "`{s} {f}` is not satisfied, so `{s}` cannot derive `{s}`",
+                        .{ class.spelling(), culprit.operand(), declared.name, class.spelling() },
+                    );
+                }
+            }
         }
     }
 

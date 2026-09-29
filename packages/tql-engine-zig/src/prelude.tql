@@ -1,10 +1,10 @@
 -- TQL prelude.
 
-type List a = Nil | Cons a (List a);
+type List a = Nil | Cons a (List a) deriving (Eq, Ord);
 
-type Bool = False | True;
+type Bool = False | True deriving (Eq, Ord);
 
-type Unit = Unit;
+type Unit = Unit deriving (Eq, Ord);
 
 -- Functional helpers
 

@@ -1,0 +1,19 @@
+title: a derived Ord orders by constructor declaration order first
+grammar: typescript
+asserts: types, values
+
+`Circle` is declared before `Square`, so every circle is less than every
+square whatever their fields.
+
+--- tql ---
+type Shape = Circle Int | Square Int deriving (Eq, Ord);
+main = const [Circle 9 < Square 1, Square 1 > Circle 9, Circle 1 < Circle 2, Square 2 <= Square 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true,true]
+
+--- types ---
+main : Node -> [Bool]

@@ -65,11 +65,12 @@ pub const Registry = struct {
     /// What the machine expects of a type it builds values of directly.
     ///
     /// The prelude declares `List` and `Bool`; these rows reserve their ids
-    /// and class entailments so a primitive scheme can name either before the
-    /// prelude is parsed.
+    /// so a primitive scheme can name either before the prelude is parsed.
     pub const Structural = struct {
         name: []const u8,
         parameters: u8,
+        /// The classes the machine implements itself. The prelude may derive
+        /// only the others.
         classes: ClassRow,
         /// Constructor spellings in tag order.
         constructors: []const []const u8,
@@ -77,14 +78,14 @@ pub const Registry = struct {
         pub const list: Structural = .{
             .name = types.list_spelling,
             .parameters = 1,
-            .classes = .{ .Eq = .fields, .Sized = .always, .Serial = .fields },
+            .classes = .{ .Sized = .always, .Serial = .fields },
             .constructors = &.{ "Nil", "Cons" },
         };
 
         pub const boolean: Structural = .{
             .name = types.bool_spelling,
             .parameters = 0,
-            .classes = .{ .Eq = .always, .Serial = .always },
+            .classes = .{ .Serial = .always },
             .constructors = &.{ "False", "True" },
         };
 
@@ -108,8 +109,8 @@ pub const Registry = struct {
         return null;
     }
 
-    /// Reserves `List` and `Bool` and fills in their constructors, standing in
-    /// for the prelude declarations that normally do it. For a caller that
+    /// Reserves `List` and `Bool` and fills in their constructors and derived
+    /// classes, standing in for the prelude declarations that normally do it. For a caller that
     /// needs the structural types without parsing a prelude.
     pub fn declareStructural(
         self: *Registry,
@@ -135,6 +136,15 @@ pub const Registry = struct {
             .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
             .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
         }));
+
+        var list_classes = Structural.list.classes;
+        list_classes.Eq = .fields;
+        list_classes.Ord = .fields;
+        self.setClasses(self.listId(), list_classes);
+        var bool_classes = Structural.boolean.classes;
+        bool_classes.Eq = .fields;
+        bool_classes.Ord = .fields;
+        self.setClasses(self.boolId(), bool_classes);
     }
 
     pub fn listId(self: *const Registry) TypeId {
@@ -217,6 +227,10 @@ pub const Registry = struct {
         own(interner, id, constructors);
     }
 
+    pub fn setClasses(self: *Registry, id: TypeId, classes: ClassRow) void {
+        self.datatypes.items[@intFromEnum(id)].classes = classes;
+    }
+
     fn own(interner: *symbols.Interner, id: TypeId, constructors: []const Constructor) void {
         for (constructors) |c| {
             interner.setDetails(c.symbol, .{ .constructor = .{ .owner = id, .tag = c.tag } });
@@ -231,6 +245,33 @@ pub const Registry = struct {
         return self.by_name.get(name);
     }
 
+    /// Decides `class t` where every type variable is assumed to admit
+    /// `class`.
+    ///
+    /// Returns the refuted part of `t`, if any.
+    pub fn refutes(self: *const Registry, class: types.TypeClassConstraint.Class, t: types.Type) ?types.Type {
+        switch (t) {
+            .variable => return null,
+            .meta => unreachable,
+            .primitive => |p| return if (primitiveAdmits(class, p)) null else t,
+            .constructor => |c| switch (self.get(c.name).classes.forClass(class)) {
+                .never => return t,
+                .always => return null,
+                .fields => for (c.arguments) |argument| {
+                    if (self.refutes(class, argument)) |culprit| return culprit;
+                },
+            },
+            .record => |fields| switch (class) {
+                .Sized, .Ord => return t,
+                .Eq, .Serial => for (fields) |f| {
+                    if (self.refutes(class, f.type.*)) |culprit| return culprit;
+                },
+            },
+            .function => return t,
+        }
+        return null;
+    }
+
     pub fn constructorOf(
         self: *const Registry,
         interner: *const symbols.Interner,
@@ -242,6 +283,27 @@ pub const Registry = struct {
         };
     }
 };
+
+pub fn primitiveAdmits(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
+    return switch (class) {
+        .Eq => switch (p) {
+            .Int, .String, .Range, .Node => true,
+            .Regex, .Kind => false,
+        },
+        .Ord => switch (p) {
+            .Int, .String => true,
+            .Regex, .Node, .Range, .Kind => false,
+        },
+        .Sized => switch (p) {
+            .String => true,
+            .Int, .Regex, .Node, .Range, .Kind => false,
+        },
+        .Serial => switch (p) {
+            .Int, .String, .Node, .Range => true,
+            .Regex, .Kind => false,
+        },
+    };
+}
 
 /// The datatype declaring `constructor`, when the symbol is one.
 pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId) ?TypeId {
@@ -300,9 +362,15 @@ test "the structural accessors follow the declared tag order" {
     try std.testing.expectEqual(1, c.tag);
 }
 
-test "a list is Sized whatever its elements are, but Ord never" {
-    const row: ClassRow = .{ .Eq = .fields, .Sized = .always, .Serial = .fields };
+test "a list is Sized whatever its elements are, and Ord when they are" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var registry = Registry.init(arena.allocator());
+    var interner = symbols.Interner.init(arena.allocator());
+    try registry.declareStructural(&interner, arena.allocator());
+
+    const row = registry.get(registry.listId()).classes;
     try std.testing.expectEqual(Entailment.always, row.forClass(.Sized));
     try std.testing.expectEqual(Entailment.fields, row.forClass(.Eq));
-    try std.testing.expectEqual(Entailment.never, row.forClass(.Ord));
+    try std.testing.expectEqual(Entailment.fields, row.forClass(.Ord));
 }

@@ -38,11 +38,15 @@ module.exports = grammar({
       seq(
         "type",
         field("name", $.type_identifier),
-        repeat(field("parameter", $.type_variable)),
+        repeat(field("parameter", $._type_variable)),
         "=",
         sep1(field("constructor", $.constructor_declaration), "|"),
+        optional(field("deriving", $.deriving)),
         ";",
       ),
+
+    deriving: $ =>
+      seq("deriving", "(", sep1(field("class", $.type_identifier), ","), ")"),
 
     constructor_declaration: $ =>
       seq(
@@ -73,7 +77,7 @@ module.exports = grammar({
     class_constraint: $ =>
       seq(
         field("class", $.type_identifier),
-        field("variable", $.type_variable),
+        field("variable", $._type_variable),
       ),
 
     definition: $ =>
@@ -315,7 +319,7 @@ module.exports = grammar({
         $.list_type,
         $.record_type,
         $.type_identifier,
-        $.type_variable,
+        $._type_variable,
         $.parenthesized_type,
       ),
 
@@ -337,7 +341,7 @@ module.exports = grammar({
         $.list_type,
         $.record_type,
         $.type_identifier,
-        $.type_variable,
+        $._type_variable,
         $.parenthesized_type,
       ),
 
@@ -353,7 +357,9 @@ module.exports = grammar({
 
     type_identifier: _ => /[A-Z][a-zA-Z0-9_]*/,
 
-    type_variable: _ => /[a-z][a-zA-Z0-9_]*/,
+    // Lexed as the word token so keywords such as `deriving` are not taken
+    // for type variables.
+    _type_variable: $ => alias($.identifier, $.type_variable),
 
     identifier: _ => /[a-z_][a-zA-Z0-9_]*/,
 

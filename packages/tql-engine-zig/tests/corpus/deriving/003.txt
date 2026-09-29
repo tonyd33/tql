@@ -1,0 +1,16 @@
+title: a derived Ord compares fields left to right
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type P = P Int String deriving (Eq, Ord);
+main = const [P 1 "b" < P 2 "a", P 1 "a" < P 1 "b", P 1 "a" >= P 1 "a"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true]
+
+--- types ---
+main : Node -> [Bool]

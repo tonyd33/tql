@@ -1,0 +1,18 @@
+title: a derived class on a parameterized type holds at its arguments
+grammar: typescript
+asserts: types, values
+
+`Nothing` is declared after `Just`, so it is the greater.
+
+--- tql ---
+type Maybe a = Just a | Nothing deriving (Eq, Ord);
+main = const [Just 1 < Just 2, Just 5 < Nothing, Just (Just 1) = Just (Just 1), Just Nothing > Just (Just 9)];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true,true]
+
+--- types ---
+main : Node -> [Bool]

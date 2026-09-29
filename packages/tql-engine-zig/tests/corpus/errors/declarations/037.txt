@@ -1,0 +1,12 @@
+title: Sized cannot be derived
+grammar: typescript
+asserts: error
+
+--- tql ---
+type T = T Int deriving (Sized);
+main = pure 1;
+
+--- error ---
+category: invalid-deriving
+span: 1:26-1:31
+`Sized` cannot be derived
