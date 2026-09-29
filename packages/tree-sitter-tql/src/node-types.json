@@ -28,6 +28,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -41,10 +45,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -156,6 +156,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -169,10 +173,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -276,6 +276,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -289,10 +293,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -390,6 +390,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -403,10 +407,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -520,6 +520,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -533,10 +537,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -660,6 +660,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -673,10 +677,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -800,6 +800,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -813,10 +817,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -938,6 +938,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -951,10 +955,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -1094,6 +1094,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1107,10 +1111,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -1246,6 +1246,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1262,7 +1266,237 @@
             "named": true
           },
           {
-            "type": "identity",
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_field",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "logical_and",
+            "named": true
+          },
+          {
+            "type": "logical_or",
+            "named": true
+          },
+          {
+            "type": "multiplicative",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "union",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "composition",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive",
+            "named": true
+          },
+          {
+            "type": "application",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "comparison",
+            "named": true
+          },
+          {
+            "type": "composition",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_application",
+            "named": true
+          },
+          {
+            "type": "field_access",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_field",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "logical_and",
+            "named": true
+          },
+          {
+            "type": "logical_or",
+            "named": true
+          },
+          {
+            "type": "multiplicative",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "union",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive",
+            "named": true
+          },
+          {
+            "type": "application",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "comparison",
+            "named": true
+          },
+          {
+            "type": "composition",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_application",
+            "named": true
+          },
+          {
+            "type": "field_access",
+            "named": true
+          },
+          {
+            "type": "identifier",
             "named": true
           },
           {
@@ -1457,6 +1691,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1470,10 +1708,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -1601,6 +1835,10 @@
           "named": true
         },
         {
+          "type": "composition",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -1614,10 +1852,6 @@
         },
         {
           "type": "identifier",
-          "named": true
-        },
-        {
-          "type": "identity",
           "named": true
         },
         {
@@ -1724,6 +1958,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1737,10 +1975,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -1838,6 +2072,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1851,10 +2089,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -1968,6 +2202,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1981,10 +2219,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2196,11 +2430,6 @@
     }
   },
   {
-    "type": "identity",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "if_expression",
     "named": true,
     "fields": {
@@ -2229,6 +2458,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2242,10 +2475,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2343,6 +2572,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2356,10 +2589,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2457,6 +2686,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2470,10 +2703,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2577,6 +2806,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2590,10 +2823,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2733,6 +2962,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2746,10 +2979,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -2873,6 +3102,10 @@
           "named": true
         },
         {
+          "type": "composition",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -2886,10 +3119,6 @@
         },
         {
           "type": "identifier",
-          "named": true
-        },
-        {
-          "type": "identity",
           "named": true
         },
         {
@@ -3035,6 +3264,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3048,10 +3281,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3149,6 +3378,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3162,10 +3395,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3269,6 +3498,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3282,10 +3515,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3383,6 +3612,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3396,10 +3629,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3503,6 +3732,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3516,10 +3749,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3635,6 +3864,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3648,10 +3881,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -3755,6 +3984,10 @@
           "named": true
         },
         {
+          "type": "composition",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -3768,10 +4001,6 @@
         },
         {
           "type": "identifier",
-          "named": true
-        },
-        {
-          "type": "identity",
           "named": true
         },
         {
@@ -3940,6 +4169,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3953,10 +4186,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -4054,6 +4283,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4067,10 +4300,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -4199,6 +4428,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4212,10 +4445,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -4554,6 +4783,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4567,10 +4800,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {
@@ -4668,6 +4897,10 @@
             "named": true
           },
           {
+            "type": "composition",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4681,10 +4914,6 @@
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "identity",
             "named": true
           },
           {

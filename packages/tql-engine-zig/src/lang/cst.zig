@@ -164,6 +164,7 @@ pub const BinaryOperator = enum {
     @"or",
     pipe,
     stream_union,
+    compose,
 
     pub fn spelling(self: BinaryOperator) []const u8 {
         return switch (self) {
@@ -184,6 +185,7 @@ pub const BinaryOperator = enum {
             .@"or" => "or",
             .pipe => "|",
             .stream_union => "<|>",
+            .compose => ".",
         };
     }
 };
@@ -283,7 +285,6 @@ pub const Expression = struct {
     span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
-        identity,
         /// `:class_declaration`, carried without the leading colon.
         kind_test: Identifier,
         name: Identifier,
@@ -309,7 +310,6 @@ pub const Expression = struct {
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
-            .identity => try w.writeAll("."),
             .kind_test => |k| try w.print("(kind {s})", .{k}),
             .name => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),

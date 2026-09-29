@@ -66,7 +66,7 @@ main = let { a = 1; b = 2; } in a + b;
 a let binding with parameters
 ========================================
 
-main = let { is_named n = n.name } in is_named .;
+main = let { is_named n = n.name } in is_named x;
 
 ---
 
@@ -83,7 +83,7 @@ main = let { is_named n = n.name } in is_named .;
             field: (field_name))))
       body: (application
         function: (identifier)
-        argument: (identity)))))
+        argument: (identifier)))))
 
 ========================================
 a nested let
@@ -163,7 +163,7 @@ main root = do { (children | is_kind :class_declaration) root };
 a do block with a trailing separator
 ========================================
 
-main = do { c <- .; c; };
+main = do { c <- x; c; };
 
 ---
 
@@ -173,14 +173,14 @@ main = do { c <- .; c; };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity))
+        value: (identifier))
       (identifier))))
 
 ========================================
 a do-local let statement with one binding
 ========================================
 
-main = do { c <- .; let name = c.name; name };
+main = do { c <- x; let name = c.name; name };
 
 ---
 
@@ -190,7 +190,7 @@ main = do { c <- .; let name = c.name; name };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity))
+        value: (identifier))
       (let_statement
         bindings: (binding
           name: (identifier)
@@ -203,7 +203,7 @@ main = do { c <- .; let name = c.name; name };
 a do-local let statement with a brace group
 ========================================
 
-main = do { c <- .; let { a = 1; b = 2 }; a + b };
+main = do { c <- x; let { a = 1; b = 2 }; a + b };
 
 ---
 
@@ -213,7 +213,7 @@ main = do { c <- .; let { a = 1; b = 2 }; a + b };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity))
+        value: (identifier))
       (let_statement
         bindings: (binding_group
           (binding
@@ -230,7 +230,7 @@ main = do { c <- .; let { a = 1; b = 2 }; a + b };
 several bind statements
 ========================================
 
-main = do { c <- .; m <- c.body; m };
+main = do { c <- x; m <- c.body; m };
 
 ---
 
@@ -240,7 +240,7 @@ main = do { c <- .; m <- c.body; m };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity))
+        value: (identifier))
       (bind_statement
         name: (identifier)
         value: (field_access
@@ -276,7 +276,7 @@ main = children | is_kind :class_declaration | do { m <- .body; m };
 an expression statement
 ========================================
 
-main = do { c <- .; guard $ c = c; c };
+main = do { c <- x; guard $ c = c; c };
 
 ---
 
@@ -286,7 +286,7 @@ main = do { c <- .; guard $ c = c; c };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity))
+        value: (identifier))
       (dollar_application
         function: (identifier)
         argument: (comparison
@@ -314,7 +314,7 @@ main = do { a; b; c };
 a do block ending in a bind statement parses
 ========================================
 
-main = do { c <- . };
+main = do { c <- x };
 
 ---
 
@@ -324,7 +324,7 @@ main = do { c <- . };
     body: (do_expression
       (bind_statement
         name: (identifier)
-        value: (identity)))))
+        value: (identifier)))))
 
 ========================================
 an empty record is not an empty do block

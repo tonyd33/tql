@@ -8,7 +8,7 @@ The annotation claims `Ord` for any `a`, but `Ord` is closed over `int` and
 --- tql ---
 smaller : Filter a bool;
 smaller = 1 < 2;
-main = . | smaller;
+main = smaller;
 
 --- error ---
 error[signature-mismatch]: Expected `a -> [b]`, found `Bool`.

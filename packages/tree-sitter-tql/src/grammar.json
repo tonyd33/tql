@@ -330,6 +330,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "composition"
+        },
+        {
+          "type": "SYMBOL",
           "name": "application"
         },
         {
@@ -643,7 +647,7 @@
     },
     "application": {
       "type": "PREC_LEFT",
-      "value": 10,
+      "value": 11,
       "content": {
         "type": "SEQ",
         "members": [
@@ -666,9 +670,38 @@
         ]
       }
     },
+    "composition": {
+      "type": "PREC_RIGHT",
+      "value": 10,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          },
+          {
+            "type": "STRING",
+            "value": "."
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          }
+        ]
+      }
+    },
     "field_access": {
       "type": "PREC_LEFT",
-      "value": 11,
+      "value": 12,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1227,10 +1260,6 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "identity"
-        },
-        {
-          "type": "SYMBOL",
           "name": "leading_field"
         },
         {
@@ -1294,10 +1323,6 @@
           "name": "type_identifier"
         }
       ]
-    },
-    "identity": {
-      "type": "STRING",
-      "value": "."
     },
     "kind": {
       "type": "TOKEN",

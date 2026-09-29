@@ -785,15 +785,14 @@ test "a section cannot be both asserted and pending" {
 
 test "title and description are parsed and kept apart" {
     const input =
-        \\title: `.` is the identity filter
+        \\title: `arr identity` is the identity filter
         \\grammar: typescript
         \\asserts: values
         \\
-        \\`.` yields its input unchanged. Every navigation chain starts
-        \\from it.
+        \\`arr identity` yields its input unchanged.
         \\
         \\--- tql ---
-        \\main = .;
+        \\main = arr identity;
         \\--- source ---
         \\x
         \\--- values ---
@@ -802,12 +801,12 @@ test "title and description are parsed and kept apart" {
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
-    try testing.expectEqualStrings("`.` is the identity filter", corpus.case.title);
+    try testing.expectEqualStrings("`arr identity` is the identity filter", corpus.case.title);
     try testing.expectEqualStrings(
-        "`.` yields its input unchanged. Every navigation chain starts\nfrom it.",
+        "`arr identity` yields its input unchanged.",
         corpus.case.description.content,
     );
-    try testing.expectEqualStrings("main = .;", corpus.case.query.content);
+    try testing.expectEqualStrings("main = arr identity;", corpus.case.query.content);
 }
 
 test "a case needs no description" {
@@ -816,7 +815,7 @@ test "a case needs no description" {
         \\grammar: typescript
         \\
         \\--- tql ---
-        \\main = .;
+        \\main = arr identity;
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
@@ -829,7 +828,7 @@ test "a populated section claimed by neither asserts nor pending is rejected" {
         \\grammar: typescript
         \\
         \\--- tql ---
-        \\main = .;
+        \\main = arr identity;
         \\--- source ---
         \\x
         \\--- values ---
@@ -875,7 +874,7 @@ test "an unknown header is rejected" {
         \\expect: divergence
         \\
         \\--- tql ---
-        \\main = .;
+        \\main = arr identity;
     ;
     try testing.expectError(error.UnknownHeader, parse(testing.allocator, input));
 }

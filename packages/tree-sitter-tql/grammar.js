@@ -16,8 +16,9 @@ const PREC = {
   cmp: 7,
   add: 8,
   mul: 9,
-  app: 10,
-  field: 11,
+  compose: 10,
+  app: 11,
+  field: 12,
 };
 
 module.exports = grammar({
@@ -95,6 +96,7 @@ module.exports = grammar({
         $.comparison,
         $.additive,
         $.multiplicative,
+        $.composition,
         $.application,
         $.field_access,
         $._primary,
@@ -172,6 +174,12 @@ module.exports = grammar({
         seq(field("function", $._expression), field("argument", $._expression)),
       ),
 
+    composition: $ =>
+      prec.right(
+        PREC.compose,
+        seq(field("left", $._expression), ".", field("right", $._expression)),
+      ),
+
     field_access: $ =>
       prec.left(
         PREC.field,
@@ -184,7 +192,6 @@ module.exports = grammar({
 
     field_name: _ => token.immediate(/[a-z_][a-zA-Z0-9_]*/),
 
-    // A leading `.` is `identity` unless a name follows it immediately.
     leading_field: $ => seq(".", field("field", $.field_name)),
 
     let_expression: $ =>
@@ -271,7 +278,6 @@ module.exports = grammar({
 
     _primary: $ =>
       choice(
-        $.identity,
         $.leading_field,
         $.kind,
         $.identifier,
@@ -289,8 +295,6 @@ module.exports = grammar({
         $.case_expression,
         $.type_identifier,
       ),
-
-    identity: _ => ".",
 
     kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
 

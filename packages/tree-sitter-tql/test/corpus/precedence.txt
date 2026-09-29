@@ -402,3 +402,154 @@ main = \x -> f $ x;
       body: (dollar_application
         function: (identifier)
         argument: (identifier)))))
+
+========================================
+composition groups to the right
+========================================
+
+main = f . g . h;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (identifier)
+      right: (composition
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+application binds tighter than composition
+========================================
+
+main = f x . g y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (application
+        function: (identifier)
+        argument: (identifier))
+      right: (application
+        function: (identifier)
+        argument: (identifier)))))
+
+========================================
+composition binds tighter than multiplication
+========================================
+
+main = a * b . c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (multiplicative
+      left: (identifier)
+      right: (composition
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+composition binds tighter than dollar application
+========================================
+
+main = f . g $ x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (dollar_application
+      function: (composition
+        left: (identifier)
+        right: (identifier))
+      argument: (identifier))))
+
+========================================
+field access binds tighter than composition
+========================================
+
+main = f.name . g;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (field_access
+        record: (identifier)
+        field: (field_name))
+      right: (identifier))))
+
+========================================
+a leading field composes
+========================================
+
+main = f . .name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (identifier)
+      right: (leading_field
+        field: (field_name)))))
+
+========================================
+an attached leading field is an argument, not a composition
+========================================
+
+main = f .name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (leading_field
+        field: (field_name)))))
+
+========================================
+a trailing dot is a syntax error
+========================================
+
+main = f .;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (identifier)
+      right: (MISSING identifier))))
+
+========================================
+a lambda body extends over composition
+========================================
+
+main = \x -> f . g;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (lambda
+      parameter: (identifier)
+      body: (composition
+        left: (identifier)
+        right: (identifier)))))

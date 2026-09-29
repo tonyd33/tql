@@ -1,0 +1,15 @@
+title: composition applies the right function first
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure $ ((\x -> x - 1) . (\x -> x * 2)) 5;
+
+--- source ---
+class A {}
+
+--- values ---
+[9]
+
+--- types ---
+main : Node -> [Int]

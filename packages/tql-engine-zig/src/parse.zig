@@ -339,9 +339,6 @@ const Walker = struct {
         const span = spanOf(node);
         const kind = node.grammarKind();
 
-        if (std.mem.eql(u8, kind, "identity")) {
-            return .{ .kind = .identity, .span = span };
-        }
         if (std.mem.eql(u8, kind, "identifier")) {
             return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
         }
@@ -521,8 +518,9 @@ const Walker = struct {
                 return null;
             }
         else
-            // `union`, `pipe`, `logical_and` and `logical_or` spell their
-            // operator in the rule name rather than an `operator:` field.
+            // `union`, `pipe`, `logical_and`, `logical_or` and `composition`
+            // spell their operator in the rule name rather than an
+            // `operator:` field.
             binaryOperatorOf(node.grammarKind()) orelse {
                 try self.missingField(node, "operator");
                 return null;
@@ -1048,6 +1046,7 @@ fn binaryOperatorOf(kind: []const u8) ?cst.BinaryOperator {
     if (std.mem.eql(u8, kind, "comparison")) return .eq;
     if (std.mem.eql(u8, kind, "additive")) return .add;
     if (std.mem.eql(u8, kind, "multiplicative")) return .multiply;
+    if (std.mem.eql(u8, kind, "composition")) return .compose;
     return null;
 }
 
@@ -1155,23 +1154,23 @@ test "a let group with several bindings" {
 
 test "a do block with a bind statement" {
     try expectSexpr(
-        "main = do { c <- .; c.name };",
-        "(source_file (define main (params) (do (<- c .) (field c name))))",
+        "main = do { c <- children; c.name };",
+        "(source_file (define main (params) (do (<- c children) (field c name))))",
     );
 }
 
 test "a do block with an expression statement" {
     try expectSexpr(
-        "main = do { c <- .; guard $ c = c; c };",
-        "(source_file (define main (params) (do (<- c .) (>> (apply guard (= c c))) c)))",
+        "main = do { c <- children; guard $ c = c; c };",
+        "(source_file (define main (params) (do (<- c children) (>> (apply guard (= c c))) c)))",
     );
 }
 
 test "a do-local let statement" {
     try expectSexpr(
-        "main = do { c <- .; let n = c.name; n };",
+        "main = do { c <- children; let n = c.name; n };",
         "(source_file (define main (params) " ++
-            "(do (<- c .) (let (bind n (params) (field c name))) n)))",
+            "(do (<- c children) (let (bind n (params) (field c name))) n)))",
     );
 }
 
@@ -1235,6 +1234,13 @@ test "dollar application is right-associative plain application" {
     try expectSexpr(
         "main = f $ g $ a <|> b;",
         "(source_file (define main (params) (apply f (apply g (<|> a b)))))",
+    );
+}
+
+test "composition is right-associative and looser than application" {
+    try expectSexpr(
+        "main = f x . g . h y;",
+        "(source_file (define main (params) (. (apply f x) (. g (apply h y)))))",
     );
 }
 
