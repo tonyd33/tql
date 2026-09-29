@@ -6,6 +6,7 @@ const SECTION_SOURCE_TREE = "--- source tree ---";
 const SECTION_TQL_TREE = "--- tql tree ---";
 const SECTION_VALUES = "--- values ---";
 const SECTION_CORE = "--- core ---";
+const SECTION_SIMPLIFIED = "--- simplified ---";
 const SECTION_TYPES = "--- types ---";
 const SECTION_ERROR = "--- error ---";
 
@@ -16,6 +17,7 @@ pub const SectionKind = enum {
     tql_tree,
     values,
     core,
+    simplified,
     types,
     @"error",
 
@@ -27,6 +29,7 @@ pub const SectionKind = enum {
             .tql_tree => "tql tree",
             .values => "values",
             .core => "core",
+            .simplified => "simplified",
             .types => "types",
             .@"error" => "error",
         };
@@ -40,6 +43,7 @@ pub const SectionKind = enum {
             .tql_tree => SECTION_TQL_TREE,
             .values => SECTION_VALUES,
             .core => SECTION_CORE,
+            .simplified => SECTION_SIMPLIFIED,
             .types => SECTION_TYPES,
             .@"error" => SECTION_ERROR,
         };
@@ -96,38 +100,12 @@ pub const Section = struct {
     end: usize,
     content_start: usize,
     content_end: usize,
+    /// Whether the file has this section's marker. An absent section has
+    /// zero-width bounds at the end of the file.
+    present: bool = true,
 
     pub fn deinit(self: Section, allocator: std.mem.Allocator) void {
         allocator.free(self.content);
-    }
-};
-
-/// A single expected diagnostic. `category` and `span` are normative; the
-/// remaining lines of the section are commentary and are never compared, so a
-/// diagnostic may be reworded without touching the corpus.
-pub const Diagnostic = struct {
-    category: []const u8,
-    /// Source span as written, or `any` where the location is not a property of
-    /// the language.
-    span: []const u8,
-    commentary: []const u8,
-    section: Section,
-    /// Source offset just past the `span:` value. The `category:` and `span:`
-    /// lines occupy `section.content_start..header_end`.
-    header_end: usize,
-
-    pub const SPAN_ANY = "any";
-
-    pub fn spanMatches(self: Diagnostic, actual: []const u8) bool {
-        if (std.mem.eql(u8, self.span, SPAN_ANY)) return true;
-        return std.mem.eql(u8, self.span, actual);
-    }
-
-    pub fn deinit(self: Diagnostic, allocator: std.mem.Allocator) void {
-        allocator.free(self.category);
-        allocator.free(self.span);
-        allocator.free(self.commentary);
-        self.section.deinit(allocator);
     }
 };
 
@@ -160,19 +138,19 @@ pub const TestCase = struct {
     tql_tree: Section,
     values: Section,
     core: Section,
+    /// The entry module's Core after checking and `core_to_core`.
+    simplified: Section,
     /// The inferred scheme of each entry-module definition, in declaration
     /// order. Independent of `core`: a program has an untyped Core term
     /// whether or not it typechecks.
     types: Section,
-    /// Expected diagnostics, in the order the engine must report them. A case
-    /// with any diagnostic asserts the query is rejected, and the sections that
-    /// only exist for an accepted query are not compared.
-    diagnostics: []Diagnostic,
+    /// Every diagnostic the engine must report, in order, rendered as the CLI
+    /// prints them. A case asserting one expects the query to be rejected, and
+    /// the sections that only exist for an accepted query are not compared.
+    @"error": Section,
 
     /// `.source` is stored as `target`, so section lookup cannot go through
-    /// `@field` by tag name alone. `.error` is a list rather than one section;
-    /// the first diagnostic stands in for it so callers keyed on `SectionKind`
-    /// still see whether the case expects a rejection.
+    /// `@field` by tag name alone.
     pub fn section(self: TestCase, kind: SectionKind) Section {
         return switch (kind) {
             .query => self.query,
@@ -181,16 +159,14 @@ pub const TestCase = struct {
             .tql_tree => self.tql_tree,
             .values => self.values,
             .core => self.core,
+            .simplified => self.simplified,
             .types => self.types,
-            .@"error" => if (self.diagnostics.len > 0)
-                self.diagnostics[0].section
-            else
-                .{ .content = &.{}, .start = 0, .end = 0, .content_start = 0, .content_end = 0 },
+            .@"error" => self.@"error",
         };
     }
 
     pub fn expectsError(self: TestCase) bool {
-        return self.diagnostics.len > 0;
+        return self.asserts.has(.@"error") or self.@"error".content.len > 0;
     }
 
     /// A section is compared only when the case claims it. `pending` sections
@@ -210,9 +186,9 @@ pub const TestCase = struct {
         self.tql_tree.deinit(allocator);
         self.values.deinit(allocator);
         self.core.deinit(allocator);
+        self.simplified.deinit(allocator);
         self.types.deinit(allocator);
-        for (self.diagnostics) |d| d.deinit(allocator);
-        allocator.free(self.diagnostics);
+        self.@"error".deinit(allocator);
     }
 };
 
@@ -366,6 +342,7 @@ fn dupeSection(allocator: std.mem.Allocator, s: Section) !Section {
         .end = s.end,
         .content_start = s.content_start,
         .content_end = s.content_end,
+        .present = s.present,
     };
 }
 
@@ -386,12 +363,6 @@ fn parseSections(
     errdefer allocator.free(file);
     errdefer description.deinit(allocator);
 
-    var diagnostics: std.ArrayList(Diagnostic) = .empty;
-    errdefer {
-        for (diagnostics.items) |d| d.deinit(allocator);
-        diagnostics.deinit(allocator);
-    }
-
     var query: ?Section = null;
     errdefer if (query) |s| s.deinit(allocator);
     var target: ?Section = null;
@@ -404,8 +375,12 @@ fn parseSections(
     errdefer if (values) |s| s.deinit(allocator);
     var core: ?Section = null;
     errdefer if (core) |s| s.deinit(allocator);
+    var simplified: ?Section = null;
+    errdefer if (simplified) |s| s.deinit(allocator);
     var types: ?Section = null;
     errdefer if (types) |s| s.deinit(allocator);
+    var err: ?Section = null;
+    errdefer if (err) |s| s.deinit(allocator);
 
     while (p.peekLine()) |line| {
         _ = p.nextLine(); // consume the marker line just peeked
@@ -422,21 +397,25 @@ fn parseSections(
             values = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_CORE)) {
             core = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_SIMPLIFIED)) {
+            simplified = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_TYPES)) {
             types = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
-            // Repeatable: a case asserting several diagnostics writes one
-            // section each, and their order is the order the engine must
-            // report them in.
-            const s = try extractSection(allocator, p);
-            errdefer s.deinit(allocator);
-            try diagnostics.append(allocator, try parseDiagnostic(allocator, s));
+            err = try extractSection(allocator, p);
         } else {
             return error.UnexpectedMarker;
         }
     }
 
-    const here: Section = .{ .content = &.{}, .start = p.pos, .end = p.pos, .content_start = p.pos, .content_end = p.pos };
+    const here: Section = .{
+        .content = &.{},
+        .start = p.pos,
+        .end = p.pos,
+        .content_start = p.pos,
+        .content_end = p.pos,
+        .present = false,
+    };
 
     return .{
         .title = title,
@@ -451,65 +430,11 @@ fn parseSections(
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
+        .simplified = simplified orelse try dupeSection(allocator, here),
         .types = types orelse try dupeSection(allocator, here),
-        .diagnostics = try diagnostics.toOwnedSlice(allocator),
+        .@"error" = err orelse try dupeSection(allocator, here),
     };
 }
-
-/// Splits an `--- error ---` body into its normative fields and its commentary.
-/// `category` and `span` must lead the section, in that order; everything after
-/// them is prose the runner never compares.
-fn parseDiagnostic(allocator: std.mem.Allocator, s: Section) !Diagnostic {
-    var category: ?[]const u8 = null;
-    errdefer if (category) |c| allocator.free(c);
-    var span: ?[]const u8 = null;
-    errdefer if (span) |v| allocator.free(v);
-    var header_end = s.content_start;
-
-    var rest: []const u8 = s.content;
-    while (rest.len > 0) {
-        const nl = std.mem.indexOfScalar(u8, rest, '\n');
-        const line = if (nl) |i| rest[0..i] else rest;
-        const trimmed = std.mem.trim(u8, line, " \t");
-
-        const colon = std.mem.indexOfScalar(u8, trimmed, ':') orelse break;
-        const key = std.mem.trim(u8, trimmed[0..colon], " \t");
-        const value = std.mem.trim(u8, trimmed[colon + 1 ..], " \t");
-
-        if (std.mem.eql(u8, key, "category") and category == null and span == null) {
-            category = try allocator.dupe(u8, value);
-        } else if (std.mem.eql(u8, key, "span") and category != null and span == null) {
-            span = try allocator.dupe(u8, value);
-            header_end = s.content_start + (s.content.len - rest.len) + std.mem.trimEnd(u8, line, " \t\r").len;
-        } else {
-            break;
-        }
-
-        rest = if (nl) |i| rest[i + 1 ..] else "";
-    }
-
-    return .{
-        .category = category orelse return error.DiagnosticMissingCategory,
-        .span = span orelse return error.DiagnosticMissingSpan,
-        .commentary = try allocator.dupe(u8, std.mem.trim(u8, rest, "\n")),
-        .section = s,
-        .header_end = header_end,
-    };
-}
-
-/// A diagnostic as the runner renders it: `category/span`.
-pub const Reported = struct {
-    category: []const u8,
-    span: []const u8,
-
-    pub fn parse(line: []const u8) Reported {
-        const slash = std.mem.indexOfScalar(u8, line, '/') orelse line.len;
-        return .{
-            .category = std.mem.trim(u8, line[0..slash], " \t"),
-            .span = if (slash < line.len) std.mem.trim(u8, line[slash + 1 ..], " \t") else "",
-        };
-    }
-};
 
 const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_QUERY,
@@ -518,6 +443,7 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_TQL_TREE,
     SECTION_VALUES,
     SECTION_CORE,
+    SECTION_SIMPLIFIED,
     SECTION_TYPES,
     SECTION_ERROR,
 };
@@ -590,19 +516,8 @@ pub fn applyUpdates(
     const tc = handle.case;
     var cursor: usize = 0;
 
-    var headers: []const []const u8 = &.{};
-    defer {
-        for (headers) |h| allocator.free(h);
-        allocator.free(headers);
-    }
-    if (findUpdate(updates, .@"error")) |rendered| {
-        headers = try diagnosticHeaders(allocator, tc.diagnostics, rendered);
-    }
-
     // Emitted in source order so the byte gaps line up; a section absent from
     // the file has zero-width bounds at the point it would have appeared.
-    // `error` is omitted: its bytes are copied as part of the gap preceding
-    // whatever follows it, with any rewritten headers spliced in.
     const order = [_]SectionKind{
         .query,
         .source,
@@ -610,17 +525,23 @@ pub fn applyUpdates(
         .tql_tree,
         .source_tree,
         .core,
+        .simplified,
         .types,
+        .@"error",
     };
 
     var ordered: [order.len]SectionKind = order;
     std.mem.sortUnstable(SectionKind, &ordered, tc, struct {
         fn lt(case: TestCase, a: SectionKind, b: SectionKind) bool {
-            return case.section(a).start < case.section(b).start;
+            const x = case.section(a);
+            const y = case.section(b);
+            // An absent section at the end of the file must not claim the
+            // gap holding a present section's marker.
+            if (x.start == y.start) return x.present and !y.present;
+            return x.start < y.start;
         }
     }.lt);
 
-    const splices: Splices = .{ .diagnostics = tc.diagnostics, .headers = headers };
     for (ordered) |kind| {
         cursor = try emitSectionWithGap(
             allocator,
@@ -630,70 +551,13 @@ pub fn applyUpdates(
             tc.section(kind),
             findUpdate(updates, kind),
             cursor,
-            splices,
         );
     }
 
-    try splices.append(allocator, &buf, handle.source, cursor, handle.source.len);
+    try buf.appendSlice(allocator, handle.source[cursor..]);
 
     return buf.toOwnedSlice(allocator);
 }
-
-/// Returns one `category:`/`span:` header per diagnostic, from `rendered`'s
-/// `category/span` lines. A `span: any` is kept.
-///
-/// Preconditions:
-/// - `rendered` has exactly one non-blank line per diagnostic.
-fn diagnosticHeaders(
-    allocator: std.mem.Allocator,
-    diagnostics: []const Diagnostic,
-    rendered: []const u8,
-) ![]const []const u8 {
-    var headers: std.ArrayList([]const u8) = .empty;
-    errdefer {
-        for (headers.items) |h| allocator.free(h);
-        headers.deinit(allocator);
-    }
-    var lines = std.mem.tokenizeScalar(u8, rendered, '\n');
-    for (diagnostics) |d| {
-        const got = Reported.parse(lines.next() orelse return error.DiagnosticCountChanged);
-        const span = if (std.mem.eql(u8, d.span, Diagnostic.SPAN_ANY)) d.span else got.span;
-        try headers.append(allocator, try std.fmt.allocPrint(
-            allocator,
-            "category: {s}\nspan: {s}",
-            .{ got.category, span },
-        ));
-    }
-    if (lines.next() != null) return error.DiagnosticCountChanged;
-    return headers.toOwnedSlice(allocator);
-}
-
-/// Replacement headers for the diagnostics, applied while copying source
-/// bytes. Empty `headers` copies verbatim.
-const Splices = struct {
-    diagnostics: []const Diagnostic,
-    headers: []const []const u8,
-
-    /// Copy `source[from..to]`, replacing each diagnostic header inside it.
-    fn append(
-        self: Splices,
-        allocator: std.mem.Allocator,
-        buf: *std.ArrayList(u8),
-        source: []const u8,
-        from: usize,
-        to: usize,
-    ) !void {
-        var at = from;
-        for (self.headers, 0..) |header, i| {
-            const d = self.diagnostics[i];
-            if (d.section.content_start < at or d.header_end > to) continue;
-            try buf.appendSlice(allocator, source[at..d.section.content_start]);
-            try buf.appendSlice(allocator, header);
-            at = d.header_end;
-        }
-        try buf.appendSlice(allocator, source[at..to]);
-    }
-};
 
 fn findUpdate(updates: []const SectionUpdate, kind: SectionKind) ?[]const u8 {
     for (updates) |u| {
@@ -716,11 +580,10 @@ fn emitSectionWithGap(
     section: Section,
     new_content: ?[]const u8,
     cursor: usize,
-    splices: Splices,
 ) !usize {
     // emit the gap (marker line + any inter-section bytes)
     const gap = source[cursor..section.start];
-    try splices.append(allocator, buf, source, cursor, section.start);
+    try buf.appendSlice(allocator, gap);
     const marker_present = std.mem.endsWith(u8, std.mem.trimEnd(u8, gap, "\n"), kind.marker());
     if (new_content) |nc| {
         if (section.content.len == 0) {
@@ -782,7 +645,29 @@ test "SectionKind.name returns correct strings" {
     try testing.expectEqualStrings("tql tree", SectionKind.tql_tree.name());
     try testing.expectEqualStrings("values", SectionKind.values.name());
     try testing.expectEqualStrings("core", SectionKind.core.name());
+    try testing.expectEqualStrings("simplified", SectionKind.simplified.name());
     try testing.expectEqualStrings("error", SectionKind.@"error".name());
+}
+
+test "a simplified section ends the section before it" {
+    const input =
+        \\grammar: typescript
+        \\asserts: core, simplified
+        \\
+        \\--- tql ---
+        \\main = children | of_kind :class_declaration;
+        \\--- core ---
+        \\main = kleisli children (of_kind :class_declaration)
+        \\--- simplified ---
+        \\main = children_of_kind :class_declaration
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const tc = corpus.case;
+    try testing.expectEqualStrings("main = kleisli children (of_kind :class_declaration)", tc.core.content);
+    try testing.expectEqualStrings("main = children_of_kind :class_declaration", tc.simplified.content);
+    try testing.expect(tc.asserts.has(.simplified));
 }
 
 test "parse single full case" {
@@ -995,125 +880,45 @@ test "an unknown header is rejected" {
     try testing.expectError(error.UnknownHeader, parse(testing.allocator, input));
 }
 
-test "a diagnostic splits into category, span, and commentary" {
+test "an error section holds the rendered diagnostics" {
     const input =
         \\grammar: typescript
         \\asserts: error
         \\
         \\--- tql ---
-        \\main = double "text";
+        \\main = x;
         \\--- error ---
-        \\category: type-mismatch
-        \\span: 1:15-1:21
-        \\The argument. Expected `int`, found `string`.
+        \\error[unresolved-name]: `x` is not defined.
+        \\ --> 1:8
+        \\  |
+        \\1 | main = x;
+        \\  |        ^
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
-    try testing.expectEqual(@as(usize, 1), corpus.case.diagnostics.len);
-    const d = corpus.case.diagnostics[0];
-    try testing.expectEqualStrings("type-mismatch", d.category);
-    try testing.expectEqualStrings("1:15-1:21", d.span);
-    try testing.expectEqualStrings("The argument. Expected `int`, found `string`.", d.commentary);
     try testing.expect(corpus.case.expectsError());
+    try testing.expectEqualStrings(
+        \\error[unresolved-name]: `x` is not defined.
+        \\ --> 1:8
+        \\  |
+        \\1 | main = x;
+        \\  |        ^
+    , corpus.case.@"error".content);
 }
 
-test "span: any matches any reported span" {
+test "an asserted error section with no content still expects a rejection" {
     const input =
         \\grammar: typescript
         \\asserts: error
         \\
         \\--- tql ---
-        \\main = .;
-        \\--- error ---
-        \\category: parse
-        \\span: any
+        \\main = x;
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
-    const d = corpus.case.diagnostics[0];
-    try testing.expect(d.spanMatches("1:1-1:2"));
-    try testing.expect(d.spanMatches(""));
-}
-
-test "an exact span matches only itself" {
-    const input =
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\--- tql ---
-        \\main = .;
-        \\--- error ---
-        \\category: parse
-        \\span: 1:1-1:2
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    const d = corpus.case.diagnostics[0];
-    try testing.expect(d.spanMatches("1:1-1:2"));
-    try testing.expect(!d.spanMatches("2:1-2:2"));
-}
-
-test "repeated error sections are kept in order" {
-    const input =
-        \\title: `as` binding is removed
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\Three names are unresolved, not one.
-        \\
-        \\--- tql ---
-        \\main = . / :class_declaration as c | c.name | text;
-        \\--- error ---
-        \\category: unresolved-name
-        \\span: 1:31-1:33
-        \\`as`.
-        \\--- error ---
-        \\category: unresolved-name
-        \\span: 1:34-1:35
-        \\`c` as an operand of `as`.
-        \\--- error ---
-        \\category: unresolved-name
-        \\span: 1:38-1:39
-        \\`c` in `c.name`.
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expectEqual(@as(usize, 3), corpus.case.diagnostics.len);
-    try testing.expectEqualStrings("1:31-1:33", corpus.case.diagnostics[0].span);
-    try testing.expectEqualStrings("1:34-1:35", corpus.case.diagnostics[1].span);
-    try testing.expectEqualStrings("1:38-1:39", corpus.case.diagnostics[2].span);
-}
-
-test "a diagnostic without a category is rejected" {
-    const input =
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\--- tql ---
-        \\main = .;
-        \\--- error ---
-        \\span: 1:1-1:2
-        \\no category above
-    ;
-    try testing.expectError(error.DiagnosticMissingCategory, parse(testing.allocator, input));
-}
-
-test "a diagnostic without a span is rejected" {
-    const input =
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\--- tql ---
-        \\main = .;
-        \\--- error ---
-        \\category: parse
-        \\no span above
-    ;
-    try testing.expectError(error.DiagnosticMissingSpan, parse(testing.allocator, input));
+    try testing.expect(corpus.case.expectsError());
 }
 
 test "unknown section name in a header is rejected" {
@@ -1195,7 +1000,7 @@ test "applyUpdates with no updates reproduces source exactly" {
     try testing.expectEqualStrings(FULL_CASE, result);
 }
 
-test "applyUpdates rewrites diagnostic headers and keeps commentary" {
+test "applyUpdates rewrites the error section" {
     const input =
         \\grammar: typescript
         \\asserts: error, tql_tree
@@ -1203,22 +1008,16 @@ test "applyUpdates rewrites diagnostic headers and keeps commentary" {
         \\--- tql ---
         \\main = x;
         \\--- error ---
-        \\category: parse
-        \\span: 1:1-1:2
-        \\The first.
+        \\error[parse]: Unexpected `x`.
         \\
         \\--- tql tree ---
         \\(source_file)
-        \\--- error ---
-        \\category: parse
-        \\span: any
-        \\The second.
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
     const result = try applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .@"error", .new_content = "type-mismatch/2:3-2:4\nunresolved-name/1:8-1:9" },
+        .{ .kind = .@"error", .new_content = "error[unresolved-name]: `x` is not defined." },
         .{ .kind = .tql_tree, .new_content = "(source_file x)" },
     });
     defer testing.allocator.free(result);
@@ -1230,36 +1029,11 @@ test "applyUpdates rewrites diagnostic headers and keeps commentary" {
         \\--- tql ---
         \\main = x;
         \\--- error ---
-        \\category: type-mismatch
-        \\span: 2:3-2:4
-        \\The first.
+        \\error[unresolved-name]: `x` is not defined.
         \\
         \\--- tql tree ---
         \\(source_file x)
-        \\--- error ---
-        \\category: unresolved-name
-        \\span: any
-        \\The second.
     , result);
-}
-
-test "applyUpdates refuses a changed diagnostic count" {
-    const input =
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\--- tql ---
-        \\main = x;
-        \\--- error ---
-        \\category: parse
-        \\span: 1:1-1:2
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expectError(error.DiagnosticCountChanged, applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .@"error", .new_content = "parse/1:1-1:2\nparse/1:3-1:4" },
-    }));
 }
 
 test "applyUpdates preserves whitespace in unchanged sections" {
@@ -1302,6 +1076,38 @@ test "applyUpdates preserves whitespace in unchanged sections" {
     const body = result[st.start..st.end];
     try testing.expect(std.mem.startsWith(u8, body, "\n"));
     try testing.expect(std.mem.endsWith(u8, body, "\n\n"));
+}
+
+test "applyUpdates fills an empty section at the end of the file" {
+    const input =
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = x;
+        \\
+        \\--- error ---
+        \\
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const result = try applyUpdates(testing.allocator, corpus, &.{
+        .{ .kind = .@"error", .new_content = "error[unresolved-name]: `x` is not defined." },
+    });
+    defer testing.allocator.free(result);
+
+    try testing.expectEqualStrings(
+        \\grammar: typescript
+        \\asserts: error
+        \\
+        \\--- tql ---
+        \\main = x;
+        \\
+        \\--- error ---
+        \\error[unresolved-name]: `x` is not defined.
+        \\
+    , result);
 }
 
 test "applyUpdates injects a section whose marker is absent" {

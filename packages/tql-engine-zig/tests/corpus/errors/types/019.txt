@@ -13,6 +13,8 @@ main root = do {
 };
 
 --- error ---
-category: unsatisfied-constraint
-span: 4:12-4:17
-`Ord Node` is not satisfied.
+error[unsatisfied-constraint]: `Ord Node` is not satisfied.
+ --> 4:12
+  |
+4 |   return $ l < r;
+  |            ^^^^^

@@ -8,6 +8,8 @@ Compiled `regex` values intentionally have no JSON encoding.
 main = pure r"^abc";
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-1:21
-`Serial Regex` is not satisfied.
+error[unsatisfied-constraint]: `Serial Regex` is not satisfied.
+ --> 1:1
+  |
+1 | main = pure r"^abc";
+  | ^^^^^^^^^^^^^^^^^^^^

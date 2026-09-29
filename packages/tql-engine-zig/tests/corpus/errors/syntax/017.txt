@@ -11,6 +11,8 @@ size x = length x;
 main = const [size "abc"];
 
 --- error ---
-category: parse
-span: 1:18-1:22
-The `=>` and the `a` after it, which recovery skips.
+error[parse]: syntax error
+ --> 1:18
+  |
+1 | size : (Sized a) => a -> Int;
+  |                  ^^^^

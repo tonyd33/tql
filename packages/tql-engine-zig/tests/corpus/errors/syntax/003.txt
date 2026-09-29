@@ -14,6 +14,8 @@ saying the operators do not chain is more useful than naming the instance.
 main = 1 < 2 < 3;
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:8-1:17
-The whole chain.
+error[unsatisfied-constraint]: `Ord Bool` is not satisfied.
+ --> 1:8
+  |
+1 | main = 1 < 2 < 3;
+  |        ^^^^^^^^^

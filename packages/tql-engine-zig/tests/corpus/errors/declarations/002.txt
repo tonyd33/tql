@@ -12,6 +12,8 @@ main =
 outside = inner;
 
 --- error ---
-category: unresolved-name
-span: 4:11-4:16
-`inner` in `outside`.
+error[unresolved-name]: `inner` is not defined
+ --> 4:11
+  |
+4 | outside = inner;
+  |           ^^^^^

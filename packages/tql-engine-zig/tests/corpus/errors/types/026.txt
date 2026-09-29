@@ -9,6 +9,8 @@ is the statement form.
 main root = do { c <- children root; is_kind :class_declaration c; return c; };
 
 --- error ---
-category: type-mismatch
-span: 1:38-1:66
-The `is_kind :class_declaration c` statement.
+error[type-mismatch]: Expected `[a]`, found `Bool`.
+ --> 1:38
+  |
+1 | main root = do { c <- children root; is_kind :class_declaration c; return c; };
+  |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

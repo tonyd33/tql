@@ -13,6 +13,12 @@ main =
   in pure { op = f };
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-3:22
-`Serial` is not satisfied for the `op` field, of type `int -> int`.
+error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
+ --> 1:1
+  |
+1 | main =
+  | ^^^^^^
+2 |   let { f = \x -> x + 1; }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^
+3 |   in pure { op = f };
+  |   ^^^^^^^^^^^^^^^^^^^

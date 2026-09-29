@@ -11,6 +11,8 @@ size x = length x;
 main = children | arr (\c -> size c);
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:17
-`Sized a` is not satisfied.
+error[signature-mismatch]: `Sized a` is not satisfied.
+ --> 1:1
+  |
+1 | size : a -> Int;
+  | ^^^^^^^^^^^^^^^^

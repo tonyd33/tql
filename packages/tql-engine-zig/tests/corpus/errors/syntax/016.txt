@@ -13,5 +13,8 @@ main root = do {
 };
 
 --- error ---
-category: unresolved-name
-span: 2:3-2:9
+error[unresolved-name]: `helper` is not defined
+ --> 2:3
+  |
+2 |   helper = 1;
+  |   ^^^^^^

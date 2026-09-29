@@ -10,6 +10,8 @@ f x = x;
 main = const [f 1];
 
 --- error ---
-category: unresolved-name
-span: 1:5-1:9
-`b` is constrained but does not appear in the type
+error[unresolved-name]: `b` is constrained but does not appear in the type
+ --> 1:5
+  |
+1 | f : Eq b => a -> a;
+  |     ^^^^

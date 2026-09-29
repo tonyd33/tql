@@ -1,0 +1,12 @@
+title: a regex test reuses one match scratch across calls
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = const ["abc" ~ r"b", "xyz" ~ r"b", "b" ~ r"b"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false, true]

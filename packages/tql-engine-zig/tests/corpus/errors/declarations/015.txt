@@ -9,6 +9,8 @@ text = "shadowed";
 main = text;
 
 --- error ---
-category: symbol-collision
-span: 1:1-1:19
-The colliding definition.
+error[symbol-collision]: `text` collides with an existing symbol
+ --> 1:1
+  |
+1 | text = "shadowed";
+  | ^^^^^^^^^^^^^^^^^^

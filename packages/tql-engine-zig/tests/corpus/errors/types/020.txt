@@ -8,6 +8,8 @@ asserts: error
 main = pure 42 | arr length;
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:22-1:28
-`Sized int` is not satisfied.
+error[unsatisfied-constraint]: `Sized Int` is not satisfied.
+ --> 1:22
+  |
+1 | main = pure 42 | arr length;
+  |                      ^^^^^^

@@ -108,35 +108,6 @@ pub const Registry = struct {
         return null;
     }
 
-    /// Reserves `List` and `Bool` and fills in their constructors, standing in
-    /// for the prelude declarations that normally do it. For a caller that
-    /// needs the structural types without parsing a prelude.
-    pub fn declareStructural(
-        self: *Registry,
-        interner: *symbols.Interner,
-        arena: Allocator,
-    ) !void {
-        try self.reserveStructural(interner);
-
-        const element = types.variable_type(0);
-        const self_ref = try types.constructed(
-            arena,
-            self.listId(),
-            types.list_spelling,
-            &.{element},
-        );
-        const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
-        self.setConstructors(interner, self.listId(), try arena.dupe(Constructor, &.{
-            .{ .symbol = try interner.intern("Nil", .vanilla), .tag = 0, .fields = &.{} },
-            .{ .symbol = try interner.intern("Cons", .vanilla), .tag = 1, .fields = cons_fields },
-        }));
-
-        self.setConstructors(interner, self.boolId(), try arena.dupe(Constructor, &.{
-            .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
-            .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
-        }));
-    }
-
     pub fn listId(self: *const Registry) TypeId {
         return self.lookup(types.list_spelling).?;
     }
@@ -146,7 +117,7 @@ pub const Registry = struct {
     }
 
     /// The constructor `b` denotes. `False` is tag 0 and `True` is tag 1,
-    /// fixed by `declareStructural`; a caller building a boolean value must
+    /// fixed by `Structural.boolean`; a caller building a boolean value must
     /// not assume that order itself.
     pub fn boolConstructor(self: *const Registry, b: bool) Constructor {
         return self.get(self.boolId()).constructors[if (b) 1 else 0];
@@ -251,6 +222,8 @@ pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId)
     };
 }
 
+const test_support = @import("test_support.zig");
+
 test "a declared type is reachable by name, id, and constructor" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
@@ -283,7 +256,7 @@ test "the structural accessors follow the declared tag order" {
     defer arena.deinit();
     var registry = Registry.init(arena.allocator());
     var interner = symbols.Interner.init(arena.allocator());
-    try registry.declareStructural(&interner, arena.allocator());
+    try test_support.declareStructural(&registry, &interner, arena.allocator());
 
     const f = registry.boolConstructor(false);
     const t = registry.boolConstructor(true);

@@ -1,0 +1,16 @@
+title: a kind test fuses into an axis after an earlier stage
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main = children | descendants | of_kind :class_declaration | .name;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[]
+
+--- simplified ---
+main = kleisli (kleisli children (descendants_of_kind :class_declaration)) field[name]

@@ -8,6 +8,8 @@ asserts: error
 main = pure $ not 1 = 1;
 
 --- error ---
-category: type-mismatch
-span: 1:19-1:20
-The `1` that `not` is applied to.
+error[type-mismatch]: Expected `Bool`, found `Int`.
+ --> 1:19
+  |
+1 | main = pure $ not 1 = 1;
+  |                   ^

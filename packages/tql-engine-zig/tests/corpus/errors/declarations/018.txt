@@ -4,10 +4,14 @@ asserts: error
 
 Source files never rely on an implicit trailing expression.
 
+The span is the whole file, since the error is an absence.
+
 --- tql ---
 helper = children | of_kind :class_declaration;
 
 --- error ---
-category: missing-main
-span: 1:1-1:48
-The program. The span is the whole file, since the error is an absence.
+error[missing-main]: no `main` definition
+ --> 1:1
+  |
+1 | helper = children | of_kind :class_declaration;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

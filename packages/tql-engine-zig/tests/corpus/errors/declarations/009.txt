@@ -9,6 +9,8 @@ at compile time rather than producing a runtime branch failure.
 main = "abc" ~ r"(unclosed";
 
 --- error ---
-category: invalid-regex
-span: 1:16-1:28
-The regex literal.
+error[invalid-regex]: `(unclosed` is not a valid regular expression
+ --> 1:16
+  |
+1 | main = "abc" ~ r"(unclosed";
+  |                ^^^^^^^^^^^^

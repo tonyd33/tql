@@ -10,6 +10,8 @@ g : Filter Node String;
 main = arr kind;
 
 --- error ---
-category: orphan-signature
-span: 1:1-1:24
-The signature with no definition.
+error[orphan-signature]: `g` has a signature but no definition
+ --> 1:1
+  |
+1 | g : Filter Node String;
+  | ^^^^^^^^^^^^^^^^^^^^^^^

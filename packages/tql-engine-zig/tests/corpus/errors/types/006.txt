@@ -9,6 +9,8 @@ have one type.
 main = pure [1, "two"];
 
 --- error ---
-category: type-mismatch
-span: 1:17-1:22
-The second element. Expected `int`, found `string`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:17
+  |
+1 | main = pure [1, "two"];
+  |                 ^^^^^

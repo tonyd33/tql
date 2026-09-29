@@ -8,6 +8,8 @@ type T = C (Box Int String);
 main = pure 1;
 
 --- error ---
-category: type-mismatch
-span: 2:13-2:27
-`Box` takes 1 type argument(s), given 2
+error[type-mismatch]: `Box` takes 1 type argument(s), given 2
+ --> 2:13
+  |
+2 | type T = C (Box Int String);
+  |             ^^^^^^^^^^^^^^

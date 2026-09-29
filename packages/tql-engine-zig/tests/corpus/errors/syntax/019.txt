@@ -6,5 +6,8 @@ asserts: error
 main root = do {};
 
 --- error ---
-category: parse
-span: any
+error[parse]: a do block must end in an expression
+ --> 1:13
+  |
+1 | main root = do {};
+  |             ^^^^^

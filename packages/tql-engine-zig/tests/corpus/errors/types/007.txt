@@ -6,6 +6,8 @@ asserts: error
 main = 1 ~ r"a";
 
 --- error ---
-category: type-mismatch
-span: 1:8-1:9
-The left operand. Expected `string`, found `int`.
+error[type-mismatch]: Expected `String`, found `Int`.
+ --> 1:8
+  |
+1 | main = 1 ~ r"a";
+  |        ^

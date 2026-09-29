@@ -11,6 +11,8 @@ g x = f x;
 main = pure (g r"a");
 
 --- error ---
-category: unsatisfied-constraint
-span: 3:14-3:15
-`Eq Regex` is not satisfied.
+error[unsatisfied-constraint]: `Eq Regex` is not satisfied.
+ --> 3:14
+  |
+3 | main = pure (g r"a");
+  |              ^

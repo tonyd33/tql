@@ -1,0 +1,27 @@
+title: an axis with no kind test is left alone
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main = descendants | arr kind;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[
+  "class_declaration",
+  "type_identifier",
+  "class_body",
+  "method_definition",
+  "property_identifier",
+  "formal_parameters",
+  "statement_block",
+  "class_declaration",
+  "type_identifier",
+  "class_body"
+]
+
+--- simplified ---
+main = kleisli descendants (arr kind)

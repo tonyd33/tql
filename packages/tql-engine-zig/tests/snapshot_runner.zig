@@ -19,6 +19,7 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .tql_tree,
     .source_tree,
     .core,
+    .simplified,
     .types,
     .@"error",
 };
@@ -156,14 +157,6 @@ const TestRunContext = struct {
     fn addReason(self: *TestRunContext, reason: []const u8) !void {
         for (self.reasons.items) |r| if (std.mem.eql(u8, r, reason)) return;
         try self.reasons.append(self.gpa, reason);
-    }
-
-    fn printCaseFailure(self: *TestRunContext, name: []const u8) !void {
-        if (self.opts.color) {
-            try self.stdout.print("  {s}✗{s} {s}\n", .{ ansi.red_bold, ansi.reset, name });
-        } else {
-            try self.stdout.print("  FAIL {s}\n", .{name});
-        }
     }
 
     fn addDiff(
@@ -631,8 +624,6 @@ fn testCase(
 
     inline for (COMPARABLE_SECTIONS) |kind| skip: {
         if (expects_error and !isErrorCaseSection(kind)) break :skip;
-        // Diagnostics are compared field by field below, not as text.
-        if (kind == .@"error") break :skip;
         // The ratchet: a section is compared only while the case claims it.
         // Anything else populated was rejected at parse time as unasserted, so
         // silence here can only mean a recorded `pending`.
@@ -676,24 +667,6 @@ fn testCase(
                 test_failed = true;
             }
             try ctx.addDiff(group, name, kind.name(), "", actual_val);
-        }
-    }
-
-    if (expects_error and tc.asserts.has(.@"error")) {
-        var reported: std.ArrayList(corpus_parser.Reported) = .empty;
-        defer reported.deinit(gpa);
-        var lines = std.mem.tokenizeScalar(u8, actual.@"error", '\n');
-        while (lines.next()) |line| try reported.append(gpa, .parse(line));
-
-        // Commentary is paired with diagnostics by position, so a changed
-        // count cannot be updated.
-        if (ctx.opts.update.get(.@"error") and reported.items.len == tc.diagnostics.len) {
-            if (!diagnosticsMatch(tc.diagnostics, reported.items)) {
-                try updates.append(gpa, .{ .kind = .@"error", .new_content = try gpa.dupe(u8, actual.@"error") });
-                test_modified = true;
-            }
-        } else if (try compareDiagnostics(ctx, tc, reported.items, name, group, test_failed)) {
-            test_failed = true;
         }
     }
 
@@ -788,86 +761,8 @@ fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
     return try out.toOwnedSlice(gpa);
 }
 
-/// Compares expected diagnostics against what the engine reported. Only the
-/// category and span are normative; the message is commentary, so rewording a
-/// diagnostic never breaks a fixture. Returns true if the case failed.
-///
-/// `actual` is in report order.
-fn compareDiagnostics(
-    ctx: *TestRunContext,
-    tc: corpus_parser.TestCase,
-    actual: []const corpus_parser.Reported,
-    name: []const u8,
-    group: []const u8,
-    already_failed: bool,
-) !bool {
-    const gpa = ctx.gpa;
-    var failed = false;
-    var reported = false;
-
-    if (actual.len != tc.diagnostics.len) {
-        failed = true;
-        if (!already_failed and !reported) {
-            try ctx.printCaseFailure(name);
-            reported = true;
-        }
-        const expected = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{tc.diagnostics.len});
-        defer gpa.free(expected);
-        const got = try std.fmt.allocPrint(gpa, "{d} diagnostic(s)", .{actual.len});
-        defer gpa.free(got);
-        try ctx.addDiff(group, name, "error count", expected, got);
-        return failed;
-    }
-
-    for (tc.diagnostics, actual) |want, got| {
-        if (diagnosticMatches(want, got)) continue;
-
-        failed = true;
-        if (!already_failed and !reported) {
-            try ctx.printCaseFailure(name);
-            reported = true;
-        }
-        const expected = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ want.category, want.span });
-        defer gpa.free(expected);
-        const found = try std.fmt.allocPrint(gpa, "{s} / {s}", .{ got.category, got.span });
-        defer gpa.free(found);
-        try ctx.addDiff(group, name, "error", expected, found);
-    }
-
-    return failed;
-}
-
-fn diagnosticMatches(want: corpus_parser.Diagnostic, got: corpus_parser.Reported) bool {
-    return std.mem.eql(u8, want.category, got.category) and want.spanMatches(got.span);
-}
-
-/// Preconditions:
-/// - `want` and `got` have the same length.
-fn diagnosticsMatch(want: []const corpus_parser.Diagnostic, got: []const corpus_parser.Reported) bool {
-    for (want, got) |w, g| if (!diagnosticMatches(w, g)) return false;
-    return true;
-}
-
-/// One `category/span` line per diagnostic, in report order, which is the form
-/// `compareDiagnostics` reads. The message is deliberately omitted: fixtures
-/// never compare it.
-fn renderDiagnostics(
-    allocator: std.mem.Allocator,
-    diagnostics: []const tql.diagnostic.Diagnostic,
-) ![]const u8 {
-    var w: std.Io.Writer.Allocating = .init(allocator);
-    errdefer w.deinit();
-    for (diagnostics, 0..) |d, i| {
-        if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.writeAll(d.category.name());
-        try w.writer.writeByte('/');
-        try d.span.format(&w.writer);
-    }
-    return w.toOwnedSlice();
-}
-
-/// Each diagnostic rendered against `source`, separated by blank lines, for a
-/// case that did not expect them.
+/// Each diagnostic rendered against `source` as the CLI prints it, separated
+/// by blank lines, in report order.
 fn describeDiagnostics(
     allocator: std.mem.Allocator,
     diagnostics: []const tql.diagnostic.Diagnostic,
@@ -937,8 +832,9 @@ fn runTestCase(
             .tql_tree = tql_tree,
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .simplified = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
-            .@"error" = try renderDiagnostics(allocator, parsed.diagnostics),
+            .@"error" = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content),
         };
     }
 
@@ -951,6 +847,8 @@ fn runTestCase(
 
     var types_text: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(types_text);
+    var simplified_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(simplified_text);
     var type_diagnostics: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(type_diagnostics);
 
@@ -967,17 +865,23 @@ fn runTestCase(
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
 
-            if (tc.isAsserted(.types) or expects_error) {
+            if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or expects_error) {
                 var type_sink = tql.diagnostic.Sink.init(allocator);
                 defer type_sink.deinit();
 
                 if (tql.type_check.check(allocator, &program, &type_sink)) {
                     allocator.free(types_text);
                     types_text = try fmt.formatTypes(allocator, &program);
+
+                    if (tc.isAsserted(.simplified)) {
+                        try tql.core_to_core.run(&program);
+                        allocator.free(simplified_text);
+                        simplified_text = try fmt.formatCore(allocator, &program);
+                    }
                 } else |err| switch (err) {
                     error.TypeCheckFailed => {
                         allocator.free(type_diagnostics);
-                        type_diagnostics = try renderDiagnostics(allocator, type_sink.items());
+                        type_diagnostics = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
                         if (!expects_error) {
                             unexpected.* = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
                         }
@@ -988,7 +892,7 @@ fn runTestCase(
         } else |err| switch (err) {
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
-                desugar_diagnostics = try renderDiagnostics(allocator, sink.items());
+                desugar_diagnostics = try describeDiagnostics(allocator, sink.items(), tc.query.content);
                 if (!expects_error) {
                     unexpected.* = try describeDiagnostics(allocator, sink.items(), tc.query.content);
                 }
@@ -1007,6 +911,7 @@ fn runTestCase(
             .tql_tree = tql_tree,
             .values = try allocator.dupe(u8, ""),
             .core = core_text,
+            .simplified = simplified_text,
             .types = try allocator.dupe(u8, ""),
             .@"error" = type_diagnostics,
         };
@@ -1022,6 +927,7 @@ fn runTestCase(
             .tql_tree = tql_tree,
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
+            .simplified = simplified_text,
             .types = try allocator.dupe(u8, ""),
             .@"error" = desugar_diagnostics,
         };
@@ -1049,6 +955,7 @@ fn runTestCase(
             .tql_tree = tql_tree,
             .values = values,
             .core = core_text,
+            .simplified = simplified_text,
             .types = types_text,
             .@"error" = try allocator.dupe(u8, ""),
         };
@@ -1064,6 +971,7 @@ fn runTestCase(
         .tql_tree = tql_tree,
         .values = try allocator.dupe(u8, ""),
         .core = core_text,
+        .simplified = simplified_text,
         .types = types_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
@@ -1181,7 +1089,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, values, core, types, error (comma-separated); bare --update updates all but error",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, core, simplified, types, error (comma-separated); bare --update updates all but error",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

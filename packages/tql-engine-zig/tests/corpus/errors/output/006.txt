@@ -13,6 +13,8 @@ and is a passing fixture.
 main = pure [kind, text];
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-1:26
-`Serial [Node -> String]` is not satisfied.
+error[unsatisfied-constraint]: `Serial (Node -> String)` is not satisfied.
+ --> 1:1
+  |
+1 | main = pure [kind, text];
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

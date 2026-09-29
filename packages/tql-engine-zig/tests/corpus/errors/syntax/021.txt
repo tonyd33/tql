@@ -10,6 +10,8 @@ f n = case n of { 3 -> 1; _ -> 0; };
 main = pure (f 3);
 
 --- error ---
-category: parse
-span: 1:19-1:26
-From the `3` to the end of its alternative.
+error[parse]: syntax error
+ --> 1:19
+  |
+1 | f n = case n of { 3 -> 1; _ -> 0; };
+  |                   ^^^^^^^

@@ -9,6 +9,8 @@ rather than kept as written.
 main = const ["a\qb"];
 
 --- error ---
-category: parse
-span: 1:15-1:21
-The whole string literal.
+error[parse]: `\q` is not an escape; write `\\` for a backslash
+ --> 1:15
+  |
+1 | main = const ["a\qb"];
+  |               ^^^^^^

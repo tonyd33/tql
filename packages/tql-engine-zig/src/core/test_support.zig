@@ -1,0 +1,173 @@
+//! Fixtures shared by the unit tests of the passes below the engine.
+
+const std = @import("std");
+const core = @import("../core.zig");
+const datatypes = @import("datatypes.zig");
+const diagnostic = @import("../diagnostic.zig");
+const symbols = @import("symbols.zig");
+const types = @import("types.zig");
+
+const Allocator = std.mem.Allocator;
+
+/// An environment holding `List` and `Bool` with their constructors, and
+/// nothing else. The caller owns it.
+pub fn env(gpa: Allocator) !core.env.Env {
+    var e = try core.env.Env.init(gpa);
+    errdefer e.deinit();
+    try declareStructural(&e.datatypes, &e.interner, e.allocator());
+    return e;
+}
+
+/// Reserves `List` and `Bool` and fills in their constructors in the shape
+/// `prelude.tql` declares them.
+pub fn declareStructural(
+    registry: *datatypes.Registry,
+    interner: *symbols.Interner,
+    arena: Allocator,
+) !void {
+    try registry.reserveStructural(interner);
+
+    const element = types.variable_type(0);
+    const self_ref = try types.constructed(
+        arena,
+        registry.listId(),
+        types.list_spelling,
+        &.{element},
+    );
+    const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
+    registry.setConstructors(interner, registry.listId(), try arena.dupe(datatypes.Constructor, &.{
+        .{ .symbol = try interner.intern("Nil", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern("Cons", .vanilla), .tag = 1, .fields = cons_fields },
+    }));
+
+    registry.setConstructors(interner, registry.boolId(), try arena.dupe(datatypes.Constructor, &.{
+        .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
+    }));
+}
+
+/// Assembles a `core.Program` from hand-built definitions over `env`'s
+/// environment.
+pub const ProgramBuilder = struct {
+    env: core.env.Env,
+    definitions: std.ArrayList(core.Definition) = .empty,
+
+    pub fn init(gpa: Allocator) !ProgramBuilder {
+        return .{ .env = try env(gpa) };
+    }
+
+    pub fn deinit(self: *ProgramBuilder) void {
+        self.env.deinit();
+    }
+
+    pub fn terms(self: *const ProgramBuilder) core.Builder {
+        return .{ .allocator = self.env.allocator() };
+    }
+
+    /// The global spelled `spelling`, interned on first use.
+    pub fn global(self: *ProgramBuilder, spelling: []const u8) !core.SymbolId {
+        return try self.env.interner.internOrGet(spelling, .vanilla);
+    }
+
+    /// The `op[...]` symbol desugaring synthesizes for `scalar`.
+    pub fn operator(self: *ProgramBuilder, scalar: core.Scalar) !core.SymbolId {
+        var buf: [8]u8 = undefined;
+        const spelling = try std.fmt.bufPrint(&buf, "op[{s}]", .{scalar.spelling()});
+        return try self.env.interner.internOrGet(spelling, .{ .synthesized = .{ .operator = scalar } });
+    }
+
+    /// A fresh local binder.
+    pub fn local(self: *ProgramBuilder, spelling: []const u8) !core.SymbolId {
+        return try self.env.interner.fresh(spelling);
+    }
+
+    /// Declares `name` with `constructors`, each a spelling and its field
+    /// types, tagged in order.
+    pub fn datatype(
+        self: *ProgramBuilder,
+        name: []const u8,
+        constructors: []const struct { []const u8, []const types.Type },
+    ) !void {
+        const arena = self.env.allocator();
+        const declared = try arena.alloc(datatypes.Constructor, constructors.len);
+        for (constructors, declared, 0..) |c, *slot, tag| {
+            slot.* = .{
+                .symbol = try self.env.interner.intern(c[0], .vanilla),
+                .tag = @intCast(tag),
+                .fields = try arena.dupe(types.Type, c[1]),
+            };
+        }
+        _ = try self.env.datatypes.declare(&self.env.interner, try arena.dupe(u8, name), 0, declared, .{});
+    }
+
+    pub fn define(self: *ProgramBuilder, name: core.SymbolId, body: core.Term) !void {
+        try self.definitions.append(self.env.allocator(), .{
+            .symbol = name,
+            .body = body,
+            .span = diagnostic.Span.unknown,
+        });
+    }
+
+    pub fn symbol(self: *const ProgramBuilder, id: core.SymbolId) core.Term {
+        return self.terms().symbol(id, diagnostic.Span.unknown);
+    }
+
+    pub fn number(self: *const ProgramBuilder, n: i64) core.Term {
+        return self.terms().literal(.{ .number = n }, diagnostic.Span.unknown);
+    }
+
+    pub fn lambda(self: *const ProgramBuilder, parameters: []const core.SymbolId, body: core.Term) !core.Term {
+        var result = body;
+        var i = parameters.len;
+        while (i > 0) {
+            i -= 1;
+            result = try self.terms().lambda(parameters[i], result, diagnostic.Span.unknown);
+        }
+        return result;
+    }
+
+    pub fn apply(self: *const ProgramBuilder, function: core.Term, arguments: []const core.Term) !core.Term {
+        return try self.terms().applyMany(function, arguments, diagnostic.Span.unknown);
+    }
+
+    /// `case scrutinee of { C x_1 .. x_n -> body; ... }`.
+    pub fn case(
+        self: *const ProgramBuilder,
+        scrutinee: core.Term,
+        alternatives: []const core.Case.Alternative,
+    ) !core.Term {
+        const copies = try self.terms().dupeSlice(core.Case.Alternative, alternatives);
+        for (copies) |*alternative| {
+            alternative.binders = try self.terms().dupeSlice(core.SymbolId, alternative.binders);
+        }
+        return try self.terms().case(scrutinee, copies, diagnostic.Span.unknown);
+    }
+
+    pub fn letrec(self: *const ProgramBuilder, bindings: []const core.Letrec.Binding, body: core.Term) !core.Term {
+        return try self.terms().letrec(
+            try self.terms().dupeSlice(core.Letrec.Binding, bindings),
+            body,
+            diagnostic.Span.unknown,
+        );
+    }
+
+    pub fn bind(self: *const ProgramBuilder, name: core.SymbolId, value: core.Term, body: core.Term) !core.Term {
+        return try self.terms().bind(name, value, body, diagnostic.Span.unknown);
+    }
+
+    /// A program over the builder's environment whose entry is `entry`, with
+    /// every definition its own component, in definition order. The program
+    /// borrows the environment: deinit the builder, not the program.
+    pub fn program(self: *ProgramBuilder, entry: core.SymbolId) !core.Program {
+        const arena = self.env.allocator();
+        const components = try arena.alloc([]const u32, self.definitions.items.len);
+        for (components, 0..) |*component, i| component.* = try arena.dupe(u32, &.{@intCast(i)});
+        return .{
+            .env = self.env,
+            .definitions = self.definitions.items,
+            .components = components,
+            .entry = entry,
+            .entry_offset = 0,
+        };
+    }
+};

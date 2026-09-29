@@ -8,6 +8,8 @@ Both branches of an `if` share the result type.
 main = if true then pure 1 else pure "two";
 
 --- error ---
-category: type-mismatch
-span: 1:33-1:43
-The else branch. Expected `Filter Node Int`, found `Filter Node String`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:33
+  |
+1 | main = if true then pure 1 else pure "two";
+  |                                 ^^^^^^^^^^

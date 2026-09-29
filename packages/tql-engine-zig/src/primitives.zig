@@ -186,6 +186,8 @@ fn fixture(gpa: Allocator) !core.env.Env {
     return target;
 }
 
+const test_support = @import("core/test_support.zig");
+
 test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
@@ -200,7 +202,7 @@ test "primitives are the documented set" {
     defer arena.deinit();
     var declared = datatypes.Registry.init(arena.allocator());
     var interner = core.Interner.init(arena.allocator());
-    try declared.declareStructural(&interner, arena.allocator());
+    try test_support.declareStructural(&declared, &interner, arena.allocator());
 
     var rows: std.ArrayList(Row) = .empty;
     defer rows.deinit(std.testing.allocator);

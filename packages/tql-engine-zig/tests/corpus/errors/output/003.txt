@@ -6,6 +6,8 @@ asserts: error
 main = pure (\x -> x + 1);
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-1:27
-`Serial (Int -> Int)` is not satisfied.
+error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
+ --> 1:1
+  |
+1 | main = pure (\x -> x + 1);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^

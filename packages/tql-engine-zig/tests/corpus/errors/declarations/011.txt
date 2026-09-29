@@ -2,6 +2,8 @@ title: a duplicate signature is a compile error
 grammar: typescript
 asserts: error
 
+The first signature is the accepted one.
+
 --- tql ---
 f : Node -> String;
 f : Node -> String;
@@ -9,6 +11,8 @@ f = kind;
 main = arr f;
 
 --- error ---
-category: duplicate-signature
-span: 2:1-2:20
-The second signature. The first is the accepted one.
+error[duplicate-signature]: `f` has more than one signature
+ --> 2:1
+  |
+2 | f : Node -> String;
+  | ^^^^^^^^^^^^^^^^^^^

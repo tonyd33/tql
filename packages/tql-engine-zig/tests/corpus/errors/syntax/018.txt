@@ -12,5 +12,8 @@ main root = do {
 };
 
 --- error ---
-category: parse
-span: 3:3-3:17
+error[parse]: a do block must end in an expression, not a let statement
+ --> 3:3
+  |
+3 |   let n = c.name;
+  |   ^^^^^^^^^^^^^^

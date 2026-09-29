@@ -4,13 +4,16 @@ asserts: error
 
 A `:kind` selector is static syntax. A computed string cannot stand in for one.
 
+`k` is not a grammar kind, and the selector does not evaluate its operand.
+
 --- tql ---
 main =
   let { k = "class_declaration"; }
   in children | of_kind :k;
 
 --- error ---
-category: unknown-kind
-span: 3:25-3:27
-The `:k` selector. `k` is not a grammar kind, and the selector does not
-evaluate its operand.
+error[unknown-kind]: `k` is not a node kind in this grammar
+ --> 3:25
+  |
+3 |   in children | of_kind :k;
+  |                         ^^

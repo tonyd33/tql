@@ -1,0 +1,14 @@
+title: a letrec binding captures an enclosing parameter
+grammar: typescript
+asserts: values
+
+--- tql ---
+count_to limit =
+  let { go n = if n = limit then n else go (n + 1) } in go 0;
+main = pure $ count_to 10;
+
+--- source ---
+class A {}
+
+--- values ---
+[10]

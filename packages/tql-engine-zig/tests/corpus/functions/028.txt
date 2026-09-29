@@ -1,0 +1,12 @@
+title: a closure reads its captures and parameters at their own offsets
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = pure $ (\a b c -> (\x -> c - a * x - b)) 1 30 3 0;
+
+--- source ---
+class A {}
+
+--- values ---
+[-27]

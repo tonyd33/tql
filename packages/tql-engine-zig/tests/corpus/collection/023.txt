@@ -1,0 +1,12 @@
+title: collect gathers every output into one list
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = collect (const [1, 2]) <|> collect none;
+
+--- source ---
+class A {}
+
+--- values ---
+[[1, 2], []]

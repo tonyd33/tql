@@ -1,0 +1,33 @@
+title: a kind test on a child axis fuses into the axis
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main = children | of_kind :class_declaration;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A { m() {} }",
+    "start_byte": 0,
+    "end_byte": 18,
+    "start_point": { "row": 0, "column": 0 },
+    "end_point": { "row": 0, "column": 18 }
+  },
+  {
+    "kind": "class_declaration",
+    "text": "class B {}",
+    "start_byte": 19,
+    "end_byte": 29,
+    "start_point": { "row": 1, "column": 0 },
+    "end_point": { "row": 1, "column": 10 }
+  }
+]
+
+--- simplified ---
+main = children_of_kind :class_declaration

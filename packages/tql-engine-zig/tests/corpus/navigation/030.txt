@@ -1,0 +1,16 @@
+title: a kind test after an earlier non-axis stage is left alone
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main = children | parent | of_kind :class_declaration;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[]
+
+--- simplified ---
+main = kleisli (kleisli children parent) (of_kind :class_declaration)
