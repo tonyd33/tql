@@ -6,6 +6,7 @@
   "else"
   "and"
   "or"
+  "deriving"
 ] @keyword
 
 (comment) @comment

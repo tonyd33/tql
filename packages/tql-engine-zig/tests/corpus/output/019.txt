@@ -1,0 +1,16 @@
+title: a record field may hold a derived Serial value
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Maybe a = Just a | Nothing deriving (Serial);
+main = const [{ found = Just 1, maybe = [Nothing, Just 2] }];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"found":{"tag":"Just","fields":[1]},"maybe":[{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[2]}]}]
+
+--- types ---
+main : Node -> [{found: Maybe Int, maybe: [Maybe Int]}]

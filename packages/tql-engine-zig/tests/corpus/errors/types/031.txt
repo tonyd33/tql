@@ -1,0 +1,12 @@
+title: a declared type has no equality unless it derives Eq
+grammar: typescript
+asserts: error
+
+--- tql ---
+type P = P Int;
+main = pure (P 1 = P 1);
+
+--- error ---
+category: unsatisfied-constraint
+span: 2:14-2:23
+`Eq P` is not satisfied.

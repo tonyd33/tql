@@ -618,6 +618,15 @@ pub fn translate(
         .len = 0,
         .storage = undefined,
     } });
+
+    var constructor_spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8) = .empty;
+    for (registry.datatypes.items) |datatype| {
+        for (datatype.constructors) |constructor| {
+            const spelling = try arena.allocator().dupe(u8, program.env.interner.spelling(constructor.symbol));
+            try constructor_spellings.put(arena.allocator(), constructor.symbol, spelling);
+        }
+    }
+
     return .{
         .definitions = definitions,
         .entry = program.entry,
@@ -627,6 +636,7 @@ pub fn translate(
             .false_ = builtin(registry.boolConstructor(false)),
             .true_ = builtin(registry.boolConstructor(true)),
         },
+        .constructor_spellings = constructor_spellings,
         .nil = nil_thunk,
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),

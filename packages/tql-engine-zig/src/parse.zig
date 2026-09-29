@@ -548,6 +548,7 @@ const Walker = struct {
         const name = try self.dupe(name_node);
         var params: std.ArrayList(cst.Identifier) = .empty;
         var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
+        var deriving: ?cst.Deriving = null;
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -561,6 +562,8 @@ const Walker = struct {
                         if (try self.constructorDeclaration(child)) |c| {
                             try constructors.append(self.allocator, c);
                         } else return null;
+                    } else if (std.mem.eql(u8, field, "deriving")) {
+                        deriving = try self.derivingClause(child);
                     }
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -571,6 +574,33 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),
+            .deriving = deriving,
+            .span = spanOf(node),
+        };
+    }
+
+    fn derivingClause(self: *Walker, node: ts.Node) !cst.Deriving {
+        var classes: std.ArrayList(cst.DerivedClass) = .empty;
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "class")) {
+                        const child = cursor.node();
+                        try classes.append(self.allocator, .{
+                            .name = try self.dupe(child),
+                            .span = spanOf(child),
+                        });
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .classes = try classes.toOwnedSlice(self.allocator),
             .span = spanOf(node),
         };
     }
@@ -916,7 +946,7 @@ const Walker = struct {
 
     fn typeExpr(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Type {
         const span = spanOf(node);
-        const kind = node.grammarKind();
+        const kind = node.kind();
 
         if (std.mem.eql(u8, kind, "type_identifier")) {
             return cst.Type{
@@ -1193,6 +1223,20 @@ test "a signature with a context" {
     try expectSexpr(
         "f : (Eq a, Sized b) => a -> b -> Int;",
         "(source_file (signature f (=> (Eq a) (Sized b)) (-> a (-> b Int))))",
+    );
+}
+
+test "a type declaration" {
+    try expectSexpr(
+        "type Maybe a = Just a | Nothing;",
+        "(source_file (type Maybe (params a) (con Just a) (con Nothing)))",
+    );
+}
+
+test "a type declaration deriving classes" {
+    try expectSexpr(
+        "type Box a = Box a deriving (Eq, Ord);",
+        "(source_file (type Box (params a) (con Box a) (deriving Eq Ord)))",
     );
 }
 

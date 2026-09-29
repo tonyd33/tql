@@ -1,0 +1,15 @@
+title: Bool is ordered with false first
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [false < true, true <= true, true > false];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true]
+
+--- types ---
+main : Node -> [Bool]

@@ -290,6 +290,62 @@ type Pair = MkPair Int [String];
         (type_identifier)))))
 
 ========================================
+a data type deriving classes
+========================================
+
+type Maybe a = Just a | Nothing deriving (Eq, Ord, Serial);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    deriving: (deriving
+      class: (type_identifier)
+      class: (type_identifier)
+      class: (type_identifier))))
+
+========================================
+a single derived class is parenthesized
+========================================
+
+type Unit = Unit deriving (Eq);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    deriving: (deriving
+      class: (type_identifier))))
+
+========================================
+deriving ends the last constructor's fields
+========================================
+
+type Box a = Box a deriving (Eq);
+
+---
+
+(source_file
+  (type_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))
+    deriving: (deriving
+      class: (type_identifier))))
+
+========================================
 a signature naming a declared type at its arguments
 ========================================
 

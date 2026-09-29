@@ -1,0 +1,14 @@
+title: a derived class must hold for every field
+grammar: typescript
+asserts: error
+
+A function has no equality, so neither does a type holding one.
+
+--- tql ---
+type F = F Int (Int -> Int) deriving (Eq);
+main = pure 1;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:16-1:28
+`Eq (Int -> Int)` is not satisfied, so `F` cannot derive `Eq`

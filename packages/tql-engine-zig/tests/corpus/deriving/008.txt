@@ -1,0 +1,15 @@
+title: lists order lexicographically with a prefix first
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [[1, 2] < [1, 3], [1] < [1, 0], [] < [0], [2] > [1, 9], ["a"] < ["b"]];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true,true,true]
+
+--- types ---
+main : Node -> [Bool]

@@ -1,0 +1,12 @@
+title: a derived class must be a class
+grammar: typescript
+asserts: error
+
+--- tql ---
+type T = T Int deriving (Show);
+main = pure 1;
+
+--- error ---
+category: unresolved-name
+span: 1:26-1:30
+`Show` is not a class

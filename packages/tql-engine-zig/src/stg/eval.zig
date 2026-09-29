@@ -1075,20 +1075,46 @@ pub const Machine = struct {
         return .{ a, b };
     }
 
-    fn ordering(left: value.Value, right: value.Value) Error!std.math.Order {
-        // `Ord` holds for `Int` and `String` only, so these two cases
-        // are the whole of ordering.
-        return switch (left) {
-            .number => |a| switch (right) {
-                .number => |b| std.math.order(a, b),
-                else => error.TypeError,
-            },
-            .string => |a| switch (right) {
-                .string => |b| std.mem.order(u8, a, b),
-                else => error.TypeError,
-            },
-            else => error.TypeError,
-        };
+    /// Constructed values order by tag, then by fields left to right. Forces
+    /// both sides only as far as it must to decide.
+    fn ordering(self: *Machine, left_value: value.Value, right_value: value.Value) Error!std.math.Order {
+        try self.checkStack();
+
+        var left = left_value;
+        var right = right_value;
+        while (true) {
+            switch (left) {
+                .number => |a| switch (right) {
+                    .number => |b| return std.math.order(a, b),
+                    else => return error.TypeError,
+                },
+                .string => |a| switch (right) {
+                    .string => |b| return std.mem.order(u8, a, b),
+                    else => return error.TypeError,
+                },
+                .constructed => |a| {
+                    const b = switch (right) {
+                        .constructed => |c| c,
+                        else => return error.TypeError,
+                    };
+                    if (a.tag != b.tag) return std.math.order(a.tag, b.tag);
+                    if (a.len != b.len) return error.TypeError;
+                    if (a.len == 0) return .eq;
+
+                    const xs = a.fields();
+                    const ys = b.fields();
+                    for (xs[0 .. xs.len - 1], ys[0 .. ys.len - 1]) |x, y| {
+                        const order = try self.ordering(try self.force(x), try self.force(y));
+                        if (order != .eq) return order;
+                    }
+                    // The last field is compared by the next iteration rather
+                    // than by recursion, so a list's spine costs no stack.
+                    left = try self.force(xs[xs.len - 1]);
+                    right = try self.force(ys[ys.len - 1]);
+                },
+                else => return error.TypeError,
+            }
+        }
     }
 
     fn operator(
@@ -1138,10 +1164,10 @@ pub const Machine = struct {
             .eq => return try self.boolValue(try self.equal(left, right)),
             .ne => return try self.boolValue(!try self.equal(left, right)),
 
-            .lt => return try self.boolValue(try ordering(left, right) == .lt),
-            .lte => return try self.boolValue(try ordering(left, right) != .gt),
-            .gt => return try self.boolValue(try ordering(left, right) == .gt),
-            .gte => return try self.boolValue(try ordering(left, right) != .lt),
+            .lt => return try self.boolValue(try self.ordering(left, right) == .lt),
+            .lte => return try self.boolValue(try self.ordering(left, right) != .gt),
+            .gt => return try self.boolValue(try self.ordering(left, right) == .gt),
+            .gte => return try self.boolValue(try self.ordering(left, right) != .lt),
 
             .match, .not_match => {
                 const haystack = switch (left) {
@@ -1331,9 +1357,14 @@ pub const Machine = struct {
                     }
                     try jws.endArray();
                 } else {
-                    // A user datatype, which has no encoding until 0.4 gives
-                    // it one.
-                    return error.TypeError;
+                    try jws.beginObject();
+                    try jws.objectField("tag");
+                    try jws.write(self.program.constructor_spellings.get(c.constructor) orelse return error.TypeError);
+                    try jws.objectField("fields");
+                    try jws.beginArray();
+                    for (c.fields()) |field| try self.serialize(try self.force(field), jws);
+                    try jws.endArray();
+                    try jws.endObject();
                 }
             },
             .node => |n| {

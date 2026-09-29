@@ -1,0 +1,18 @@
+title: a recursive type derives its classes
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Tree = Leaf | Branch Tree Int Tree deriving (Eq, Ord, Serial);
+t = Branch Leaf 1 (Branch Leaf 2 Leaf);
+main = const [t = t, Branch Leaf 1 Leaf < t];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true]
+
+--- types ---
+t : Tree
+main : Node -> [Bool]

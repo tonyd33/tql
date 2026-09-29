@@ -1,0 +1,19 @@
+title: a derived Ord stops at the first differing field
+grammar: typescript
+asserts: types, values
+
+The second fields divide by zero. The first fields already decide the order,
+so neither is forced.
+
+--- tql ---
+type P = P Int Int deriving (Eq, Ord);
+main = const [P 1 (1 / 0) < P 2 (1 / 0), P 1 (1 / 0) = P 2 (1 / 0)];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]
+
+--- types ---
+main : Node -> [Bool]

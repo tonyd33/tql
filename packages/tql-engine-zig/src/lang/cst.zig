@@ -93,6 +93,7 @@ pub const TypeDeclaration = struct {
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
+    deriving: ?Deriving = null,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: TypeDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -103,8 +104,24 @@ pub const TypeDeclaration = struct {
             try w.writeByte(' ');
             try c.sexpr(w);
         }
+        if (self.deriving) |d| {
+            try w.writeAll(" (deriving");
+            for (d.classes) |c| try w.print(" {s}", .{c.name});
+            try w.writeByte(')');
+        }
         try w.writeByte(')');
     }
+};
+
+/// `deriving (Eq, Ord)` on a type declaration.
+pub const Deriving = struct {
+    classes: []const DerivedClass,
+    span: diagnostic.Span = .unknown,
+};
+
+pub const DerivedClass = struct {
+    name: Identifier,
+    span: diagnostic.Span = .unknown,
 };
 
 pub const ConstructorDeclaration = struct {

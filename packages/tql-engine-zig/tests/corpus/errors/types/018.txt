@@ -1,13 +1,17 @@
-title: `Ord` on a bool
+title: `Ord` on a list holds only when it holds for the elements
 grammar: typescript
 asserts: error
 
-Only `int` and `string` have `Ord`.
+Lists order lexicographically, which needs an order on the elements. `Node`
+has none.
 
 --- tql ---
-main = true < false;
+main root = do {
+  l <- children_of_kind :class_declaration root;
+  return $ [l] < [l];
+};
 
 --- error ---
 category: unsatisfied-constraint
-span: 1:8-1:20
-`Ord bool` is not satisfied.
+span: 3:12-3:21
+`Ord Node` is not satisfied.

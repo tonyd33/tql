@@ -28,7 +28,7 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
     return switch (head) {
         .meta => |id| .{ .deferred = id },
         .variable => @panic("a bound type variable reached constraint solving"),
-        .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = head },
+        .primitive => |p| if (datatypes.primitiveAdmits(class, p)) .holds else .{ .fails = head },
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => .{ .fails = head },
             // `Sized [a]` is the one that does not descend: a list has a
@@ -81,7 +81,7 @@ pub fn reduce(
     switch (head) {
         .meta => |id| try out.append(gpa, .{ .class = class, .meta = id }),
         .variable => @panic("a bound type variable reached constraint solving"),
-        .primitive => |p| if (!holdsForPrimitive(class, p)) return head,
+        .primitive => |p| if (!datatypes.primitiveAdmits(class, p)) return head,
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => return head,
             .always => {},
@@ -98,27 +98,6 @@ pub fn reduce(
         .function => return head,
     }
     return null;
-}
-
-fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
-    return switch (class) {
-        .Eq => switch (p) {
-            .Int, .String, .Range, .Node => true,
-            .Regex, .Kind => false,
-        },
-        .Ord => switch (p) {
-            .Int, .String => true,
-            .Regex, .Node, .Range, .Kind => false,
-        },
-        .Sized => switch (p) {
-            .String => true,
-            .Int, .Regex, .Node, .Range, .Kind => false,
-        },
-        .Serial => switch (p) {
-            .Int, .String, .Node, .Range => true,
-            .Regex, .Kind => false,
-        },
-    };
 }
 
 /// Constraints raised but not yet decided.
@@ -308,7 +287,7 @@ test "Eq holds for the five scalars and not regex" {
     try fix.expectFails(.Eq, types.regex_type);
 }
 
-test "Ord holds only for int and string" {
+test "Ord holds for int, string and Bool" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -319,7 +298,7 @@ test "Ord holds only for int and string" {
     try fix.expectFails(.Ord, types.node_type);
     try fix.expectHolds(.Eq, types.node_type);
 
-    try fix.expectFails(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
+    try fix.expectHolds(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
     try fix.expectFails(.Ord, types.range_type);
     try fix.expectFails(.Ord, types.regex_type);
 }
@@ -409,13 +388,13 @@ test "Ord and Sized do not hold for records" {
     try fix.expectFails(.Sized, r);
 }
 
-test "Ord does not hold for a list even of ordered elements" {
+test "Ord holds for a list exactly when it holds for its elements" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `Ord` is exactly `Int` and `String`; nothing structural joins it.
-    try fix.expectFails(.Ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectHolds(.Ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectFails(.Ord, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
 }
 
 test "a function fails every class, and a filter is a function" {

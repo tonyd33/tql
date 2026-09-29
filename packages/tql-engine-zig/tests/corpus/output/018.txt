@@ -1,0 +1,17 @@
+title: a derived Serial nests
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Maybe a = Just a | Nothing deriving (Serial);
+type Pair a b = Pair a b deriving (Serial);
+main = const [Pair (Just (Just "x")) [Nothing, Just 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Pair","fields":[{"tag":"Just","fields":[{"tag":"Just","fields":["x"]}]},[{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[2]}]]}]
+
+--- types ---
+main : Node -> [Pair (Maybe (Maybe String)) [Maybe Int]]

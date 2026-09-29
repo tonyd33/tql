@@ -1,0 +1,14 @@
+title: a derived class must hold inside a field's type arguments
+grammar: typescript
+asserts: error
+
+Lists are ordered when their elements are, and nodes are not.
+
+--- tql ---
+type T = T [Node] deriving (Ord);
+main = pure 1;
+
+--- error ---
+category: unsatisfied-constraint
+span: 1:12-1:18
+`Ord Node` is not satisfied, so `T` cannot derive `Ord`
