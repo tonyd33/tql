@@ -155,51 +155,10 @@ fn parseTreeImpl(
     const tree = parser.parseString(target, null) orelse return error.SourceParseFailed;
     defer tree.destroy();
 
-    var cursor = tree.rootNode().walk();
-    defer cursor.destroy();
+    var rows: std.ArrayList(tql.inspect.Row) = .empty;
+    defer rows.deinit(gpa);
+    try tql.inspect.collect(gpa, &rows, tree.rootNode(), target, .{});
 
     var jws: std.json.Stringify = .{ .writer = &buf.writer };
-    try jws.beginArray();
-
-    var depth: u32 = 0;
-    while (true) {
-        const node = cursor.node();
-        try jws.beginObject();
-        try jws.objectField("depth");
-        try jws.write(depth);
-        try jws.objectField("fieldName");
-        if (cursor.fieldName()) |f| try jws.write(f) else try jws.write(null);
-        try jws.objectField("type");
-        try jws.write(node.kind());
-        try jws.objectField("isNamed");
-        try jws.write(node.isNamed());
-        try jws.objectField("isMissing");
-        try jws.write(node.isMissing());
-        try jws.objectField("startIndex");
-        try jws.write(node.startByte());
-        try jws.objectField("endIndex");
-        try jws.write(node.endByte());
-        try jws.objectField("startRow");
-        try jws.write(node.startPoint().row);
-        try jws.objectField("startCol");
-        try jws.write(node.startPoint().column);
-        try jws.objectField("endRow");
-        try jws.write(node.endPoint().row);
-        try jws.objectField("endCol");
-        try jws.write(node.endPoint().column);
-        try jws.endObject();
-
-        if (cursor.gotoFirstChild()) {
-            depth += 1;
-            continue;
-        }
-        while (true) {
-            if (cursor.gotoNextSibling()) break;
-            if (!cursor.gotoParent()) {
-                try jws.endArray();
-                return;
-            }
-            depth -= 1;
-        }
-    }
+    try tql.inspect.writeJson(rows.items, &jws);
 }

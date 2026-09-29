@@ -21,6 +21,8 @@ pub const core_to_core = @import("core_to_core.zig");
 pub const core_to_stg = @import("core_to_stg.zig");
 pub const stg = @import("stg.zig");
 
+pub const inspect = @import("inspect.zig");
+
 const grammar = @import("lang/grammar.zig");
 const string_literal = @import("lang/string_literal.zig");
 const pcre2 = @import("regex.zig");
@@ -313,6 +315,7 @@ test {
     refAllDecls(type_check);
     refAllDecls(core_to_stg);
     refAllDecls(stg);
+    refAllDecls(inspect);
 }
 
 test "a field symbol carries the grammar id it resolved" {
