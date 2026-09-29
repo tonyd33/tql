@@ -26,5 +26,5 @@ class C {}
 ["B", "C"]
 
 --- types ---
-runs : Node -> [Node]
-main : Node -> [String]
+runs :: Node -> [Node]
+main :: Node -> [String]

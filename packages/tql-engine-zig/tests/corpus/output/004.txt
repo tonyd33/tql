@@ -19,4 +19,4 @@ class A {}
 ]
 
 --- types ---
-main : Node -> [Range]
+main :: Node -> [Range]

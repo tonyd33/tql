@@ -13,5 +13,5 @@ class A {}
 [8]
 
 --- types ---
-limit : Int
-main : Node -> [Int]
+limit :: Int
+main :: Node -> [Int]

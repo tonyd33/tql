@@ -18,6 +18,6 @@ class A {}
 [765]
 
 --- types ---
-fst : P -> Int
-pick : a -> P -> Int
-main : Node -> [Int]
+fst :: P -> Int
+pick :: a -> P -> Int
+main :: Node -> [Int]

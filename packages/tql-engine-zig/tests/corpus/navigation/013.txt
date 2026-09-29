@@ -12,4 +12,4 @@ class A { m() {} }
 ["class_body"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

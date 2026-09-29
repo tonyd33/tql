@@ -382,7 +382,7 @@ test "instantiation replaces bound variables with fresh metavariables" {
     const t = try Fixture.init(gpa);
     defer t.deinit(gpa);
 
-    // `identity : Filter a a`, the shape `primitives.zig` writes at comptime.
+    // `identity :: Filter a a`, the shape `primitives.zig` writes at comptime.
     const scheme: types.Scheme = .{
         .quantified = 1,
         .type = try t.subst.datatypes.filter(t.subst.arena, types.variable_type(0), types.variable_type(0)),
@@ -670,7 +670,7 @@ test "a projection does not unify with a filter" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `kind : Node -> String`, and `main` needs `Filter Node output`. This is
+    // `kind :: Node -> String`, and `main` needs `Filter Node output`. This is
     // what rejects `main = kind`.
     const a = try fix.subst.fresh();
     _ = try fix.mismatch(
@@ -1398,7 +1398,7 @@ test "applying a saturated function is over-application, not a mismatch" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/011`: `inc 1 2` where `inc : Int -> Int`. The callee
+    // `errors/types/011`: `inc 1 2` where `inc :: Int -> Int`. The callee
     // resolved to a non-arrow, so there is nothing left to apply.
     const inc = try fix.define("inc", .{
         .type = comptime types.func_type(types.int_type, types.int_type),
@@ -1415,7 +1415,7 @@ test "applying a non-function is over-application" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/012`: `n 1` where `n : int`.
+    // `errors/types/012`: `n 1` where `n :: int`.
     const n = try fix.define("n", .{ .type = types.int_type });
     try fix.expectFails(try fix.app(fix.sym(n), fix.lit(.{ .number = 1 })), .over_application);
 }

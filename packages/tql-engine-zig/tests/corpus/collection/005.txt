@@ -17,4 +17,4 @@ class B { p() {} }
 [["m", "n"], ["p"]]
 
 --- types ---
-main : Node -> [[String]]
+main :: Node -> [[String]]

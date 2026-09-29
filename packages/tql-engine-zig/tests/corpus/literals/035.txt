@@ -18,5 +18,5 @@ class A {}
 ["A"]
 
 --- types ---
-name_of : Node -> [String]
-main : Node -> [String]
+name_of :: Node -> [String]
+main :: Node -> [String]

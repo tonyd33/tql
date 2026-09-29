@@ -33,4 +33,4 @@ class A {}
 [{ "k": "class_declaration", "n": "A" }]
 
 --- types ---
-main : Node -> [{k: String, n: String}]
+main :: Node -> [{k: String, n: String}]

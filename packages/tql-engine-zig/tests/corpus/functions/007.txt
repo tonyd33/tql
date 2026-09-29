@@ -6,7 +6,7 @@ The annotation is an instance of the inferred principal scheme, so it is
 accepted and becomes the exported scheme.
 
 --- tql ---
-name_of : Node -> [String];
+name_of :: Node -> [String];
 name_of = .name | arr text;
 main = children | of_kind :class_declaration | name_of;
 
@@ -17,5 +17,5 @@ class A {}
 ["A"]
 
 --- types ---
-name_of : Node -> [String]
-main : Node -> [String]
+name_of :: Node -> [String]
+main :: Node -> [String]

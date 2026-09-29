@@ -1,0 +1,15 @@
+title: list and cons patterns without `[]` name the empty list
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { [a, b] -> a; h : t -> h; };
+
+main = pure (f [1]);
+
+--- error ---
+error[type-mismatch]: `[]` is not matched
+ --> 1:8
+  |
+1 | f xs = case xs of { [a, b] -> a; h : t -> h; };
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

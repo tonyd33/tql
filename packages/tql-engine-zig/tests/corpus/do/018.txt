@@ -25,6 +25,6 @@ class B {}
 ["A", "B", "A", "B"]
 
 --- types ---
-with_do : Node -> [String]
-with_pipe : Node -> [String]
-main : Node -> [String]
+with_do :: Node -> [String]
+with_pipe :: Node -> [String]
+main :: Node -> [String]

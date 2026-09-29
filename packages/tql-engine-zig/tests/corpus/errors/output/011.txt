@@ -6,7 +6,7 @@ The body infers `Node -> String`. The annotation claims a more general scheme
 that the body does not support.
 
 --- tql ---
-f : a -> a;
+f :: a -> a;
 f = kind;
 main = arr f;
 
@@ -14,5 +14,5 @@ main = arr f;
 error[signature-mismatch]: Expected `Node`, found `String`.
  --> 1:1
   |
-1 | f : a -> a;
-  | ^^^^^^^^^^^
+1 | f :: a -> a;
+  | ^^^^^^^^^^^^

@@ -15,4 +15,4 @@ let s = "héllo";
 [8]
 
 --- types ---
-main : Node -> [Int]
+main :: Node -> [Int]

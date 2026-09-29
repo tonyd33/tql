@@ -16,5 +16,5 @@ class A {}
 ["none"]
 
 --- types ---
-method_names : Node -> [String]
-main : Node -> [String]
+method_names :: Node -> [String]
+main :: Node -> [String]

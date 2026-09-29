@@ -21,4 +21,4 @@ class A { m() {} }
 ["m"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

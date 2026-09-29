@@ -16,4 +16,4 @@ class A {}
 [{ "name": "A", "size": 10 }]
 
 --- types ---
-main : Node -> [{name: String, size: Int}]
+main :: Node -> [{name: String, size: Int}]

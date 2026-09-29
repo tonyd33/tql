@@ -1,0 +1,15 @@
+title: a list pattern after a cons pattern is never matched
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { h : t -> h; [a] -> a; [] -> 0; };
+
+main = pure (f [1]);
+
+--- error ---
+error[type-mismatch]: `[a]` is never matched
+ --> 1:33
+  |
+1 | f xs = case xs of { h : t -> h; [a] -> a; [] -> 0; };
+  |                                 ^^^

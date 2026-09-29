@@ -6,13 +6,13 @@ Parentheses around a context are for two or more constraints. `(Sized a)`
 is a parenthesized type, so the `=>` after it does not parse.
 
 --- tql ---
-size : (Sized a) => a -> Int;
+size :: (Sized a) => a -> Int;
 size x = length x;
 main = const [size "abc"];
 
 --- error ---
 error[parse]: syntax error
- --> 1:18
+ --> 1:19
   |
-1 | size : (Sized a) => a -> Int;
-  |                  ^^^^
+1 | size :: (Sized a) => a -> Int;
+  |                   ^^^^

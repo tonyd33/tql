@@ -16,4 +16,4 @@ class B {}
 [[{ "name": "A" }, { "name": "B" }]]
 
 --- types ---
-main : Node -> [[{name: String}]]
+main :: Node -> [[{name: String}]]

@@ -7,7 +7,7 @@ re-enters an `evaluating` thunk. An implementation may detect the cycle with a
 black-hole marker and report it, but the specified semantics is divergence.
 
 --- tql ---
-loop : Node -> [String];
+loop :: Node -> [String];
 loop = loop;
 main = loop;
 
@@ -18,5 +18,5 @@ Forcing an `evaluating` thunk. A black-hole detection error is a permitted
 implementation behavior; a value is not.
 
 --- types ---
-loop : Node -> [String]
-main : Node -> [String]
+loop :: Node -> [String]
+main :: Node -> [String]

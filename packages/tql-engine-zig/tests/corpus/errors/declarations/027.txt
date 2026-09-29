@@ -6,13 +6,13 @@ The classes are `Eq`, `Ord`, `Sized` and `Serial`. An unknown one is not
 ignored.
 
 --- tql ---
-f : Show a => a -> a;
+f :: Show a => a -> a;
 f x = x;
 main = const [f 1];
 
 --- error ---
 error[unresolved-name]: `Show` is not a class
- --> 1:5
+ --> 1:6
   |
-1 | f : Show a => a -> a;
-  |     ^^^^^^
+1 | f :: Show a => a -> a;
+  |      ^^^^^^

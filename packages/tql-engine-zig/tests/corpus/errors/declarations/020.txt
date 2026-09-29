@@ -7,7 +7,7 @@ write it, so `a -> a -> Bool` claims more than the body supports, even though
 every use here is at `Int`.
 
 --- tql ---
-same : a -> a -> Bool;
+same :: a -> a -> Bool;
 same x y = x = y;
 main = pure (same 1 1);
 
@@ -15,5 +15,5 @@ main = pure (same 1 1);
 error[signature-mismatch]: `Eq a` is not satisfied.
  --> 1:1
   |
-1 | same : a -> a -> Bool;
-  | ^^^^^^^^^^^^^^^^^^^^^^
+1 | same :: a -> a -> Bool;
+  | ^^^^^^^^^^^^^^^^^^^^^^^

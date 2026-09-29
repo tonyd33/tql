@@ -15,4 +15,4 @@ class A { m() {} }
 [false]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

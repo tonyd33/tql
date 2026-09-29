@@ -17,5 +17,5 @@ class B {}
 [true, false]
 
 --- types ---
-matcher : String -> Node -> [Bool]
-main : Node -> [Bool]
+matcher :: String -> Node -> [Bool]
+main :: Node -> [Bool]

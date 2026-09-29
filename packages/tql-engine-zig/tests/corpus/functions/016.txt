@@ -16,5 +16,5 @@ class A {}
 [1, 2]
 
 --- types ---
-pick : a -> b -> a
-main : Node -> [Int]
+pick :: a -> b -> a
+main :: Node -> [Int]

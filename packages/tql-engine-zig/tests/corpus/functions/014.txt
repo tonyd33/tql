@@ -16,5 +16,5 @@ class A {}
 [6]
 
 --- types ---
-main : Node -> [Int]
-helper : Int -> Int
+main :: Node -> [Int]
+helper :: Int -> Int

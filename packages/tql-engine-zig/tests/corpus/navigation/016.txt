@@ -15,4 +15,4 @@ class A { m() {} }
 []
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

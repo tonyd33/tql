@@ -5,11 +5,13 @@
 ### Breaking Changes
 
 - A bare `.` is no longer the identity filter; write `arr identity`.
+- Signatures are written `f :: T`, and inferred types print that way.
 
 ### New Features
 
 - Added `f . g` for function composition.
 - Added `a >> b` for sequencing, as a `do` expression statement.
+- Added list patterns `[]` and `[a, b]`, and cons `h : t` in patterns and expressions. `x:xs` is cons; `:k` after whitespace is still a kind.
 
 ## 0.3.1 (unreleased)
 

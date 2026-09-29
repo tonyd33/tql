@@ -383,3 +383,236 @@ main = case f x of { Nil -> Nil; Cons h t -> t };
           argument: (identifier)
           argument: (identifier))
         body: (identifier)))))
+
+========================================
+an empty list pattern
+========================================
+
+main = case xs of { [] -> 0; _ -> 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (list_pattern)
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+a list pattern
+========================================
+
+main = case xs of { [a, b,] -> a; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (list_pattern
+          (identifier)
+          (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+a list pattern nests constructor patterns
+========================================
+
+main = case xs of { [Just a, _] -> a; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (list_pattern
+          (constructor_pattern
+            constructor: (type_identifier)
+            argument: (identifier))
+          (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+a list pattern is a constructor argument
+========================================
+
+main = case m of { Just [a] -> a; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (list_pattern
+            (identifier)))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+an attached cons pattern
+========================================
+
+main = case xs of { x:rest -> x; [] -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (cons_pattern
+          head: (identifier)
+          tail: (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (list_pattern)
+        body: (number)))))
+
+========================================
+a spaced cons pattern
+========================================
+
+main = case xs of { x : rest -> x; [] -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (cons_pattern
+          head: (identifier)
+          tail: (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (list_pattern)
+        body: (number)))))
+
+========================================
+a constructor with arguments heads a cons pattern
+========================================
+
+main = case xs of { Just a : t -> a; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (cons_pattern
+          head: (constructor_pattern
+            constructor: (type_identifier)
+            argument: (identifier))
+          tail: (identifier))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+an attached cons
+========================================
+
+main = x:xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (identifier)
+      right: (identifier))))
+
+========================================
+a spaced cons
+========================================
+
+main = x : xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (identifier)
+      right: (identifier))))
+
+========================================
+an attached cons onto a list literal
+========================================
+
+main = 1:[2];
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (number)
+      right: (list
+        (number)))))
+
+========================================
+a kind after whitespace is not cons
+========================================
+
+main = x :xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (kind))))
+
+========================================
+kinds in a list are not cons
+========================================
+
+main = [:a, :b];
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (list
+      (kind)
+      (kind))))

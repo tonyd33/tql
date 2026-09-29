@@ -587,42 +587,42 @@ test "the prelude's schemes are inferred" {
 
     for (result.definitions[0..result.entry_offset], 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{result.env.interner.spelling(definition.symbol)});
+        try w.writer.print("{s} :: ", .{result.env.interner.spelling(definition.symbol)});
         try result.env.schemeOf(definition.symbol).?.format(&w.writer);
     }
 
     try std.testing.expectEqualStrings(
-        \\identity : a -> a
-        \\const : a -> b -> a
-        \\compose : (a -> b) -> (c -> a) -> c -> b
-        \\flip : (a -> b -> c) -> b -> a -> c
-        \\null : [a] -> Bool
-        \\append : [a] -> [a] -> [a]
-        \\concat : [[a]] -> [a]
-        \\map : (a -> b) -> [a] -> [b]
-        \\concat_map : (a -> [b]) -> [a] -> [b]
-        \\filter : (a -> Bool) -> [a] -> [a]
-        \\foldr : (a -> b -> b) -> b -> [a] -> b
-        \\not : Bool -> Bool
-        \\and : Bool -> Bool -> Bool
-        \\or : Bool -> Bool -> Bool
-        \\any : (a -> Bool) -> [a] -> Bool
-        \\all : (a -> Bool) -> [a] -> Bool
-        \\guard : Bool -> [Unit]
-        \\return : a -> [a]
-        \\take : Int -> [a] -> [a]
-        \\drop : Int -> [a] -> [a]
-        \\head : [a] -> [a]
-        \\tail : [a] -> [a]
-        \\pure : a -> b -> [a]
-        \\none : a -> [b]
-        \\kleisli : (a -> [b]) -> (b -> [c]) -> a -> [c]
-        \\alt : (a -> [b]) -> (a -> [b]) -> a -> [b]
-        \\arr : (a -> b) -> a -> [b]
-        \\collect : (a -> [b]) -> a -> [[b]]
-        \\keep : (a -> Bool) -> a -> [a]
-        \\has : (a -> [b]) -> a -> Bool
-        \\first : (a -> [b]) -> a -> [b]
-        \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\identity :: a -> a
+        \\const :: a -> b -> a
+        \\compose :: (a -> b) -> (c -> a) -> c -> b
+        \\flip :: (a -> b -> c) -> b -> a -> c
+        \\null :: [a] -> Bool
+        \\append :: [a] -> [a] -> [a]
+        \\concat :: [[a]] -> [a]
+        \\map :: (a -> b) -> [a] -> [b]
+        \\concat_map :: (a -> [b]) -> [a] -> [b]
+        \\filter :: (a -> Bool) -> [a] -> [a]
+        \\foldr :: (a -> b -> b) -> b -> [a] -> b
+        \\not :: Bool -> Bool
+        \\and :: Bool -> Bool -> Bool
+        \\or :: Bool -> Bool -> Bool
+        \\any :: (a -> Bool) -> [a] -> Bool
+        \\all :: (a -> Bool) -> [a] -> Bool
+        \\guard :: Bool -> [Unit]
+        \\return :: a -> [a]
+        \\take :: Int -> [a] -> [a]
+        \\drop :: Int -> [a] -> [a]
+        \\head :: [a] -> [a]
+        \\tail :: [a] -> [a]
+        \\pure :: a -> b -> [a]
+        \\none :: a -> [b]
+        \\kleisli :: (a -> [b]) -> (b -> [c]) -> a -> [c]
+        \\alt :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\arr :: (a -> b) -> a -> [b]
+        \\collect :: (a -> [b]) -> a -> [[b]]
+        \\keep :: (a -> Bool) -> a -> [a]
+        \\has :: (a -> [b]) -> a -> Bool
+        \\first :: (a -> [b]) -> a -> [b]
+        \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
     , w.written());
 }

@@ -9,4 +9,4 @@ main = const [null [], null [1]];
 [true, false]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

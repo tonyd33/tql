@@ -17,4 +17,4 @@ class B {}
 main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr text)
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

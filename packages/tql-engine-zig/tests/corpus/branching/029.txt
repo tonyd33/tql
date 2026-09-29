@@ -1,0 +1,17 @@
+title: an attached cons pattern nests
+grammar: typescript
+asserts: values
+
+--- tql ---
+second xs = case xs of {
+  _:b:_ -> [b];
+  _ -> [];
+};
+
+main = pure (second [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[[2]]

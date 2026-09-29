@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-names_of : Kind -> Filter Node String;
+names_of :: Kind -> Filter Node String;
 names_of k = descendants_of_kind k | .name | arr text;
 
 main = names_of :class_declaration <|> names_of :interface_declaration;
@@ -21,5 +21,5 @@ names_of = \k -> kleisli (kleisli (descendants_of_kind k) field[name]) (arr text
 main = alt (names_of :class_declaration) (names_of :interface_declaration)
 
 --- types ---
-names_of : Kind -> Node -> [String]
-main : Node -> [String]
+names_of :: Kind -> Node -> [String]
+main :: Node -> [String]

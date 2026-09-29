@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-pick : (Eq a, Sized a) => a -> a -> Int;
+pick :: (Eq a, Sized a) => a -> a -> Int;
 pick x y = if x = y then length x else 0;
 main = const [pick "ab" "ab", pick "ab" "cd"];
 
@@ -14,5 +14,5 @@ class A {}
 [2, 0]
 
 --- types ---
-pick : (Eq a, Sized a) => a -> a -> Int
-main : Node -> [Int]
+pick :: (Eq a, Sized a) => a -> a -> Int
+main :: Node -> [Int]

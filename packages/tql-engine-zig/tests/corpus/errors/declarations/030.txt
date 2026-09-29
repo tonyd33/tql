@@ -6,7 +6,7 @@ asserts: error
 other.
 
 --- tql ---
-less : Eq a => a -> a -> Bool;
+less :: Eq a => a -> a -> Bool;
 less x y = x < y;
 main = const [less 1 2];
 
@@ -14,5 +14,5 @@ main = const [less 1 2];
 error[signature-mismatch]: `Ord a` is not satisfied.
  --> 1:1
   |
-1 | less : Eq a => a -> a -> Bool;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | less :: Eq a => a -> a -> Bool;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

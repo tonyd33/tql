@@ -6,12 +6,12 @@ Each signature annotates exactly one definition in the same program. `g` has no
 definition.
 
 --- tql ---
-g : Filter Node String;
+g :: Filter Node String;
 main = arr kind;
 
 --- error ---
 error[orphan-signature]: `g` has a signature but no definition
  --> 1:1
   |
-1 | g : Filter Node String;
-  | ^^^^^^^^^^^^^^^^^^^^^^^
+1 | g :: Filter Node String;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^

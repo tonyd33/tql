@@ -21,4 +21,4 @@ class A {}
 [11, 12, 21, 22]
 
 --- types ---
-main : Node -> [Int]
+main :: Node -> [Int]

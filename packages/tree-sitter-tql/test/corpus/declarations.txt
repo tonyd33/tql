@@ -98,7 +98,7 @@ main = is_even 4;
 a signature
 ========================================
 
-main : Filter node string;
+main :: Filter node string;
 main = kind;
 
 ---
@@ -117,7 +117,7 @@ main = kind;
 a function-typed signature
 ========================================
 
-name_of : Filter node node -> Filter node string;
+name_of :: Filter node node -> Filter node string;
 
 ---
 
@@ -136,7 +136,7 @@ name_of : Filter node node -> Filter node string;
 a signature with one constraint
 ========================================
 
-size : Sized a => a -> Int;
+size :: Sized a => a -> Int;
 
 ---
 
@@ -155,7 +155,7 @@ size : Sized a => a -> Int;
 a signature with several constraints
 ========================================
 
-f : (Eq a, Ord b) => a -> b -> Bool;
+f :: (Eq a, Ord b) => a -> b -> Bool;
 
 ---
 
@@ -179,7 +179,7 @@ f : (Eq a, Ord b) => a -> b -> Bool;
 a parenthesized type application is not a context
 ========================================
 
-f : (Maybe a) -> Int;
+f :: (Maybe a) -> Int;
 
 ---
 
@@ -197,8 +197,8 @@ f : (Maybe a) -> Int;
 list and record types
 ========================================
 
-f : [Filter node string];
-g : { name: string, size: int };
+f :: [Filter node string];
+g :: { name: string, size: int };
 
 ---
 
@@ -293,7 +293,7 @@ type Pair = MkPair Int [String];
 a signature naming a declared type at its arguments
 ========================================
 
-f : List Int -> Bool;
+f :: List Int -> Bool;
 
 ---
 

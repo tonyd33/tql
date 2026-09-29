@@ -518,9 +518,9 @@ const Walker = struct {
                 return null;
             }
         else
-            // `union`, `pipe`, `logical_and`, `logical_or`, `composition` and
-            // `then` spell their operator in the rule name rather than an
-            // `operator:` field.
+            // `union`, `pipe`, `logical_and`, `logical_or`, `composition`,
+            // `then` and `cons` spell their operator in the rule name rather
+            // than an `operator:` field.
             binaryOperatorOf(node.grammarKind()) orelse {
                 try self.missingField(node, "operator");
                 return null;
@@ -694,6 +694,36 @@ const Walker = struct {
                     .name = try self.dupe(name_node),
                     .arguments = try arguments.toOwnedSlice(self.allocator),
                 } },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "list_pattern")) {
+            var elements: std.ArrayList(cst.Pattern) = .empty;
+            var i: u32 = 0;
+            while (i < node.namedChildCount()) : (i += 1) {
+                const child = node.namedChild(i).?;
+                if (child.isExtra()) continue;
+                const element = try self.casePattern(child) orelse return null;
+                try elements.append(self.allocator, element);
+            }
+            return .{
+                .kind = .{ .list = try elements.toOwnedSlice(self.allocator) },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "cons_pattern")) {
+            const head_node = node.childByFieldName("head") orelse {
+                try self.missingField(node, "head");
+                return null;
+            };
+            const tail_node = node.childByFieldName("tail") orelse {
+                try self.missingField(node, "tail");
+                return null;
+            };
+            const head = try self.casePattern(head_node) orelse return null;
+            const tail = try self.casePattern(tail_node) orelse return null;
+            return .{
+                .kind = .{ .cons = try self.boxed(cst.Pattern.Cons{ .head = head, .tail = tail }) },
                 .span = span,
             };
         }
@@ -1048,6 +1078,7 @@ fn binaryOperatorOf(kind: []const u8) ?cst.BinaryOperator {
     if (std.mem.eql(u8, kind, "multiplicative")) return .multiply;
     if (std.mem.eql(u8, kind, "composition")) return .compose;
     if (std.mem.eql(u8, kind, "then")) return .then;
+    if (std.mem.eql(u8, kind, "cons")) return .cons;
     return null;
 }
 
@@ -1145,6 +1176,24 @@ test "a case pattern nests constructors and binds variables" {
     );
 }
 
+test "list and cons patterns keep their shape" {
+    try expectSexpr(
+        "main = case xs of { [] -> 0; [Just a, _] -> a; h:t -> h; a : b : t -> b };",
+        "(source_file (define main (params) (case xs " ++
+            "(alt (list) 0) " ++
+            "(alt (list (Just a) _) a) " ++
+            "(alt (: h t) h) " ++
+            "(alt (: a (: b t)) b))))",
+    );
+}
+
+test "cons is right-associative, between comparison and addition" {
+    try expectSexpr(
+        "main = a + 1 : b:xs = ys;",
+        "(source_file (define main (params) (= (: (+ a 1) (: b xs)) ys)))",
+    );
+}
+
 test "a let group with several bindings" {
     try expectSexpr(
         "main = let { a = 1; b = 2 } in a + b;",
@@ -1177,21 +1226,21 @@ test "a do-local let statement" {
 
 test "a signature" {
     try expectSexpr(
-        "main : Filter node string;",
+        "main :: Filter node string;",
         "(source_file (signature main (Filter node string)))",
     );
 }
 
 test "a function-typed signature" {
     try expectSexpr(
-        "f : Filter node node -> Filter node string;",
+        "f :: Filter node node -> Filter node string;",
         "(source_file (signature f (-> (Filter node node) (Filter node string))))",
     );
 }
 
 test "a signature with a context" {
     try expectSexpr(
-        "f : (Eq a, Sized b) => a -> b -> Int;",
+        "f :: (Eq a, Sized b) => a -> b -> Int;",
         "(source_file (signature f (=> (Eq a) (Sized b)) (-> a (-> b Int))))",
     );
 }

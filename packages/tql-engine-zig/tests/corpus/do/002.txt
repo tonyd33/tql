@@ -18,4 +18,4 @@ class A {}
 ["class_declaration"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

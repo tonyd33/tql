@@ -18,5 +18,5 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate : a -> [Node -> [String]]
-main : Node -> [String]
+make_predicate :: a -> [Node -> [String]]
+main :: Node -> [String]

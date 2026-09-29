@@ -32,6 +32,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -164,6 +168,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -288,6 +296,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -403,6 +415,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -537,6 +553,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -684,6 +704,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -828,6 +852,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -922,11 +950,19 @@
         "required": true,
         "types": [
           {
+            "type": "cons_pattern",
+            "named": true
+          },
+          {
             "type": "constructor_pattern",
             "named": true
           },
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
             "named": true
           },
           {
@@ -967,6 +1003,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -1130,6 +1170,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1286,6 +1330,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1410,6 +1458,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1528,6 +1580,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -1620,6 +1676,310 @@
     }
   },
   {
+    "type": "cons",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive",
+            "named": true
+          },
+          {
+            "type": "application",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "comparison",
+            "named": true
+          },
+          {
+            "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_application",
+            "named": true
+          },
+          {
+            "type": "field_access",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_field",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "logical_and",
+            "named": true
+          },
+          {
+            "type": "logical_or",
+            "named": true
+          },
+          {
+            "type": "multiplicative",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "then",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "union",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive",
+            "named": true
+          },
+          {
+            "type": "application",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "comparison",
+            "named": true
+          },
+          {
+            "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_application",
+            "named": true
+          },
+          {
+            "type": "field_access",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_field",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "logical_and",
+            "named": true
+          },
+          {
+            "type": "logical_or",
+            "named": true
+          },
+          {
+            "type": "multiplicative",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "then",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "union",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "cons_pattern",
+    "named": true,
+    "fields": {
+      "head": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "constructor_pattern",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "parenthesized_pattern",
+            "named": true
+          }
+        ]
+      },
+      "tail": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "cons_pattern",
+            "named": true
+          },
+          {
+            "type": "constructor_pattern",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "parenthesized_pattern",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "constructor_declaration",
     "named": true,
     "fields": {
@@ -1671,6 +2031,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
             "named": true
           },
           {
@@ -1740,6 +2104,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -1891,6 +2259,10 @@
           "named": true
         },
         {
+          "type": "cons",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -2018,6 +2390,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2133,6 +2509,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -2267,6 +2647,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -2530,6 +2914,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2648,6 +3036,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -2763,6 +3155,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -2887,6 +3283,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -3050,6 +3450,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3194,6 +3598,10 @@
           "named": true
         },
         {
+          "type": "cons",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -3285,6 +3693,37 @@
     }
   },
   {
+    "type": "list_pattern",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "cons_pattern",
+          "named": true
+        },
+        {
+          "type": "constructor_pattern",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "list_pattern",
+          "named": true
+        },
+        {
+          "type": "parenthesized_pattern",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "list_type",
     "named": true,
     "fields": {},
@@ -3357,6 +3796,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -3475,6 +3918,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -3602,6 +4049,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -3717,6 +4168,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -3841,6 +4296,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -3980,6 +4439,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4104,6 +4567,10 @@
           "named": true
         },
         {
+          "type": "cons",
+          "named": true
+        },
+        {
           "type": "do_expression",
           "named": true
         },
@@ -4203,11 +4670,19 @@
       "required": true,
       "types": [
         {
+          "type": "cons_pattern",
+          "named": true
+        },
+        {
           "type": "constructor_pattern",
           "named": true
         },
         {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "list_pattern",
           "named": true
         },
         {
@@ -4290,6 +4765,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -4408,6 +4887,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -4557,6 +5040,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -4841,6 +5328,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -4956,6 +5447,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -5161,6 +5656,10 @@
             "named": true
           },
           {
+            "type": "cons",
+            "named": true
+          },
+          {
             "type": "do_expression",
             "named": true
           },
@@ -5276,6 +5775,10 @@
           },
           {
             "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
             "named": true
           },
           {
@@ -5424,6 +5927,10 @@
   },
   {
     "type": ":",
+    "named": false
+  },
+  {
+    "type": "::",
     "named": false
   },
   {

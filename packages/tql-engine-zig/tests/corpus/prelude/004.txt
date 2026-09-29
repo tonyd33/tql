@@ -18,5 +18,5 @@ class B {}
 [true, false]
 
 --- types ---
-methods : Node -> [Node]
-main : Node -> [Bool]
+methods :: Node -> [Node]
+main :: Node -> [Bool]

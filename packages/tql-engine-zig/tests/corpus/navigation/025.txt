@@ -18,5 +18,5 @@ k_of = \k -> is_kind k
 main = kleisli (kleisli descendants (keep (k_of :string))) (arr text)
 
 --- types ---
-k_of : Kind -> Node -> Bool
-main : Node -> [String]
+k_of :: Kind -> Node -> Bool
+main :: Node -> [String]

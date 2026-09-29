@@ -14,5 +14,5 @@ class A {}
 [42]
 
 --- types ---
-or_default : Maybe a -> a -> a
-main : Node -> [Int]
+or_default :: Maybe a -> a -> a
+main :: Node -> [Int]

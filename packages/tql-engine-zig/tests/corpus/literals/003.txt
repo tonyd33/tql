@@ -16,4 +16,4 @@ class B {}
 [1, 1]
 
 --- types ---
-main : Node -> [Int]
+main :: Node -> [Int]

@@ -5,7 +5,7 @@ asserts: error
 The signature writes `Eq a`, but `length` needs `Sized a`.
 
 --- tql ---
-size : Eq a => a -> Int;
+size :: Eq a => a -> Int;
 size x = length x;
 main = const [size "abc"];
 
@@ -13,5 +13,5 @@ main = const [size "abc"];
 error[signature-mismatch]: `Sized a` is not satisfied.
  --> 1:1
   |
-1 | size : Eq a => a -> Int;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^
+1 | size :: Eq a => a -> Int;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

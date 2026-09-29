@@ -24,4 +24,4 @@ class Service {}
 ]
 
 --- types ---
-main : Node -> [Node]
+main :: Node -> [Node]

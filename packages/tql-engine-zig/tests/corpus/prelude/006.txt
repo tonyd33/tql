@@ -22,5 +22,5 @@ class B {}
 [false]
 
 --- types ---
-getters : Node -> [Node]
-main : Node -> [Bool]
+getters :: Node -> [Node]
+main :: Node -> [Bool]

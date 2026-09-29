@@ -5,7 +5,7 @@ asserts: error
 `size` exports `Sized a => a -> Int`, and `Node` is not `Sized`.
 
 --- tql ---
-size : Sized a => a -> Int;
+size :: Sized a => a -> Int;
 size x = length x;
 main = children | arr (\c -> size c);
 

@@ -41,16 +41,21 @@ pub fn caseOf(
         try lowerer.sink.report(.type_mismatch, span, "a case has no alternatives", .{});
         return error.DesugarFailed;
     }
-    for (c.alternatives) |alternative| try checkPattern(lowerer, alternative.pattern);
+    const b = lowerer.builder;
+    const expanded = try b.slice(cst.Case.Alternative, c.alternatives.len);
+    for (c.alternatives, expanded) |alternative, *out| {
+        out.* = alternative;
+        out.pattern = try expand(b, alternative.pattern);
+    }
+    for (expanded) |alternative| try checkPattern(lowerer, alternative.pattern);
 
     const root = switch (scrutinee.kind) {
         .symbol => |s| s,
         else => try lowerer.interner.fresh("scrutinee"),
     };
 
-    const b = lowerer.builder;
-    const rows = try b.slice(Row, c.alternatives.len);
-    for (c.alternatives, rows, 0..) |alternative, *row, i| {
+    const rows = try b.slice(Row, expanded.len);
+    for (expanded, rows, 0..) |alternative, *row, i| {
         row.* = .{
             .patterns = try b.dupeSlice(cst.Pattern, &.{alternative.pattern}),
             .bindings = &.{},
@@ -60,7 +65,7 @@ pub fn caseOf(
 
     var matcher: Matcher = .{
         .lowerer = lowerer,
-        .alternatives = c.alternatives,
+        .alternatives = expanded,
         .span = span,
         .root = root,
         .uses = try b.slice(u32, c.alternatives.len),
@@ -83,7 +88,7 @@ pub fn caseOf(
 
     const shared = try b.slice(?core.SymbolId, c.alternatives.len);
     var bindings: std.ArrayList(core.Letrec.Binding) = .empty;
-    for (c.alternatives, matcher.uses, shared) |alternative, uses, *slot| {
+    for (expanded, matcher.uses, shared) |alternative, uses, *slot| {
         slot.* = null;
         if (uses < 2) continue;
         const symbol = try lowerer.interner.fresh("alternative");
@@ -96,7 +101,7 @@ pub fn caseOf(
 
     const emitter: Emitter = .{
         .lowerer = lowerer,
-        .alternatives = c.alternatives,
+        .alternatives = expanded,
         .scope = scope,
         .span = span,
         .root = root,
@@ -117,6 +122,42 @@ pub fn caseOf(
         term = try b.letrec(try bindings.toOwnedSlice(b.allocator), term, span);
     }
     return term;
+}
+
+/// Rewrite list and cons patterns as `Cons` and `Nil` constructor patterns.
+/// Everything past `caseOf`'s entry sees only variables and constructors.
+fn expand(b: core.Builder, pattern: cst.Pattern) Error!cst.Pattern {
+    switch (pattern.kind) {
+        .variable => return pattern,
+        .constructor => |c| {
+            const arguments = try b.slice(cst.Pattern, c.arguments.len);
+            for (c.arguments, arguments) |argument, *out| out.* = try expand(b, argument);
+            return constructorPattern(c.name, arguments, pattern.span);
+        },
+        .cons => |c| return try cell(b, try expand(b, c.head), try expand(b, c.tail), pattern.span),
+        .list => |elements| {
+            var spine = constructorPattern("Nil", &.{}, pattern.span);
+            var i = elements.len;
+            while (i > 0) {
+                i -= 1;
+                // An inner cell spans its head element.
+                const span = if (i == 0) pattern.span else elements[i].span;
+                spine = try cell(b, try expand(b, elements[i]), spine, span);
+            }
+            return spine;
+        },
+    }
+}
+
+fn cell(b: core.Builder, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
+    const arguments = try b.slice(cst.Pattern, 2);
+    arguments[0] = head;
+    arguments[1] = tail;
+    return constructorPattern("Cons", arguments, span);
+}
+
+fn constructorPattern(name: []const u8, arguments: []const cst.Pattern, span: diagnostic.Span) cst.Pattern {
+    return .{ .kind = .{ .constructor = .{ .name = name, .arguments = arguments } }, .span = span };
 }
 
 /// Reject a pattern naming an unknown constructor, giving a constructor the
@@ -160,6 +201,7 @@ fn checkPatternInto(
             }
             for (c.arguments) |argument| try checkPatternInto(lowerer, argument, seen);
         },
+        .list, .cons => unreachable,
     }
 }
 
@@ -209,6 +251,7 @@ fn variables(
     switch (pattern.kind) {
         .variable => |name| if (!isWildcard(name)) try out.append(allocator, name),
         .constructor => |c| for (c.arguments) |argument| try variables(allocator, argument, out),
+        .list, .cons => unreachable,
     }
 }
 
@@ -353,6 +396,7 @@ const Matcher = struct {
             const c = switch (pattern.kind) {
                 .constructor => |c| c,
                 .variable => continue,
+                .list, .cons => unreachable,
             };
             const id = self.lowerer.interner.lookup(c.name).?;
             const this = datatypes.ownerOf(self.lowerer.interner, id).?;
@@ -404,6 +448,7 @@ const Matcher = struct {
                     @memset(wildcards, wildcard);
                     break :blk wildcards;
                 },
+                .list, .cons => unreachable,
             };
             try out.append(b.allocator, .{
                 .patterns = try std.mem.concat(b.allocator, cst.Pattern, &.{
@@ -444,9 +489,11 @@ fn fieldName(
                 switch (c.arguments[index].kind) {
                     .variable => |name| if (!isWildcard(name)) return name,
                     .constructor => tested = true,
+                    .list, .cons => unreachable,
                 }
             },
             .variable => {},
+            .list, .cons => unreachable,
         }
     }
     return if (tested) null else "_";
@@ -515,15 +562,54 @@ const Witness = struct {
 
     pub fn format(self: Witness, w: *std.Io.Writer) std.Io.Writer.Error!void {
         const step = self.matcher.stepFor(self.occurrence) orelse return w.writeAll("_");
+        if (self.isList(step)) return self.formatList(w, step);
         const name = self.matcher.lowerer.interner.spelling(step.constructor);
         const parenthesize = self.nested and step.fields.len > 0;
         if (parenthesize) try w.writeByte('(');
         try w.writeAll(name);
         for (step.fields) |field| {
             try w.writeByte(' ');
-            try (Witness{ .matcher = self.matcher, .occurrence = field, .nested = true }).format(w);
+            try self.at(field, true).format(w);
         }
         if (parenthesize) try w.writeByte(')');
+    }
+
+    fn at(self: Witness, occurrence: core.SymbolId, nested: bool) Witness {
+        return .{ .matcher = self.matcher, .occurrence = occurrence, .nested = nested };
+    }
+
+    fn isList(self: Witness, step: Step) bool {
+        const lowerer = self.matcher.lowerer;
+        return datatypes.ownerOf(lowerer.interner, step.constructor) == lowerer.datatypes.listId();
+    }
+
+    /// The step fixing the tail of the chain starting at `step`: a `Nil`, or
+    /// null for a tail no test has fixed.
+    fn end(self: Witness, step: Step) ?Step {
+        var cursor = step;
+        while (cursor.fields.len == 2) {
+            cursor = self.matcher.stepFor(cursor.fields[1]) orelse return null;
+        }
+        return cursor;
+    }
+
+    /// `[a, b]` when the chain ends in `Nil`, `a : b : _` when its tail is open.
+    fn formatList(self: Witness, w: *std.Io.Writer, first: Step) std.Io.Writer.Error!void {
+        const closed = self.end(first) != null;
+        const parenthesize = self.nested and !closed;
+        try w.writeAll(if (closed) "[" else if (parenthesize) "(" else "");
+        var cursor: ?Step = first;
+        var i: usize = 0;
+        while (cursor) |step| : (i += 1) {
+            if (step.fields.len == 0) break;
+            if (i > 0) try w.writeAll(if (closed) ", " else " : ");
+            const head = self.matcher.stepFor(step.fields[0]);
+            const open_head = if (head) |h| self.isList(h) and self.end(h) == null else false;
+            try self.at(step.fields[0], open_head).format(w);
+            cursor = self.matcher.stepFor(step.fields[1]);
+            if (cursor == null) try w.writeAll(" : _");
+        }
+        try w.writeAll(if (closed) "]" else if (parenthesize) ")" else "");
     }
 };
 
@@ -544,6 +630,21 @@ const Written = struct {
                     try (Written{ .pattern = argument, .nested = true }).format(w);
                 }
                 if (parenthesize) try w.writeByte(')');
+            },
+            .list => |elements| {
+                try w.writeByte('[');
+                for (elements, 0..) |element, i| {
+                    if (i > 0) try w.writeAll(", ");
+                    try (Written{ .pattern = element }).format(w);
+                }
+                try w.writeByte(']');
+            },
+            .cons => |c| {
+                if (self.nested) try w.writeByte('(');
+                try (Written{ .pattern = c.head, .nested = c.head.kind == .cons }).format(w);
+                try w.writeAll(" : ");
+                try (Written{ .pattern = c.tail }).format(w);
+                if (self.nested) try w.writeByte(')');
             },
         }
     }

@@ -21,6 +21,6 @@ class A {}
 ["local", "global"]
 
 --- types ---
-label : String
-main : Node -> [String]
-other : String
+label :: String
+main :: Node -> [String]
+other :: String

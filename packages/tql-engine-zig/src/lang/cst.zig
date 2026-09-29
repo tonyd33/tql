@@ -25,7 +25,7 @@ pub const SourceFile = struct {
     }
 };
 
-/// `name : type;` or `name p1 p2 = body;`.
+/// `name :: type;` or `name p1 p2 = body;`.
 pub const Declaration = union(enum) {
     signature: Signature,
     definition: Definition,
@@ -44,7 +44,7 @@ pub const Declaration = union(enum) {
     }
 };
 
-/// `name : context => type;`, where the context may be absent.
+/// `name :: context => type;`, where the context may be absent.
 pub const Signature = struct {
     name: Identifier,
     context: []const ClassConstraint = &.{},
@@ -166,6 +166,7 @@ pub const BinaryOperator = enum {
     stream_union,
     compose,
     then,
+    cons,
 
     pub fn spelling(self: BinaryOperator) []const u8 {
         return switch (self) {
@@ -188,6 +189,7 @@ pub const BinaryOperator = enum {
             .stream_union => "<|>",
             .compose => ".",
             .then => ">>",
+            .cons => ":",
         };
     }
 };
@@ -465,11 +467,19 @@ pub const Pattern = struct {
         /// `x` binds the matched value. `_` binds nothing.
         variable: Identifier,
         constructor: Constructor,
+        /// `[p, ...]`; `[]` is the empty list.
+        list: []const Pattern,
+        cons: *Cons,
     };
 
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
+    };
+
+    pub const Cons = struct {
+        head: Pattern,
+        tail: Pattern,
     };
 
     pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -482,6 +492,21 @@ pub const Pattern = struct {
                     try w.writeByte(' ');
                     try argument.sexpr(w);
                 }
+                try w.writeByte(')');
+            },
+            .list => |elements| {
+                try w.writeAll("(list");
+                for (elements) |element| {
+                    try w.writeByte(' ');
+                    try element.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
+            .cons => |c| {
+                try w.writeAll("(: ");
+                try c.head.sexpr(w);
+                try w.writeByte(' ');
+                try c.tail.sexpr(w);
                 try w.writeByte(')');
             },
         }

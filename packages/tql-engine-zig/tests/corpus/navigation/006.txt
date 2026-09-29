@@ -28,4 +28,4 @@ class B {}
 ]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

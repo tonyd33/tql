@@ -26,8 +26,8 @@ class B {}
 [{ "deep": true, "shallow": true }]
 
 --- types ---
-deep_fused : Node -> [[String]]
-deep_piped : Node -> [[String]]
-flat_fused : Node -> [[String]]
-flat_piped : Node -> [[String]]
-main : Node -> [{deep: Bool, shallow: Bool}]
+deep_fused :: Node -> [[String]]
+deep_piped :: Node -> [[String]]
+flat_fused :: Node -> [[String]]
+flat_piped :: Node -> [[String]]
+main :: Node -> [{deep: Bool, shallow: Bool}]

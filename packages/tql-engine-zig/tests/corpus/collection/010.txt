@@ -20,4 +20,4 @@ class Service {}
 [{ "kind": "class_declaration", "name": "Service" }]
 
 --- types ---
-main : Node -> [{kind: String, name: String}]
+main :: Node -> [{kind: String, name: String}]

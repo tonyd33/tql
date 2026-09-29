@@ -17,6 +17,6 @@ class A {}
 [1, 1]
 
 --- types ---
-f : Eq a => a -> Int
-g : Eq a => a -> Int
-main : Node -> [Int]
+f :: Eq a => a -> Int
+g :: Eq a => a -> Int
+main :: Node -> [Int]
