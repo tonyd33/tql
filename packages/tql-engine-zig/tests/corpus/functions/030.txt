@@ -1,0 +1,13 @@
+title: an over-application applies the result to the rest
+grammar: typescript
+asserts: values
+
+--- tql ---
+adder a = \b -> a + b;
+main = pure $ adder 1 10;
+
+--- source ---
+class A {}
+
+--- values ---
+[11]

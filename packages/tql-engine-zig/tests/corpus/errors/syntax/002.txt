@@ -6,6 +6,8 @@ asserts: error
 main =
 
 --- error ---
-category: parse
-span: 1:1-1:7
-The incomplete declaration.
+error[parse]: syntax error
+ --> 1:1
+  |
+1 | main =
+  | ^^^^^^

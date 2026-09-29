@@ -9,6 +9,8 @@ matched at runtime against nothing.
 main = children | of_kind :not_a_kind;
 
 --- error ---
-category: unknown-kind
-span: 1:27-1:38
-The `:not_a_kind` selector.
+error[unknown-kind]: `not_a_kind` is not a node kind in this grammar
+ --> 1:27
+  |
+1 | main = children | of_kind :not_a_kind;
+  |                           ^^^^^^^^^^^

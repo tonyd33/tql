@@ -8,6 +8,8 @@ f = 2;
 main = f;
 
 --- error ---
-category: duplicate-definition
-span: 2:1-2:7
-The second definition.
+error[duplicate-definition]: `f` is defined more than once
+ --> 2:1
+  |
+2 | f = 2;
+  | ^^^^^^

@@ -5,10 +5,14 @@ asserts: error
 There is no tuple type or tuple literal. `,` is only a separator, so a
 parenthesized comma expression does not parse.
 
+The stray `,` never constructs a pair.
+
 --- tql ---
 main = (1, "a");
 
 --- error ---
-category: parse
-span: 1:10-1:11
-The stray `,`. It never constructs a pair.
+error[parse]: syntax error
+ --> 1:10
+  |
+1 | main = (1, "a");
+  |          ^

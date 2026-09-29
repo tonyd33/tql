@@ -7,6 +7,8 @@ f = \x -> x + 1;
 main = x;
 
 --- error ---
-category: unresolved-name
-span: 2:8-2:9
-`x`.
+error[unresolved-name]: `x` is not defined
+ --> 2:8
+  |
+2 | main = x;
+  |        ^

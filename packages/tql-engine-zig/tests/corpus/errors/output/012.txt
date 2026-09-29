@@ -11,6 +11,8 @@ smaller = 1 < 2;
 main = . | smaller;
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:25
-The annotation.
+error[signature-mismatch]: Expected `a -> [b]`, found `Bool`.
+ --> 1:1
+  |
+1 | smaller : Filter a bool;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^

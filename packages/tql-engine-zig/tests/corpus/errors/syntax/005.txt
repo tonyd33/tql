@@ -5,14 +5,17 @@ asserts: error
 Every `do` block ends in an expression. This block ends in a bind statement,
 whose name has nothing left to scope over.
 
+Whether the diagnostic points at the bind statement or at the block is a
+recovery detail the language does not fix.
+
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
 };
 
 --- error ---
-category: parse
-span: any
-Rejection is what matters. Whether the diagnostic points at the bind statement
-or at the block is a presentation choice, and pinning it here would freeze a
-recovery detail the language does not fix.
+error[parse]: a do block must end in an expression, not a bind statement
+ --> 2:3
+  |
+2 |   c <- children_of_kind :class_declaration root;
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

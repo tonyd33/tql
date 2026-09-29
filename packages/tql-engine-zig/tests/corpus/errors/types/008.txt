@@ -6,6 +6,8 @@ asserts: error
 main = pure ("text" / 2);
 
 --- error ---
-category: type-mismatch
-span: 1:14-1:20
-The left operand of `/`. Expected `int`, found `string`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:14
+  |
+1 | main = pure ("text" / 2);
+  |              ^^^^^^

@@ -10,6 +10,8 @@ f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };
 main = pure (f [1, 2]);
 
 --- error ---
-category: type-mismatch
-span: 1:8-1:61
-The whole `case`, reported as `Cons _ Nil` is not matched.
+error[type-mismatch]: `Cons _ Nil` is not matched
+ --> 1:8
+  |
+1 | f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

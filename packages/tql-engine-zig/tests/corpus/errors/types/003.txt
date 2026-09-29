@@ -8,6 +8,8 @@ asserts: error
 main = "a" + 1;
 
 --- error ---
-category: type-mismatch
-span: 1:8-1:11
-The left operand. Expected `int`, found `string`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:8
+  |
+1 | main = "a" + 1;
+  |        ^^^

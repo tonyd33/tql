@@ -11,6 +11,8 @@ k x y = if true then x else y;
 main = pure (k 1 2);
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:17
-Expected `a -> b -> a`, found `a -> a -> a`.
+error[signature-mismatch]: Expected `a -> b -> a`, found `a -> a -> a`.
+ --> 1:1
+  |
+1 | k : a -> b -> a;
+  | ^^^^^^^^^^^^^^^^

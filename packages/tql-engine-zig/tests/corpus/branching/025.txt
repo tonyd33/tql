@@ -1,0 +1,15 @@
+title: an alternative's body sees the binders of every enclosing alternative
+grammar: typescript
+asserts: values
+
+--- tql ---
+type P = Mk Int Int;
+main = pure $ case Mk 1 2 of {
+  Mk a b -> case Mk 3 4 of { Mk c d -> 1000 * a + 100 * b + 10 * c + d }
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1234]

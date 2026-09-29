@@ -10,6 +10,8 @@ inc n = n + 1;
 main = inc 1 2;
 
 --- error ---
-category: over-application
-span: 2:14-2:15
-The extra argument.
+error[over-application]: `Int` has no argument left to take.
+ --> 2:14
+  |
+2 | main = inc 1 2;
+  |              ^

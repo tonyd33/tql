@@ -8,6 +8,8 @@ There is no truthiness. A condition must have type `Filter a bool`.
 main = if 1 then "yes" else "no";
 
 --- error ---
-category: type-mismatch
-span: 1:11-1:12
-The condition. Expected `Filter Node Bool`, found `Filter Node Int`.
+error[type-mismatch]: Expected `Bool`, found `Int`.
+ --> 1:11
+  |
+1 | main = if 1 then "yes" else "no";
+  |           ^

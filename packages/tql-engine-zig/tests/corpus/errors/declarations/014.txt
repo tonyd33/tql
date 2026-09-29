@@ -7,6 +7,8 @@ main = 1;
 main = 2;
 
 --- error ---
-category: duplicate-definition
-span: 2:1-2:10
-The second `main`.
+error[duplicate-definition]: `main` is defined more than once
+ --> 2:1
+  |
+2 | main = 2;
+  | ^^^^^^^^^

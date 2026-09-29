@@ -10,6 +10,8 @@ size x = length x;
 main = const [size "abc"];
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:25
-`Sized a` is not satisfied.
+error[signature-mismatch]: `Sized a` is not satisfied.
+ --> 1:1
+  |
+1 | size : Eq a => a -> Int;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^

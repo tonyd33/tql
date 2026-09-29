@@ -6,6 +6,8 @@ asserts: error
 main = missing_helper 1;
 
 --- error ---
-category: unresolved-name
-span: 1:8-1:22
-`missing_helper`.
+error[unresolved-name]: `missing_helper` is not defined
+ --> 1:8
+  |
+1 | main = missing_helper 1;
+  |        ^^^^^^^^^^^^^^

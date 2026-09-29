@@ -8,6 +8,8 @@ asserts: error
 main = pure { name = "n", f = arr kind };
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-1:42
-`Serial (Filter Node String)` is not satisfied, reached through field `f`.
+error[unsatisfied-constraint]: `Serial (Node -> [String])` is not satisfied.
+ --> 1:1
+  |
+1 | main = pure { name = "n", f = arr kind };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

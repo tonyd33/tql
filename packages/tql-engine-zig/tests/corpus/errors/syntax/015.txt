@@ -4,11 +4,15 @@ asserts: error
 
 `in` arrives where the binding group's `}` was required.
 
+Recovery discards the whole declaration rather than resynchronizing inside it,
+so the span covers the line.
+
 --- tql ---
 main = let { x = 1 in x;
 
 --- error ---
-category: parse
-span: any
-Recovery discards the whole declaration rather than resynchronizing inside it,
-so the span covers the line. Rejection is what this fixture asserts.
+error[parse]: syntax error
+ --> 1:1
+  |
+1 | main = let { x = 1 in x;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^

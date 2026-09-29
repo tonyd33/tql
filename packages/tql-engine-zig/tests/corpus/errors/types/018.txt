@@ -8,6 +8,8 @@ Only `int` and `string` have `Ord`.
 main = true < false;
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:8-1:20
-`Ord bool` is not satisfied.
+error[unsatisfied-constraint]: `Ord Bool` is not satisfied.
+ --> 1:8
+  |
+1 | main = true < false;
+  |        ^^^^^^^^^^^^

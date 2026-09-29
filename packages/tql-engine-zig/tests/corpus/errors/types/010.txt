@@ -6,6 +6,8 @@ asserts: error
 main = 42 | identity;
 
 --- error ---
-category: type-mismatch
-span: 1:8-1:10
-The pipe input. Expected `[a]`, found `int`.
+error[type-mismatch]: Expected `a -> [b]`, found `Int`.
+ --> 1:8
+  |
+1 | main = 42 | identity;
+  |        ^^

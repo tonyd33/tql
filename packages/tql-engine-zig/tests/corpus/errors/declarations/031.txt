@@ -10,6 +10,8 @@ f x = 1;
 main = const [1];
 
 --- error ---
-category: unresolved-name
-span: 1:5-1:8
-`Foo` is not a type
+error[unresolved-name]: `Foo` is not a type
+ --> 1:5
+  |
+1 | f : Foo -> Int;
+  |     ^^^

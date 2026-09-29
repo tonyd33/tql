@@ -8,6 +8,8 @@ asserts: error
 main = pure 1 <|> pure "two";
 
 --- error ---
-category: type-mismatch
-span: 1:19-1:29
-The right operand. Expected `Filter Node Int`, found `Filter Node String`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 1:19
+  |
+1 | main = pure 1 <|> pure "two";
+  |                   ^^^^^^^^^^

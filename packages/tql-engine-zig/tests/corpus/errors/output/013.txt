@@ -12,6 +12,8 @@ main _ = do {
 };
 
 --- error ---
-category: type-mismatch
-span: 3:27-3:30
-The second use of `f`. Expected `Int`, found `String`.
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 3:27
+  |
+3 |   return { a = f 1, b = f "s" };
+  |                           ^^^

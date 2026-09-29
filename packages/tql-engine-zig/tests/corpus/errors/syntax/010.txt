@@ -8,6 +8,8 @@ Node kinds are written `:kind`. A bare identifier resolves as a name and fails.
 main = . / class_declaration;
 
 --- error ---
-category: unresolved-name
-span: 1:12-1:29
-`class_declaration`.
+error[unresolved-name]: `class_declaration` is not defined
+ --> 1:12
+  |
+1 | main = . / class_declaration;
+  |            ^^^^^^^^^^^^^^^^^

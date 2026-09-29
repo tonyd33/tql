@@ -1,0 +1,17 @@
+title: a structural type redeclared with the wrong shape is rejected
+grammar: typescript
+asserts: error
+
+The evaluator builds `Bool` values directly, so the prelude's spelling and tag
+order are the ones it assumes.
+
+--- tql ---
+type Bool = Maybe | Definitely;
+main = pure 1;
+
+--- error ---
+error[duplicate-definition]: `Bool` is declared more than once
+ --> 1:1
+  |
+1 | type Bool = Maybe | Definitely;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

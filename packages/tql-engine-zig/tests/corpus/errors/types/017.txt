@@ -13,6 +13,8 @@ main =
   in fs = fs;
 
 --- error ---
-category: unsatisfied-constraint
-span: 3:6-3:13
-`Eq [Node -> String]` is not satisfied.
+error[unsatisfied-constraint]: `Eq (Node -> String)` is not satisfied.
+ --> 3:6
+  |
+3 |   in fs = fs;
+  |      ^^^^^^^

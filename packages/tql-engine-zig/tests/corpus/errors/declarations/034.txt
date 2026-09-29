@@ -9,6 +9,8 @@ its subtypes, so the diagnostic names only the kind.
 main = children | of_kind :expression;
 
 --- error ---
-category: supertype-kind
-span: 1:27-1:38
-The `:expression` selector.
+error[supertype-kind]: `expression` is a supertype, so no node has this kind
+ --> 1:27
+  |
+1 | main = children | of_kind :expression;
+  |                           ^^^^^^^^^^^

@@ -6,6 +6,8 @@ asserts: error
 main = pure { name = "n", pattern = r"^A" };
 
 --- error ---
-category: unsatisfied-constraint
-span: 1:1-1:45
-`Serial Regex` is not satisfied, reached through field `pattern`.
+error[unsatisfied-constraint]: `Serial Regex` is not satisfied.
+ --> 1:1
+  |
+1 | main = pure { name = "n", pattern = r"^A" };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

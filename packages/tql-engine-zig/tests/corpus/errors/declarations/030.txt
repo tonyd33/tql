@@ -11,6 +11,8 @@ less x y = x < y;
 main = const [less 1 2];
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:31
-`Ord a` is not satisfied.
+error[signature-mismatch]: `Ord a` is not satisfied.
+ --> 1:1
+  |
+1 | less : Eq a => a -> a -> Bool;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

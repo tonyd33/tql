@@ -1,0 +1,13 @@
+title: a partial application saturates on a later call
+grammar: typescript
+asserts: values
+
+--- tql ---
+add3 a b c = a + b + c;
+main = let { f = add3 1 } in let { g = f 2 } in pure $ g 3;
+
+--- source ---
+class A {}
+
+--- values ---
+[6]

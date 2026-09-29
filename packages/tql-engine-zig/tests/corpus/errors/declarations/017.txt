@@ -10,6 +10,8 @@ kind : Node -> String;
 main = arr kind;
 
 --- error ---
-category: symbol-collision
-span: 1:1-1:23
-The colliding signature.
+error[symbol-collision]: `kind` collides with an existing symbol
+ --> 1:1
+  |
+1 | kind : Node -> String;
+  | ^^^^^^^^^^^^^^^^^^^^^^

@@ -11,11 +11,14 @@ This fixture once claimed a `Serial` failure, back when `kind` was
 program — so it did not fail at all. Projections are now functions, and the
 failure is in `main`'s own type rather than in `Serial`.
 
+A projection reaches filter position through `arr`.
+
 --- tql ---
 main = kind;
 
 --- error ---
-category: main-type
-span: 1:1-1:13
-`main` must be `Filter Node output`. Found `Node -> String`; a projection
-reaches filter position through `arr`.
+error[main-type]: Expected `[a]`, found `String`.
+ --> 1:1
+  |
+1 | main = kind;
+  | ^^^^^^^^^^^^

@@ -6,6 +6,8 @@ asserts: error
 main = "abc" ~ r"a{2,1}";
 
 --- error ---
-category: invalid-regex
-span: 1:16-1:25
-The regex literal.
+error[invalid-regex]: `a{2,1}` is not a valid regular expression
+ --> 1:16
+  |
+1 | main = "abc" ~ r"a{2,1}";
+  |                ^^^^^^^^^

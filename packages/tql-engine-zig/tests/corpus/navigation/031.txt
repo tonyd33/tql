@@ -1,0 +1,18 @@
+title: a kind test on a non-axis is left alone
+grammar: typescript
+asserts: simplified, values
+
+`parent` has no fused form, so the composition must survive.
+
+--- tql ---
+main = parent | of_kind :class_declaration;
+
+--- source ---
+class A { m() {} }
+class B {}
+
+--- values ---
+[]
+
+--- simplified ---
+main = kleisli parent (of_kind :class_declaration)

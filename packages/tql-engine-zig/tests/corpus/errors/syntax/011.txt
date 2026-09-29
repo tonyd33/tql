@@ -9,6 +9,8 @@ test, so the rejection is about its type rather than its name.
 main = null;
 
 --- error ---
-category: main-type
-span: 1:1-1:13
-The `main` definition. Expected `Filter Node _`, found `[a] -> Bool`.
+error[main-type]: Expected `Node`, found `[a]`.
+ --> 1:1
+  |
+1 | main = null;
+  | ^^^^^^^^^^^^

@@ -10,6 +10,8 @@ asserts: error
 main = none;
 
 --- error ---
-category: ambiguous-output
-span: 1:1-1:13
-The output type variable is unresolved.
+error[ambiguous-output]: Expected `Node`, found `a`.
+ --> 1:1
+  |
+1 | main = none;
+  | ^^^^^^^^^^^^

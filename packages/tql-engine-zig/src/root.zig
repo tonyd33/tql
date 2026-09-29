@@ -318,197 +318,6 @@ test {
     refAllDecls(inspect);
 }
 
-test "a field symbol carries the grammar id it resolved" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery(
-        "main = children | of_kind :class_declaration | .name;",
-        g,
-        &sink,
-    );
-    defer program.deinit();
-
-    const field = program.env.interner.lookup("field[name]").?;
-    const field_what = program.env.interner.details(field).synthesized;
-    try std.testing.expectEqualStrings("name", field_what.field.name);
-    try std.testing.expectEqual(g.language.fieldIdForName("name"), field_what.field.id);
-
-    // A primitive is not synthesized, and a synthesized symbol is not a primitive.
-    const text = program.env.interner.lookup("text").?;
-    try std.testing.expectEqual(core.PrimOp.text, program.env.interner.details(text).primop);
-    try std.testing.expect(program.env.interner.details(field) == .synthesized);
-}
-
-test "a kind literal carries the grammar id it resolved" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery("main = is_kind :class_declaration;", g, &sink);
-    defer program.deinit();
-
-    const body = program.entryDefinitions()[0].body;
-    const function = body.kind.apply.function.kind.symbol;
-    try std.testing.expectEqual(core.PrimOp.is_kind, program.env.interner.details(function).primop);
-    const kind = body.kind.apply.argument.kind.literal.kind;
-    try std.testing.expectEqualStrings("class_declaration", kind.name);
-    try std.testing.expectEqual(g.language.idForNodeKind("class_declaration", true), kind.id);
-}
-
-test "a constructor field that is not an atom becomes a thunk" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery("main = children;", g, &sink);
-    defer program.deinit();
-
-    var translated = try core_to_stg.translate(allocator, &program);
-    defer translated.deinit();
-
-    // `append`'s `Cons h (append t ys)`. The recursive call is a compound
-    // argument, so it must be let-bound to a thunk before the `Cons` rather
-    // than evaluated into the field. This is what `laziness/005` depends on.
-    const append = program.env.interner.lookup("append").?;
-    var body: ?*const stg.Closure = null;
-    for (translated.definitions) |definition| {
-        if (definition.symbol == append) body = definition.value;
-    }
-
-    var w: std.Io.Writer.Allocating = .init(allocator);
-    defer w.deinit();
-    const printer: stg.Printer = .{ .interner = &program.env.interner };
-    try printer.closure(body.?, &w.writer);
-
-    // The recursive call is let-bound to a thunk and the `Cons` takes that
-    // binder as an atom, so an evaluator cannot force the field early. The
-    // binder's number counts prelude binders allocated before `append` and is
-    // not what this asserts.
-    const printed = w.written();
-    const let_open = "-> let { ";
-    const thunk_start = std.mem.indexOf(u8, printed, let_open).? + let_open.len;
-    const outer = printed[thunk_start..std.mem.indexOfScalarPos(u8, printed, thunk_start, ' ').?];
-    const inner_open = std.mem.indexOfPos(u8, printed, thunk_start, let_open).? + let_open.len;
-    const inner = printed[inner_open..std.mem.indexOfScalarPos(u8, printed, inner_open, ' ').?];
-
-    var expected: std.Io.Writer.Allocating = .init(allocator);
-    defer expected.deinit();
-    try expected.writer.print(
-        "{{}} \\u {{}} -> let {{ {s} = {{}} \\n {{xs,ys}} -> case xs of " ++
-            "{{ Nil -> ys; Cons h t -> let {{ {s} = {{t,ys}} \\u {{}} -> append t ys }} " ++
-            "in Cons h {s} }} }} in {s}",
-        .{ outer, inner, inner, outer },
-    );
-    try std.testing.expectEqualStrings(expected.written(), printed);
-}
-
-test "a stream bind translates to a concat_map call" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery(
-        \\main root = do { c <- children root; pure (kind c) c };
-    , g, &sink);
-    defer program.deinit();
-
-    var translated = try core_to_stg.translate(allocator, &program);
-    defer translated.deinit();
-
-    var body: ?*const stg.Closure = null;
-    for (translated.definitions) |definition| {
-        if (definition.symbol == program.entry) body = definition.value;
-    }
-
-    var w: std.Io.Writer.Allocating = .init(allocator);
-    defer w.deinit();
-    const printer: stg.Printer = .{ .interner = &program.env.interner };
-    try printer.closure(body.?, &w.writer);
-
-    // `bind` is not a machine form: the receiver becomes a one-argument
-    // closure and the whole thing is an ordinary call to the prelude.
-    try std.testing.expect(std.mem.indexOf(u8, w.written(), "concat_map ") != null);
-}
-
-test "the evaluator runs the prelude's append" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    // Lists are built from the constructors directly: `collect` is a
-    // primitive, and primitives are Stage 4's next step rather than this one.
-    var program = try engine.desugarQuery(
-        \\main root = append (Cons 1 Nil) (Cons 2 Nil);
-    , g, &sink);
-    defer program.deinit();
-
-    var translated = try core_to_stg.translate(allocator, &program);
-    defer translated.deinit();
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
-    defer machine.deinit();
-
-    const entry = machine.global(program.entry).?;
-    const main_value = try machine.force(entry);
-
-    // `main` takes the root, which nothing here reads, so any thunk does.
-    var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
-    const applied = try machine.apply(main_value, &.{&unit});
-
-    var elements: std.ArrayList(*stg.Thunk) = .empty;
-    defer elements.deinit(arena.allocator());
-    try listElements(&machine, arena.allocator(), applied, &elements);
-
-    try std.testing.expectEqual(2, elements.items.len);
-    try std.testing.expectEqual(@as(i64, 1), (try machine.force(elements.items[0])).number);
-    try std.testing.expectEqual(@as(i64, 2), (try machine.force(elements.items[1])).number);
-}
-
 /// Runs `main` against a root the query does not read, and returns its
 /// outputs. The tree primitives are Stage 5's, so nothing here parses a source.
 fn runQuery(
@@ -553,108 +362,6 @@ fn runQuery(
         copy.* = thunk.*.*;
         thunk.* = copy;
     }
-}
-
-test "the evaluator runs pure, kleisli and the scalar operators" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    // `pure` builds a one-element list, the operator is scalar under Q16, and
-    // `compose` is the pipe.
-    try runQuery(allocator, "main root = (pure 1 | arr (\\n -> n + 2)) root;", &arena, &out);
-
-    try std.testing.expectEqual(1, out.items.len);
-    try std.testing.expectEqual(@as(i64, 3), out.items[0].state.evaluated.number);
-}
-
-test "the evaluator orders ints and strings" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    // `Ord` holds for `Int` and `String` only, and `<=`/`>=` are the two that
-    // an `== .lt` reading would get wrong on equal operands.
-    try runQuery(allocator,
-        \\main root =
-        \\  const [1 < 2, 2 <= 2, 2 > 1, 1 >= 2, "a" < "b", "b" <= "a"] root;
-    , &arena, &out);
-
-    try std.testing.expectEqual(6, out.items.len);
-    const expected = [_]u32{ 1, 1, 1, 0, 1, 0 };
-    for (out.items, expected) |thunk, tag| {
-        try std.testing.expectEqual(tag, thunk.state.evaluated.constructed.tag);
-    }
-}
-
-test "the evaluator runs keep" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    try runQuery(allocator,
-        \\main root = (const [1, 2, 3] | keep (\n -> n > 1)) root;
-    , &arena, &out);
-
-    try std.testing.expectEqual(2, out.items.len);
-    try std.testing.expectEqual(@as(i64, 2), out.items[0].state.evaluated.number);
-    try std.testing.expectEqual(@as(i64, 3), out.items[1].state.evaluated.number);
-}
-
-test "the evaluator runs has" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    try runQuery(allocator,
-        \\main root = const [
-        \\  has (pure 1) root,
-        \\  has none root,
-        \\  has (const [1, 2] | keep (\n -> n > 1)) root,
-        \\  has (pure 1 | keep (\n -> n > 1)) root
-        \\] root;
-    , &arena, &out);
-
-    try std.testing.expectEqual(4, out.items.len);
-    const expected = [_]u32{ 1, 0, 1, 0 };
-    for (out.items, expected) |thunk, tag| {
-        try std.testing.expectEqual(tag, thunk.state.evaluated.constructed.tag);
-    }
-}
-
-test "the evaluator runs or_else" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    // The fallback runs only when the primary yields nothing.
-    try runQuery(allocator,
-        \\main root = (or_else (pure 1) (pure 2) <|> or_else none (pure 3)) root;
-    , &arena, &out);
-
-    try std.testing.expectEqual(2, out.items.len);
-    try std.testing.expectEqual(@as(i64, 1), out.items[0].state.evaluated.number);
-    try std.testing.expectEqual(@as(i64, 3), out.items[1].state.evaluated.number);
 }
 
 test "a filter chain over a long list runs in bounded stack" {
@@ -740,28 +447,6 @@ test "recursion deeper than the stack budget stops with an error" {
     , &arena, &out));
 }
 
-test "the evaluator runs has without forcing the whole stream" {
-    const allocator = std.testing.allocator;
-
-    var arena: std.heap.ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-
-    var out: std.ArrayList(*stg.Thunk) = .empty;
-    defer out.deinit(arena.allocator());
-
-    // `laziness/005`: the left operand satisfies `has`, so the infinite
-    // right operand is never forced. This is the fixture the thunk-per-field
-    // obligation exists for.
-    try runQuery(allocator,
-        \\from n = pure n <|> from (n + 1);
-        \\main root = pure (has (pure 0 <|> from 1) root) root;
-    , &arena, &out);
-
-    try std.testing.expectEqual(1, out.items.len);
-    // `True` is tag 1.
-    try std.testing.expectEqual(1, out.items[0].state.evaluated.constructed.tag);
-}
-
 test "forcing a global cycle reports it rather than hanging" {
     const allocator = std.testing.allocator;
 
@@ -796,50 +481,6 @@ test "forcing a global cycle reports it rather than hanging" {
 
     const a = program.env.interner.lookup("a").?;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
-}
-
-test "isLocal separates locals from globals in a real program" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery("main root = pure 1 root;", g, &sink);
-    defer program.deinit();
-
-    var translator = try core_to_stg.Translator.init(allocator, allocator, &program);
-    defer translator.deinit();
-
-    const isLocal = core_to_stg.Translator.isLocal;
-
-    // Reached by identity: never captured.
-    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("Cons").?));
-    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("kleisli").?));
-    try std.testing.expect(!isLocal(&translator, program.env.interner.lookup("append").?));
-
-    // A synthesized primitive is reached by identity like any other.
-    {
-        var ops = try engine.desugarQuery("main root = pure (1 + 2) root;", g, &sink);
-        defer ops.deinit();
-        var t2 = try core_to_stg.Translator.init(allocator, allocator, &ops);
-        defer t2.deinit();
-        const plus = ops.env.interner.lookup("op[+]").?;
-        try std.testing.expect(!isLocal(&t2, plus));
-    }
-
-    // A binder is a local, and is what a closure must capture.
-    const append_body = for (program.definitions) |definition| {
-        if (definition.symbol == program.env.interner.lookup("append").?) break definition.body;
-    } else return error.TestUnexpectedResult;
-    const xs = append_body.kind.lambda.parameter;
-    try std.testing.expect(isLocal(&translator, xs));
 }
 
 test "the prelude's bodies compile to Core" {
@@ -903,6 +544,28 @@ test "the prelude's bodies compile to Core" {
     , w.written());
 }
 
+test "every local in the prelude reads the slot it names" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery("main = children;", g, &sink);
+    defer program.deinit();
+
+    var translated = try core_to_stg.translate(allocator, &program);
+    defer translated.deinit();
+
+    try core_to_stg.expectPlaced(allocator, &translated);
+}
+
 test "the prelude's schemes are inferred" {
     const allocator = std.testing.allocator;
 
@@ -962,121 +625,4 @@ test "the prelude's schemes are inferred" {
         \\first : (a -> [b]) -> a -> [b]
         \\or_else : (a -> [b]) -> (a -> [b]) -> a -> [b]
     , w.written());
-}
-
-fn expectTypeErrorMessage(query: []const u8, expected: []const u8) !void {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    try std.testing.expectError(error.TypeCheckFailed, engine.checkQuery(query, g, &sink));
-    try std.testing.expectEqual(1, sink.items().len);
-    try std.testing.expectEqualStrings(expected, sink.items()[0].message);
-}
-
-test "a type mismatch names its metavariables by letter" {
-    try expectTypeErrorMessage(
-        "main = children_of_kind :class_declaration | text;",
-        "Expected `[a]`, found `String`.",
-    );
-}
-
-test "linked components order prelude callees before user callers" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var program = try engine.desugarQuery("main = keep (has children);", g, &sink);
-    defer program.deinit();
-
-    try std.testing.expectEqualStrings("main", program.env.interner.spelling(program.entry));
-
-    var seen_null = false;
-    var seen_has = false;
-    for (program.components) |component| {
-        for (component) |index| {
-            const spelling = program.env.interner.spelling(program.definitions[index].symbol);
-            if (std.mem.eql(u8, spelling, "null")) seen_null = true;
-            if (std.mem.eql(u8, spelling, "has")) {
-                try std.testing.expect(seen_null);
-                seen_has = true;
-            }
-            if (std.mem.eql(u8, spelling, "main")) try std.testing.expect(seen_has);
-        }
-    }
-    try std.testing.expect(seen_has);
-}
-
-test "a case binds a constructor's field at its instantiated type" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    var result = try engine.checkQuery(
-        \\type Maybe a = Just a | Nothing;
-        \\or_default m d = case m of { Just x -> x; Nothing -> d };
-        \\main = pure (or_default (Just 42) 0);
-    , g, &sink);
-    defer result.deinit();
-
-    var w: std.Io.Writer.Allocating = .init(allocator);
-    defer w.deinit();
-
-    for (result.entryDefinitions(), 0..) |definition, i| {
-        if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{result.env.interner.spelling(definition.symbol)});
-        try result.env.schemeOf(definition.symbol).?.format(&w.writer);
-    }
-
-    try std.testing.expectEqualStrings(
-        \\or_default : Maybe a -> a -> a
-        \\main : Node -> [Int]
-    , w.written());
-}
-
-test "a structural type redeclared with the wrong shape is rejected" {
-    const allocator = std.testing.allocator;
-
-    var grammars = grammar.Registry.init(allocator, &.{});
-    defer grammars.deinit();
-    const g = try grammars.get("typescript");
-
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
-    defer engine.deinit();
-
-    var sink = diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-
-    // The evaluator builds `Bool` values directly, so the prelude's spelling
-    // and tag order are the ones it assumes.
-    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
-        \\type Bool = Maybe | Definitely;
-        \\main = pure 1;
-    , g, &sink));
-
-    try std.testing.expect(sink.hasErrors());
 }

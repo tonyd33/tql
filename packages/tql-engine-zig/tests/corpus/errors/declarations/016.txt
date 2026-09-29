@@ -11,6 +11,8 @@ keep p = p;
 main = 1;
 
 --- error ---
-category: symbol-collision
-span: 1:1-1:12
-The colliding definition.
+error[symbol-collision]: `keep` collides with an existing symbol
+ --> 1:1
+  |
+1 | keep p = p;
+  | ^^^^^^^^^^^

@@ -10,6 +10,8 @@ type Int = I;
 main = pure 1;
 
 --- error ---
-category: symbol-collision
-span: 1:1-1:14
-`Int` is a built-in type
+error[symbol-collision]: `Int` is a built-in type
+ --> 1:1
+  |
+1 | type Int = I;
+  | ^^^^^^^^^^^^^

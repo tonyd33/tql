@@ -9,6 +9,8 @@ not resolve the variable.
 main = collect none;
 
 --- error ---
-category: ambiguous-output
-span: 1:1-1:21
-The element type variable is unresolved.
+error[ambiguous-output]: Expected `Node`, found `[a]`.
+ --> 1:1
+  |
+1 | main = collect none;
+  | ^^^^^^^^^^^^^^^^^^^^

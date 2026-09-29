@@ -8,6 +8,8 @@ k = :function_definition;
 main = descendants | of_kind k;
 
 --- error ---
-category: unknown-kind
-span: 1:5-1:25
-The `:function_definition` literal.
+error[unknown-kind]: `function_definition` is not a node kind in this grammar
+ --> 1:5
+  |
+1 | k = :function_definition;
+  |     ^^^^^^^^^^^^^^^^^^^^

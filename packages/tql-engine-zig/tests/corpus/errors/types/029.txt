@@ -8,6 +8,8 @@ f xs = case xs of { Cons a (Cons b) -> a; _ -> 0; };
 main = pure (f [1]);
 
 --- error ---
-category: type-mismatch
-span: 1:29-1:35
-The inner `Cons b`.
+error[type-mismatch]: `Cons` binds 2 field(s), given 1
+ --> 1:29
+  |
+1 | f xs = case xs of { Cons a (Cons b) -> a; _ -> 0; };
+  |                             ^^^^^^

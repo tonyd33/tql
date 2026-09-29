@@ -10,6 +10,8 @@ f xs = case xs of { Cons a t -> a; Nothing -> 0; };
 main = pure (f [1]);
 
 --- error ---
-category: type-mismatch
-span: 3:36-3:43
-The `Nothing` pattern.
+error[type-mismatch]: `Nothing` is not a constructor of `List`
+ --> 3:36
+  |
+3 | f xs = case xs of { Cons a t -> a; Nothing -> 0; };
+  |                                    ^^^^^^^

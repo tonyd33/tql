@@ -13,6 +13,8 @@ main root = do {
 after = c;
 
 --- error ---
-category: unresolved-name
-span: 6:9-6:10
-`c` in `after`.
+error[unresolved-name]: `c` is not defined
+ --> 6:9
+  |
+6 | after = c;
+  |         ^

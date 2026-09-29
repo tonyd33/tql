@@ -10,6 +10,8 @@ where `~` requires a `string`.
 main = "a" ~ r"a" ~ r"b";
 
 --- error ---
-category: type-mismatch
-span: 1:8-1:18
-The inner match, the left operand of the second `~`.
+error[type-mismatch]: Expected `String`, found `Bool`.
+ --> 1:8
+  |
+1 | main = "a" ~ r"a" ~ r"b";
+  |        ^^^^^^^^^^

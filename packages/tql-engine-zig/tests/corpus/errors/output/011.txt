@@ -11,7 +11,8 @@ f = kind;
 main = . | arr f;
 
 --- error ---
-category: signature-mismatch
-span: 1:1-1:12
-The annotation. Inferred `Node -> String` is not an instance of the declared
-`a -> a`.
+error[signature-mismatch]: Expected `Node`, found `String`.
+ --> 1:1
+  |
+1 | f : a -> a;
+  | ^^^^^^^^^^^

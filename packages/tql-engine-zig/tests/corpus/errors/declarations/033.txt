@@ -9,6 +9,8 @@ nothing. The diagnostic lists the subtypes to use instead.
 main = descendants_of_kind :expression_statement;
 
 --- error ---
-category: supertype-kind
-span: 1:28-1:49
-The `:expression_statement` selector.
+error[supertype-kind]: `expression_statement` is a supertype, so no node has this kind; use one of its subtypes: `assignment`, `augmented_assignment`, `expression`, `tuple_expression`, `yield`
+ --> 1:28
+  |
+1 | main = descendants_of_kind :expression_statement;
+  |                            ^^^^^^^^^^^^^^^^^^^^^

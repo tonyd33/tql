@@ -10,6 +10,8 @@ size x = length x;
 main = children | arr (\c -> size c);
 
 --- error ---
-category: unsatisfied-constraint
-span: 3:30-3:34
-`Sized Node` is not satisfied.
+error[unsatisfied-constraint]: `Sized Node` is not satisfied.
+ --> 3:30
+  |
+3 | main = children | arr (\c -> size c);
+  |                              ^^^^

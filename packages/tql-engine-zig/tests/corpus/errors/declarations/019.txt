@@ -11,6 +11,8 @@ where the parameters were written.
 main root extra = root;
 
 --- error ---
-category: main-type
-span: 1:1-1:24
-The `main` definition.
+error[main-type]: Expected `[a]`, found `b -> Node`.
+ --> 1:1
+  |
+1 | main root extra = root;
+  | ^^^^^^^^^^^^^^^^^^^^^^^

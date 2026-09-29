@@ -11,6 +11,8 @@ main =
   in f = g;
 
 --- error ---
-category: unsatisfied-constraint
-span: 6:6-6:11
-`Eq (int -> int)` is not satisfied.
+error[unsatisfied-constraint]: `Eq (Int -> Int)` is not satisfied.
+ --> 6:6
+  |
+6 |   in f = g;
+  |      ^^^^^
