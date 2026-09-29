@@ -104,12 +104,14 @@ export interface TreeRow {
   type: string;
   isNamed: boolean;
   isMissing: boolean;
+  isError: boolean;
   startIndex: number;
   endIndex: number;
   startRow: number;
   startCol: number;
   endRow: number;
   endCol: number;
+  text?: string;
 }
 
 const RESULT_SIZE = 12;
