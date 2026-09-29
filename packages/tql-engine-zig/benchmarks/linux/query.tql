@@ -11,7 +11,7 @@ error_goto =
   | matches r"^(err|out)(_\w+)?$";
 
 main =
-  descendants_of_kind :function_definition
+  children_of_kind :function_definition
   | keep (has (.body | allocator_call))
   | keep (has (.body | error_goto))
   | children_of_kind :function_declarator
