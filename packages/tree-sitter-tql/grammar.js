@@ -9,10 +9,12 @@
 
 const PREC = {
   dollar: 1,
-  union: 2,
-  pipe: 3,
-  or: 4,
-  and: 5,
+  // biome-ignore lint/suspicious/noThenProperty: false positive
+  then: 2,
+  union: 3,
+  pipe: 4,
+  or: 5,
+  and: 6,
   cmp: 7,
   add: 8,
   mul: 9,
@@ -89,6 +91,7 @@ module.exports = grammar({
     _expression: $ =>
       choice(
         $.dollar_application,
+        $.then,
         $.union,
         $.pipe,
         $.logical_or,
@@ -112,6 +115,13 @@ module.exports = grammar({
           "$",
           field("argument", $._expression),
         ),
+      ),
+
+    // biome-ignore lint/suspicious/noThenProperty: false positive
+    then: $ =>
+      prec.left(
+        PREC.then,
+        seq(field("left", $._expression), ">>", field("right", $._expression)),
       ),
 
     union: $ =>

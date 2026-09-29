@@ -165,6 +165,7 @@ pub const BinaryOperator = enum {
     pipe,
     stream_union,
     compose,
+    then,
 
     pub fn spelling(self: BinaryOperator) []const u8 {
         return switch (self) {
@@ -186,6 +187,7 @@ pub const BinaryOperator = enum {
             .pipe => "|",
             .stream_union => "<|>",
             .compose => ".",
+            .then => ">>",
         };
     }
 };
