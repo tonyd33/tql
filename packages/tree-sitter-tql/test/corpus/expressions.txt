@@ -1,5 +1,5 @@
 ========================================
-identity
+a bare dot is a syntax error
 ========================================
 
 main = .;
@@ -9,7 +9,8 @@ main = .;
 (source_file
   (definition
     name: (identifier)
-    body: (identity)))
+    body: (leading_field
+      field: (MISSING field_name))))
 
 ========================================
 a leading field access
@@ -202,7 +203,7 @@ main = f a b;
 a pipe chain
 ========================================
 
-main = . | kind | text;
+main = x | kind | text;
 
 ---
 
@@ -211,7 +212,7 @@ main = . | kind | text;
     name: (identifier)
     body: (pipe
       left: (pipe
-        left: (identity)
+        left: (identifier)
         right: (identifier))
       right: (identifier))))
 

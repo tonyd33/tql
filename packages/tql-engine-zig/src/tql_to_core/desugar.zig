@@ -173,14 +173,6 @@ pub const Lowerer = struct {
 
     pub fn expression(self: *Lowerer, e: cst.Expression, scope: ?*const resolve.Scope) Error!core.Term {
         switch (e.kind) {
-            // `.` is the singleton filter `\x -> [x]`, confusingly.
-            // Unclear about the future of `.`
-            .identity => return try self.builder.apply(
-                try self.primitive("arr", e.span),
-                try self.primitive("identity", e.span),
-                e.span,
-            ),
-
             // Literal payloads are duped: the CST they point into is freed
             // before the Core program is used.
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
@@ -333,6 +325,7 @@ pub const Lowerer = struct {
         const scalar: core.Scalar = switch (b.operator) {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
+            .compose => return try self.combinator("compose", left, right, span),
             .@"and" => return try self.combinator("and", left, right, span),
             .@"or" => return try self.combinator("or", left, right, span),
             .divide => .divide,

@@ -5,11 +5,11 @@ asserts: error
 Node kinds are written `:kind`. A bare identifier resolves as a name and fails.
 
 --- tql ---
-main = . / class_declaration;
+main root = root / class_declaration;
 
 --- error ---
 error[unresolved-name]: `class_declaration` is not defined
- --> 1:12
+ --> 1:20
   |
-1 | main = . / class_declaration;
-  |            ^^^^^^^^^^^^^^^^^
+1 | main root = root / class_declaration;
+  |                    ^^^^^^^^^^^^^^^^^

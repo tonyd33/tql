@@ -8,7 +8,7 @@ that the body does not support.
 --- tql ---
 f : a -> a;
 f = kind;
-main = . | arr f;
+main = arr f;
 
 --- error ---
 error[signature-mismatch]: Expected `Node`, found `String`.
