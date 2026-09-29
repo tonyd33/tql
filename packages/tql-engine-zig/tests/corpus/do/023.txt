@@ -1,0 +1,22 @@
+title: `>>` sequences a guard before a result
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  f <- descendants_of_kind :public_field_definition root;
+  t <- f.type;
+  guard (text t = ": string") >> return (text f);
+};
+
+--- source ---
+class A {
+  s: string;
+  n: number;
+}
+
+--- values ---
+["s: string"]
+
+--- types ---
+main : Node -> [String]

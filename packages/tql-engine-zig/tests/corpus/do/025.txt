@@ -1,0 +1,12 @@
+title: `>>` after an empty left side yields nothing
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = const ([] >> [3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[]

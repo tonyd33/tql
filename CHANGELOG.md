@@ -9,6 +9,7 @@
 ### New Features
 
 - Added `f . g` for function composition.
+- Added `a >> b` for sequencing, as a `do` expression statement.
 
 ## 0.3.1 (unreleased)
 

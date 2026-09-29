@@ -518,8 +518,8 @@ const Walker = struct {
                 return null;
             }
         else
-            // `union`, `pipe`, `logical_and`, `logical_or` and `composition`
-            // spell their operator in the rule name rather than an
+            // `union`, `pipe`, `logical_and`, `logical_or`, `composition` and
+            // `then` spell their operator in the rule name rather than an
             // `operator:` field.
             binaryOperatorOf(node.grammarKind()) orelse {
                 try self.missingField(node, "operator");
@@ -1047,6 +1047,7 @@ fn binaryOperatorOf(kind: []const u8) ?cst.BinaryOperator {
     if (std.mem.eql(u8, kind, "additive")) return .add;
     if (std.mem.eql(u8, kind, "multiplicative")) return .multiply;
     if (std.mem.eql(u8, kind, "composition")) return .compose;
+    if (std.mem.eql(u8, kind, "then")) return .then;
     return null;
 }
 
@@ -1241,6 +1242,13 @@ test "composition is right-associative and looser than application" {
     try expectSexpr(
         "main = f x . g . h y;",
         "(source_file (define main (params) (. (apply f x) (. g (apply h y)))))",
+    );
+}
+
+test "then is left-associative, between dollar and union" {
+    try expectSexpr(
+        "main = f $ a >> b >> c <|> d;",
+        "(source_file (define main (params) (apply f (>> (>> a b) (<|> c d)))))",
     );
 }
 

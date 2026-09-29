@@ -326,6 +326,7 @@ pub const Lowerer = struct {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
+            .then => return try self.builder.bind(try self.interner.fresh("_"), left, right, span),
             .@"and" => return try self.combinator("and", left, right, span),
             .@"or" => return try self.combinator("or", left, right, span),
             .divide => .divide,
