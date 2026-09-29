@@ -6,7 +6,7 @@ The annotation claims `Ord` for any `a`, but `Ord` is closed over `int` and
 `string` and cannot be assumed for a variable.
 
 --- tql ---
-smaller : Filter a bool;
+smaller :: Filter a bool;
 smaller = 1 < 2;
 main = smaller;
 
@@ -14,5 +14,5 @@ main = smaller;
 error[signature-mismatch]: Expected `a -> [b]`, found `Bool`.
  --> 1:1
   |
-1 | smaller : Filter a bool;
-  | ^^^^^^^^^^^^^^^^^^^^^^^^
+1 | smaller :: Filter a bool;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

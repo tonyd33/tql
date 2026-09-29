@@ -15,4 +15,4 @@ class A {
 ["s: string"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

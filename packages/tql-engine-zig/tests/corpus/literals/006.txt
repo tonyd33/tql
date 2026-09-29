@@ -16,4 +16,4 @@ class Other {}
 [false, true]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

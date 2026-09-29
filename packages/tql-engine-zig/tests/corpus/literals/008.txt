@@ -16,4 +16,4 @@ let p = "a\\b";
 [true]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

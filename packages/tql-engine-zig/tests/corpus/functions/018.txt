@@ -13,5 +13,5 @@ class A {}
 [15]
 
 --- types ---
-apply : (a -> b) -> a -> b
-main : Node -> [Int]
+apply :: (a -> b) -> a -> b
+main :: Node -> [Int]

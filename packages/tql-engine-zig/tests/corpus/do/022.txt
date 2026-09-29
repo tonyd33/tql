@@ -19,4 +19,4 @@ class B {}
 ["A", "B"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

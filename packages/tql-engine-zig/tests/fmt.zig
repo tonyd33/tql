@@ -26,7 +26,7 @@ pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.core.Program
     return w.toOwnedSlice();
 }
 
-/// `name : scheme` per entry-module definition, in declaration order.
+/// `name :: scheme` per entry-module definition, in declaration order.
 ///
 /// Entry definitions only, like `formatCore`: the prelude's schemes are
 /// asserted in a `root.zig` test instead, so a prelude edit does not rewrite
@@ -40,7 +40,7 @@ pub fn formatTypes(
 
     for (program.entryDefinitions(), 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} : ", .{program.env.interner.spelling(definition.symbol)});
+        try w.writer.print("{s} :: ", .{program.env.interner.spelling(definition.symbol)});
         const scheme = program.env.schemeOf(definition.symbol) orelse {
             try w.writer.writeAll("<unchecked>");
             continue;

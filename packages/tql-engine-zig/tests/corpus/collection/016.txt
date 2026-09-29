@@ -20,4 +20,4 @@ class A { m() {} n() {} }
 [{ "methods": ["m", "n"], "name": "A" }]
 
 --- types ---
-main : Node -> [{methods: [String], name: String}]
+main :: Node -> [{methods: [String], name: String}]

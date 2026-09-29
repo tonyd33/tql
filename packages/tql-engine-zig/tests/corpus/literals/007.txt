@@ -15,4 +15,4 @@ let p = "xa/by";
 [true]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

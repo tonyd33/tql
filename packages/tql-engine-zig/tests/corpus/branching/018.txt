@@ -16,5 +16,5 @@ class A {}
 [11, 4, 1]
 
 --- types ---
-choose : Int -> Int
-main : Node -> [Int]
+choose :: Int -> Int
+main :: Node -> [Int]

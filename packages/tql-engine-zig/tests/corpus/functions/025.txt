@@ -5,7 +5,7 @@ asserts: types, values
 Comparing two lists raises `Eq [a]`, which holds when `Eq a` does.
 
 --- tql ---
-same : Eq a => [a] -> [a] -> Int;
+same :: Eq a => [a] -> [a] -> Int;
 same x y = if x = y then 1 else 0;
 main = const [same [1] [1], same [1] [2]];
 
@@ -16,5 +16,5 @@ class A {}
 [1, 0]
 
 --- types ---
-same : Eq a => [a] -> [a] -> Int
-main : Node -> [Int]
+same :: Eq a => [a] -> [a] -> Int
+main :: Node -> [Int]

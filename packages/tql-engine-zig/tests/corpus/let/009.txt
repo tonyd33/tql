@@ -23,4 +23,4 @@ class A {}
 main = letrec { is_even = \n -> case op[=] n 0 of { False -> is_odd (op[-] n 1); True -> True }; is_odd = \n -> case op[=] n 0 of { False -> is_even (op[-] n 1); True -> False } } in const (Cons (is_even 4) (Cons (is_even 7) Nil))
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

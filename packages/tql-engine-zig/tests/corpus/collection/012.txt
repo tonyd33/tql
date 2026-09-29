@@ -18,4 +18,4 @@ class A {}
 [{ "a": 1, "b": [] }]
 
 --- types ---
-main : Node -> [{a: Int, b: [String]}]
+main :: Node -> [{a: Int, b: [String]}]

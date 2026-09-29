@@ -25,5 +25,5 @@ class Empty {}
 []
 
 --- types ---
-getters : Node -> [Node]
-main : Node -> [String]
+getters :: Node -> [Node]
+main :: Node -> [String]

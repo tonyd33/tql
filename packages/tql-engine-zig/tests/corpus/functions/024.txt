@@ -6,7 +6,7 @@ A signature may be more specific than the body. The exported scheme carries
 `Eq a`, so every use must satisfy it.
 
 --- tql ---
-same : Eq a => a -> a;
+same :: Eq a => a -> a;
 same x = x;
 main = const [same 1];
 
@@ -17,5 +17,5 @@ class A {}
 [1]
 
 --- types ---
-same : Eq a => a -> a
-main : Node -> [Int]
+same :: Eq a => a -> a
+main :: Node -> [Int]

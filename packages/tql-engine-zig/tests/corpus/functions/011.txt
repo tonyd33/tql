@@ -16,5 +16,5 @@ class A {}
 ["A", "class_declaration"]
 
 --- types ---
-both : (a -> [b]) -> (a -> [b]) -> a -> [b]
-main : Node -> [String]
+both :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+main :: Node -> [String]

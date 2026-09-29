@@ -27,4 +27,4 @@ class B { p() {} }
 ]
 
 --- types ---
-main : Node -> [{class: String, method: String}]
+main :: Node -> [{class: String, method: String}]

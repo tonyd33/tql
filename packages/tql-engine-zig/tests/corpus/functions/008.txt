@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main : Filter Node String;
+main :: Filter Node String;
 main = children | of_kind :class_declaration | .name | arr text;
 
 --- source ---
@@ -13,4 +13,4 @@ class A {}
 ["A"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

@@ -15,5 +15,5 @@ class A {}
 Well-typed and accepted. Output is unbounded.
 
 --- types ---
-from : Int -> a -> [Int]
-main : Node -> [Int]
+from :: Int -> a -> [Int]
+main :: Node -> [Int]

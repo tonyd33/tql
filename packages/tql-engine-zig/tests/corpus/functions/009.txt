@@ -16,5 +16,5 @@ class B {}
 ["A", "B"]
 
 --- types ---
-apply_to_classes : (Node -> [a]) -> Node -> [a]
-main : Node -> [String]
+apply_to_classes :: (Node -> [a]) -> Node -> [a]
+main :: Node -> [String]

@@ -1,0 +1,15 @@
+title: a fall-through with an open tail prints as cons
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { [] -> 0; [a] -> a; };
+
+main = pure (f [1]);
+
+--- error ---
+error[type-mismatch]: `_ : _ : _` is not matched
+ --> 1:8
+  |
+1 | f xs = case xs of { [] -> 0; [a] -> a; };
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

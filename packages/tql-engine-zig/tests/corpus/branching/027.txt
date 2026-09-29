@@ -1,0 +1,20 @@
+title: a list pattern matches a fixed length
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pair xs = case xs of {
+  [a, b] -> [a, b];
+  _ -> [];
+};
+
+main = pure (pair [1, 2]) <|> pure (pair [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,2],[]]
+--- types ---
+pair :: [a] -> [a]
+main :: Node -> [[Int]]

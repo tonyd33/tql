@@ -16,5 +16,5 @@ class A {}
 `length` forces the spine of the collected list. No finite output exists.
 
 --- types ---
-from : Int -> a -> [Int]
-main : Node -> [Int]
+from :: Int -> a -> [Int]
+main :: Node -> [Int]

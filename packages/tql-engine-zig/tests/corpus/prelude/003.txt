@@ -23,5 +23,5 @@ class A { getX() {} }
 ["class_declaration"]
 
 --- types ---
-getters : Node -> [Node]
-main : Node -> [String]
+getters :: Node -> [Node]
+main :: Node -> [String]

@@ -6,7 +6,7 @@ The body needs `Eq a`. The signature fixes `a` to `Int`, where it holds, so no
 constraint is left for the signature to carry.
 
 --- tql ---
-same : Int -> Int -> Bool;
+same :: Int -> Int -> Bool;
 same x y = x = y;
 main = const [same 1 1, same 1 2];
 
@@ -17,5 +17,5 @@ class A {}
 [true, false]
 
 --- types ---
-same : Int -> Int -> Bool
-main : Node -> [Bool]
+same :: Int -> Int -> Bool
+main :: Node -> [Bool]

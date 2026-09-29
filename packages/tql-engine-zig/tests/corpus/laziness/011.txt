@@ -13,12 +13,12 @@ Black-hole detection may report the re-entry; the specified semantics is
 divergence, so a diagnostic is permitted, not required.
 
 --- tql ---
-a : Node -> [String];
+a :: Node -> [String];
 a = b;
 b = a;
 main = a;
 
 --- types ---
-a : Node -> [String]
-b : a
-main : Node -> [String]
+a :: Node -> [String]
+b :: a
+main :: Node -> [String]

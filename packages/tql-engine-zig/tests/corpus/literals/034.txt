@@ -12,4 +12,4 @@ class A {}
 [20]
 
 --- types ---
-main : Node -> [Int]
+main :: Node -> [Int]

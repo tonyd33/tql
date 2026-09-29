@@ -15,4 +15,4 @@ class A {}
 [9223372036854775807]
 
 --- types ---
-main : Node -> [Int]
+main :: Node -> [Int]

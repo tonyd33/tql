@@ -16,4 +16,4 @@ import {a} from "./b";
 [["import_clause", "string"], ["import_clause", "string"]]
 
 --- types ---
-main : Node -> [[String]]
+main :: Node -> [[String]]

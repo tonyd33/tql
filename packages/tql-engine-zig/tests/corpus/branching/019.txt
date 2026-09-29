@@ -23,5 +23,5 @@ pair = \xs -> letrec { alternative = Nil } in case xs of { Nil -> alternative; C
 main = const (Cons (pair (Cons 1 (Cons 2 Nil))) (Cons (pair (Cons 1 Nil)) (Cons (pair (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil)))
 
 --- types ---
-pair : [a] -> [a]
-main : Node -> [[Int]]
+pair :: [a] -> [a]
+main :: Node -> [[Int]]

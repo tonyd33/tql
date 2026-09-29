@@ -5,7 +5,7 @@ asserts: types, values
 `length` needs `Sized a`, and the signature says so.
 
 --- tql ---
-size : Sized a => a -> Int;
+size :: Sized a => a -> Int;
 size x = length x;
 main = const [size "abc"];
 
@@ -16,5 +16,5 @@ class A {}
 [3]
 
 --- types ---
-size : Sized a => a -> Int
-main : Node -> [Int]
+size :: Sized a => a -> Int
+main :: Node -> [Int]

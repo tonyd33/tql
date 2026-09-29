@@ -5,8 +5,8 @@ asserts: error
 The first signature is the accepted one.
 
 --- tql ---
-f : Node -> String;
-f : Node -> String;
+f :: Node -> String;
+f :: Node -> String;
 f = kind;
 main = arr f;
 
@@ -14,5 +14,5 @@ main = arr f;
 error[duplicate-signature]: `f` has more than one signature
  --> 2:1
   |
-2 | f : Node -> String;
-  | ^^^^^^^^^^^^^^^^^^^
+2 | f :: Node -> String;
+  | ^^^^^^^^^^^^^^^^^^^^

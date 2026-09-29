@@ -23,5 +23,5 @@ class B {}
 ]
 
 --- types ---
-class_record : Node -> [{methods: [String], name: String}]
-main : Node -> [[{methods: [String], name: String}]]
+class_record :: Node -> [{methods: [String], name: String}]
+main :: Node -> [[{methods: [String], name: String}]]

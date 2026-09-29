@@ -22,5 +22,5 @@ add = \x -> \y -> op[+] x y
 main = letrec { add10 = add 10 } in const (Cons (add10 1) (Cons (add10 2) Nil))
 
 --- types ---
-add : Int -> Int -> Int
-main : Node -> [Int]
+add :: Int -> Int -> Int
+main :: Node -> [Int]

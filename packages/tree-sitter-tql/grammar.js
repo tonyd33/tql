@@ -16,11 +16,12 @@ const PREC = {
   or: 5,
   and: 6,
   cmp: 7,
-  add: 8,
-  mul: 9,
-  compose: 10,
-  app: 11,
-  field: 12,
+  cons: 8,
+  add: 9,
+  mul: 10,
+  compose: 11,
+  app: 12,
+  field: 13,
 };
 
 module.exports = grammar({
@@ -56,7 +57,7 @@ module.exports = grammar({
     signature: $ =>
       seq(
         field("name", $.identifier),
-        ":",
+        "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
         ";",
@@ -97,6 +98,7 @@ module.exports = grammar({
         $.logical_or,
         $.logical_and,
         $.comparison,
+        $.cons,
         $.additive,
         $.multiplicative,
         $.composition,
@@ -157,6 +159,20 @@ module.exports = grammar({
           field("right", $._expression),
         ),
       ),
+
+    cons: $ =>
+      prec.right(
+        PREC.cons,
+        seq(
+          field("left", $._expression),
+          $._cons_operator,
+          field("right", $._expression),
+        ),
+      ),
+
+    // An attached `:` outranks the kind token, so `x:xs` is cons and `x :xs`
+    // applies `x` to a kind.
+    _cons_operator: _ => choice(token.immediate(prec(1, ":")), ":"),
 
     additive: $ =>
       prec.left(
@@ -251,7 +267,32 @@ module.exports = grammar({
       seq(field("pattern", $._pattern), "->", field("body", $._expression)),
 
     _pattern: $ =>
-      choice($.constructor_pattern, $.identifier, $.parenthesized_pattern),
+      choice(
+        $.cons_pattern,
+        $.constructor_pattern,
+        $.identifier,
+        $.list_pattern,
+        $.parenthesized_pattern,
+      ),
+
+    cons_pattern: $ =>
+      prec.right(
+        seq(
+          field(
+            "head",
+            choice(
+              $.constructor_pattern,
+              $.identifier,
+              $.list_pattern,
+              $.parenthesized_pattern,
+            ),
+          ),
+          $._cons_operator,
+          field("tail", $._pattern),
+        ),
+      ),
+
+    list_pattern: $ => seq("[", optional(sep_trailing($._pattern, ",")), "]"),
 
     constructor_pattern: $ =>
       seq(
@@ -260,7 +301,12 @@ module.exports = grammar({
       ),
 
     _atomic_pattern: $ =>
-      choice($.identifier, $.type_identifier, $.parenthesized_pattern),
+      choice(
+        $.identifier,
+        $.type_identifier,
+        $.list_pattern,
+        $.parenthesized_pattern,
+      ),
 
     parenthesized_pattern: $ => seq("(", $._pattern, ")"),
 

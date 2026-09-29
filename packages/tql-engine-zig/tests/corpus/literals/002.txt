@@ -18,4 +18,4 @@ class A {}
 main = const (Cons True (Cons False (Cons True Nil)))
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

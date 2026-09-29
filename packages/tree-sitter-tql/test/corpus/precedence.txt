@@ -659,3 +659,112 @@ main = \x -> f . g;
       body: (composition
         left: (identifier)
         right: (identifier)))))
+
+========================================
+cons groups to the right
+========================================
+
+main = a : b : c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (identifier)
+      right: (cons
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+cons patterns group to the right
+========================================
+
+main = case xs of { a : b : t -> a; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (cons_pattern
+          head: (identifier)
+          tail: (cons_pattern
+            head: (identifier)
+            tail: (identifier)))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+========================================
+application binds tighter than cons
+========================================
+
+main = f x:xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (application
+        function: (identifier)
+        argument: (identifier))
+      right: (identifier))))
+
+========================================
+an applied kind heads a cons
+========================================
+
+main = f :k : xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (application
+        function: (identifier)
+        argument: (kind))
+      right: (identifier))))
+
+========================================
+addition binds tighter than cons
+========================================
+
+main = a + 1 : xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (cons
+      left: (additive
+        left: (identifier)
+        right: (number))
+      right: (identifier))))
+
+========================================
+cons binds tighter than comparison
+========================================
+
+main = a : xs = ys;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (comparison
+      left: (cons
+        left: (identifier)
+        right: (identifier))
+      right: (identifier))))

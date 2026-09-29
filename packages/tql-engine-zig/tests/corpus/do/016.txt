@@ -26,4 +26,4 @@ class B {}
 ]
 
 --- types ---
-main : Node -> [{class: String, n: Int}]
+main :: Node -> [{class: String, n: Int}]

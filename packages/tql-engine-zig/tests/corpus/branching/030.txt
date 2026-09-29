@@ -1,0 +1,19 @@
+title: a list pattern is a constructor argument
+grammar: typescript
+asserts: values
+
+--- tql ---
+type Maybe a = Just a | Nothing;
+
+only m = case m of {
+  Just [x] -> x;
+  _ -> 0;
+};
+
+main = pure (only (Just [7])) <|> pure (only (Just [7, 8]));
+
+--- source ---
+class A {}
+
+--- values ---
+[7,0]

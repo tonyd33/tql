@@ -21,4 +21,4 @@ class A {}
 [{ "file": "src/service.ts", "name": "A" }]
 
 --- types ---
-main : Node -> [{file: String, name: String}]
+main :: Node -> [{file: String, name: String}]

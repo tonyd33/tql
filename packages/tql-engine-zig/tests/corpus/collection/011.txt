@@ -25,4 +25,4 @@ class A {}
 ]
 
 --- types ---
-main : Node -> [{a: Int, b: String}]
+main :: Node -> [{a: Int, b: String}]

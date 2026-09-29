@@ -1,0 +1,14 @@
+title: cons builds a list, attached or spaced
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure (0 : 1:[2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[[0,1,2]]
+--- types ---
+main :: Node -> [[Int]]

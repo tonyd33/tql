@@ -6,7 +6,7 @@ asserts: error
 would let `size c` at `Node` through.
 
 --- tql ---
-size : a -> Int;
+size :: a -> Int;
 size x = length x;
 main = children | arr (\c -> size c);
 
@@ -14,5 +14,5 @@ main = children | arr (\c -> size c);
 error[signature-mismatch]: `Sized a` is not satisfied.
  --> 1:1
   |
-1 | size : a -> Int;
-  | ^^^^^^^^^^^^^^^^
+1 | size :: a -> Int;
+  | ^^^^^^^^^^^^^^^^^

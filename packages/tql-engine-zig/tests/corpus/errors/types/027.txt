@@ -10,7 +10,7 @@ f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };
 main = pure (f [1, 2]);
 
 --- error ---
-error[type-mismatch]: `Cons _ Nil` is not matched
+error[type-mismatch]: `[_]` is not matched
  --> 1:8
   |
 1 | f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };

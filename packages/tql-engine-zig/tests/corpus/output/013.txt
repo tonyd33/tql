@@ -16,4 +16,4 @@ class A {}
 ["src/service.ts"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

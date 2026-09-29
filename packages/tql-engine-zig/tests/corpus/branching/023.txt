@@ -7,7 +7,7 @@ A nullary constructor in argument position needs no parentheses.
 --- tql ---
 type Maybe a = Just a | Nothing;
 
-both : Maybe Int -> Maybe Int -> Int;
+both :: Maybe Int -> Maybe Int -> Int;
 both m n = case Cons m (Cons n Nil) of {
   Cons (Just a) (Cons (Just b) Nil) -> a + b;
   Cons Nothing _ -> 0 - 1;
@@ -23,5 +23,5 @@ class A {}
 [3, -1, 0]
 
 --- types ---
-both : Maybe Int -> Maybe Int -> Int
-main : Node -> [Int]
+both :: Maybe Int -> Maybe Int -> Int
+main :: Node -> [Int]

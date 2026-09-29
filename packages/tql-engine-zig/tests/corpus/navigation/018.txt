@@ -16,4 +16,4 @@ class Outer {
 ["Outer", "Inner"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

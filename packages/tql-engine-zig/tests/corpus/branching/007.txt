@@ -16,5 +16,5 @@ class A {}
 `loop` diverges if forced. A strict `and` would not terminate.
 
 --- types ---
-loop : a -> b
-main : Node -> [Bool]
+loop :: a -> b
+main :: Node -> [Bool]

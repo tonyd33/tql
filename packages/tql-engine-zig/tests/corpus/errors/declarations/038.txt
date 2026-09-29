@@ -1,0 +1,15 @@
+title: a list pattern binds a variable once
+grammar: typescript
+asserts: error
+
+--- tql ---
+f xs = case xs of { [a, a] -> a; _ -> 0; };
+
+main = pure (f [1, 1]);
+
+--- error ---
+error[duplicate-definition]: `a` is bound twice in one pattern
+ --> 1:25
+  |
+1 | f xs = case xs of { [a, a] -> a; _ -> 0; };
+  |                         ^

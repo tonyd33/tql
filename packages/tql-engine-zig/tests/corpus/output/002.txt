@@ -24,4 +24,4 @@ class A {}
 ]
 
 --- types ---
-main : Node -> [Node]
+main :: Node -> [Node]

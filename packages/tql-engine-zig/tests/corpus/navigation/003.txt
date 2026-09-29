@@ -14,4 +14,4 @@ function g() {}
 ["function_declaration", "class_declaration", "function_declaration"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

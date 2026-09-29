@@ -6,12 +6,12 @@ Wired symbols are supplied by the implementation and need no source
 declaration.
 
 --- tql ---
-kind : Node -> String;
+kind :: Node -> String;
 main = arr kind;
 
 --- error ---
 error[symbol-collision]: `kind` collides with an existing symbol
  --> 1:1
   |
-1 | kind : Node -> String;
-  | ^^^^^^^^^^^^^^^^^^^^^^
+1 | kind :: Node -> String;
+  | ^^^^^^^^^^^^^^^^^^^^^^^

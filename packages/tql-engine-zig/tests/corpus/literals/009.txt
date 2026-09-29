@@ -16,4 +16,4 @@ class A {}
 [true, false]
 
 --- types ---
-main : Node -> [Bool]
+main :: Node -> [Bool]

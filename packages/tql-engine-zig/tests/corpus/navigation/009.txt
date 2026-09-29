@@ -12,4 +12,4 @@ class Service {}
 ["Service"]
 
 --- types ---
-main : Node -> [String]
+main :: Node -> [String]

@@ -17,5 +17,5 @@ class A {}
 [42, 42]
 
 --- types ---
-shared : Int
-main : Node -> [Int]
+shared :: Int
+main :: Node -> [Int]

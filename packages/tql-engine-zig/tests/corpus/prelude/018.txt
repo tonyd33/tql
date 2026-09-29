@@ -20,6 +20,6 @@ class Store {}
 ["Service", "Store"]
 
 --- types ---
-starts_with_s : Node -> Bool
-named_s : Node -> Bool
-main : Node -> [String]
+starts_with_s :: Node -> Bool
+named_s :: Node -> Bool
+main :: Node -> [String]
