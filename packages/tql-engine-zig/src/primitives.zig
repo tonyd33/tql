@@ -67,7 +67,9 @@ fn primitiveSchemes(
         .{ "parent", PrimOp.parent },
         .{ "ancestors", PrimOp.ancestors },
         .{ "children", PrimOp.children },
+        .{ "named_children", PrimOp.named_children },
         .{ "descendants", PrimOp.descendants },
+        .{ "named_descendants", PrimOp.named_descendants },
     }) |axis| {
         try out.append(gpa, .{
             .name = axis[0],
@@ -192,10 +194,11 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",      "kind",             "is_named",            "range",
-        "length",    "toint",            "filename",            "parent",
-        "ancestors", "children",         "descendants",         "is_kind",
-        "of_kind",   "children_of_kind", "descendants_of_kind",
+        "text",                "kind",     "is_named",       "range",
+        "length",              "toint",    "filename",       "parent",
+        "ancestors",           "children", "named_children", "descendants",
+        "named_descendants",   "is_kind",  "of_kind",        "children_of_kind",
+        "descendants_of_kind",
     };
 
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
