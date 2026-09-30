@@ -6,6 +6,7 @@
 
 - A bare `.` is no longer the identity filter; write `arr identity`.
 - Signatures are written `f :: T`, and inferred types print that way.
+- `children` and `descendants` also yield anonymous tokens, such as the `type` in `import type`. `named_children` and `named_descendants` keep the old behaviour.
 
 ### New Features
 

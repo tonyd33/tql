@@ -1,9 +1,8 @@
-title: `children` and `descendants` skip anonymous tokens
+title: `children` yields anonymous tokens outside fields
 grammar: typescript
 asserts: types, values
 
-`type` in `import type` is an anonymous keyword outside any field, so the two
-imports have the same children.
+`type` in `import type` is an anonymous keyword outside any field.
 
 --- tql ---
 main = descendants_of_kind :import_statement | collect children | arr (map kind);
@@ -13,7 +12,7 @@ import type {a} from "./b";
 import {a} from "./b";
 
 --- values ---
-[["import_clause", "string"], ["import_clause", "string"]]
+[["import","type","import_clause","from","string",";"],["import","import_clause","from","string",";"]]
 
 --- types ---
 main :: Node -> [[String]]

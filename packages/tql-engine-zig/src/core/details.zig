@@ -53,7 +53,9 @@ pub const PrimOp = enum {
     parent,
     ancestors,
     children,
+    named_children,
     descendants,
+    named_descendants,
     children_of_kind,
     descendants_of_kind,
     is_kind,
@@ -67,8 +69,8 @@ pub const PrimOp = enum {
     /// `children_of_kind k` without building the list between them.
     pub fn fusedWithKindTest(self: PrimOp) ?PrimOp {
         return switch (self) {
-            .children => .children_of_kind,
-            .descendants => .descendants_of_kind,
+            .children, .named_children => .children_of_kind,
+            .descendants, .named_descendants => .descendants_of_kind,
             else => null,
         };
     }

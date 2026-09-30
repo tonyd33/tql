@@ -872,26 +872,49 @@ pub const Machine = struct {
                 return self.singleton(thunk);
             },
 
-            // Named children, document order.
+            // Children and anonymous tokens, document order.
             .children => {
                 const subject = try self.nodeArgument(arguments);
                 const cursor = try self.newCursor(subject);
                 return try self.step(.{
                     .cursor = cursor,
-                    .live = descendToNamedChild(cursor),
+                    .live = cursor.gotoFirstChild(),
                     .axis = .children,
                 });
             },
 
-            // Named proper descendants, pre-order. Proper: the walk starts by
-            // stepping off the subject, so a node is not its own descendant.
+            // Named children, document order.
+            .named_children => {
+                const subject = try self.nodeArgument(arguments);
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = descendToNamedChild(cursor),
+                    .axis = .named_children,
+                });
+            },
+
+            // Proper descendants and anonymous tokens, pre-order. Proper: the
+            // walk starts by stepping off the subject, so a node is not its
+            // own descendant.
             .descendants => {
                 const subject = try self.nodeArgument(arguments);
                 const cursor = try self.newCursor(subject);
                 return try self.step(.{
                     .cursor = cursor,
-                    .live = advanceDescendant(cursor),
+                    .live = advancePreOrder(cursor),
                     .axis = .descendants,
+                });
+            },
+
+            // Named proper descendants, pre-order.
+            .named_descendants => {
+                const subject = try self.nodeArgument(arguments);
+                const cursor = try self.newCursor(subject);
+                return try self.step(.{
+                    .cursor = cursor,
+                    .live = advanceNamedDescendant(cursor),
+                    .axis = .named_descendants,
                 });
             },
 
@@ -1043,8 +1066,10 @@ pub const Machine = struct {
 
         var rest = t;
         rest.live = switch (t.axis) {
-            .children => advanceNamedSibling(t.cursor),
-            .descendants => advanceDescendant(t.cursor),
+            .children => t.cursor.gotoNextSibling(),
+            .named_children => advanceNamedSibling(t.cursor),
+            .descendants => advancePreOrder(t.cursor),
+            .named_descendants => advanceNamedDescendant(t.cursor),
             .field => advanceFieldSibling(t.cursor, t.field_id),
             .children_of_kind => advanceSiblingOfKind(t.cursor, t.kind_id),
             .descendants_of_kind => advanceDescendantOfKind(t.cursor, t.kind_id),
@@ -1431,8 +1456,8 @@ fn advancePreOrder(cursor: *ts.TreeCursor) bool {
     }
 }
 
-/// Move a `descendants` walk to its next named node.
-fn advanceDescendant(cursor: *ts.TreeCursor) bool {
+/// Move a `named_descendants` walk to its next named node.
+fn advanceNamedDescendant(cursor: *ts.TreeCursor) bool {
     while (advancePreOrder(cursor)) {
         if (cursor.node().isNamed()) return true;
     }

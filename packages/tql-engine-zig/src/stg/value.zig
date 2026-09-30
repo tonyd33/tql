@@ -159,7 +159,9 @@ pub const Traversal = struct {
 
     pub const Axis = enum {
         children,
+        named_children,
         descendants,
+        named_descendants,
         field,
         children_of_kind,
         descendants_of_kind,

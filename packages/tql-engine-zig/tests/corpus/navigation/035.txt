@@ -1,0 +1,12 @@
+title: `named_descendants` skips anonymous tokens
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = descendants_of_kind :expression_statement | collect named_descendants | arr (map kind);
+
+--- source ---
+x = a || b;
+
+--- values ---
+[["assignment_expression", "identifier", "binary_expression", "identifier", "identifier"]]

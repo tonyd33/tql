@@ -1,4 +1,4 @@
-title: wildcard child navigation keeps every named child
+title: `named_children` keeps every named child
 grammar: typescript
 asserts: types, values
 
@@ -6,7 +6,7 @@ asserts: types, values
 such as `class`, `{`, and `}` are not visited.
 
 --- tql ---
-main = children | of_kind :class_declaration | children | arr kind;
+main = children | of_kind :class_declaration | named_children | arr kind;
 
 --- source ---
 class A {}

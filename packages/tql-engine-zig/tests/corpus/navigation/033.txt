@@ -10,18 +10,7 @@ class A { m() {} }
 class B {}
 
 --- values ---
-[
-  "class_declaration",
-  "type_identifier",
-  "class_body",
-  "method_definition",
-  "property_identifier",
-  "formal_parameters",
-  "statement_block",
-  "class_declaration",
-  "type_identifier",
-  "class_body"
-]
+["class_declaration","class","type_identifier","class_body","{","method_definition","property_identifier","formal_parameters","(",")","statement_block","{","}","}","class_declaration","class","type_identifier","class_body","{","}"]
 
 --- simplified ---
 main = kleisli descendants (arr kind)
