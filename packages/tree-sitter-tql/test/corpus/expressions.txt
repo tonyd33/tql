@@ -644,3 +644,73 @@ main = [:a, :b];
     body: (list
       (kind)
       (kind))))
+
+========================================
+backticks need no surrounding whitespace
+========================================
+
+main = a`f`b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (identifier)
+      function: (identifier)
+      right: (identifier))))
+
+========================================
+backticks may be spaced from the name
+========================================
+
+main = a ` f ` b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (identifier)
+      function: (identifier)
+      right: (identifier))))
+
+========================================
+a constructor applies infix in backticks
+========================================
+
+main = 1 `Pair` 2;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (number)
+      function: (type_identifier)
+      right: (number))))
+
+========================================
+backticks around an expression are a syntax error
+========================================
+
+main = a `(f x)` b;
+
+---
+
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      (ERROR)
+      argument: (parenthesized
+        (application
+          function: (identifier)
+          argument: (identifier))))
+    (ERROR
+      (identifier))))

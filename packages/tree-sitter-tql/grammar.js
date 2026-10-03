@@ -20,8 +20,9 @@ const PREC = {
   add: 9,
   mul: 10,
   compose: 11,
-  app: 12,
-  field: 13,
+  infix: 12,
+  app: 13,
+  field: 14,
 };
 
 module.exports = grammar({
@@ -102,6 +103,7 @@ module.exports = grammar({
         $.additive,
         $.multiplicative,
         $.composition,
+        $.infix_application,
         $.application,
         $.field_access,
         $.navigation,
@@ -191,6 +193,18 @@ module.exports = grammar({
         seq(
           field("left", $._expression),
           field("operator", choice("*", "/", "%")),
+          field("right", $._expression),
+        ),
+      ),
+
+    infix_application: $ =>
+      prec.left(
+        PREC.infix,
+        seq(
+          field("left", $._expression),
+          "`",
+          field("function", choice($.identifier, $.type_identifier)),
+          "`",
           field("right", $._expression),
         ),
       ),

@@ -842,3 +842,128 @@ main = a : xs = ys;
         left: (identifier)
         right: (identifier))
       right: (identifier))))
+
+========================================
+backtick infix applies the named function to both sides
+========================================
+
+main = 8 `mod` 5;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (number)
+      function: (identifier)
+      right: (number))))
+
+========================================
+application binds tighter than backtick infix
+========================================
+
+main = f x `g` y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (application
+        function: (identifier)
+        argument: (identifier))
+      function: (identifier)
+      right: (identifier))))
+
+========================================
+backtick infix groups to the left
+========================================
+
+main = a `f` b `g` c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (infix_application
+        left: (identifier)
+        function: (identifier)
+        right: (identifier))
+      function: (identifier)
+      right: (identifier))))
+
+========================================
+backtick infix binds tighter than multiplication
+========================================
+
+main = a `f` b * c;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (multiplicative
+      left: (infix_application
+        left: (identifier)
+        function: (identifier)
+        right: (identifier))
+      right: (identifier))))
+
+========================================
+backtick infix binds tighter than composition
+========================================
+
+main = f . g `h` x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (identifier)
+      right: (infix_application
+        left: (identifier)
+        function: (identifier)
+        right: (identifier)))))
+
+========================================
+field access binds tighter than backtick infix
+========================================
+
+main = x.name `f` y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (field_access
+        record: (identifier)
+        field: (field_name))
+      function: (identifier)
+      right: (identifier))))
+
+========================================
+a lambda on the right of backtick infix extends to the end
+========================================
+
+main = a `f` \x -> x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (infix_application
+      left: (identifier)
+      function: (identifier)
+      right: (lambda
+        parameter: (identifier)
+        body: (identifier)))))

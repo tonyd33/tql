@@ -1,0 +1,17 @@
+title: backtick infix applies the named function to the left then the right
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+sub a b = a - b;
+main = const [8 `sub` 5, sub 8 5];
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 3]
+
+--- core ---
+sub = \a -> \b -> op[-] a b
+main = const (Cons (sub 8 5) (Cons (sub 8 5) Nil))

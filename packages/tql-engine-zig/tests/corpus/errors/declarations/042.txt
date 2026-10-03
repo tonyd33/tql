@@ -1,0 +1,13 @@
+title: a backticked name must be defined
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const [1 `nope` 2];
+
+--- error ---
+error[unresolved-name]: `nope` is not defined
+ --> 1:18
+  |
+1 | main = const [1 `nope` 2];
+  |                  ^^^^
