@@ -83,6 +83,9 @@ fn finishDiagnostics(
     buf.clearRetainingCapacity();
     for (sink.items(), 0..) |d, i| {
         if (i > 0) buf.writer.writeByte('\n') catch return fail(buf, out);
+        if (tql.sourceOf(d.span.source, .{ .name = null, .text = "" }).name) |name| {
+            buf.writer.print("{s}:", .{name}) catch return fail(buf, out);
+        }
         buf.writer.print("{f}: {s}: {s}", .{ d.span, d.category.name(), d.message }) catch
             return fail(buf, out);
     }

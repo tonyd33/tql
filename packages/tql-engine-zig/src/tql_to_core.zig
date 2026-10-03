@@ -105,7 +105,7 @@ fn link(sources: []const []const u8) !core.Program {
 
     var entry_span = diagnostic.Span.unknown;
     for (sources) |source| {
-        var parsed = try parser.parseCollecting(source);
+        var parsed = try parser.parseCollecting(source, .entry);
         defer parsed.deinit();
         try testing.expect(!parsed.hasErrors());
         try desugarer.add(parsed.source_file, g, &sink);

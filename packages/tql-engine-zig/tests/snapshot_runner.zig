@@ -773,7 +773,7 @@ fn describeDiagnostics(
     errdefer w.deinit();
     for (diagnostics, 0..) |d, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try d.render(&w.writer, source, null);
+        try d.render(&w.writer, tql.sourceOf(d.span.source, .{ .name = null, .text = source }));
     }
     const rendered = w.written();
     w.shrinkRetainingCapacity(std.mem.trimEnd(u8, rendered, "\n").len);

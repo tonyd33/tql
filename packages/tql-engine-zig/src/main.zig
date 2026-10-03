@@ -711,7 +711,7 @@ fn reportDiagnostics(
 ) !void {
     for (sink.items(), 0..) |d, i| {
         if (i > 0) try stderr.writeByte('\n');
-        try d.render(stderr, source, path);
+        try d.render(stderr, tql.sourceOf(d.span.source, .{ .name = path, .text = source }));
     }
 }
 

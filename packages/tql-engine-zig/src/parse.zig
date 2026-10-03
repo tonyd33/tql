@@ -56,8 +56,13 @@ pub const Parser = struct {
     }
 
     /// Parses `source`, collecting every syntax error rather than stopping at
-    /// the first. Caller owns the result.
-    pub fn parseCollecting(self: *Parser, source: []const u8) !ParseResult {
+    /// the first. Every span in the result names `source_id`. Caller owns the
+    /// result.
+    pub fn parseCollecting(
+        self: *Parser,
+        source: []const u8,
+        source_id: diagnostic.SourceId,
+    ) !ParseResult {
         const tree = self.ts_parser.parseString(source, null) orelse
             return error.ParseFailed;
         defer tree.destroy();
@@ -71,9 +76,14 @@ pub const Parser = struct {
         errdefer arena.deinit();
 
         const root = tree.rootNode();
-        try collectSyntaxErrors(root, &sink);
+        try collectSyntaxErrors(root, source_id, &sink);
 
-        var walker: Walker = .{ .allocator = arena.allocator(), .source = source, .sink = &sink };
+        var walker: Walker = .{
+            .allocator = arena.allocator(),
+            .source = source,
+            .source_id = source_id,
+            .sink = &sink,
+        };
         const source_file = try walker.sourceFile(root);
 
         return .{
@@ -85,7 +95,7 @@ pub const Parser = struct {
     }
 };
 
-fn spanOf(node: ts.Node) Span {
+fn spanOf(node: ts.Node, source_id: diagnostic.SourceId) Span {
     const start = node.startPoint();
     const end = node.endPoint();
     return .{
@@ -93,6 +103,7 @@ fn spanOf(node: ts.Node) Span {
         .end_byte = @intCast(node.endByte()),
         .start_point = .{ .row = @intCast(start.row), .column = @intCast(start.column) },
         .end_point = .{ .row = @intCast(end.row), .column = @intCast(end.column) },
+        .source = source_id,
     };
 }
 
@@ -106,9 +117,9 @@ fn textOf(node: ts.Node, source: []const u8) []const u8 {
 /// of diagnostics follows the source, not the order the builder happens to
 /// visit children in. A fixture asserting several diagnostics asserts them in
 /// source order.
-fn collectSyntaxErrors(node: ts.Node, sink: *Sink) !void {
+fn collectSyntaxErrors(node: ts.Node, source_id: diagnostic.SourceId, sink: *Sink) !void {
     if (node.isError()) {
-        try sink.report(.parse, spanOf(node), "syntax error", .{});
+        try sink.report(.parse, spanOf(node, source_id), "syntax error", .{});
         // Children of an ERROR node are fragments of whatever the parser could
         // still shift. Reporting them too would turn one defect into a cascade.
         return;
@@ -116,7 +127,7 @@ fn collectSyntaxErrors(node: ts.Node, sink: *Sink) !void {
     if (node.isMissing()) {
         try sink.report(
             .parse,
-            spanOf(node),
+            spanOf(node, source_id),
             "missing {s}",
             .{node.grammarKind()},
         );
@@ -128,7 +139,7 @@ fn collectSyntaxErrors(node: ts.Node, sink: *Sink) !void {
     defer cursor.destroy();
     if (!cursor.gotoFirstChild()) return;
     while (true) {
-        try collectSyntaxErrors(cursor.node(), sink);
+        try collectSyntaxErrors(cursor.node(), source_id, sink);
         if (!cursor.gotoNextSibling()) break;
     }
 }
@@ -138,6 +149,7 @@ fn collectSyntaxErrors(node: ts.Node, sink: *Sink) !void {
 const Walker = struct {
     allocator: std.mem.Allocator,
     source: []const u8,
+    source_id: diagnostic.SourceId,
     sink: *Sink,
 
     fn dupe(self: *Walker, node: ts.Node) ![]const u8 {
@@ -155,7 +167,7 @@ const Walker = struct {
     fn missingField(self: *Walker, node: ts.Node, field: []const u8) !void {
         try self.sink.report(
             .parse,
-            spanOf(node),
+            spanOf(node, self.source_id),
             "expected {s} in {s}",
             .{ field, node.grammarKind() },
         );
@@ -194,7 +206,7 @@ const Walker = struct {
 
         return .{
             .declarations = try declarations.toOwnedSlice(self.allocator),
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -213,7 +225,7 @@ const Walker = struct {
         else
             &.{};
         const ty = try self.typeExpr(type_node) orelse return null;
-        return .{ .name = name, .context = constraints, .type = ty, .span = spanOf(node) };
+        return .{ .name = name, .context = constraints, .type = ty, .span = spanOf(node, self.source_id) };
     }
 
     fn context(self: *Walker, node: ts.Node) !?[]const cst.ClassConstraint {
@@ -236,7 +248,7 @@ const Walker = struct {
                     try collected.append(self.allocator, .{
                         .class = try self.dupe(class_node),
                         .variable = try self.dupe(variable_node),
-                        .span = spanOf(child),
+                        .span = spanOf(child, self.source_id),
                     });
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -264,7 +276,7 @@ const Walker = struct {
             .name = name,
             .parameters = params,
             .body = body,
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -281,7 +293,7 @@ const Walker = struct {
                         const child = cursor.node();
                         try collected.append(self.allocator, .{
                             .name = try self.dupe(child),
-                            .span = spanOf(child),
+                            .span = spanOf(child, self.source_id),
                         });
                     }
                 }
@@ -310,7 +322,7 @@ const Walker = struct {
             .name = name,
             .parameters = params,
             .value = value,
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -340,7 +352,7 @@ const Walker = struct {
     }
 
     fn expression(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Expression {
-        const span = spanOf(node);
+        const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
 
         if (std.mem.eql(u8, kind, "identifier")) {
@@ -661,7 +673,7 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -695,7 +707,7 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .type = ty,
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -724,7 +736,7 @@ const Walker = struct {
         return .{
             .name = name,
             .fields = try fields.toOwnedSlice(self.allocator),
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
@@ -773,12 +785,12 @@ const Walker = struct {
         return .{
             .pattern = pattern,
             .body = body,
-            .span = spanOf(node),
+            .span = spanOf(node, self.source_id),
         };
     }
 
     fn casePattern(self: *Walker, node: ts.Node) error{OutOfMemory}!?cst.Pattern {
-        const span = spanOf(node);
+        const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
         if (std.mem.eql(u8, kind, "identifier")) {
             return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
@@ -943,7 +955,7 @@ const Walker = struct {
                     try statements.append(self.allocator, .{ .bind = .{
                         .name = name,
                         .value = value,
-                        .span = spanOf(child),
+                        .span = spanOf(child, self.source_id),
                     } });
                 }
             } else if (std.mem.eql(u8, kind, "let_statement")) {
@@ -953,7 +965,7 @@ const Walker = struct {
                 };
                 try statements.append(self.allocator, .{ .let = .{
                     .bindings = try self.bindings(group_node),
-                    .span = spanOf(child),
+                    .span = spanOf(child, self.source_id),
                 } });
             } else if (try self.expression(child)) |value| {
                 try statements.append(self.allocator, .{ .expression = value });
@@ -1023,7 +1035,7 @@ const Walker = struct {
                         try fields.append(self.allocator, .{
                             .name = name,
                             .value = value,
-                            .span = spanOf(child),
+                            .span = spanOf(child, self.source_id),
                         });
                     }
                 }
@@ -1069,7 +1081,7 @@ const Walker = struct {
     }
 
     fn typeExpr(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Type {
-        const span = spanOf(node);
+        const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
 
         if (std.mem.eql(u8, kind, "type_identifier")) {
@@ -1171,7 +1183,7 @@ const Walker = struct {
                             try fields.append(self.allocator, .{
                                 .name = name,
                                 .type = ty,
-                                .span = spanOf(child),
+                                .span = spanOf(child, self.source_id),
                             });
                         }
                     }
@@ -1251,7 +1263,7 @@ fn expectSexpr(source: []const u8, expected: []const u8) !void {
     var parser = try Parser.init(testing.allocator);
     defer parser.deinit();
 
-    var result = try parser.parseCollecting(source);
+    var result = try parser.parseCollecting(source, .entry);
     defer result.deinit();
 
     try testing.expectEqual(0, result.diagnostics.len);
@@ -1513,7 +1525,7 @@ test "spans are byte-accurate" {
     var parser = try Parser.init(testing.allocator);
     defer parser.deinit();
 
-    var result = try parser.parseCollecting("main = 1 + 2;");
+    var result = try parser.parseCollecting("main = 1 + 2;", .entry);
     defer result.deinit();
 
     const body = result.source_file.declarations[0].definition.body;
@@ -1527,7 +1539,7 @@ test "an unclosed group reports a missing token" {
     var parser = try Parser.init(testing.allocator);
     defer parser.deinit();
 
-    var result = try parser.parseCollecting("main = (1 + 2;");
+    var result = try parser.parseCollecting("main = (1 + 2;", .entry);
     defer result.deinit();
 
     try testing.expect(result.hasErrors());
@@ -1543,7 +1555,7 @@ test "a declaration dropped by recovery leaks nothing it had built" {
     var result = try parser.parseCollecting(
         \\main p = \x y -> case x of { C a b -> 99999999999999999999999 };
         \\other = let { f q = 99999999999999999999999 } in \z -> 99999999999999999999999;
-    );
+    , .entry);
     defer result.deinit();
 
     try testing.expectEqual(0, result.source_file.declarations.len);
@@ -1557,13 +1569,40 @@ test "an incomplete declaration spans the declaration" {
     var parser = try Parser.init(testing.allocator);
     defer parser.deinit();
 
-    var result = try parser.parseCollecting("main =");
+    var result = try parser.parseCollecting("main =", .entry);
     defer result.deinit();
 
     try testing.expectEqual(1, result.diagnostics.len);
     const span = result.diagnostics[0].span;
     try testing.expectEqual(0, span.start_byte);
     try testing.expectEqual(6, span.end_byte);
+}
+
+test "every span names the source it was parsed as" {
+    var parser = try Parser.init(testing.allocator);
+    defer parser.deinit();
+
+    const library: diagnostic.SourceId = @enumFromInt(3);
+    var result = try parser.parseCollecting("f x = x;", library);
+    defer result.deinit();
+
+    try testing.expectEqual(library, result.source_file.span.source);
+    const definition = result.source_file.declarations[0].definition;
+    try testing.expectEqual(library, definition.span.source);
+    try testing.expectEqual(library, definition.parameters[0].span.source);
+    try testing.expectEqual(library, definition.body.span.source);
+}
+
+test "a syntax error names the source it was parsed as" {
+    var parser = try Parser.init(testing.allocator);
+    defer parser.deinit();
+
+    const library: diagnostic.SourceId = @enumFromInt(3);
+    var result = try parser.parseCollecting("main =", library);
+    defer result.deinit();
+
+    try testing.expectEqual(1, result.diagnostics.len);
+    try testing.expectEqual(library, result.diagnostics[0].span.source);
 }
 
 test "several declarations parse independently" {

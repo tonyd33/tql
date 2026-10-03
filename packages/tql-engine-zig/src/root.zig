@@ -30,6 +30,17 @@ const pcre2 = @import("regex.zig");
 /// The prelude, linked beneath every query.
 pub const prelude_source = @embedFile("prelude.tql");
 
+/// The source id every span in the prelude carries.
+pub const prelude_source_id: diagnostic.SourceId = @enumFromInt(1);
+
+/// The source a diagnostic's span points into, given the entry query it was
+/// compiled from.
+pub fn sourceOf(id: diagnostic.SourceId, entry: diagnostic.Source) diagnostic.Source {
+    if (id == prelude_source_id) return .{ .name = "prelude.tql", .text = prelude_source };
+    std.debug.assert(id == .entry);
+    return entry;
+}
+
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
 pub const Parser = parse.Parser;
@@ -89,7 +100,7 @@ pub const Engine = struct {
         self: *Engine,
         query_source: []const u8,
     ) !parse.ParseResult {
-        return try self.tql_parser.parseCollecting(query_source);
+        return try self.tql_parser.parseCollecting(query_source, .entry);
     }
 
     /// Parse and desugar a query, then link it against the prelude into a
@@ -100,7 +111,7 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
-        var parsed = try self.tql_parser.parseCollecting(query_source);
+        var parsed = try self.tql_parser.parseCollecting(query_source, .entry);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
             for (parsed.diagnostics) |d| {
@@ -148,7 +159,7 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !void {
-        var parsed = try self.tql_parser.parseCollecting(prelude_source);
+        var parsed = try self.tql_parser.parseCollecting(prelude_source, prelude_source_id);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
         if (parsed.hasErrors()) return error.PreludeInvalid;
@@ -481,6 +492,39 @@ test "forcing a global cycle reports it rather than hanging" {
 
     const a = program.env.interner.lookup("a").?;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
+}
+
+test "a definition's span names the source it came from" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery("main = children;", g, &sink);
+    defer program.deinit();
+
+    for (program.definitions[0..program.entry_offset]) |d| {
+        try std.testing.expectEqual(prelude_source_id, d.span.source);
+    }
+    for (program.entryDefinitions()) |d| {
+        try std.testing.expectEqual(diagnostic.SourceId.entry, d.span.source);
+    }
+}
+
+test "a span resolves to the source it names" {
+    const entry: diagnostic.Source = .{ .name = "q.tql", .text = "main = children;" };
+    try std.testing.expectEqual(entry, sourceOf(.entry, entry));
+
+    const prelude = sourceOf(prelude_source_id, entry);
+    try std.testing.expectEqualStrings("prelude.tql", prelude.name.?);
+    try std.testing.expectEqual(prelude_source.ptr, prelude.text.ptr);
 }
 
 test "the prelude's bodies compile to Core" {
