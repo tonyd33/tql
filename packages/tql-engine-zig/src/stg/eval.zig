@@ -1426,18 +1426,9 @@ fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
     try jws.objectField("end_byte");
     try jws.write(r.end_byte);
     try jws.objectField("start_point");
-    try writePoint(r.start_point, jws);
+    try jws.write(r.start_point);
     try jws.objectField("end_point");
-    try writePoint(r.end_point, jws);
-}
-
-fn writePoint(p: value.Point, jws: *std.json.Stringify) !void {
-    try jws.beginObject();
-    try jws.objectField("row");
-    try jws.write(p.row);
-    try jws.objectField("column");
-    try jws.write(p.column);
-    try jws.endObject();
+    try jws.write(r.end_point);
 }
 
 /// Move `cursor` to the first named child, reporting whether one exists.

@@ -140,10 +140,7 @@ pub const Widths = struct {
 };
 
 fn digits(n: u32) usize {
-    var count: usize = 1;
-    var rest = n / 10;
-    while (rest > 0) : (rest /= 10) count += 1;
-    return count;
+    return std.math.log10_int(n) + 1;
 }
 
 /// Write one line per row: its range, indentation for its depth, its field,

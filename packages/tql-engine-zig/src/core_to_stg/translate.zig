@@ -136,12 +136,8 @@ pub const Translator = struct {
     /// Where `name` sits in the environment of the closure being translated.
     fn place(self: *Translator, name: core.SymbolId) Error!stg.Local {
         // Innermost first, so the scope reads as a stack.
-        var i = self.scope.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.scope.items[i] == name) {
-                return .{ .offset = @intCast(i), .name = name };
-            }
+        if (std.mem.lastIndexOfScalar(core.SymbolId, self.scope.items, name)) |i| {
+            return .{ .offset = @intCast(i), .name = name };
         }
         // Reached only for a name no enclosing binder introduced, which the
         // free-variable pass would have captured.

@@ -203,7 +203,7 @@ pub const Diagnostic = struct {
         }
 
         const shown_rows = end.row - start.row + 1;
-        const gutter = digitCount(end.row + 1);
+        const gutter = std.math.log10_int(end.row + 1) + 1; // digit count
 
         try w.splatByteAll(' ', gutter);
         try w.writeAll("--> ");
@@ -258,13 +258,6 @@ pub const Diagnostic = struct {
 
 /// An excerpt longer than this many rows has its middle elided.
 const MAX_EXCERPT_ROWS = 4;
-
-fn digitCount(n: u32) usize {
-    var count: usize = 1;
-    var rest = n / 10;
-    while (rest > 0) : (rest /= 10) count += 1;
-    return count;
-}
 
 fn isContinuationByte(c: u8) bool {
     return c & 0b1100_0000 == 0b1000_0000;

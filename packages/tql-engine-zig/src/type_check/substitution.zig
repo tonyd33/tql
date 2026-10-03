@@ -18,8 +18,8 @@ const Leaf = union(enum) {
     fn replace(self: Leaf, head: types.Type) types.Type {
         switch (self) {
             .resolved => {},
-            .bound => |metas| if (head == .meta) for (metas, 0..) |m, index| {
-                if (m == head.meta) return .{ .variable = @intCast(index) };
+            .bound => |metas| if (head == .meta) {
+                if (std.mem.indexOfScalar(types.Meta, metas, head.meta)) |index| return .{ .variable = @intCast(index) };
             },
         }
         return head;
@@ -225,7 +225,7 @@ pub const Substitution = struct {
         const head = self.resolve(t);
         switch (head) {
             .meta => |id| {
-                for (out.items) |seen| if (seen == id) return;
+                if (std.mem.indexOfScalar(types.Meta, out.items, id) != null) return;
                 try out.append(self.gpa, id);
             },
             .variable, .primitive => {},
