@@ -1,5 +1,6 @@
 -- a highlighted query
 type Size = Small | Large Int;
+-- <- keyword
 --   ^ type
 --                        ^ type
 
@@ -21,6 +22,14 @@ is_alloc = #declarator | keep (\d -> text d ~ r"^alloc");
 
 size xs = case xs of { [] -> Small; x : rest -> Large (length rest) };
 --   ^ variable.parameter
+--        ^ keyword
+--                ^ keyword
+
+clamp x = x `max` 0;
+--           ^ function
+
+halves = map (`div` 2) . filter (0 <);
+--             ^ function
 
 main root = do {
 -- <- function

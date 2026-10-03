@@ -6,6 +6,9 @@
   "else"
   "and"
   "or"
+  "case"
+  "of"
+  "type"
 ] @keyword
 
 (comment) @comment
