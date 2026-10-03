@@ -17,6 +17,11 @@ pub const SourceFile = struct {
         if (self.header) |h| {
             try w.print(" (module {s}", .{h.name});
             try sexprFilter(w, "exports", h.exports);
+            if (h.grammars) |grammars| {
+                try w.writeAll(" (for");
+                for (grammars) |g| try w.print(" {s}", .{g});
+                try w.writeByte(')');
+            }
             try w.writeByte(')');
         }
         for (self.imports) |i| {
@@ -58,6 +63,8 @@ pub const SourceFile = struct {
 pub const ModuleHeader = struct {
     name: []const u8,
     exports: Filter = .all,
+    /// The grammars a `for` clause names. Null for a grammar-generic module.
+    grammars: ?[]const []const u8 = null,
     span: diagnostic.Span = .unknown,
 };
 

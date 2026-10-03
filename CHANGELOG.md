@@ -25,6 +25,9 @@
 - Added `subtract`.
 - A query may define a name or declare a type the prelude has.
 - Added modules: `module A.B (x, T(..));` names a module and its exports, and `import A.B;`, `import A.B (x);`, `import A.B hiding (x);` and `import A.B as Q;` bring them into scope. `Q.x` names an export of the import qualified as `Q`. `import Prelude hiding (x);` replaces the implicit prelude import.
+- `tql query` finds `import A.B` as `A/B.tql` in the query file's directory, then each `-I dir`, then each directory in `TQL_PATH`.
+- `module A.B for javascript, typescript;` declares the grammars a module reads. Importing it under another grammar is an error, and an imported module without `for` may not use grammar-specific syntax like kinds or fields.
+- `tql-js` `query` takes `modules`, a record of module name to source.
 
 ## 0.3.1 (unreleased)
 

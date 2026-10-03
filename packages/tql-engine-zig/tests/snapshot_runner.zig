@@ -771,12 +771,12 @@ const CaseModules = struct {
         return .{ .context = self, .loadFn = load };
     }
 
-    fn load(context: *anyopaque, name: []const u8) ?tql.diagnostic.Source {
+    fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
         const self: *CaseModules = @ptrCast(@alignCast(context));
         for (self.modules) |m| {
-            if (std.mem.eql(u8, m.name, name)) return .{ .name = m.name, .text = m.text.content };
+            if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.name, .text = m.text.content } };
         }
-        return null;
+        return .missing;
     }
 };
 

@@ -11,12 +11,19 @@ const Result = extern struct {
     len: usize,
 };
 
+/// Every zero-length buffer, at an address the caller can read from.
+var empty: [1]u8 = undefined;
+
+/// Returns a buffer of `len` bytes. A zero-length one is `empty`.
 export fn tql_alloc(len: usize) ?[*]u8 {
+    if (len == 0) return &empty;
     const buf = gpa.alloc(u8, len) catch return null;
     return buf.ptr;
 }
 
+/// Frees a buffer of `len` bytes. A zero-length one needs no freeing.
 export fn tql_free(ptr: [*]u8, len: usize) void {
+    if (len == 0) return;
     gpa.free(ptr[0..len]);
 }
 
@@ -92,12 +99,34 @@ fn fail(buf: *std.Io.Writer.Allocating, out: *Result) void {
     out.* = .{ .status = 2, .ptr = undefined, .len = 0 };
 }
 
+/// Serves the modules a caller passed as one JSON object of name to source.
+const JsonModules = struct {
+    map: std.json.ArrayHashMap([]const u8),
+
+    fn loader(self: *JsonModules) tql.Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
+        const self: *JsonModules = @ptrCast(@alignCast(context));
+        const text = self.map.map.get(name) orelse return .missing;
+        return .{ .found = .{ .name = name, .text = text } };
+    }
+};
+
+/// Runs a query against a target under the grammar at `language_ptr`, named
+/// `grammar_name` for `for` clauses. `modules` is a JSON object mapping each
+/// importable module's name to its source.
 export fn tql_run_dynamic(
     language_ptr: usize,
+    grammar_name_ptr: [*]const u8,
+    grammar_name_len: usize,
     query_ptr: [*]const u8,
     query_len: usize,
     target_ptr: [*]const u8,
     target_len: usize,
+    modules_ptr: [*]const u8,
+    modules_len: usize,
     out: *Result,
 ) void {
     var buf = std.Io.Writer.Allocating.init(gpa);
@@ -105,10 +134,19 @@ export fn tql_run_dynamic(
     if (language_ptr == 0) return finishErr(&buf, out, "null language pointer");
     const language: *const tql.ts.Language = @ptrFromInt(language_ptr);
     const grammar = tql.Grammar{
-        .name = "dynamic",
+        .name = grammar_name_ptr[0..grammar_name_len],
         .extensions = &.{},
         .language = language,
     };
+
+    const modules = std.json.parseFromSlice(
+        std.json.ArrayHashMap([]const u8),
+        gpa,
+        modules_ptr[0..modules_len],
+        .{},
+    ) catch |err| return finishErr(&buf, out, @errorName(err));
+    defer modules.deinit();
+    var served: JsonModules = .{ .map = modules.value };
 
     var single_threaded = std.Io.Threaded.init_single_threaded;
     var engine = tql.Engine.init(.{
@@ -116,6 +154,7 @@ export fn tql_run_dynamic(
         .io = single_threaded.io(),
     }) catch |err| return finishErr(&buf, out, @errorName(err));
     defer engine.deinit();
+    engine.loader = served.loader();
 
     var sink = tql.diagnostic.Sink.init(gpa);
     defer sink.deinit();

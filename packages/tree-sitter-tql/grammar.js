@@ -50,6 +50,7 @@ module.exports = grammar({
         "module",
         field("name", $.module_name),
         optional(field("exports", $.item_list)),
+        optional(seq("for", sep1(field("grammar", $.identifier), ","))),
         ";",
       ),
 

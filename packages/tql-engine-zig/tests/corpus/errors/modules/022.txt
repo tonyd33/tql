@@ -1,0 +1,23 @@
+title: a module without a for clause cannot import one with
+grammar: typescript
+asserts: error
+
+--- module Generic ---
+module Generic;
+import Types;
+all_types root = types root;
+
+--- module Types ---
+module Types for typescript;
+types root = descendants_of_kind :type_alias_declaration root;
+
+--- tql ---
+import Generic;
+main root = all_types root;
+
+--- error ---
+error[grammar-mismatch]: `Types` has a `for` clause, so a module without one cannot import it
+ --> Generic:2:1
+  |
+2 | import Types;
+  | ^^^^^^^^^^^^^

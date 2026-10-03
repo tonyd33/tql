@@ -23,7 +23,8 @@ pub const Lowerer = struct {
     scope: *const ModuleScope,
     /// The linked index of every definition in this module and those before.
     linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
-    language: *const ts.Language,
+    /// Null in a grammar-generic module, which may not use kinds or fields.
+    language: ?*const ts.Language,
     sink: *diagnostic.Sink,
     builder: core.Builder,
 
@@ -36,7 +37,7 @@ pub const Lowerer = struct {
         interner: *core.Interner,
         scope: *const ModuleScope,
         linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
-        language: *const ts.Language,
+        language: ?*const ts.Language,
         sink: *diagnostic.Sink,
     ) Lowerer {
         return .{
@@ -102,10 +103,25 @@ pub const Lowerer = struct {
         try self.references.append(self.builder.allocator, index);
     }
 
+    /// The grammar a kind or field `name` resolves against. A grammar-generic
+    /// module has none, and naming one there is reported.
+    fn grammar(self: *Lowerer, comptime what: []const u8, name: []const u8, span: diagnostic.Span) Error!*const ts.Language {
+        return self.language orelse {
+            try self.sink.report(
+                .grammar_mismatch,
+                span,
+                "this module has no `for` clause, so it cannot name the " ++ what ++ " `{s}`",
+                .{name},
+            );
+            return error.DesugarFailed;
+        };
+    }
+
     /// Resolve a `:k` literal against the target grammar. These literals are
     /// the only source of kind values.
     fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
-        const id = self.language.idForNodeKind(name, true);
+        const language = try self.grammar("kind", name, span);
+        const id = language.idForNodeKind(name, true);
         if (id == 0) {
             try self.sink.report(
                 .unknown_kind,
@@ -115,12 +131,12 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         }
-        if (self.language.nodeKindIsSupertype(id)) {
+        if (language.nodeKindIsSupertype(id)) {
             try self.sink.report(
                 .supertype_kind,
                 span,
                 "`{s}` is a supertype, so no node has this kind{f}",
-                .{ name, SubtypeList{ .language = self.language, .supertype = id } },
+                .{ name, SubtypeList{ .language = language, .supertype = id } },
             );
             return error.DesugarFailed;
         }
@@ -241,7 +257,7 @@ pub const Lowerer = struct {
 
             // A leading `#f` is the bare `field[f]`.
             .navigation => |n| {
-                const id = self.language.fieldIdForName(n.field);
+                const id = (try self.grammar("field", n.field, e.span)).fieldIdForName(n.field);
                 if (id == 0) {
                     try self.sink.report(
                         .unknown_field,

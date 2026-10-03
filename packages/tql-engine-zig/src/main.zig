@@ -40,6 +40,7 @@ const main_cmds = .{
             .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
+            .include = Opt{ .names = .{ .long = "include", .short = 'I' }, .has_arg = .required_argument, .meta = "dir", .description = "Search dir for imported modules; repeatable" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
             .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: text)" },
         },
@@ -76,6 +77,7 @@ const main_cmds = .{
             .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
             .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
+            .include = Opt{ .names = .{ .long = "include", .short = 'I' }, .has_arg = .required_argument, .meta = "dir", .description = "Search dir for imported modules; repeatable" },
         },
     },
 };
@@ -246,6 +248,8 @@ fn runQuery(
     var grammar: ?*const Grammar = null;
     var progress = false;
     var format: OutputFormat = .text;
+    var includes: std.ArrayList([]const u8) = .empty;
+    defer includes.deinit(gpa);
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -272,6 +276,7 @@ fn runQuery(
                     try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
                     return @intFromEnum(ExitCode.invalid_args);
                 },
+                .include => try includes.append(gpa, kv.value),
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -311,9 +316,13 @@ fn runQuery(
         return @intFromEnum(ExitCode.invalid_args);
     };
 
+    const module_roots = try moduleRoots(gpa, from_file, includes.items, environ_map);
+    defer gpa.free(module_roots);
+
     return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_path = from_file,
+        .module_roots = module_roots,
         .query_target_paths = files,
         .format = format,
         .grammar = grammar_resolved,
@@ -645,6 +654,8 @@ fn runDebug(
 
     var from_file: ?[]const u8 = null;
     var grammar_name: ?[]const u8 = null;
+    var includes: std.ArrayList([]const u8) = .empty;
+    defer includes.deinit(gpa);
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -656,6 +667,7 @@ fn runDebug(
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
                 .grammar => grammar_name = kv.value,
+                .include => try includes.append(gpa, kv.value),
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -668,7 +680,11 @@ fn runDebug(
 
     switch (SubcmdResolver(debug_subcmds).match(positionals.items[0])) {
         .subcmd => |s| switch (s) {
-            .@"dump-instructions" => return runDumpInstructions(io, gpa, stdout, stderr, environ_map, from_file, grammar_name, positionals.items[1..]),
+            .@"dump-instructions" => {
+                const module_roots = try moduleRoots(gpa, from_file, includes.items, environ_map);
+                defer gpa.free(module_roots);
+                return runDumpInstructions(io, gpa, stdout, stderr, environ_map, from_file, module_roots, grammar_name, positionals.items[1..]);
+            },
         },
         .unknown => |w| {
             try stderr.print("Error: unknown debug subcommand '{s}'\n", .{w});
@@ -693,6 +709,87 @@ fn reportArgError(stderr: *std.Io.Writer, err: goz.ParseError, diag: goz.Diagnos
     }
     return @intFromEnum(ExitCode.invalid_args);
 }
+
+/// Where imports are searched, in order: the query file's directory, each
+/// `-I` directory, then each directory in `TQL_PATH`. An inline query has no
+/// directory of its own. The slices borrow from the arguments and `env`.
+fn moduleRoots(
+    gpa: std.mem.Allocator,
+    query_path: ?[]const u8,
+    includes: []const []const u8,
+    env: *const std.process.Environ.Map,
+) ![]const []const u8 {
+    var roots: std.ArrayList([]const u8) = .empty;
+    errdefer roots.deinit(gpa);
+    if (query_path) |p| try roots.append(gpa, std.fs.path.dirname(p) orelse ".");
+    try roots.appendSlice(gpa, includes);
+    if (env.get("TQL_PATH")) |path| {
+        var it = std.mem.splitScalar(u8, path, std.fs.path.delimiter);
+        while (it.next()) |part| {
+            if (part.len > 0) try roots.append(gpa, part);
+        }
+    }
+    return try roots.toOwnedSlice(gpa);
+}
+
+/// Serves module `A.B` from `A/B.tql` under the first root holding it.
+const FileLoader = struct {
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    roots: []const []const u8,
+    /// Each file read, freed with the loader.
+    read: std.ArrayList(tql.diagnostic.Source) = .empty,
+    /// Why the latest load failed, if it did.
+    failure: std.ArrayList(u8) = .empty,
+
+    fn deinit(self: *FileLoader) void {
+        for (self.read.items) |source| {
+            self.gpa.free(source.name.?);
+            self.gpa.free(source.text);
+        }
+        self.read.deinit(self.gpa);
+        self.failure.deinit(self.gpa);
+    }
+
+    fn loader(self: *FileLoader) tql.Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
+        const self: *FileLoader = @ptrCast(@alignCast(context));
+        return self.find(name) catch |err| .{ .failed = @errorName(err) };
+    }
+
+    fn find(self: *FileLoader, name: []const u8) !tql.load.Loaded {
+        const relative = try std.mem.concat(self.gpa, u8, &.{ name, ".tql" });
+        defer self.gpa.free(relative);
+        std.mem.replaceScalar(u8, relative[0..name.len], '.', std.fs.path.sep);
+
+        for (self.roots) |root| {
+            const path = try std.fs.path.join(self.gpa, &.{ root, relative });
+            const text = readQueryFile(self.io, self.gpa, path) catch |err| {
+                defer self.gpa.free(path);
+                switch (err) {
+                    // The root does not hold the module, or is not a directory.
+                    error.FileNotFound, error.NotDir => continue,
+                    else => {
+                        self.failure.clearRetainingCapacity();
+                        try self.failure.print(self.gpa, "`{s}`: {t}", .{ path, err });
+                        return .{ .failed = self.failure.items };
+                    },
+                }
+            };
+            const source: tql.diagnostic.Source = .{ .name = path, .text = text };
+            self.read.append(self.gpa, source) catch |err| {
+                self.gpa.free(path);
+                self.gpa.free(text);
+                return err;
+            };
+            return .{ .found = source };
+        }
+        return .missing;
+    }
+};
 
 fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
     const file = try std.Io.Dir.cwd().openFile(io, path, .{});
@@ -723,6 +820,7 @@ fn runDumpInstructions(
     stderr: *std.Io.Writer,
     environ_map: *const std.process.Environ.Map,
     from_file: ?[]const u8,
+    module_roots: []const []const u8,
     grammar_name: ?[]const u8,
     positionals: []const []const u8,
 ) !u8 {
@@ -760,6 +858,9 @@ fn runDumpInstructions(
 
     var engine = try Engine.init(.{ .allocator = gpa, .io = io });
     defer engine.deinit();
+    var files: FileLoader = .{ .io = io, .gpa = gpa, .roots = module_roots };
+    defer files.deinit();
+    engine.loader = files.loader();
 
     var sink = tql.diagnostic.Sink.init(gpa);
     defer sink.deinit();
@@ -785,6 +886,8 @@ const Config = struct {
     query: []const u8,
     /// The file `query` was read from, or null for an inline query.
     query_path: ?[]const u8,
+    /// Where `import A.B` looks for `A/B.tql`, in order.
+    module_roots: []const []const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
     grammar: *const Grammar,
@@ -1127,6 +1230,9 @@ fn run(
         .io = io,
     });
     defer engine.deinit();
+    var files: FileLoader = .{ .io = io, .gpa = allocator, .roots = config.module_roots };
+    defer files.deinit();
+    engine.loader = files.loader();
 
     var sink = tql.diagnostic.Sink.init(allocator);
     defer sink.deinit();
@@ -1200,4 +1306,29 @@ fn run(
 
     if (progress.failed.load(.monotonic) > 0) return @intFromEnum(ExitCode.runtime_error);
     return @intFromEnum(ExitCode.success);
+}
+
+test "imports search the query's directory, then -I, then TQL_PATH" {
+    const gpa = std.testing.allocator;
+    var env = std.process.Environ.Map.init(gpa);
+    defer env.deinit();
+    try env.put("TQL_PATH", "/env/a::/env/b");
+
+    const roots = try moduleRoots(gpa, "rules/q.tql", &.{ "lib", "vendor" }, &env);
+    defer gpa.free(roots);
+    try std.testing.expectEqual(5, roots.len);
+    for ([_][]const u8{ "rules", "lib", "vendor", "/env/a", "/env/b" }, roots) |expected, root| {
+        try std.testing.expectEqualStrings(expected, root);
+    }
+}
+
+test "an inline query searches only -I and TQL_PATH" {
+    const gpa = std.testing.allocator;
+    var env = std.process.Environ.Map.init(gpa);
+    defer env.deinit();
+
+    const roots = try moduleRoots(gpa, null, &.{"lib"}, &env);
+    defer gpa.free(roots);
+    try std.testing.expectEqual(1, roots.len);
+    try std.testing.expectEqualStrings("lib", roots[0]);
 }

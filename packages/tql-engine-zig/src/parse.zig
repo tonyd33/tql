@@ -227,9 +227,21 @@ const Walker = struct {
             try self.missingField(node, "name");
             return null;
         };
+        var grammars: std.ArrayList([]const u8) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "grammar")) try grammars.append(self.allocator, try self.dupe(cursor.node()));
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
         return .{
             .name = try self.dupe(name_node),
             .exports = if (node.childByFieldName("exports")) |exports| .{ .only = try self.items(exports) } else .all,
+            .grammars = if (grammars.items.len == 0) null else try grammars.toOwnedSlice(self.allocator),
             .span = spanOf(node, self.source_id),
         };
     }
@@ -1346,13 +1358,13 @@ fn expectSexpr(source: []const u8, expected: []const u8) !void {
 
 test "a header and imports precede the declarations" {
     try expectSexpr(
-        \\module A.B (f, T(..), U);
+        \\module A.B (f, T(..), U) for javascript, tsx;
         \\import C;
         \\import D (g) as Q;
         \\import Prelude hiding (filter);
         \\f = 1;
     ,
-        "(source_file (module A.B (exports f T(..) U)) (import C) (import D (items g) (as Q))" ++
+        "(source_file (module A.B (exports f T(..) U) (for javascript tsx)) (import C) (import D (items g) (as Q))" ++
             " (import Prelude (hiding filter)) (define f (params) 1))",
     );
 }

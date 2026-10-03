@@ -33,6 +33,9 @@ pub const prelude_source = @embedFile("prelude.tql");
 pub const load = @import("load.zig");
 pub const Loader = load.Loader;
 
+/// The libraries every host can import.
+pub const bundled_modules: []const load.Bundled = &.{};
+
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
 pub const Parser = parse.Parser;
@@ -74,8 +77,9 @@ fn listElements(
 pub const Engine = struct {
     config: Config,
     tql_parser: parse.Parser,
-    /// Where an imported module's source comes from. Null allows no imports.
+    /// Where an imported module's source comes from, besides `bundled`.
     loader: ?Loader = null,
+    bundled: []const load.Bundled = bundled_modules,
     /// What the latest compilation read besides its query.
     sources: diagnostic.Sources,
 
@@ -127,16 +131,24 @@ pub const Engine = struct {
         var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
-        try self.addPrelude(&desugarer, g, sink);
+        try self.addPrelude(&desugarer, sink);
+
+        var shipped: load.BundledLoader = .{ .modules = self.bundled };
+        var loaders: std.ArrayList(Loader) = .empty;
+        defer loaders.deinit(self.config.allocator);
+        if (self.loader) |l| try loaders.append(self.config.allocator, l);
+        try loaders.append(self.config.allocator, shipped.loader());
 
         var graph: load.Graph = .{
             .gpa = self.config.allocator,
             .parser = &self.tql_parser,
-            .loader = self.loader,
+            .loaders = loaders.items,
             .sources = &self.sources,
         };
         defer graph.deinit();
         try graph.visitEntry(parsed.source_file, sink);
+        if (sink.hasErrors()) return error.DesugarFailed;
+        try graph.checkGrammars(g, sink);
         if (sink.hasErrors()) return error.DesugarFailed;
         try graph.link(&desugarer, g, sink);
 
@@ -162,13 +174,11 @@ pub const Engine = struct {
     /// Parses and desugars `prelude.tql` into the link.
     ///
     /// Recompiled per link: a module's `SymbolId`s index the registry it was
-    /// desugared against, and a `:k` literal resolves its kind ID from the
-    /// grammar, so a cached one would be valid only per grammar and per
-    /// registry prefix.
+    /// desugared against, so a cached one would be valid only per registry
+    /// prefix. The prelude is grammar-generic.
     fn addPrelude(
         self: *Engine,
         desugarer: *tql_to_core.Desugarer,
-        g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !void {
         const id = try self.sources.add(.{ .name = "prelude.tql", .text = prelude_source });
@@ -177,7 +187,7 @@ pub const Engine = struct {
         // Compiled in, so a parse error here is a bug in this repository.
         if (parsed.hasErrors()) return error.PreludeInvalid;
 
-        try desugarer.add(.prelude, &.{}, parsed.source_file, g, sink);
+        try desugarer.add(.prelude, &.{}, parsed.source_file, null, sink);
     }
 
     /// Parse, check, translate and run a query against a target file, writing
@@ -505,6 +515,63 @@ test "forcing a global cycle reports it rather than hanging" {
 
     const a = program.entryDefinitions()[0].symbol;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
+}
+
+/// Serves each module of `modules` under its path.
+const TestLoader = struct {
+    modules: []const load.Bundled,
+
+    fn loader(self: *TestLoader) Loader {
+        return .{ .context = self, .loadFn = loadFn };
+    }
+
+    fn loadFn(context: *anyopaque, name: []const u8) load.Loaded {
+        const self: *TestLoader = @ptrCast(@alignCast(context));
+        for (self.modules) |m| {
+            if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.path, .text = m.text } };
+        }
+        return .missing;
+    }
+};
+
+test "a bundled module is importable with no loader" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery(
+        "import Lib; main root = [answer];",
+        try grammars.get("typescript"),
+        &sink,
+    );
+    defer program.deinit();
+}
+
+test "a module both bundled and loaded is ambiguous" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
+    var modules: TestLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
+    engine.loader = modules.loader();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
+        "import Lib; main root = [answer];",
+        try grammars.get("typescript"),
+        &sink,
+    ));
+    try std.testing.expectEqual(1, sink.items().len);
+    try std.testing.expectEqual(.ambiguous_module, sink.items()[0].category);
+    try std.testing.expectEqualStrings("`Lib` is found as both `lib/Lib.tql` and `bundled/Lib.tql`", sink.items()[0].message);
 }
 
 test "a definition's span names the source it came from" {

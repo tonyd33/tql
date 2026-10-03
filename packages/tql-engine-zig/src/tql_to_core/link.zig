@@ -433,7 +433,7 @@ pub const Desugarer = struct {
     }
 
     /// Desugars one source file as `module` and adds it to the link: collect
-    /// heads, resolve bodies.
+    /// heads, resolve bodies. Kinds and fields resolve against grammar `g`.
     ///
     /// Preconditions:
     /// - Each module `imports` names was added before.
@@ -442,7 +442,7 @@ pub const Desugarer = struct {
         module: core.ModuleId,
         imports: []const scope_mod.Import,
         source: cst.SourceFile,
-        g: *const grammar.Grammar,
+        g: ?*const grammar.Grammar,
         sink: *diagnostic.Sink,
     ) !void {
         const builder = core.Builder{ .allocator = self.env.?.allocator() };
@@ -480,7 +480,7 @@ pub const Desugarer = struct {
                 interner,
                 &scope,
                 &self.linked,
-                g.language,
+                if (g) |known| known.language else null,
                 sink,
             );
             defer lowerer.deinit();

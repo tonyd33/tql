@@ -1,0 +1,18 @@
+title: a module without a for clause cannot use kinds
+grammar: typescript
+asserts: error
+
+--- module Classes ---
+module Classes;
+classes root = descendants_of_kind :class_declaration root;
+
+--- tql ---
+import Classes;
+main root = classes root;
+
+--- error ---
+error[grammar-mismatch]: this module has no `for` clause, so it cannot name the kind `class_declaration`
+ --> Classes:2:36
+  |
+2 | classes root = descendants_of_kind :class_declaration root;
+  |                                    ^^^^^^^^^^^^^^^^^^

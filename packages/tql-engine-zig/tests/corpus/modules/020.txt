@@ -1,0 +1,24 @@
+title: a module without a for clause takes kinds as arguments
+grammar: typescript
+asserts: values
+
+--- module Find ---
+module Find;
+
+within :: Kind -> Node -> [Node];
+within k root = descendants_of_kind k root;
+
+--- tql ---
+import Find;
+
+main root = do {
+  c <- within :class_declaration root;
+  n <- c#name;
+  return $ text n;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["A"]

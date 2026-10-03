@@ -212,3 +212,35 @@ main root = do {
       (application
         function: (identifier)
         argument: (identifier)))))
+
+========================================
+a module header names the grammars it reads
+========================================
+
+module Rules.Scope (resolve) for javascript, typescript, tsx;
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)
+    exports: (item_list
+      (item
+        name: (identifier)))
+    grammar: (identifier)
+    grammar: (identifier)
+    grammar: (identifier)))
+
+========================================
+for binds as a local name
+========================================
+
+f for = for;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (identifier)))

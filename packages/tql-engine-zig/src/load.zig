@@ -14,12 +14,44 @@ const prelude_name = core.ModuleId.prelude_name;
 /// Where module sources come from.
 pub const Loader = struct {
     context: *anyopaque,
-    loadFn: *const fn (context: *anyopaque, name: []const u8) ?diagnostic.Source,
+    loadFn: *const fn (context: *anyopaque, name: []const u8) Loaded,
 
-    /// The source of the module named `name`, or null when there is none.
-    /// The source must outlive the compilation.
-    pub fn load(self: Loader, name: []const u8) ?diagnostic.Source {
+    /// The source of the module named `name`. A found source must outlive the
+    /// compilation; a failure's message must outlive the call.
+    pub fn load(self: Loader, name: []const u8) Loaded {
         return self.loadFn(self.context, name);
+    }
+};
+
+pub const Loaded = union(enum) {
+    missing,
+    found: diagnostic.Source,
+    /// The module exists but cannot be read, for the reason given.
+    failed: []const u8,
+};
+
+/// A module shipped inside the engine, found by name in every host.
+pub const Bundled = struct {
+    name: []const u8,
+    /// How diagnostics name it.
+    path: []const u8,
+    text: []const u8,
+};
+
+/// Serves bundled modules by name.
+pub const BundledLoader = struct {
+    modules: []const Bundled,
+
+    pub fn loader(self: *BundledLoader) Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) Loaded {
+        const self: *BundledLoader = @ptrCast(@alignCast(context));
+        for (self.modules) |m| {
+            if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.path, .text = m.text } };
+        }
+        return .missing;
     }
 };
 
@@ -35,13 +67,20 @@ const Module = struct {
     fn name(self: Module) ?[]const u8 {
         return if (self.source.header) |h| h.name else null;
     }
+
+    /// The grammars a `for` clause names, or null for a grammar-generic
+    /// module.
+    fn grammars(self: Module) ?[]const []const u8 {
+        return if (self.source.header) |h| h.grammars else null;
+    }
 };
 
 /// The modules an entry imports, directly or not, in dependency order.
 pub const Graph = struct {
     gpa: std.mem.Allocator,
     parser: *parse.Parser,
-    loader: ?Loader,
+    /// Asked in turn; a module more than one finds is ambiguous.
+    loaders: []const Loader,
     sources: *diagnostic.Sources,
     /// Each module after every module it imports, the entry last.
     order: std.ArrayList(Module) = .empty,
@@ -82,10 +121,27 @@ pub const Graph = struct {
     }
 
     fn load(self: *Graph, import: cst.Import, sink: *diagnostic.Sink) Error!void {
-        const loaded = if (self.loader) |l| l.load(import.module) else null;
-        const source = loaded orelse {
-            try sink.report(.unresolved_module, import.span, "no module is named `{s}`", .{import.module});
-            return;
+        var found: ?diagnostic.Source = null;
+        for (self.loaders) |l| switch (l.load(import.module)) {
+            .missing => {},
+            .failed => |reason| return try sink.report(
+                .unreadable_module,
+                import.span,
+                "`{s}` cannot be read: {s}",
+                .{ import.module, reason },
+            ),
+            .found => |source| {
+                if (found) |earlier| return try sink.report(
+                    .ambiguous_module,
+                    import.span,
+                    "`{s}` is found as both `{s}` and `{s}`",
+                    .{ import.module, earlier.name orelse import.module, source.name orelse import.module },
+                );
+                found = source;
+            },
+        };
+        const source = found orelse {
+            return try sink.report(.unresolved_module, import.span, "no module is named `{s}`", .{import.module});
         };
         const id = try self.sources.add(source);
         var parsed = try self.parser.parseCollecting(source.text, id);
@@ -128,10 +184,74 @@ pub const Graph = struct {
         return null;
     }
 
-    /// Adds every module to `desugarer` in dependency order.
+    /// Reports an entry whose `for` clause leaves out `g`, and each import of
+    /// a module not written for every grammar the importer is. An entry
+    /// without a `for` clause is written for `g`; any other module without one
+    /// imports only modules without one.
+    pub fn checkGrammars(self: *const Graph, g: *const grammar.Grammar, sink: *diagnostic.Sink) !void {
+        const entry = self.order.items[self.order.items.len - 1];
+        if (entry.grammars()) |declared| {
+            if (!contains(declared, g.name)) {
+                try sink.report(
+                    .grammar_mismatch,
+                    entry.source.header.?.span,
+                    "this query is not written for `{s}`",
+                    .{g.name},
+                );
+            }
+        }
+        const run = [1][]const u8{g.name};
+        for (self.order.items, 0..) |m, index| {
+            const written_for = self.required(index, &run);
+            for (m.source.imports) |import| {
+                const imported = self.named(import.module) orelse continue;
+                const provided = imported.grammars() orelse continue;
+                const wanted = written_for orelse {
+                    try sink.report(
+                        .grammar_mismatch,
+                        import.span,
+                        "`{s}` has a `for` clause, so a module without one cannot import it",
+                        .{import.module},
+                    );
+                    continue;
+                };
+                for (wanted) |grammar_name| {
+                    if (contains(provided, grammar_name)) continue;
+                    try reportUnwritten(import, grammar_name, sink);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// The grammars `order[index]` is written for: its `for` clause, or `run`
+    /// for an entry without one. Null for a grammar-generic module.
+    fn required(self: *const Graph, index: usize, run: *const [1][]const u8) ?[]const []const u8 {
+        if (self.order.items[index].grammars()) |declared| return declared;
+        return if (index == self.order.items.len - 1) run else null;
+    }
+
+    fn reportUnwritten(import: cst.Import, wanted: []const u8, sink: *diagnostic.Sink) !void {
+        try sink.report(
+            .grammar_mismatch,
+            import.span,
+            "`{s}` is not written for `{s}`",
+            .{ import.module, wanted },
+        );
+    }
+
+    fn named(self: *const Graph, name: []const u8) ?Module {
+        for (self.order.items) |m| {
+            if (std.mem.eql(u8, m.name() orelse continue, name)) return m;
+        }
+        return null;
+    }
+
+    /// Adds every module to `desugarer` in dependency order. A grammar-generic
+    /// module is desugared with no grammar.
     ///
     /// Preconditions:
-    /// - `visitEntry` reported nothing.
+    /// - `visitEntry` and `checkGrammars` reported nothing.
     pub fn link(
         self: *const Graph,
         desugarer: *tql_to_core.Desugarer,
@@ -144,7 +264,8 @@ pub const Graph = struct {
         var imports: std.ArrayList(tql_to_core.Import) = .empty;
         defer imports.deinit(self.gpa);
 
-        for (self.order.items) |m| {
+        const run = [1][]const u8{g.name};
+        for (self.order.items, 0..) |m, index| {
             imports.clearRetainingCapacity();
             const explicit_prelude = for (m.source.imports) |i| {
                 if (std.mem.eql(u8, i.module, prelude_name)) break true;
@@ -161,7 +282,15 @@ pub const Graph = struct {
             const header = m.source.header;
             const id = try desugarer.declareModule(m.name() orelse "Main", if (header) |h| h.exports else .all);
             if (m.name()) |name| try ids.put(self.gpa, name, id);
-            try desugarer.add(id, imports.items, m.source, g, sink);
+            const generic = self.required(index, &run) == null;
+            try desugarer.add(id, imports.items, m.source, if (generic) null else g, sink);
         }
     }
 };
+
+fn contains(names: []const []const u8, name: []const u8) bool {
+    for (names) |n| {
+        if (std.mem.eql(u8, n, name)) return true;
+    }
+    return false;
+}

@@ -13,6 +13,7 @@
   "module"
   "import"
   "hiding"
+  "for"
   "as"
 ] @keyword
 
