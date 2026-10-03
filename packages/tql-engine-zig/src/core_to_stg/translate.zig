@@ -35,7 +35,7 @@ const Callee = union(enum) {
     local: core.SymbolId,
     global: stg.Global,
     constructor: *const datatypes.Constructor,
-    primitive: core.PrimOp,
+    primitive: core.Operation,
 };
 
 /// Bindings an expression needed before it could be written, in allocation
@@ -85,12 +85,13 @@ pub const Translator = struct {
     }
 
     /// What `name` denotes if it is synthesized, copied into the program.
-    fn synthesized(self: *Translator, name: core.SymbolId) Error!?core.Synthesized {
-        const source = switch (self.program.env.interner.details(name)) {
+    /// `operation`, with a synthesized payload copied into the program.
+    fn owned(self: *Translator, operation: core.Operation) Error!core.Operation {
+        const source = switch (operation) {
             .synthesized => |s| s,
-            else => return null,
+            .builtin => return operation,
         };
-        return switch (source) {
+        return .{ .synthesized = switch (source) {
             .field => |f| .{ .field = .{
                 .name = try self.arena.dupe(u8, f.name),
                 .id = f.id,
@@ -102,7 +103,7 @@ pub const Translator = struct {
                 break :blk .{ .record = copies };
             },
             .select => |label| .{ .select = try self.arena.dupe(u8, label) },
-        };
+        } };
     }
 
     /// Lower a Core literal to its evaluated thunk, compiling a regex pattern
@@ -149,9 +150,9 @@ pub const Translator = struct {
             .constructor => |c| return .{
                 .constructor = &self.program.env.datatypes.get(c.owner).constructors[c.tag],
             },
-            .primop => |primop| return .{ .primitive = primop },
+            .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
             // A synthesized symbol lowers like a primitive.
-            .synthesized => |s| return .{ .primitive = s.primop() },
+            .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
             .vanilla => {},
         }
         if (self.global(name)) |g| return .{ .global = g };
@@ -199,8 +200,8 @@ pub const Translator = struct {
                 },
                 // A primitive passed as a value, as `select p = branch p
                 // identity empty` passes both of its arms.
-                .primitive => |primop| {
-                    const wrapper = try self.primitiveWrapper(name, primop);
+                .primitive => |operation| {
+                    const wrapper = try self.primitiveWrapper(name, operation);
                     return try self.bindClosure(wrapper, hoisted);
                 },
             },
@@ -413,7 +414,7 @@ pub const Translator = struct {
                     };
                     return .{ .apply = node };
                 },
-                .primitive => |primop| {
+                .primitive => |operation| {
                     // A primitive node is saturated by construction, so the
                     // evaluator runs it without an arity check. An
                     // under-applied one becomes a call to its wrapper.
@@ -421,15 +422,14 @@ pub const Translator = struct {
                     if (arguments.len == wanted) {
                         const node = try self.arena.create(stg.Expr.Primitive);
                         node.* = .{
-                            .primop = primop,
+                            .operation = try self.owned(operation),
                             .symbol = head.kind.symbol,
-                            .synthesized = try self.synthesized(head.kind.symbol),
                             .arguments = arguments,
                         };
                         return .{ .primitive = node };
                     }
 
-                    const wrapper = try self.primitiveWrapper(head.kind.symbol, primop);
+                    const wrapper = try self.primitiveWrapper(head.kind.symbol, operation);
                     const node = try self.arena.create(stg.Expr.Apply);
                     node.* = .{
                         .callee = try self.bindClosure(wrapper, hoisted),
@@ -477,7 +477,7 @@ pub const Translator = struct {
     fn primitiveWrapper(
         self: *Translator,
         name: core.SymbolId,
-        primop: core.PrimOp,
+        operation: core.Operation,
     ) Error!*const stg.Closure {
         const arity = try self.primitiveArity(name);
         if (arity == 0) return error.Unsupported;
@@ -493,9 +493,8 @@ pub const Translator = struct {
 
         const call_node = try self.arena.create(stg.Expr.Primitive);
         call_node.* = .{
-            .primop = primop,
+            .operation = try self.owned(operation),
             .symbol = name,
-            .synthesized = try self.synthesized(name),
             .arguments = arguments,
         };
 

@@ -27,8 +27,8 @@ pub const Env = struct {
     /// from `schemes` so a written signature can be checked against what
     /// inference found.
     annotations: symbols.SymbolTable(Annotation),
-    /// The symbol each primitive is interned as. Null for a primop only a
-    /// synthesized symbol denotes, and before the primitives are populated.
+    /// The symbol each primitive is interned as. Null before the primitives
+    /// are populated.
     primitives: std.EnumArray(details.PrimOp, ?symbols.SymbolId) = .initFill(null),
 
     /// A written signature, translated.

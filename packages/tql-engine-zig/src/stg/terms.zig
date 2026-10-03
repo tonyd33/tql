@@ -116,13 +116,10 @@ pub const Expr = union(enum) {
     };
 
     pub const Primitive = struct {
-        primop: core.PrimOp,
+        /// A synthesized operation's payload is owned by the program.
+        operation: core.Operation,
         /// The symbol it was reached through, for printing.
         symbol: core.SymbolId,
-        /// What a synthesized symbol resolved to: the kind or field id, the
-        /// operator, or the record labels. `op[+]` and `op[-]` share a PrimOp
-        /// and are told apart here. Owned by the program.
-        synthesized: ?core.Synthesized,
         arguments: []const Atom,
     };
 

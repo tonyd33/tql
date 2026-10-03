@@ -8,11 +8,11 @@ const Allocator = std.mem.Allocator;
 const Scalar = core.Scalar;
 const PrimOp = core.PrimOp;
 
-/// The scheme of `primop`, or null for one only a synthesized symbol denotes.
+/// The scheme of `primop`.
 ///
 /// `[a]` and `Bool` are declared types, so a scheme mentioning either needs
 /// the registry that declared them. Hence runtime rather than comptime.
-fn schemeOf(B: Builder, primop: PrimOp) !?types.Scheme {
+fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
     const a = types.variable_type(0);
     return switch (primop) {
         .text, .kind => .{ .type = try B.func(types.node_type, types.string_type) },
@@ -42,7 +42,6 @@ fn schemeOf(B: Builder, primop: PrimOp) !?types.Scheme {
             types.kind_type,
             try B.filter(types.node_type, types.node_type),
         ) },
-        .field, .operator, .record, .select => null,
     };
 }
 
@@ -106,7 +105,7 @@ pub fn populate(target: *core.env.Env) !void {
 
     const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
     for (std.enums.values(PrimOp)) |primop| {
-        const scheme = try schemeOf(B, primop) orelse continue;
+        const scheme = try schemeOf(B, primop);
         const id = try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
         try target.setScheme(id, scheme);
         target.primitives.set(primop, id);

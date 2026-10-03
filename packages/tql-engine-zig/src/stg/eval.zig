@@ -733,226 +733,213 @@ pub const Machine = struct {
         call: *const stg.Expr.Primitive,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
-        switch (call.primop) {
-            // `length` forces the spine, so it diverges on an infinite list.
-            .length => {
-                if (arguments.len != 1) return error.TypeError;
-                const subject = try self.force(arguments[0]);
-                return switch (subject) {
-                    .string => |s| .{ .number = @intCast(s.len) },
-                    .constructed => blk: {
-                        var count: i64 = 0;
-                        var current = subject;
-                        while (try self.uncons(current)) |cell| : (count += 1) {
-                            current = try self.force(cell.tail);
-                        }
-                        break :blk .{ .number = count };
-                    },
-                    else => error.TypeError,
-                };
+        switch (call.operation) {
+            .synthesized => |synthesized| switch (synthesized) {
+                .operator => |scalar| return try self.operator(scalar, arguments),
+
+                // Fields are scalars and stay unforced. The labels come from the
+                // symbol's details, already sorted.
+                .record => |labels| {
+                    if (labels.len != arguments.len) return error.TypeError;
+
+                    const fields = try self.arena.alloc(value.Field, labels.len);
+                    for (labels, arguments, fields) |label, thunk, *field| {
+                        field.* = .{ .label = label, .thunk = thunk };
+                    }
+                    return .{ .record = fields };
+                },
+
+                // Forces the record, and of its fields only the one selected.
+                .select => |label| {
+                    if (arguments.len != 1) return error.TypeError;
+                    const fields = switch (try self.force(arguments[0])) {
+                        .record => |f| f,
+                        else => return error.TypeError,
+                    };
+                    const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
+                        return error.TypeError;
+                    return try self.force(fields[index].thunk);
+                },
+
+                // Named children under one field, document order. A field the
+                // grammar knows but this node lacks yields no output.
+                .field => |f| {
+                    const subject = try self.nodeArgument(arguments);
+                    const field_id = f.id;
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = descendToFieldChild(cursor, field_id),
+                        .axis = .field,
+                        .field_id = field_id,
+                    });
+                },
             },
+            .builtin => |primop| switch (primop) {
+                // `length` forces the spine, so it diverges on an infinite list.
+                .length => {
+                    if (arguments.len != 1) return error.TypeError;
+                    const subject = try self.force(arguments[0]);
+                    return switch (subject) {
+                        .string => |s| .{ .number = @intCast(s.len) },
+                        .constructed => blk: {
+                            var count: i64 = 0;
+                            var current = subject;
+                            while (try self.uncons(current)) |cell| : (count += 1) {
+                                current = try self.force(cell.tail);
+                            }
+                            break :blk .{ .number = count };
+                        },
+                        else => error.TypeError,
+                    };
+                },
 
-            .operator => return try self.operator(call, arguments),
+                // Total functions on a node: every node has one, so each returns
+                // a scalar rather than a singleton list.
+                .text => {
+                    const subject = try self.nodeArgument(arguments);
+                    const target = self.target orelse return error.TypeError;
+                    return .{ .string = target.source[subject.startByte()..subject.endByte()] };
+                },
+                .kind => {
+                    const subject = try self.nodeArgument(arguments);
+                    return .{ .string = subject.kind() };
+                },
+                .is_named => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isNamed());
+                },
+                .range => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.rangeRecord(rangeOf(subject));
+                },
 
-            // Fields are scalars and stay unforced. The labels come from the
-            // symbol's details, already sorted.
-            .record => {
-                const labels = switch (try synthesized(call)) {
-                    .record => |l| l,
-                    else => return error.TypeError,
-                };
-                if (labels.len != arguments.len) return error.TypeError;
+                .is_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    return try self.boolValue(tested.subject.kindId() == tested.kind_id);
+                },
 
-                const fields = try self.arena.alloc(value.Field, labels.len);
-                for (labels, arguments, fields) |label, thunk, *field| {
-                    field.* = .{ .label = label, .thunk = thunk };
-                }
-                return .{ .record = fields };
-            },
+                // `[x]` when the kind matches, otherwise `[]`.
+                .of_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    if (tested.subject.kindId() != tested.kind_id) return self.nil();
+                    return self.singleton(arguments[1]);
+                },
 
-            // Total functions on a node: every node has one, so each returns
-            // a scalar rather than a singleton list.
-            .text => {
-                const subject = try self.nodeArgument(arguments);
-                const target = self.target orelse return error.TypeError;
-                return .{ .string = target.source[subject.startByte()..subject.endByte()] };
-            },
-            .kind => {
-                const subject = try self.nodeArgument(arguments);
-                return .{ .string = subject.kind() };
-            },
-            .is_named => {
-                const subject = try self.nodeArgument(arguments);
-                return try self.boolValue(subject.isNamed());
-            },
-            .range => {
-                const subject = try self.nodeArgument(arguments);
-                return try self.rangeRecord(rangeOf(subject));
-            },
+                // `[parent]`, or `[]` at the root.
+                .parent => {
+                    const subject = try self.nodeArgument(arguments);
+                    const up = subject.parent() orelse return self.nil();
+                    return self.singleton(try self.nodeThunk(up));
+                },
 
-            // Forces the record, and of its fields only the one selected.
-            .select => {
-                const label = switch (try synthesized(call)) {
-                    .select => |l| l,
-                    else => return error.TypeError,
-                };
-                if (arguments.len != 1) return error.TypeError;
-                const fields = switch (try self.force(arguments[0])) {
-                    .record => |f| f,
-                    else => return error.TypeError,
-                };
-                const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
-                    return error.TypeError;
-                return try self.force(fields[index].thunk);
-            },
+                // Proper ancestors, nearest first. Bounded by tree depth, so it
+                // is built eagerly.
+                .ancestors => {
+                    const subject = try self.nodeArgument(arguments);
+                    var list = try self.nilThunk();
+                    var chain: std.ArrayList(ts.Node) = .empty;
+                    defer chain.deinit(self.arena);
 
-            .is_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                return try self.boolValue(tested.subject.kindId() == tested.kind_id);
-            },
+                    var current = subject;
+                    while (current.parent()) |up| : (current = up) {
+                        try chain.append(self.arena, up);
+                    }
 
-            // `[x]` when the kind matches, otherwise `[]`.
-            .of_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                if (tested.subject.kindId() != tested.kind_id) return self.nil();
-                return self.singleton(arguments[1]);
-            },
+                    // Built from the far end back, so the nearest ancestor ends
+                    // up at the head.
+                    var i = chain.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
+                    }
+                    return try self.force(list);
+                },
 
-            // `[parent]`, or `[]` at the root.
-            .parent => {
-                const subject = try self.nodeArgument(arguments);
-                const up = subject.parent() orelse return self.nil();
-                return self.singleton(try self.nodeThunk(up));
-            },
+                .toint => {
+                    if (arguments.len != 1) return error.TypeError;
+                    const subject = try self.force(arguments[0]);
+                    const text = switch (subject) {
+                        .string => |s| s,
+                        else => return error.TypeError,
+                    };
+                    const parsed = parseInt(text) orelse return self.nil();
+                    return self.singleton(try self.valueThunk(.{ .number = parsed }));
+                },
 
-            // Proper ancestors, nearest first. Bounded by tree depth, so it
-            // is built eagerly.
-            .ancestors => {
-                const subject = try self.nodeArgument(arguments);
-                var list = try self.nilThunk();
-                var chain: std.ArrayList(ts.Node) = .empty;
-                defer chain.deinit(self.arena);
+                // Constant across the query, and it never reads its argument.
+                .filename => {
+                    const target = self.target orelse return self.nil();
+                    const path = target.path orelse return self.nil();
+                    return self.singleton(try self.valueThunk(.{ .string = path }));
+                },
 
-                var current = subject;
-                while (current.parent()) |up| : (current = up) {
-                    try chain.append(self.arena, up);
-                }
+                // Children and anonymous tokens, document order.
+                .children => {
+                    const subject = try self.nodeArgument(arguments);
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = cursor.gotoFirstChild(),
+                        .axis = .children,
+                    });
+                },
 
-                // Built from the far end back, so the nearest ancestor ends
-                // up at the head.
-                var i = chain.items.len;
-                while (i > 0) {
-                    i -= 1;
-                    list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
-                }
-                return try self.force(list);
-            },
+                // Named children, document order.
+                .named_children => {
+                    const subject = try self.nodeArgument(arguments);
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = descendToNamedChild(cursor),
+                        .axis = .named_children,
+                    });
+                },
 
-            .toint => {
-                if (arguments.len != 1) return error.TypeError;
-                const subject = try self.force(arguments[0]);
-                const text = switch (subject) {
-                    .string => |s| s,
-                    else => return error.TypeError,
-                };
-                const parsed = parseInt(text) orelse return self.nil();
-                return self.singleton(try self.valueThunk(.{ .number = parsed }));
-            },
+                // Proper descendants and anonymous tokens, pre-order. Proper: the
+                // walk starts by stepping off the subject, so a node is not its
+                // own descendant.
+                .descendants => {
+                    const subject = try self.nodeArgument(arguments);
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = advancePreOrder(cursor),
+                        .axis = .descendants,
+                    });
+                },
 
-            // Constant across the query, and it never reads its argument.
-            .filename => {
-                const target = self.target orelse return self.nil();
-                const path = target.path orelse return self.nil();
-                return self.singleton(try self.valueThunk(.{ .string = path }));
-            },
+                // Named proper descendants, pre-order.
+                .named_descendants => {
+                    const subject = try self.nodeArgument(arguments);
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = advanceNamedDescendant(cursor),
+                        .axis = .named_descendants,
+                    });
+                },
 
-            // Children and anonymous tokens, document order.
-            .children => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = cursor.gotoFirstChild(),
-                    .axis = .children,
-                });
-            },
-
-            // Named children, document order.
-            .named_children => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = descendToNamedChild(cursor),
-                    .axis = .named_children,
-                });
-            },
-
-            // Proper descendants and anonymous tokens, pre-order. Proper: the
-            // walk starts by stepping off the subject, so a node is not its
-            // own descendant.
-            .descendants => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = advancePreOrder(cursor),
-                    .axis = .descendants,
-                });
-            },
-
-            // Named proper descendants, pre-order.
-            .named_descendants => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = advanceNamedDescendant(cursor),
-                    .axis = .named_descendants,
-                });
-            },
-
-            // Named children under one field, document order. A field the
-            // grammar knows but this node lacks yields no output.
-            .field => {
-                const subject = try self.nodeArgument(arguments);
-                const field_id = switch (try synthesized(call)) {
-                    .field => |f| f.id,
-                    else => return error.TypeError,
-                };
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = descendToFieldChild(cursor, field_id),
-                    .axis = .field,
-                    .field_id = field_id,
-                });
-            },
-
-            // The `children`/`descendants` walks with the kind test folded
-            // into the advance, so the list holds only matches.
-            .children_of_kind, .descendants_of_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                const subject = tested.subject;
-                const kind_id = tested.kind_id;
-                const descendants = call.primop == .descendants_of_kind;
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = if (descendants)
-                        advanceDescendantOfKind(cursor, kind_id)
-                    else
-                        descendToChildOfKind(cursor, kind_id),
-                    .axis = if (descendants) .descendants_of_kind else .children_of_kind,
-                    .kind_id = kind_id,
-                });
+                // The `children`/`descendants` walks with the kind test folded
+                // into the advance, so the list holds only matches.
+                .children_of_kind, .descendants_of_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    const subject = tested.subject;
+                    const kind_id = tested.kind_id;
+                    const descendants = primop == .descendants_of_kind;
+                    const cursor = try self.newCursor(subject);
+                    return try self.step(.{
+                        .cursor = cursor,
+                        .live = if (descendants)
+                            advanceDescendantOfKind(cursor, kind_id)
+                        else
+                            descendToChildOfKind(cursor, kind_id),
+                        .axis = if (descendants) .descendants_of_kind else .children_of_kind,
+                        .kind_id = kind_id,
+                    });
+                },
             },
         }
-    }
-
-    /// What a synthesized primitive denotes.
-    fn synthesized(call: *const stg.Expr.Primitive) Error!core.Synthesized {
-        return call.synthesized orelse error.TypeError;
     }
 
     /// The single node argument of a tree primitive.
@@ -1147,14 +1134,10 @@ pub const Machine = struct {
 
     fn operator(
         self: *Machine,
-        call: *const stg.Expr.Primitive,
+        scalar: core.Scalar,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
         if (arguments.len != 2) return error.TypeError;
-        const scalar = switch (try synthesized(call)) {
-            .operator => |o| o,
-            else => return error.TypeError,
-        };
 
         // Both operands are scalars, so both are forced. There is no stream
         // here to be lazy about.

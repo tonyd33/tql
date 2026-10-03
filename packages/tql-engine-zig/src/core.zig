@@ -29,6 +29,7 @@ pub const printProgram = program.printProgram;
 
 pub const Synthesized = details.Synthesized;
 pub const PrimOp = details.PrimOp;
+pub const Operation = details.Operation;
 pub const Scalar = details.Scalar;
 
 pub const SymbolId = symbols.SymbolId;
