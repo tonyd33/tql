@@ -26,6 +26,24 @@ const Leaf = union(enum) {
     }
 };
 
+/// Resolves every node and flattens every record as the rewrite reaches it.
+const Rewriter = struct {
+    subst: *Substitution,
+    leaf: Leaf,
+
+    pub fn head(self: Rewriter, t: types.Type) types.Type {
+        return self.subst.resolve(t);
+    }
+
+    pub fn record(self: Rewriter, r: types.Type.Record) Allocator.Error!types.Type.Record {
+        return try self.subst.flatten(r);
+    }
+
+    pub fn replace(self: Rewriter, t: types.Type) types.Type {
+        return self.leaf.replace(t);
+    }
+};
+
 /// The unification state.
 pub const Substitution = struct {
     arena: Allocator,
@@ -136,68 +154,7 @@ pub const Substitution = struct {
     /// Allocates in the arena only along a path where a leaf changed, and
     /// returns `t` itself when none did.
     fn rewrite(self: *Substitution, t: types.Type, leaf: Leaf) Allocator.Error!types.Type {
-        const head = self.resolve(t);
-        switch (head) {
-            .variable, .meta => return leaf.replace(head),
-            .primitive => return head,
-            .constructor => |c| {
-                const changed = try self.rewriteAll(c.arguments, leaf) orelse return head;
-                return try types.constructed(self.arena, c.name, c.spelling, changed);
-            },
-            .record => |written| {
-                const r = try self.flatten(written);
-                var copies: ?[]types.Type.Field = null;
-                for (r.fields, 0..) |f, i| {
-                    const rewritten = try self.rewrite(f.type.*, leaf);
-                    if (copies) |slots| {
-                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
-                    } else if (!std.meta.eql(rewritten, f.type.*)) {
-                        const slots = try self.arena.alloc(types.Type.Field, r.fields.len);
-                        @memcpy(slots[0..i], r.fields[0..i]);
-                        slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
-                        copies = slots;
-                    }
-                }
-                var rest = r.rest;
-                if (r.rest) |row| {
-                    const rewritten = try self.rewrite(row.*, leaf);
-                    if (!std.meta.eql(rewritten, row.*)) rest = try types.store(self.arena, rewritten);
-                }
-                const result: types.Type.Record = .{ .fields = copies orelse r.fields, .rest = rest };
-                if (std.meta.eql(result, written)) return head;
-                return .{ .record = result };
-            },
-            .function => |arrow| {
-                const from = try self.rewrite(arrow.from, leaf);
-                const to = try self.rewrite(arrow.to, leaf);
-                if (std.meta.eql(from, arrow.from) and std.meta.eql(to, arrow.to)) return head;
-                return try types.func(self.arena, from, to);
-            },
-            .alias => |a| {
-                const changed = try self.rewriteAll(a.arguments, leaf);
-                const expansion = try self.rewrite(a.expansion, leaf);
-                if (changed == null and std.meta.eql(expansion, a.expansion)) return head;
-                return try types.aliased(self.arena, a.spelling, changed orelse a.arguments, expansion);
-            },
-        }
-    }
-
-    /// `rewrite` over each of `ts`, or null when none changed. Allocates from
-    /// the first change on, seeded with the unchanged ones before it.
-    fn rewriteAll(self: *Substitution, ts: []const types.Type, leaf: Leaf) Allocator.Error!?[]types.Type {
-        var copies: ?[]types.Type = null;
-        for (ts, 0..) |each, i| {
-            const rewritten = try self.rewrite(each, leaf);
-            if (copies) |slots| {
-                slots[i] = rewritten;
-            } else if (!std.meta.eql(rewritten, each)) {
-                const slots = try self.arena.alloc(types.Type, ts.len);
-                @memcpy(slots[0..i], ts[0..i]);
-                slots[i] = rewritten;
-                copies = slots;
-            }
-        }
-        return copies;
+        return try types.rewrite(self.arena, t, Rewriter{ .subst = self, .leaf = leaf });
     }
 
     /// Whether `id` occurs anywhere in `t`. Binding a metavariable to a type

@@ -24,7 +24,7 @@ const cst = @import("lang/cst.zig");
 const diagnostic = @import("diagnostic.zig");
 const grammar = @import("lang/grammar.zig");
 const parse = @import("parse.zig");
-const test_support = @import("core/test_support.zig");
+const test_support = core.test_support;
 const scope_mod = @import("tql_to_core/scope.zig");
 const ModuleScope = scope_mod.ModuleScope;
 

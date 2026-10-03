@@ -20,7 +20,7 @@ test {
 const std = @import("std");
 const core = @import("core.zig");
 const stg = @import("stg.zig");
-const test_support = @import("core/test_support.zig");
+const test_support = core.test_support;
 
 const types = core.types;
 const Allocator = std.mem.Allocator;

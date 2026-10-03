@@ -373,61 +373,95 @@ pub fn aliased(
 /// Preconditions:
 /// - Every variable in `t` indexes `arguments`.
 pub fn substitute(allocator: std.mem.Allocator, t: Type, arguments: []const Type) std.mem.Allocator.Error!Type {
-    switch (t) {
-        .variable => |index| return arguments[index],
-        .meta, .primitive => return t,
+    return try rewrite(allocator, t, Arguments{ .arguments = arguments });
+}
+
+const Arguments = struct {
+    arguments: []const Type,
+
+    fn head(_: Arguments, t: Type) Type {
+        return t;
+    }
+
+    fn record(_: Arguments, r: Type.Record) std.mem.Allocator.Error!Type.Record {
+        return r;
+    }
+
+    fn replace(self: Arguments, t: Type) Type {
+        return switch (t) {
+            .variable => |index| self.arguments[index],
+            else => t,
+        };
+    }
+};
+
+/// Rebuilds `t` with each variable and metavariable replaced, sharing every
+/// unchanged subtree. Allocates only along a path where something changed,
+/// and returns `t` itself when nothing did.
+///
+/// `context` supplies:
+/// - `head(t) Type`: the node to walk in place of `t`, called on every node
+/// - `record(r) !Type.Record`: the fields to walk in place of record `r`
+/// - `replace(t) Type`: what a variable or metavariable becomes
+pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.Allocator.Error!Type {
+    const head = context.head(t);
+    switch (head) {
+        .variable, .meta => return context.replace(head),
+        .primitive => return head,
         .constructor => |c| {
-            const changed = try substituteAll(allocator, c.arguments, arguments) orelse return t;
+            const changed = try rewriteAll(allocator, c.arguments, context) orelse return head;
             return try constructed(allocator, c.name, c.spelling, changed);
         },
-        .record => |r| {
+        .record => |written| {
+            const r = try context.record(written);
             var copies: ?[]Type.Field = null;
             for (r.fields, 0..) |f, i| {
-                const replaced = try substitute(allocator, f.type.*, arguments);
+                const rewritten = try rewrite(allocator, f.type.*, context);
                 if (copies) |slots| {
-                    slots[i] = .{ .label = f.label, .type = try store(allocator, replaced) };
-                } else if (!std.meta.eql(replaced, f.type.*)) {
+                    slots[i] = .{ .label = f.label, .type = try store(allocator, rewritten) };
+                } else if (!std.meta.eql(rewritten, f.type.*)) {
                     const slots = try allocator.alloc(Type.Field, r.fields.len);
                     @memcpy(slots[0..i], r.fields[0..i]);
-                    slots[i] = .{ .label = f.label, .type = try store(allocator, replaced) };
+                    slots[i] = .{ .label = f.label, .type = try store(allocator, rewritten) };
                     copies = slots;
                 }
             }
             var rest = r.rest;
             if (r.rest) |row| {
-                const replaced = try substitute(allocator, row.*, arguments);
-                if (!std.meta.eql(replaced, row.*)) rest = try store(allocator, replaced);
+                const rewritten = try rewrite(allocator, row.*, context);
+                if (!std.meta.eql(rewritten, row.*)) rest = try store(allocator, rewritten);
             }
-            if (copies == null and rest == r.rest) return t;
-            return .{ .record = .{ .fields = copies orelse r.fields, .rest = rest } };
+            const result: Type.Record = .{ .fields = copies orelse r.fields, .rest = rest };
+            if (std.meta.eql(result, written)) return head;
+            return .{ .record = result };
         },
         .function => |arrow| {
-            const from = try substitute(allocator, arrow.from, arguments);
-            const to = try substitute(allocator, arrow.to, arguments);
-            if (std.meta.eql(from, arrow.from) and std.meta.eql(to, arrow.to)) return t;
+            const from = try rewrite(allocator, arrow.from, context);
+            const to = try rewrite(allocator, arrow.to, context);
+            if (std.meta.eql(from, arrow.from) and std.meta.eql(to, arrow.to)) return head;
             return try func(allocator, from, to);
         },
         .alias => |a| {
-            const changed = try substituteAll(allocator, a.arguments, arguments);
-            const expansion = try substitute(allocator, a.expansion, arguments);
-            if (changed == null and std.meta.eql(expansion, a.expansion)) return t;
+            const changed = try rewriteAll(allocator, a.arguments, context);
+            const expansion = try rewrite(allocator, a.expansion, context);
+            if (changed == null and std.meta.eql(expansion, a.expansion)) return head;
             return try aliased(allocator, a.spelling, changed orelse a.arguments, expansion);
         },
     }
 }
 
-/// `substitute` over each of `ts`, or null when none changed. Allocates from
+/// `rewrite` over each of `ts`, or null when none changed. Allocates from
 /// the first change on.
-fn substituteAll(allocator: std.mem.Allocator, ts: []const Type, arguments: []const Type) std.mem.Allocator.Error!?[]Type {
+fn rewriteAll(allocator: std.mem.Allocator, ts: []const Type, context: anytype) std.mem.Allocator.Error!?[]Type {
     var copies: ?[]Type = null;
     for (ts, 0..) |each, i| {
-        const replaced = try substitute(allocator, each, arguments);
+        const rewritten = try rewrite(allocator, each, context);
         if (copies) |slots| {
-            slots[i] = replaced;
-        } else if (!std.meta.eql(replaced, each)) {
+            slots[i] = rewritten;
+        } else if (!std.meta.eql(rewritten, each)) {
             const slots = try allocator.alloc(Type, ts.len);
             @memcpy(slots[0..i], ts[0..i]);
-            slots[i] = replaced;
+            slots[i] = rewritten;
             copies = slots;
         }
     }

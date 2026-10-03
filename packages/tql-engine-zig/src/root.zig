@@ -95,14 +95,23 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
-        self.sources.clear();
         var parsed = try self.tql_parser.parseCollecting(query_source, .entry);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
             try sink.extend(parsed.diagnostics);
             return error.DesugarFailed;
         }
+        return try self.desugarParsed(parsed.source_file, g, sink);
+    }
 
+    /// `desugarQuery` for a query already parsed, without syntax errors.
+    pub fn desugarParsed(
+        self: *Engine,
+        query: cst.SourceFile,
+        g: *const Grammar,
+        sink: *diagnostic.Sink,
+    ) !core.Program {
+        self.sources.clear();
         var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
@@ -121,13 +130,13 @@ pub const Engine = struct {
             .sources = &self.sources,
         };
         defer graph.deinit();
-        try graph.visitEntry(parsed.source_file, sink);
+        try graph.visitEntry(query, sink);
         if (sink.hasErrors()) return error.DesugarFailed;
         try graph.checkGrammars(g, sink);
         if (sink.hasErrors()) return error.DesugarFailed;
         try graph.link(&desugarer, g, sink);
 
-        return try desugarer.finish(parsed.source_file.span, sink);
+        return try desugarer.finish(query.span, sink);
     }
 
     /// Parse, desugar, link and type-check a query. Diagnostics are collected;
@@ -165,38 +174,6 @@ pub const Engine = struct {
         try desugarer.add(.prelude, &.{}, parsed.source_file, null, sink);
     }
 
-    /// Parse, check, translate and run a query against a target file, writing
-    /// its outputs as JSON.
-    ///
-    /// `target_path` is what `filename` yields; a query run on text with no
-    /// path gets no output from it. Caller owns the returned JSON.
-    ///
-    /// The parsed target outlives the run: every node value points into it,
-    /// and serialization forces thunks after the outputs are collected.
-    pub fn evaluateQuery(
-        self: *Engine,
-        query_source: []const u8,
-        target_source: []const u8,
-        target_path: ?[]const u8,
-        g: *const Grammar,
-        sink: *diagnostic.Sink,
-        result_allocator: Allocator,
-    ) ![]const u8 {
-        var compiled = try self.compileQuery(query_source, g, sink);
-        defer compiled.deinit();
-
-        var arena: std.heap.ArenaAllocator = .init(self.config.allocator);
-        defer arena.deinit();
-
-        const outcome = try compiled.run(
-            target_source,
-            target_path,
-            result_allocator,
-            arena.allocator(),
-        );
-        return outcome.json;
-    }
-
     /// Check and translate a query once, for running against many targets.
     ///
     /// The result is immutable and safe to share across threads: every
@@ -207,19 +184,8 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !CompiledQuery {
-        var checked = try self.checkQuery(query_source, g, sink);
-        errdefer checked.deinit();
-
-        try core_to_core.run(&checked);
-
-        const translated = try core_to_stg.translate(self.config.allocator, &checked);
-        return .{
-            .checked = checked,
-            .translated = translated,
-            .grammar = g,
-            .allocator = self.config.allocator,
-            .io = self.config.io,
-        };
+        const checked = try self.checkQuery(query_source, g, sink);
+        return try CompiledQuery.init(self.config.allocator, self.config.io, checked, g);
     }
 };
 
@@ -230,6 +196,24 @@ pub const CompiledQuery = struct {
     grammar: *const Grammar,
     allocator: Allocator,
     io: std.Io,
+
+    /// Simplify and translate `checked`, taking ownership of it even on
+    /// failure.
+    pub fn init(allocator: Allocator, io: std.Io, checked: core.Program, g: *const Grammar) !CompiledQuery {
+        var program = checked;
+        errdefer program.deinit();
+
+        try core_to_core.run(&program);
+
+        const translated = try core_to_stg.translate(allocator, &program);
+        return .{
+            .checked = program,
+            .translated = translated,
+            .grammar = g,
+            .allocator = allocator,
+            .io = io,
+        };
+    }
 
     pub fn deinit(self: *CompiledQuery) void {
         self.translated.deinit();
@@ -259,6 +243,21 @@ pub const CompiledQuery = struct {
         defer tree.destroy();
         const parse_time = parse_start.untilNow(self.io, .real);
 
+        var outcome = try self.runTree(tree, target, target_path, result_allocator, scratch);
+        outcome.parse_time = parse_time;
+        return outcome;
+    }
+
+    /// `run` against `target` already parsed into `tree`. The outcome's
+    /// `parse_time` is zero.
+    pub fn runTree(
+        self: *const CompiledQuery,
+        tree: *const ts.Tree,
+        target: []const u8,
+        target_path: ?[]const u8,
+        result_allocator: Allocator,
+        scratch: Allocator,
+    ) !RunOutcome {
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
@@ -284,7 +283,7 @@ pub const CompiledQuery = struct {
         return .{
             .json = try w.toOwnedSlice(),
             .count = count,
-            .parse_time = parse_time,
+            .parse_time = .zero,
             .query_time = query_time,
         };
     }

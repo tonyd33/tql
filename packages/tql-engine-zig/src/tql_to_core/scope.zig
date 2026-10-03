@@ -253,7 +253,7 @@ fn optionalEql(a: ?[]const u8, b: ?[]const u8) bool {
     return std.mem.eql(u8, a.?, b.?);
 }
 
-const test_support = @import("../core/test_support.zig");
+const test_support = core.test_support;
 
 const Fixture = struct {
     env: core.env.Env,

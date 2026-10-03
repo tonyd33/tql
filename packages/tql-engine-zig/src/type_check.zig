@@ -32,7 +32,7 @@ test {
 const std = @import("std");
 const core = @import("core.zig");
 const diagnostic = @import("diagnostic.zig");
-const test_support = @import("core/test_support.zig");
+const test_support = core.test_support;
 
 const testing = std.testing;
 const types = core.types;
