@@ -546,6 +546,9 @@ pub const Pattern = struct {
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
+        /// Set by list-pattern sugar: `name` is the prelude's, whatever the
+        /// module declares.
+        prelude: bool = false,
     };
 
     pub const Cons = struct {

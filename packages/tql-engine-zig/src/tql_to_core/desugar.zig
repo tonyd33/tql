@@ -7,6 +7,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const primitives = @import("../primitives.zig");
 const resolve = @import("resolve.zig");
+const ModuleScope = @import("scope.zig").ModuleScope;
 const match = @import("match.zig");
 const pcre2 = @import("../regex.zig");
 const datatypes = core.datatypes;
@@ -19,27 +20,30 @@ const Synthesized = core.Synthesized;
 pub const Lowerer = struct {
     interner: *core.Interner,
     datatypes: *const datatypes.Registry,
-    declarations: *const resolve.Declarations,
+    scope: *const ModuleScope,
+    /// The linked index of every definition in this module and those before.
+    linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
     language: *const ts.Language,
     sink: *diagnostic.Sink,
     builder: core.Builder,
 
     /// Global references made by the body currently being desugared, as
-    /// declaration indices. Feeds the reference graph.
+    /// linked indices. Feeds the reference graph.
     references: std.ArrayList(u32) = .empty,
 
     pub fn init(
         builder: core.Builder,
         interner: *core.Interner,
-        declared: *const datatypes.Registry,
-        declarations: *const resolve.Declarations,
+        scope: *const ModuleScope,
+        linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
         language: *const ts.Language,
         sink: *diagnostic.Sink,
     ) Lowerer {
         return .{
             .interner = interner,
-            .datatypes = declared,
-            .declarations = declarations,
+            .datatypes = scope.datatypes,
+            .scope = scope,
+            .linked = linked,
             .language = language,
             .sink = sink,
             .builder = builder,
@@ -50,14 +54,28 @@ pub const Lowerer = struct {
         self.references.deinit(self.builder.allocator);
     }
 
-    /// A primitive or prelude name that sugar desugars to. Missing only when
-    /// the prelude was not linked beneath this module.
+    /// A primitive or prelude name that sugar desugars to, resolved in the
+    /// prelude whatever this module declares. Missing only when the prelude
+    /// was not linked beneath this module.
     fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
-        const id = self.interner.lookup(name) orelse {
+        const id = self.interner.lookup(.prelude, name) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
             return error.DesugarFailed;
         };
         return self.builder.symbol(id, span);
+    }
+
+    /// The global `name` names in this module's scope, or null. Reports an
+    /// ambiguous name.
+    pub fn resolveGlobal(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!?core.SymbolId {
+        return switch (self.scope.value(name)) {
+            .found => |id| id,
+            .missing => null,
+            .ambiguous => |modules| {
+                try self.scope.reportAmbiguous(self.sink, span, name, modules);
+                return error.DesugarFailed;
+            },
+        };
     }
 
     fn constructorRef(
@@ -65,7 +83,7 @@ pub const Lowerer = struct {
         name: []const u8,
         span: diagnostic.Span,
     ) Error!core.Term {
-        const id = self.interner.lookup(name) orelse {
+        const id = try self.resolveGlobal(name, span) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         };
@@ -77,7 +95,7 @@ pub const Lowerer = struct {
     }
 
     fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
-        const index = self.declarations.indexOf(symbol) orelse return;
+        const index = self.linked.get(symbol) orelse return;
         for (self.references.items) |existing| {
             if (existing == index) return;
         }
@@ -206,7 +224,7 @@ pub const Lowerer = struct {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (self.interner.lookup(name)) |global| {
+                if (try self.resolveGlobal(name, e.span)) |global| {
                     try self.recordReference(global);
                     return self.builder.symbol(global, e.span);
                 }
@@ -279,12 +297,12 @@ pub const Lowerer = struct {
             .@"if" => |i| {
                 const alternatives = try self.builder.slice(core.Case.Alternative, 2);
                 alternatives[0] = .{
-                    .constructor = self.interner.lookup("False").?,
+                    .constructor = self.interner.lookup(.prelude, "False").?,
                     .binders = &.{},
                     .body = try self.expression(i.alternative, scope),
                 };
                 alternatives[1] = .{
-                    .constructor = self.interner.lookup("True").?,
+                    .constructor = self.interner.lookup(.prelude, "True").?,
                     .binders = &.{},
                     .body = try self.expression(i.consequence, scope),
                 };
@@ -313,14 +331,14 @@ pub const Lowerer = struct {
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
             .list => |elements| {
-                var spine = try self.constructorRef("Nil", e.span);
+                var spine = try self.primitive("Nil", e.span);
                 var i = elements.len;
                 while (i > 0) {
                     i -= 1;
                     // An inner cell spans its head element.
                     const cell = if (i == 0) e.span else elements[i].span;
                     spine = try self.builder.applyMany(
-                        try self.constructorRef("Cons", cell),
+                        try self.primitive("Cons", cell),
                         &.{ try self.expression(elements[i], scope), spine },
                         cell,
                     );
@@ -427,7 +445,7 @@ pub const Lowerer = struct {
             .compose => return try self.combinator("compose", left, right, span),
             .then => return try self.builder.bind(try self.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
-                try self.constructorRef("Cons", span),
+                try self.primitive("Cons", span),
                 &.{ left, right },
                 span,
             ),

@@ -359,7 +359,7 @@ test "isLocal separates locals from globals" {
     const append = try pb.global("append");
     const cons = try pb.global("Cons");
     const plus = try pb.operator(.add);
-    const text = try pb.env.interner.intern("text", .{ .primop = .text });
+    const text = try pb.env.interner.intern(.prelude, "text", .{ .primop = .text });
 
     var program = try pb.program(append);
     var translator = try Translator.init(std.testing.allocator, std.testing.allocator, &program);

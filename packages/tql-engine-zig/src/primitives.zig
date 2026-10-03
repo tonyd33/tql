@@ -175,7 +175,7 @@ pub fn populate(target: *core.env.Env) !void {
     try primitiveSchemes(arena, &target.datatypes, &rows, target.gpa);
 
     for (rows.items) |row| {
-        const id = try target.interner.intern(row.name, .{ .primop = row.primop });
+        const id = try target.interner.intern(.prelude, row.name, .{ .primop = row.primop });
         try target.setScheme(id, row.scheme);
     }
 }
@@ -221,7 +221,7 @@ test "every primitive is interned, and its scheme and primop are recorded" {
     var target = try fixture(std.testing.allocator);
     defer target.deinit();
 
-    const text = target.interner.lookup("text") orelse return error.Missing;
+    const text = target.interner.lookup(.prelude, "text") orelse return error.Missing;
     try std.testing.expectEqualStrings("text", target.interner.spelling(text));
     try std.testing.expectEqual(PrimOp.text, target.interner.details(text).primop);
     try std.testing.expect(target.schemeOf(text) != null);
@@ -233,7 +233,7 @@ test "a declaration colliding with a primitive's name is rejected" {
 
     try std.testing.expectError(
         error.Collision,
-        target.interner.intern("children", .vanilla),
+        target.interner.intern(.prelude, "children", .vanilla),
     );
 }
 

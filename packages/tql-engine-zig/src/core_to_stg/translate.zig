@@ -381,7 +381,7 @@ pub const Translator = struct {
             .bind => |bind_term| {
                 // `bind x <- v in body` is `concat_map (\x -> body) v`, an
                 // ordinary call. The evaluator never sees a bind.
-                const concat_map = self.program.env.interner.lookup("concat_map") orelse
+                const concat_map = self.program.env.interner.lookup(.prelude, "concat_map") orelse
                     return error.Unsupported;
 
                 const source = try self.atomize(bind_term.value, hoisted);

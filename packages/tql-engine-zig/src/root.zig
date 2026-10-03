@@ -123,10 +123,9 @@ pub const Engine = struct {
         var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
-        // Added first, so prelude names are registered before user declarations
-        // and a user definition colliding with one is rejected on insert.
         try self.addPrelude(&desugarer, g, sink);
-        try desugarer.add(parsed.source_file, g, sink);
+        const main = try desugarer.declareModule("Main");
+        try desugarer.add(main, &.{.prelude}, parsed.source_file, g, sink);
 
         return try desugarer.finish(parsed.source_file.span, sink);
     }
@@ -164,7 +163,7 @@ pub const Engine = struct {
         // Compiled in, so a parse error here is a bug in this repository.
         if (parsed.hasErrors()) return error.PreludeInvalid;
 
-        try desugarer.add(parsed.source_file, g, sink);
+        try desugarer.add(.prelude, &.{}, parsed.source_file, g, sink);
     }
 
     /// Parse, check, translate and run a query against a target file, writing
@@ -490,7 +489,7 @@ test "forcing a global cycle reports it rather than hanging" {
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit();
 
-    const a = program.env.interner.lookup("a").?;
+    const a = program.entryDefinitions()[0].symbol;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
 }
 

@@ -34,6 +34,7 @@ pub const Env = struct {
         span: diagnostic.Span,
     };
 
+    /// Declares `Prelude` as `ModuleId.prelude`.
     pub fn init(gpa: Allocator) !Env {
         const arena = try gpa.create(std.heap.ArenaAllocator);
         errdefer gpa.destroy(arena);
@@ -41,10 +42,12 @@ pub const Env = struct {
         errdefer arena.deinit();
 
         const scratch = arena.allocator();
+        var interner = symbols.Interner.init(scratch);
+        _ = try interner.declareModule("Prelude");
         return .{
             .gpa = gpa,
             .arena = arena,
-            .interner = symbols.Interner.init(scratch),
+            .interner = interner,
             .datatypes = datatypes.Registry.init(scratch),
             .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
             .annotations = symbols.SymbolTable(Annotation).init(scratch),

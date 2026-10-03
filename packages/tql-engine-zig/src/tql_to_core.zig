@@ -12,6 +12,7 @@ test {
     std.testing.refAllDecls(link_mod);
     std.testing.refAllDecls(desugar);
     std.testing.refAllDecls(@import("tql_to_core/resolve.zig"));
+    std.testing.refAllDecls(@import("tql_to_core/scope.zig"));
     std.testing.refAllDecls(annotation);
 }
 
@@ -22,6 +23,7 @@ const diagnostic = @import("diagnostic.zig");
 const grammar = @import("lang/grammar.zig");
 const parse = @import("parse.zig");
 const test_support = @import("core/test_support.zig");
+const ModuleScope = @import("tql_to_core/scope.zig").ModuleScope;
 
 const testing = std.testing;
 const types = core.types;
@@ -46,6 +48,16 @@ const Fixture = struct {
         self.sink.deinit();
         self.env.deinit();
         gpa.destroy(self);
+    }
+
+    /// The prelude's own view: every structural type, no imports.
+    fn scope(self: *const Fixture) ModuleScope {
+        return .{
+            .module = .prelude,
+            .imports = &.{},
+            .interner = &self.env.interner,
+            .datatypes = &self.env.datatypes,
+        };
     }
 
     fn node(self: *Fixture, kind: cst.Type.Kind) cst.Type {
@@ -74,7 +86,7 @@ const Fixture = struct {
             self.env.allocator(),
             testing.allocator,
             &signature,
-            &self.env.datatypes,
+            &self.scope(),
             &self.sink,
         );
 
@@ -85,8 +97,10 @@ const Fixture = struct {
     }
 };
 
-/// Parses, desugars and links `sources` against the typescript grammar, the
-/// last as the entry module. No prelude is linked. The caller owns the result.
+/// Parses, desugars and links `sources` against the typescript grammar, each
+/// as a module importing every one before it, the last as the entry module.
+/// No prelude source is linked, but each imports the primitives. The caller
+/// owns the result.
 fn link(sources: []const []const u8) !core.Program {
     const gpa = testing.allocator;
 
@@ -103,12 +117,19 @@ fn link(sources: []const []const u8) !core.Program {
     var sink = diagnostic.Sink.init(gpa);
     defer sink.deinit();
 
+    var modules: std.ArrayList(core.ModuleId) = .empty;
+    defer modules.deinit(gpa);
+    try modules.append(gpa, .prelude);
+
     var entry_span = diagnostic.Span.unknown;
-    for (sources) |source| {
+    for (sources, 0..) |source, i| {
         var parsed = try parser.parseCollecting(source, .entry);
         defer parsed.deinit();
         try testing.expect(!parsed.hasErrors());
-        try desugarer.add(parsed.source_file, g, &sink);
+        var name_buf: [16]u8 = undefined;
+        const module = try desugarer.declareModule(try std.fmt.bufPrint(&name_buf, "M{d}", .{i}));
+        try desugarer.add(module, modules.items, parsed.source_file, g, &sink);
+        try modules.append(gpa, module);
         entry_span = parsed.source_file.span;
     }
     return try desugarer.finish(entry_span, &sink);
@@ -140,7 +161,7 @@ test "an unknown constructor is rejected" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -284,7 +305,7 @@ test "a row variable used as a type is rejected" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -303,7 +324,7 @@ test "a record type with a repeated label is rejected" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -362,7 +383,7 @@ test "a signature may have as many variables as a scheme can number" {
     defer fix.deinit(gpa);
 
     const signature: cst.Signature = .{ .name = "f", .type = try manyVariables(fix, 255) };
-    const scheme = try annotation.translate(fix.env.allocator(), gpa, &signature, &fix.env.datatypes, &fix.sink);
+    const scheme = try annotation.translate(fix.env.allocator(), gpa, &signature, &fix.scope(), &fix.sink);
     try testing.expectEqual(255, scheme.quantified);
 }
 
@@ -376,7 +397,7 @@ test "a signature with one variable too many is a limit" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -397,7 +418,7 @@ test "an unknown class is rejected" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -417,7 +438,7 @@ test "a constrained variable absent from the type is rejected" {
         fix.env.allocator(),
         gpa,
         &signature,
-        &fix.env.datatypes,
+        &fix.scope(),
         &fix.sink,
     ));
     try testing.expectEqual(1, fix.sink.items().len);
@@ -447,13 +468,13 @@ test "a field symbol carries the grammar id it resolved" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    const field = program.env.interner.lookup("field[name]").?;
+    const field = program.env.interner.lookup(null, "field[name]").?;
     const field_what = program.env.interner.details(field).synthesized;
     try testing.expectEqualStrings("name", field_what.field.name);
     try testing.expectEqual(g.language.fieldIdForName("name"), field_what.field.id);
 
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
-    const text = program.env.interner.lookup("text").?;
+    const text = program.env.interner.lookup(.prelude, "text").?;
     try testing.expectEqual(core.PrimOp.text, program.env.interner.details(text).primop);
     try testing.expect(program.env.interner.details(field) == .synthesized);
 }
@@ -498,16 +519,24 @@ test "linked components order library callees before entry callers" {
     try testing.expectEqualStrings("main", order.items[2]);
 }
 
-test "a datatype may not reuse an alias's name from an earlier module" {
-    try testing.expectError(error.DesugarFailed, link(&.{
+test "a module may declare a datatype named like an imported alias" {
+    var program = try link(&.{
         "type X = Int;",
         "data X = X Int; main = #name;",
-    }));
+    });
+    defer program.deinit();
+
+    const entry = program.env.interner.moduleOf(program.entry).?;
+    try testing.expect(program.env.datatypes.lookup(entry, "X") != null);
 }
 
-test "an alias may not reuse a datatype's name from an earlier module" {
-    try testing.expectError(error.DesugarFailed, link(&.{
+test "a module may declare an alias named like an imported datatype" {
+    var program = try link(&.{
         "data X = X Int;",
         "type X = Int; main = #name;",
-    }));
+    });
+    defer program.deinit();
+
+    const entry = program.env.interner.moduleOf(program.entry).?;
+    try testing.expect(program.env.datatypes.aliasNamed(entry, "X") != null);
 }

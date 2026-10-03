@@ -20,7 +20,7 @@ pub const Error = Allocator.Error;
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
 pub fn run(program: *core.Program) Error!void {
-    const kleisli = program.env.interner.lookup("kleisli") orelse return;
+    const kleisli = program.env.interner.lookup(.prelude, "kleisli") orelse return;
 
     var pass: Pass = .{
         .builder = .{ .allocator = program.env.allocator() },
@@ -171,7 +171,7 @@ const Pass = struct {
     fn fusedAxis(self: *const Pass, axis: core.SymbolId) ?core.SymbolId {
         const primop = self.primopOf(axis) orelse return null;
         const fused = primop.fusedWithKindTest() orelse return null;
-        return self.interner.lookup(@tagName(fused));
+        return self.interner.lookup(.prelude, @tagName(fused));
     }
 
     /// `k`, when `t` is `of_kind k`.

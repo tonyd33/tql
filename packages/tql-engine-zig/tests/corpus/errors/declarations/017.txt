@@ -1,16 +1,15 @@
-title: a signature may not annotate a wired symbol
+title: a signature names a definition in its own module
 grammar: typescript
 asserts: error
 
-Wired symbols are supplied by the implementation and need no source
-declaration.
+`kind` is a primitive the prelude declares.
 
 --- tql ---
 kind :: Node -> String;
 main = arr kind;
 
 --- error ---
-error[symbol-collision]: `kind` collides with an existing symbol
+error[orphan-signature]: `kind` has a signature but no definition
  --> 1:1
   |
 1 | kind :: Node -> String;

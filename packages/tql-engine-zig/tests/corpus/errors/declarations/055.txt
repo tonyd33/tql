@@ -1,0 +1,14 @@
+title: a condition of the query's own Bool type is rejected
+grammar: typescript
+asserts: error
+
+--- tql ---
+data Bool = No | Yes;
+main root = [if Yes then 1 else 2];
+
+--- error ---
+error[type-mismatch]: Expected `Bool`, found `Bool`.
+ --> 2:17
+  |
+2 | main root = [if Yes then 1 else 2];
+  |                 ^^^

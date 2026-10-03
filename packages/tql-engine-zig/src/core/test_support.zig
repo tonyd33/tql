@@ -36,13 +36,13 @@ pub fn declareStructural(
     );
     const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
     registry.setConstructors(interner, registry.listId(), try arena.dupe(datatypes.Constructor, &.{
-        .{ .symbol = try interner.intern("Nil", .vanilla), .tag = 0, .fields = &.{} },
-        .{ .symbol = try interner.intern("Cons", .vanilla), .tag = 1, .fields = cons_fields },
+        .{ .symbol = try interner.intern(.prelude, "Nil", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prelude, "Cons", .vanilla), .tag = 1, .fields = cons_fields },
     }));
 
     registry.setConstructors(interner, registry.boolId(), try arena.dupe(datatypes.Constructor, &.{
-        .{ .symbol = try interner.intern("False", .vanilla), .tag = 0, .fields = &.{} },
-        .{ .symbol = try interner.intern("True", .vanilla), .tag = 1, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prelude, "False", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prelude, "True", .vanilla), .tag = 1, .fields = &.{} },
     }));
 }
 
@@ -66,7 +66,8 @@ pub const ProgramBuilder = struct {
 
     /// The global spelled `spelling`, interned on first use.
     pub fn global(self: *ProgramBuilder, spelling: []const u8) !core.SymbolId {
-        return try self.env.interner.internOrGet(spelling, .vanilla);
+        return self.env.interner.lookup(.prelude, spelling) orelse
+            try self.env.interner.intern(.prelude, spelling, .vanilla);
     }
 
     /// The `op[...]` symbol desugaring synthesizes for `scalar`.
@@ -92,12 +93,12 @@ pub const ProgramBuilder = struct {
         const declared = try arena.alloc(datatypes.Constructor, constructors.len);
         for (constructors, declared, 0..) |c, *slot, tag| {
             slot.* = .{
-                .symbol = try self.env.interner.intern(c[0], .vanilla),
+                .symbol = try self.env.interner.intern(.prelude, c[0], .vanilla),
                 .tag = @intCast(tag),
                 .fields = try arena.dupe(types.Type, c[1]),
             };
         }
-        _ = try self.env.datatypes.declare(&self.env.interner, try arena.dupe(u8, name), 0, declared, .{});
+        _ = try self.env.datatypes.declare(&self.env.interner, .prelude, try arena.dupe(u8, name), 0, declared, .{});
     }
 
     pub fn define(self: *ProgramBuilder, name: core.SymbolId, body: core.Term) !void {

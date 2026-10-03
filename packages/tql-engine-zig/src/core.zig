@@ -30,6 +30,7 @@ pub const PrimOp = details.PrimOp;
 pub const Scalar = details.Scalar;
 
 pub const SymbolId = symbols.SymbolId;
+pub const ModuleId = symbols.ModuleId;
 pub const SymbolTable = symbols.SymbolTable;
 pub const Interner = symbols.Interner;
 pub const InsertError = symbols.InsertError;
@@ -402,8 +403,7 @@ pub const Printer = struct {
         while (node) |n| : (node = n.parent) {
             if (n.symbol == id) return n.primes;
         }
-        const global = self.interner.by_spelling.get(self.interner.spelling(id)) orelse return null;
-        return if (global == id) 0 else null;
+        return if (self.interner.isGlobal(id)) 0 else null;
     }
 
     fn writeScoped(self: Printer, g: Group, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {

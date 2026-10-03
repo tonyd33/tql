@@ -15,6 +15,7 @@ const diagnostic = @import("../diagnostic.zig");
 const core = @import("../core.zig");
 const datatypes = core.datatypes;
 const types = core.types;
+const ModuleScope = @import("scope.zig").ModuleScope;
 
 const Allocator = std.mem.Allocator;
 
@@ -47,7 +48,7 @@ pub fn translate(
     arena: Allocator,
     gpa: Allocator,
     signature: *const cst.Signature,
-    declared: *const datatypes.Registry,
+    scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
     var vars: std.ArrayList(Translator.Variable) = .empty;
@@ -57,7 +58,8 @@ pub fn translate(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .datatypes = declared,
+        .datatypes = scope.datatypes,
+        .scope = scope,
         .sink = sink,
     };
     const translated = try t.type(signature.type);
@@ -75,12 +77,12 @@ pub fn translate(
 /// parameter position.
 ///
 /// Preconditions:
-/// - Every alias the body names is already in `declared`.
+/// - Every alias the body names is already declared.
 pub fn translateAlias(
     arena: Allocator,
     gpa: Allocator,
     alias: *const cst.TypeAlias,
-    declared: *const datatypes.Registry,
+    scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!datatypes.Alias {
     var vars: std.ArrayList(Translator.Variable) = .empty;
@@ -90,7 +92,8 @@ pub fn translateAlias(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .datatypes = declared,
+        .datatypes = scope.datatypes,
+        .scope = scope,
         .sink = sink,
     };
     // Parameter `i` is variable `i` in the body.
@@ -141,6 +144,7 @@ const Translator = struct {
     gpa: Allocator,
     vars: *std.ArrayList(Variable),
     datatypes: *const datatypes.Registry,
+    scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 
     fn @"type"(self: *Translator, node: cst.Type) Error!types.Type {
@@ -163,20 +167,29 @@ const Translator = struct {
     }
 
     fn named(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.Type {
-        if (self.datatypes.lookup(name)) |declared| {
-            const parameters = self.datatypes.get(declared).parameters;
-            if (parameters != 0) {
-                try self.sink.report(
-                    .type_mismatch,
-                    span,
-                    "`{s}` takes {d} type argument(s), given 0",
-                    .{ name, parameters },
-                );
+        switch (self.scope.typeNamed(name)) {
+            .found => |found| switch (found) {
+                .datatype => |declared| {
+                    const parameters = self.datatypes.get(declared).parameters;
+                    if (parameters != 0) {
+                        try self.sink.report(
+                            .type_mismatch,
+                            span,
+                            "`{s}` takes {d} type argument(s), given 0",
+                            .{ name, parameters },
+                        );
+                        return error.BadAnnotation;
+                    }
+                    return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
+                },
+                .alias => |alias| return try self.aliasAt(alias, &.{}, span),
+            },
+            .ambiguous => |modules| {
+                try self.scope.reportAmbiguous(self.sink, span, name, modules);
                 return error.BadAnnotation;
-            }
-            return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
+            },
+            .missing => {},
         }
-        if (self.datatypes.aliasNamed(name)) |alias| return try self.aliasAt(alias, &.{}, span);
         if (builtinNamed(name)) |t| return t;
         try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
         return error.BadAnnotation;
@@ -187,12 +200,19 @@ const Translator = struct {
         node: cst.TypeApplication,
         span: diagnostic.Span,
     ) Error!types.Type {
-        const declared = self.datatypes.lookup(node.constructor) orelse {
-            if (self.datatypes.aliasNamed(node.constructor)) |alias| {
-                return try self.aliasAt(alias, node.arguments, span);
-            }
-            try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{node.constructor});
-            return error.BadAnnotation;
+        const declared = switch (self.scope.typeNamed(node.constructor)) {
+            .found => |found| switch (found) {
+                .datatype => |declared| declared,
+                .alias => |alias| return try self.aliasAt(alias, node.arguments, span),
+            },
+            .ambiguous => |modules| {
+                try self.scope.reportAmbiguous(self.sink, span, node.constructor, modules);
+                return error.BadAnnotation;
+            },
+            .missing => {
+                try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{node.constructor});
+                return error.BadAnnotation;
+            },
         };
         const parameters = self.datatypes.get(declared).parameters;
         if (node.arguments.len != parameters) {

@@ -80,6 +80,7 @@ pub const Span = struct {
 pub const Category = enum {
     parse,
     unresolved_name,
+    ambiguous_name,
     unknown_kind,
     supertype_kind,
     unknown_field,
@@ -103,6 +104,7 @@ pub const Category = enum {
         return switch (self) {
             .parse => "parse",
             .unresolved_name => "unresolved-name",
+            .ambiguous_name => "ambiguous-name",
             .unknown_kind => "unknown-kind",
             .supertype_kind => "supertype-kind",
             .unknown_field => "unknown-field",

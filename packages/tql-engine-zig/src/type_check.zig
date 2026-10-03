@@ -101,10 +101,10 @@ const Fixture = struct {
     fn declareFlag(self: *Fixture) !void {
         const arena = self.env.allocator();
         const constructors = try arena.dupe(core.datatypes.Constructor, &.{
-            .{ .symbol = try self.env.interner.intern("Off", .vanilla), .tag = 0, .fields = &.{} },
-            .{ .symbol = try self.env.interner.intern("On", .vanilla), .tag = 1, .fields = &.{} },
+            .{ .symbol = try self.env.interner.intern(.prelude, "Off", .vanilla), .tag = 0, .fields = &.{} },
+            .{ .symbol = try self.env.interner.intern(.prelude, "On", .vanilla), .tag = 1, .fields = &.{} },
         });
-        _ = try self.env.datatypes.declare(&self.env.interner, "Flag", 0, constructors, .{});
+        _ = try self.env.datatypes.declare(&self.env.interner, .prelude, "Flag", 0, constructors, .{});
     }
 
     fn record(self: *Fixture, labels: []const []const u8, field_types: []const types.Type) !types.Type {
@@ -161,14 +161,14 @@ const Fixture = struct {
     }
 
     fn define(self: *Fixture, spelling: []const u8, scheme: types.Scheme) !core.SymbolId {
-        const id = try self.env.interner.intern(spelling, .vanilla);
+        const id = try self.env.interner.intern(.prelude, spelling, .vanilla);
         try self.env.setScheme(id, scheme);
         return id;
     }
 
     fn name(self: *Fixture, spelling: []const u8) !core.SymbolId {
-        return self.env.interner.lookup(spelling) orelse
-            try self.env.interner.intern(spelling, .vanilla);
+        return self.env.interner.lookup(.prelude, spelling) orelse
+            try self.env.interner.intern(.prelude, spelling, .vanilla);
     }
 
     /// Interns a synthesized symbol under its bracketed spelling, the way the
@@ -203,12 +203,12 @@ const Fixture = struct {
     fn cond(self: *Fixture, c: core.Term, t: core.Term, e: core.Term) !core.Term {
         const alternatives = try self.builder.slice(core.Case.Alternative, 2);
         alternatives[0] = .{
-            .constructor = self.env.interner.lookup("Off").?,
+            .constructor = self.env.interner.lookup(.prelude, "Off").?,
             .binders = &.{},
             .body = e,
         };
         alternatives[1] = .{
-            .constructor = self.env.interner.lookup("On").?,
+            .constructor = self.env.interner.lookup(.prelude, "On").?,
             .binders = &.{},
             .body = t,
         };
@@ -217,7 +217,7 @@ const Fixture = struct {
 
     /// A nullary constructor reference.
     fn con(self: *Fixture, spelling: []const u8) core.Term {
-        return self.builder.symbol(self.env.interner.lookup(spelling).?, diagnostic.Span.unknown);
+        return self.builder.symbol(self.env.interner.lookup(.prelude, spelling).?, diagnostic.Span.unknown);
     }
 
     fn rec(self: *Fixture, bindings: []const core.Letrec.Binding, body: core.Term) !core.Term {

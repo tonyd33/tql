@@ -58,21 +58,15 @@ pub const Declarations = struct {
         }
         return null;
     }
-
-    pub fn indexOf(self: *const Declarations, symbol: core.SymbolId) ?u32 {
-        for (self.items.items, 0..) |d, i| {
-            if (d.symbol == symbol) return @intCast(i);
-        }
-        return null;
-    }
 };
 
-/// Walks declarations, interning each head and pairing
+/// Walks declarations, interning each head under `module` and pairing
 /// signatures with definitions. Every problem found is reported; collection
 /// continues so one run reports them all.
 pub fn collect(
     allocator: std.mem.Allocator,
     interner: *core.Interner,
+    module: core.ModuleId,
     source: cst.SourceFile,
     sink: *diagnostic.Sink,
 ) !Declarations {
@@ -95,7 +89,7 @@ pub fn collect(
             continue;
         }
 
-        const symbol = interner.intern(definition.name, .vanilla) catch |err| switch (err) {
+        const symbol = interner.intern(module, definition.name, .vanilla) catch |err| switch (err) {
             error.Collision => {
                 try sink.report(
                     .symbol_collision,
@@ -122,7 +116,7 @@ pub fn collect(
         const target = for (declarations.items.items) |*d| {
             if (std.mem.eql(u8, d.name, signature.name)) break d;
         } else {
-            if (interner.lookup(signature.name)) |_| {
+            if (interner.lookup(module, signature.name)) |_| {
                 try sink.report(
                     .symbol_collision,
                     signature.span,

@@ -291,8 +291,7 @@ pub const Printer = struct {
         while (node) |n| : (node = n.parent) {
             if (n.symbol == id) return n.primes;
         }
-        const global = self.interner.by_spelling.get(self.interner.spelling(id)) orelse return null;
-        return if (global == id) 0 else null;
+        return if (self.interner.isGlobal(id)) 0 else null;
     }
 
     fn writeName(self: Printer, id: core.SymbolId, w: *std.Io.Writer, scope: ?*Scope) Error!void {
@@ -371,7 +370,7 @@ const TestTerms = struct {
     }
 
     fn global(self: *TestTerms, name: []const u8) !core.SymbolId {
-        return try self.interner.intern(name, .vanilla);
+        return try self.interner.intern(.prelude, name, .vanilla);
     }
 
     fn local(self: *TestTerms, name: []const u8) !core.SymbolId {

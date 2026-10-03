@@ -23,6 +23,7 @@
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
 - Added operator sections: `(= 1)` is `\x -> x = 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
 - Added `subtract`.
+- A query may define a name or declare a type the prelude has.
 
 ## 0.3.1 (unreleased)
 

@@ -1,0 +1,20 @@
+title: boolean sugar builds the prelude's Bool whatever the query declares
+grammar: typescript
+asserts: types, values
+
+`true` and `if` use the prelude's `True` and `False`.
+
+--- tql ---
+data Flag = False | True;
+score f = case f of { False -> 0; True -> 1 };
+main root = [if true then score True else 2];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[1]
+
+--- types ---
+score :: Flag -> Int
+main :: Node -> [Int]
