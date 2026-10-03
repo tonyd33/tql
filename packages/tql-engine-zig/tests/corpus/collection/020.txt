@@ -1,6 +1,6 @@
 title: list literal elements are ordinary expressions
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = children | of_kind :class_declaration | arr (\c -> [kind c, text c]);
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [[String]]
+
+--- core ---
+main = kleisli (kleisli children (of_kind :class_declaration)) (arr (\c -> Cons (kind c) (Cons (text c) Nil)))

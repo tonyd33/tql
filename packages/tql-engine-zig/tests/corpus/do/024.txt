@@ -1,6 +1,6 @@
 title: `>>` runs its right side once per output of its left
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = const ([1, 2] >> [3]);
@@ -13,3 +13,9 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = const (
+  bind _ <- Cons 1 (Cons 2 Nil) in
+  Cons 3 Nil
+)

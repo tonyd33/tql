@@ -1,6 +1,6 @@
 title: multiple lambda parameters are nested unary lambdas
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `\x y -> x + y` and `\x -> \y -> x + y` are the same value. Both are applied
 the same way.
@@ -21,3 +21,11 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec
+    a = \x -> \y -> op[+] x y
+    b = \x -> \y -> op[+] x y
+  in
+  const (Cons (a 1 2) (Cons (b 1 2) Nil))

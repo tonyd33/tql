@@ -1,6 +1,6 @@
 title: application binds tighter than pipe
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `children | of_kind :class_declaration` groups as
 `children | (of_kind :class_declaration)`.
@@ -17,3 +17,6 @@ class B {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr text)

@@ -1,6 +1,6 @@
 title: named-field navigation selects children under that field
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = children | of_kind :class_declaration | #name | arr text;
@@ -13,3 +13,6 @@ class Service {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr text)

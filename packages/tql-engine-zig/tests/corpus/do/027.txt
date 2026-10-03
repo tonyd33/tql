@@ -1,0 +1,25 @@
+title: an empty inner bind yields nothing for any outer value
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+main root = do {
+  l <- [1, 2];
+  r <- (children | of_kind :interface_declaration | pure 0) root;
+  return $ l + r;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+main :: Node -> [Int]
+
+--- core ---
+main = \root ->
+  bind l <- Cons 1 (Cons 2 Nil) in
+  bind r <- kleisli (kleisli children (of_kind :interface_declaration)) (pure 0) root in
+  return (op[+] l r)

@@ -1,6 +1,6 @@
 title: arithmetic precedence and left associativity
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `2 + 3 * 4` is `2 + (3 * 4)`; `10 - 3 - 2` is `(10 - 3) - 2`.
 
@@ -15,3 +15,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = const (Cons (op[+] 2 (op[*] 3 4)) (Cons (op[-] (op[-] 10 3) 2) Nil))

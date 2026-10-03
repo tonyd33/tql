@@ -1,6 +1,6 @@
 title: multiple bindings in one group are siblings
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main =
@@ -18,3 +18,11 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec
+    lo = 2
+    hi = 5
+  in
+  pure (op[+] lo hi)

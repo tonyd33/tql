@@ -1,6 +1,6 @@
-title: a bound value already typed `Filter` is used directly, not lifted
+title: a bound filter is applied like any function
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `predicate` is bound to a filter and applied to `root` directly.
 
@@ -20,3 +20,9 @@ class A {}
 --- types ---
 make_predicate :: a -> [Node -> [String]]
 main :: Node -> [String]
+
+--- core ---
+make_predicate = pure (arr kind)
+main = \root ->
+  bind predicate <- make_predicate root in
+  predicate root

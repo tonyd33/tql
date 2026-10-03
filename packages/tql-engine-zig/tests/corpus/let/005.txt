@@ -1,6 +1,6 @@
 title: an optional trailing semicolon is permitted in the brace form
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = let { a = 1; b = 2; } in pure $ a + b;
@@ -13,3 +13,11 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec
+    a = 1
+    b = 2
+  in
+  pure (op[+] a b)

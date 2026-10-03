@@ -43,7 +43,6 @@ pub fn printProgram(
     const printer: core.Printer = .{ .interner = &p.env.interner };
     for (p.entryDefinitions(), 0..) |d, i| {
         if (i > 0) try w.writeByte('\n');
-        try w.print("{s} = ", .{p.env.interner.spelling(d.symbol)});
-        try printer.term(d.body, w);
+        try printer.definition(d.symbol, d.body, w);
     }
 }

@@ -1,6 +1,6 @@
 title: a lambda with one parameter
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main =
@@ -15,3 +15,8 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec inc = \x -> op[+] x 1 in
+  pure (inc 4)

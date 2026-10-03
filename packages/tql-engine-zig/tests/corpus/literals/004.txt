@@ -1,15 +1,18 @@
-title: negative integer literal
+title: a negative integer literal is one literal, not a subtraction
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
-main = pure $ 0 - 7;
+main = const [-7, 0 - 7];
 
 --- source ---
 class A {}
 
 --- values ---
-[-7]
+[-7, -7]
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = const (Cons (-7) (Cons (op[-] 0 7) Nil))

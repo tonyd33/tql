@@ -1,6 +1,6 @@
 title: a kind test on a parameter fuses into the axis
 grammar: typescript
-asserts: simplified, values
+asserts: core, simplified, values
 
 --- tql ---
 main = (\k -> descendants | of_kind k) :class_declaration;
@@ -31,3 +31,6 @@ class B {}
 
 --- simplified ---
 main = (\k -> descendants_of_kind k) :class_declaration
+
+--- core ---
+main = (\k -> kleisli descendants (of_kind k)) :class_declaration

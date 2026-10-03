@@ -1,6 +1,6 @@
 title: a definition with no parameters binds a value directly
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 limit = 7;
@@ -15,3 +15,7 @@ class A {}
 --- types ---
 limit :: Int
 main :: Node -> [Int]
+
+--- core ---
+limit = 7
+main = pure (op[+] limit 1)

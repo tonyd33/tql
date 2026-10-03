@@ -1,6 +1,6 @@
 title: a `let` group with a single binding
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main =
@@ -16,3 +16,8 @@ class B {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main =
+  letrec target = "A" in
+  kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[=] (text n) target))

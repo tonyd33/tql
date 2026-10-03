@@ -1,6 +1,6 @@
 title: `>>` sequences a guard before a result
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -20,3 +20,10 @@ class A {
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind f <- descendants_of_kind :public_field_definition root in
+  bind t <- field[type] f in
+  bind _ <- guard (op[=] (text t) ": string") in
+  return (text f)

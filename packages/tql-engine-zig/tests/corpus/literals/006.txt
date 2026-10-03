@@ -1,6 +1,6 @@
 title: `!~` is the negated match
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = children | of_kind :class_declaration
@@ -17,3 +17,6 @@ class Other {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[!~] (text n) r"^Ser"))

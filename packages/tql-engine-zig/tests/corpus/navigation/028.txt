@@ -1,6 +1,6 @@
 title: a kind test fuses under a surrounding composition
 grammar: typescript
-asserts: simplified, values
+asserts: core, simplified, values
 
 --- tql ---
 main = descendants | of_kind :class_declaration | #name;
@@ -31,3 +31,6 @@ class B {}
 
 --- simplified ---
 main = kleisli (descendants_of_kind :class_declaration) field[name]
+
+--- core ---
+main = kleisli (kleisli descendants (of_kind :class_declaration)) field[name]

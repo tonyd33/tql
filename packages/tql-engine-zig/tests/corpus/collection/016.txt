@@ -1,6 +1,6 @@
 title: a record holding a collected list
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 Collection inside a field keeps the record single-valued: the list is one
 value, so no product fan-out occurs.
@@ -21,3 +21,10 @@ class A { m() {} n() {} }
 
 --- types ---
 main :: Node -> [{methods: [String], name: String}]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind n <- field[name] c in
+  bind methods <- collect (kleisli (kleisli (kleisli (kleisli field[body] children) (of_kind :method_definition)) field[name]) (arr text)) c in
+  return (record[methods,name] methods (text n))

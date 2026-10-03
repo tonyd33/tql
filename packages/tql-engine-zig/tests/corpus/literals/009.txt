@@ -1,6 +1,6 @@
 title: the closing quote ends the literal
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `r"^A"` is a complete regex literal; the following `,` ends the element, not
 more pattern. Delimiting with `"` rather than `/` is what leaves `/` with exactly
@@ -17,3 +17,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = const (Cons (op[~] "A" r"^A") (Cons (op[~] "B" r"^A") Nil))

@@ -1,4 +1,4 @@
-title: a scalar literal in filter position yields itself once
+title: `pure` of an int literal yields it once
 grammar: typescript
 asserts: types, values
 

@@ -1,6 +1,6 @@
 title: `not` binds tighter than `and`, like any application
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `not true and false` groups as `(not true) and false`.
 
@@ -15,3 +15,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = pure (and (not True) False)

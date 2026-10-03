@@ -1,6 +1,6 @@
 title: a `do`-local `let` has no `in` and scopes over the rest of the block
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -19,3 +19,10 @@ class B {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind n <- field[name] c in
+  letrec name = text n in
+  return name

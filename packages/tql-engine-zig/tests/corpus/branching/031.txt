@@ -1,6 +1,6 @@
 title: cons builds a list, attached or spaced
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = pure (0 : 1:[2]);
@@ -12,3 +12,6 @@ class A {}
 [[0,1,2]]
 --- types ---
 main :: Node -> [[Int]]
+
+--- core ---
+main = pure (Cons 0 (Cons 1 (Cons 2 Nil)))

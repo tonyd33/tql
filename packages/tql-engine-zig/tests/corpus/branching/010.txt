@@ -1,6 +1,6 @@
 title: `not p and q` groups as `(not p) and q`
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `and` binds looser than `not`. If it grouped as `not (p and q)`, the result
 would be `[true]`.
@@ -16,3 +16,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = pure (and (not False) False)

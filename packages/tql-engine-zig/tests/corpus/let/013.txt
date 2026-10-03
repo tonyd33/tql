@@ -1,6 +1,6 @@
 title: nested `let` groups
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 The inner group closes at its own `}`, leaving the outer body to continue.
 
@@ -18,3 +18,9 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec outer = 10 in
+  letrec inner = op[+] outer 5 in
+  pure inner

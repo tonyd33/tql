@@ -19,7 +19,15 @@ class A {}
 [[1, 2], [], []]
 
 --- core ---
-pair = \xs -> letrec { alternative = Nil } in case xs of { Nil -> alternative; Cons a cons1 -> case cons1 of { Nil -> alternative; Cons b cons1 -> case cons1 of { Nil -> Cons a (Cons b Nil); Cons _ _ -> alternative } } }
+pair = \xs ->
+  letrec alternative = Nil in
+  case xs of
+    Nil -> alternative
+    Cons a cons1 -> case cons1 of
+      Nil -> alternative
+      Cons b cons1 -> case cons1 of
+        Nil -> Cons a (Cons b Nil)
+        Cons _ _ -> alternative
 main = const (Cons (pair (Cons 1 (Cons 2 Nil))) (Cons (pair (Cons 1 Nil)) (Cons (pair (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil)))
 
 --- types ---

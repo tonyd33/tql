@@ -1,6 +1,6 @@
 title: a `do`-local `let` group binds several names
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 Two bindings in one group, both used in the result record.
 
@@ -34,3 +34,13 @@ class A {}
 
 --- types ---
 main :: Node -> [{k: String, n: String}]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind cn <- field[name] c in
+  letrec
+    name = text cn
+    k = kind c
+  in
+  return (record[k,n] k name)

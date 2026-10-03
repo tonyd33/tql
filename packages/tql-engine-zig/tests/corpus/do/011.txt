@@ -1,6 +1,6 @@
-title: a bound node is lifted when it begins navigation
+title: a bound node is the argument to a later navigation
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -17,3 +17,9 @@ class A { m() {} n() {} }
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind p <- descendants_of_kind :property_identifier c in
+  return (text p)

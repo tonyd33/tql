@@ -1,6 +1,6 @@
 title: `not` over a comparison takes `$`
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `not` is an ordinary function, so `not 1 = 1` would apply it to `1`. `$` hands
 it the whole comparison.
@@ -16,3 +16,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = pure (not (op[=] 1 1))

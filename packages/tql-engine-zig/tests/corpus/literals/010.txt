@@ -1,6 +1,6 @@
 title: addition, subtraction, multiplication
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = const [2 + 3, 10 - 4, 6 * 7];
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = const (Cons (op[+] 2 3) (Cons (op[-] 10 4) (Cons (op[*] 6 7) Nil)))

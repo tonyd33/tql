@@ -1,6 +1,6 @@
 title: field access binds tighter than application
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `map text n.name` groups as `map text (n.name)`, not `(map text n).name`.
 
@@ -20,3 +20,7 @@ class A {}
 --- types ---
 name_of :: Node -> [String]
 main :: Node -> [String]
+
+--- core ---
+name_of = \n -> map text (field[name] n)
+main = kleisli (kleisli children (of_kind :class_declaration)) name_of

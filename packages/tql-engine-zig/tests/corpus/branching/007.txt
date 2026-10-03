@@ -1,6 +1,6 @@
 title: `and` does not force its right operand for a false left
 grammar: typescript
-asserts: types
+asserts: types, values
 
 The right operand is an unforced argument until the `case` on the left selects
 it, so a diverging right operand is never evaluated under a false left. This
@@ -18,3 +18,6 @@ class A {}
 --- types ---
 loop :: a -> b
 main :: Node -> [Bool]
+
+--- values ---
+[false]

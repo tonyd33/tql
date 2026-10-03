@@ -1,6 +1,6 @@
 title: the last item in the braces is the final expression
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 Each `name <- query` is terminated by `;`. The last item has no successor, so
 it is the unique final expression. Compare a block with no statements at all,
@@ -22,3 +22,10 @@ class A { m() {} }
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind m <- kleisli (kleisli field[body] children) (of_kind :method_definition) c in
+  bind n <- field[name] m in
+  return (text n)

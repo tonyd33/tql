@@ -1,0 +1,30 @@
+title: a nested list pattern tells apart the tails it checks
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+one xs = case xs of {
+  Cons (Cons a Nil) Nil -> [a];
+  _ -> [];
+};
+
+main = const [one [[1]], one [[2], [3]], one [[4, 5]]];
+
+--- source ---
+class A {}
+
+--- core ---
+one = \xs ->
+  letrec alternative = Nil in
+  case xs of
+    Nil -> alternative
+    Cons cons0 cons1 -> case cons0 of
+      Nil -> alternative
+      Cons a cons1' -> case cons1' of
+        Nil -> case cons1 of
+          Nil -> Cons a Nil
+          Cons _ _ -> alternative
+        Cons _ _ -> alternative
+main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))
+--- values ---
+[[1], [], []]
