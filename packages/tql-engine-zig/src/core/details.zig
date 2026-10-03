@@ -60,10 +60,6 @@ pub const PrimOp = enum {
     descendants_of_kind,
     is_kind,
     of_kind,
-    field,
-    operator,
-    record,
-    select,
 
     /// The single axis this one becomes when composed with a kind test, if
     /// there is one. `children` then `of_kind k` walks the same nodes as
@@ -90,16 +86,12 @@ pub const Synthesized = union(enum) {
     record: []const []const u8,
     /// `select[l]`, reading the record field labelled `l`.
     select: []const u8,
+};
 
-    /// The machine operation this denotes.
-    pub fn primop(self: Synthesized) PrimOp {
-        return switch (self) {
-            .field => .field,
-            .operator => .operator,
-            .record => .record,
-            .select => .select,
-        };
-    }
+/// What a primitive call runs.
+pub const Operation = union(enum) {
+    builtin: PrimOp,
+    synthesized: Synthesized,
 };
 
 /// What a symbol is.

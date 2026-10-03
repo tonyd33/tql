@@ -1,0 +1,246 @@
+========================================
+a module header with an export list
+========================================
+
+module JavaScript.Scope (resolve, Scope(..), Named);
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)
+    exports: (item_list
+      (item
+        name: (identifier))
+      (item
+        name: (type_identifier)
+        constructors: (all_constructors))
+      (item
+        name: (type_identifier)))))
+
+========================================
+a module header without an export list
+========================================
+
+module Helpers;
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)))
+
+========================================
+every import form
+========================================
+
+import A;
+import A.B (x, T(..));
+import Prelude hiding (filter);
+import A.B as B;
+import A (x) as Q;
+
+---
+
+(source_file
+  import: (import_declaration
+    module: (module_name))
+  import: (import_declaration
+    module: (module_name)
+    items: (item_list
+      (item
+        name: (identifier))
+      (item
+        name: (type_identifier)
+        constructors: (all_constructors))))
+  import: (import_declaration
+    module: (module_name)
+    hiding: (item_list
+      (item
+        name: (identifier))))
+  import: (import_declaration
+    module: (module_name)
+    qualifier: (module_name))
+  import: (import_declaration
+    module: (module_name)
+    items: (item_list
+      (item
+        name: (identifier)))
+    qualifier: (module_name)))
+
+========================================
+imports follow the header and precede declarations
+========================================
+
+module M;
+import A;
+main = 1;
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name))
+  import: (import_declaration
+    module: (module_name))
+  (definition
+    name: (identifier)
+    body: (number)))
+
+========================================
+a qualified name is one token
+========================================
+
+main = A.B.f (M.Just 1) M.Nothing;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (application
+        function: (qualified_identifier)
+        argument: (parenthesized
+          (application
+            function: (qualified_type_identifier)
+            argument: (number))))
+      argument: (qualified_type_identifier))))
+
+========================================
+an unqualified constructor followed by a field is a qualified name
+========================================
+
+main = Foo.bar;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (qualified_identifier)))
+
+========================================
+composition with spaces stays composition
+========================================
+
+main = Foo . bar;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (composition
+      left: (type_identifier)
+      right: (identifier))))
+
+========================================
+qualified names in patterns, types and backticks
+========================================
+
+f :: M.Maybe Int -> M.T;
+f x = case x of { M.Just y -> y `M.plus` y; M.Nothing -> 0 };
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_application
+        constructor: (qualified_type_identifier)
+        argument: (type_identifier))
+      to: (qualified_type_identifier)))
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (qualified_type_identifier)
+          argument: (identifier))
+        body: (infix_application
+          left: (identifier)
+          function: (qualified_identifier)
+          right: (identifier)))
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (qualified_type_identifier))
+        body: (number)))))
+
+========================================
+module keywords bind as locals
+========================================
+
+main root = do {
+  import <- children root;
+  module <- children import;
+  as <- children module;
+  hiding <- children as;
+  return hiding;
+};
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (do_expression
+      (bind_statement
+        name: (identifier)
+        value: (application
+          function: (identifier)
+          argument: (identifier)))
+      (bind_statement
+        name: (identifier)
+        value: (application
+          function: (identifier)
+          argument: (identifier)))
+      (bind_statement
+        name: (identifier)
+        value: (application
+          function: (identifier)
+          argument: (identifier)))
+      (bind_statement
+        name: (identifier)
+        value: (application
+          function: (identifier)
+          argument: (identifier)))
+      (application
+        function: (identifier)
+        argument: (identifier)))))
+
+========================================
+a module header names the grammars it reads
+========================================
+
+module Rules.Scope (resolve) for javascript, typescript, tsx;
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)
+    exports: (item_list
+      (item
+        name: (identifier)))
+    grammar: (identifier)
+    grammar: (identifier)
+    grammar: (identifier)))
+
+========================================
+for binds as a local name
+========================================
+
+f for = for;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (identifier)))

@@ -78,8 +78,9 @@ pub const Alias = struct {
 pub const Registry = struct {
     allocator: Allocator,
     datatypes: std.ArrayList(Datatype) = .empty,
-    by_name: std.StringHashMapUnmanaged(TypeId) = .empty,
-    aliases: std.StringHashMapUnmanaged(Alias) = .empty,
+    by_name: symbols.QualifiedName.Map(TypeId) = .empty,
+    aliases: symbols.QualifiedName.Map(Alias) = .empty,
+    primitives: symbols.QualifiedName.Map(types.Primitive) = .empty,
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
@@ -114,12 +115,20 @@ pub const Registry = struct {
         pub const all: []const Structural = &.{ Structural.list, Structural.boolean };
     };
 
-    /// Reserves `List` and `Bool`, with no constructors yet. The primitive
-    /// schemes mention both, so their ids must exist before `prelude.tql` is
-    /// parsed; the prelude's own declarations fill the constructors in.
-    pub fn reserveStructural(self: *Registry, interner: *symbols.Interner) !void {
+    /// Declares the prelude's built-in types: the primitives, the aliases
+    /// `Range` and `Point`, and `List` and `Bool` with no constructors yet.
+    /// The primitive schemes mention `List` and `Bool`, so their ids must
+    /// exist before `prelude.tql` is parsed; the prelude's own declarations
+    /// fill the constructors in.
+    pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
+        for (std.enums.values(types.Primitive)) |p| {
+            try self.primitives.put(self.allocator, .{ .module = .prelude, .name = p.spelling() }, p);
+        }
+        for ([_]types.Type{ types.range_type, types.point_type }) |t| {
+            try self.defineAlias(.prelude, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
+        }
         for (Structural.all) |s| {
-            _ = try self.declare(interner, s.name, s.parameters, &.{}, s.classes);
+            _ = try self.declare(interner, .prelude, s.name, s.parameters, &.{}, s.classes);
         }
     }
 
@@ -132,11 +141,11 @@ pub const Registry = struct {
     }
 
     pub fn listId(self: *const Registry) TypeId {
-        return self.lookup(types.list_spelling).?;
+        return self.lookup(.prelude, types.list_spelling).?;
     }
 
     pub fn boolId(self: *const Registry) TypeId {
-        return self.lookup(types.bool_spelling).?;
+        return self.lookup(.prelude, types.bool_spelling).?;
     }
 
     /// The constructor `b` denotes. `False` is tag 0 and `True` is tag 1,
@@ -154,6 +163,27 @@ pub const Registry = struct {
     /// `Cons`, tag 1 of `List`, taking a head and a tail.
     pub fn consConstructor(self: *const Registry) Constructor {
         return self.get(self.listId()).constructors[1];
+    }
+
+    /// The scheme of `constructor`, of type `id`: its fields curried onto the
+    /// type at its own parameters.
+    pub fn constructorScheme(
+        self: *const Registry,
+        arena: Allocator,
+        id: TypeId,
+        constructor: Constructor,
+    ) Allocator.Error!types.Scheme {
+        const declared = self.get(id);
+        const arguments = try arena.alloc(types.Type, declared.parameters);
+        for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
+
+        var result = try types.constructed(arena, id, declared.name, arguments);
+        var i = constructor.fields.len;
+        while (i > 0) {
+            i -= 1;
+            result = try types.func(arena, constructor.fields[i], result);
+        }
+        return .{ .quantified = declared.parameters, .type = result };
     }
 
     /// `[t]`, for a caller that has the registry.
@@ -182,6 +212,7 @@ pub const Registry = struct {
     pub fn declare(
         self: *Registry,
         interner: *symbols.Interner,
+        module: symbols.ModuleId,
         name: []const u8,
         parameters: u8,
         constructors: []const Constructor,
@@ -194,7 +225,7 @@ pub const Registry = struct {
             .constructors = constructors,
             .classes = classes,
         });
-        try self.by_name.put(self.allocator, name, id);
+        try self.by_name.put(self.allocator, .{ .module = module, .name = name }, id);
         own(interner, id, constructors);
         return id;
     }
@@ -221,17 +252,24 @@ pub const Registry = struct {
         return &self.datatypes.items[@intFromEnum(id)];
     }
 
-    pub fn lookup(self: *const Registry, name: []const u8) ?TypeId {
-        return self.by_name.get(name);
+    /// The datatype `module` declares as `name`.
+    pub fn lookup(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?TypeId {
+        return self.by_name.get(.{ .module = module, .name = name });
     }
 
     /// `alias` and everything it points to must outlive the registry.
-    pub fn defineAlias(self: *Registry, alias: Alias) Allocator.Error!void {
-        try self.aliases.put(self.allocator, alias.name, alias);
+    pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
+        try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, alias);
     }
 
-    pub fn aliasNamed(self: *const Registry, name: []const u8) ?*const Alias {
-        return self.aliases.getPtr(name);
+    /// The primitive type `module` declares as `name`.
+    pub fn primitiveNamed(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?types.Primitive {
+        return self.primitives.get(.{ .module = module, .name = name });
+    }
+
+    /// The alias `module` declares as `name`.
+    pub fn aliasNamed(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?*const Alias {
+        return self.aliases.getPtr(.{ .module = module, .name = name });
     }
 
     pub fn constructorOf(
@@ -262,21 +300,21 @@ test "a declared type is reachable by name, id, and constructor" {
     var registry = Registry.init(arena.allocator());
     var interner = symbols.Interner.init(arena.allocator());
 
-    const nil = try interner.intern("Nil", .vanilla);
-    const cons = try interner.intern("Cons", .vanilla);
-    const other = try interner.intern("other", .vanilla);
+    const nil = try interner.intern(.prelude, "Nil", .vanilla);
+    const cons = try interner.intern(.prelude, "Cons", .vanilla);
+    const other = try interner.intern(.prelude, "other", .vanilla);
     const constructors = [_]Constructor{
         .{ .symbol = nil, .tag = 0, .fields = &.{} },
         .{ .symbol = cons, .tag = 1, .fields = &.{} },
     };
 
-    const id = try registry.declare(&interner, "List", 1, &constructors, .{
+    const id = try registry.declare(&interner, .prelude, "List", 1, &constructors, .{
         .Eq = .fields,
         .Sized = .always,
         .Serial = .fields,
     });
 
-    try std.testing.expectEqual(id, registry.lookup("List").?);
+    try std.testing.expectEqual(id, registry.lookup(.prelude, "List").?);
     try std.testing.expectEqual(1, registry.get(id).parameters);
     try std.testing.expectEqual(id, ownerOf(&interner, cons).?);
     try std.testing.expectEqual(1, registry.constructorOf(&interner, cons).?.tag);
@@ -284,11 +322,10 @@ test "a declared type is reachable by name, id, and constructor" {
 }
 
 test "the structural accessors follow the declared tag order" {
-    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena.deinit();
-    var registry = Registry.init(arena.allocator());
-    var interner = symbols.Interner.init(arena.allocator());
-    try test_support.declareStructural(&registry, &interner, arena.allocator());
+    var e = try test_support.env(std.testing.allocator);
+    defer e.deinit();
+    const registry = &e.datatypes;
+    const interner = &e.interner;
 
     const f = registry.boolConstructor(false);
     const t = registry.boolConstructor(true);

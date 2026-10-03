@@ -41,8 +41,5 @@ pub fn printProgram(
     w: *std.Io.Writer,
 ) std.Io.Writer.Error!void {
     const printer: core.Printer = .{ .interner = &p.env.interner };
-    for (p.entryDefinitions(), 0..) |d, i| {
-        if (i > 0) try w.writeByte('\n');
-        try printer.definition(d.symbol, d.body, w);
-    }
+    try printer.definitions(p.entryDefinitions(), w);
 }

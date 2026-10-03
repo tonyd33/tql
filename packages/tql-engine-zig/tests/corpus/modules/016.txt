@@ -1,0 +1,24 @@
+title: a module written for the query's grammar names its kinds
+grammar: typescript
+asserts: values
+
+--- module Classes ---
+module Classes for typescript, tsx;
+
+class_names root = do {
+  c <- descendants_of_kind :class_declaration root;
+  n <- c#name;
+  return $ text n;
+};
+
+--- tql ---
+import Classes;
+
+main root = class_names root;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

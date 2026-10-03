@@ -4,29 +4,15 @@ const std = @import("std");
 const constraints = @import("constraints.zig");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
-const schemes = @import("schemes.zig");
 const types = core.types;
 const unify = @import("unify.zig");
 
 const Allocator = std.mem.Allocator;
 const Substitution = @import("substitution.zig").Substitution;
 
-/// The typing judgement a step concluded under. Carried so a failure can name
-/// the rule it violated.
-pub const Rule = enum {
-    t_var,
-    t_lit,
-    t_lam,
-    t_app,
-    t_case,
-    t_letrec,
-    t_bind,
-};
-
 pub const Failure = struct {
     category: diagnostic.Category,
     span: diagnostic.Span,
-    rule: Rule,
     detail: Detail,
 
     pub const Detail = union(enum) {
@@ -38,7 +24,7 @@ pub const Failure = struct {
     };
 };
 
-pub const Error = error{TypeError} || schemes.Error;
+pub const Error = error{TypeError} || Allocator.Error;
 
 /// What a symbol's type is, by where the symbol came from.
 const Binding = union(enum) {
@@ -87,20 +73,10 @@ const Scope = struct {
     }
 };
 
-pub const Globals = struct {
-    context: *const anyopaque,
-    lookupFn: *const fn (*const anyopaque, *Substitution, core.SymbolId) Error!?types.Scheme,
-
-    pub fn lookup(self: Globals, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
-        return self.lookupFn(self.context, subst, id);
-    }
-};
-
 pub const Inference = struct {
     gpa: Allocator,
     subst: *Substitution,
     undecided: *constraints.Set,
-    globals: Globals,
     scope: Scope,
     /// Schemes generalized so far, by symbol. An earlier SCC's result.
     inferred: core.SymbolTable(types.Scheme),
@@ -112,7 +88,6 @@ pub const Inference = struct {
         gpa: Allocator,
         subst: *Substitution,
         undecided: *constraints.Set,
-        globals: Globals,
         target: *const core.env.Env,
     ) Inference {
         return .{
@@ -120,7 +95,6 @@ pub const Inference = struct {
             .subst = subst,
             .undecided = undecided,
             .env = target,
-            .globals = globals,
             .scope = Scope.init(gpa),
             .inferred = core.SymbolTable(types.Scheme).init(gpa),
         };
@@ -151,7 +125,7 @@ pub const Inference = struct {
         for (scheme.constraints) |c| {
             const on = try self.subst.instantiateWith(c.type, inst.metas);
             if (try self.undecided.require(self.subst, c.class, on, span)) |v| {
-                return self.fail(.unsatisfied_constraint, span, .t_var, .{ .violation = v });
+                return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
             }
         }
         return inst.type;
@@ -178,8 +152,8 @@ pub const Inference = struct {
     /// 1. a lexical binder
     /// 2. this SCC's placeholder
     /// 3. an earlier SCC's scheme
-    /// 4. whatever's in `globals` (the primitive table, a synthesized scheme,
-    ///    or an annotation).
+    /// 4. the environment's scheme for a primitive, a synthesized symbol or a
+    ///    constructor
     fn variable(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!types.Type {
         if (self.scope.lookup(id)) |binding| return switch (binding) {
             // Monomorphic: used at one type, not instantiated.
@@ -187,8 +161,8 @@ pub const Inference = struct {
             .scheme => |s| try self.instantiate(s, span),
         };
         if (self.inferred.get(id)) |s| return try self.instantiate(s, span);
-        if (try self.globals.lookup(self.subst, id)) |s| return try self.instantiate(s, span);
-        return self.fail(.unresolved_name, span, .t_var, .{ .unbound = id });
+        if (self.env.schemeOf(id)) |s| return try self.instantiate(s, span);
+        return self.fail(.unresolved_name, span, .{ .unbound = id });
     }
 
     /// (T-Lam)       Gamma, x : alpha |- e : tau
@@ -219,7 +193,6 @@ pub const Inference = struct {
             return self.fail(
                 .over_application,
                 app.argument.span,
-                .t_app,
                 .{ .over_application = head },
             );
         }
@@ -232,7 +205,6 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .type_mismatch,
                 app.argument.span,
-                .t_app,
                 .{ .mismatch = m },
             ),
         }
@@ -241,7 +213,6 @@ pub const Inference = struct {
             return self.fail(
                 .unsatisfied_constraint,
                 v.origin,
-                .t_app,
                 .{ .violation = v },
             );
         }
@@ -266,7 +237,7 @@ pub const Inference = struct {
         const arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
         for (arguments) |*argument| argument.* = try self.subst.fresh();
         const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
-        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span, .t_case);
+        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
 
         var first: ?struct { type: types.Type, span: diagnostic.Span } = null;
         for (c.alternatives, declared.constructors) |alternative, constructor| {
@@ -283,9 +254,9 @@ pub const Inference = struct {
                 // Alternatives are checked in constructor order. Of two that
                 // disagree, blame the one later in the source.
                 if (alternative.body.span.start_byte >= f.span.start_byte) {
-                    try self.expect(body, f.type, alternative.body.span, .t_case);
+                    try self.expect(body, f.type, alternative.body.span);
                 } else {
-                    try self.expect(f.type, body, f.span, .t_case);
+                    try self.expect(f.type, body, f.span);
                 }
             } else {
                 first = .{ .type = body, .span = alternative.body.span };
@@ -305,33 +276,49 @@ pub const Inference = struct {
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
 
-        const placeholders = try self.gpa.alloc(types.Type, l.bindings.len);
-        defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh();
-
-        for (l.bindings, placeholders) |b, p| {
-            try self.scope.push(b.name, .{ .monomorphic = p });
-        }
-
-        // Each inferred body must unify with its placeholder.
-        for (l.bindings, placeholders) |b, p| {
-            const inferred = try self.term(b.value);
-            try self.expect(inferred, p, b.value.span, .t_letrec);
-        }
-
-        // Generalize together, then check the body against the resulting
-        // schemes rather than the placeholders.
-        self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, l.bindings.len);
         defer self.gpa.free(generalized);
         const spans = try self.gpa.alloc(diagnostic.Span, l.bindings.len);
         defer self.gpa.free(spans);
         for (l.bindings, spans) |b, *span| span.* = b.value.span;
-        try self.generalizeGroup(placeholders, spans, generalized);
+        try self.inferGroup(l.bindings, spans, generalized);
+
+        // Check the body against the generalized schemes.
         for (l.bindings, generalized) |b, scheme| {
             try self.scope.push(b.name, .{ .scheme = scheme });
         }
         return try self.term(l.body);
+    }
+
+    /// Infer a group of mutually recursive bindings and generalize them
+    /// together, writing each one's scheme to `out`. Generalization reports
+    /// against `spans`, one per binding.
+    fn inferGroup(
+        self: *Inference,
+        bindings: []const core.Letrec.Binding,
+        spans: []const diagnostic.Span,
+        out: []types.Scheme,
+    ) Error!void {
+        const placeholders = try self.gpa.alloc(types.Type, bindings.len);
+        defer self.gpa.free(placeholders);
+        for (placeholders) |*p| p.* = try self.subst.fresh();
+
+        const mark = self.scope.mark();
+        defer self.scope.truncate(mark);
+        for (bindings, placeholders) |b, p| {
+            try self.scope.push(b.name, .{ .monomorphic = p });
+        }
+
+        // Each inferred body must unify with its placeholder.
+        for (bindings, placeholders) |b, p| {
+            const inferred = try self.term(b.value);
+            try self.expect(inferred, p, b.value.span);
+        }
+
+        // Generalize against the environment *outside* the group, so the
+        // placeholders being dropped is what lets them be quantified.
+        self.scope.truncate(mark);
+        try self.generalizeGroup(placeholders, spans, out);
     }
 
     /// (T-Bind)      Gamma |- e_1 : [a]
@@ -341,7 +328,7 @@ pub const Inference = struct {
     fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
         const source = try self.term(b.value);
         const element = try self.subst.fresh();
-        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span, .t_bind);
+        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -349,7 +336,7 @@ pub const Inference = struct {
 
         const body = try self.term(b.body);
         const result = try self.subst.fresh();
-        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span, .t_bind);
+        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span);
         return try self.subst.datatypes.list(self.subst.arena, result);
     }
 
@@ -379,7 +366,7 @@ pub const Inference = struct {
         out: []types.Scheme,
     ) Error!void {
         if (try self.undecided.recheck(self.subst)) |v| {
-            return self.fail(.unsatisfied_constraint, v.origin, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
         }
 
         var env: std.ArrayList(types.Meta) = .empty;
@@ -430,7 +417,7 @@ pub const Inference = struct {
                 }
             }
             scheme.* = self.subst.quantify(t, own, bare.items) catch |err| switch (err) {
-                error.TooManyVariables => return self.fail(.limit, span, .t_letrec, .{
+                error.TooManyVariables => return self.fail(.limit, span, .{
                     .too_many_variables = own.len,
                 }),
                 error.OutOfMemory => |e| return e,
@@ -453,34 +440,19 @@ pub const Inference = struct {
         definitions: []const core.Definition,
         members: []const u32,
     ) Error!void {
-        // Create a set of fresh metavars for each node
-        const placeholders = try self.gpa.alloc(types.Type, members.len);
-        defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh();
-
-        // Each definition symbol is assigned to a monomorphic metavar
-        const mark = self.scope.mark();
-        defer self.scope.truncate(mark);
-        for (members, placeholders) |index, p| {
-            try self.scope.push(definitions[index].symbol, .{ .monomorphic = p });
-        }
-
-        // Infer each definition body to be a letrec
-        for (members, placeholders) |index, p| {
-            const definition = definitions[index];
-            const body = try self.term(definition.body);
-            try self.expect(body, p, definition.body.span, .t_letrec);
-        }
-
-        // Generalize against the environment *outside* the component, so the
-        // placeholders being dropped is what lets them be quantified.
-        self.scope.truncate(mark);
-        const generalized = try self.gpa.alloc(types.Scheme, members.len);
-        defer self.gpa.free(generalized);
+        // A component is inferred as one letrec of its definitions.
+        const bindings = try self.gpa.alloc(core.Letrec.Binding, members.len);
+        defer self.gpa.free(bindings);
         const spans = try self.gpa.alloc(diagnostic.Span, members.len);
         defer self.gpa.free(spans);
-        for (members, spans) |index, *span| span.* = definitions[index].span;
-        try self.generalizeGroup(placeholders, spans, generalized);
+        for (members, bindings, spans) |index, *binding, *span| {
+            const definition = definitions[index];
+            binding.* = .{ .name = definition.symbol, .value = definition.body };
+            span.* = definition.span;
+        }
+        const generalized = try self.gpa.alloc(types.Scheme, members.len);
+        defer self.gpa.free(generalized);
+        try self.inferGroup(bindings, spans, generalized);
 
         for (members, generalized) |index, scheme| {
             const symbol = definitions[index].symbol;
@@ -546,7 +518,6 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .signature_mismatch,
                 span,
-                .t_letrec,
                 .{ .mismatch = m },
             ),
         }
@@ -562,7 +533,7 @@ pub const Inference = struct {
                 (resolved.meta == id or resolved.meta >= after) and
                 std.mem.indexOfScalar(types.Meta, representatives[0..i], resolved.meta) == null;
             if (!still_arbitrary) {
-                return self.fail(.signature_mismatch, span, .t_letrec, .{
+                return self.fail(.signature_mismatch, span, .{
                     .mismatch = .{
                         .reason = .incompatible,
                         .expected = declared.type,
@@ -582,7 +553,7 @@ pub const Inference = struct {
             const on = try self.subst.instantiateWith(c.type, flexible.metas);
             residuals.clearRetainingCapacity();
             if (try constraints.reduce(self.subst, c.class, on, &residuals, self.gpa)) |culprit| {
-                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = .{
+                return self.fail(.unsatisfied_constraint, span, .{ .violation = .{
                     .class = c.class,
                     .type = culprit,
                     .origin = span,
@@ -591,14 +562,14 @@ pub const Inference = struct {
             for (residuals.items) |r| {
                 const index = std.mem.indexOfScalar(types.Meta, representatives, r.meta) orelse {
                     if (try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, span)) |v| {
-                        return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+                        return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
                     }
                     continue;
                 };
                 const on_declared = types.variable_type(@intCast(index));
                 for (declared.constraints) |d| {
                     if (d.class == r.class and d.type == .variable and d.type.variable == on_declared.variable) break;
-                } else return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+                } else return self.fail(.signature_mismatch, span, .{ .violation = .{
                     .class = r.class,
                     .type = on_declared,
                     .origin = span,
@@ -621,17 +592,16 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .main_type,
                 span,
-                .t_letrec,
                 .{ .mismatch = m },
             ),
         }
 
         // 2. `Serial tau`
         if (try self.undecided.require(self.subst, .Serial, output, span)) |v| {
-            return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
         }
         if (try self.undecided.recheck(self.subst)) |v| {
-            return self.fail(.unsatisfied_constraint, v.origin, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
         }
 
         // 3. Nothing may remain undetermined
@@ -642,7 +612,7 @@ pub const Inference = struct {
         try self.subst.freeMetas(settled, &free);
 
         if (free.items.len > 0 or self.undecided.all().len > 0) {
-            return self.fail(.ambiguous_output, span, .t_letrec, .{
+            return self.fail(.ambiguous_output, span, .{
                 .mismatch = .{
                     .reason = .incompatible,
                     .expected = types.node_type,
@@ -665,13 +635,12 @@ pub const Inference = struct {
     }
 
     /// Unifies, converting a failure into a `type-mismatch` at `span`.
-    fn expect(self: *Inference, found: types.Type, want: types.Type, span: diagnostic.Span, rule: Rule) Error!void {
+    fn expect(self: *Inference, found: types.Type, want: types.Type, span: diagnostic.Span) Error!void {
         switch (try unify.unify(self.subst, want, found)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .type_mismatch,
                 span,
-                rule,
                 .{ .mismatch = m },
             ),
         }
@@ -681,53 +650,14 @@ pub const Inference = struct {
         self: *Inference,
         category: diagnostic.Category,
         span: diagnostic.Span,
-        rule: Rule,
         detail: Failure.Detail,
     ) Error {
         self.failure = .{
             .category = category,
             .span = span,
-            .rule = rule,
             .detail = detail,
         };
         return error.TypeError;
-    }
-};
-
-pub fn constructorSchemeOf(
-    subst: *Substitution,
-    registry: *const core.datatypes.Registry,
-    interner: *const core.Interner,
-    id: core.SymbolId,
-) Error!?types.Scheme {
-    const owner = core.datatypes.ownerOf(interner, id) orelse return null;
-    const constructor = registry.constructorOf(interner, id).?;
-    return try schemes.constructorScheme(subst.arena, registry.get(owner), constructor.*, owner);
-}
-
-/// Resolves a global symbol against the program: a primitive's table scheme,
-/// or a synthesized symbol's constructed one.
-const ProgramGlobals = struct {
-    program: *const core.Program,
-    /// Constructed schemes, built once per symbol.
-    built: *core.SymbolTable(types.Scheme),
-
-    fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
-        const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
-        if (self.program.env.schemeOf(id)) |s| return s;
-        if (self.built.get(id)) |s| return s;
-
-        const scheme = switch (self.program.env.interner.details(id)) {
-            .synthesized => |s| try schemes.schemeFor(subst, s),
-            else => try constructorSchemeOf(
-                subst,
-                &self.program.env.datatypes,
-                &self.program.env.interner,
-                id,
-            ) orelse return null,
-        };
-        try self.built.put(id, scheme);
-        return scheme;
     }
 };
 
@@ -751,13 +681,7 @@ pub fn check(
     var undecided = constraints.Set.init(gpa);
     defer undecided.deinit();
 
-    var built = core.SymbolTable(types.Scheme).init(gpa);
-    defer built.deinit();
-    var globals = ProgramGlobals{ .program = program, .built = &built };
-    var inference = Inference.init(gpa, &subst, &undecided, .{
-        .context = &globals,
-        .lookupFn = ProgramGlobals.lookup,
-    }, &program.env);
+    var inference = Inference.init(gpa, &subst, &undecided, &program.env);
     defer inference.deinit();
 
     inference.check(program) catch |err| switch (err) {
@@ -793,15 +717,6 @@ pub fn check(
             }
 
             try sink.report(failure.category, failure.span, "{s}", .{buf.written()});
-            return error.TypeCheckFailed;
-        },
-        error.TooManyRecordFields => {
-            try sink.report(
-                .type_mismatch,
-                diagnostic.Span.unknown,
-                "a record has more fields than the type system can index",
-                .{},
-            );
             return error.TypeCheckFailed;
         },
         else => |e| return e,

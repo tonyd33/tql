@@ -14,12 +14,11 @@ const Allocator = std.mem.Allocator;
 /// Collect the free variables of `term` into `out`, in first-mention order.
 ///
 /// `bound` holds the binders already in scope. Globals, constructors and
-/// primitives are symbols too, so `is_local` filters them out.
+/// primitives are symbols too, and only a symbol in `locals` is captured.
 pub const Collector = struct {
     gpa: Allocator,
-    /// Whether a symbol is a local at all. A global is never captured.
-    is_local: *const fn (context: *const anyopaque, symbol: core.SymbolId) bool,
-    context: *const anyopaque,
+    /// The locals in scope where the closure is built.
+    locals: []const core.SymbolId,
 
     bound: std.ArrayList(core.SymbolId) = .empty,
     out: std.ArrayList(core.SymbolId) = .empty,
@@ -43,7 +42,7 @@ pub const Collector = struct {
             .symbol => |symbol| {
                 if (self.isBound(symbol)) return;
                 if (self.collected(symbol)) return;
-                if (!self.is_local(self.context, symbol)) return;
+                if (std.mem.indexOfScalar(core.SymbolId, self.locals, symbol) == null) return;
                 try self.out.append(self.gpa, symbol);
             },
             .lambda => |lambda| {
@@ -89,21 +88,6 @@ pub const Collector = struct {
 
 const testing = std.testing;
 
-/// Treats every symbol below `threshold` as a global, so a test can build
-/// terms without a program.
-const Threshold = struct {
-    value: u32,
-
-    fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
-        const self: *const Threshold = @ptrCast(@alignCast(context));
-        return @intFromEnum(symbol) >= self.value;
-    }
-};
-
-fn collectorFor(gpa: Allocator, threshold: *const Threshold) Collector {
-    return .{ .gpa = gpa, .is_local = Threshold.isLocal, .context = threshold };
-}
-
 const span = @import("../diagnostic.zig").Span.unknown;
 
 fn sym(id: u32) core.Term {
@@ -112,8 +96,7 @@ fn sym(id: u32) core.Term {
 
 test "a bare local is free" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(7)} };
     defer collector.deinit();
 
     try collector.walk(sym(7));
@@ -122,8 +105,7 @@ test "a bare local is free" {
 
 test "a global is not free" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 10 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{} };
     defer collector.deinit();
 
     try collector.walk(sym(3));
@@ -132,8 +114,7 @@ test "a global is not free" {
 
 test "a lambda's parameter is not free in its body" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(2)} };
     defer collector.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(gpa);
@@ -150,8 +131,7 @@ test "a lambda's parameter is not free in its body" {
 
 test "a variable mentioned twice is captured once" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(5)} };
     defer collector.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(gpa);
@@ -165,8 +145,7 @@ test "a variable mentioned twice is captured once" {
 
 test "a letrec binding is not free in its own right-hand side" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(2)} };
     defer collector.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(gpa);
@@ -185,8 +164,7 @@ test "a letrec binding is not free in its own right-hand side" {
 
 test "a bind's value sees the enclosing scope, its body sees the binder" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(2)} };
     defer collector.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(gpa);
@@ -203,8 +181,7 @@ test "a bind's value sees the enclosing scope, its body sees the binder" {
 
 test "a case alternative's binders are not free in its body" {
     const gpa = testing.allocator;
-    const threshold: Threshold = .{ .value = 0 };
-    var collector = collectorFor(gpa, &threshold);
+    var collector: Collector = .{ .gpa = gpa, .locals = &.{ @enumFromInt(1), @enumFromInt(4) } };
     defer collector.deinit();
 
     var arena: std.heap.ArenaAllocator = .init(gpa);

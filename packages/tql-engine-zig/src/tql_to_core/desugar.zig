@@ -7,6 +7,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const primitives = @import("../primitives.zig");
 const resolve = @import("resolve.zig");
+const ModuleScope = @import("scope.zig").ModuleScope;
 const match = @import("match.zig");
 const pcre2 = @import("../regex.zig");
 const datatypes = core.datatypes;
@@ -17,29 +18,32 @@ pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 const Synthesized = core.Synthesized;
 
 pub const Lowerer = struct {
-    interner: *core.Interner,
-    datatypes: *const datatypes.Registry,
-    declarations: *const resolve.Declarations,
-    language: *const ts.Language,
+    /// Where symbols are interned and synthesized ones get their schemes.
+    env: *core.env.Env,
+    scope: *const ModuleScope,
+    /// The linked index of every definition in this module and those before.
+    linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
+    /// Null in a grammar-generic module, which may not use kinds or fields.
+    language: ?*const ts.Language,
     sink: *diagnostic.Sink,
     builder: core.Builder,
 
     /// Global references made by the body currently being desugared, as
-    /// declaration indices. Feeds the reference graph.
+    /// linked indices. Feeds the reference graph.
     references: std.ArrayList(u32) = .empty,
 
     pub fn init(
         builder: core.Builder,
-        interner: *core.Interner,
-        declared: *const datatypes.Registry,
-        declarations: *const resolve.Declarations,
-        language: *const ts.Language,
+        env: *core.env.Env,
+        scope: *const ModuleScope,
+        linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
+        language: ?*const ts.Language,
         sink: *diagnostic.Sink,
     ) Lowerer {
         return .{
-            .interner = interner,
-            .datatypes = declared,
-            .declarations = declarations,
+            .env = env,
+            .scope = scope,
+            .linked = linked,
             .language = language,
             .sink = sink,
             .builder = builder,
@@ -50,14 +54,28 @@ pub const Lowerer = struct {
         self.references.deinit(self.builder.allocator);
     }
 
-    /// A primitive or prelude name that sugar desugars to. Missing only when
-    /// the prelude was not linked beneath this module.
+    /// A primitive or prelude name that sugar desugars to, resolved in the
+    /// prelude whatever this module declares. Missing only when the prelude
+    /// was not linked beneath this module.
     fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
-        const id = self.interner.lookup(name) orelse {
+        const id = self.env.interner.lookup(.prelude, name) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
             return error.DesugarFailed;
         };
         return self.builder.symbol(id, span);
+    }
+
+    /// The global `name` names in this module's scope, or null. Reports an
+    /// ambiguous name.
+    pub fn resolveGlobal(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!?core.SymbolId {
+        return switch (self.scope.value(name)) {
+            .found => |id| id,
+            .missing => null,
+            .failed => |failure| {
+                try self.scope.reportFailure(self.sink, span, name, failure);
+                return error.DesugarFailed;
+            },
+        };
     }
 
     fn constructorRef(
@@ -65,11 +83,11 @@ pub const Lowerer = struct {
         name: []const u8,
         span: diagnostic.Span,
     ) Error!core.Term {
-        const id = self.interner.lookup(name) orelse {
+        const id = try self.resolveGlobal(name, span) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         };
-        if (datatypes.ownerOf(self.interner, id) == null) {
+        if (datatypes.ownerOf(&self.env.interner, id) == null) {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         }
@@ -77,17 +95,32 @@ pub const Lowerer = struct {
     }
 
     fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
-        const index = self.declarations.indexOf(symbol) orelse return;
+        const index = self.linked.get(symbol) orelse return;
         for (self.references.items) |existing| {
             if (existing == index) return;
         }
         try self.references.append(self.builder.allocator, index);
     }
 
+    /// The grammar a kind or field `name` resolves against. A grammar-generic
+    /// module has none, and naming one there is reported.
+    fn grammar(self: *Lowerer, comptime what: []const u8, name: []const u8, span: diagnostic.Span) Error!*const ts.Language {
+        return self.language orelse {
+            try self.sink.report(
+                .grammar_mismatch,
+                span,
+                "this module has no `for` clause, so it cannot name the " ++ what ++ " `{s}`",
+                .{name},
+            );
+            return error.DesugarFailed;
+        };
+    }
+
     /// Resolve a `:k` literal against the target grammar. These literals are
     /// the only source of kind values.
     fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
-        const id = self.language.idForNodeKind(name, true);
+        const language = try self.grammar("kind", name, span);
+        const id = language.idForNodeKind(name, true);
         if (id == 0) {
             try self.sink.report(
                 .unknown_kind,
@@ -97,12 +130,12 @@ pub const Lowerer = struct {
             );
             return error.DesugarFailed;
         }
-        if (self.language.nodeKindIsSupertype(id)) {
+        if (language.nodeKindIsSupertype(id)) {
             try self.sink.report(
                 .supertype_kind,
                 span,
                 "`{s}` is a supertype, so no node has this kind{f}",
-                .{ name, SubtypeList{ .language = self.language, .supertype = id } },
+                .{ name, SubtypeList{ .language = language, .supertype = id } },
             );
             return error.DesugarFailed;
         }
@@ -131,15 +164,34 @@ pub const Lowerer = struct {
 
     /// Interns a synthesized symbol under its bracketed spelling and records
     /// what it was generated from.
+    /// The synthesized symbol spelled by `spelling_format`, interned with its
+    /// scheme on first use. Reports at `span` a record too wide to type.
     fn synthesize(
         self: *Lowerer,
+        span: diagnostic.Span,
         // IMPROVE: normalize differently in a non-stupid way
         comptime spelling_format: []const u8,
         spelling_args: anytype,
         what: Synthesized,
     ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
-        return try self.interner.internOrGet(spelling, .{ .synthesized = what });
+        const id = try self.env.interner.internOrGet(spelling, .{ .synthesized = what });
+        if (self.env.schemeOf(id) != null) return id;
+
+        const scheme = primitives.synthesizedScheme(self.env.allocator(), &self.env.datatypes, what) catch |err| switch (err) {
+            error.TooManyRecordFields => {
+                try self.sink.report(
+                    .type_mismatch,
+                    span,
+                    "a record has more fields than the type system can index",
+                    .{},
+                );
+                return error.DesugarFailed;
+            },
+            error.OutOfMemory => |e| return e,
+        };
+        try self.env.setScheme(id, scheme);
+        return id;
     }
 
     /// `f x_1 ... x_n = e` is nested unary lambdas. One desugaring, used by
@@ -157,7 +209,7 @@ pub const Lowerer = struct {
         for (parameters, 0..) |p, i| {
             entries[i] = .{
                 .name = p.name,
-                .symbol = try self.interner.fresh(p.name),
+                .symbol = try self.env.interner.fresh(p.name),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
@@ -178,7 +230,7 @@ pub const Lowerer = struct {
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
             // A boolean is a nullary constructor, not a literal, so `case` on
             // one is uniform with `case` on any other declared type.
-            .boolean => |b| return try self.primitive(if (b) "True" else "False", e.span),
+            .boolean => |b| return self.builder.symbol(self.scope.datatypes.boolConstructor(b).symbol, e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -206,7 +258,7 @@ pub const Lowerer = struct {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (self.interner.lookup(name)) |global| {
+                if (try self.resolveGlobal(name, e.span)) |global| {
                     try self.recordReference(global);
                     return self.builder.symbol(global, e.span);
                 }
@@ -223,7 +275,7 @@ pub const Lowerer = struct {
 
             // A leading `#f` is the bare `field[f]`.
             .navigation => |n| {
-                const id = self.language.fieldIdForName(n.field);
+                const id = (try self.grammar("field", n.field, e.span)).fieldIdForName(n.field);
                 if (id == 0) {
                     try self.sink.report(
                         .unknown_field,
@@ -235,6 +287,7 @@ pub const Lowerer = struct {
                 }
                 const field = self.builder.symbol(
                     try self.synthesize(
+                        e.span,
                         "field[{s}]",
                         .{n.field},
                         .{ .field = .{ .name = try self.builder.dupe(n.field), .id = id } },
@@ -250,7 +303,7 @@ pub const Lowerer = struct {
             .projection => |p| {
                 if (p.record == null) return try self.select(p.label, e.span);
                 if (!isSection(e)) return try self.projections(e, null, scope);
-                const parameter = try self.interner.fresh("_");
+                const parameter = try self.env.interner.fresh("_");
                 return try self.builder.lambda(
                     parameter,
                     try self.projections(e, self.builder.symbol(parameter, e.span), scope),
@@ -279,12 +332,12 @@ pub const Lowerer = struct {
             .@"if" => |i| {
                 const alternatives = try self.builder.slice(core.Case.Alternative, 2);
                 alternatives[0] = .{
-                    .constructor = self.interner.lookup("False").?,
+                    .constructor = self.scope.datatypes.boolConstructor(false).symbol,
                     .binders = &.{},
                     .body = try self.expression(i.alternative, scope),
                 };
                 alternatives[1] = .{
-                    .constructor = self.interner.lookup("True").?,
+                    .constructor = self.scope.datatypes.boolConstructor(true).symbol,
                     .binders = &.{},
                     .body = try self.expression(i.consequence, scope),
                 };
@@ -313,14 +366,14 @@ pub const Lowerer = struct {
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
             .list => |elements| {
-                var spine = try self.constructorRef("Nil", e.span);
+                var spine = self.builder.symbol(self.scope.datatypes.nilConstructor().symbol, e.span);
                 var i = elements.len;
                 while (i > 0) {
                     i -= 1;
                     // An inner cell spans its head element.
                     const cell = if (i == 0) e.span else elements[i].span;
                     spine = try self.builder.applyMany(
-                        try self.constructorRef("Cons", cell),
+                        self.builder.symbol(self.scope.datatypes.consConstructor().symbol, cell),
                         &.{ try self.expression(elements[i], scope), spine },
                         cell,
                     );
@@ -334,7 +387,7 @@ pub const Lowerer = struct {
 
     fn select(self: *Lowerer, label: []const u8, span: diagnostic.Span) Error!core.Term {
         return self.builder.symbol(
-            try self.synthesize("select[{s}]", .{label}, .{ .select = try self.builder.dupe(label) }),
+            try self.synthesize(span, "select[{s}]", .{label}, .{ .select = try self.builder.dupe(label) }),
             span,
         );
     }
@@ -375,8 +428,8 @@ pub const Lowerer = struct {
         const left = try self.sectionOperand(s.left, &binding, span, scope);
         const right = try self.sectionOperand(s.right, &binding, span, scope);
 
-        const left_term = left orelse self.builder.symbol(try self.interner.fresh("x"), span);
-        const right_term = right orelse self.builder.symbol(try self.interner.fresh("y"), span);
+        const left_term = left orelse self.builder.symbol(try self.env.interner.fresh("x"), span);
+        const right_term = right orelse self.builder.symbol(try self.env.interner.fresh("y"), span);
         var result = switch (s.operator) {
             .binary => |operator| try self.binaryTerms(operator, left_term, right_term, span),
             .dollar => try self.builder.apply(left_term, right_term, span),
@@ -407,7 +460,7 @@ pub const Lowerer = struct {
             .symbol, .literal => return term,
             else => {},
         }
-        const name = try self.interner.fresh("e");
+        const name = try self.env.interner.fresh("e");
         binding.* = .{ .name = name, .value = term };
         return self.builder.symbol(name, span);
     }
@@ -425,29 +478,18 @@ pub const Lowerer = struct {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
-            .then => return try self.builder.bind(try self.interner.fresh("_"), left, right, span),
+            .then => return try self.builder.bind(try self.env.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
-                try self.constructorRef("Cons", span),
+                self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
                 span,
             ),
             .@"and" => return try self.combinator("and", left, right, span),
             .@"or" => return try self.combinator("or", left, right, span),
-            .divide => .divide,
-            .multiply => .multiply,
-            .modulo => .modulo,
-            .add => .add,
-            .subtract => .subtract,
-            .eq => .eq,
-            .ne => .ne,
-            .lt => .lt,
-            .lte => .lte,
-            .gt => .gt,
-            .gte => .gte,
-            .match => .match,
-            .not_match => .not_match,
+            inline else => |o| @field(core.Scalar, @tagName(o)),
         };
         const operator = try self.synthesize(
+            span,
             "op[{s}]",
             .{scalar.spelling()},
             .{ .operator = scalar },
@@ -489,6 +531,7 @@ pub const Lowerer = struct {
         const owned = try self.builder.slice([]const u8, labels.len);
         for (labels, 0..) |label, i| owned[i] = try self.builder.dupe(label);
         const symbol = try self.synthesize(
+            span,
             "record[{s}]",
             .{try self.builder.join(",", labels)},
             .{ .record = owned },
@@ -518,7 +561,7 @@ pub const Lowerer = struct {
         for (bindings, 0..) |b, i| {
             entries[i] = .{
                 .name = b.name,
-                .symbol = try self.interner.fresh(b.name),
+                .symbol = try self.env.interner.fresh(b.name),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
@@ -546,7 +589,7 @@ pub const Lowerer = struct {
         switch (statements[0]) {
             .bind => |b| {
                 const value = try self.expression(b.value, scope);
-                const symbol = try self.interner.fresh(b.name);
+                const symbol = try self.env.interner.fresh(b.name);
                 const entries = try self.builder.slice(resolve.Scope.Entry, 1);
                 entries[0] = .{ .name = b.name, .symbol = symbol };
                 const inner: resolve.Scope = .{ .parent = scope, .names = entries };
@@ -559,7 +602,7 @@ pub const Lowerer = struct {
             },
             .expression => |e| {
                 return try self.builder.bind(
-                    try self.interner.fresh("_"),
+                    try self.env.interner.fresh("_"),
                     try self.expression(e, scope),
                     try self.doBlock(statements[1..], result, scope, span),
                     e.span,

@@ -10,7 +10,16 @@
   "of"
   "type"
   "data"
+  "module"
+  "import"
+  "hiding"
+  "for"
+  "as"
 ] @keyword
+
+(module_name) @module
+(qualified_identifier) @variable
+(qualified_type_identifier) @type
 
 (comment) @comment
 

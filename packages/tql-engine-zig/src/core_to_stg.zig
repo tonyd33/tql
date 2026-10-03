@@ -20,7 +20,7 @@ test {
 const std = @import("std");
 const core = @import("core.zig");
 const stg = @import("stg.zig");
-const test_support = @import("core/test_support.zig");
+const test_support = core.test_support;
 
 const types = core.types;
 const Allocator = std.mem.Allocator;
@@ -349,29 +349,4 @@ test "a stream bind translates to a concat_map call" {
         \\  t2@0
         ,
     );
-}
-
-test "isLocal separates locals from globals" {
-    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-
-    const xs = try defineAppend(&pb);
-    const append = try pb.global("append");
-    const cons = try pb.global("Cons");
-    const plus = try pb.operator(.add);
-    const text = try pb.env.interner.intern("text", .{ .primop = .text });
-
-    var program = try pb.program(append);
-    var translator = try Translator.init(std.testing.allocator, std.testing.allocator, &program);
-    defer translator.deinit();
-
-    // A constructor, a definition, a synthesized symbol and a primitive are
-    // reached by identity: never captured.
-    try std.testing.expect(!Translator.isLocal(&translator, cons));
-    try std.testing.expect(!Translator.isLocal(&translator, append));
-    try std.testing.expect(!Translator.isLocal(&translator, plus));
-    try std.testing.expect(!Translator.isLocal(&translator, text));
-
-    // A binder is a local, and is what a closure must capture.
-    try std.testing.expect(Translator.isLocal(&translator, xs));
 }

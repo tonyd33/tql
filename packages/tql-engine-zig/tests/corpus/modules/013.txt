@@ -1,0 +1,21 @@
+title: an export list keeps a helper private but usable inside its module
+grammar: typescript
+asserts: values
+
+--- module Square ---
+module Square (square);
+
+times x y = x * y;
+square x = times x x;
+
+--- tql ---
+import Square;
+
+times x y = x + y;
+main root = [square 3, times 3 3];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[9, 6]

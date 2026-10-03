@@ -1,0 +1,18 @@
+title: a do block binds through the prelude whatever the query defines
+grammar: typescript
+asserts: values
+
+`do` desugars to the prelude's `concat_map`.
+
+--- tql ---
+concat_map f xs = [];
+main root = do {
+  x <- [1, 2];
+  return $ x + 1;
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2, 3]

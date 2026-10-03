@@ -19,28 +19,16 @@ const Allocator = std.mem.Allocator;
 
 /// Allocation counters, by call site. Profiling only.
 pub const Site = enum {
-    global_thunk,
-    force_literal,
     run_env,
-    pending_append,
     enter_captures,
     let_thunk,
-    let_binder,
     case_binder,
-    apply_args,
-    primitive_args,
-    record_fields,
     range_fields,
-    toint_thunk,
-    filename_thunk,
-    construct_spill,
     node_thunk,
-    nil_thunk,
     cons_thunk,
     step_tail,
     alloc_captured,
     apply_partial,
-    apply_all,
 };
 /// Shared by every machine, so every worker thread writes them.
 pub var site_counts: std.EnumArray(Site, std.atomic.Value(u64)) = .initFill(.init(0));
@@ -745,233 +733,161 @@ pub const Machine = struct {
         call: *const stg.Expr.Primitive,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
-        switch (call.primop) {
-            // `length` forces the spine, so it diverges on an infinite list.
-            .length => {
-                if (arguments.len != 1) return error.TypeError;
-                const subject = try self.force(arguments[0]);
-                return switch (subject) {
-                    .string => |s| .{ .number = @intCast(s.len) },
-                    .constructed => blk: {
-                        var count: i64 = 0;
-                        var current = subject;
-                        while (true) {
-                            const c = switch (current) {
-                                .constructed => |k| k,
-                                else => return error.TypeError,
-                            };
-                            if (c.tag == self.program.structural.nil.tag) break;
-                            if (c.len != 2) return error.TypeError;
-                            count += 1;
-                            current = try self.force(c.fields()[1]);
-                        }
-                        break :blk .{ .number = count };
-                    },
-                    else => error.TypeError,
-                };
+        switch (call.operation) {
+            .synthesized => |synthesized| switch (synthesized) {
+                .operator => |scalar| return try self.operator(scalar, arguments),
+
+                // Fields are scalars and stay unforced. The labels come from the
+                // symbol's details, already sorted.
+                .record => |labels| {
+                    if (labels.len != arguments.len) return error.TypeError;
+
+                    const fields = try self.arena.alloc(value.Field, labels.len);
+                    for (labels, arguments, fields) |label, thunk, *field| {
+                        field.* = .{ .label = label, .thunk = thunk };
+                    }
+                    return .{ .record = fields };
+                },
+
+                // Forces the record, and of its fields only the one selected.
+                .select => |label| {
+                    if (arguments.len != 1) return error.TypeError;
+                    const fields = switch (try self.force(arguments[0])) {
+                        .record => |f| f,
+                        else => return error.TypeError,
+                    };
+                    const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
+                        return error.TypeError;
+                    return try self.force(fields[index].thunk);
+                },
+
+                // Children under one field, named or anonymous, document
+                // order. A field the grammar knows but this node lacks yields
+                // no output.
+                .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
+            .builtin => |primop| switch (primop) {
+                // `length` forces the spine, so it diverges on an infinite list.
+                .length => {
+                    if (arguments.len != 1) return error.TypeError;
+                    const subject = try self.force(arguments[0]);
+                    return switch (subject) {
+                        .string => |s| .{ .number = @intCast(s.len) },
+                        .constructed => blk: {
+                            var count: i64 = 0;
+                            var current = subject;
+                            while (try self.uncons(current)) |cell| : (count += 1) {
+                                current = try self.force(cell.tail);
+                            }
+                            break :blk .{ .number = count };
+                        },
+                        else => error.TypeError,
+                    };
+                },
 
-            .operator => return try self.operator(call, arguments),
+                // Total functions on a node: every node has one, so each returns
+                // a scalar rather than a singleton list.
+                .text => {
+                    const subject = try self.nodeArgument(arguments);
+                    const target = self.target orelse return error.TypeError;
+                    return .{ .string = target.source[subject.startByte()..subject.endByte()] };
+                },
+                .kind => {
+                    const subject = try self.nodeArgument(arguments);
+                    return .{ .string = subject.kind() };
+                },
+                .is_named => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isNamed());
+                },
+                .range => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.rangeRecord(rangeOf(subject));
+                },
 
-            // Fields are scalars and stay unforced. The labels come from the
-            // symbol's details, already sorted.
-            .record => {
-                const labels = switch (try synthesized(call)) {
-                    .record => |l| l,
-                    else => return error.TypeError,
-                };
-                if (labels.len != arguments.len) return error.TypeError;
+                .is_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    return try self.boolValue(tested.subject.kindId() == tested.kind_id);
+                },
 
-                const fields = try self.arena.alloc(value.Field, labels.len);
-                for (labels, arguments, fields) |label, thunk, *field| {
-                    field.* = .{ .label = label, .thunk = thunk };
-                }
-                return .{ .record = fields };
-            },
+                // `[x]` when the kind matches, otherwise `[]`.
+                .of_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    if (tested.subject.kindId() != tested.kind_id) return self.nil();
+                    return self.singleton(arguments[1]);
+                },
 
-            // Total functions on a node: every node has one, so each returns
-            // a scalar rather than a singleton list.
-            .text => {
-                const subject = try self.nodeArgument(arguments);
-                const target = self.target orelse return error.TypeError;
-                return .{ .string = target.source[subject.startByte()..subject.endByte()] };
-            },
-            .kind => {
-                const subject = try self.nodeArgument(arguments);
-                return .{ .string = subject.kind() };
-            },
-            .is_named => {
-                const subject = try self.nodeArgument(arguments);
-                return try self.boolValue(subject.isNamed());
-            },
-            .range => {
-                const subject = try self.nodeArgument(arguments);
-                return try self.rangeRecord(rangeOf(subject));
-            },
+                // `[parent]`, or `[]` at the root.
+                .parent => {
+                    const subject = try self.nodeArgument(arguments);
+                    const up = subject.parent() orelse return self.nil();
+                    return self.singleton(try self.nodeThunk(up));
+                },
 
-            // Forces the record, and of its fields only the one selected.
-            .select => {
-                const label = switch (try synthesized(call)) {
-                    .select => |l| l,
-                    else => return error.TypeError,
-                };
-                if (arguments.len != 1) return error.TypeError;
-                const fields = switch (try self.force(arguments[0])) {
-                    .record => |f| f,
-                    else => return error.TypeError,
-                };
-                const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
-                    return error.TypeError;
-                return try self.force(fields[index].thunk);
-            },
+                // Proper ancestors, nearest first. Bounded by tree depth, so it
+                // is built eagerly.
+                .ancestors => {
+                    const subject = try self.nodeArgument(arguments);
+                    var list = try self.nilThunk();
+                    var chain: std.ArrayList(ts.Node) = .empty;
+                    defer chain.deinit(self.arena);
 
-            .is_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                return try self.boolValue(tested.subject.kindId() == tested.kind_id);
-            },
+                    var current = subject;
+                    while (current.parent()) |up| : (current = up) {
+                        try chain.append(self.arena, up);
+                    }
 
-            // `[x]` when the kind matches, otherwise `[]`.
-            .of_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                if (tested.subject.kindId() != tested.kind_id) return self.nil();
-                return self.singleton(arguments[1]);
-            },
+                    // Built from the far end back, so the nearest ancestor ends
+                    // up at the head.
+                    var i = chain.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
+                    }
+                    return try self.force(list);
+                },
 
-            // `[parent]`, or `[]` at the root.
-            .parent => {
-                const subject = try self.nodeArgument(arguments);
-                const up = subject.parent() orelse return self.nil();
-                return self.singleton(try self.nodeThunk(up));
-            },
+                .toint => {
+                    if (arguments.len != 1) return error.TypeError;
+                    const subject = try self.force(arguments[0]);
+                    const text = switch (subject) {
+                        .string => |s| s,
+                        else => return error.TypeError,
+                    };
+                    const parsed = parseInt(text) orelse return self.nil();
+                    return self.singleton(try self.valueThunk(.{ .number = parsed }));
+                },
 
-            // Proper ancestors, nearest first. Bounded by tree depth, so it
-            // is built eagerly.
-            .ancestors => {
-                const subject = try self.nodeArgument(arguments);
-                var list = try self.nilThunk();
-                var chain: std.ArrayList(ts.Node) = .empty;
-                defer chain.deinit(self.arena);
+                // Constant across the query, and it never reads its argument.
+                .filename => {
+                    const target = self.target orelse return self.nil();
+                    const path = target.path orelse return self.nil();
+                    return self.singleton(try self.valueThunk(.{ .string = path }));
+                },
 
-                var current = subject;
-                while (current.parent()) |up| : (current = up) {
-                    try chain.append(self.arena, up);
-                }
+                // Children and anonymous tokens, document order.
+                .children => return try self.walk(try self.nodeArgument(arguments), .sibling, .any),
 
-                // Built from the far end back, so the nearest ancestor ends
-                // up at the head.
-                var i = chain.items.len;
-                while (i > 0) {
-                    i -= 1;
-                    list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
-                }
-                return try self.force(list);
-            },
+                // Named children, document order.
+                .named_children => return try self.walk(try self.nodeArgument(arguments), .sibling, .named),
 
-            .toint => {
-                if (arguments.len != 1) return error.TypeError;
-                const subject = try self.force(arguments[0]);
-                const text = switch (subject) {
-                    .string => |s| s,
-                    else => return error.TypeError,
-                };
-                const parsed = parseInt(text) orelse return self.nil();
-                return self.singleton(try self.valueThunk(.{ .number = parsed }));
-            },
+                // Proper descendants and anonymous tokens, pre-order. Proper: the
+                // walk starts by stepping off the subject, so a node is not its
+                // own descendant.
+                .descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .any),
 
-            // Constant across the query, and it never reads its argument.
-            .filename => {
-                const target = self.target orelse return self.nil();
-                const path = target.path orelse return self.nil();
-                return self.singleton(try self.valueThunk(.{ .string = path }));
-            },
+                // Named proper descendants, pre-order.
+                .named_descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .named),
 
-            // Children and anonymous tokens, document order.
-            .children => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = cursor.gotoFirstChild(),
-                    .axis = .children,
-                });
-            },
-
-            // Named children, document order.
-            .named_children => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = descendToNamedChild(cursor),
-                    .axis = .named_children,
-                });
-            },
-
-            // Proper descendants and anonymous tokens, pre-order. Proper: the
-            // walk starts by stepping off the subject, so a node is not its
-            // own descendant.
-            .descendants => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = advancePreOrder(cursor),
-                    .axis = .descendants,
-                });
-            },
-
-            // Named proper descendants, pre-order.
-            .named_descendants => {
-                const subject = try self.nodeArgument(arguments);
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = advanceNamedDescendant(cursor),
-                    .axis = .named_descendants,
-                });
-            },
-
-            // Named children under one field, document order. A field the
-            // grammar knows but this node lacks yields no output.
-            .field => {
-                const subject = try self.nodeArgument(arguments);
-                const field_id = switch (try synthesized(call)) {
-                    .field => |f| f.id,
-                    else => return error.TypeError,
-                };
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = descendToFieldChild(cursor, field_id),
-                    .axis = .field,
-                    .field_id = field_id,
-                });
-            },
-
-            // The `children`/`descendants` walks with the kind test folded
-            // into the advance, so the list holds only matches.
-            .children_of_kind, .descendants_of_kind => {
-                const tested = try self.kindTestArguments(arguments);
-                const subject = tested.subject;
-                const kind_id = tested.kind_id;
-                const descendants = call.primop == .descendants_of_kind;
-                const cursor = try self.newCursor(subject);
-                return try self.step(.{
-                    .cursor = cursor,
-                    .live = if (descendants)
-                        advanceDescendantOfKind(cursor, kind_id)
-                    else
-                        descendToChildOfKind(cursor, kind_id),
-                    .axis = if (descendants) .descendants_of_kind else .children_of_kind,
-                    .kind_id = kind_id,
-                });
+                // The `children`/`descendants` walks with the kind test folded
+                // into the advance, so the list holds only matches.
+                .children_of_kind, .descendants_of_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    const move: value.Traversal.Move = if (primop == .descendants_of_kind) .preorder else .sibling;
+                    return try self.walk(tested.subject, move, .{ .kind = tested.kind_id });
+                },
             },
         }
-    }
-
-    /// What a synthesized primitive denotes.
-    fn synthesized(call: *const stg.Expr.Primitive) Error!core.Synthesized {
-        return call.synthesized orelse error.TypeError;
     }
 
     /// The single node argument of a tree primitive.
@@ -1097,36 +1013,29 @@ pub const Machine = struct {
         return try self.cons(element, try self.nilThunk());
     }
 
+    /// Walk the subtree of `subject` from its first child, yielding each node
+    /// `keep` admits as `move` reaches it.
+    fn walk(self: *Machine, subject: ts.Node, move: value.Traversal.Move, keep: value.Traversal.Keep) Error!value.Value {
+        const t: value.Traversal = .{ .cursor = try self.newCursor(subject), .move = move, .keep = keep };
+        if (!t.cursor.gotoFirstChild() or !(keeps(t) or advance(t))) {
+            self.releaseCursor(t.cursor);
+            return self.nil();
+        }
+        return try self.step(t);
+    }
+
     /// Yield one cell of a suspended axis, suspending the rest.
     ///
     /// One cell per call, so a consumer that stops early walks no further.
     /// The cursor sits on the node being yielded and is advanced past it
     /// before the tail is suspended.
     fn step(self: *Machine, t: value.Traversal) Error!value.Value {
-        // Only a walk that is empty from the start arrives here dead. One that
-        // runs out later ends with a plain `Nil` tail below.
-        if (!t.live) {
-            self.releaseCursor(t.cursor);
-            return self.nil();
-        }
-
         const current = t.cursor.node();
-
-        var rest = t;
-        rest.live = switch (t.axis) {
-            .children => t.cursor.gotoNextSibling(),
-            .named_children => advanceNamedSibling(t.cursor),
-            .descendants => advancePreOrder(t.cursor),
-            .named_descendants => advanceNamedDescendant(t.cursor),
-            .field => advanceFieldSibling(t.cursor, t.field_id),
-            .children_of_kind => advanceSiblingOfKind(t.cursor, t.kind_id),
-            .descendants_of_kind => advanceDescendantOfKind(t.cursor, t.kind_id),
-        };
 
         note(.step_tail, @sizeOf(value.Thunk));
         const tail = try self.arena.create(value.Thunk);
-        if (rest.live) {
-            tail.* = .{ .state = .{ .traversing = rest } };
+        if (advance(t)) {
+            tail.* = .{ .state = .{ .traversing = t } };
         } else {
             // The walk is over, so the tail is already known and the cursor
             // is free for the next one.
@@ -1166,14 +1075,10 @@ pub const Machine = struct {
 
     fn operator(
         self: *Machine,
-        call: *const stg.Expr.Primitive,
+        scalar: core.Scalar,
         arguments: []const *value.Thunk,
     ) Error!value.Value {
         if (arguments.len != 2) return error.TypeError;
-        const scalar = switch (try synthesized(call)) {
-            .operator => |o| o,
-            else => return error.TypeError,
-        };
 
         // Both operands are scalars, so both are forced. There is no stream
         // here to be lazy about.
@@ -1349,17 +1254,46 @@ pub const Machine = struct {
             const needed = closure.code.parameters.len - closure.applied.len;
             if (remaining.len < needed) return try self.partial(closure, remaining);
 
-            note(.apply_all, closure.code.parameters.len * @sizeOf(*value.Thunk));
-            const all = try self.arena.alloc(*value.Thunk, closure.code.parameters.len);
-            @memcpy(all[0..closure.applied.len], closure.applied);
-            @memcpy(all[closure.applied.len..], remaining[0..needed]);
-
+            var env = try self.takeEnv();
+            defer self.giveEnv(env);
+            const body = try self.enter(closure, remaining[0..needed], &env);
             // Over-applied, the result is a function and the rest are its
             // arguments.
-            function = try self.run(closure.code, closure.captured, all);
+            function = try self.expression(body, &env);
             remaining = remaining[needed..];
         }
         return function;
+    }
+
+    /// Returns the head and tail of a forced list cell, both unforced, or
+    /// null at `Nil`.
+    pub fn uncons(self: *const Machine, list: value.Value) Error!?Cell {
+        const c = switch (list) {
+            .constructed => |k| k,
+            else => return error.TypeError,
+        };
+        if (c.tag == self.program.structural.nil.tag) return null;
+        if (c.len != 2) return error.TypeError;
+        const fields = c.fields();
+        return .{ .head = fields[0], .tail = fields[1] };
+    }
+
+    pub const Cell = struct { head: *value.Thunk, tail: *value.Thunk };
+
+    /// Write a forced list as a JSON array, forcing its spine and every
+    /// element.
+    ///
+    /// Returns the number of elements written.
+    pub fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!usize {
+        try jws.beginArray();
+        var count: usize = 0;
+        var current = list;
+        while (try self.uncons(current)) |cell| : (count += 1) {
+            try self.serialize(try self.force(cell.head), jws);
+            current = try self.force(cell.tail);
+        }
+        try jws.endArray();
+        return count;
     }
 
     /// Write a forced value as JSON. This is the `Serial` boundary: it forces
@@ -1385,20 +1319,7 @@ pub const Machine = struct {
                 if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
                     try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    try jws.beginArray();
-                    var current = v;
-                    while (true) {
-                        const cell = switch (current) {
-                            .constructed => |k| k,
-                            else => return error.TypeError,
-                        };
-                        if (cell.tag == structural.nil.tag) break;
-                        if (cell.len != 2) return error.TypeError;
-                        const cell_fields = cell.fields();
-                        try self.serialize(try self.force(cell_fields[0]), jws);
-                        current = try self.force(cell_fields[1]);
-                    }
-                    try jws.endArray();
+                    _ = try self.serializeList(v, jws);
                 } else {
                     // A user datatype, which has no encoding until 0.4 gives
                     // it one.
@@ -1429,51 +1350,34 @@ fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
     try jws.objectField("end_byte");
     try jws.write(r.end_byte);
     try jws.objectField("start_point");
-    try writePoint(r.start_point, jws);
+    try jws.write(r.start_point);
     try jws.objectField("end_point");
-    try writePoint(r.end_point, jws);
+    try jws.write(r.end_point);
 }
 
-fn writePoint(p: value.Point, jws: *std.json.Stringify) !void {
-    try jws.beginObject();
-    try jws.objectField("row");
-    try jws.write(p.row);
-    try jws.objectField("column");
-    try jws.write(p.column);
-    try jws.endObject();
-}
-
-/// Move `cursor` to the first named child, reporting whether one exists.
-fn descendToNamedChild(cursor: *ts.TreeCursor) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    if (cursor.node().isNamed()) return true;
-    return advanceNamedSibling(cursor);
-}
-
-/// Move `cursor` to the next named sibling, reporting whether one exists.
+/// Move `t.cursor` to the next node `t` keeps, reporting whether one exists.
 ///
-/// `gotoNextSibling` advances an index on the cursor's own stack, so this is
-/// amortized constant work per step.
-fn advanceNamedSibling(cursor: *ts.TreeCursor) bool {
-    while (cursor.gotoNextSibling()) {
-        if (cursor.node().isNamed()) return true;
+/// A node `t` does not keep is stepped over, not skipped past: in a pre-order
+/// walk its own subtree is still walked, so a match nested under a non-match
+/// is found. `gotoNextSibling` advances an index on the cursor's own stack, so
+/// a sibling move is amortized constant work.
+fn advance(t: value.Traversal) bool {
+    while (switch (t.move) {
+        .sibling => t.cursor.gotoNextSibling(),
+        .preorder => advancePreOrder(t.cursor),
+    }) {
+        if (keeps(t)) return true;
     }
     return false;
 }
 
-/// Move `cursor` to the first child under `field_id`, named or anonymous.
-fn descendToFieldChild(cursor: *ts.TreeCursor, field_id: u16) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    if (cursor.fieldId() == field_id) return true;
-    return advanceFieldSibling(cursor, field_id);
-}
-
-/// Move `cursor` to the next sibling under `field_id`, named or anonymous.
-fn advanceFieldSibling(cursor: *ts.TreeCursor, field_id: u16) bool {
-    while (cursor.gotoNextSibling()) {
-        if (cursor.fieldId() == field_id) return true;
-    }
-    return false;
+fn keeps(t: value.Traversal) bool {
+    return switch (t.keep) {
+        .any => true,
+        .named => t.cursor.node().isNamed(),
+        .field => |id| t.cursor.fieldId() == id,
+        .kind => |id| t.cursor.node().isNamed() and t.cursor.node().kindId() == id,
+    };
 }
 
 /// Move `cursor` to its pre-order successor, reporting whether one exists.
@@ -1493,43 +1397,6 @@ fn advancePreOrder(cursor: *ts.TreeCursor) bool {
         if (cursor.gotoNextSibling()) return true;
         if (!cursor.gotoParent()) return false;
     }
-}
-
-/// Move a `named_descendants` walk to its next named node.
-fn advanceNamedDescendant(cursor: *ts.TreeCursor) bool {
-    while (advancePreOrder(cursor)) {
-        if (cursor.node().isNamed()) return true;
-    }
-    return false;
-}
-
-/// Move `cursor` to the next named sibling whose kind is `kind_id`.
-fn advanceSiblingOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    while (cursor.gotoNextSibling()) {
-        const node = cursor.node();
-        if (node.isNamed() and node.kindId() == kind_id) return true;
-    }
-    return false;
-}
-
-/// Move `cursor` to the first named child whose kind is `kind_id`.
-fn descendToChildOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    const node = cursor.node();
-    if (node.isNamed() and node.kindId() == kind_id) return true;
-    return advanceSiblingOfKind(cursor, kind_id);
-}
-
-/// Move a `descendants_of_kind` walk to its next named node of `kind_id`.
-///
-/// A node of another kind is stepped over, not skipped past: its own subtree
-/// is still walked, so a match nested under a non-match is found.
-fn advanceDescendantOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    while (advancePreOrder(cursor)) {
-        const node = cursor.node();
-        if (node.isNamed() and node.kindId() == kind_id) return true;
-    }
-    return false;
 }
 
 fn orderLabel(label: []const u8, field: value.Field) std.math.Order {

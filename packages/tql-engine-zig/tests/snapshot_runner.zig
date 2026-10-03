@@ -762,10 +762,29 @@ fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
     return try out.toOwnedSlice(gpa);
 }
 
+/// Serves a case's `--- module Name ---` sections to the engine, each named
+/// by its module.
+const CaseModules = struct {
+    modules: []const corpus_parser.Module,
+
+    fn loader(self: *CaseModules) tql.Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
+        const self: *CaseModules = @ptrCast(@alignCast(context));
+        for (self.modules) |m| {
+            if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.name, .text = m.text.content } };
+        }
+        return .missing;
+    }
+};
+
 /// Each diagnostic rendered against `source` as the CLI prints it, separated
 /// by blank lines, in report order.
 fn describeDiagnostics(
     allocator: std.mem.Allocator,
+    engine: *const Engine,
     diagnostics: []const tql.diagnostic.Diagnostic,
     source: []const u8,
 ) ![]const u8 {
@@ -773,7 +792,7 @@ fn describeDiagnostics(
     errdefer w.deinit();
     for (diagnostics, 0..) |d, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try d.render(&w.writer, source, null);
+        try d.render(&w.writer, engine.sourceOf(d.span.source, .{ .name = null, .text = source }));
     }
     const rendered = w.written();
     w.shrinkRetainingCapacity(std.mem.trimEnd(u8, rendered, "\n").len);
@@ -795,6 +814,8 @@ fn runTestCase(
 
     var engine = try Engine.init(.{ .allocator = allocator, .io = io });
     defer engine.deinit();
+    var case_modules: CaseModules = .{ .modules = tc.modules };
+    engine.loader = case_modules.loader();
 
     var parsed = try engine.parseQueryCollecting(tc.query.content);
     defer parsed.deinit();
@@ -825,7 +846,7 @@ fn runTestCase(
     // before compilation is even attempted.
     if (parsed.hasErrors()) {
         if (!expects_error) {
-            unexpected.* = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content);
+            unexpected.* = try describeDiagnostics(allocator, &engine, parsed.diagnostics, tc.query.content);
             return error.UnexpectedParseError;
         }
         return .{
@@ -836,7 +857,7 @@ fn runTestCase(
             .simplified = try allocator.dupe(u8, ""),
             .stg = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
-            .@"error" = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content),
+            .@"error" = try describeDiagnostics(allocator, &engine, parsed.diagnostics, tc.query.content),
         };
     }
 
@@ -855,6 +876,10 @@ fn runTestCase(
     errdefer allocator.free(stg_text);
     var type_diagnostics: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(type_diagnostics);
+    var values_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(values_text);
+
+    const evaluates = tc.isAsserted(.values) and !expects_error;
 
     {
         var sink = tql.diagnostic.Sink.init(allocator);
@@ -863,13 +888,14 @@ fn runTestCase(
         // Through the Engine rather than `desugar.module` directly, so the
         // corpus exercises the same link the compiler performs: the prelude
         // beneath the query, with `main` resolved by the linker.
-        if (engine.desugarQuery(tc.query.content, grammar, &sink)) |desugared| {
+        if (engine.desugarParsed(query_cst, grammar, &sink)) |desugared| {
             var program = desugared;
-            defer program.deinit();
+            var owns_program = true;
+            defer if (owns_program) program.deinit();
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
 
-            if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or tc.isAsserted(.stg) or expects_error) {
+            if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates or expects_error) {
                 var type_sink = tql.diagnostic.Sink.init(allocator);
                 defer type_sink.deinit();
 
@@ -877,23 +903,40 @@ fn runTestCase(
                     allocator.free(types_text);
                     types_text = try fmt.formatTypes(allocator, &program);
 
-                    if (tc.isAsserted(.simplified) or tc.isAsserted(.stg)) {
-                        try tql.core_to_core.run(&program);
-                        allocator.free(simplified_text);
-                        simplified_text = try fmt.formatCore(allocator, &program);
-                    }
-                    if (tc.isAsserted(.stg)) {
-                        var translated = try tql.core_to_stg.translate(allocator, &program);
-                        defer translated.deinit();
-                        allocator.free(stg_text);
-                        stg_text = try fmt.formatStg(allocator, &program, &translated);
+                    if (tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates) {
+                        owns_program = false;
+                        var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar);
+                        defer compiled.deinit();
+
+                        if (tc.isAsserted(.simplified)) {
+                            allocator.free(simplified_text);
+                            simplified_text = try fmt.formatCore(allocator, &compiled.checked);
+                        }
+                        if (tc.isAsserted(.stg)) {
+                            allocator.free(stg_text);
+                            stg_text = try fmt.formatStg(allocator, &compiled.checked, &compiled.translated);
+                        }
+
+                        if (evaluates) {
+                            var arena: std.heap.ArenaAllocator = .init(allocator);
+                            defer arena.deinit();
+                            const outcome = try compiled.runTree(
+                                tree,
+                                tc.target.content,
+                                if (tc.file.len == 0) null else tc.file,
+                                allocator,
+                                arena.allocator(),
+                            );
+                            allocator.free(values_text);
+                            values_text = outcome.json;
+                        }
                     }
                 } else |err| switch (err) {
                     error.TypeCheckFailed => {
                         allocator.free(type_diagnostics);
-                        type_diagnostics = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
+                        type_diagnostics = try describeDiagnostics(allocator, &engine, type_sink.items(), tc.query.content);
                         if (!expects_error) {
-                            unexpected.* = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
+                            unexpected.* = try describeDiagnostics(allocator, &engine, type_sink.items(), tc.query.content);
                         }
                     },
                     else => |e| return e,
@@ -902,9 +945,9 @@ fn runTestCase(
         } else |err| switch (err) {
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
-                desugar_diagnostics = try describeDiagnostics(allocator, sink.items(), tc.query.content);
+                desugar_diagnostics = try describeDiagnostics(allocator, &engine, sink.items(), tc.query.content);
                 if (!expects_error) {
-                    unexpected.* = try describeDiagnostics(allocator, sink.items(), tc.query.content);
+                    unexpected.* = try describeDiagnostics(allocator, &engine, sink.items(), tc.query.content);
                 }
             },
             else => return err,
@@ -919,7 +962,7 @@ fn runTestCase(
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .values = try allocator.dupe(u8, ""),
+            .values = values_text,
             .core = core_text,
             .simplified = simplified_text,
             .stg = stg_text,
@@ -936,41 +979,12 @@ fn runTestCase(
         return .{
             .source_tree = source_tree,
             .tql_tree = tql_tree,
-            .values = try allocator.dupe(u8, ""),
+            .values = values_text,
             .core = try allocator.dupe(u8, ""),
             .simplified = simplified_text,
             .stg = stg_text,
             .types = try allocator.dupe(u8, ""),
             .@"error" = desugar_diagnostics,
-        };
-    }
-
-    // A case asserting values runs on the evaluator against the parsed target.
-    if (tc.isAsserted(.values) and !expects_error) {
-        var eval_sink = tql.diagnostic.Sink.init(allocator);
-        defer eval_sink.deinit();
-        const values = engine.evaluateQuery(
-            tc.query.content,
-            tc.target.content,
-            if (tc.file.len == 0) null else tc.file,
-            grammar,
-            &eval_sink,
-            allocator,
-        ) catch |err| {
-            if (eval_sink.items().len > 0) {
-                unexpected.* = try describeDiagnostics(allocator, eval_sink.items(), tc.query.content);
-            }
-            return err;
-        };
-        return .{
-            .source_tree = source_tree,
-            .tql_tree = tql_tree,
-            .values = values,
-            .core = core_text,
-            .simplified = simplified_text,
-            .stg = stg_text,
-            .types = types_text,
-            .@"error" = try allocator.dupe(u8, ""),
         };
     }
 
@@ -982,7 +996,7 @@ fn runTestCase(
     return .{
         .source_tree = source_tree,
         .tql_tree = tql_tree,
-        .values = try allocator.dupe(u8, ""),
+        .values = values_text,
         .core = core_text,
         .simplified = simplified_text,
         .stg = stg_text,

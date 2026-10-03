@@ -1,8 +1,8 @@
 //! Assembles desugared Core modules into a `Program`.
 //!
 //! Modules link in order, the entry module last. Definitions are concatenated
-//! and each module's edges renumbered into linked indices before Tarjan runs once
-//! over the merged graph. Per-module SCCs would hold only while no cycle
+//! and Tarjan runs once over the merged graph, whose edges are linked indices
+//! and cross module boundaries. Per-module SCCs would hold only while no cycle
 //! crosses a module boundary and modules arrive in dependency order; one
 //! whole-program pass does not depend on either.
 
@@ -13,6 +13,7 @@ const diagnostic = @import("../diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
+const scope_mod = @import("scope.zig");
 const desugar = @import("desugar.zig");
 const primitives = @import("../primitives.zig");
 const datatypes = core.datatypes;
@@ -21,6 +22,7 @@ const types = core.types;
 pub const Error = error{LinkFailed} || std.mem.Allocator.Error;
 
 const Program = core.Program;
+const ModuleScope = scope_mod.ModuleScope;
 
 /// Desugars source files into one linked program.
 ///
@@ -32,17 +34,25 @@ pub const Desugarer = struct {
     /// Null once `finish` has handed it to the `Program`.
     env: ?core.env.Env,
     modules: std.ArrayList(desugar.Module) = .empty,
+    /// The linked index of every definition added so far.
+    linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
+    /// What each module exports, by `ModuleId`.
+    exports: std.ArrayList(cst.Filter) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         var target = try core.env.Env.init(allocator);
         errdefer target.deinit();
         try primitives.populate(&target);
 
-        return .{ .allocator = allocator, .env = target };
+        var exports: std.ArrayList(cst.Filter) = .empty;
+        try exports.append(allocator, .all);
+        return .{ .allocator = allocator, .env = target, .exports = exports };
     }
 
     pub fn deinit(self: *Desugarer) void {
         self.modules.deinit(self.allocator);
+        self.linked.deinit(self.allocator);
+        self.exports.deinit(self.allocator);
         if (self.env) |*target| target.deinit();
     }
 
@@ -50,7 +60,7 @@ pub const Desugarer = struct {
     /// desugared, so a constructor reference resolves like any other global.
     ///
     /// An alias body or constructor field may name a type declared below it.
-    fn declareTypes(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    fn declareTypes(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
         const arena = self.env.?.allocator();
         const interner = &self.env.?.interner;
 
@@ -62,26 +72,18 @@ pub const Desugarer = struct {
             if (decl.* != .data_declaration) continue;
             const declared = &decl.data_declaration;
 
-            // A structural type is reserved before any source is read, so its
-            // declaration fills in the row already standing rather than
-            // opening a new one.
-            const structural = datatypes.Registry.structuralNamed(declared.name);
-            const existing = self.env.?.datatypes.lookup(declared.name);
-
-            // A declared type is found before a primitive one, so this would
-            // silently replace `Int` in every signature.
-            if (annotation.builtinNamed(declared.name) != null) {
-                try sink.report(
-                    .symbol_collision,
-                    declared.span,
-                    "`{s}` is a built-in type",
-                    .{declared.name},
-                );
-                continue;
-            }
+            // A structural type is reserved before any source is read, so the
+            // prelude's declaration fills in the row already standing rather
+            // than opening a new one.
+            const structural = if (scope.module == .prelude)
+                datatypes.Registry.structuralNamed(declared.name)
+            else
+                null;
+            const existing = self.env.?.datatypes.lookup(scope.module, declared.name);
 
             if ((existing != null and structural == null) or
-                self.env.?.datatypes.aliasNamed(declared.name) != null)
+                self.env.?.datatypes.aliasNamed(scope.module, declared.name) != null or
+                self.env.?.datatypes.primitiveNamed(scope.module, declared.name) != null)
             {
                 try sink.report(
                     .duplicate_definition,
@@ -117,6 +119,7 @@ pub const Desugarer = struct {
 
             const id = existing orelse try self.env.?.datatypes.declare(
                 interner,
+                scope.module,
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
                 &.{},
@@ -125,14 +128,14 @@ pub const Desugarer = struct {
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
 
-        try self.declareAliases(source, sink);
+        try self.declareAliases(scope, source, sink);
 
         for (pending.items) |p| {
             const declared = p.declared;
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
             var failed = false;
             for (declared.constructors, constructors, 0..) |written, *out, tag| {
-                const symbol = interner.intern(written.name, .vanilla) catch |err| switch (err) {
+                const symbol = interner.intern(scope.module, written.name, .vanilla) catch |err| switch (err) {
                     error.Collision => {
                         try sink.report(
                             .symbol_collision,
@@ -148,9 +151,12 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = try self.fieldType(field, declared.*, sink) orelse {
-                        failed = true;
-                        break;
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, scope, sink) catch |err| switch (err) {
+                        error.BadAnnotation => {
+                            failed = true;
+                            break;
+                        },
+                        else => |e| return e,
                     };
                 }
 
@@ -158,27 +164,24 @@ pub const Desugarer = struct {
             }
             if (failed) continue;
 
-            self.env.?.datatypes.setConstructors(interner, p.id, constructors);
+            try self.env.?.setConstructors(p.id, constructors);
         }
     }
 
     /// Translates a module's aliases, each after the aliases its body names.
-    fn declareAliases(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    fn declareAliases(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
         var aliases: std.ArrayList(*const cst.TypeAlias) = .empty;
         defer aliases.deinit(self.allocator);
 
         for (source.declarations) |*decl| {
             if (decl.* != .type_alias) continue;
             const alias = &decl.type_alias;
-            if (annotation.builtinNamed(alias.name) != null) {
-                try sink.report(.symbol_collision, alias.span, "`{s}` is a built-in type", .{alias.name});
-                continue;
-            }
             const repeated = for (aliases.items) |earlier| {
                 if (std.mem.eql(u8, earlier.name, alias.name)) break true;
             } else false;
-            if (repeated or self.env.?.datatypes.lookup(alias.name) != null or
-                self.env.?.datatypes.aliasNamed(alias.name) != null)
+            if (repeated or self.env.?.datatypes.lookup(scope.module, alias.name) != null or
+                self.env.?.datatypes.aliasNamed(scope.module, alias.name) != null or
+                self.env.?.datatypes.primitiveNamed(scope.module, alias.name) != null)
             {
                 try sink.report(
                     .duplicate_definition,
@@ -194,7 +197,7 @@ pub const Desugarer = struct {
         const states = try self.allocator.alloc(AliasState, aliases.items.len);
         defer self.allocator.free(states);
         @memset(states, .unvisited);
-        for (0..aliases.items.len) |i| _ = try self.declareAlias(aliases.items, states, i, sink);
+        for (0..aliases.items.len) |i| _ = try self.declareAlias(scope, aliases.items, states, i, sink);
     }
 
     const AliasState = enum { unvisited, visiting, declared, failed };
@@ -203,6 +206,7 @@ pub const Desugarer = struct {
     /// Returns whether it was declared.
     fn declareAlias(
         self: *Desugarer,
+        scope: *const ModuleScope,
         aliases: []const *const cst.TypeAlias,
         states: []AliasState,
         i: usize,
@@ -232,7 +236,7 @@ pub const Desugarer = struct {
             const j = for (aliases, 0..) |other, j| {
                 if (std.mem.eql(u8, other.name, name)) break j;
             } else continue;
-            if (!try self.declareAlias(aliases, states, j, sink)) {
+            if (!try self.declareAlias(scope, aliases, states, j, sink)) {
                 states[i] = .failed;
                 return false;
             }
@@ -242,7 +246,7 @@ pub const Desugarer = struct {
             self.env.?.allocator(),
             self.allocator,
             aliases[i],
-            &self.env.?.datatypes,
+            scope,
             sink,
         ) catch |err| switch (err) {
             error.BadAnnotation => {
@@ -251,7 +255,7 @@ pub const Desugarer = struct {
             },
             else => |e| return e,
         };
-        try self.env.?.datatypes.defineAlias(translated);
+        try self.env.?.datatypes.defineAlias(scope.module, translated);
         states[i] = .declared;
         return true;
     }
@@ -268,162 +272,61 @@ pub const Desugarer = struct {
         return true;
     }
 
-    /// A constructor field's type, with the datatype's own parameters in
-    /// scope as bound variables.
-    fn fieldType(
-        self: *Desugarer,
-        written: cst.Type,
-        declared: cst.DataDeclaration,
-        sink: *diagnostic.Sink,
-    ) !?types.Type {
-        const arena = self.env.?.allocator();
-        switch (written.kind) {
-            .variable => |name| {
-                for (declared.parameters, 0..) |parameter, i| {
-                    if (std.mem.eql(u8, parameter, name)) return types.variable_type(@intCast(i));
-                }
-                try sink.report(
-                    .unresolved_name,
-                    written.span,
-                    "`{s}` is not a parameter of `{s}`",
-                    .{ name, declared.name },
-                );
-                return null;
-            },
-            .constructor => |name| {
-                if (self.env.?.datatypes.lookup(name)) |id| {
-                    const parameters = self.env.?.datatypes.get(id).parameters;
-                    if (parameters != 0) {
-                        try sink.report(
-                            .type_mismatch,
-                            written.span,
-                            "`{s}` takes {d} type argument(s), given 0",
-                            .{ name, parameters },
-                        );
-                        return null;
-                    }
-                    return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
-                }
-                if (self.env.?.datatypes.aliasNamed(name)) |alias| {
-                    return try self.aliasField(alias, &.{}, written.span, declared, sink);
-                }
-                if (annotation.builtinNamed(name)) |t| {
-                    if (hasRecord(t)) return try recordField(written.span, sink);
-                    return t;
-                }
-                try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
-                return null;
-            },
-            .application => |a| {
-                const id = self.env.?.datatypes.lookup(a.constructor) orelse {
-                    if (self.env.?.datatypes.aliasNamed(a.constructor)) |alias| {
-                        return try self.aliasField(alias, a.arguments, written.span, declared, sink);
-                    }
-                    try sink.report(
-                        .unresolved_name,
-                        written.span,
-                        "`{s}` is not a type",
-                        .{a.constructor},
-                    );
-                    return null;
-                };
-                const parameters = self.env.?.datatypes.get(id).parameters;
-                if (a.arguments.len != parameters) {
-                    try sink.report(
-                        .type_mismatch,
-                        written.span,
-                        "`{s}` takes {d} type argument(s), given {d}",
-                        .{ a.constructor, parameters, a.arguments.len },
-                    );
-                    return null;
-                }
-                const arguments = try arena.alloc(types.Type, a.arguments.len);
-                for (a.arguments, arguments) |argument, *slot| {
-                    slot.* = try self.fieldType(argument, declared, sink) orelse return null;
-                }
-                return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, arguments);
-            },
-            .list => |element| {
-                const inner = try self.fieldType(element.*, declared, sink) orelse return null;
-                return try self.env.?.datatypes.list(arena, inner);
-            },
-            .parenthesized => |inner| return try self.fieldType(inner.*, declared, sink),
-            .function => |f| {
-                const from = try self.fieldType(f.from, declared, sink) orelse return null;
-                const to = try self.fieldType(f.to, declared, sink) orelse return null;
-                return try types.func(arena, from, to);
-            },
-            .filter => |f| {
-                const input = try self.fieldType(f.input, declared, sink) orelse return null;
-                const output = try self.fieldType(f.output, declared, sink) orelse return null;
-                return try self.env.?.datatypes.filter(arena, input, output);
-            },
-            .record => return try recordField(written.span, sink),
-        }
+    /// Declares a module for `add`. `ModuleId.prelude` is declared already.
+    pub fn declareModule(self: *Desugarer, name: []const u8, exports: cst.Filter) !core.ModuleId {
+        try self.exports.append(self.allocator, exports);
+        return try self.env.?.interner.declareModule(name);
     }
 
-    /// A constructor field written as `alias` at `written`, expanded.
-    fn aliasField(
-        self: *Desugarer,
-        alias: *const datatypes.Alias,
-        written: []const cst.Type,
-        span: diagnostic.Span,
-        declared: cst.DataDeclaration,
-        sink: *diagnostic.Sink,
-    ) std.mem.Allocator.Error!?types.Type {
-        const arena = self.env.?.allocator();
-        if (written.len != alias.parameters.len) {
-            try sink.report(
-                .type_mismatch,
-                span,
-                "`{s}` takes {d} type argument(s), given {d}",
-                .{ alias.name, alias.parameters.len, written.len },
-            );
-            return null;
-        }
-        const arguments = try arena.alloc(types.Type, written.len);
-        for (written, arguments) |argument, *slot| {
-            slot.* = try self.fieldType(argument, declared, sink) orelse return null;
-        }
-        const applied = try alias.apply(arena, arguments);
-        if (hasRecord(applied)) return try recordField(span, sink);
-        return applied;
-    }
-
-    fn recordField(span: diagnostic.Span, sink: *diagnostic.Sink) !?types.Type {
-        try sink.report(.type_mismatch, span, "a constructor field may not be a record yet", .{});
-        return null;
-    }
-
-    /// Desugars one source file and adds it to the link: collect heads,
-    /// resolve bodies.
+    /// Desugars one source file as `module` and adds it to the link: collect
+    /// heads, resolve bodies. Kinds and fields resolve against grammar `g`.
+    ///
+    /// Preconditions:
+    /// - Each module `imports` names was added before.
     pub fn add(
         self: *Desugarer,
+        module: core.ModuleId,
+        imports: []const scope_mod.Import,
         source: cst.SourceFile,
-        g: *const grammar.Grammar,
+        g: ?*const grammar.Grammar,
         sink: *diagnostic.Sink,
     ) !void {
         const builder = core.Builder{ .allocator = self.env.?.allocator() };
         const interner = &self.env.?.interner;
+        const scope: ModuleScope = .{
+            .module = module,
+            .imports = imports,
+            .exports = self.exports.items,
+            .interner = interner,
+            .datatypes = &self.env.?.datatypes,
+        };
 
-        try self.declareTypes(source, sink);
+        try self.declareTypes(&scope, source, sink);
 
-        var declarations = try resolve.collect(self.allocator, interner, source, sink);
+        var declarations = try resolve.collect(self.allocator, interner, module, source, sink);
         defer declarations.deinit();
+
+        if (!try scope.checkItems(sink)) return error.DesugarFailed;
+        var failed = false;
+
+        const offset: u32 = @intCast(self.linked.count());
+        for (declarations.items.items, 0..) |d, i| {
+            const index: u32 = @intCast(i);
+            try self.linked.put(self.allocator, d.symbol, offset + index);
+        }
 
         const definitions = try builder.slice(core.Definition, declarations.items.items.len);
         const edges = try builder.slice([]const u32, declarations.items.items.len);
         @memset(edges, &.{});
 
         // IMPROVE: desugar the entire module at once with a single desugar pass?
-        var failed = false;
         for (declarations.items.items, 0..) |d, i| {
             var lowerer = desugar.Lowerer.init(
                 builder,
-                interner,
-                &self.env.?.datatypes,
-                &declarations,
-                g.language,
+                &self.env.?,
+                &scope,
+                &self.linked,
+                if (g) |known| known.language else null,
                 sink,
             );
             defer lowerer.deinit();
@@ -455,7 +358,7 @@ pub const Desugarer = struct {
                 builder.allocator,
                 self.allocator,
                 signature,
-                &self.env.?.datatypes,
+                &scope,
                 sink,
             ) catch |err| switch (err) {
                 error.BadAnnotation => {
@@ -464,8 +367,7 @@ pub const Desugarer = struct {
                 },
                 else => |e| return e,
             };
-            try self.env.?.annotate(.{
-                .symbol = d.symbol,
+            try self.env.?.annotate(d.symbol, .{
                 .scheme = scheme,
                 .span = signature.span,
             });
@@ -498,7 +400,9 @@ pub const Desugarer = struct {
         var entry_offset: u32 = 0;
         for (self.modules.items, 0..) |m, i| {
             if (i + 1 == self.modules.items.len) entry_offset = offset;
-            offset += try place(scratch, m, definitions, edges, offset);
+            @memcpy(definitions[offset..][0..m.definitions.len], m.definitions);
+            @memcpy(edges[offset..][0..m.edges.len], m.edges);
+            offset += @intCast(m.definitions.len);
         }
 
         const main = try entrySymbol(
@@ -548,39 +452,6 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
-}
-
-/// Whether a record appears anywhere in `t`.
-fn hasRecord(t: types.Type) bool {
-    return switch (t) {
-        .variable, .meta, .primitive => false,
-        .record => true,
-        .constructor => |c| for (c.arguments) |argument| {
-            if (hasRecord(argument)) break true;
-        } else false,
-        .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
-        .alias => |a| hasRecord(a.expansion),
-    };
-}
-
-/// Copies one module's definitions in at `offset`, shifting its module-local
-/// edges into linked indices. Returns how many it placed.
-fn place(
-    scratch: std.mem.Allocator,
-    m: desugar.Module,
-    definitions: []core.Definition,
-    edges: [][]const u32,
-    offset: u32,
-) std.mem.Allocator.Error!u32 {
-    for (m.definitions, 0..) |d, i| definitions[offset + i] = d;
-
-    for (m.edges, 0..) |module_local, i| {
-        const shifted = try scratch.alloc(u32, module_local.len);
-        for (module_local, 0..) |target, j| shifted[j] = target + offset;
-        edges[offset + i] = shifted;
-    }
-
-    return @intCast(m.definitions.len);
 }
 
 fn entrySymbol(

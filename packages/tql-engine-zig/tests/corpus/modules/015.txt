@@ -1,0 +1,26 @@
+title: two imports declaring one name are fine while it goes unused
+grammar: typescript
+asserts: values
+
+--- module A ---
+module A;
+
+name = 1;
+a = 2;
+
+--- module B ---
+module B;
+
+name = 3;
+
+--- tql ---
+import A;
+import B;
+
+main root = [a];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2]

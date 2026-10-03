@@ -1,0 +1,14 @@
+title: a primitive type has no constructors to import
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude (Int(..));
+main root = [1];
+
+--- error ---
+error[unresolved-name]: `Int` is a primitive type and has no constructors
+ --> 1:17
+  |
+1 | import Prelude (Int(..));
+  |                 ^^^^^^^

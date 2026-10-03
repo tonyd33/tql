@@ -20,6 +20,7 @@ const datatypes = core.datatypes;
 
 const Error = desugar.Error;
 const Lowerer = desugar.Lowerer;
+const ModuleScope = @import("scope.zig").ModuleScope;
 const Entry = resolve.Scope.Entry;
 
 const wildcard: cst.Pattern = .{ .kind = .{ .variable = "_" } };
@@ -45,13 +46,13 @@ pub fn caseOf(
     const expanded = try b.slice(cst.Case.Alternative, c.alternatives.len);
     for (c.alternatives, expanded) |alternative, *out| {
         out.* = alternative;
-        out.pattern = try expand(b, alternative.pattern);
+        out.pattern = try expand(lowerer, alternative.pattern);
     }
     for (expanded) |alternative| try checkPattern(lowerer, alternative.pattern);
 
     const root = switch (scrutinee.kind) {
         .symbol => |s| s,
-        else => try lowerer.interner.fresh("scrutinee"),
+        else => try lowerer.env.interner.fresh("scrutinee"),
     };
 
     const rows = try b.slice(Row, expanded.len);
@@ -91,7 +92,7 @@ pub fn caseOf(
     for (expanded, matcher.uses, shared) |alternative, uses, *slot| {
         slot.* = null;
         if (uses < 2) continue;
-        const symbol = try lowerer.interner.fresh("alternative");
+        const symbol = try lowerer.env.interner.fresh("alternative");
         slot.* = symbol;
         try bindings.append(b.allocator, .{
             .name = symbol,
@@ -126,38 +127,62 @@ pub fn caseOf(
 
 /// Rewrite list and cons patterns as `Cons` and `Nil` constructor patterns.
 /// Everything past `caseOf`'s entry sees only variables and constructors.
-fn expand(b: core.Builder, pattern: cst.Pattern) Error!cst.Pattern {
+fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
+    const b = lowerer.builder;
     switch (pattern.kind) {
         .variable => return pattern,
         .constructor => |c| {
             const arguments = try b.slice(cst.Pattern, c.arguments.len);
-            for (c.arguments, arguments) |argument, *out| out.* = try expand(b, argument);
-            return constructorPattern(c.name, arguments, pattern.span);
+            for (c.arguments, arguments) |argument, *out| out.* = try expand(lowerer, argument);
+            return .{
+                .kind = .{ .constructor = .{ .name = c.name, .arguments = arguments, .list = c.list } },
+                .span = pattern.span,
+            };
         },
-        .cons => |c| return try cell(b, try expand(b, c.head), try expand(b, c.tail), pattern.span),
+        .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), pattern.span),
         .list => |elements| {
-            var spine = constructorPattern("Nil", &.{}, pattern.span);
+            var spine = listPattern(lowerer, .nil, &.{}, pattern.span);
             var i = elements.len;
             while (i > 0) {
                 i -= 1;
                 // An inner cell spans its head element.
                 const span = if (i == 0) pattern.span else elements[i].span;
-                spine = try cell(b, try expand(b, elements[i]), spine, span);
+                spine = try cell(lowerer, try expand(lowerer, elements[i]), spine, span);
             }
             return spine;
         },
     }
 }
 
-fn cell(b: core.Builder, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
-    const arguments = try b.slice(cst.Pattern, 2);
+fn cell(lowerer: *Lowerer, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
+    const arguments = try lowerer.builder.slice(cst.Pattern, 2);
     arguments[0] = head;
     arguments[1] = tail;
-    return constructorPattern("Cons", arguments, span);
+    return listPattern(lowerer, .cons, arguments, span);
 }
 
-fn constructorPattern(name: []const u8, arguments: []const cst.Pattern, span: diagnostic.Span) cst.Pattern {
-    return .{ .kind = .{ .constructor = .{ .name = name, .arguments = arguments } }, .span = span };
+fn listPattern(
+    lowerer: *Lowerer,
+    which: cst.Pattern.ListConstructor,
+    arguments: []const cst.Pattern,
+    span: diagnostic.Span,
+) cst.Pattern {
+    const symbol = listConstructor(lowerer.scope.datatypes, which).symbol;
+    return .{
+        .kind = .{ .constructor = .{
+            .name = lowerer.env.interner.spelling(symbol),
+            .arguments = arguments,
+            .list = which,
+        } },
+        .span = span,
+    };
+}
+
+fn listConstructor(registry: *const datatypes.Registry, which: cst.Pattern.ListConstructor) datatypes.Constructor {
+    return switch (which) {
+        .nil => registry.nilConstructor(),
+        .cons => registry.consConstructor(),
+    };
 }
 
 /// Reject a pattern naming an unknown constructor, giving a constructor the
@@ -189,7 +214,7 @@ fn checkPatternInto(
             try seen.append(lowerer.builder.allocator, name);
         },
         .constructor => |c| {
-            const constructor = try constructorNamed(lowerer, c.name, pattern.span);
+            const constructor = try constructorNamed(lowerer, c, pattern.span);
             if (c.arguments.len != constructor.fields.len) {
                 try lowerer.sink.report(
                     .type_mismatch,
@@ -207,14 +232,27 @@ fn checkPatternInto(
 
 fn constructorNamed(
     lowerer: *Lowerer,
-    name: []const u8,
+    c: cst.Pattern.Constructor,
     span: diagnostic.Span,
 ) Error!*const datatypes.Constructor {
-    if (lowerer.interner.lookup(name)) |id| {
-        if (lowerer.datatypes.constructorOf(lowerer.interner, id)) |constructor| return constructor;
+    const found = if (c.list) |which|
+        listConstructor(lowerer.scope.datatypes, which).symbol
+    else
+        try lowerer.resolveGlobal(c.name, span);
+    if (found) |id| {
+        if (lowerer.scope.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
-    try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
+    try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{c.name});
     return error.DesugarFailed;
+}
+
+/// The symbol a constructor pattern names.
+///
+/// Preconditions:
+/// - `checkPattern` accepted the pattern `c` is in.
+fn constructorSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
+    if (c.list) |which| return listConstructor(scope.datatypes, which).symbol;
+    return scope.value(c.name).found;
 }
 
 /// `\x_1 ... x_n -> body` over the alternative's pattern variables, in the
@@ -230,7 +268,7 @@ fn sharedAlternative(
 
     const entries = try lowerer.builder.slice(Entry, names.items.len);
     for (names.items, entries) |name, *entry| {
-        entry.* = .{ .name = name, .symbol = try lowerer.interner.fresh(name) };
+        entry.* = .{ .name = name, .symbol = try lowerer.env.interner.fresh(name) };
     }
     const inner: resolve.Scope = .{ .parent = scope, .names = entries };
 
@@ -352,17 +390,17 @@ const Matcher = struct {
         };
 
         const owner = try self.columnOwner(rows, column);
-        const declared = self.lowerer.datatypes.get(owner);
+        const declared = self.lowerer.scope.datatypes.get(owner);
         const branches = try b.slice(Tree.Branch, declared.constructors.len);
         for (declared.constructors, branches) |constructor, *branch| {
             const fields = try b.slice(core.SymbolId, constructor.fields.len);
             for (fields, 0..) |*field, i| {
-                const name = fieldName(self.lowerer.interner, rows, column, constructor.symbol, i) orelse
+                const name = fieldName(self.lowerer.scope, rows, column, constructor.symbol, i) orelse
                     try b.print("{s}{d}", .{
-                        try std.ascii.allocLowerString(b.allocator, self.lowerer.interner.spelling(constructor.symbol)),
+                        try std.ascii.allocLowerString(b.allocator, self.lowerer.env.interner.spelling(constructor.symbol)),
                         i,
                     });
-                field.* = try self.lowerer.interner.fresh(name);
+                field.* = try self.lowerer.env.interner.fresh(name);
             }
 
             const specialized = try self.specialize(rows, column, occurrences[column], constructor.symbol, fields.len);
@@ -398,8 +436,8 @@ const Matcher = struct {
                 .variable => continue,
                 .list, .cons => unreachable,
             };
-            const id = self.lowerer.interner.lookup(c.name).?;
-            const this = datatypes.ownerOf(self.lowerer.interner, id).?;
+            const id = constructorSymbol(self.lowerer.scope, c);
+            const this = datatypes.ownerOf(&self.lowerer.env.interner, id).?;
             const expected = owner orelse {
                 owner = this;
                 continue;
@@ -409,7 +447,7 @@ const Matcher = struct {
                     .type_mismatch,
                     pattern.span,
                     "`{s}` is not a constructor of `{s}`",
-                    .{ c.name, self.lowerer.datatypes.get(expected).name },
+                    .{ c.name, self.lowerer.scope.datatypes.get(expected).name },
                 );
                 return error.DesugarFailed;
             }
@@ -434,7 +472,7 @@ const Matcher = struct {
             var bindings = row.bindings;
             const arguments: []const cst.Pattern = switch (pattern.kind) {
                 .constructor => |c| blk: {
-                    if (self.lowerer.interner.lookup(c.name).? != constructor) continue;
+                    if (constructorSymbol(self.lowerer.scope, c) != constructor) continue;
                     break :blk c.arguments;
                 },
                 .variable => |name| blk: {
@@ -475,7 +513,7 @@ const Matcher = struct {
 /// The first variable written for a field. Returns null for a field some row
 /// tests but none names, and `_` for a field nothing uses.
 fn fieldName(
-    interner: *const core.Interner,
+    scope: *const ModuleScope,
     rows: []const Row,
     column: usize,
     constructor: core.SymbolId,
@@ -485,7 +523,7 @@ fn fieldName(
     for (rows) |row| {
         switch (row.patterns[column].kind) {
             .constructor => |c| {
-                if (interner.lookup(c.name).? != constructor) continue;
+                if (constructorSymbol(scope, c) != constructor) continue;
                 switch (c.arguments[index].kind) {
                     .variable => |name| if (!isWildcard(name)) return name,
                     .constructor => tested = true,
@@ -563,7 +601,7 @@ const Witness = struct {
     pub fn format(self: Witness, w: *std.Io.Writer) std.Io.Writer.Error!void {
         const step = self.matcher.stepFor(self.occurrence) orelse return w.writeAll("_");
         if (self.isList(step)) return self.formatList(w, step);
-        const name = self.matcher.lowerer.interner.spelling(step.constructor);
+        const name = self.matcher.lowerer.env.interner.spelling(step.constructor);
         const parenthesize = self.nested and step.fields.len > 0;
         if (parenthesize) try w.writeByte('(');
         try w.writeAll(name);
@@ -580,7 +618,7 @@ const Witness = struct {
 
     fn isList(self: Witness, step: Step) bool {
         const lowerer = self.matcher.lowerer;
-        return datatypes.ownerOf(lowerer.interner, step.constructor) == lowerer.datatypes.listId();
+        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == lowerer.scope.datatypes.listId();
     }
 
     /// The step fixing the tail of the chain starting at `step`: a `Nil`, or

@@ -6,6 +6,8 @@ const stg = @import("terms.zig");
 const core = @import("../core.zig");
 const string_literal = @import("../lang/string_literal.zig");
 
+const print_scope = core.print_scope;
+
 pub const Printer = struct {
     interner: *const core.Interner,
 
@@ -30,19 +32,13 @@ pub const Printer = struct {
         }
     }
 
-    const Scope = struct {
-        symbol: core.SymbolId,
-        primes: u32,
-        parent: ?*Scope,
-    };
-
     /// Binders that enter scope together.
     const Group = union(enum) {
         closure: *const stg.Closure,
         alternative: *const stg.Alternative,
         let: *const stg.Expr.Let,
 
-        fn len(g: Group) usize {
+        pub fn len(g: Group) usize {
             return switch (g) {
                 .closure => |c| c.parameters.len,
                 .alternative => |a| a.binders.len,
@@ -50,7 +46,7 @@ pub const Printer = struct {
             };
         }
 
-        fn binder(g: Group, i: usize) core.SymbolId {
+        pub fn binder(g: Group, i: usize) core.SymbolId {
             return switch (g) {
                 .closure => |c| c.parameters[i],
                 .alternative => |a| a.binders[i],
@@ -59,7 +55,7 @@ pub const Printer = struct {
         }
     };
 
-    fn writeExpr(self: Printer, e: stg.Expr, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
+    fn writeExpr(self: Printer, e: stg.Expr, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (e) {
             .atom => |a| try self.writeAtom(a, w, .top, scope),
             .apply => |apply| {
@@ -80,27 +76,27 @@ pub const Printer = struct {
                     try self.writeExpr(c.scrutinee, w, indent, scope);
                 } else {
                     try w.writeByte('(');
-                    try newline(w, indent + 2);
+                    try print_scope.newline(w, indent + 2);
                     try self.writeExpr(c.scrutinee, w, indent + 2, scope);
-                    try newline(w, indent);
+                    try print_scope.newline(w, indent);
                     try w.writeByte(')');
                 }
                 try w.writeAll(" of");
                 for (c.alternatives) |*alternative| {
-                    try newline(w, indent + 2);
+                    try print_scope.newline(w, indent + 2);
                     try w.writeAll(self.interner.spelling(alternative.constructor));
-                    try self.enter(.{ .alternative = alternative }, 0, w, indent + 2, scope);
+                    try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
                 }
             },
-            .let => |let| try self.enter(.{ .let = let }, 0, w, indent, scope),
+            .let => |let| try self.enter(.{ .let = let }, w, indent, scope),
         }
     }
 
     /// Write ` e`, or `e` on its own line at `indent + 2` when it is a `let`.
-    fn writeAfterArrow(self: Printer, e: stg.Expr, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
+    fn writeAfterArrow(self: Printer, e: stg.Expr, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (e) {
             .let => {
-                try newline(w, indent + 2);
+                try print_scope.newline(w, indent + 2);
                 try self.writeExpr(e, w, indent + 2, scope);
             },
             else => {
@@ -110,11 +106,11 @@ pub const Printer = struct {
         }
     }
 
-    fn writeClosure(self: Printer, c: *const stg.Closure, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
-        try self.enter(.{ .closure = c }, 0, w, indent, scope);
+    fn writeClosure(self: Printer, c: *const stg.Closure, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
+        try self.enter(.{ .closure = c }, w, indent, scope);
     }
 
-    fn writeAllocation(self: Printer, a: stg.Allocation, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
+    fn writeAllocation(self: Printer, a: stg.Allocation, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (a) {
             .closure => |c| try self.writeClosure(c, w, indent, scope),
             .constructed => |c| {
@@ -124,22 +120,12 @@ pub const Printer = struct {
         }
     }
 
-    /// Bring binders `i..` of `g` into scope, then write what they scope.
-    fn enter(self: Printer, g: Group, i: usize, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
-        if (i < g.len()) {
-            var node: Scope = .{ .symbol = g.binder(i), .primes = 0, .parent = scope };
-            return self.enter(g, i + 1, w, indent, &node);
-        }
-        // The group is the innermost `g.len()` nodes, newest first.
-        for (0..g.len()) |k| {
-            var node = scope.?;
-            for (0..g.len() - 1 - k) |_| node = node.parent.?;
-            node.primes = self.primesFor(g, node.symbol, scope);
-        }
-        try self.writeScoped(g, w, indent, scope);
+    /// Bring the binders of `g` into scope, then write what they scope.
+    fn enter(self: Printer, g: Group, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
+        try print_scope.enter(self, g, 0, w, indent, scope, groupCaptures, writeScoped);
     }
 
-    fn writeScoped(self: Printer, g: Group, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
+    fn writeScoped(self: Printer, g: Group, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (g) {
             .closure => |c| {
                 const enclosing = outside(scope, c.parameters.len);
@@ -177,36 +163,28 @@ pub const Printer = struct {
                 } else {
                     try w.writeAll(keyword);
                     for (let.bindings) |binding| {
-                        try newline(w, indent + 2);
+                        try print_scope.newline(w, indent + 2);
                         try self.writeName(binding.binder, w, scope);
                         try w.writeAll(" = ");
                         try self.writeAllocation(binding.value, w, indent + 2, scope);
                     }
-                    try newline(w, indent);
+                    try print_scope.newline(w, indent);
                     try w.writeAll("in");
                 }
-                try newline(w, indent);
+                try print_scope.newline(w, indent);
                 try self.writeExpr(let.body, w, indent, scope);
             },
         }
     }
 
     /// The scope outside the innermost `n` nodes.
-    fn outside(scope: ?*Scope, n: usize) ?*Scope {
+    fn outside(scope: ?*print_scope.Scope, n: usize) ?*print_scope.Scope {
         var node = scope;
         for (0..n) |_| node = node.?.parent;
         return node;
     }
 
-    fn primesFor(self: Printer, g: Group, binder: core.SymbolId, scope: ?*Scope) u32 {
-        const spelling = self.interner.spelling(binder);
-        if (std.mem.eql(u8, spelling, "_")) return 0;
-        var primes: u32 = 0;
-        while (self.groupCaptures(g, binder, spelling, primes, scope)) primes += 1;
-        return primes;
-    }
-
-    fn groupCaptures(self: Printer, g: Group, binder: core.SymbolId, spelling: []const u8, primes: u32, scope: ?*Scope) bool {
+    fn groupCaptures(self: Printer, g: Group, binder: core.SymbolId, spelling: []const u8, primes: u32, scope: ?*print_scope.Scope) bool {
         const target: Target = .{ .binder = binder, .spelling = spelling, .primes = primes, .scope = scope };
         return switch (g) {
             .closure => |c| self.captures(c.body, target),
@@ -226,7 +204,7 @@ pub const Printer = struct {
         binder: core.SymbolId,
         spelling: []const u8,
         primes: u32,
-        scope: ?*Scope,
+        scope: ?*print_scope.Scope,
     };
 
     fn captures(self: Printer, e: stg.Expr, target: Target) bool {
@@ -282,32 +260,21 @@ pub const Printer = struct {
     fn symbolCaptures(self: Printer, id: core.SymbolId, target: Target) bool {
         return id != target.binder and
             std.mem.eql(u8, self.interner.spelling(id), target.spelling) and
-            self.outerPrimes(id, target.scope) == target.primes;
+            print_scope.outerPrimes(self.interner, id, target.scope) == target.primes;
     }
 
-    /// The primes `id` prints with if it is in scope or a global, else null.
-    fn outerPrimes(self: Printer, id: core.SymbolId, scope: ?*Scope) ?u32 {
-        var node = scope;
-        while (node) |n| : (node = n.parent) {
-            if (n.symbol == id) return n.primes;
-        }
-        const global = self.interner.by_spelling.get(self.interner.spelling(id)) orelse return null;
-        return if (global == id) 0 else null;
+    fn writeName(self: Printer, id: core.SymbolId, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {
+        try print_scope.writeName(self.interner, id, w, scope);
     }
 
-    fn writeName(self: Printer, id: core.SymbolId, w: *std.Io.Writer, scope: ?*Scope) Error!void {
-        try w.writeAll(self.interner.spelling(id));
-        try w.splatByteAll('\'', self.outerPrimes(id, scope) orelse 0);
-    }
-
-    fn writeLocal(self: Printer, local: stg.Local, w: *std.Io.Writer, scope: ?*Scope) Error!void {
+    fn writeLocal(self: Printer, local: stg.Local, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {
         try self.writeName(local.name, w, scope);
         try w.print("@{d}", .{local.offset});
     }
 
     const Position = enum { top, argument };
 
-    fn writeAtom(self: Printer, a: stg.Atom, w: *std.Io.Writer, position: Position, scope: ?*Scope) Error!void {
+    fn writeAtom(self: Printer, a: stg.Atom, w: *std.Io.Writer, position: Position, scope: ?*print_scope.Scope) Error!void {
         switch (a) {
             .local => |local| try self.writeLocal(local, w, scope),
             .global => |g| try w.writeAll(self.interner.spelling(g.symbol)),
@@ -324,16 +291,11 @@ pub const Printer = struct {
         }
     }
 
-    fn writeArguments(self: Printer, list: []const stg.Atom, w: *std.Io.Writer, scope: ?*Scope) Error!void {
+    fn writeArguments(self: Printer, list: []const stg.Atom, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {
         for (list) |a| {
             try w.writeByte(' ');
             try self.writeAtom(a, w, .argument, scope);
         }
-    }
-
-    fn newline(w: *std.Io.Writer, indent: usize) Error!void {
-        try w.writeByte('\n');
-        try w.splatByteAll(' ', indent);
     }
 
     fn isFlat(e: stg.Expr) bool {
@@ -371,7 +333,7 @@ const TestTerms = struct {
     }
 
     fn global(self: *TestTerms, name: []const u8) !core.SymbolId {
-        return try self.interner.intern(name, .vanilla);
+        return try self.interner.intern(.prelude, name, .vanilla);
     }
 
     fn local(self: *TestTerms, name: []const u8) !core.SymbolId {
@@ -429,7 +391,6 @@ const TestTerms = struct {
     fn alternative(self: *TestTerms, constructor: core.SymbolId, binders: []const core.SymbolId, body: stg.Expr) !stg.Alternative {
         return .{
             .constructor = constructor,
-            .tag = 0,
             .binders = try self.allocator().dupe(core.SymbolId, binders),
             .body = body,
         };

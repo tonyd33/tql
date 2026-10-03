@@ -1,14 +1,15 @@
-title: an alias may not replace a built-in type
+title: a primitive type takes no type arguments
 grammar: typescript
 asserts: error
 
 --- tql ---
-type Range = Int;
-main = const [];
+one :: Int String;
+one = 1;
+main root = [one];
 
 --- error ---
-error[symbol-collision]: `Range` is a built-in type
- --> 1:1
+error[type-mismatch]: `Int` takes 0 type argument(s), given 1
+ --> 1:8
   |
-1 | type Range = Int;
-  | ^^^^^^^^^^^^^^^^^
+1 | one :: Int String;
+  |        ^^^^^^^^^^

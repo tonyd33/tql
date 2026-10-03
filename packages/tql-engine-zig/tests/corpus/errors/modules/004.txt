@@ -1,0 +1,18 @@
+title: a module whose header names another module is rejected
+grammar: typescript
+asserts: error
+
+--- module A ---
+module B;
+a = 1;
+
+--- tql ---
+import A;
+main root = [a];
+
+--- error ---
+error[module-name-mismatch]: this module is imported as `A`
+ --> A:1:1
+  |
+1 | module B;
+  | ^^^^^^^^^

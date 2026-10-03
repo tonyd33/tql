@@ -1,0 +1,18 @@
+title: a syntax error inside an imported module points into that module
+grammar: typescript
+asserts: error
+
+--- module Broken ---
+module Broken;
+broken x = (x;
+
+--- tql ---
+import Broken;
+main root = [broken 1];
+
+--- error ---
+error[parse]: missing )
+ --> Broken:2:14
+  |
+2 | broken x = (x;
+  |              ^

@@ -30,6 +30,12 @@ const pcre2 = @import("regex.zig");
 /// The prelude, linked beneath every query.
 pub const prelude_source = @embedFile("prelude.tql");
 
+pub const load = @import("load.zig");
+pub const Loader = load.Loader;
+
+/// The libraries every host can import.
+pub const bundled_modules: []const load.Bundled = &.{};
+
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
 pub const Parser = parse.Parser;
@@ -42,45 +48,33 @@ pub const Config = struct {
     io: std.Io,
 };
 
-/// Force a `[a]` spine into its elements, appending them to `out`. Elements
-/// are left unforced, so the caller decides what to force and when.
-///
-/// Diverges on an infinite list.
-fn listElements(
-    machine: *stg.Machine,
-    gpa: Allocator,
-    head: stg.Value,
-    out: *std.ArrayList(*stg.Thunk),
-) !void {
-    const nil_tag = machine.program.structural.nil.tag;
-    var current = head;
-    while (true) {
-        const constructed = switch (current) {
-            .constructed => |c| c,
-            else => return error.TypeError,
-        };
-        if (constructed.tag == nil_tag) return;
-        if (constructed.len != 2) return error.TypeError;
-        const fields = constructed.fields();
-        try out.append(gpa, fields[0]);
-        current = try machine.force(fields[1]);
-    }
-}
-
 /// A "batteries-included" interface to the TQL primitives.
 pub const Engine = struct {
     config: Config,
     tql_parser: parse.Parser,
+    /// Where an imported module's source comes from, besides `bundled`.
+    loader: ?Loader = null,
+    bundled: []const load.Bundled = bundled_modules,
+    /// What the latest compilation read besides its query.
+    sources: diagnostic.Sources,
 
     pub fn init(config: Config) !Engine {
         return Engine{
             .config = config,
             .tql_parser = try parse.Parser.init(config.allocator),
+            .sources = .init(config.allocator),
         };
     }
 
     pub fn deinit(self: *Engine) void {
+        self.sources.deinit();
         self.tql_parser.deinit();
+    }
+
+    /// The source a span of the latest compilation points into, where
+    /// `entry` is its query.
+    pub fn sourceOf(self: *const Engine, id: diagnostic.SourceId, entry: diagnostic.Source) diagnostic.Source {
+        return self.sources.get(id, entry);
     }
 
     /// Parse a query, keeping the diagnostics rather than collapsing them into
@@ -89,35 +83,60 @@ pub const Engine = struct {
         self: *Engine,
         query_source: []const u8,
     ) !parse.ParseResult {
-        return try self.tql_parser.parseCollecting(query_source);
+        return try self.tql_parser.parseCollecting(query_source, .entry);
     }
 
-    /// Parse and desugar a query, then link it against the prelude into a
-    /// resolved program. Diagnostics are collected; the caller owns the result.
+    /// Parse and desugar a query, then link it against the prelude and every
+    /// module it imports into a resolved program. Diagnostics are collected;
+    /// the caller owns the result.
     pub fn desugarQuery(
         self: *Engine,
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
-        var parsed = try self.tql_parser.parseCollecting(query_source);
+        var parsed = try self.tql_parser.parseCollecting(query_source, .entry);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
-            for (parsed.diagnostics) |d| {
-                try sink.report(d.category, d.span, "{s}", .{d.message});
-            }
+            try sink.extend(parsed.diagnostics);
             return error.DesugarFailed;
         }
+        return try self.desugarParsed(parsed.source_file, g, sink);
+    }
 
+    /// `desugarQuery` for a query already parsed, without syntax errors.
+    pub fn desugarParsed(
+        self: *Engine,
+        query: cst.SourceFile,
+        g: *const Grammar,
+        sink: *diagnostic.Sink,
+    ) !core.Program {
+        self.sources.clear();
         var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
-        // Added first, so prelude names are registered before user declarations
-        // and a user definition colliding with one is rejected on insert.
-        try self.addPrelude(&desugarer, g, sink);
-        try desugarer.add(parsed.source_file, g, sink);
+        try self.addPrelude(&desugarer, sink);
 
-        return try desugarer.finish(parsed.source_file.span, sink);
+        var shipped: load.BundledLoader = .{ .modules = self.bundled };
+        var loaders: std.ArrayList(Loader) = .empty;
+        defer loaders.deinit(self.config.allocator);
+        if (self.loader) |l| try loaders.append(self.config.allocator, l);
+        try loaders.append(self.config.allocator, shipped.loader());
+
+        var graph: load.Graph = .{
+            .gpa = self.config.allocator,
+            .parser = &self.tql_parser,
+            .loaders = loaders.items,
+            .sources = &self.sources,
+        };
+        defer graph.deinit();
+        try graph.visitEntry(query, sink);
+        if (sink.hasErrors()) return error.DesugarFailed;
+        try graph.checkGrammars(g, sink);
+        if (sink.hasErrors()) return error.DesugarFailed;
+        try graph.link(&desugarer, g, sink);
+
+        return try desugarer.finish(query.span, sink);
     }
 
     /// Parse, desugar, link and type-check a query. Diagnostics are collected;
@@ -139,53 +158,20 @@ pub const Engine = struct {
     /// Parses and desugars `prelude.tql` into the link.
     ///
     /// Recompiled per link: a module's `SymbolId`s index the registry it was
-    /// desugared against, and a `:k` literal resolves its kind ID from the
-    /// grammar, so a cached one would be valid only per grammar and per
-    /// registry prefix.
+    /// desugared against, so a cached one would be valid only per registry
+    /// prefix. The prelude is grammar-generic.
     fn addPrelude(
         self: *Engine,
         desugarer: *tql_to_core.Desugarer,
-        g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !void {
-        var parsed = try self.tql_parser.parseCollecting(prelude_source);
+        const id = try self.sources.add(.{ .name = "prelude.tql", .text = prelude_source });
+        var parsed = try self.tql_parser.parseCollecting(prelude_source, id);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
         if (parsed.hasErrors()) return error.PreludeInvalid;
 
-        try desugarer.add(parsed.source_file, g, sink);
-    }
-
-    /// Parse, check, translate and run a query against a target file, writing
-    /// its outputs as JSON.
-    ///
-    /// `target_path` is what `filename` yields; a query run on text with no
-    /// path gets no output from it. Caller owns the returned JSON.
-    ///
-    /// The parsed target outlives the run: every node value points into it,
-    /// and serialization forces thunks after the outputs are collected.
-    pub fn evaluateQuery(
-        self: *Engine,
-        query_source: []const u8,
-        target_source: []const u8,
-        target_path: ?[]const u8,
-        g: *const Grammar,
-        sink: *diagnostic.Sink,
-        result_allocator: Allocator,
-    ) ![]const u8 {
-        var compiled = try self.compileQuery(query_source, g, sink);
-        defer compiled.deinit();
-
-        var arena: std.heap.ArenaAllocator = .init(self.config.allocator);
-        defer arena.deinit();
-
-        const outcome = try compiled.run(
-            target_source,
-            target_path,
-            result_allocator,
-            arena.allocator(),
-        );
-        return outcome.json;
+        try desugarer.add(.prelude, &.{}, parsed.source_file, null, sink);
     }
 
     /// Check and translate a query once, for running against many targets.
@@ -198,19 +184,8 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !CompiledQuery {
-        var checked = try self.checkQuery(query_source, g, sink);
-        errdefer checked.deinit();
-
-        try core_to_core.run(&checked);
-
-        const translated = try core_to_stg.translate(self.config.allocator, &checked);
-        return .{
-            .checked = checked,
-            .translated = translated,
-            .grammar = g,
-            .allocator = self.config.allocator,
-            .io = self.config.io,
-        };
+        const checked = try self.checkQuery(query_source, g, sink);
+        return try CompiledQuery.init(self.config.allocator, self.config.io, checked, g);
     }
 };
 
@@ -221,6 +196,24 @@ pub const CompiledQuery = struct {
     grammar: *const Grammar,
     allocator: Allocator,
     io: std.Io,
+
+    /// Simplify and translate `checked`, taking ownership of it even on
+    /// failure.
+    pub fn init(allocator: Allocator, io: std.Io, checked: core.Program, g: *const Grammar) !CompiledQuery {
+        var program = checked;
+        errdefer program.deinit();
+
+        try core_to_core.run(&program);
+
+        const translated = try core_to_stg.translate(allocator, &program);
+        return .{
+            .checked = program,
+            .translated = translated,
+            .grammar = g,
+            .allocator = allocator,
+            .io = io,
+        };
+    }
 
     pub fn deinit(self: *CompiledQuery) void {
         self.translated.deinit();
@@ -250,6 +243,21 @@ pub const CompiledQuery = struct {
         defer tree.destroy();
         const parse_time = parse_start.untilNow(self.io, .real);
 
+        var outcome = try self.runTree(tree, target, target_path, result_allocator, scratch);
+        outcome.parse_time = parse_time;
+        return outcome;
+    }
+
+    /// `run` against `target` already parsed into `tree`. The outcome's
+    /// `parse_time` is zero.
+    pub fn runTree(
+        self: *const CompiledQuery,
+        tree: *const ts.Tree,
+        target: []const u8,
+        target_path: ?[]const u8,
+        result_allocator: Allocator,
+        scratch: Allocator,
+    ) !RunOutcome {
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
@@ -263,27 +271,19 @@ pub const CompiledQuery = struct {
         root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
         const outputs = try machine.apply(try machine.force(entry), &.{root});
 
-        var elements: std.ArrayList(*stg.Thunk) = .empty;
-        defer elements.deinit(scratch);
-        try listElements(&machine, scratch, outputs, &elements);
-
         // Serialized here, while the tree is alive. A node value borrows it,
         // so it cannot outlive this call.
         var w: std.Io.Writer.Allocating = .init(result_allocator);
         errdefer w.deinit();
         var jws = std.json.Stringify{ .writer = &w.writer };
-        try jws.beginArray();
-        for (elements.items) |element| {
-            try machine.serialize(try machine.force(element), &jws);
-        }
-        try jws.endArray();
+        const count = try machine.serializeList(outputs, &jws);
 
         const query_time = query_start.untilNow(self.io, .real);
 
         return .{
             .json = try w.toOwnedSlice(),
-            .count = elements.items.len,
-            .parse_time = parse_time,
+            .count = count,
+            .parse_time = .zero,
             .query_time = query_time,
         };
     }
@@ -347,12 +347,11 @@ fn runQuery(
 
     const main_value = try machine.force(machine.global(program.entry).?);
     var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
-    try listElements(
-        &machine,
-        arena.allocator(),
-        try machine.apply(main_value, &.{&unit}),
-        out,
-    );
+    var current = try machine.apply(main_value, &.{&unit});
+    while (try machine.uncons(current)) |cell| {
+        try out.append(arena.allocator(), cell.head);
+        current = try machine.force(cell.tail);
+    }
 
     // Forced here, while the machine is alive, and copied out: a literal's
     // thunk belongs to the translated program, freed on return.
@@ -479,8 +478,104 @@ test "forcing a global cycle reports it rather than hanging" {
     var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
     defer machine.deinit();
 
-    const a = program.env.interner.lookup("a").?;
+    const a = program.entryDefinitions()[0].symbol;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
+}
+
+test "a record wider than a scheme can index is rejected at its literal" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var query: std.Io.Writer.Allocating = .init(allocator);
+    defer query.deinit();
+    const prefix = "main root = [";
+    try query.writer.writeAll(prefix ++ "{");
+    for (0..primitives.max_record_fields + 1) |i| {
+        if (i > 0) try query.writer.writeAll(", ");
+        try query.writer.print("f{d} = 1", .{i});
+    }
+    try query.writer.writeAll("}];");
+
+    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
+        query.written(),
+        try grammars.get("typescript"),
+        &sink,
+    ));
+    try std.testing.expectEqual(1, sink.items().len);
+    try std.testing.expectEqual(.type_mismatch, sink.items()[0].category);
+    try std.testing.expectEqual(prefix.len, sink.items()[0].span.start_byte);
+}
+
+test "a bundled module is importable with no loader" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery(
+        "import Lib; main root = [answer];",
+        try grammars.get("typescript"),
+        &sink,
+    );
+    defer program.deinit();
+}
+
+test "a module both bundled and loaded is ambiguous" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
+    var modules: load.BundledLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
+    engine.loader = modules.loader();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
+        "import Lib; main root = [answer];",
+        try grammars.get("typescript"),
+        &sink,
+    ));
+    try std.testing.expectEqual(1, sink.items().len);
+    try std.testing.expectEqual(.ambiguous_module, sink.items()[0].category);
+    try std.testing.expectEqualStrings("`Lib` is found as both `lib/Lib.tql` and `bundled/Lib.tql`", sink.items()[0].message);
+}
+
+test "a definition's span names the source it came from" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var program = try engine.desugarQuery("main = children;", g, &sink);
+    defer program.deinit();
+
+    const entry: diagnostic.Source = .{ .name = "q.tql", .text = "main = children;" };
+    for (program.definitions[0..program.entry_offset]) |d| {
+        const source = engine.sourceOf(d.span.source, entry);
+        try std.testing.expectEqualStrings("prelude.tql", source.name.?);
+        try std.testing.expectEqual(prelude_source.ptr, source.text.ptr);
+    }
+    for (program.entryDefinitions()) |d| {
+        try std.testing.expectEqual(entry, engine.sourceOf(d.span.source, entry));
+    }
 }
 
 test "the prelude's bodies compile to Core" {
@@ -502,10 +597,7 @@ test "the prelude's bodies compile to Core" {
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
     const printer: core.Printer = .{ .interner = &program.env.interner };
-    for (program.definitions[0..program.entry_offset], 0..) |definition, i| {
-        if (i > 0) try w.writer.writeByte('\n');
-        try printer.definition(definition.symbol, definition.body, &w.writer);
-    }
+    try printer.definitions(program.definitions[0..program.entry_offset], &w.writer);
 
     try std.testing.expectEqualStrings(
         \\identity = \x -> x

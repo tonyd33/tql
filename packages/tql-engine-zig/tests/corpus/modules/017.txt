@@ -1,0 +1,16 @@
+title: module keywords bind as local names
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  import <- [1, 2];
+  module <- [10];
+  return $ import + module;
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+[11, 12]

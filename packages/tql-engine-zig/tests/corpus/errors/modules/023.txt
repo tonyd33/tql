@@ -1,0 +1,14 @@
+title: a query cannot run under a grammar its for clause leaves out
+grammar: python
+asserts: error
+
+--- tql ---
+module Query for javascript, typescript;
+main root = [1];
+
+--- error ---
+error[grammar-mismatch]: this query is not written for `python`
+ --> 1:1
+  |
+1 | module Query for javascript, typescript;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

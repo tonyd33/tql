@@ -1,0 +1,22 @@
+title: a query without a header may import a module named Main
+grammar: typescript
+asserts: values
+
+--- module Helpers ---
+module Helpers;
+import Main;
+helper = answer + 1;
+
+--- module Main ---
+module Main;
+answer = 41;
+
+--- tql ---
+import Helpers;
+main root = [helper];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[42]

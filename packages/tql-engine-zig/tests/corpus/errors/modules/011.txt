@@ -1,0 +1,18 @@
+title: exporting a name the module does not declare is rejected
+grammar: typescript
+asserts: error
+
+--- module Square ---
+module Square (square, cube);
+square x = x * x;
+
+--- tql ---
+import Square;
+main root = [square 2];
+
+--- error ---
+error[unresolved-name]: `cube` is not declared in this module
+ --> Square:1:24
+  |
+1 | module Square (square, cube);
+  |                        ^^^^

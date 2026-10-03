@@ -1,0 +1,13 @@
+title: a query runs under a grammar its for clause names
+grammar: typescript
+asserts: values
+
+--- tql ---
+module Query for javascript, typescript;
+main root = [1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[1]

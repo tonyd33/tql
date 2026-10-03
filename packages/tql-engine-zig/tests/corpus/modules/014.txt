@@ -1,0 +1,32 @@
+title: modules imported by two modules are linked once
+grammar: typescript
+asserts: values
+
+--- module Base ---
+module Base;
+
+base = 10;
+
+--- module Left ---
+module Left;
+import Base;
+
+left = base + 1;
+
+--- module Right ---
+module Right;
+import Base;
+
+right = base + 2;
+
+--- tql ---
+import Left;
+import Right;
+
+main root = [left, right];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[11, 12]

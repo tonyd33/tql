@@ -137,6 +137,9 @@ pub const TestCase = struct {
     pending: SectionSet,
     query: Section,
     target: Section,
+    /// Modules the query may import, each from a `--- module Name ---`
+    /// section. Input, never compared.
+    modules: []const Module,
     /// Optional sections: content.len == 0 means not yet populated.
     source_tree: Section,
     tql_tree: Section,
@@ -189,6 +192,8 @@ pub const TestCase = struct {
         self.description.deinit(allocator);
         self.query.deinit(allocator);
         self.target.deinit(allocator);
+        for (self.modules) |m| m.deinit(allocator);
+        allocator.free(self.modules);
         self.source_tree.deinit(allocator);
         self.tql_tree.deinit(allocator);
         self.values.deinit(allocator);
@@ -197,6 +202,17 @@ pub const TestCase = struct {
         self.stg.deinit(allocator);
         self.types.deinit(allocator);
         self.@"error".deinit(allocator);
+    }
+};
+
+/// A module source a case supplies to the query.
+pub const Module = struct {
+    name: []const u8,
+    text: Section,
+
+    pub fn deinit(self: Module, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        self.text.deinit(allocator);
     }
 };
 
@@ -391,6 +407,11 @@ fn parseSections(
     errdefer if (types) |s| s.deinit(allocator);
     var err: ?Section = null;
     errdefer if (err) |s| s.deinit(allocator);
+    var modules: std.ArrayList(Module) = .empty;
+    errdefer {
+        for (modules.items) |m| m.deinit(allocator);
+        modules.deinit(allocator);
+    }
 
     while (p.peekLine()) |line| {
         _ = p.nextLine(); // consume the marker line just peeked
@@ -415,6 +436,12 @@ fn parseSections(
             types = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
             err = try extractSection(allocator, p);
+        } else if (moduleMarkerName(line)) |name| {
+            const owned = try allocator.dupe(u8, name);
+            errdefer allocator.free(owned);
+            const text = try extractSection(allocator, p);
+            errdefer text.deinit(allocator);
+            try modules.append(allocator, .{ .name = owned, .text = text });
         } else {
             return error.UnexpectedMarker;
         }
@@ -437,6 +464,7 @@ fn parseSections(
         .asserts = asserts,
         .pending = pending,
         .query = query orelse return error.MissingQuery,
+        .modules = try modules.toOwnedSlice(allocator),
         .target = target orelse try dupeSection(allocator, here),
         .source_tree = source_tree orelse try dupeSection(allocator, here),
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
@@ -466,7 +494,14 @@ fn isSectionMarker(line: []const u8) bool {
     for (ALL_SECTION_MARKERS) |marker| {
         if (std.mem.eql(u8, line, marker)) return true;
     }
-    return false;
+    return moduleMarkerName(line) != null;
+}
+
+/// `Name` when `line` is `--- module Name ---`.
+fn moduleMarkerName(line: []const u8) ?[]const u8 {
+    const rest = std.mem.cutPrefix(u8, line, "--- module ") orelse return null;
+    const name = std.mem.cutSuffix(u8, rest, " ---") orelse return null;
+    return if (name.len == 0) null else name;
 }
 
 /// Extracts section body up to (and not consuming) the next section marker.
@@ -721,6 +756,31 @@ test "parse single full case" {
     try testing.expectEqualStrings("[\"hello\"]", tc.values.content);
     try testing.expect(tc.asserts.has(.values));
     try testing.expect(!tc.asserts.has(.types));
+}
+
+test "a module section supplies a named module source" {
+    var handle = try parse(std.testing.allocator,
+        \\grammar: typescript
+        \\
+        \\--- module A.B ---
+        \\module A.B;
+        \\f = 1;
+        \\
+        \\--- tql ---
+        \\import A.B;
+        \\main = f;
+        \\
+        \\--- module C ---
+        \\module C;
+    );
+    defer handle.deinit();
+
+    const modules = handle.case.modules;
+    try std.testing.expectEqual(2, modules.len);
+    try std.testing.expectEqualStrings("A.B", modules[0].name);
+    try std.testing.expectEqualStrings("module A.B;\nf = 1;", modules[0].text.content);
+    try std.testing.expectEqualStrings("C", modules[1].name);
+    try std.testing.expectEqualStrings("import A.B;\nmain = f;", handle.case.query.content);
 }
 
 test "parse case with all optional sections empty yields empty content" {

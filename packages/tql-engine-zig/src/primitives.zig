@@ -8,104 +8,42 @@ const Allocator = std.mem.Allocator;
 const Scalar = core.Scalar;
 const PrimOp = core.PrimOp;
 
-/// Builds the primitive schemes into `arena`.
+/// The scheme of `primop`.
 ///
 /// `[a]` and `Bool` are declared types, so a scheme mentioning either needs
 /// the registry that declared them. Hence runtime rather than comptime.
-fn primitiveSchemes(
-    arena: Allocator,
-    declared: *const datatypes.Registry,
-    out: *std.ArrayList(Row),
-    gpa: Allocator,
-) !void {
-    const B = Builder{ .arena = arena, .declared = declared };
-
+fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
     const a = types.variable_type(0);
-
-    try out.append(gpa, .{
-        .name = "text",
-        .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
-        .primop = .text,
-    });
-    try out.append(gpa, .{
-        .name = "kind",
-        .scheme = .{ .type = try B.func(types.node_type, types.string_type) },
-        .primop = .kind,
-    });
-    try out.append(gpa, .{
-        .name = "is_named",
-        .scheme = .{ .type = try B.func(types.node_type, try B.boolType()) },
-        .primop = .is_named,
-    });
-    try out.append(gpa, .{
-        .name = "range",
-        .scheme = .{ .type = try B.func(types.node_type, types.range_type) },
-        .primop = .range,
-    });
-    try out.append(gpa, .{
-        .name = "length",
-        .scheme = .{
+    return switch (primop) {
+        .text, .kind => .{ .type = try B.func(types.node_type, types.string_type) },
+        .is_named => .{ .type = try B.func(types.node_type, try B.boolType()) },
+        .range => .{ .type = try B.func(types.node_type, types.range_type) },
+        .length => .{
             .quantified = 1,
-            .constraints = try arena.dupe(types.TypeClassConstraint, &.{
+            .constraints = try B.arena.dupe(types.TypeClassConstraint, &.{
                 .{ .class = .Sized, .type = a },
             }),
             .type = try B.func(a, types.int_type),
         },
-        .primop = .length,
-    });
-    try out.append(gpa, .{
-        .name = "toint",
-        .scheme = .{ .type = try B.filter(types.string_type, types.int_type) },
-        .primop = .toint,
-    });
-    try out.append(gpa, .{
-        .name = "filename",
-        .scheme = .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
-        .primop = .filename,
-    });
-    inline for (.{
-        .{ "parent", PrimOp.parent },
-        .{ "ancestors", PrimOp.ancestors },
-        .{ "children", PrimOp.children },
-        .{ "named_children", PrimOp.named_children },
-        .{ "descendants", PrimOp.descendants },
-        .{ "named_descendants", PrimOp.named_descendants },
-    }) |axis| {
-        try out.append(gpa, .{
-            .name = axis[0],
-            .scheme = .{ .type = try B.filter(types.node_type, types.node_type) },
-            .primop = axis[1],
-        });
-    }
-    try out.append(gpa, .{
-        .name = "is_kind",
-        .scheme = .{ .type = try B.func(
+        .toint => .{ .type = try B.filter(types.string_type, types.int_type) },
+        .filename => .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
+        .parent,
+        .ancestors,
+        .children,
+        .named_children,
+        .descendants,
+        .named_descendants,
+        => .{ .type = try B.filter(types.node_type, types.node_type) },
+        .is_kind => .{ .type = try B.func(
             types.kind_type,
             try B.func(types.node_type, try B.boolType()),
         ) },
-        .primop = .is_kind,
-    });
-    inline for (.{
-        .{ "of_kind", PrimOp.of_kind },
-        .{ "children_of_kind", PrimOp.children_of_kind },
-        .{ "descendants_of_kind", PrimOp.descendants_of_kind },
-    }) |row| {
-        try out.append(gpa, .{
-            .name = row[0],
-            .scheme = .{ .type = try B.func(
-                types.kind_type,
-                try B.filter(types.node_type, types.node_type),
-            ) },
-            .primop = row[1],
-        });
-    }
+        .of_kind, .children_of_kind, .descendants_of_kind => .{ .type = try B.func(
+            types.kind_type,
+            try B.filter(types.node_type, types.node_type),
+        ) },
+    };
 }
-
-const Row = struct {
-    name: []const u8,
-    scheme: types.Scheme,
-    primop: PrimOp,
-};
 
 /// Type construction against one arena and registry.
 const Builder = struct {
@@ -114,10 +52,6 @@ const Builder = struct {
 
     fn func(self: Builder, from: types.Type, to: types.Type) !types.Type {
         return try types.func(self.arena, from, to);
-    }
-
-    fn list(self: Builder, element: types.Type) !types.Type {
-        return try self.declared.list(self.arena, element);
     }
 
     fn filter(self: Builder, input: types.Type, output: types.Type) !types.Type {
@@ -151,6 +85,68 @@ pub fn operatorScheme(
     };
 }
 
+pub const max_record_fields = std.math.maxInt(types.TypeVar) - 1;
+
+pub const SchemeError = error{TooManyRecordFields} || Allocator.Error;
+
+/// The scheme of a synthesized symbol: `field[l]`, `op[+]`, `record[l,...]`
+/// or `select[l]`, built against `arena` and `declared`.
+pub fn synthesizedScheme(
+    arena: Allocator,
+    declared: *const datatypes.Registry,
+    synthesized: core.Synthesized,
+) SchemeError!types.Scheme {
+    const B = Builder{ .arena = arena, .declared = declared };
+    return switch (synthesized) {
+        // The field id is resolved and threaded, and deliberately unused: a
+        // field narrows the *value* but not yet the type.
+        .field => .{ .type = try B.filter(types.node_type, types.node_type) },
+        .operator => |operator| try operatorScheme(arena, declared, operator),
+        .record => |labels| try recordScheme(arena, labels),
+        .select => |label| try selectScheme(arena, label),
+    };
+}
+
+/// `record[l_1,...,l_n] : t_1 -> ... -> t_n -> {l_1: t_1, ..., l_n: t_n}`.
+///
+/// The one scheme whose *shape* depends on its symbol's metadata rather than
+/// its identity, so it is constructed per symbol with no table row. Quantifies
+/// one variable per field.
+fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.Scheme {
+    if (labels.len > max_record_fields) return error.TooManyRecordFields;
+
+    const fields = try arena.alloc(types.Type.Field, labels.len);
+    for (labels, fields, 0..) |label, *field, i| {
+        field.* = .{
+            .label = label,
+            .type = try types.store(arena, types.variable_type(@intCast(i))),
+        };
+    }
+
+    // Built right to left: the record is the innermost, each field type
+    // wrapping it in one more arrow.
+    var result: types.Type = .{ .record = .{ .fields = fields } };
+    var i = labels.len;
+    while (i > 0) {
+        i -= 1;
+        result = try types.func(arena, types.variable_type(@intCast(i)), result);
+    }
+
+    return .{ .quantified = @intCast(labels.len), .type = result };
+}
+
+/// `select[l] : forall t r. {l: t | r} -> t`.
+fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Scheme {
+    const field = types.variable_type(0);
+    const fields = try arena.alloc(types.Type.Field, 1);
+    fields[0] = .{ .label = label, .type = try types.store(arena, field) };
+    const subject: types.Type = .{ .record = .{
+        .fields = fields,
+        .rest = try types.store(arena, types.variable_type(1)),
+    } };
+    return .{ .quantified = 2, .type = try types.func(arena, subject, field) };
+}
+
 /// `class a => a -> a -> Bool`.
 fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.Scheme {
     const a = types.variable_type(0);
@@ -163,20 +159,18 @@ fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.S
     };
 }
 
-/// Declares the structural types, then interns the primitives with their
+/// Declares the built-in types, then interns the primitives with their
 /// schemes. Called once on a fresh environment, before any body is resolved,
 /// so a declaration colliding with a primitive's name fails on intern.
 pub fn populate(target: *core.env.Env) !void {
-    const arena = target.allocator();
-    try target.datatypes.reserveStructural(&target.interner);
+    try target.datatypes.reserveBuiltins(&target.interner);
 
-    var rows: std.ArrayList(Row) = .empty;
-    defer rows.deinit(target.gpa);
-    try primitiveSchemes(arena, &target.datatypes, &rows, target.gpa);
-
-    for (rows.items) |row| {
-        const id = try target.interner.intern(row.name, .{ .primop = row.primop });
-        try target.setScheme(id, row.scheme);
+    const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
+    for (std.enums.values(PrimOp)) |primop| {
+        const scheme = try schemeOf(B, primop);
+        const id = try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
+        try target.setScheme(id, scheme);
+        target.primitives.set(primop, id);
     }
 }
 
@@ -187,8 +181,6 @@ fn fixture(gpa: Allocator) !core.env.Env {
     try populate(&target);
     return target;
 }
-
-const test_support = @import("core/test_support.zig");
 
 test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
@@ -201,19 +193,17 @@ test "primitives are the documented set" {
         "descendants_of_kind",
     };
 
-    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena.deinit();
-    var declared = datatypes.Registry.init(arena.allocator());
-    var interner = core.Interner.init(arena.allocator());
-    try test_support.declareStructural(&declared, &interner, arena.allocator());
+    var target = try fixture(std.testing.allocator);
+    defer target.deinit();
 
-    var rows: std.ArrayList(Row) = .empty;
-    defer rows.deinit(std.testing.allocator);
-    try primitiveSchemes(arena.allocator(), &declared, &rows, std.testing.allocator);
-
-    try std.testing.expectEqual(expected.len, rows.items.len);
-    for (expected, rows.items) |name, row| {
-        try std.testing.expectEqualStrings(name, row.name);
+    var interned: usize = 0;
+    for (std.enums.values(PrimOp)) |primop| {
+        if (target.interner.lookup(.prelude, @tagName(primop)) != null) interned += 1;
+    }
+    try std.testing.expectEqual(expected.len, interned);
+    for (expected) |name| {
+        const id = target.interner.lookup(.prelude, name) orelse return error.Missing;
+        try std.testing.expectEqualStrings(name, @tagName(target.interner.details(id).primop));
     }
 }
 
@@ -221,7 +211,7 @@ test "every primitive is interned, and its scheme and primop are recorded" {
     var target = try fixture(std.testing.allocator);
     defer target.deinit();
 
-    const text = target.interner.lookup("text") orelse return error.Missing;
+    const text = target.interner.lookup(.prelude, "text") orelse return error.Missing;
     try std.testing.expectEqualStrings("text", target.interner.spelling(text));
     try std.testing.expectEqual(PrimOp.text, target.interner.details(text).primop);
     try std.testing.expect(target.schemeOf(text) != null);
@@ -233,7 +223,7 @@ test "a declaration colliding with a primitive's name is rejected" {
 
     try std.testing.expectError(
         error.Collision,
-        target.interner.intern("children", .vanilla),
+        target.interner.intern(.prelude, "children", .vanilla),
     );
 }
 
@@ -243,15 +233,9 @@ test "operator schemes take scalars, not filters" {
     defer target.deinit();
     const arena = target.allocator();
 
-    var buf: std.Io.Writer.Allocating = .init(gpa);
-    defer buf.deinit();
+    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{try operatorScheme(arena, &target.datatypes, .eq)});
 
-    try (try operatorScheme(arena, &target.datatypes, .eq)).format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
-
-    buf.clearRetainingCapacity();
-    try (try operatorScheme(arena, &target.datatypes, .add)).format(&buf.writer);
-    try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
+    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{try operatorScheme(arena, &target.datatypes, .add)});
 
     // Every operator has one, so a new member fails here rather than at
     // evaluation.

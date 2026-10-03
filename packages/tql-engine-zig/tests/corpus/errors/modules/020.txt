@@ -1,0 +1,18 @@
+title: a query cannot import a module not written for its grammar
+grammar: python
+asserts: error
+
+--- module Classes ---
+module Classes for javascript, typescript, tsx;
+classes root = descendants_of_kind :class_declaration root;
+
+--- tql ---
+import Classes;
+main root = classes root;
+
+--- error ---
+error[grammar-mismatch]: `Classes` is not written for `python`
+ --> 1:1
+  |
+1 | import Classes;
+  | ^^^^^^^^^^^^^^^

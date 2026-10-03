@@ -1,0 +1,14 @@
+title: a prelude name hidden by an explicit import is out of scope
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude hiding (keep);
+main root = keep 1;
+
+--- error ---
+error[unresolved-name]: `keep` is not defined
+ --> 2:13
+  |
+2 | main root = keep 1;
+  |             ^^^^

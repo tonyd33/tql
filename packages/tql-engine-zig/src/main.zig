@@ -40,6 +40,7 @@ const main_cmds = .{
             .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
             .workers = Opt{ .names = .{ .long = "workers", .short = 'w' }, .has_arg = .required_argument, .meta = "n", .description = "Number of workers (default: 1)" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
+            .include = Opt{ .names = .{ .long = "include", .short = 'I' }, .has_arg = .required_argument, .meta = "dir", .description = "Search dir for imported modules; repeatable" },
             .progress = Opt{ .names = .{ .long = "progress" }, .description = "Show progress" },
             .format = Opt{ .names = .{ .long = "format" }, .has_arg = .required_argument, .meta = "format", .description = "Output format: text, json (default: text)" },
         },
@@ -76,6 +77,7 @@ const main_cmds = .{
             .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
             .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
             .grammar = Opt{ .names = .{ .long = "grammar", .short = 'g' }, .has_arg = .required_argument, .meta = "grammar", .description = "Grammar" },
+            .include = Opt{ .names = .{ .long = "include", .short = 'I' }, .has_arg = .required_argument, .meta = "dir", .description = "Search dir for imported modules; repeatable" },
         },
     },
 };
@@ -229,13 +231,8 @@ fn runQuery(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter, &arg_diagnostic);
@@ -246,6 +243,8 @@ fn runQuery(
     var grammar: ?*const Grammar = null;
     var progress = false;
     var format: OutputFormat = .text;
+    var includes: std.ArrayList([]const u8) = .empty;
+    defer includes.deinit(gpa);
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -264,14 +263,13 @@ fn runQuery(
                         return @intFromEnum(ExitCode.invalid_args);
                     }
                 },
-                .grammar => grammar = registry.get(kv.value) catch |err| {
-                    try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
-                    return @intFromEnum(ExitCode.invalid_args);
-                },
+                .grammar => grammar = try grammars.get(kv.value, stderr) orelse
+                    return @intFromEnum(ExitCode.invalid_args),
                 .format => format = std.meta.stringToEnum(OutputFormat, kv.value) orelse {
                     try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
                     return @intFromEnum(ExitCode.invalid_args);
                 },
+                .include => try includes.append(gpa, kv.value),
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -284,18 +282,9 @@ fn runQuery(
 
     // If --from-file, positionals are all target files.
     // Otherwise, first positional is the inline query, rest are target files.
-    const query: []const u8 = if (from_file) |query_file| blk: {
-        break :blk readQueryFile(io, gpa, query_file) catch |err| {
-            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
-            return @intFromEnum(ExitCode.invalid_args);
-        };
-    } else blk: {
-        if (positionals.items.len == 0) {
-            try stderr.print("Error: query is required\n", .{});
-            try printUsage(query_cmd, stderr);
-            return @intFromEnum(ExitCode.invalid_args);
-        }
-        break :blk try gpa.dupe(u8, positionals.items[0]);
+    const query = try loadQuery(io, gpa, from_file, positionals.items, stderr) orelse {
+        if (from_file == null) try printUsage(query_cmd, stderr);
+        return @intFromEnum(ExitCode.invalid_args);
     };
     defer gpa.free(query);
 
@@ -311,15 +300,17 @@ fn runQuery(
         return @intFromEnum(ExitCode.invalid_args);
     };
 
+    const module_roots = try moduleRoots(gpa, from_file, includes.items, environ_map);
+    defer gpa.free(module_roots);
+
     return run(gpa, io, stdout, stderr, .{
         .query = query,
         .query_path = from_file,
+        .module_roots = module_roots,
         .query_target_paths = files,
         .format = format,
         .grammar = grammar_resolved,
         .workers = workers,
-        .stats = false,
-        .verbose = false,
         .progress = progress,
     }) catch |err| {
         try stderr.print("Error: {}\n", .{err});
@@ -337,13 +328,8 @@ fn runInspect(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = ArgTokenizer(main_cmds.inspect.opts).init(iter, &arg_diagnostic);
@@ -364,10 +350,8 @@ fn runInspect(
                 .named => options.named_only = true,
             },
             .named_arg => |kv| switch (kv.field) {
-                .grammar => grammar = registry.get(kv.value) catch |err| {
-                    try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
-                    return @intFromEnum(ExitCode.invalid_args);
-                },
+                .grammar => grammar = try grammars.get(kv.value, stderr) orelse
+                    return @intFromEnum(ExitCode.invalid_args),
                 .kind => try kind_names.append(gpa, kv.value),
                 .format => format = std.meta.stringToEnum(InspectFormat, kv.value) orelse {
                     try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
@@ -486,7 +470,7 @@ const InspectTarget = struct {
     written: bool = false,
 
     fn inspect(self: *InspectTarget, arena: std.mem.Allocator, path: []const u8) !void {
-        const source = try readTarget(self.io, arena, path);
+        const source = try std.Io.Dir.cwd().readFileAlloc(self.io, path, arena, .unlimited);
         const tree = self.parser.parseString(source, null) orelse return error.SourceParseFailed;
         defer tree.destroy();
 
@@ -535,13 +519,6 @@ const InspectTarget = struct {
         }
     }
 };
-
-fn readTarget(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
-    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
-    defer file.close(io);
-    var file_reader = file.reader(io, &.{});
-    return file_reader.interface.allocRemaining(gpa, .unlimited);
-}
 
 fn runGrammar(
     io: std.Io,
@@ -598,15 +575,10 @@ fn listGrammars(
     environ_map: *const std.process.Environ.Map,
     stderr: *std.Io.Writer,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
-    const dyn = try registry.listDynamic(io);
+    const dyn = try grammars.registry.listDynamic(io);
     defer {
         for (dyn) |d| {
             gpa.free(d.name);
@@ -645,6 +617,8 @@ fn runDebug(
 
     var from_file: ?[]const u8 = null;
     var grammar_name: ?[]const u8 = null;
+    var includes: std.ArrayList([]const u8) = .empty;
+    defer includes.deinit(gpa);
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -656,6 +630,7 @@ fn runDebug(
             .named_arg => |kv| switch (kv.field) {
                 .from_file => from_file = kv.value,
                 .grammar => grammar_name = kv.value,
+                .include => try includes.append(gpa, kv.value),
             },
             .positional => |p| try positionals.append(gpa, p),
         }
@@ -668,7 +643,11 @@ fn runDebug(
 
     switch (SubcmdResolver(debug_subcmds).match(positionals.items[0])) {
         .subcmd => |s| switch (s) {
-            .@"dump-instructions" => return runDumpInstructions(io, gpa, stdout, stderr, environ_map, from_file, grammar_name, positionals.items[1..]),
+            .@"dump-instructions" => {
+                const module_roots = try moduleRoots(gpa, from_file, includes.items, environ_map);
+                defer gpa.free(module_roots);
+                return runDumpInstructions(io, gpa, stdout, stderr, environ_map, from_file, module_roots, grammar_name, positionals.items[1..]);
+            },
         },
         .unknown => |w| {
             try stderr.print("Error: unknown debug subcommand '{s}'\n", .{w});
@@ -694,16 +673,143 @@ fn reportArgError(stderr: *std.Io.Writer, err: goz.ParseError, diag: goz.Diagnos
     return @intFromEnum(ExitCode.invalid_args);
 }
 
-fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
-    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
-    defer file.close(io);
-    var file_reader = file.reader(io, &.{});
-    return file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+/// Where imports are searched, in order: the query file's directory, each
+/// `-I` directory, then each directory in `TQL_PATH`. An inline query has no
+/// directory of its own. The slices borrow from the arguments and `env`.
+fn moduleRoots(
+    gpa: std.mem.Allocator,
+    query_path: ?[]const u8,
+    includes: []const []const u8,
+    env: *const std.process.Environ.Map,
+) ![]const []const u8 {
+    var roots: std.ArrayList([]const u8) = .empty;
+    errdefer roots.deinit(gpa);
+    if (query_path) |p| try roots.append(gpa, std.fs.path.dirname(p) orelse ".");
+    try roots.appendSlice(gpa, includes);
+    if (env.get("TQL_PATH")) |path| {
+        var it = std.mem.splitScalar(u8, path, std.fs.path.delimiter);
+        while (it.next()) |part| {
+            if (part.len > 0) try roots.append(gpa, part);
+        }
+    }
+    return try roots.toOwnedSlice(gpa);
 }
+
+/// Serves module `A.B` from `A/B.tql` under the first root holding it.
+const FileLoader = struct {
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    roots: []const []const u8,
+    /// Each file read, freed with the loader.
+    read: std.ArrayList(tql.diagnostic.Source) = .empty,
+    /// Why the latest load failed, if it did.
+    failure: std.ArrayList(u8) = .empty,
+
+    fn deinit(self: *FileLoader) void {
+        for (self.read.items) |source| {
+            self.gpa.free(source.name.?);
+            self.gpa.free(source.text);
+        }
+        self.read.deinit(self.gpa);
+        self.failure.deinit(self.gpa);
+    }
+
+    fn loader(self: *FileLoader) tql.Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
+        const self: *FileLoader = @ptrCast(@alignCast(context));
+        return self.find(name) catch |err| .{ .failed = @errorName(err) };
+    }
+
+    fn find(self: *FileLoader, name: []const u8) !tql.load.Loaded {
+        const relative = try std.mem.concat(self.gpa, u8, &.{ name, ".tql" });
+        defer self.gpa.free(relative);
+        std.mem.replaceScalar(u8, relative[0..name.len], '.', std.fs.path.sep);
+
+        for (self.roots) |root| {
+            const path = try std.fs.path.join(self.gpa, &.{ root, relative });
+            const text = readQueryFile(self.io, self.gpa, path) catch |err| {
+                defer self.gpa.free(path);
+                switch (err) {
+                    // The root does not hold the module, or is not a directory.
+                    error.FileNotFound, error.NotDir => continue,
+                    else => {
+                        self.failure.clearRetainingCapacity();
+                        try self.failure.print(self.gpa, "`{s}`: {t}", .{ path, err });
+                        return .{ .failed = self.failure.items };
+                    },
+                }
+            };
+            const source: tql.diagnostic.Source = .{ .name = path, .text = text };
+            self.read.append(self.gpa, source) catch |err| {
+                self.gpa.free(path);
+                self.gpa.free(text);
+                return err;
+            };
+            return .{ .found = source };
+        }
+        return .missing;
+    }
+};
+
+fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
+    return std.Io.Dir.cwd().readFileAlloc(io, path, gpa, .limited(10 * 1024 * 1024));
+}
+
+/// Returns the query, read from `from_file` or else taken from the first
+/// positional, or null after reporting why there is none. The caller owns it.
+fn loadQuery(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    from_file: ?[]const u8,
+    positionals: []const []const u8,
+    stderr: *std.Io.Writer,
+) !?[]u8 {
+    if (from_file) |path| {
+        return readQueryFile(io, gpa, path) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ path, err });
+            return null;
+        };
+    }
+    if (positionals.len == 0) {
+        try stderr.print("Error: query is required\n", .{});
+        return null;
+    }
+    return try gpa.dupe(u8, positionals[0]);
+}
+
+/// The grammar registry over the search paths the environment names.
+const Grammars = struct {
+    search_paths: []const []const u8,
+    registry: tql.GrammarRegistry,
+
+    fn init(gpa: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Grammars {
+        const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
+        return .{ .search_paths = search_paths, .registry = tql.GrammarRegistry.init(gpa, search_paths) };
+    }
+
+    fn deinit(self: *Grammars, gpa: std.mem.Allocator) void {
+        self.registry.deinit();
+        for (self.search_paths) |p| gpa.free(p);
+        gpa.free(self.search_paths);
+    }
+
+    /// Returns the grammar named `name`, or null after reporting that it was
+    /// not found.
+    fn get(self: *Grammars, name: []const u8, stderr: *std.Io.Writer) !?*const Grammar {
+        return self.registry.get(name) catch |err| {
+            try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ name, err });
+            return null;
+        };
+    }
+};
 
 /// Print every diagnostic a compilation collected, one per line, with the
 /// source line it points at.
 fn reportDiagnostics(
+    engine: *const Engine,
     sink: *const tql.diagnostic.Sink,
     source: []const u8,
     path: ?[]const u8,
@@ -711,7 +817,7 @@ fn reportDiagnostics(
 ) !void {
     for (sink.items(), 0..) |d, i| {
         if (i > 0) try stderr.writeByte('\n');
-        try d.render(stderr, source, path);
+        try d.render(stderr, engine.sourceOf(d.span.source, .{ .name = path, .text = source }));
     }
 }
 
@@ -722,29 +828,15 @@ fn runDumpInstructions(
     stderr: *std.Io.Writer,
     environ_map: *const std.process.Environ.Map,
     from_file: ?[]const u8,
+    module_roots: []const []const u8,
     grammar_name: ?[]const u8,
     positionals: []const []const u8,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
-    const query: []const u8 = if (from_file) |query_file| blk: {
-        break :blk readQueryFile(io, gpa, query_file) catch |err| {
-            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
-            return @intFromEnum(ExitCode.invalid_args);
-        };
-    } else blk: {
-        if (positionals.len == 0) {
-            try stderr.print("Error: query is required\n", .{});
-            return @intFromEnum(ExitCode.invalid_args);
-        }
-        break :blk try gpa.dupe(u8, positionals[0]);
-    };
+    const query = try loadQuery(io, gpa, from_file, positionals, stderr) orelse
+        return @intFromEnum(ExitCode.invalid_args);
     defer gpa.free(query);
 
     const gname = grammar_name orelse {
@@ -752,30 +844,28 @@ fn runDumpInstructions(
         return @intFromEnum(ExitCode.invalid_args);
     };
 
-    const grammar = registry.get(gname) catch |err| {
-        try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ gname, err });
+    const grammar = try grammars.get(gname, stderr) orelse
         return @intFromEnum(ExitCode.invalid_args);
-    };
 
     var engine = try Engine.init(.{ .allocator = gpa, .io = io });
     defer engine.deinit();
+    var files: FileLoader = .{ .io = io, .gpa = gpa, .roots = module_roots };
+    defer files.deinit();
+    engine.loader = files.loader();
 
     var sink = tql.diagnostic.Sink.init(gpa);
     defer sink.deinit();
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, query, from_file, stderr);
+        try reportDiagnostics(&engine, &sink, query, from_file, stderr);
         if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
     defer compiled.deinit();
 
     const printer = tql.stg.Printer{ .interner = &compiled.checked.env.interner };
-    for (compiled.translated.definitions) |definition| {
-        try stdout.print("{s} = ", .{compiled.checked.env.interner.spelling(definition.symbol)});
-        try printer.closure(definition.value, stdout);
-        try stdout.writeAll("\n");
-    }
+    try printer.definitions(compiled.translated.definitions, stdout);
+    try stdout.writeByte('\n');
 
     return @intFromEnum(ExitCode.success);
 }
@@ -784,12 +874,12 @@ const Config = struct {
     query: []const u8,
     /// The file `query` was read from, or null for an inline query.
     query_path: ?[]const u8,
+    /// Where `import A.B` looks for `A/B.tql`, in order.
+    module_roots: []const []const u8,
     query_target_paths: []const []const u8,
     format: OutputFormat,
     grammar: *const Grammar,
     workers: usize = 1,
-    stats: bool,
-    verbose: bool,
     progress: bool,
 };
 
@@ -1126,12 +1216,15 @@ fn run(
         .io = io,
     });
     defer engine.deinit();
+    var files: FileLoader = .{ .io = io, .gpa = allocator, .roots = config.module_roots };
+    defer files.deinit();
+    engine.loader = files.loader();
 
     var sink = tql.diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, config.query, config.query_path, stderr);
+        try reportDiagnostics(&engine, &sink, config.query, config.query_path, stderr);
         if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
@@ -1199,4 +1292,29 @@ fn run(
 
     if (progress.failed.load(.monotonic) > 0) return @intFromEnum(ExitCode.runtime_error);
     return @intFromEnum(ExitCode.success);
+}
+
+test "imports search the query's directory, then -I, then TQL_PATH" {
+    const gpa = std.testing.allocator;
+    var env = std.process.Environ.Map.init(gpa);
+    defer env.deinit();
+    try env.put("TQL_PATH", "/env/a::/env/b");
+
+    const roots = try moduleRoots(gpa, "rules/q.tql", &.{ "lib", "vendor" }, &env);
+    defer gpa.free(roots);
+    try std.testing.expectEqual(5, roots.len);
+    for ([_][]const u8{ "rules", "lib", "vendor", "/env/a", "/env/b" }, roots) |expected, root| {
+        try std.testing.expectEqualStrings(expected, root);
+    }
+}
+
+test "an inline query searches only -I and TQL_PATH" {
+    const gpa = std.testing.allocator;
+    var env = std.process.Environ.Map.init(gpa);
+    defer env.deinit();
+
+    const roots = try moduleRoots(gpa, null, &.{"lib"}, &env);
+    defer gpa.free(roots);
+    try std.testing.expectEqual(1, roots.len);
+    try std.testing.expectEqualStrings("lib", roots[0]);
 }

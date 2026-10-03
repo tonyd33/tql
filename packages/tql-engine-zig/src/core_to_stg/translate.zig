@@ -35,7 +35,7 @@ const Callee = union(enum) {
     local: core.SymbolId,
     global: stg.Global,
     constructor: *const datatypes.Constructor,
-    primitive: core.PrimOp,
+    primitive: core.Operation,
 };
 
 /// Bindings an expression needed before it could be written, in allocation
@@ -85,12 +85,13 @@ pub const Translator = struct {
     }
 
     /// What `name` denotes if it is synthesized, copied into the program.
-    fn synthesized(self: *Translator, name: core.SymbolId) Error!?core.Synthesized {
-        const source = switch (self.program.env.interner.details(name)) {
+    /// `operation`, with a synthesized payload copied into the program.
+    fn owned(self: *Translator, operation: core.Operation) Error!core.Operation {
+        const source = switch (operation) {
             .synthesized => |s| s,
-            else => return null,
+            .builtin => return operation,
         };
-        return switch (source) {
+        return .{ .synthesized = switch (source) {
             .field => |f| .{ .field = .{
                 .name = try self.arena.dupe(u8, f.name),
                 .id = f.id,
@@ -102,7 +103,7 @@ pub const Translator = struct {
                 break :blk .{ .record = copies };
             },
             .select => |label| .{ .select = try self.arena.dupe(u8, label) },
-        };
+        } };
     }
 
     /// Lower a Core literal to its evaluated thunk, compiling a regex pattern
@@ -136,28 +137,12 @@ pub const Translator = struct {
     /// Where `name` sits in the environment of the closure being translated.
     fn place(self: *Translator, name: core.SymbolId) Error!stg.Local {
         // Innermost first, so the scope reads as a stack.
-        var i = self.scope.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.scope.items[i] == name) {
-                return .{ .offset = @intCast(i), .name = name };
-            }
+        if (std.mem.lastIndexOfScalar(core.SymbolId, self.scope.items, name)) |i| {
+            return .{ .offset = @intCast(i), .name = name };
         }
         // Reached only for a name no enclosing binder introduced, which the
         // free-variable pass would have captured.
         return error.UnboundLocal;
-    }
-
-    /// Whether a symbol is a local rather than something reached by identity.
-    pub fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
-        const self: *const Translator = @ptrCast(@alignCast(context));
-        // A constructor, primitive or synthesized symbol is reached by
-        // identity. Missing one here makes a closure try to capture it.
-        switch (self.program.env.interner.details(symbol)) {
-            .constructor, .primop, .synthesized => return false,
-            .vanilla => {},
-        }
-        return self.global(symbol) == null;
     }
 
     fn resolve(self: *Translator, name: core.SymbolId) Callee {
@@ -165,9 +150,9 @@ pub const Translator = struct {
             .constructor => |c| return .{
                 .constructor = &self.program.env.datatypes.get(c.owner).constructors[c.tag],
             },
-            .primop => |primop| return .{ .primitive = primop },
+            .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
             // A synthesized symbol lowers like a primitive.
-            .synthesized => |s| return .{ .primitive = s.primop() },
+            .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
             .vanilla => {},
         }
         if (self.global(name)) |g| return .{ .global = g };
@@ -215,8 +200,8 @@ pub const Translator = struct {
                 },
                 // A primitive passed as a value, as `select p = branch p
                 // identity empty` passes both of its arms.
-                .primitive => |primop| {
-                    const wrapper = try self.primitiveWrapper(name, primop);
+                .primitive => |operation| {
+                    const wrapper = try self.primitiveWrapper(name, operation);
                     return try self.bindClosure(wrapper, hoisted);
                 },
             },
@@ -325,10 +310,10 @@ pub const Translator = struct {
 
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |source, *alternative| {
-                    const constructor = self.program.env.datatypes.constructorOf(
+                    if (self.program.env.datatypes.constructorOf(
                         &self.program.env.interner,
                         source.constructor,
-                    ) orelse return error.Unsupported;
+                    ) == null) return error.Unsupported;
                     const binders = try self.arena.dupe(core.SymbolId, source.binders);
 
                     // In scope for this alternative's body only, and pushed in
@@ -339,7 +324,6 @@ pub const Translator = struct {
 
                     alternative.* = .{
                         .constructor = source.constructor,
-                        .tag = constructor.tag,
                         .binders = binders,
                         .body = try self.expression(source.body),
                     };
@@ -381,7 +365,7 @@ pub const Translator = struct {
             .bind => |bind_term| {
                 // `bind x <- v in body` is `concat_map (\x -> body) v`, an
                 // ordinary call. The evaluator never sees a bind.
-                const concat_map = self.program.env.interner.lookup("concat_map") orelse
+                const concat_map = self.program.env.interner.lookup(.prelude, "concat_map") orelse
                     return error.Unsupported;
 
                 const source = try self.atomize(bind_term.value, hoisted);
@@ -430,7 +414,7 @@ pub const Translator = struct {
                     };
                     return .{ .apply = node };
                 },
-                .primitive => |primop| {
+                .primitive => |operation| {
                     // A primitive node is saturated by construction, so the
                     // evaluator runs it without an arity check. An
                     // under-applied one becomes a call to its wrapper.
@@ -438,15 +422,14 @@ pub const Translator = struct {
                     if (arguments.len == wanted) {
                         const node = try self.arena.create(stg.Expr.Primitive);
                         node.* = .{
-                            .primop = primop,
+                            .operation = try self.owned(operation),
                             .symbol = head.kind.symbol,
-                            .synthesized = try self.synthesized(head.kind.symbol),
                             .arguments = arguments,
                         };
                         return .{ .primitive = node };
                     }
 
-                    const wrapper = try self.primitiveWrapper(head.kind.symbol, primop);
+                    const wrapper = try self.primitiveWrapper(head.kind.symbol, operation);
                     const node = try self.arena.create(stg.Expr.Apply);
                     node.* = .{
                         .callee = try self.bindClosure(wrapper, hoisted),
@@ -470,18 +453,6 @@ pub const Translator = struct {
     /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
     /// primitive counts its input, making `pure` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
-        // A synthesized symbol has no row in the primitive table.
-        switch (self.program.env.interner.details(name)) {
-            // `field[l]` is `Filter Node Node` and `select[l]` takes the
-            // record, one argument each; an operator takes two scalars.
-            .synthesized => |s| return switch (s) {
-                .field, .select => 1,
-                .operator => 2,
-                .record => |labels| @intCast(labels.len),
-            },
-            else => {},
-        }
-
         const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
         var arity: u32 = 0;
         var walk = scheme.type;
@@ -494,7 +465,7 @@ pub const Translator = struct {
     fn primitiveWrapper(
         self: *Translator,
         name: core.SymbolId,
-        primop: core.PrimOp,
+        operation: core.Operation,
     ) Error!*const stg.Closure {
         const arity = try self.primitiveArity(name);
         if (arity == 0) return error.Unsupported;
@@ -510,9 +481,8 @@ pub const Translator = struct {
 
         const call_node = try self.arena.create(stg.Expr.Primitive);
         call_node.* = .{
-            .primop = primop,
+            .operation = try self.owned(operation),
             .symbol = name,
-            .synthesized = try self.synthesized(name),
             .arguments = arguments,
         };
 
@@ -575,11 +545,7 @@ pub const Translator = struct {
         parameters: []const core.SymbolId,
         body: core.Term,
     ) Error!*const stg.Closure {
-        var collector: free.Collector = .{
-            .gpa = self.gpa,
-            .is_local = isLocal,
-            .context = self,
-        };
+        var collector: free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
         defer collector.deinit();
 
         for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);

@@ -46,6 +46,8 @@ export interface QueryArgs {
   querySource: string;
   queryTarget: string;
   grammar: Grammar;
+  /** Sources the query may import, by module name. */
+  modules?: Record<string, string>;
 }
 
 export interface QueryStats {
@@ -84,10 +86,14 @@ interface WasmExports {
   tql_free(ptr: number, len: number): void;
   tql_run_dynamic(
     languagePtr: number,
+    grammarNamePtr: number,
+    grammarNameLen: number,
     queryPtr: number,
     queryLen: number,
     targetPtr: number,
     targetLen: number,
+    modulesPtr: number,
+    modulesLen: number,
     outPtr: number,
   ): void;
   tql_parse_tree(
@@ -240,22 +246,28 @@ class TqlEngine implements Engine {
 
   query(args: QueryArgs): QueryResult {
     const { exp } = this;
+    const grammarName = this.writeStr(args.grammar.name);
     const query = this.writeStr(args.querySource);
     const target = this.writeStr(args.queryTarget);
+    const modules = this.writeStr(JSON.stringify(args.modules ?? {}));
+    const inputs = [grammarName, query, target, modules];
     const outPtr = exp.tql_alloc(RESULT_SIZE);
     if (outPtr === 0) {
-      exp.tql_free(query.ptr, query.len);
-      exp.tql_free(target.ptr, target.len);
+      for (const input of inputs) exp.tql_free(input.ptr, input.len);
       throw new Error("tql_alloc failed");
     }
 
     try {
       exp.tql_run_dynamic(
         args.grammar.ptr,
+        grammarName.ptr,
+        grammarName.len,
         query.ptr,
         query.len,
         target.ptr,
         target.len,
+        modules.ptr,
+        modules.len,
         outPtr,
       );
       const view = new DataView(exp.memory.buffer, outPtr, RESULT_SIZE);
@@ -274,8 +286,7 @@ class TqlEngine implements Engine {
       if (status !== 0) throw new Error(text);
       return JSON.parse(text) as QueryResult;
     } finally {
-      exp.tql_free(query.ptr, query.len);
-      exp.tql_free(target.ptr, target.len);
+      for (const input of inputs) exp.tql_free(input.ptr, input.len);
       exp.tql_free(outPtr, RESULT_SIZE);
     }
   }
@@ -380,7 +391,7 @@ class TqlEngine implements Engine {
   private writeStr(s: string): { ptr: number; len: number } {
     const buf = this.encoder.encode(s);
     const ptr = this.exp.tql_alloc(buf.length);
-    if (ptr === 0 && buf.length !== 0) throw new Error("tql_alloc failed");
+    if (ptr === 0) throw new Error("tql_alloc failed");
     new Uint8Array(this.exp.memory.buffer, ptr, buf.length).set(buf);
     return { ptr, len: buf.length };
   }

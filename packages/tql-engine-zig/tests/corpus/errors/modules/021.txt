@@ -1,0 +1,23 @@
+title: a module cannot import one written for fewer grammars
+grammar: typescript
+asserts: error
+
+--- module Names ---
+module Names for javascript, typescript;
+import Types;
+names root = types root;
+
+--- module Types ---
+module Types for typescript;
+types root = descendants_of_kind :type_alias_declaration root;
+
+--- tql ---
+import Names;
+main root = names root;
+
+--- error ---
+error[grammar-mismatch]: `Types` is not written for `javascript`
+ --> Names:2:1
+  |
+2 | import Types;
+  | ^^^^^^^^^^^^^

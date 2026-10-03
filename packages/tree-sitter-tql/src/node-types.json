@@ -116,6 +116,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -272,6 +280,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -302,6 +318,11 @@
         ]
       }
     }
+  },
+  {
+    "type": "all_constructors",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "application",
@@ -417,6 +438,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -562,6 +591,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -603,6 +640,14 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -737,6 +782,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -908,6 +961,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -1073,6 +1134,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -1247,6 +1316,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -1434,6 +1511,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -1614,6 +1699,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -1762,6 +1855,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -1901,6 +2002,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -2052,6 +2161,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -2194,6 +2311,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -2296,6 +2421,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -2342,6 +2471,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -2351,6 +2484,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
           {
             "type": "type_identifier",
             "named": true
@@ -2524,6 +2661,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -2703,6 +2848,14 @@
           "named": true
         },
         {
+          "type": "qualified_identifier",
+          "named": true
+        },
+        {
+          "type": "qualified_type_identifier",
+          "named": true
+        },
+        {
           "type": "record",
           "named": true
         },
@@ -2850,6 +3003,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -2989,6 +3150,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -3150,6 +3319,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -3198,6 +3375,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -3221,6 +3402,10 @@
           },
           {
             "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -3260,6 +3445,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -3295,6 +3484,10 @@
           },
           {
             "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -3431,6 +3624,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -3576,6 +3777,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -3718,6 +3927,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -3750,6 +3967,52 @@
     }
   },
   {
+    "type": "import_declaration",
+    "named": true,
+    "fields": {
+      "hiding": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "item_list",
+            "named": true
+          }
+        ]
+      },
+      "items": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "item_list",
+            "named": true
+          }
+        ]
+      },
+      "module": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "module_name",
+            "named": true
+          }
+        ]
+      },
+      "qualifier": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "module_name",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "infix_application",
     "named": true,
     "fields": {
@@ -3759,6 +4022,14 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -3877,6 +4148,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -4022,6 +4301,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -4051,6 +4338,51 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "item",
+    "named": true,
+    "fields": {
+      "constructors": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "all_constructors",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "item_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "item",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -4167,6 +4499,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -4341,6 +4681,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -4596,6 +4944,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -4764,6 +5120,14 @@
           "named": true
         },
         {
+          "type": "qualified_identifier",
+          "named": true
+        },
+        {
+          "type": "qualified_type_identifier",
+          "named": true
+        },
+        {
           "type": "record",
           "named": true
         },
@@ -4847,6 +5211,10 @@
         },
         {
           "type": "parenthesized_type",
+          "named": true
+        },
+        {
+          "type": "qualified_type_identifier",
           "named": true
         },
         {
@@ -4982,6 +5350,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -5124,6 +5500,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -5275,6 +5659,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -5417,6 +5809,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -5442,6 +5842,42 @@
           },
           {
             "type": "union",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "module_header",
+    "named": true,
+    "fields": {
+      "exports": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "item_list",
+            "named": true
+          }
+        ]
+      },
+      "grammar": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "module_name",
             "named": true
           }
         ]
@@ -5562,6 +5998,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -5725,6 +6169,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -5880,6 +6332,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -6131,6 +6591,14 @@
           "named": true
         },
         {
+          "type": "qualified_identifier",
+          "named": true
+        },
+        {
+          "type": "qualified_type_identifier",
+          "named": true
+        },
+        {
           "type": "record",
           "named": true
         },
@@ -6214,6 +6682,10 @@
         },
         {
           "type": "parenthesized_type",
+          "named": true
+        },
+        {
+          "type": "qualified_type_identifier",
           "named": true
         },
         {
@@ -6349,6 +6821,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -6491,6 +6971,14 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -6667,6 +7155,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -6756,6 +7252,10 @@
           },
           {
             "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
             "named": true
           },
           {
@@ -6985,6 +7485,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -7061,6 +7569,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -7084,7 +7596,28 @@
     "type": "source_file",
     "named": true,
     "root": true,
-    "fields": {},
+    "fields": {
+      "header": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "module_header",
+            "named": true
+          }
+        ]
+      },
+      "import": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "import_declaration",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": false,
@@ -7225,6 +7758,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -7367,6 +7908,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -7443,6 +7992,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -7479,6 +8032,10 @@
             "named": true
           },
           {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record_type",
             "named": true
           },
@@ -7496,6 +8053,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
           {
             "type": "type_identifier",
             "named": true
@@ -7621,6 +8182,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -7763,6 +8332,14 @@
             "named": true
           },
           {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
             "type": "record",
             "named": true
           },
@@ -7847,6 +8424,10 @@
     "named": false
   },
   {
+    "type": "..",
+    "named": false
+  },
+  {
     "type": "/",
     "named": false
   },
@@ -7923,6 +8504,10 @@
     "named": false
   },
   {
+    "type": "as",
+    "named": false
+  },
+  {
     "type": "case",
     "named": false
   },
@@ -7952,11 +8537,23 @@
     "named": true
   },
   {
+    "type": "for",
+    "named": false
+  },
+  {
+    "type": "hiding",
+    "named": false
+  },
+  {
     "type": "identifier",
     "named": true
   },
   {
     "type": "if",
+    "named": false
+  },
+  {
+    "type": "import",
     "named": false
   },
   {
@@ -7972,6 +8569,14 @@
     "named": false
   },
   {
+    "type": "module",
+    "named": false
+  },
+  {
+    "type": "module_name",
+    "named": true
+  },
+  {
     "type": "number",
     "named": true
   },
@@ -7982,6 +8587,14 @@
   {
     "type": "or",
     "named": false
+  },
+  {
+    "type": "qualified_identifier",
+    "named": true
+  },
+  {
+    "type": "qualified_type_identifier",
+    "named": true
   },
   {
     "type": "regex",

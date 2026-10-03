@@ -12,12 +12,46 @@ pub const SymbolId = enum(u32) { _ };
 // newtype TypeId = u32
 pub const TypeId = enum(u32) { _ };
 
+/// A module of one link, in the order modules were declared.
+pub const ModuleId = enum(u16) {
+    prelude = 0,
+    _,
+
+    pub const prelude_name = "Prelude";
+};
+
 pub const InsertError = error{Collision} || Allocator.Error;
+
+/// A name as some module declares it. A synthesized symbol has no module.
+pub const QualifiedName = struct {
+    module: ?ModuleId,
+    name: []const u8,
+
+    pub fn Map(comptime V: type) type {
+        return std.HashMapUnmanaged(QualifiedName, V, Context, std.hash_map.default_max_load_percentage);
+    }
+
+    pub const Context = struct {
+        pub fn hash(_: Context, n: QualifiedName) u64 {
+            var h = std.hash.Wyhash.init(0);
+            const module: u32 = if (n.module) |m| @intFromEnum(m) else std.math.maxInt(u32);
+            h.update(std.mem.asBytes(&module));
+            h.update(n.name);
+            return h.final();
+        }
+
+        pub fn eql(_: Context, a: QualifiedName, b: QualifiedName) bool {
+            return a.module == b.module and std.mem.eql(u8, a.name, b.name);
+        }
+    };
+};
 
 /// A symbol's identity and what it denotes.
 pub const Symbol = struct {
     spelling: []const u8,
     details: Details,
+    /// The module that declares it. Null for a local or a synthesized symbol.
+    module: ?ModuleId = null,
 };
 
 pub fn SymbolTable(comptime T: type) type {
@@ -81,68 +115,95 @@ pub fn SymbolTable(comptime T: type) type {
     };
 }
 
-/// Hands out symbol identities and enforces one-spelling-one-symbol among
-/// globals.
+/// Hands out symbol identities and enforces one symbol per spelling within a
+/// module.
 ///
 /// Everything interned is allocated from `allocator` and freed with it.
 pub const Interner = struct {
     allocator: Allocator,
     /// One entry per id, indexed by id. Locals are here too, so a diagnostic
-    /// can name one; only globals enter `by_spelling`.
+    /// can name one; only globals enter `by_name`.
     entries: std.ArrayList(Symbol) = .empty,
-    by_spelling: std.StringHashMapUnmanaged(SymbolId) = .empty,
+    by_name: QualifiedName.Map(SymbolId) = .empty,
+    /// Module names, indexed by `ModuleId`.
+    modules: std.ArrayList([]const u8) = .empty,
 
     pub fn init(allocator: Allocator) Interner {
         return .{ .allocator = allocator };
     }
 
-    /// A global. Collides when the spelling is taken, which is what makes a
-    /// redefinition an error rather than a shadowing.
+    /// Declares a module named `name`. Returns its id.
+    pub fn declareModule(self: *Interner, name: []const u8) Allocator.Error!ModuleId {
+        const id: ModuleId = @enumFromInt(self.modules.items.len);
+        try self.modules.append(self.allocator, try self.allocator.dupe(u8, name));
+        return id;
+    }
+
+    pub fn moduleName(self: *const Interner, id: ModuleId) []const u8 {
+        return self.modules.items[@intFromEnum(id)];
+    }
+
+    /// A global declared by `module`. Collides when `module` already declares
+    /// the spelling.
     pub fn intern(
         self: *Interner,
+        module: ModuleId,
         spelling_text: []const u8,
         what: Details,
     ) InsertError!SymbolId {
-        if (self.by_spelling.contains(spelling_text)) return error.Collision;
-        return try self.internUnchecked(spelling_text, what);
+        if (self.by_name.contains(.{ .module = module, .name = spelling_text })) return error.Collision;
+        return try self.internUnchecked(module, spelling_text, what);
     }
 
-    /// Returns the existing id for a spelling, or interns it. Identical
-    /// synthesis requests must yield one symbol. (e.g. `{a=1,b=2}` and
-    /// `{b=2,a=1}` share a `record[a,b]`)
+    /// Returns the existing synthesized symbol for a spelling, or interns it.
+    /// Identical synthesis requests must yield one symbol. (e.g. `{a=1,b=2}`
+    /// and `{b=2,a=1}` share a `record[a,b]`)
     pub fn internOrGet(
         self: *Interner,
         spelling_text: []const u8,
         what: Details,
     ) Allocator.Error!SymbolId {
-        if (self.by_spelling.get(spelling_text)) |existing| return existing;
-        return try self.internUnchecked(spelling_text, what);
+        if (self.by_name.get(.{ .module = null, .name = spelling_text })) |existing| return existing;
+        return try self.internUnchecked(null, spelling_text, what);
     }
 
     fn internUnchecked(
         self: *Interner,
+        module: ?ModuleId,
         spelling_text: []const u8,
         what: Details,
     ) Allocator.Error!SymbolId {
         const owned = try self.allocator.dupe(u8, spelling_text);
-        const id = try self.append(owned, what);
-        try self.by_spelling.put(self.allocator, owned, id);
+        const id = try self.append(.{ .spelling = owned, .details = what, .module = module });
+        try self.by_name.put(self.allocator, .{ .module = module, .name = owned }, id);
         return id;
     }
 
     /// A local binder.
     pub fn fresh(self: *Interner, name: []const u8) Allocator.Error!SymbolId {
-        return try self.append(try self.allocator.dupe(u8, name), .vanilla);
+        return try self.append(.{ .spelling = try self.allocator.dupe(u8, name), .details = .vanilla });
     }
 
-    fn append(self: *Interner, owned: []const u8, what: Details) Allocator.Error!SymbolId {
+    fn append(self: *Interner, symbol: Symbol) Allocator.Error!SymbolId {
         const id: SymbolId = @enumFromInt(self.entries.items.len);
-        try self.entries.append(self.allocator, .{ .spelling = owned, .details = what });
+        try self.entries.append(self.allocator, symbol);
         return id;
     }
 
-    pub fn lookup(self: *const Interner, name: []const u8) ?SymbolId {
-        return self.by_spelling.get(name);
+    /// The global `module` declares as `name`. A synthesized spelling has a
+    /// null `module`.
+    pub fn lookup(self: *const Interner, module: ?ModuleId, name: []const u8) ?SymbolId {
+        return self.by_name.get(.{ .module = module, .name = name });
+    }
+
+    pub fn moduleOf(self: *const Interner, id: SymbolId) ?ModuleId {
+        return self.entries.items[@intFromEnum(id)].module;
+    }
+
+    /// Whether `id` is a global: declared by a module, or synthesized.
+    pub fn isGlobal(self: *const Interner, id: SymbolId) bool {
+        const symbol = self.entries.items[@intFromEnum(id)];
+        return symbol.module != null or symbol.details == .synthesized;
     }
 
     pub fn spelling(self: *const Interner, id: SymbolId) []const u8 {
@@ -178,6 +239,29 @@ test "internOrGet returns one symbol for one spelling" {
 
     const other = try interner.internOrGet("field[body]", what);
     try std.testing.expect(first != other);
+}
+
+test "one spelling in two modules is two symbols" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var interner = Interner.init(arena.allocator());
+
+    const library: ModuleId = @enumFromInt(1);
+    const prelude_filter = try interner.intern(.prelude, "filter", .vanilla);
+    const library_filter = try interner.intern(library, "filter", .vanilla);
+    try std.testing.expect(prelude_filter != library_filter);
+    try std.testing.expectEqual(prelude_filter, interner.lookup(.prelude, "filter").?);
+    try std.testing.expectEqual(library_filter, interner.lookup(library, "filter").?);
+    try std.testing.expectEqual(library, interner.moduleOf(library_filter).?);
+}
+
+test "one spelling twice in one module collides" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    var interner = Interner.init(arena.allocator());
+
+    _ = try interner.intern(.prelude, "filter", .vanilla);
+    try std.testing.expectError(error.Collision, interner.intern(.prelude, "filter", .vanilla));
 }
 
 test "locals may share a name without colliding" {

@@ -13,6 +13,51 @@ pub const Point = struct {
     }
 };
 
+/// Which source text a span indexes into. The query being compiled is
+/// `entry`; every other id is assigned by whoever parsed that source.
+pub const SourceId = enum(u16) {
+    entry = 0,
+    _,
+};
+
+/// A source text as a diagnostic renders it.
+pub const Source = struct {
+    /// Null for a query given inline.
+    name: ?[]const u8,
+    text: []const u8,
+};
+
+/// Every source a compilation read besides the entry query, by `SourceId`.
+///
+/// Each source must outlive the table.
+pub const Sources = struct {
+    gpa: std.mem.Allocator,
+    items: std.ArrayList(Source) = .empty,
+
+    pub fn init(gpa: std.mem.Allocator) Sources {
+        return .{ .gpa = gpa };
+    }
+
+    pub fn deinit(self: *Sources) void {
+        self.items.deinit(self.gpa);
+    }
+
+    pub fn add(self: *Sources, source: Source) !SourceId {
+        try self.items.append(self.gpa, source);
+        return @enumFromInt(self.items.items.len);
+    }
+
+    /// The source `id` names, where `entry` is the query's.
+    pub fn get(self: *const Sources, id: SourceId, entry: Source) Source {
+        if (id == .entry) return entry;
+        return self.items.items[@intFromEnum(id) - 1];
+    }
+
+    pub fn clear(self: *Sources) void {
+        self.items.clearRetainingCapacity();
+    }
+};
+
 /// A source range, half-open in bytes: `[start_byte, end_byte)`.
 ///
 /// Points are carried alongside the byte offsets because error fixtures pin
@@ -23,6 +68,7 @@ pub const Span = struct {
     end_byte: u32,
     start_point: Point,
     end_point: Point,
+    source: SourceId = .entry,
 
     /// For nodes that no source range corresponds to.
     pub const unknown: Span = .{
@@ -45,7 +91,11 @@ pub const Span = struct {
     }
 
     /// The smallest span covering both operands.
+    ///
+    /// Preconditions:
+    /// - `a` and `b` are in the same source.
     pub fn join(a: Span, b: Span) Span {
+        std.debug.assert(a.source == b.source);
         const start_first = a.start_byte <= b.start_byte;
         const end_first = a.end_byte >= b.end_byte;
         return .{
@@ -53,6 +103,7 @@ pub const Span = struct {
             .end_byte = if (end_first) a.end_byte else b.end_byte,
             .start_point = if (start_first) a.start_point else b.start_point,
             .end_point = if (end_first) a.end_point else b.end_point,
+            .source = a.source,
         };
     }
 };
@@ -60,6 +111,13 @@ pub const Span = struct {
 pub const Category = enum {
     parse,
     unresolved_name,
+    unresolved_module,
+    unreadable_module,
+    module_name_mismatch,
+    import_cycle,
+    grammar_mismatch,
+    ambiguous_module,
+    ambiguous_name,
     unknown_kind,
     supertype_kind,
     unknown_field,
@@ -83,6 +141,13 @@ pub const Category = enum {
         return switch (self) {
             .parse => "parse",
             .unresolved_name => "unresolved-name",
+            .unresolved_module => "unresolved-module",
+            .unreadable_module => "unreadable-module",
+            .module_name_mismatch => "module-name-mismatch",
+            .import_cycle => "import-cycle",
+            .grammar_mismatch => "grammar-mismatch",
+            .ambiguous_module => "ambiguous-module",
+            .ambiguous_name => "ambiguous-name",
             .unknown_kind => "unknown-kind",
             .supertype_kind => "supertype-kind",
             .unknown_field => "unknown-field",
@@ -117,15 +182,14 @@ pub const Diagnostic = struct {
     }
 
     /// Write the diagnostic followed by the lines of `source` its span covers,
-    /// with the span underlined. `path` names `source` in the location line;
-    /// pass null for a query given inline.
+    /// with the span underlined. `source` must be the one the span's
+    /// `source` names.
     ///
     /// A span equal to `Span.unknown` gets neither location nor excerpt.
     pub fn render(
         self: Diagnostic,
         w: *std.Io.Writer,
-        source: []const u8,
-        path: ?[]const u8,
+        source: Source,
     ) std.Io.Writer.Error!void {
         try w.print("error[{s}]: {s}\n", .{ self.category.name(), self.message });
         if (std.meta.eql(self.span, Span.unknown)) return;
@@ -139,15 +203,15 @@ pub const Diagnostic = struct {
         }
 
         const shown_rows = end.row - start.row + 1;
-        const gutter = digitCount(end.row + 1);
+        const gutter = std.math.log10_int(end.row + 1) + 1; // digit count
 
         try w.splatByteAll(' ', gutter);
         try w.writeAll("--> ");
-        if (path) |p| try w.print("{s}:", .{p});
+        if (source.name) |name| try w.print("{s}:", .{name});
         try start.format(w);
         try w.writeByte('\n');
 
-        var lines = std.mem.splitScalar(u8, source, '\n');
+        var lines = std.mem.splitScalar(u8, source.text, '\n');
         var row: u32 = 0;
         while (row < start.row) : (row += 1) {
             if (lines.next() == null) return;
@@ -195,13 +259,6 @@ pub const Diagnostic = struct {
 /// An excerpt longer than this many rows has its middle elided.
 const MAX_EXCERPT_ROWS = 4;
 
-fn digitCount(n: u32) usize {
-    var count: usize = 1;
-    var rest = n / 10;
-    while (rest > 0) : (rest /= 10) count += 1;
-    return count;
-}
-
 fn isContinuationByte(c: u8) bool {
     return c & 0b1100_0000 == 0b1000_0000;
 }
@@ -235,6 +292,15 @@ pub const Sink = struct {
             .span = span,
             .message = message,
         });
+    }
+
+    /// Reports each of `diagnostics` again, here.
+    pub fn extend(self: *Sink, diagnostics: []const Diagnostic) !void {
+        for (diagnostics) |d| {
+            const message = try self.allocator.dupe(u8, d.message);
+            errdefer self.allocator.free(message);
+            try self.diagnostics.append(self.allocator, .{ .category = d.category, .span = d.span, .message = message });
+        }
     }
 
     pub fn items(self: *const Sink) []const Diagnostic {
@@ -279,10 +345,7 @@ test "spans render as one-based line:col" {
         .start_point = .{ .row = 0, .column = 7 },
         .end_point = .{ .row = 0, .column = 13 },
     };
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
-    try span.format(&buf.writer);
-    try std.testing.expectEqualStrings("1:8-1:14", buf.written());
+    try std.testing.expectFmt("1:8-1:14", "{f}", .{span});
 }
 
 test "sink collects several diagnostics" {
@@ -313,7 +376,7 @@ fn expectRender(
     };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try d.render(&buf.writer, source, path);
+    try d.render(&buf.writer, .{ .name = path, .text = source });
     try std.testing.expectEqualStrings(expected, buf.written());
 }
 
@@ -434,6 +497,6 @@ test "render omits location and excerpt for an unknown span" {
     const d: Diagnostic = .{ .category = .missing_main, .span = .unknown, .message = "No `main`." };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try d.render(&buf.writer, "f = 1;", null);
+    try d.render(&buf.writer, .{ .name = null, .text = "f = 1;" });
     try std.testing.expectEqualStrings("error[missing-main]: No `main`.\n", buf.written());
 }

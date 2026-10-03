@@ -1,0 +1,14 @@
+title: importing a module no source supplies is rejected
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Nope;
+main root = [1];
+
+--- error ---
+error[unresolved-module]: no module is named `Nope`
+ --> 1:1
+  |
+1 | import Nope;
+  | ^^^^^^^^^^^^

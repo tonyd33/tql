@@ -1,0 +1,17 @@
+title: a query's definition hides the prelude's
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+keep x = [x, x];
+main root = keep 1;
+
+--- source ---
+let x = 1;
+
+--- values ---
+[1, 1]
+
+--- types ---
+keep :: a -> [a]
+main :: Node -> [Int]

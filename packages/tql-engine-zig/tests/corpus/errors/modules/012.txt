@@ -1,0 +1,19 @@
+title: an error inside an imported module points into that module
+grammar: typescript
+asserts: error
+
+--- module Broken ---
+module Broken;
+
+broken x = missing x;
+
+--- tql ---
+import Broken;
+main root = [broken 1];
+
+--- error ---
+error[unresolved-name]: `missing` is not defined
+ --> Broken:3:12
+  |
+3 | broken x = missing x;
+  |            ^^^^^^^
