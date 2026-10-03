@@ -201,21 +201,38 @@ main = a or b | c;
       right: (identifier))))
 
 ========================================
-pipe binds tighter than union
+union binds tighter than pipe
 ========================================
 
-main = a | b <|> c;
+main = a <|> b | f;
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (union
-      left: (pipe
+    body: (pipe
+      left: (union
         left: (identifier)
         right: (identifier))
       right: (identifier))))
+
+========================================
+union binds tighter than pipe on the right
+========================================
+
+main = f | a <|> b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (identifier)
+      right: (union
+        left: (identifier)
+        right: (identifier)))))
 
 ========================================
 a comparison chain groups to the left

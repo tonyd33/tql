@@ -11,8 +11,8 @@ const PREC = {
   dollar: 1,
   // biome-ignore lint/suspicious/noThenProperty: false positive
   then: 2,
-  union: 3,
-  pipe: 4,
+  pipe: 3,
+  union: 4,
   or: 5,
   and: 6,
   cmp: 7,
