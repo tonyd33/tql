@@ -1,0 +1,18 @@
+title: a qualified import does not bring names in unqualified
+grammar: typescript
+asserts: error
+
+--- module Numbers ---
+module Numbers;
+double x = x * 2;
+
+--- tql ---
+import Numbers as N;
+main root = [double 1];
+
+--- error ---
+error[unresolved-name]: `double` is not defined
+ --> 2:14
+  |
+2 | main root = [double 1];
+  |              ^^^^^^

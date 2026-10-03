@@ -1,0 +1,19 @@
+title: importing a name the module does not export is rejected
+grammar: typescript
+asserts: error
+
+--- module Square ---
+module Square (square);
+times x y = x * y;
+square x = times x x;
+
+--- tql ---
+import Square (times);
+main root = [times 2 3];
+
+--- error ---
+error[unresolved-name]: `Square` does not export `times`
+ --> 1:16
+  |
+1 | import Square (times);
+  |                ^^^^^

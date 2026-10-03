@@ -762,10 +762,29 @@ fn stripJsonWhitespace(gpa: std.mem.Allocator, text: []const u8) ![]const u8 {
     return try out.toOwnedSlice(gpa);
 }
 
+/// Serves a case's `--- module Name ---` sections to the engine, each named
+/// by its module.
+const CaseModules = struct {
+    modules: []const corpus_parser.Module,
+
+    fn loader(self: *CaseModules) tql.Loader {
+        return .{ .context = self, .loadFn = load };
+    }
+
+    fn load(context: *anyopaque, name: []const u8) ?tql.diagnostic.Source {
+        const self: *CaseModules = @ptrCast(@alignCast(context));
+        for (self.modules) |m| {
+            if (std.mem.eql(u8, m.name, name)) return .{ .name = m.name, .text = m.text.content };
+        }
+        return null;
+    }
+};
+
 /// Each diagnostic rendered against `source` as the CLI prints it, separated
 /// by blank lines, in report order.
 fn describeDiagnostics(
     allocator: std.mem.Allocator,
+    engine: *const Engine,
     diagnostics: []const tql.diagnostic.Diagnostic,
     source: []const u8,
 ) ![]const u8 {
@@ -773,7 +792,7 @@ fn describeDiagnostics(
     errdefer w.deinit();
     for (diagnostics, 0..) |d, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try d.render(&w.writer, tql.sourceOf(d.span.source, .{ .name = null, .text = source }));
+        try d.render(&w.writer, engine.sourceOf(d.span.source, .{ .name = null, .text = source }));
     }
     const rendered = w.written();
     w.shrinkRetainingCapacity(std.mem.trimEnd(u8, rendered, "\n").len);
@@ -795,6 +814,8 @@ fn runTestCase(
 
     var engine = try Engine.init(.{ .allocator = allocator, .io = io });
     defer engine.deinit();
+    var case_modules: CaseModules = .{ .modules = tc.modules };
+    engine.loader = case_modules.loader();
 
     var parsed = try engine.parseQueryCollecting(tc.query.content);
     defer parsed.deinit();
@@ -825,7 +846,7 @@ fn runTestCase(
     // before compilation is even attempted.
     if (parsed.hasErrors()) {
         if (!expects_error) {
-            unexpected.* = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content);
+            unexpected.* = try describeDiagnostics(allocator, &engine, parsed.diagnostics, tc.query.content);
             return error.UnexpectedParseError;
         }
         return .{
@@ -836,7 +857,7 @@ fn runTestCase(
             .simplified = try allocator.dupe(u8, ""),
             .stg = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
-            .@"error" = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content),
+            .@"error" = try describeDiagnostics(allocator, &engine, parsed.diagnostics, tc.query.content),
         };
     }
 
@@ -891,9 +912,9 @@ fn runTestCase(
                 } else |err| switch (err) {
                     error.TypeCheckFailed => {
                         allocator.free(type_diagnostics);
-                        type_diagnostics = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
+                        type_diagnostics = try describeDiagnostics(allocator, &engine, type_sink.items(), tc.query.content);
                         if (!expects_error) {
-                            unexpected.* = try describeDiagnostics(allocator, type_sink.items(), tc.query.content);
+                            unexpected.* = try describeDiagnostics(allocator, &engine, type_sink.items(), tc.query.content);
                         }
                     },
                     else => |e| return e,
@@ -902,9 +923,9 @@ fn runTestCase(
         } else |err| switch (err) {
             error.DesugarFailed, error.LinkFailed => {
                 allocator.free(desugar_diagnostics);
-                desugar_diagnostics = try describeDiagnostics(allocator, sink.items(), tc.query.content);
+                desugar_diagnostics = try describeDiagnostics(allocator, &engine, sink.items(), tc.query.content);
                 if (!expects_error) {
-                    unexpected.* = try describeDiagnostics(allocator, sink.items(), tc.query.content);
+                    unexpected.* = try describeDiagnostics(allocator, &engine, sink.items(), tc.query.content);
                 }
             },
             else => return err,
@@ -958,7 +979,7 @@ fn runTestCase(
             allocator,
         ) catch |err| {
             if (eval_sink.items().len > 0) {
-                unexpected.* = try describeDiagnostics(allocator, eval_sink.items(), tc.query.content);
+                unexpected.* = try describeDiagnostics(allocator, &engine, eval_sink.items(), tc.query.content);
             }
             return err;
         };

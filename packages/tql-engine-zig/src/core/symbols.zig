@@ -16,6 +16,8 @@ pub const TypeId = enum(u32) { _ };
 pub const ModuleId = enum(u16) {
     prelude = 0,
     _,
+
+    pub const prelude_name = "Prelude";
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;

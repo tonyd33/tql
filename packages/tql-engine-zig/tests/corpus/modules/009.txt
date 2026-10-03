@@ -1,0 +1,19 @@
+title: a qualified import is reached through its qualifier
+grammar: typescript
+asserts: values
+
+--- module Numbers ---
+module Numbers;
+
+double x = x * 2;
+
+--- tql ---
+import Numbers as N;
+
+main root = [N.double 4];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[8]

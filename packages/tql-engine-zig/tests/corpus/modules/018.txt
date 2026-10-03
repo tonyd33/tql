@@ -1,0 +1,14 @@
+title: a query with a header is an entry like any other
+grammar: typescript
+asserts: values
+
+--- tql ---
+module Query (main);
+
+main root = [1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[1]

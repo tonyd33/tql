@@ -1,0 +1,19 @@
+title: a module importing itself is rejected
+grammar: typescript
+asserts: error
+
+--- module A ---
+module A;
+import A;
+a = 1;
+
+--- tql ---
+import A;
+main root = [a];
+
+--- error ---
+error[import-cycle]: imports form a cycle: `A` imports `A`
+ --> A:2:1
+  |
+2 | import A;
+  | ^^^^^^^^^

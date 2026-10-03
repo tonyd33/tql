@@ -1,0 +1,28 @@
+title: a datatype exported with its constructors is matched and built
+grammar: typescript
+asserts: types, values
+
+--- module Shape ---
+module Shape (Shape(..), area);
+
+data Shape = Square Int | Rect Int Int;
+
+area s = case s of { Square n -> n * n; Rect w h -> w * h };
+
+--- tql ---
+import Shape as S;
+
+perimeter :: S.Shape -> Int;
+perimeter s = case s of { S.Square n -> 4 * n; S.Rect w h -> 2 * (w + h) };
+
+main root = [S.area (S.Rect 2 3), perimeter (S.Square 2)];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[6, 8]
+
+--- types ---
+perimeter :: Shape -> Int
+main :: Node -> [Int]

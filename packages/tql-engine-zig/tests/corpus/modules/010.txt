@@ -1,0 +1,21 @@
+title: an import list and a hiding list select exports
+grammar: typescript
+asserts: values
+
+--- module Numbers ---
+module Numbers;
+
+double x = x * 2;
+triple x = x * 3;
+
+--- tql ---
+import Numbers (double);
+import Numbers hiding (double) as N;
+
+main root = [double 1, N.triple 1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2, 3]

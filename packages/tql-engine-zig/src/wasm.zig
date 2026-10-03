@@ -21,20 +21,13 @@ export fn tql_free(ptr: [*]u8, len: usize) void {
 }
 
 fn runImpl(
+    engine: *tql.Engine,
     grammar: *const tql.Grammar,
     query_source: []const u8,
     query_target: []const u8,
     buf: *std.Io.Writer.Allocating,
     sink: *tql.diagnostic.Sink,
 ) !void {
-    var single_threaded = std.Io.Threaded.init_single_threaded;
-    const io = single_threaded.io();
-    var engine = try tql.Engine.init(.{
-        .allocator = gpa,
-        .io = io,
-    });
-    defer engine.deinit();
-
     var compiled = try engine.compileQuery(query_source, grammar, sink);
     defer compiled.deinit();
 
@@ -76,6 +69,7 @@ fn finishErr(buf: *std.Io.Writer.Allocating, out: *Result, msg: []const u8) void
 fn finishDiagnostics(
     buf: *std.Io.Writer.Allocating,
     out: *Result,
+    engine: *const tql.Engine,
     sink: *const tql.diagnostic.Sink,
     err: anyerror,
 ) void {
@@ -83,7 +77,7 @@ fn finishDiagnostics(
     buf.clearRetainingCapacity();
     for (sink.items(), 0..) |d, i| {
         if (i > 0) buf.writer.writeByte('\n') catch return fail(buf, out);
-        if (tql.sourceOf(d.span.source, .{ .name = null, .text = "" }).name) |name| {
+        if (engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name) |name| {
             buf.writer.print("{s}:", .{name}) catch return fail(buf, out);
         }
         buf.writer.print("{f}: {s}: {s}", .{ d.span, d.category.name(), d.message }) catch
@@ -116,11 +110,18 @@ export fn tql_run_dynamic(
         .language = language,
     };
 
+    var single_threaded = std.Io.Threaded.init_single_threaded;
+    var engine = tql.Engine.init(.{
+        .allocator = gpa,
+        .io = single_threaded.io(),
+    }) catch |err| return finishErr(&buf, out, @errorName(err));
+    defer engine.deinit();
+
     var sink = tql.diagnostic.Sink.init(gpa);
     defer sink.deinit();
 
-    runImpl(&grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf, &sink) catch |err| {
-        return finishDiagnostics(&buf, out, &sink, err);
+    runImpl(&engine, &grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf, &sink) catch |err| {
+        return finishDiagnostics(&buf, out, &engine, &sink, err);
     };
 
     const slice = buf.toOwnedSlice() catch return fail(&buf, out);

@@ -1,0 +1,24 @@
+title: two modules importing each other are rejected
+grammar: typescript
+asserts: error
+
+--- module A ---
+module A;
+import B;
+a = 1;
+
+--- module B ---
+module B;
+import A;
+b = 2;
+
+--- tql ---
+import A;
+main root = [a];
+
+--- error ---
+error[import-cycle]: imports form a cycle: `A` imports `B` imports `A`
+ --> B:2:1
+  |
+2 | import A;
+  | ^^^^^^^^^

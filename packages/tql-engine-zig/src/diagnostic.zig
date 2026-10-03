@@ -27,6 +27,37 @@ pub const Source = struct {
     text: []const u8,
 };
 
+/// Every source a compilation read besides the entry query, by `SourceId`.
+///
+/// Each source must outlive the table.
+pub const Sources = struct {
+    gpa: std.mem.Allocator,
+    items: std.ArrayList(Source) = .empty,
+
+    pub fn init(gpa: std.mem.Allocator) Sources {
+        return .{ .gpa = gpa };
+    }
+
+    pub fn deinit(self: *Sources) void {
+        self.items.deinit(self.gpa);
+    }
+
+    pub fn add(self: *Sources, source: Source) !SourceId {
+        try self.items.append(self.gpa, source);
+        return @enumFromInt(self.items.items.len);
+    }
+
+    /// The source `id` names, where `entry` is the query's.
+    pub fn get(self: *const Sources, id: SourceId, entry: Source) Source {
+        if (id == .entry) return entry;
+        return self.items.items[@intFromEnum(id) - 1];
+    }
+
+    pub fn clear(self: *Sources) void {
+        self.items.clearRetainingCapacity();
+    }
+};
+
 /// A source range, half-open in bytes: `[start_byte, end_byte)`.
 ///
 /// Points are carried alongside the byte offsets because error fixtures pin
@@ -80,6 +111,9 @@ pub const Span = struct {
 pub const Category = enum {
     parse,
     unresolved_name,
+    unresolved_module,
+    module_name_mismatch,
+    import_cycle,
     ambiguous_name,
     unknown_kind,
     supertype_kind,
@@ -104,6 +138,9 @@ pub const Category = enum {
         return switch (self) {
             .parse => "parse",
             .unresolved_name => "unresolved-name",
+            .unresolved_module => "unresolved-module",
+            .module_name_mismatch => "module-name-mismatch",
+            .import_cycle => "import-cycle",
             .ambiguous_name => "ambiguous-name",
             .unknown_kind => "unknown-kind",
             .supertype_kind => "supertype-kind",
@@ -256,6 +293,15 @@ pub const Sink = struct {
             .span = span,
             .message = message,
         });
+    }
+
+    /// Reports each of `diagnostics` again, here.
+    pub fn extend(self: *Sink, diagnostics: []const Diagnostic) !void {
+        for (diagnostics) |d| {
+            const message = try self.allocator.dupe(u8, d.message);
+            errdefer self.allocator.free(message);
+            try self.diagnostics.append(self.allocator, .{ .category = d.category, .span = d.span, .message = message });
+        }
     }
 
     pub fn items(self: *const Sink) []const Diagnostic {

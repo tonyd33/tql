@@ -184,8 +184,8 @@ const Translator = struct {
                 },
                 .alias => |alias| return try self.aliasAt(alias, &.{}, span),
             },
-            .ambiguous => |modules| {
-                try self.scope.reportAmbiguous(self.sink, span, name, modules);
+            .failed => |failure| {
+                try self.scope.reportFailure(self.sink, span, name, failure);
                 return error.BadAnnotation;
             },
             .missing => {},
@@ -205,8 +205,8 @@ const Translator = struct {
                 .datatype => |declared| declared,
                 .alias => |alias| return try self.aliasAt(alias, node.arguments, span),
             },
-            .ambiguous => |modules| {
-                try self.scope.reportAmbiguous(self.sink, span, node.constructor, modules);
+            .failed => |failure| {
+                try self.scope.reportFailure(self.sink, span, node.constructor, failure);
                 return error.BadAnnotation;
             },
             .missing => {

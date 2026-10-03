@@ -1,0 +1,23 @@
+title: a name two imports declare is ambiguous where it is used
+grammar: typescript
+asserts: error
+
+--- module A ---
+module A;
+name = 1;
+
+--- module B ---
+module B;
+name = 2;
+
+--- tql ---
+import A;
+import B;
+main root = [name];
+
+--- error ---
+error[ambiguous-name]: `name` is declared by both `A` and `B`
+ --> 3:14
+  |
+3 | main root = [name];
+  |              ^^^^

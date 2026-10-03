@@ -30,16 +30,8 @@ const pcre2 = @import("regex.zig");
 /// The prelude, linked beneath every query.
 pub const prelude_source = @embedFile("prelude.tql");
 
-/// The source id every span in the prelude carries.
-pub const prelude_source_id: diagnostic.SourceId = @enumFromInt(1);
-
-/// The source a diagnostic's span points into, given the entry query it was
-/// compiled from.
-pub fn sourceOf(id: diagnostic.SourceId, entry: diagnostic.Source) diagnostic.Source {
-    if (id == prelude_source_id) return .{ .name = "prelude.tql", .text = prelude_source };
-    std.debug.assert(id == .entry);
-    return entry;
-}
+pub const load = @import("load.zig");
+pub const Loader = load.Loader;
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
@@ -82,16 +74,28 @@ fn listElements(
 pub const Engine = struct {
     config: Config,
     tql_parser: parse.Parser,
+    /// Where an imported module's source comes from. Null allows no imports.
+    loader: ?Loader = null,
+    /// What the latest compilation read besides its query.
+    sources: diagnostic.Sources,
 
     pub fn init(config: Config) !Engine {
         return Engine{
             .config = config,
             .tql_parser = try parse.Parser.init(config.allocator),
+            .sources = .init(config.allocator),
         };
     }
 
     pub fn deinit(self: *Engine) void {
+        self.sources.deinit();
         self.tql_parser.deinit();
+    }
+
+    /// The source a span of the latest compilation points into, where
+    /// `entry` is its query.
+    pub fn sourceOf(self: *const Engine, id: diagnostic.SourceId, entry: diagnostic.Source) diagnostic.Source {
+        return self.sources.get(id, entry);
     }
 
     /// Parse a query, keeping the diagnostics rather than collapsing them into
@@ -103,20 +107,20 @@ pub const Engine = struct {
         return try self.tql_parser.parseCollecting(query_source, .entry);
     }
 
-    /// Parse and desugar a query, then link it against the prelude into a
-    /// resolved program. Diagnostics are collected; the caller owns the result.
+    /// Parse and desugar a query, then link it against the prelude and every
+    /// module it imports into a resolved program. Diagnostics are collected;
+    /// the caller owns the result.
     pub fn desugarQuery(
         self: *Engine,
         query_source: []const u8,
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
+        self.sources.clear();
         var parsed = try self.tql_parser.parseCollecting(query_source, .entry);
         defer parsed.deinit();
         if (parsed.hasErrors()) {
-            for (parsed.diagnostics) |d| {
-                try sink.report(d.category, d.span, "{s}", .{d.message});
-            }
+            try sink.extend(parsed.diagnostics);
             return error.DesugarFailed;
         }
 
@@ -124,8 +128,17 @@ pub const Engine = struct {
         defer desugarer.deinit();
 
         try self.addPrelude(&desugarer, g, sink);
-        const main = try desugarer.declareModule("Main");
-        try desugarer.add(main, &.{.prelude}, parsed.source_file, g, sink);
+
+        var graph: load.Graph = .{
+            .gpa = self.config.allocator,
+            .parser = &self.tql_parser,
+            .loader = self.loader,
+            .sources = &self.sources,
+        };
+        defer graph.deinit();
+        try graph.visitEntry(parsed.source_file, sink);
+        if (sink.hasErrors()) return error.DesugarFailed;
+        try graph.link(&desugarer, g, sink);
 
         return try desugarer.finish(parsed.source_file.span, sink);
     }
@@ -158,7 +171,8 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !void {
-        var parsed = try self.tql_parser.parseCollecting(prelude_source, prelude_source_id);
+        const id = try self.sources.add(.{ .name = "prelude.tql", .text = prelude_source });
+        var parsed = try self.tql_parser.parseCollecting(prelude_source, id);
         defer parsed.deinit();
         // Compiled in, so a parse error here is a bug in this repository.
         if (parsed.hasErrors()) return error.PreludeInvalid;
@@ -509,21 +523,15 @@ test "a definition's span names the source it came from" {
     var program = try engine.desugarQuery("main = children;", g, &sink);
     defer program.deinit();
 
+    const entry: diagnostic.Source = .{ .name = "q.tql", .text = "main = children;" };
     for (program.definitions[0..program.entry_offset]) |d| {
-        try std.testing.expectEqual(prelude_source_id, d.span.source);
+        const source = engine.sourceOf(d.span.source, entry);
+        try std.testing.expectEqualStrings("prelude.tql", source.name.?);
+        try std.testing.expectEqual(prelude_source.ptr, source.text.ptr);
     }
     for (program.entryDefinitions()) |d| {
-        try std.testing.expectEqual(diagnostic.SourceId.entry, d.span.source);
+        try std.testing.expectEqual(entry, engine.sourceOf(d.span.source, entry));
     }
-}
-
-test "a span resolves to the source it names" {
-    const entry: diagnostic.Source = .{ .name = "q.tql", .text = "main = children;" };
-    try std.testing.expectEqual(entry, sourceOf(.entry, entry));
-
-    const prelude = sourceOf(prelude_source_id, entry);
-    try std.testing.expectEqualStrings("prelude.tql", prelude.name.?);
-    try std.testing.expectEqual(prelude_source.ptr, prelude.text.ptr);
 }
 
 test "the prelude's bodies compile to Core" {

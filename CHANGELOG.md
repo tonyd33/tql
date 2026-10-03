@@ -24,6 +24,7 @@
 - Added operator sections: `(= 1)` is `\x -> x = 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
 - Added `subtract`.
 - A query may define a name or declare a type the prelude has.
+- Added modules: `module A.B (x, T(..));` names a module and its exports, and `import A.B;`, `import A.B (x);`, `import A.B hiding (x);` and `import A.B as Q;` bring them into scope. `Q.x` names an export of the import qualified as `Q`. `import Prelude hiding (x);` replaces the implicit prelude import.
 
 ## 0.3.1 (unreleased)
 

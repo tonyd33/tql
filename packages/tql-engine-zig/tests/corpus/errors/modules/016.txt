@@ -1,0 +1,23 @@
+title: what an import does not take is not in scope transitively
+grammar: typescript
+asserts: error
+
+--- module Base ---
+module Base;
+base = 10;
+
+--- module Left ---
+module Left;
+import Base;
+left = base + 1;
+
+--- tql ---
+import Left;
+main root = [base];
+
+--- error ---
+error[unresolved-name]: `base` is not defined
+ --> 2:14
+  |
+2 | main root = [base];
+  |              ^^^^

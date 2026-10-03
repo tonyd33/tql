@@ -36,18 +36,23 @@ pub const Desugarer = struct {
     modules: std.ArrayList(desugar.Module) = .empty,
     /// The linked index of every definition added so far.
     linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
+    /// What each module exports, by `ModuleId`.
+    exports: std.ArrayList(cst.Filter) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         var target = try core.env.Env.init(allocator);
         errdefer target.deinit();
         try primitives.populate(&target);
 
-        return .{ .allocator = allocator, .env = target };
+        var exports: std.ArrayList(cst.Filter) = .empty;
+        try exports.append(allocator, .all);
+        return .{ .allocator = allocator, .env = target, .exports = exports };
     }
 
     pub fn deinit(self: *Desugarer) void {
         self.modules.deinit(self.allocator);
         self.linked.deinit(self.allocator);
+        self.exports.deinit(self.allocator);
         if (self.env) |*target| target.deinit();
     }
 
@@ -319,8 +324,8 @@ pub const Desugarer = struct {
                         },
                         .alias => |alias| return try self.aliasField(scope, alias, &.{}, written.span, declared, sink),
                     },
-                    .ambiguous => |modules| {
-                        try scope.reportAmbiguous(sink, written.span, name, modules);
+                    .failed => |failure| {
+                        try scope.reportFailure(sink, written.span, name, failure);
                         return null;
                     },
                     .missing => {},
@@ -338,8 +343,8 @@ pub const Desugarer = struct {
                         .datatype => |id| id,
                         .alias => |alias| return try self.aliasField(scope, alias, a.arguments, written.span, declared, sink),
                     },
-                    .ambiguous => |modules| {
-                        try scope.reportAmbiguous(sink, written.span, a.constructor, modules);
+                    .failed => |failure| {
+                        try scope.reportFailure(sink, written.span, a.constructor, failure);
                         return null;
                     },
                     .missing => {
@@ -422,20 +427,20 @@ pub const Desugarer = struct {
     }
 
     /// Declares a module for `add`. `ModuleId.prelude` is declared already.
-    pub fn declareModule(self: *Desugarer, name: []const u8) !core.ModuleId {
+    pub fn declareModule(self: *Desugarer, name: []const u8, exports: cst.Filter) !core.ModuleId {
+        try self.exports.append(self.allocator, exports);
         return try self.env.?.interner.declareModule(name);
     }
 
     /// Desugars one source file as `module` and adds it to the link: collect
-    /// heads, resolve bodies. Every declaration of each of `imports` is in
-    /// scope unqualified.
+    /// heads, resolve bodies.
     ///
     /// Preconditions:
-    /// - Each of `imports` was added before.
+    /// - Each module `imports` names was added before.
     pub fn add(
         self: *Desugarer,
         module: core.ModuleId,
-        imports: []const core.ModuleId,
+        imports: []const scope_mod.Import,
         source: cst.SourceFile,
         g: *const grammar.Grammar,
         sink: *diagnostic.Sink,
@@ -445,6 +450,7 @@ pub const Desugarer = struct {
         const scope: ModuleScope = .{
             .module = module,
             .imports = imports,
+            .exports = self.exports.items,
             .interner = interner,
             .datatypes = &self.env.?.datatypes,
         };
@@ -453,6 +459,9 @@ pub const Desugarer = struct {
 
         var declarations = try resolve.collect(self.allocator, interner, module, source, sink);
         defer declarations.deinit();
+
+        if (!try scope.checkItems(sink)) return error.DesugarFailed;
+        var failed = false;
 
         const offset: u32 = @intCast(self.linked.count());
         for (declarations.items.items, 0..) |d, i| {
@@ -465,7 +474,6 @@ pub const Desugarer = struct {
         @memset(edges, &.{});
 
         // IMPROVE: desugar the entire module at once with a single desugar pass?
-        var failed = false;
         for (declarations.items.items, 0..) |d, i| {
             var lowerer = desugar.Lowerer.init(
                 builder,

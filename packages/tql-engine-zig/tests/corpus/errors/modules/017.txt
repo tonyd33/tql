@@ -1,0 +1,29 @@
+title: a broken module imported twice is reported once
+grammar: typescript
+asserts: error
+
+--- module Base ---
+module Base;
+base = (1;
+
+--- module Left ---
+module Left;
+import Base;
+left = 1;
+
+--- module Right ---
+module Right;
+import Base;
+right = 2;
+
+--- tql ---
+import Left;
+import Right;
+main root = [left, right];
+
+--- error ---
+error[parse]: missing )
+ --> Base:2:10
+  |
+2 | base = (1;
+  |          ^

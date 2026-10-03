@@ -107,6 +107,10 @@ fn spanOf(node: ts.Node, source_id: diagnostic.SourceId) Span {
     };
 }
 
+fn isConstructor(kind: []const u8) bool {
+    return std.mem.eql(u8, kind, "type_identifier") or std.mem.eql(u8, kind, "qualified_type_identifier");
+}
+
 fn textOf(node: ts.Node, source: []const u8) []const u8 {
     return source[node.startByte()..node.endByte()];
 }
@@ -175,6 +179,8 @@ const Walker = struct {
 
     fn sourceFile(self: *Walker, node: ts.Node) !cst.SourceFile {
         var declarations: std.ArrayList(cst.Declaration) = .empty;
+        var imports: std.ArrayList(cst.Import) = .empty;
+        var header: ?cst.ModuleHeader = null;
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -183,7 +189,11 @@ const Walker = struct {
             while (true) {
                 const child = cursor.node();
                 const kind = child.grammarKind();
-                if (std.mem.eql(u8, kind, "signature")) {
+                if (std.mem.eql(u8, kind, "module_header")) {
+                    header = try self.moduleHeader(child);
+                } else if (std.mem.eql(u8, kind, "import_declaration")) {
+                    if (try self.importDeclaration(child)) |i| try imports.append(self.allocator, i);
+                } else if (std.mem.eql(u8, kind, "signature")) {
                     if (try self.signature(child)) |s| {
                         try declarations.append(self.allocator, .{ .signature = s });
                     }
@@ -205,9 +215,70 @@ const Walker = struct {
         }
 
         return .{
+            .header = header,
+            .imports = try imports.toOwnedSlice(self.allocator),
             .declarations = try declarations.toOwnedSlice(self.allocator),
             .span = spanOf(node, self.source_id),
         };
+    }
+
+    fn moduleHeader(self: *Walker, node: ts.Node) !?cst.ModuleHeader {
+        const name_node = node.childByFieldName("name") orelse {
+            try self.missingField(node, "name");
+            return null;
+        };
+        return .{
+            .name = try self.dupe(name_node),
+            .exports = if (node.childByFieldName("exports")) |exports| .{ .only = try self.items(exports) } else .all,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn importDeclaration(self: *Walker, node: ts.Node) !?cst.Import {
+        const module_node = node.childByFieldName("module") orelse {
+            try self.missingField(node, "module");
+            return null;
+        };
+        const selects: cst.Filter = if (node.childByFieldName("items")) |listed|
+            .{ .only = try self.items(listed) }
+        else if (node.childByFieldName("hiding")) |hidden|
+            .{ .hiding = try self.items(hidden) }
+        else
+            .all;
+        return .{
+            .module = try self.dupe(module_node),
+            .selects = selects,
+            .qualifier = if (node.childByFieldName("qualifier")) |q| try self.dupe(q) else null,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn items(self: *Walker, node: ts.Node) ![]const cst.Item {
+        var out: std.ArrayList(cst.Item) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (std.mem.eql(u8, child.grammarKind(), "item")) {
+                    if (child.childByFieldName("name")) |name| {
+                        const kind: cst.Item.Kind = if (std.mem.eql(u8, name.grammarKind(), "identifier"))
+                            .value
+                        else if (child.childByFieldName("constructors") != null)
+                            .type_and_constructors
+                        else
+                            .type;
+                        try out.append(self.allocator, .{
+                            .name = try self.dupe(name),
+                            .kind = kind,
+                            .span = spanOf(child, self.source_id),
+                        });
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+        return try out.toOwnedSlice(self.allocator);
     }
 
     fn signature(self: *Walker, node: ts.Node) !?cst.Signature {
@@ -355,7 +426,7 @@ const Walker = struct {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
 
-        if (std.mem.eql(u8, kind, "identifier")) {
+        if (std.mem.eql(u8, kind, "identifier") or std.mem.eql(u8, kind, "qualified_identifier")) {
             return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
         }
         if (std.mem.eql(u8, kind, "kind")) {
@@ -428,7 +499,7 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "case_expression")) {
             return self.caseExpr(node, span);
         }
-        if (std.mem.eql(u8, kind, "type_identifier")) {
+        if (isConstructor(kind)) {
             return cst.Expression{
                 .kind = .{ .constructor = try self.dupe(node) },
                 .span = span,
@@ -795,7 +866,7 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "identifier")) {
             return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
         }
-        if (std.mem.eql(u8, kind, "type_identifier")) {
+        if (isConstructor(kind)) {
             return .{
                 .kind = .{ .constructor = .{ .name = try self.dupe(node), .arguments = &.{} } },
                 .span = span,
@@ -1084,7 +1155,7 @@ const Walker = struct {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
 
-        if (std.mem.eql(u8, kind, "type_identifier")) {
+        if (isConstructor(kind)) {
             return cst.Type{
                 .kind = .{ .constructor = try self.dupe(node) },
                 .span = span,
@@ -1271,6 +1342,26 @@ fn expectSexpr(source: []const u8, expected: []const u8) !void {
     const actual = try result.source_file.sexprAlloc(testing.allocator);
     defer testing.allocator.free(actual);
     try testing.expectEqualStrings(expected, actual);
+}
+
+test "a header and imports precede the declarations" {
+    try expectSexpr(
+        \\module A.B (f, T(..), U);
+        \\import C;
+        \\import D (g) as Q;
+        \\import Prelude hiding (filter);
+        \\f = 1;
+    ,
+        "(source_file (module A.B (exports f T(..) U)) (import C) (import D (items g) (as Q))" ++
+            " (import Prelude (hiding filter)) (define f (params) 1))",
+    );
+}
+
+test "a qualified name keeps its qualifier" {
+    try expectSexpr(
+        "f = Q.g (A.B.Just 1);",
+        "(source_file (define f (params) (apply Q.g (paren (apply A.B.Just 1)))))",
+    );
 }
 
 test "children compose with a kind test" {

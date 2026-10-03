@@ -704,6 +704,7 @@ fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
 /// Print every diagnostic a compilation collected, one per line, with the
 /// source line it points at.
 fn reportDiagnostics(
+    engine: *const Engine,
     sink: *const tql.diagnostic.Sink,
     source: []const u8,
     path: ?[]const u8,
@@ -711,7 +712,7 @@ fn reportDiagnostics(
 ) !void {
     for (sink.items(), 0..) |d, i| {
         if (i > 0) try stderr.writeByte('\n');
-        try d.render(stderr, tql.sourceOf(d.span.source, .{ .name = path, .text = source }));
+        try d.render(stderr, engine.sourceOf(d.span.source, .{ .name = path, .text = source }));
     }
 }
 
@@ -764,7 +765,7 @@ fn runDumpInstructions(
     defer sink.deinit();
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, query, from_file, stderr);
+        try reportDiagnostics(&engine, &sink, query, from_file, stderr);
         if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };
@@ -1131,7 +1132,7 @@ fn run(
     defer sink.deinit();
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
-        try reportDiagnostics(&sink, config.query, config.query_path, stderr);
+        try reportDiagnostics(&engine, &sink, config.query, config.query_path, stderr);
         if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
         return @intFromEnum(ExitCode.compilation_error);
     };

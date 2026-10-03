@@ -1,0 +1,18 @@
+title: a type error inside an imported module points into that module
+grammar: typescript
+asserts: error
+
+--- module Broken ---
+module Broken;
+broken x = x + "a";
+
+--- tql ---
+import Broken;
+main root = [broken 1];
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> Broken:2:16
+  |
+2 | broken x = x + "a";
+  |                ^^^

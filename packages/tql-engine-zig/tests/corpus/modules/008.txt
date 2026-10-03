@@ -1,0 +1,26 @@
+title: an imported definition is in scope unqualified
+grammar: typescript
+asserts: types, values
+
+--- module Lists ---
+module Lists;
+
+drop_through :: Int -> [Int] -> [Int];
+drop_through x xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> if h = x then t else drop_through x t;
+};
+
+--- tql ---
+import Lists;
+
+main root = drop_through 2 [1, 2, 3];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[3]
+
+--- types ---
+main :: Node -> [Int]

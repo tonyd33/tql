@@ -43,7 +43,7 @@ pub const Env = struct {
 
         const scratch = arena.allocator();
         var interner = symbols.Interner.init(scratch);
-        _ = try interner.declareModule("Prelude");
+        _ = try interner.declareModule(symbols.ModuleId.prelude_name);
         return .{
             .gpa = gpa,
             .arena = arena,

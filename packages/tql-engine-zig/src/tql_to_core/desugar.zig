@@ -71,8 +71,8 @@ pub const Lowerer = struct {
         return switch (self.scope.value(name)) {
             .found => |id| id,
             .missing => null,
-            .ambiguous => |modules| {
-                try self.scope.reportAmbiguous(self.sink, span, name, modules);
+            .failed => |failure| {
+                try self.scope.reportFailure(self.sink, span, name, failure);
                 return error.DesugarFailed;
             },
         };

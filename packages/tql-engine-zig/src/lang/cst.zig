@@ -2,17 +2,46 @@ const std = @import("std");
 const diagnostic = @import("../diagnostic.zig");
 const string_literal = @import("string_literal.zig");
 
+/// A name as written. A qualified name keeps its qualifier: `A.B.x` is
+/// `x` from the import qualified as `A.B`.
 pub const Identifier = []const u8;
 
 pub const SourceFile = struct {
+    header: ?ModuleHeader = null,
+    imports: []const Import = &.{},
     declarations: []const Declaration,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: SourceFile, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.writeAll("(source_file");
+        if (self.header) |h| {
+            try w.print(" (module {s}", .{h.name});
+            try sexprFilter(w, "exports", h.exports);
+            try w.writeByte(')');
+        }
+        for (self.imports) |i| {
+            try w.print(" (import {s}", .{i.module});
+            try sexprFilter(w, "items", i.selects);
+            if (i.qualifier) |q| try w.print(" (as {s})", .{q});
+            try w.writeByte(')');
+        }
         for (self.declarations) |d| {
             try w.writeByte(' ');
             try d.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+
+    fn sexprFilter(w: *std.Io.Writer, label: []const u8, filter: Filter) std.Io.Writer.Error!void {
+        const items = switch (filter) {
+            .all => return,
+            .only => |items| items,
+            .hiding => |items| items,
+        };
+        try w.print(" ({s}", .{if (filter == .hiding) "hiding" else label});
+        for (items) |item| {
+            try w.print(" {s}", .{item.name});
+            if (item.kind == .type_and_constructors) try w.writeAll("(..)");
         }
         try w.writeByte(')');
     }
@@ -23,6 +52,39 @@ pub const SourceFile = struct {
         try self.sexpr(&w.writer);
         return try w.toOwnedSlice();
     }
+};
+
+/// `module A.B (x, T(..));`
+pub const ModuleHeader = struct {
+    name: []const u8,
+    exports: Filter = .all,
+    span: diagnostic.Span = .unknown,
+};
+
+/// `import A.B (x) as Q;`
+pub const Import = struct {
+    module: []const u8,
+    /// What the import takes of the module's exports.
+    selects: Filter = .all,
+    /// Set when the import is qualified-only.
+    qualifier: ?[]const u8 = null,
+    span: diagnostic.Span = .unknown,
+};
+
+/// What an export or import list admits.
+pub const Filter = union(enum) {
+    all,
+    only: []const Item,
+    hiding: []const Item,
+};
+
+/// `x`, `T`, or `T(..)` in an export or import list.
+pub const Item = struct {
+    name: []const u8,
+    kind: Kind,
+    span: diagnostic.Span = .unknown,
+
+    pub const Kind = enum { value, type, type_and_constructors };
 };
 
 /// `name :: type;` or `name p1 p2 = body;`.

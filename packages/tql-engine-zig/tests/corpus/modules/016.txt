@@ -1,0 +1,24 @@
+title: an imported module resolves kinds against the query's grammar
+grammar: typescript
+asserts: values
+
+--- module Classes ---
+module Classes;
+
+class_names root = do {
+  c <- descendants_of_kind :class_declaration root;
+  n <- c#name;
+  return $ text n;
+};
+
+--- tql ---
+import Classes;
+
+main root = class_names root;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]

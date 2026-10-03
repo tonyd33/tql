@@ -7,6 +7,8 @@ const link_mod = @import("tql_to_core/link.zig");
 
 /// Desugars source files into one linked `core.Program`.
 pub const Desugarer = link_mod.Desugarer;
+pub const Import = scope_mod.Import;
+pub const Filter = scope_mod.Filter;
 
 test {
     std.testing.refAllDecls(link_mod);
@@ -23,7 +25,8 @@ const diagnostic = @import("diagnostic.zig");
 const grammar = @import("lang/grammar.zig");
 const parse = @import("parse.zig");
 const test_support = @import("core/test_support.zig");
-const ModuleScope = @import("tql_to_core/scope.zig").ModuleScope;
+const scope_mod = @import("tql_to_core/scope.zig");
+const ModuleScope = scope_mod.ModuleScope;
 
 const testing = std.testing;
 const types = core.types;
@@ -55,6 +58,7 @@ const Fixture = struct {
         return .{
             .module = .prelude,
             .imports = &.{},
+            .exports = &.{.all},
             .interner = &self.env.interner,
             .datatypes = &self.env.datatypes,
         };
@@ -117,9 +121,9 @@ fn link(sources: []const []const u8) !core.Program {
     var sink = diagnostic.Sink.init(gpa);
     defer sink.deinit();
 
-    var modules: std.ArrayList(core.ModuleId) = .empty;
+    var modules: std.ArrayList(scope_mod.Import) = .empty;
     defer modules.deinit(gpa);
-    try modules.append(gpa, .prelude);
+    try modules.append(gpa, .{ .module = .prelude });
 
     var entry_span = diagnostic.Span.unknown;
     for (sources, 0..) |source, i| {
@@ -127,9 +131,9 @@ fn link(sources: []const []const u8) !core.Program {
         defer parsed.deinit();
         try testing.expect(!parsed.hasErrors());
         var name_buf: [16]u8 = undefined;
-        const module = try desugarer.declareModule(try std.fmt.bufPrint(&name_buf, "M{d}", .{i}));
+        const module = try desugarer.declareModule(try std.fmt.bufPrint(&name_buf, "M{d}", .{i}), .all);
         try desugarer.add(module, modules.items, parsed.source_file, g, &sink);
-        try modules.append(gpa, module);
+        try modules.append(gpa, .{ .module = module });
         entry_span = parsed.source_file.span;
     }
     return try desugarer.finish(entry_span, &sink);

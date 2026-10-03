@@ -7,6 +7,9 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
+const UPPER_NAME = /[A-Z][a-zA-Z0-9_]*/;
+const LOWER_NAME = /[a-z_][a-zA-Z0-9_]*/;
+
 const PREC = {
   dollar: 1,
   // biome-ignore lint/suspicious/noThenProperty: false positive
@@ -32,8 +35,58 @@ module.exports = grammar({
 
   word: $ => $.identifier,
 
+  inline: $ => [$._constructor],
+
   rules: {
-    source_file: $ => repeat($._declaration),
+    source_file: $ =>
+      seq(
+        optional(field("header", $.module_header)),
+        repeat(field("import", $.import_declaration)),
+        repeat($._declaration),
+      ),
+
+    module_header: $ =>
+      seq(
+        "module",
+        field("name", $.module_name),
+        optional(field("exports", $.item_list)),
+        ";",
+      ),
+
+    import_declaration: $ =>
+      seq(
+        "import",
+        field("module", $.module_name),
+        optional(
+          choice(
+            field("items", $.item_list),
+            seq("hiding", field("hiding", $.item_list)),
+          ),
+        ),
+        optional(seq("as", field("qualifier", $.module_name))),
+        ";",
+      ),
+
+    item_list: $ => seq("(", optional(sep_trailing($.item, ",")), ")"),
+
+    item: $ =>
+      choice(
+        field("name", $.identifier),
+        seq(
+          field("name", $.type_identifier),
+          optional(field("constructors", $.all_constructors)),
+        ),
+      ),
+
+    all_constructors: _ => seq("(", "..", ")"),
+
+    module_name: _ => token(seq(UPPER_NAME, repeat(seq(".", UPPER_NAME)))),
+
+    qualified_identifier: _ =>
+      token(seq(UPPER_NAME, repeat(seq(".", UPPER_NAME)), ".", LOWER_NAME)),
+
+    qualified_type_identifier: _ =>
+      token(seq(UPPER_NAME, repeat1(seq(".", UPPER_NAME)))),
 
     comment: _ => token(seq("--", /.*/)),
 
@@ -214,7 +267,10 @@ module.exports = grammar({
         seq(
           field("left", $._expression),
           "`",
-          field("function", choice($.identifier, $.type_identifier)),
+          field(
+            "function",
+            choice($.identifier, $.qualified_identifier, $._constructor),
+          ),
           "`",
           field("right", $._expression),
         ),
@@ -332,14 +388,14 @@ module.exports = grammar({
 
     constructor_pattern: $ =>
       seq(
-        field("constructor", $.type_identifier),
+        field("constructor", $._constructor),
         repeat(field("argument", $._atomic_pattern)),
       ),
 
     _atomic_pattern: $ =>
       choice(
         $.identifier,
-        $.type_identifier,
+        $._constructor,
         $.list_pattern,
         $.parenthesized_pattern,
       ),
@@ -388,7 +444,8 @@ module.exports = grammar({
         $.do_expression,
         $.if_expression,
         $.case_expression,
-        $.type_identifier,
+        $.qualified_identifier,
+        $._constructor,
       ),
 
     kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
@@ -447,7 +504,14 @@ module.exports = grammar({
       ),
 
     backtick_operator: $ =>
-      seq("`", field("function", choice($.identifier, $.type_identifier)), "`"),
+      seq(
+        "`",
+        field(
+          "function",
+          choice($.identifier, $.qualified_identifier, $._constructor),
+        ),
+        "`",
+      ),
 
     parenthesized: $ => seq("(", $._expression, ")"),
 
@@ -469,14 +533,14 @@ module.exports = grammar({
         $.type_application,
         $.list_type,
         $.record_type,
-        $.type_identifier,
+        $._constructor,
         $.type_variable,
         $.parenthesized_type,
       ),
 
     type_application: $ =>
       seq(
-        field("constructor", $.type_identifier),
+        field("constructor", $._constructor),
         repeat1(field("argument", $._type_operand)),
       ),
 
@@ -491,7 +555,7 @@ module.exports = grammar({
       choice(
         $.list_type,
         $.record_type,
-        $.type_identifier,
+        $._constructor,
         $.type_variable,
         $.parenthesized_type,
       ),
@@ -515,11 +579,14 @@ module.exports = grammar({
 
     parenthesized_type: $ => seq("(", $._type, ")"),
 
-    type_identifier: _ => /[A-Z][a-zA-Z0-9_]*/,
+    // A constructor or type name as a use site may write it, qualified or not.
+    _constructor: $ => choice($.type_identifier, $.qualified_type_identifier),
+
+    type_identifier: _ => UPPER_NAME,
 
     type_variable: _ => /[a-z][a-zA-Z0-9_]*/,
 
-    identifier: _ => /[a-z_][a-zA-Z0-9_]*/,
+    identifier: _ => LOWER_NAME,
 
     number: _ => token(seq(optional("-"), /[0-9]+/)),
 

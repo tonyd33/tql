@@ -1,0 +1,13 @@
+title: a qualifier no import declares is rejected
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = [Foo.bar];
+
+--- error ---
+error[unresolved-name]: no import is qualified as `Foo`
+ --> 1:14
+  |
+1 | main root = [Foo.bar];
+  |              ^^^^^^^

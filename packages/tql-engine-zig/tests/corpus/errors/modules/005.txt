@@ -1,0 +1,17 @@
+title: an imported module must have a header
+grammar: typescript
+asserts: error
+
+--- module A ---
+a = 1;
+
+--- tql ---
+import A;
+main root = [a];
+
+--- error ---
+error[module-name-mismatch]: `A` has no `module A;` header
+ --> 1:1
+  |
+1 | import A;
+  | ^^^^^^^^^
