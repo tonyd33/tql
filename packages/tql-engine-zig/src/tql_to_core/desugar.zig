@@ -210,7 +210,7 @@ pub const Lowerer = struct {
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
             // A boolean is a nullary constructor, not a literal, so `case` on
             // one is uniform with `case` on any other declared type.
-            .boolean => |b| return try self.primitive(if (b) "True" else "False", e.span),
+            .boolean => |b| return self.builder.symbol(self.scope.datatypes.boolConstructor(b).symbol, e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -311,12 +311,12 @@ pub const Lowerer = struct {
             .@"if" => |i| {
                 const alternatives = try self.builder.slice(core.Case.Alternative, 2);
                 alternatives[0] = .{
-                    .constructor = self.interner.lookup(.prelude, "False").?,
+                    .constructor = self.scope.datatypes.boolConstructor(false).symbol,
                     .binders = &.{},
                     .body = try self.expression(i.alternative, scope),
                 };
                 alternatives[1] = .{
-                    .constructor = self.interner.lookup(.prelude, "True").?,
+                    .constructor = self.scope.datatypes.boolConstructor(true).symbol,
                     .binders = &.{},
                     .body = try self.expression(i.consequence, scope),
                 };
@@ -345,14 +345,14 @@ pub const Lowerer = struct {
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
             .list => |elements| {
-                var spine = try self.primitive("Nil", e.span);
+                var spine = self.builder.symbol(self.scope.datatypes.nilConstructor().symbol, e.span);
                 var i = elements.len;
                 while (i > 0) {
                     i -= 1;
                     // An inner cell spans its head element.
                     const cell = if (i == 0) e.span else elements[i].span;
                     spine = try self.builder.applyMany(
-                        try self.primitive("Cons", cell),
+                        self.builder.symbol(self.scope.datatypes.consConstructor().symbol, cell),
                         &.{ try self.expression(elements[i], scope), spine },
                         cell,
                     );
@@ -459,7 +459,7 @@ pub const Lowerer = struct {
             .compose => return try self.combinator("compose", left, right, span),
             .then => return try self.builder.bind(try self.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
-                try self.primitive("Cons", span),
+                self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
                 span,
             ),

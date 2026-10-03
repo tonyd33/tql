@@ -46,7 +46,7 @@ pub fn caseOf(
     const expanded = try b.slice(cst.Case.Alternative, c.alternatives.len);
     for (c.alternatives, expanded) |alternative, *out| {
         out.* = alternative;
-        out.pattern = try expand(b, alternative.pattern);
+        out.pattern = try expand(lowerer, alternative.pattern);
     }
     for (expanded) |alternative| try checkPattern(lowerer, alternative.pattern);
 
@@ -127,43 +127,61 @@ pub fn caseOf(
 
 /// Rewrite list and cons patterns as `Cons` and `Nil` constructor patterns.
 /// Everything past `caseOf`'s entry sees only variables and constructors.
-fn expand(b: core.Builder, pattern: cst.Pattern) Error!cst.Pattern {
+fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
+    const b = lowerer.builder;
     switch (pattern.kind) {
         .variable => return pattern,
         .constructor => |c| {
             const arguments = try b.slice(cst.Pattern, c.arguments.len);
-            for (c.arguments, arguments) |argument, *out| out.* = try expand(b, argument);
+            for (c.arguments, arguments) |argument, *out| out.* = try expand(lowerer, argument);
             return .{
-                .kind = .{ .constructor = .{ .name = c.name, .arguments = arguments, .prelude = c.prelude } },
+                .kind = .{ .constructor = .{ .name = c.name, .arguments = arguments, .list = c.list } },
                 .span = pattern.span,
             };
         },
-        .cons => |c| return try cell(b, try expand(b, c.head), try expand(b, c.tail), pattern.span),
+        .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), pattern.span),
         .list => |elements| {
-            var spine = preludePattern("Nil", &.{}, pattern.span);
+            var spine = listPattern(lowerer, .nil, &.{}, pattern.span);
             var i = elements.len;
             while (i > 0) {
                 i -= 1;
                 // An inner cell spans its head element.
                 const span = if (i == 0) pattern.span else elements[i].span;
-                spine = try cell(b, try expand(b, elements[i]), spine, span);
+                spine = try cell(lowerer, try expand(lowerer, elements[i]), spine, span);
             }
             return spine;
         },
     }
 }
 
-fn cell(b: core.Builder, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
-    const arguments = try b.slice(cst.Pattern, 2);
+fn cell(lowerer: *Lowerer, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
+    const arguments = try lowerer.builder.slice(cst.Pattern, 2);
     arguments[0] = head;
     arguments[1] = tail;
-    return preludePattern("Cons", arguments, span);
+    return listPattern(lowerer, .cons, arguments, span);
 }
 
-fn preludePattern(name: []const u8, arguments: []const cst.Pattern, span: diagnostic.Span) cst.Pattern {
+fn listPattern(
+    lowerer: *Lowerer,
+    which: cst.Pattern.ListConstructor,
+    arguments: []const cst.Pattern,
+    span: diagnostic.Span,
+) cst.Pattern {
+    const symbol = listConstructor(lowerer.scope.datatypes, which).symbol;
     return .{
-        .kind = .{ .constructor = .{ .name = name, .arguments = arguments, .prelude = true } },
+        .kind = .{ .constructor = .{
+            .name = lowerer.interner.spelling(symbol),
+            .arguments = arguments,
+            .list = which,
+        } },
         .span = span,
+    };
+}
+
+fn listConstructor(registry: *const datatypes.Registry, which: cst.Pattern.ListConstructor) datatypes.Constructor {
+    return switch (which) {
+        .nil => registry.nilConstructor(),
+        .cons => registry.consConstructor(),
     };
 }
 
@@ -217,8 +235,8 @@ fn constructorNamed(
     c: cst.Pattern.Constructor,
     span: diagnostic.Span,
 ) Error!*const datatypes.Constructor {
-    const found = if (c.prelude)
-        lowerer.interner.lookup(.prelude, c.name)
+    const found = if (c.list) |which|
+        listConstructor(lowerer.scope.datatypes, which).symbol
     else
         try lowerer.resolveGlobal(c.name, span);
     if (found) |id| {
@@ -233,7 +251,7 @@ fn constructorNamed(
 /// Preconditions:
 /// - `checkPattern` accepted the pattern `c` is in.
 fn constructorSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
-    if (c.prelude) return scope.interner.lookup(.prelude, c.name).?;
+    if (c.list) |which| return listConstructor(scope.datatypes, which).symbol;
     return scope.value(c.name).found;
 }
 

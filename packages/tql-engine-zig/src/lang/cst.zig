@@ -615,10 +615,12 @@ pub const Pattern = struct {
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
-        /// Set by list-pattern sugar: `name` is the prelude's, whatever the
-        /// module declares.
-        prelude: bool = false,
+        /// Set by list-pattern sugar: the list constructor this is, whatever
+        /// `name` means in the module.
+        list: ?ListConstructor = null,
     };
+
+    pub const ListConstructor = enum { nil, cons };
 
     pub const Cons = struct {
         head: Pattern,

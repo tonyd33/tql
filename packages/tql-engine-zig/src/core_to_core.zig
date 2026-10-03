@@ -25,6 +25,7 @@ pub fn run(program: *core.Program) Error!void {
     var pass: Pass = .{
         .builder = .{ .allocator = program.env.allocator() },
         .interner = &program.env.interner,
+        .primitives = &program.env.primitives,
         .kleisli = kleisli,
     };
 
@@ -45,6 +46,7 @@ pub fn run(program: *core.Program) Error!void {
 const Pass = struct {
     builder: core.Builder,
     interner: *core.Interner,
+    primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
     kleisli: core.SymbolId,
 
     /// Rewrite `t`, bottom up. A rewrite sees operands that are already
@@ -171,7 +173,7 @@ const Pass = struct {
     fn fusedAxis(self: *const Pass, axis: core.SymbolId) ?core.SymbolId {
         const primop = self.primopOf(axis) orelse return null;
         const fused = primop.fusedWithKindTest() orelse return null;
-        return self.interner.lookup(.prelude, @tagName(fused));
+        return self.primitives.get(fused);
     }
 
     /// `k`, when `t` is `of_kind k`.

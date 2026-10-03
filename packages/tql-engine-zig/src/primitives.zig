@@ -109,6 +109,7 @@ pub fn populate(target: *core.env.Env) !void {
         const scheme = try schemeOf(B, primop) orelse continue;
         const id = try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
         try target.setScheme(id, scheme);
+        target.primitives.set(primop, id);
     }
 }
 
