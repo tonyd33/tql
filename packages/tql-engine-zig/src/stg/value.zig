@@ -145,25 +145,25 @@ pub const Traversal = struct {
     /// quadratic in nesting depth. A cursor advances an index on its own
     /// stack instead.
     cursor: *ts.TreeCursor,
-    /// Whether the cursor is positioned on a node still to be yielded. False
-    /// only for a walk empty from the start.
-    live: bool,
-    axis: Axis,
-    /// The grammar field to keep, for `field` traversals. Resolved when the
-    /// query was desugared.
-    field_id: u16 = 0,
-    /// The grammar kind to keep, for the `_of_kind` traversals. Resolved when
-    /// the query was desugared.
-    kind_id: u16 = 0,
+    move: Move,
+    keep: Keep,
 
-    pub const Axis = enum {
-        children,
-        named_children,
-        descendants,
-        named_descendants,
-        field,
-        children_of_kind,
-        descendants_of_kind,
+    pub const Move = enum {
+        /// The next sibling.
+        sibling,
+        /// The pre-order successor within the subject's subtree.
+        preorder,
+    };
+
+    /// Which nodes the walk yields. Field and kind ids are resolved when the
+    /// query was desugared.
+    pub const Keep = union(enum) {
+        any,
+        named,
+        /// Nodes under this grammar field, named or anonymous.
+        field: u16,
+        /// Named nodes of this kind.
+        kind: u16,
     };
 };
 

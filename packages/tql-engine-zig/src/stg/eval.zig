@@ -763,17 +763,7 @@ pub const Machine = struct {
 
                 // Named children under one field, document order. A field the
                 // grammar knows but this node lacks yields no output.
-                .field => |f| {
-                    const subject = try self.nodeArgument(arguments);
-                    const field_id = f.id;
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = descendToFieldChild(cursor, field_id),
-                        .axis = .field,
-                        .field_id = field_id,
-                    });
-                },
+                .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
             .builtin => |primop| switch (primop) {
                 // `length` forces the spine, so it diverges on an infinite list.
@@ -875,68 +865,25 @@ pub const Machine = struct {
                 },
 
                 // Children and anonymous tokens, document order.
-                .children => {
-                    const subject = try self.nodeArgument(arguments);
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = cursor.gotoFirstChild(),
-                        .axis = .children,
-                    });
-                },
+                .children => return try self.walk(try self.nodeArgument(arguments), .sibling, .any),
 
                 // Named children, document order.
-                .named_children => {
-                    const subject = try self.nodeArgument(arguments);
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = descendToNamedChild(cursor),
-                        .axis = .named_children,
-                    });
-                },
+                .named_children => return try self.walk(try self.nodeArgument(arguments), .sibling, .named),
 
                 // Proper descendants and anonymous tokens, pre-order. Proper: the
                 // walk starts by stepping off the subject, so a node is not its
                 // own descendant.
-                .descendants => {
-                    const subject = try self.nodeArgument(arguments);
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = advancePreOrder(cursor),
-                        .axis = .descendants,
-                    });
-                },
+                .descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .any),
 
                 // Named proper descendants, pre-order.
-                .named_descendants => {
-                    const subject = try self.nodeArgument(arguments);
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = advanceNamedDescendant(cursor),
-                        .axis = .named_descendants,
-                    });
-                },
+                .named_descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .named),
 
                 // The `children`/`descendants` walks with the kind test folded
                 // into the advance, so the list holds only matches.
                 .children_of_kind, .descendants_of_kind => {
                     const tested = try self.kindTestArguments(arguments);
-                    const subject = tested.subject;
-                    const kind_id = tested.kind_id;
-                    const descendants = primop == .descendants_of_kind;
-                    const cursor = try self.newCursor(subject);
-                    return try self.step(.{
-                        .cursor = cursor,
-                        .live = if (descendants)
-                            advanceDescendantOfKind(cursor, kind_id)
-                        else
-                            descendToChildOfKind(cursor, kind_id),
-                        .axis = if (descendants) .descendants_of_kind else .children_of_kind,
-                        .kind_id = kind_id,
-                    });
+                    const move: value.Traversal.Move = if (primop == .descendants_of_kind) .preorder else .sibling;
+                    return try self.walk(tested.subject, move, .{ .kind = tested.kind_id });
                 },
             },
         }
@@ -1065,36 +1012,29 @@ pub const Machine = struct {
         return try self.cons(element, try self.nilThunk());
     }
 
+    /// Walk the subtree of `subject` from its first child, yielding each node
+    /// `keep` admits as `move` reaches it.
+    fn walk(self: *Machine, subject: ts.Node, move: value.Traversal.Move, keep: value.Traversal.Keep) Error!value.Value {
+        const t: value.Traversal = .{ .cursor = try self.newCursor(subject), .move = move, .keep = keep };
+        if (!t.cursor.gotoFirstChild() or !(keeps(t) or advance(t))) {
+            self.releaseCursor(t.cursor);
+            return self.nil();
+        }
+        return try self.step(t);
+    }
+
     /// Yield one cell of a suspended axis, suspending the rest.
     ///
     /// One cell per call, so a consumer that stops early walks no further.
     /// The cursor sits on the node being yielded and is advanced past it
     /// before the tail is suspended.
     fn step(self: *Machine, t: value.Traversal) Error!value.Value {
-        // Only a walk that is empty from the start arrives here dead. One that
-        // runs out later ends with a plain `Nil` tail below.
-        if (!t.live) {
-            self.releaseCursor(t.cursor);
-            return self.nil();
-        }
-
         const current = t.cursor.node();
-
-        var rest = t;
-        rest.live = switch (t.axis) {
-            .children => t.cursor.gotoNextSibling(),
-            .named_children => advanceNamedSibling(t.cursor),
-            .descendants => advancePreOrder(t.cursor),
-            .named_descendants => advanceNamedDescendant(t.cursor),
-            .field => advanceFieldSibling(t.cursor, t.field_id),
-            .children_of_kind => advanceSiblingOfKind(t.cursor, t.kind_id),
-            .descendants_of_kind => advanceDescendantOfKind(t.cursor, t.kind_id),
-        };
 
         note(.step_tail, @sizeOf(value.Thunk));
         const tail = try self.arena.create(value.Thunk);
-        if (rest.live) {
-            tail.* = .{ .state = .{ .traversing = rest } };
+        if (advance(t)) {
+            tail.* = .{ .state = .{ .traversing = t } };
         } else {
             // The walk is over, so the tail is already known and the cursor
             // is free for the next one.
@@ -1414,37 +1354,29 @@ fn writeLocation(r: value.Range, jws: *std.json.Stringify) !void {
     try jws.write(r.end_point);
 }
 
-/// Move `cursor` to the first named child, reporting whether one exists.
-fn descendToNamedChild(cursor: *ts.TreeCursor) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    if (cursor.node().isNamed()) return true;
-    return advanceNamedSibling(cursor);
-}
-
-/// Move `cursor` to the next named sibling, reporting whether one exists.
+/// Move `t.cursor` to the next node `t` keeps, reporting whether one exists.
 ///
-/// `gotoNextSibling` advances an index on the cursor's own stack, so this is
-/// amortized constant work per step.
-fn advanceNamedSibling(cursor: *ts.TreeCursor) bool {
-    while (cursor.gotoNextSibling()) {
-        if (cursor.node().isNamed()) return true;
+/// A node `t` does not keep is stepped over, not skipped past: in a pre-order
+/// walk its own subtree is still walked, so a match nested under a non-match
+/// is found. `gotoNextSibling` advances an index on the cursor's own stack, so
+/// a sibling move is amortized constant work.
+fn advance(t: value.Traversal) bool {
+    while (switch (t.move) {
+        .sibling => t.cursor.gotoNextSibling(),
+        .preorder => advancePreOrder(t.cursor),
+    }) {
+        if (keeps(t)) return true;
     }
     return false;
 }
 
-/// Move `cursor` to the first child under `field_id`, named or anonymous.
-fn descendToFieldChild(cursor: *ts.TreeCursor, field_id: u16) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    if (cursor.fieldId() == field_id) return true;
-    return advanceFieldSibling(cursor, field_id);
-}
-
-/// Move `cursor` to the next sibling under `field_id`, named or anonymous.
-fn advanceFieldSibling(cursor: *ts.TreeCursor, field_id: u16) bool {
-    while (cursor.gotoNextSibling()) {
-        if (cursor.fieldId() == field_id) return true;
-    }
-    return false;
+fn keeps(t: value.Traversal) bool {
+    return switch (t.keep) {
+        .any => true,
+        .named => t.cursor.node().isNamed(),
+        .field => |id| t.cursor.fieldId() == id,
+        .kind => |id| t.cursor.node().isNamed() and t.cursor.node().kindId() == id,
+    };
 }
 
 /// Move `cursor` to its pre-order successor, reporting whether one exists.
@@ -1464,43 +1396,6 @@ fn advancePreOrder(cursor: *ts.TreeCursor) bool {
         if (cursor.gotoNextSibling()) return true;
         if (!cursor.gotoParent()) return false;
     }
-}
-
-/// Move a `named_descendants` walk to its next named node.
-fn advanceNamedDescendant(cursor: *ts.TreeCursor) bool {
-    while (advancePreOrder(cursor)) {
-        if (cursor.node().isNamed()) return true;
-    }
-    return false;
-}
-
-/// Move `cursor` to the next named sibling whose kind is `kind_id`.
-fn advanceSiblingOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    while (cursor.gotoNextSibling()) {
-        const node = cursor.node();
-        if (node.isNamed() and node.kindId() == kind_id) return true;
-    }
-    return false;
-}
-
-/// Move `cursor` to the first named child whose kind is `kind_id`.
-fn descendToChildOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    if (!cursor.gotoFirstChild()) return false;
-    const node = cursor.node();
-    if (node.isNamed() and node.kindId() == kind_id) return true;
-    return advanceSiblingOfKind(cursor, kind_id);
-}
-
-/// Move a `descendants_of_kind` walk to its next named node of `kind_id`.
-///
-/// A node of another kind is stepped over, not skipped past: its own subtree
-/// is still walked, so a match nested under a non-match is found.
-fn advanceDescendantOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
-    while (advancePreOrder(cursor)) {
-        const node = cursor.node();
-        if (node.isNamed() and node.kindId() == kind_id) return true;
-    }
-    return false;
 }
 
 fn orderLabel(label: []const u8, field: value.Field) std.math.Order {
