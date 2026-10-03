@@ -158,11 +158,12 @@ const Slots = struct {
 };
 
 pub const Machine = struct {
-    arena: Allocator,
+    /// The current run's arena, set by `begin`.
+    arena: Allocator = undefined,
     program: *const stg.Program,
     /// One thunk per global, in `program.definitions` order, allocated before
     /// the run and forced at most once.
-    globals: []value.Thunk,
+    globals: []value.Thunk = &.{},
     /// Scratch for every regex test this run makes, created on the first.
     match_data: ?pcre2.MatchData = null,
     /// The file being queried. Absent when the machine runs hand-built terms,
@@ -206,9 +207,9 @@ pub const Machine = struct {
     /// frame order.
     held: std.ArrayList(*value.Thunk) = .empty,
 
-    /// `@frameAddress` where the machine was built, or 0 where the target has
-    /// none to give.
-    stack_base: usize,
+    /// `@frameAddress` where the run began, or 0 where the target has none to
+    /// give.
+    stack_base: usize = 0,
     /// How far below `stack_base` evaluation may nest before it stops with
     /// error.StackOverflow instead of overrunning the thread's stack.
     stack_budget: usize = default_stack_budget,
@@ -230,28 +231,37 @@ pub const Machine = struct {
         path: ?[]const u8,
     };
 
-    pub fn init(
-        arena: Allocator,
-        gpa: Allocator,
-        program: *const stg.Program,
-    ) Allocator.Error!Machine {
+    /// A machine for `program`, ready for `begin`.
+    pub fn init(gpa: Allocator, program: *const stg.Program) Machine {
+        return .{ .program = program, .gpa = gpa };
+    }
+
+    /// Start a run whose values live in `arena`. Buffers keep the capacity
+    /// earlier runs grew them to, and every cursor is free for reuse.
+    ///
+    /// Preconditions:
+    /// - Nothing from an earlier run is read again.
+    pub fn begin(self: *Machine, arena: Allocator) Allocator.Error!void {
         // Every global is allocated before any is filled, so one may reference
         // another in any order.
-        const globals = try arena.alloc(value.Thunk, program.definitions.len);
-        for (program.definitions, globals) |definition, *thunk| {
+        const globals = try arena.alloc(value.Thunk, self.program.definitions.len);
+        for (self.program.definitions, globals) |definition, *thunk| {
             thunk.* = .{ .state = .{ .unevaluated = .{
                 .code = definition.value,
                 .captured = &.{},
             } } };
         }
+        try self.spare_cursors.ensureTotalCapacity(self.gpa, self.cursors.items.len);
 
-        return .{
-            .arena = arena,
-            .program = program,
-            .globals = globals,
-            .gpa = gpa,
-            .stack_base = @frameAddress(),
-        };
+        self.arena = arena;
+        self.globals = globals;
+        self.target = null;
+        self.args.clearRetainingCapacity();
+        self.frames.clearRetainingCapacity();
+        self.held.clearRetainingCapacity();
+        self.spare_cursors.clearRetainingCapacity();
+        self.spare_cursors.appendSliceAssumeCapacity(self.cursors.items);
+        self.stack_base = @frameAddress();
     }
 
     pub fn deinit(self: *Machine) void {
@@ -829,20 +839,13 @@ pub const Machine = struct {
                 .ancestors => {
                     const subject = try self.nodeArgument(arguments);
                     var list = try self.nilThunk();
-                    var chain: std.ArrayList(ts.Node) = .empty;
-                    defer chain.deinit(self.arena);
-
-                    var current = subject;
-                    while (current.parent()) |up| : (current = up) {
-                        try chain.append(self.arena, up);
-                    }
-
-                    // Built from the far end back, so the nearest ancestor ends
-                    // up at the head.
-                    var i = chain.items.len;
-                    while (i > 0) {
-                        i -= 1;
-                        list = try self.consThunk(try self.nodeThunk(chain.items[i]), list);
+                    // Descend from the root, consing each node in front of
+                    // the ones above it, so the nearest ancestor ends up at
+                    // the head.
+                    var current = subject.tree.rootNode();
+                    while (!current.eql(subject)) {
+                        list = try self.consThunk(try self.nodeThunk(current), list);
+                        current = current.childWithDescendant(subject) orelse return error.TypeError;
                     }
                     return try self.force(list);
                 },

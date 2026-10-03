@@ -40,8 +40,11 @@ fn runImpl(
 
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
+    var runner = try tql.Runner.init(&compiled);
+    defer runner.deinit();
 
     const run_result = try compiled.run(
+        &runner,
         query_target,
         null,
         arena.allocator(),

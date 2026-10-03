@@ -228,22 +228,19 @@ pub const CompiledQuery = struct {
     /// `scratch` is the machine's arena. The caller resets it between files.
     pub fn run(
         self: *const CompiledQuery,
+        runner: *Runner,
         target: []const u8,
         target_path: ?[]const u8,
         result_allocator: Allocator,
         scratch: Allocator,
     ) !RunOutcome {
-        const source_parser = ts.Parser.create();
-        defer source_parser.destroy();
-        try source_parser.setLanguage(self.grammar.language);
-
         const parse_start = std.Io.Timestamp.now(self.io, .real);
-        const tree = source_parser.parseString(target, null) orelse
+        const tree = runner.parser.parseString(target, null) orelse
             return error.TargetParseFailed;
         defer tree.destroy();
         const parse_time = parse_start.untilNow(self.io, .real);
 
-        var outcome = try self.runTree(tree, target, target_path, result_allocator, scratch);
+        var outcome = try self.runTree(runner, tree, target, target_path, result_allocator, scratch);
         outcome.parse_time = parse_time;
         return outcome;
     }
@@ -252,6 +249,7 @@ pub const CompiledQuery = struct {
     /// `parse_time` is zero.
     pub fn runTree(
         self: *const CompiledQuery,
+        runner: *Runner,
         tree: *const ts.Tree,
         target: []const u8,
         target_path: ?[]const u8,
@@ -260,8 +258,8 @@ pub const CompiledQuery = struct {
     ) !RunOutcome {
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
-        var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
-        defer machine.deinit();
+        const machine = &runner.machine;
+        try machine.begin(scratch);
         machine.target = .{ .source = target, .path = target_path };
 
         const entry = machine.global(self.checked.entry) orelse
@@ -270,6 +268,12 @@ pub const CompiledQuery = struct {
         const root = try scratch.create(stg.Thunk);
         root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
         const outputs = try machine.apply(try machine.force(entry), &.{root});
+        if (try machine.uncons(outputs) == null) return .{
+            .json = try result_allocator.dupe(u8, "[]"),
+            .count = 0,
+            .parse_time = .zero,
+            .query_time = query_start.untilNow(self.io, .real),
+        };
 
         // Serialized here, while the tree is alive. A node value borrows it,
         // so it cannot outlive this call.
@@ -286,6 +290,25 @@ pub const CompiledQuery = struct {
             .parse_time = .zero,
             .query_time = query_time,
         };
+    }
+};
+
+/// What one thread keeps from one target to the next: a parser for the
+/// query's grammar, and a machine whose buffers keep their capacity.
+pub const Runner = struct {
+    parser: *ts.Parser,
+    machine: stg.Machine,
+
+    pub fn init(query: *const CompiledQuery) !Runner {
+        const parser = ts.Parser.create();
+        errdefer parser.destroy();
+        try parser.setLanguage(query.grammar.language);
+        return .{ .parser = parser, .machine = .init(query.allocator, &query.translated) };
+    }
+
+    pub fn deinit(self: *Runner) void {
+        self.machine.deinit();
+        self.parser.destroy();
     }
 };
 
@@ -342,8 +365,9 @@ fn runQuery(
     var translated = try core_to_stg.translate(allocator, &program);
     defer translated.deinit();
 
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
+    var machine = stg.Machine.init(allocator, &translated);
     defer machine.deinit();
+    try machine.begin(arena.allocator());
 
     const main_value = try machine.force(machine.global(program.entry).?);
     var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
@@ -475,8 +499,9 @@ test "forcing a global cycle reports it rather than hanging" {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
 
-    var machine = try stg.Machine.init(arena.allocator(), allocator, &translated);
+    var machine = stg.Machine.init(allocator, &translated);
     defer machine.deinit();
+    try machine.begin(arena.allocator());
 
     const a = program.entryDefinitions()[0].symbol;
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
