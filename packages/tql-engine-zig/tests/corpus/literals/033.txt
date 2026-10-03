@@ -1,11 +1,9 @@
-title: pipe binds looser than comparison, union looser than pipe
+title: pipe binds looser than comparison and union
 grammar: typescript
 asserts: core, types, values
 
-The whole pipeline is the left operand of `<|>`. Union is the loosest
-operator, so it splits the expression last. Were it tighter than pipe, the last
-stage would be `arr (...) <|> pure false` and every class would yield an extra
-`false`.
+The last stage is `arr (...) <|> pure false`, so every class yields an extra
+`false`. Parenthesize the pipeline to make it the left operand of `<|>`.
 
 Both union operands yield `Bool`, since union requires a single element type.
 
@@ -21,10 +19,10 @@ class A {}
 class B {}
 
 --- values ---
-[true, false, false]
+[true, false, false, false]
 
 --- types ---
 main :: Node -> [Bool]
 
 --- core ---
-main = alt (kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[=] (text n) "A"))) (pure False)
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (alt (arr (\n -> op[=] (text n) "A")) (pure False))

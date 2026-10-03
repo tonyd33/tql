@@ -1327,10 +1327,10 @@ test "a list literal keeps its elements in order" {
     );
 }
 
-test "union is spelled <|>" {
+test "union is spelled <|> and binds tighter than pipe" {
     try expectSexpr(
         "main = a <|> b | c;",
-        "(source_file (define main (params) (<|> a (| b c))))",
+        "(source_file (define main (params) (| (<|> a b) c)))",
     );
 }
 
@@ -1348,10 +1348,10 @@ test "composition is right-associative and looser than application" {
     );
 }
 
-test "then is left-associative, between dollar and union" {
+test "then is left-associative, between dollar and pipe" {
     try expectSexpr(
-        "main = f $ a >> b >> c <|> d;",
-        "(source_file (define main (params) (apply f (>> (>> a b) (<|> c d)))))",
+        "main = f $ a >> b >> c | d;",
+        "(source_file (define main (params) (apply f (>> (>> a b) (| c d)))))",
     );
 }
 

@@ -9,6 +9,7 @@
 - `children` and `descendants` also yield anonymous tokens, such as the `type` in `import type`. `named_children` and `named_descendants` keep the old behaviour.
 - Grammar fields are read with `#`. `.` now reads record fields.
 - `range` returns a record.
+- `<|>` binds tighter than `|`: `a <|> b | f` is `(a <|> b) | f`.
 
 ### New Features
 
