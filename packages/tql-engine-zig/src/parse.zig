@@ -1308,30 +1308,8 @@ fn binaryOperatorOf(kind: []const u8) ?cst.BinaryOperator {
 }
 
 fn operatorFromSpelling(text: []const u8) ?cst.BinaryOperator {
-    const table = [_]struct { []const u8, cst.BinaryOperator }{
-        .{ "/", .divide },
-        .{ "*", .multiply },
-        .{ "%", .modulo },
-        .{ "+", .add },
-        .{ "-", .subtract },
-        .{ "!=", .ne },
-        .{ "<=", .lte },
-        .{ ">=", .gte },
-        .{ "=", .eq },
-        .{ "<", .lt },
-        .{ ">", .gt },
-        .{ "!~", .not_match },
-        .{ "~", .match },
-        .{ "and", .@"and" },
-        .{ "or", .@"or" },
-        .{ "|", .pipe },
-        .{ "<|>", .stream_union },
-        .{ ".", .compose },
-        .{ ">>", .then },
-        .{ ":", .cons },
-    };
-    for (table) |entry| {
-        if (std.mem.eql(u8, text, entry[0])) return entry[1];
+    for (std.enums.values(cst.BinaryOperator)) |op| {
+        if (std.mem.eql(u8, text, op.spelling())) return op;
     }
     return null;
 }
