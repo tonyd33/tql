@@ -226,7 +226,7 @@ pub const Inference = struct {
         const result = try self.subst.fresh();
         const arrow = try types.func(self.subst.arena, argument, result);
 
-        switch (unify.unify(self.subst, callee, arrow)) {
+        switch (try unify.unify(self.subst, callee, arrow)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .type_mismatch,
@@ -540,7 +540,7 @@ pub const Inference = struct {
 
         const flexible = try self.subst.instantiate(inferred);
 
-        switch (unify.unify(self.subst, rigid.type, flexible.type)) {
+        switch (try unify.unify(self.subst, rigid.type, flexible.type)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .signature_mismatch,
@@ -615,7 +615,7 @@ pub const Inference = struct {
         const output = try self.subst.fresh();
         const wanted = try self.subst.datatypes.filter(self.subst.arena, types.node_type, output);
 
-        switch (unify.unify(self.subst, wanted, instantiated.type)) {
+        switch (try unify.unify(self.subst, wanted, instantiated.type)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .main_type,
@@ -665,7 +665,7 @@ pub const Inference = struct {
 
     /// Unifies, converting a failure into a `type-mismatch` at `span`.
     fn expect(self: *Inference, found: types.Type, want: types.Type, span: diagnostic.Span, rule: Rule) Error!void {
-        switch (unify.unify(self.subst, want, found)) {
+        switch (try unify.unify(self.subst, want, found)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .type_mismatch,
@@ -768,10 +768,14 @@ pub fn check(
 
             var names: types.MetaNames = .{};
             switch (failure.detail) {
-                .mismatch => |m| try buf.writer.print("Expected `{f}`, found `{f}`.", .{
-                    (try subst.resolveDeep(m.expected)).named(&names),
-                    (try subst.resolveDeep(m.found)).named(&names),
-                }),
+                .mismatch => |m| {
+                    const expected = try subst.resolveDeep(m.expected);
+                    const found = try subst.resolveDeep(m.found);
+                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{
+                        expected.named(&names),
+                        found.named(&names),
+                    });
+                },
                 .violation => |v| try v.format(&buf.writer),
                 .over_application => |t| try buf.writer.print(
                     "`{f}` has no argument left to take.",

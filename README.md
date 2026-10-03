@@ -42,7 +42,7 @@ Find all function names
 
 ```sh
 tql query --grammar=c '
-main = descendants_of_kind :function_definition | .declarator | .declarator | arr text;
+main = descendants_of_kind :function_definition | #declarator | #declarator | arr text;
 ' main.c
 ```
 
@@ -58,8 +58,8 @@ Find all function argument names
 tql query --grammar=c '
 main =
   descendants_of_kind :function_definition
-  | .declarator
-  | .parameters
+  | #declarator
+  | #parameters
   | descendants_of_kind :identifier
   | arr text;
 ' main.c
@@ -75,15 +75,15 @@ Find all function argument names with type int
 
 ```sh
 tql query --grammar=c '
-int_type = .type | arr text | keep (\t -> t = "int");
+int_type = #type | arr text | keep (\t -> t = "int");
 
 main =
   descendants_of_kind :function_definition
-  | .declarator
-  | .parameters
+  | #declarator
+  | #parameters
   | children_of_kind :parameter_declaration
   | keep (has int_type)
-  | .declarator
+  | #declarator
   | arr text;
 ' main.c
 ```
@@ -98,14 +98,14 @@ Find all function names with an argument with type int
 
 ```sh
 tql query --grammar=c '
-int_type = .type | arr text | keep (\t -> t = "int");
-int_params = .declarator | .parameters | children_of_kind :parameter_declaration | keep (has int_type);
+int_type = #type | arr text | keep (\t -> t = "int");
+int_params = #declarator | #parameters | children_of_kind :parameter_declaration | keep (has int_type);
 
 main =
   descendants_of_kind :function_definition
   | keep (has int_params)
-  | .declarator
-  | .declarator
+  | #declarator
+  | #declarator
   | arr text;
 ' main.c
 ```
@@ -120,13 +120,13 @@ Find all function names with an argument with type int, along with that function
 
 ```sh
 tql query --grammar=c '
-params = .declarator | .parameters | children_of_kind :parameter_declaration;
-int_type = .type | arr text | keep (\t -> t = "int");
+params = #declarator | #parameters | children_of_kind :parameter_declaration;
+int_type = #type | arr text | keep (\t -> t = "int");
 
 main root = do {
   f <- descendants_of_kind :function_definition root;
   guard $ has (params | keep (has int_type)) f;
-  name <- (.declarator | .declarator) f;
+  name <- (#declarator | #declarator) f;
   return { name = text name, params = (params | arr text) f };
 };
 ' main.c

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-method_names = .body | children | of_kind :method_definition | .name;
+method_names = #body | children | of_kind :method_definition | #name;
 is_getter n = text n ~ r"^get";
 
 main root = do {

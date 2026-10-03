@@ -155,7 +155,7 @@ pub fn writeText(rows: []const Row, widths: Widths, w: *std.Io.Writer) std.Io.Wr
         try writePoint(r.end_point, widths, w);
         try w.writeAll("  ");
         try w.splatByteAll(' ', 2 * @as(usize, r.depth));
-        if (r.field) |f| try w.print(".{s} ", .{f});
+        if (r.field) |f| try w.print("#{s} ", .{f});
         if (r.is_error) {
             try w.writeAll("ERROR");
         } else {
@@ -420,15 +420,15 @@ test "text shows every node, with text on leaves only" {
         \\1:1  - 4:1   :program
         \\1:1  - 3:2     :class_declaration
         \\1:1  - 1:6       "class"
-        \\1:7  - 1:8       .name :identifier "A"
-        \\1:9  - 3:2       .body :class_body
+        \\1:7  - 1:8       #name :identifier "A"
+        \\1:9  - 3:2       #body :class_body
         \\1:9  - 1:10        "{"
         \\2:5  - 2:22        :field_declaration
         \\2:5  - 2:12          :modifiers
         \\2:5  - 2:12            "private"
-        \\2:13 - 2:19          .type :type_identifier "String"
-        \\2:20 - 2:21          .declarator :variable_declarator
-        \\2:20 - 2:21            .name :identifier "s"
+        \\2:13 - 2:19          #type :type_identifier "String"
+        \\2:20 - 2:21          #declarator :variable_declarator
+        \\2:20 - 2:21            #name :identifier "s"
         \\2:21 - 2:22          ";"
         \\3:1  - 3:2         "}"
         \\
@@ -444,13 +444,13 @@ test "named only gives a node its text when its children are hidden" {
     , .{ .named_only = true },
         \\1:1  - 4:1   :program
         \\1:1  - 3:2     :class_declaration
-        \\1:7  - 1:8       .name :identifier "A"
-        \\1:9  - 3:2       .body :class_body
+        \\1:7  - 1:8       #name :identifier "A"
+        \\1:9  - 3:2       #body :class_body
         \\2:5  - 2:22        :field_declaration
         \\2:5  - 2:12          :modifiers "private"
-        \\2:13 - 2:19          .type :type_identifier "String"
-        \\2:20 - 2:21          .declarator :variable_declarator
-        \\2:20 - 2:21            .name :identifier "s"
+        \\2:13 - 2:19          #type :type_identifier "String"
+        \\2:20 - 2:21          #declarator :variable_declarator
+        \\2:20 - 2:21            #name :identifier "s"
         \\
     );
 }
@@ -468,8 +468,8 @@ test "a leaf's text is escaped as a string literal" {
     try expectTree("python", "x = \"a\\tb\"\n", .{ .named_only = true },
         \\1:1  - 2:1   :module
         \\1:1  - 1:11    :assignment
-        \\1:1  - 1:2       .left :identifier "x"
-        \\1:5  - 1:11      .right :string
+        \\1:1  - 1:2       #left :identifier "x"
+        \\1:5  - 1:11      #right :string
         \\1:5  - 1:6         :string_start "\""
         \\1:6  - 1:10        :string_content
         \\1:7  - 1:9           :escape_sequence "\\t"
@@ -483,14 +483,14 @@ test "error and missing nodes print as tree-sitter names them" {
         \\1:1  - 2:1   :program
         \\1:1  - 1:18    :class_declaration
         \\1:1  - 1:6       "class"
-        \\1:7  - 1:8       .name :identifier "A"
-        \\1:9  - 1:18      .body :class_body
+        \\1:7  - 1:8       #name :identifier "A"
+        \\1:9  - 1:18      #body :class_body
         \\1:9  - 1:10        "{"
         \\1:11 - 1:16        :field_declaration
-        \\1:11 - 1:14          .type :integral_type
+        \\1:11 - 1:14          #type :integral_type
         \\1:11 - 1:14            "int"
-        \\1:15 - 1:16          .declarator :variable_declarator
-        \\1:15 - 1:16            .name :identifier "x"
+        \\1:15 - 1:16          #declarator :variable_declarator
+        \\1:15 - 1:16            #name :identifier "x"
         \\1:16 - 1:16          MISSING ";"
         \\1:17 - 1:18        "}"
         \\

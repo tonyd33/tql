@@ -112,7 +112,8 @@ const Fixture = struct {
         for (labels, field_types, fields) |label, t, *f| {
             f.* = .{ .label = label, .type = try types.store(self.subst.arena, t) };
         }
-        return .{ .record = fields };
+        std.mem.sort(types.Type.Field, fields, {}, types.Type.Field.lessThan);
+        return .{ .record = .{ .fields = fields } };
     }
 
     fn expectRenders(self: *Fixture, t: types.Type, expected: []const u8) !void {
@@ -124,7 +125,7 @@ const Fixture = struct {
 
     /// Unifies, failing the test if the two types mismatch instead.
     fn expectUnifies(self: *Fixture, expected: types.Type, found: types.Type) !void {
-        return switch (unify.unify(&self.subst, expected, found)) {
+        return switch (try unify.unify(&self.subst, expected, found)) {
             .unified => {},
             .mismatch => error.TestUnexpectedResult,
         };
@@ -133,7 +134,7 @@ const Fixture = struct {
     /// The mismatch `expected` and `found` produce, failing the test if they
     /// unify instead.
     fn mismatch(self: *Fixture, expected: types.Type, found: types.Type) !unify.Mismatch {
-        return switch (unify.unify(&self.subst, expected, found)) {
+        return switch (try unify.unify(&self.subst, expected, found)) {
             .unified => error.TestUnexpectedResult,
             .mismatch => |m| m,
         };
@@ -443,7 +444,7 @@ test "resolveDeep rewrites through every constructor" {
 
     const fields = try t.env.allocator().alloc(types.Type.Field, 1);
     fields[0] = .{ .label = "k", .type = try types.store(t.subst.arena, b) };
-    const shape = try types.func(t.subst.arena, a, .{ .record = fields });
+    const shape = try types.func(t.subst.arena, a, .{ .record = .{ .fields = fields } });
 
     const deep = try t.subst.resolveDeep(shape);
     var buf: std.Io.Writer.Allocating = .init(gpa);

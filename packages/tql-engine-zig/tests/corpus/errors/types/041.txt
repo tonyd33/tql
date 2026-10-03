@@ -1,0 +1,15 @@
+title: one row cannot hold different fields in two places
+grammar: typescript
+asserts: error
+
+--- tql ---
+pick :: {a: Int | r} -> {b: Int | r} -> Int;
+pick x y = x.a;
+main = const [pick {a = 1, c = 2} {b = 1, d = 2}];
+
+--- error ---
+error[type-mismatch]: Expected `{b: Int, c: Int}`, found `{b: Int, d: Int}`.
+ --> 3:35
+  |
+3 | main = const [pick {a = 1, c = 2} {b = 1, d = 2}];
+  |                                   ^^^^^^^^^^^^^^

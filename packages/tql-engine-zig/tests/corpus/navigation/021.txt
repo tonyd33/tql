@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 main root = do {
-  op <- (descendants_of_kind :binary_expression | .operator) root;
+  op <- (descendants_of_kind :binary_expression | #operator) root;
   return {
     kind = kind op,
     children = length (children op),

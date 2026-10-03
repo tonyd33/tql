@@ -9,7 +9,7 @@ its own branch, never a later one.
 main root = do {
   c <- children_of_kind :class_declaration root;
   n <- [1, 2];
-  cn <- c.name;
+  cn <- c#name;
   return { class = text cn, n = n };
 };
 

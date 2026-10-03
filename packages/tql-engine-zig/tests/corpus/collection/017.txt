@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 main = collect $ children | of_kind :class_declaration
-  | .name
+  | #name
   | arr (\n -> { name = text n })
 ;
 

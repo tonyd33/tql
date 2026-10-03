@@ -7,11 +7,11 @@ does, since `has` has no compiler special casing. This is evidence for the
 claim that the prelude is ordinary higher-order TQL.
 
 --- tql ---
-methods = .body | children | of_kind :method_definition;
+methods = #body | children | of_kind :method_definition;
 
 main =
   let { has p x = not (null (p x)); }
-  in children | of_kind :class_declaration | keep (has methods) | .name | arr text;
+  in children | of_kind :class_declaration | keep (has methods) | #name | arr text;
 
 --- source ---
 class Service { m() {} }

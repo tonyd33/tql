@@ -2,15 +2,15 @@ title: a bare `.` is a syntax error
 grammar: typescript
 asserts: error
 
-`.` is composition between two operands and a field before a name. The
-identity filter is `arr identity`.
+`.` is composition between two operands and a record field after an
+expression. The identity filter is `arr identity`.
 
 --- tql ---
 main = . | arr kind;
 
 --- error ---
-error[parse]: missing field_name
- --> 1:9
+error[parse]: syntax error
+ --> 1:8
   |
 1 | main = . | arr kind;
-  |         ^
+  |        ^^^

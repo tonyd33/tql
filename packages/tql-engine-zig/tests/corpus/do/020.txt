@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 main root = do {
   class_decl <- children_of_kind :class_declaration root;
-  name <- .name class_decl;
+  name <- #name class_decl;
   guard $ text name ~ r"^S";
   return $ text name;
 };

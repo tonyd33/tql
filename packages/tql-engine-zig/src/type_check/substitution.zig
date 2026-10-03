@@ -73,6 +73,30 @@ pub const Substitution = struct {
         return current;
     }
 
+    /// `r` with its row followed to the end: every field reachable through
+    /// `rest`, sorted by label, and a `rest` that is null, an unsolved
+    /// metavariable or a bound variable.
+    ///
+    /// Shallow in the field types. Returns `r` itself when its row is already
+    /// at the end.
+    pub fn flatten(self: *Substitution, r: types.Type.Record) Allocator.Error!types.Type.Record {
+        var fields = r.fields;
+        var rest = r.rest orelse return r;
+        while (true) {
+            const head = self.resolve(rest.*);
+            switch (head) {
+                .record => |more| {
+                    fields = try mergeFields(self.arena, fields, more.fields);
+                    rest = more.rest orelse return .{ .fields = fields };
+                },
+                else => {
+                    if (fields.ptr == r.fields.ptr and std.meta.eql(head, r.rest.?.*)) return r;
+                    return .{ .fields = fields, .rest = try types.store(self.arena, head) };
+                },
+            }
+        }
+    }
+
     /// `resolve`, applied through the whole tree. Returns `t` itself when
     /// nothing changed, so a fully-solved type costs no allocation.
     pub fn resolveDeep(self: *Substitution, t: types.Type) !types.Type {
@@ -107,20 +131,28 @@ pub const Substitution = struct {
                 const changed = copies orelse return head;
                 return try types.constructed(self.arena, c.name, c.spelling, changed);
             },
-            .record => |fields| {
+            .record => |written| {
+                const r = if (@TypeOf(leaf).resolves) try self.flatten(written) else written;
                 var copies: ?[]types.Type.Field = null;
-                for (fields, 0..) |f, i| {
+                for (r.fields, 0..) |f, i| {
                     const rewritten = try self.rewrite(f.type.*, leaf);
                     if (copies) |slots| {
                         slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
                     } else if (!std.meta.eql(rewritten, f.type.*)) {
-                        const slots = try self.arena.alloc(types.Type.Field, fields.len);
-                        @memcpy(slots[0..i], fields[0..i]);
+                        const slots = try self.arena.alloc(types.Type.Field, r.fields.len);
+                        @memcpy(slots[0..i], r.fields[0..i]);
                         slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
                         copies = slots;
                     }
                 }
-                return .{ .record = copies orelse return head };
+                var rest = r.rest;
+                if (r.rest) |row| {
+                    const rewritten = try self.rewrite(row.*, leaf);
+                    if (!std.meta.eql(rewritten, row.*)) rest = try types.store(self.arena, rewritten);
+                }
+                const result: types.Type.Record = .{ .fields = copies orelse r.fields, .rest = rest };
+                if (std.meta.eql(result, written)) return head;
+                return .{ .record = result };
             },
             .function => |arrow| {
                 const from = try self.rewrite(arrow.from, leaf);
@@ -176,9 +208,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
             } else false,
-            .record => |fields| for (fields) |f| {
+            .record => |r| for (r.fields) |f| {
                 if (self.occurs(id, f.type.*)) break true;
-            } else false,
+            } else if (r.rest) |rest| self.occurs(id, rest.*) else false,
             .function => |arrow| self.occurs(id, arrow.from) or self.occurs(id, arrow.to),
         };
     }
@@ -194,7 +226,10 @@ pub const Substitution = struct {
             },
             .variable, .primitive => {},
             .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
-            .record => |fields| for (fields) |f| try self.freeMetas(f.type.*, out),
+            .record => |r| {
+                for (r.fields) |f| try self.freeMetas(f.type.*, out);
+                if (r.rest) |rest| try self.freeMetas(rest.*, out);
+            },
             .function => |arrow| {
                 try self.freeMetas(arrow.from, out);
                 try self.freeMetas(arrow.to, out);
@@ -256,3 +291,29 @@ pub const Substitution = struct {
         };
     }
 };
+
+/// The fields of `first` and `second` in one list sorted by label. A label in
+/// both keeps both, `first`'s ahead.
+fn mergeFields(
+    arena: Allocator,
+    first: []const types.Type.Field,
+    second: []const types.Type.Field,
+) Allocator.Error![]const types.Type.Field {
+    if (second.len == 0) return first;
+    if (first.len == 0) return second;
+    const merged = try arena.alloc(types.Type.Field, first.len + second.len);
+    var i: usize = 0;
+    var j: usize = 0;
+    for (merged) |*slot| {
+        const take_first = j == second.len or
+            (i < first.len and types.Type.Field.order(first[i].label, second[j].label) != .gt);
+        if (take_first) {
+            slot.* = first[i];
+            i += 1;
+        } else {
+            slot.* = second[j];
+            j += 1;
+        }
+    }
+    return merged;
+}

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = first (children | of_kind :class_declaration | .name) | arr text;
+main = first (children | of_kind :class_declaration | #name) | arr text;
 
 --- source ---
 class A {}

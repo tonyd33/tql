@@ -389,10 +389,10 @@ const Walker = struct {
             };
         }
         if (std.mem.eql(u8, kind, "field_access")) {
-            return self.fieldAccess(node, span);
+            return self.projection(node, span);
         }
-        if (std.mem.eql(u8, kind, "leading_field")) {
-            return self.leadingField(node, span);
+        if (std.mem.eql(u8, kind, "navigation") or std.mem.eql(u8, kind, "leading_navigation")) {
+            return self.navigation(node, span);
         }
         if (std.mem.eql(u8, kind, "application") or std.mem.eql(u8, kind, "dollar_application")) {
             return self.application(node, span);
@@ -447,36 +447,43 @@ const Walker = struct {
         return null;
     }
 
-    fn fieldAccess(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+    /// `r.l`, or the section `_.l`.
+    fn projection(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const record_node = node.childByFieldName("record") orelse {
             try self.missingField(node, "record");
             return null;
         };
-        const field_node = node.childByFieldName("field") orelse {
+        const subject: ?cst.Expression = if (std.mem.eql(u8, textOf(record_node, self.source), "_"))
+            null
+        else
+            try self.expression(record_node) orelse return null;
+        const label_node = node.childByFieldName("field") orelse {
             try self.missingField(node, "field");
             return null;
         };
-        const record_expr = try self.expression(record_node) orelse return null;
-        const field = try self.dupe(field_node);
         return .{
-            .kind = .{ .field_access = try self.boxed(cst.FieldAccess{
-                .record = record_expr,
-                .field = field,
+            .kind = .{ .projection = try self.boxed(cst.Projection{
+                .record = subject,
+                .label = try self.dupe(label_node),
             }) },
             .span = span,
         };
     }
 
-    fn leadingField(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+    /// `n#f`, or a leading `#f` with no `node` child.
+    fn navigation(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+        const subject: ?cst.Expression = if (node.childByFieldName("node")) |n|
+            try self.expression(n) orelse return null
+        else
+            null;
         const field_node = node.childByFieldName("field") orelse {
             try self.missingField(node, "field");
             return null;
         };
-        const field = try self.dupe(field_node);
         return .{
-            .kind = .{ .field_access = try self.boxed(cst.FieldAccess{
-                .record = null,
-                .field = field,
+            .kind = .{ .navigation = try self.boxed(cst.Navigation{
+                .node = subject,
+                .field = try self.dupe(field_node),
             }) },
             .span = span,
         };
@@ -1053,8 +1060,12 @@ const Walker = struct {
                 }
             }
 
+            const row = if (node.childByFieldName("row")) |row_node| try self.dupe(row_node) else null;
             return cst.Type{
-                .kind = .{ .record = try fields.toOwnedSlice(self.allocator) },
+                .kind = .{ .record = .{
+                    .fields = try fields.toOwnedSlice(self.allocator),
+                    .row = row,
+                } },
                 .span = span,
             };
         }
@@ -1132,17 +1143,46 @@ test "children compose with a kind test" {
     );
 }
 
-test "field access binds tighter than application" {
+test "navigation binds tighter than application" {
     try expectSexpr(
-        "main = f x.name;",
+        "main = f x#name;",
         "(source_file (define main (params) (apply f (field x name))))",
     );
 }
 
-test "a leading field has no record" {
+test "a leading navigation has no node" {
     try expectSexpr(
-        "main = .name;",
+        "main = #name;",
         "(source_file (define main (params) (field . name)))",
+    );
+}
+
+test "projection binds tighter than application" {
+    try expectSexpr(
+        "main = f x.start_byte;",
+        "(source_file (define main (params) (apply f (select x start_byte))))",
+    );
+}
+
+test "an underscore section has no record" {
+    try expectSexpr(
+        "main = _.start_byte;",
+        "(source_file (define main (params) (select _ start_byte)))",
+    );
+}
+
+test "an underscore section chains" {
+    try expectSexpr(
+        "main = _.start_point.row;",
+        "(source_file (define main (params) (select (select _ start_point) row)))",
+    );
+}
+
+test "projection chains through navigation" {
+    try expectSexpr(
+        "main = (range c#name).start_point.row;",
+        "(source_file (define main (params) " ++
+            "(select (select (paren (apply range (field c name))) start_point) row)))",
     );
 }
 
@@ -1204,7 +1244,7 @@ test "a let group with several bindings" {
 
 test "a do block with a bind statement" {
     try expectSexpr(
-        "main = do { c <- children; c.name };",
+        "main = do { c <- children; c#name };",
         "(source_file (define main (params) (do (<- c children) (field c name))))",
     );
 }
@@ -1218,7 +1258,7 @@ test "a do block with an expression statement" {
 
 test "a do-local let statement" {
     try expectSexpr(
-        "main = do { c <- children; let n = c.name; n };",
+        "main = do { c <- children; let n = c#name; n };",
         "(source_file (define main (params) " ++
             "(do (<- c children) (let (bind n (params) (field c name))) n)))",
     );
@@ -1242,6 +1282,20 @@ test "a signature with a context" {
     try expectSexpr(
         "f :: (Eq a, Sized b) => a -> b -> Int;",
         "(source_file (signature f (=> (Eq a) (Sized b)) (-> a (-> b Int))))",
+    );
+}
+
+test "an open record type names its row" {
+    try expectSexpr(
+        "f :: {start_byte: t | r} -> t;",
+        "(source_file (signature f (-> (record_type (start_byte t) | r) t)))",
+    );
+}
+
+test "a record type of only a row" {
+    try expectSexpr(
+        "f :: {| r} -> Int;",
+        "(source_file (signature f (-> (record_type | r) Int)))",
     );
 }
 

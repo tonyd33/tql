@@ -9,11 +9,11 @@ first two values come from the `do` form and the last two from the pipe form.
 --- tql ---
 with_do root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
+  n <- c#name;
   return $ text n;
 };
 
-with_pipe = children | of_kind :class_declaration | .name | arr text;
+with_pipe = children | of_kind :class_declaration | #name | arr text;
 
 main = with_do <|> with_pipe;
 

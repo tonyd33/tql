@@ -6,7 +6,7 @@ asserts: types, values
 
 --- tql ---
 apply_to_classes f = children | of_kind :class_declaration | f;
-main = apply_to_classes (.name | arr text);
+main = apply_to_classes (#name | arr text);
 
 --- source ---
 class A {}

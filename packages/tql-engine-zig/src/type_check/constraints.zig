@@ -36,9 +36,13 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
             .always => .holds,
             .fields => conjunction(subst, class, c.arguments),
         },
-        .record => |fields| switch (class) {
+        .record => |r| switch (class) {
             .Sized, .Ord => .{ .fails = head },
-            .Eq, .Serial => conjunction(subst, class, fields),
+            // A row holds when every field it comes to have does.
+            .Eq, .Serial => meet(
+                conjunction(subst, class, r.fields),
+                if (r.rest) |rest| entails(subst, class, rest.*) else .holds,
+            ),
         },
         .function => .{ .fails = head },
     };
@@ -47,20 +51,26 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
 /// Whether `class` holds for every operand: constructor arguments, or record
 /// fields.
 fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, operands: anytype) Outcome {
-    var deferred: ?types.Meta = null;
+    var outcome: Outcome = .holds;
     for (operands) |operand| {
         const t: types.Type = if (@TypeOf(operand) == types.Type.Field) operand.type.* else operand;
-        switch (entails(subst, class, t)) {
-            .holds => {},
-            .fails => |culprit| return .{ .fails = culprit },
-            .deferred => |id| deferred = deferred orelse id,
-        }
+        outcome = meet(outcome, entails(subst, class, t));
+        if (outcome == .fails) return outcome;
     }
-    if (deferred) |id| return .{ .deferred = id };
-    return .holds;
+    return outcome;
 }
 
-/// A constraint on a bare metavariable.
+/// Both outcomes together: the first failure, else the first deferral.
+fn meet(first: Outcome, second: Outcome) Outcome {
+    return switch (first) {
+        .fails => first,
+        .deferred => if (second == .fails) second else first,
+        .holds => second,
+    };
+}
+
+/// A constraint on a bare metavariable. On a row's metavariable, it holds
+/// when it holds of every field the row comes to have.
 pub const Residual = struct {
     class: types.TypeClassConstraint.Class,
     meta: types.Meta,
@@ -89,10 +99,13 @@ pub fn reduce(
                 if (try reduce(subst, class, argument, out, gpa)) |culprit| return culprit;
             },
         },
-        .record => |fields| switch (class) {
+        .record => |r| switch (class) {
             .Sized, .Ord => return head,
-            .Eq, .Serial => for (fields) |f| {
-                if (try reduce(subst, class, f.type.*, out, gpa)) |culprit| return culprit;
+            .Eq, .Serial => {
+                for (r.fields) |f| {
+                    if (try reduce(subst, class, f.type.*, out, gpa)) |culprit| return culprit;
+                }
+                if (r.rest) |rest| return try reduce(subst, class, rest.*, out, gpa);
             },
         },
         .function => return head,
@@ -103,19 +116,19 @@ pub fn reduce(
 fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
     return switch (class) {
         .Eq => switch (p) {
-            .Int, .String, .Range, .Node => true,
+            .Int, .String, .Node => true,
             .Regex, .Kind => false,
         },
         .Ord => switch (p) {
             .Int, .String => true,
-            .Regex, .Node, .Range, .Kind => false,
+            .Regex, .Node, .Kind => false,
         },
         .Sized => switch (p) {
             .String => true,
-            .Int, .Regex, .Node, .Range, .Kind => false,
+            .Int, .Regex, .Node, .Kind => false,
         },
         .Serial => switch (p) {
-            .Int, .String, .Node, .Range => true,
+            .Int, .String, .Node => true,
             .Regex, .Kind => false,
         },
     };

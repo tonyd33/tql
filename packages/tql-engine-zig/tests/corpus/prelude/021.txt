@@ -4,8 +4,8 @@ asserts: types, values
 
 --- tql ---
 runs c = do {
-  m <- (.body | children | of_kind :method_definition) c;
-  n <- m.name;
+  m <- (#body | children | of_kind :method_definition) c;
+  n <- m#name;
   guard $ text n = "run";
   return n;
 };
@@ -13,7 +13,7 @@ runs c = do {
 main root = do {
   c <- children_of_kind :class_declaration root;
   guard $ not (has runs c);
-  n <- c.name;
+  n <- c#name;
   return $ text n;
 };
 

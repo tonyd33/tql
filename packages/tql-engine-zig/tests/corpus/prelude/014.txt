@@ -8,7 +8,7 @@ has none.
 --- tql ---
 main =
   children | of_kind :class_declaration
-  | or_else (.name | arr text) (pure "anonymous");
+  | or_else (#name | arr text) (pure "anonymous");
 
 --- source ---
 class A {}

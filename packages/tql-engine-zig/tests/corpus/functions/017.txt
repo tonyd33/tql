@@ -6,7 +6,7 @@ asserts: types, values
 `children | (of_kind :class_declaration)`.
 
 --- tql ---
-main = children | of_kind :class_declaration | .name | arr text;
+main = children | of_kind :class_declaration | #name | arr text;
 
 --- source ---
 class A {}

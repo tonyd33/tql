@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = descendants_of_kind :binary_expression | .operator | arr text;
+main = descendants_of_kind :binary_expression | #operator | arr text;
 
 --- source ---
 x = a || b;

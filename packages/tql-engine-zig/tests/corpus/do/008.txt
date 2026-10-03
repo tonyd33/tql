@@ -8,9 +8,9 @@ used by the final expression.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
+  n <- c#name;
   let prefix = text n;
-  m <- (.body | children | of_kind :method_definition) c;
+  m <- (#body | children | of_kind :method_definition) c;
   return prefix;
 };
 

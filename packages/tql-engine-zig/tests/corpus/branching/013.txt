@@ -10,7 +10,7 @@ is_a expected n = text n = expected;
 
 main =
   children | of_kind :class_declaration
-  | .name
+  | #name
   | arr (\n -> not $ is_a "A" n);
 
 --- source ---

@@ -9,7 +9,7 @@ in left-major order: both methods of A precede the method of B.
 main = children | of_kind :class_declaration
   | children | of_kind :class_body
   | children | of_kind :method_definition
-  | .name
+  | #name
   | arr text
 ;
 

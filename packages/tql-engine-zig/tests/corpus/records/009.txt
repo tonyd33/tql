@@ -1,0 +1,18 @@
+title: Range and Point name records in a signature
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+line :: Range -> Point;
+line r = r.start_point;
+main = children | arr (\n -> line (range n));
+
+--- source ---
+class A {}
+
+--- values ---
+[{"column": 0, "row": 0}]
+
+--- types ---
+line :: {end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}} -> {column: Int, row: Int}
+main :: Node -> [{column: Int, row: Int}]

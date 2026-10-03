@@ -205,10 +205,18 @@ pub const Apply = struct {
     argument: Expression,
 };
 
-pub const FieldAccess = struct {
-    /// Absent for a leading `.field`, whose record is the implicit input.
-    record: ?Expression,
+/// `n#field`, reading a grammar field of a node.
+pub const Navigation = struct {
+    /// Absent for a leading `#field`, whose node is the implicit input.
+    node: ?Expression,
     field: Identifier,
+};
+
+/// `r.label`, reading a record field.
+pub const Projection = struct {
+    /// Absent for the section `_.label`, a function of the record.
+    record: ?Expression,
+    label: Identifier,
 };
 
 pub const If = struct {
@@ -296,7 +304,8 @@ pub const Expression = struct {
         string: []const u8,
         boolean: bool,
         regex: []const u8,
-        field_access: *FieldAccess,
+        navigation: *Navigation,
+        projection: *Projection,
         apply: *Apply,
         binary: *Binary,
         @"if": *If,
@@ -320,14 +329,23 @@ pub const Expression = struct {
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
             .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .regex => |r| try w.print("(regex \"{s}\")", .{r}),
-            .field_access => |fa| {
+            .navigation => |n| {
                 try w.writeAll("(field ");
-                if (fa.record) |r| {
-                    try r.sexpr(w);
+                if (n.node) |subject| {
+                    try subject.sexpr(w);
                 } else {
                     try w.writeAll(".");
                 }
-                try w.print(" {s})", .{fa.field});
+                try w.print(" {s})", .{n.field});
+            },
+            .projection => |p| {
+                try w.writeAll("(select ");
+                if (p.record) |r| {
+                    try r.sexpr(w);
+                } else {
+                    try w.writeAll("_");
+                }
+                try w.print(" {s})", .{p.label});
             },
             .apply => |a| {
                 try w.writeAll("(apply ");
@@ -446,6 +464,13 @@ pub const TypeField = struct {
     span: diagnostic.Span = .unknown,
 };
 
+/// `{l: t, ...}`, or `{l: t, ... | r}` with the row `r` standing for any
+/// further fields.
+pub const RecordType = struct {
+    fields: []const TypeField,
+    row: ?Identifier = null,
+};
+
 /// `case e of { p -> e; ... }`
 pub const Case = struct {
     scrutinee: Expression,
@@ -527,7 +552,7 @@ pub const Type = struct {
         function: *FunctionType,
         filter: *FilterType,
         list: *Type,
-        record: []const TypeField,
+        record: RecordType,
         parenthesized: *Type,
     };
 
@@ -562,13 +587,14 @@ pub const Type = struct {
                 try t.sexpr(w);
                 try w.writeByte(')');
             },
-            .record => |fields| {
+            .record => |r| {
                 try w.writeAll("(record_type");
-                for (fields) |f| {
+                for (r.fields) |f| {
                     try w.print(" ({s} ", .{f.name});
                     try f.type.sexpr(w);
                     try w.writeByte(')');
                 }
+                if (r.row) |row| try w.print(" | {s}", .{row});
                 try w.writeByte(')');
             },
             .parenthesized => |t| {

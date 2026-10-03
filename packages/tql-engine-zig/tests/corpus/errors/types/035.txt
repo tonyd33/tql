@@ -1,0 +1,13 @@
+title: a record without the field selected
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const [{a = 1}.b];
+
+--- error ---
+error[type-mismatch]: Expected `{b: a | b}`, found `{a: Int}`.
+ --> 1:15
+  |
+1 | main = const [{a = 1}.b];
+  |               ^^^^^^^

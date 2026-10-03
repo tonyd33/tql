@@ -8,12 +8,12 @@ own, so it cannot end the block.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  let n = c.name;
+  let n = c#name;
 };
 
 --- error ---
 error[parse]: a do block must end in an expression, not a let statement
  --> 3:3
   |
-3 |   let n = c.name;
+3 |   let n = c#name;
   |   ^^^^^^^^^^^^^^

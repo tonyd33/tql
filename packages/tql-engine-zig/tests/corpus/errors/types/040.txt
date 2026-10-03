@@ -1,0 +1,17 @@
+title: a signature rejects a record its row cannot hold
+grammar: typescript
+asserts: error
+
+`size` takes a record with `name`; the argument has none.
+
+--- tql ---
+size :: {name: String | r} -> Int;
+size r = length r.name;
+main = const [size {n = 1}];
+
+--- error ---
+error[type-mismatch]: Expected `{name: String | a}`, found `{n: Int}`.
+ --> 3:20
+  |
+3 | main = const [size {n = 1}];
+  |                    ^^^^^^^

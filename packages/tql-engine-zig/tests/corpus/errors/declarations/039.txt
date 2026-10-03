@@ -1,0 +1,17 @@
+title: a row variable is not also a type
+grammar: typescript
+asserts: error
+
+The variable after `|` stands for the rest of a record, not a type.
+
+--- tql ---
+f :: {name: String | r} -> r;
+f x = x;
+main = const [];
+
+--- error ---
+error[type-mismatch]: `r` stands for a record's other fields in one place and for a type in another
+ --> 1:28
+  |
+1 | f :: {name: String | r} -> r;
+  |                            ^

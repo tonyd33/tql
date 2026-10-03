@@ -3,7 +3,7 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-main = children | descendants | of_kind :class_declaration | .name;
+main = children | descendants | of_kind :class_declaration | #name;
 
 --- source ---
 class A { m() {} }

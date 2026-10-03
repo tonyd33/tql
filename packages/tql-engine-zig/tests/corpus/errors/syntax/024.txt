@@ -1,0 +1,15 @@
+title: a bare `#` is a syntax error
+grammar: typescript
+asserts: error
+
+`#` reads a grammar field, so a field name follows it.
+
+--- tql ---
+main = # | arr kind;
+
+--- error ---
+error[parse]: missing field_name
+ --> 1:9
+  |
+1 | main = # | arr kind;
+  |         ^

@@ -64,7 +64,7 @@ pub const Desugarer = struct {
 
             // A declared type is found before a primitive one, so this would
             // silently replace `Int` in every signature.
-            if (annotation.primitiveNamed(declared.name) != null) {
+            if (annotation.builtinNamed(declared.name) != null) {
                 try sink.report(
                     .symbol_collision,
                     declared.span,
@@ -196,7 +196,10 @@ pub const Desugarer = struct {
                     }
                     return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
                 }
-                if (annotation.primitiveNamed(name)) |t| return t;
+                if (annotation.builtinNamed(name)) |t| {
+                    if (t == .record) return try recordField(written.span, sink);
+                    return t;
+                }
                 try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
                 return null;
             },
@@ -241,16 +244,13 @@ pub const Desugarer = struct {
                 const output = try self.fieldType(f.output, declared, sink) orelse return null;
                 return try self.env.?.datatypes.filter(arena, input, output);
             },
-            .record => {
-                try sink.report(
-                    .type_mismatch,
-                    written.span,
-                    "a constructor field may not be a record yet",
-                    .{},
-                );
-                return null;
-            },
+            .record => return try recordField(written.span, sink),
         }
+    }
+
+    fn recordField(span: diagnostic.Span, sink: *diagnostic.Sink) !?types.Type {
+        try sink.report(.type_mismatch, span, "a constructor field may not be a record yet", .{});
+        return null;
     }
 
     /// Desugars one source file and adds it to the link: collect heads,

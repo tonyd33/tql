@@ -6,7 +6,7 @@ One list per class, not one list overall.
 
 --- tql ---
 main = children | of_kind :class_declaration
-  | collect (.body | children | of_kind :method_definition | .name | arr text)
+  | collect (#body | children | of_kind :method_definition | #name | arr text)
 ;
 
 --- source ---

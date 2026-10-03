@@ -231,7 +231,82 @@ test "a record type keeps its labels" {
     fields[0] = .{ .name = "k", .type = fix.node(.{ .constructor = "String" }) };
     fields[1] = .{ .name = "n", .type = fix.node(.{ .constructor = "Int" }) };
 
-    try fix.expectScheme(fix.node(.{ .record = fields }), "{k: String, n: Int}");
+    try fix.expectScheme(fix.node(.{ .record = .{ .fields = fields } }), "{k: String, n: Int}");
+}
+
+test "a record type sorts its labels" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const fields = try fix.env.allocator().alloc(cst.TypeField, 2);
+    fields[0] = .{ .name = "n", .type = fix.node(.{ .constructor = "Int" }) };
+    fields[1] = .{ .name = "k", .type = fix.node(.{ .constructor = "String" }) };
+
+    try fix.expectScheme(fix.node(.{ .record = .{ .fields = fields } }), "{k: String, n: Int}");
+}
+
+test "a row after the fields is a variable of the scheme" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const fields = try fix.env.allocator().alloc(cst.TypeField, 1);
+    fields[0] = .{ .name = "start_byte", .type = fix.node(.{ .variable = "t" }) };
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
+    written.kind.function.* = .{
+        .from = fix.node(.{ .record = .{ .fields = fields, .row = "r" } }),
+        .to = fix.node(.{ .variable = "t" }),
+    };
+    try fix.expectScheme(written, "{start_byte: a | b} -> a");
+}
+
+test "Range and Point name records" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    try fix.expectScheme(fix.node(.{ .constructor = "Point" }), "{column: Int, row: Int}");
+}
+
+test "a row variable used as a type is rejected" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const written = fix.node(.{ .function = try fix.env.allocator().create(cst.FunctionType) });
+    written.kind.function.* = .{
+        .from = fix.node(.{ .record = .{ .fields = &.{}, .row = "r" } }),
+        .to = fix.node(.{ .variable = "r" }),
+    };
+    const signature: cst.Signature = .{ .name = "f", .type = written };
+    try testing.expectError(error.BadAnnotation, annotation.translate(
+        fix.env.allocator(),
+        gpa,
+        &signature,
+        &fix.env.datatypes,
+        &fix.sink,
+    ));
+    try testing.expectEqual(1, fix.sink.items().len);
+}
+
+test "a record type with a repeated label is rejected" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    const fields = try fix.env.allocator().alloc(cst.TypeField, 2);
+    fields[0] = .{ .name = "a", .type = fix.node(.{ .constructor = "Int" }) };
+    fields[1] = .{ .name = "a", .type = fix.node(.{ .constructor = "String" }) };
+    const signature: cst.Signature = .{ .name = "f", .type = fix.node(.{ .record = .{ .fields = fields } }) };
+    try testing.expectError(error.BadAnnotation, annotation.translate(
+        fix.env.allocator(),
+        gpa,
+        &signature,
+        &fix.env.datatypes,
+        &fix.sink,
+    ));
+    try testing.expectEqual(1, fix.sink.items().len);
 }
 
 test "a context constrains a variable of the type" {
@@ -348,14 +423,16 @@ test "a constrained variable absent from the type is rejected" {
     try testing.expectEqual(1, fix.sink.items().len);
 }
 
-test "the primitive table is the six primitives and nothing else" {
+test "the built-in table is the five primitives, Range and Point" {
     // A change to what a signature may name should fail here first. `Bool` is
     // absent because it is a declared type, resolved through the registry.
-    try testing.expectEqual(6, annotation.primitive_names.len);
-    try testing.expect(annotation.primitiveNamed("Node") != null);
-    try testing.expect(annotation.primitiveNamed("Bool") == null);
-    try testing.expect(annotation.primitiveNamed("node") == null);
-    try testing.expect(annotation.primitiveNamed("Filter") == null);
+    try testing.expectEqual(7, annotation.builtin_names.len);
+    try testing.expect(annotation.builtinNamed("Node") != null);
+    try testing.expect(annotation.builtinNamed("Range").? == .record);
+    try testing.expect(annotation.builtinNamed("Point").? == .record);
+    try testing.expect(annotation.builtinNamed("Bool") == null);
+    try testing.expect(annotation.builtinNamed("node") == null);
+    try testing.expect(annotation.builtinNamed("Filter") == null);
 }
 
 // ============================================================================
@@ -363,7 +440,7 @@ test "the primitive table is the six primitives and nothing else" {
 // ============================================================================
 
 test "a field symbol carries the grammar id it resolved" {
-    var program = try link(&.{"main = .name;"});
+    var program = try link(&.{"main = #name;"});
     defer program.deinit();
 
     var grammars = grammar.Registry.init(testing.allocator, &.{});

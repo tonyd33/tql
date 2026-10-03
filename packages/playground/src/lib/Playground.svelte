@@ -6,19 +6,19 @@
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
 
-  let query = $state(`int_type = .type | arr text | keep (\\t -> t = "int");
+  let query = $state(`int_type = #type | arr text | keep (\\t -> t = "int");
 
 int_params =
-  .declarator
-  | .parameters
+  #declarator
+  | #parameters
   | children_of_kind :parameter_declaration
   | keep (has int_type)
-  | .declarator
+  | #declarator
   | arr text;
 
 main root = do {
   f <- descendants_of_kind :function_definition root;
-  name <- (.declarator | .declarator) f;
+  name <- (#declarator | #declarator) f;
   return { func = text name, int_params = int_params f };
 };`);
   let target = $state(`#include <stddef.h>

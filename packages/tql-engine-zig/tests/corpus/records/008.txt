@@ -1,0 +1,17 @@
+title: equality on an open record is inferred
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+same_name a b = a.name = b.name;
+main = const [same_name {name = 1, k = 2} {name = 1, j = "x"}];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+same_name :: Eq a => {name: a | b} -> {name: a | c} -> Bool
+main :: Node -> [Bool]

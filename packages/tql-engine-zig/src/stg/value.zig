@@ -111,7 +111,6 @@ pub const Value = union(enum) {
     regex: *const stg.Regex,
     kind: core.Literal.Kind,
     node: Node,
-    range: Range,
 };
 
 pub const State = union(enum) {

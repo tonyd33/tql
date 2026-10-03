@@ -30,6 +30,7 @@ pub const Site = enum {
     apply_args,
     primitive_args,
     record_fields,
+    range_fields,
     toint_thunk,
     filename_thunk,
     construct_spill,
@@ -805,7 +806,23 @@ pub const Machine = struct {
             },
             .range => {
                 const subject = try self.nodeArgument(arguments);
-                return .{ .range = rangeOf(subject) };
+                return try self.rangeRecord(rangeOf(subject));
+            },
+
+            // Forces the record, and of its fields only the one selected.
+            .select => {
+                const label = switch (try synthesized(call)) {
+                    .select => |l| l,
+                    else => return error.TypeError,
+                };
+                if (arguments.len != 1) return error.TypeError;
+                const fields = switch (try self.force(arguments[0])) {
+                    .record => |f| f,
+                    else => return error.TypeError,
+                };
+                const index = std.sort.binarySearch(value.Field, fields, label, orderLabel) orelse
+                    return error.TypeError;
+                return try self.force(fields[index].thunk);
             },
 
             .is_kind => {
@@ -858,18 +875,14 @@ pub const Machine = struct {
                     else => return error.TypeError,
                 };
                 const parsed = parseInt(text) orelse return self.nil();
-                const thunk = try self.arena.create(value.Thunk);
-                thunk.* = value.Thunk.value(.{ .number = parsed });
-                return self.singleton(thunk);
+                return self.singleton(try self.valueThunk(.{ .number = parsed }));
             },
 
             // Constant across the query, and it never reads its argument.
             .filename => {
                 const target = self.target orelse return self.nil();
                 const path = target.path orelse return self.nil();
-                const thunk = try self.arena.create(value.Thunk);
-                thunk.* = value.Thunk.value(.{ .string = path });
-                return self.singleton(thunk);
+                return self.singleton(try self.valueThunk(.{ .string = path }));
             },
 
             // Children and anonymous tokens, document order.
@@ -1017,11 +1030,46 @@ pub const Machine = struct {
         return value.Constructed.init(constructor, tag, spill);
     }
 
+    /// `range`'s record in one block: its four fields, then each point's two.
+    fn rangeRecord(self: *Machine, r: value.Range) Error!value.Value {
+        note(.range_fields, 8 * (@sizeOf(value.Thunk) + @sizeOf(value.Field)));
+        const thunks = try self.arena.alloc(value.Thunk, 8);
+        const fields = try self.arena.alloc(value.Field, 8);
+        const end_point = fields[4..6];
+        const start_point = fields[6..8];
+        // In the labels' sorted order.
+        const values = [8]value.Value{
+            .{ .number = r.end_byte },
+            .{ .record = end_point },
+            .{ .number = r.start_byte },
+            .{ .record = start_point },
+            .{ .number = r.end_point.column },
+            .{ .number = r.end_point.row },
+            .{ .number = r.start_point.column },
+            .{ .number = r.start_point.row },
+        };
+        for (thunks, values) |*thunk, v| thunk.* = value.Thunk.value(v);
+        labelFields(fields[0..4], core.types.range_type, thunks[0..4]);
+        labelFields(end_point, core.types.point_type, thunks[4..6]);
+        labelFields(start_point, core.types.point_type, thunks[6..8]);
+        return .{ .record = fields[0..4] };
+    }
+
+    fn labelFields(fields: []value.Field, t: core.types.Type, thunks: []value.Thunk) void {
+        for (fields, t.record.fields, thunks) |*field, typed, *thunk| {
+            field.* = .{ .label = typed.label, .thunk = thunk };
+        }
+    }
+
+    fn valueThunk(self: *Machine, v: value.Value) Error!*value.Thunk {
+        const thunk = try self.arena.create(value.Thunk);
+        thunk.* = value.Thunk.value(v);
+        return thunk;
+    }
+
     fn nodeThunk(self: *Machine, n: ts.Node) Error!*value.Thunk {
         note(.node_thunk, @sizeOf(value.Thunk));
-        const thunk = try self.arena.create(value.Thunk);
-        thunk.* = value.Thunk.value(.{ .node = .{ .inner = n } });
-        return thunk;
+        return self.valueThunk(.{ .node = .{ .inner = n } });
     }
 
     fn nil(self: *Machine) Error!value.Value {
@@ -1197,10 +1245,6 @@ pub const Machine = struct {
                     .node => |b| return a.inner.eql(b.inner),
                     else => return error.TypeError,
                 },
-                .range => |a| switch (right) {
-                    .range => |b| return std.meta.eql(a, b),
-                    else => return error.TypeError,
-                },
                 .number => |a| switch (right) {
                     .number => |b| return a == b,
                     else => return error.TypeError,
@@ -1372,11 +1416,6 @@ pub const Machine = struct {
                 try writeLocation(rangeOf(inner), jws);
                 try jws.endObject();
             },
-            .range => |r| {
-                try jws.beginObject();
-                try writeLocation(r, jws);
-                try jws.endObject();
-            },
             else => return error.TypeError,
         }
     }
@@ -1491,6 +1530,10 @@ fn advanceDescendantOfKind(cursor: *ts.TreeCursor, kind_id: u16) bool {
         if (node.isNamed() and node.kindId() == kind_id) return true;
     }
     return false;
+}
+
+fn orderLabel(label: []const u8, field: value.Field) std.math.Order {
+    return core.types.Type.Field.order(label, field.label);
 }
 
 fn rangeOf(n: ts.Node) value.Range {

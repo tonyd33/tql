@@ -1,0 +1,15 @@
+title: records have no order
+grammar: typescript
+asserts: error
+
+A structural record's only field order is alphabetical, so no record has `Ord`. Compare through a field.
+
+--- tql ---
+main root = [range root < range root];
+
+--- error ---
+error[unsatisfied-constraint]: `Ord {end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}}` is not satisfied.
+ --> 1:14
+  |
+1 | main root = [range root < range root];
+  |              ^^^^^^^^^^^^^^^^^^^^^^^

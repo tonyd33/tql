@@ -3,12 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-methods = .body | children | of_kind :method_definition;
+methods = #body | children | of_kind :method_definition;
 
 main =
   children | of_kind :class_declaration
   | keep (has methods)
-  | .name | arr text;
+  | #name | arr text;
 
 --- source ---
 class A { m() {} n() {} o() {} }

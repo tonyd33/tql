@@ -1,0 +1,15 @@
+title: `.` does not read a node's grammar field
+grammar: typescript
+asserts: error
+
+Grammar fields are read with `#`; `.` reads records.
+
+--- tql ---
+main = children | arr (\n -> text n.name);
+
+--- error ---
+error[type-mismatch]: Expected `Node`, found `{name: Node | a}`.
+ --> 1:19
+  |
+1 | main = children | arr (\n -> text n.name);
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^

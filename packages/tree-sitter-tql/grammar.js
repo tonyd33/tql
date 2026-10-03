@@ -104,6 +104,7 @@ module.exports = grammar({
         $.composition,
         $.application,
         $.field_access,
+        $.navigation,
         $._primary,
       ),
 
@@ -218,7 +219,17 @@ module.exports = grammar({
 
     field_name: _ => token.immediate(/[a-z_][a-zA-Z0-9_]*/),
 
-    leading_field: $ => seq(".", field("field", $.field_name)),
+    navigation: $ =>
+      prec.left(
+        PREC.field,
+        seq(
+          field("node", $._expression),
+          token.immediate("#"),
+          field("field", $.field_name),
+        ),
+      ),
+
+    leading_navigation: $ => seq("#", field("field", $.field_name)),
 
     let_expression: $ =>
       prec.right(
@@ -334,7 +345,7 @@ module.exports = grammar({
 
     _primary: $ =>
       choice(
-        $.leading_field,
+        $.leading_navigation,
         $.kind,
         $.identifier,
         $.number,
@@ -404,7 +415,16 @@ module.exports = grammar({
     list_type: $ => seq("[", $._type, "]"),
 
     record_type: $ =>
-      seq("{", optional(sep_trailing($.record_type_field, ",")), "}"),
+      choice(
+        seq("{", optional(sep_trailing($.record_type_field, ",")), "}"),
+        seq(
+          "{",
+          optional(sep1($.record_type_field, ",")),
+          "|",
+          field("row", $.type_variable),
+          "}",
+        ),
+      ),
 
     record_type_field: $ =>
       seq(field("name", $.identifier), ":", field("type", $._type)),

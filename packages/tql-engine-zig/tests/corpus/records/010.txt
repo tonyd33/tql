@@ -1,0 +1,15 @@
+title: selection forces only the field selected
+grammar: typescript
+asserts: values
+
+`b` diverges, but nothing reads it.
+
+--- tql ---
+loop x = loop x;
+main = const [{a = 1, b = loop 0}.a];
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
