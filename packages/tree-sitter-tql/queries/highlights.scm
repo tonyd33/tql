@@ -39,13 +39,16 @@
 (binding name: (_) @function)
 (binding parameter: (_) @variable.parameter)
 (lambda parameter: (_) @variable.parameter)
-(bind_statement name: (_) @variable)
+(bind_statement pattern: (identifier) @variable)
+(as_pattern name: (_) @variable)
 (infix_application function: (identifier) @function)
 (backtick_operator function: (identifier) @function)
 
 "Filter" @type.builtin
 (type_identifier) @type
 (type_variable) @type
+
+[ "&" "@" ] @operator
 
 (string) @string
 (regex) @string.regex

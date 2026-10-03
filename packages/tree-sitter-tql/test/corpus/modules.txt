@@ -190,22 +190,22 @@ main root = do {
     parameter: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))

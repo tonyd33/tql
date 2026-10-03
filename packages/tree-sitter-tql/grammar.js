@@ -37,6 +37,14 @@ module.exports = grammar({
 
   inline: $ => [$._constructor],
 
+  // A `do` statement is a pattern or an expression until `<-`, and a pattern's
+  // `(` opens a view or a parenthesized pattern until `->` or `)`.
+  conflicts: $ => [
+    [$.list_pattern, $.list],
+    [$._simple_pattern, $._primary],
+    [$.constructor_pattern, $._primary],
+  ],
+
   rules: {
     source_file: $ =>
       seq(
@@ -341,7 +349,7 @@ module.exports = grammar({
       choice($.bind_statement, $.let_statement, $._expression),
 
     bind_statement: $ =>
-      seq(field("name", $.identifier), "<-", field("value", $._expression)),
+      seq(field("pattern", $._pattern), "<-", field("value", $._expression)),
 
     let_statement: $ =>
       seq("let", field("bindings", choice($.binding, $.binding_group))),
@@ -357,31 +365,29 @@ module.exports = grammar({
       ),
 
     case_alternative: $ =>
-      seq(field("pattern", $._pattern), "->", field("body", $._expression)),
+      seq(
+        field("pattern", $._pattern),
+        optional(seq("if", field("guard", $._expression))),
+        "->",
+        field("body", $._expression),
+      ),
 
-    _pattern: $ =>
-      choice(
-        $.cons_pattern,
-        $.constructor_pattern,
-        $.identifier,
-        $.list_pattern,
-        $.parenthesized_pattern,
+    _pattern: $ => choice($.conjunction_pattern, $._conjunct),
+
+    _conjunct: $ =>
+      choice($.cons_pattern, $.constructor_pattern, $._simple_pattern),
+
+    conjunction_pattern: $ =>
+      prec.left(
+        seq(field("left", $._pattern), "&", field("right", $._conjunct)),
       ),
 
     cons_pattern: $ =>
       prec.right(
         seq(
-          field(
-            "head",
-            choice(
-              $.constructor_pattern,
-              $.identifier,
-              $.list_pattern,
-              $.parenthesized_pattern,
-            ),
-          ),
+          field("head", choice($.constructor_pattern, $._simple_pattern)),
           $._cons_operator,
-          field("tail", $._pattern),
+          field("tail", $._conjunct),
         ),
       ),
 
@@ -393,12 +399,36 @@ module.exports = grammar({
         repeat(field("argument", $._atomic_pattern)),
       ),
 
-    _atomic_pattern: $ =>
+    _atomic_pattern: $ => choice($._constructor, $._simple_pattern),
+
+    _simple_pattern: $ =>
       choice(
         $.identifier,
-        $._constructor,
         $.list_pattern,
         $.parenthesized_pattern,
+        $.view_pattern,
+        $.as_pattern,
+        $.number,
+        $.string,
+        $.regex,
+        $.boolean,
+        $.kind,
+      ),
+
+    as_pattern: $ =>
+      seq(
+        field("name", $.identifier),
+        token.immediate("@"),
+        field("pattern", $._atomic_pattern),
+      ),
+
+    view_pattern: $ =>
+      seq(
+        "(",
+        field("view", $._expression),
+        "->",
+        field("pattern", $._pattern),
+        ")",
       ),
 
     parenthesized_pattern: $ => seq("(", $._pattern, ")"),

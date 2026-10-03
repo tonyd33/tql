@@ -1,0 +1,18 @@
+title: a nested variable in a case alternative may not shadow a local
+grammar: typescript
+asserts: error
+
+--- tql ---
+f x xs = case xs of {
+  [x] -> x;
+  _ -> 0;
+};
+
+main = const [f 1 [2]];
+
+--- error ---
+error[shadowed-local]: `x` in a pattern would shadow the local `x`; bind another name and compare after the bind
+ --> 2:4
+  |
+2 |   [x] -> x;
+  |    ^

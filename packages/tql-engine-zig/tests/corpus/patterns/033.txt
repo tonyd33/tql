@@ -1,0 +1,21 @@
+title: a scrutinee read by one test is not named
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+is_class n = case kind n of { :class_declaration -> true; _ -> false; };
+
+main = named_children | arr is_class;
+
+--- source ---
+class A {}
+function f() {}
+
+--- values ---
+[true, false]
+
+--- core ---
+is_class = \n -> case op[=] (kind n) :class_declaration of
+  False -> False
+  True -> True
+main = kleisli named_children (arr is_class)

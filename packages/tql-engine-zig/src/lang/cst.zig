@@ -351,7 +351,9 @@ pub const Statement = union(enum) {
     pub fn sexpr(self: Statement, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .bind => |b| {
-                try w.print("(<- {s} ", .{b.name});
+                try w.writeAll("(<- ");
+                try b.pattern.sexpr(w);
+                try w.writeByte(' ');
                 try b.value.sexpr(w);
                 try w.writeByte(')');
             },
@@ -373,7 +375,7 @@ pub const Statement = union(enum) {
 };
 
 pub const BindStatement = struct {
-    name: Identifier,
+    pattern: Pattern,
     value: Expression,
     span: diagnostic.Span = .unknown,
 };
@@ -482,6 +484,11 @@ pub const Expression = struct {
                 for (c.alternatives) |a| {
                     try w.writeAll(" (alt ");
                     try a.pattern.sexpr(w);
+                    if (a.guard) |g| {
+                        try w.writeAll(" (if ");
+                        try g.sexpr(w);
+                        try w.writeByte(')');
+                    }
                     try w.writeByte(' ');
                     try a.body.sexpr(w);
                     try w.writeByte(')');
@@ -586,19 +593,20 @@ pub const RecordType = struct {
     row: ?Identifier = null,
 };
 
-/// `case e of { p -> e; ... }`
+/// `case e of { p -> e; p if g -> e; ... }`
 pub const Case = struct {
     scrutinee: Expression,
     alternatives: []const Alternative,
 
     pub const Alternative = struct {
         pattern: Pattern,
+        guard: ?Expression = null,
         body: Expression,
         span: diagnostic.Span = .unknown,
     };
 };
 
-/// The left side of a `case` alternative.
+/// The left side of a `case` alternative or a `do` bind.
 pub const Pattern = struct {
     kind: Kind,
     span: diagnostic.Span = .unknown,
@@ -610,26 +618,88 @@ pub const Pattern = struct {
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
         cons: *Cons,
+        /// `x@p`
+        as: *As,
+        /// `p & q`
+        conjunction: *Conjunction,
+        /// `(e -> p)`
+        view: *View,
+        literal: Literal,
+        /// `true` or `false`.
+        boolean: bool,
     };
 
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
-        /// Set by list-pattern sugar: the list constructor this is, whatever
+        /// Set by list and boolean sugar: the constructor this is, whatever
         /// `name` means in the module.
-        list: ?ListConstructor = null,
+        builtin: ?Builtin = null,
     };
 
-    pub const ListConstructor = enum { nil, cons };
+    pub const Builtin = enum { nil, cons, false, true };
 
     pub const Cons = struct {
         head: Pattern,
         tail: Pattern,
     };
 
+    pub const As = struct {
+        name: Identifier,
+        name_span: diagnostic.Span = .unknown,
+        pattern: Pattern,
+    };
+
+    pub const Conjunction = struct {
+        left: Pattern,
+        right: Pattern,
+    };
+
+    pub const View = struct {
+        function: Expression,
+        /// The view expression's source text.
+        written: []const u8,
+        pattern: Pattern,
+    };
+
+    /// Matched by `=` against the value, or by `~` for a regex.
+    pub const Literal = union(enum) {
+        number: i64,
+        string: []const u8,
+        regex: []const u8,
+        /// A node kind, carried without the leading colon.
+        kind: Identifier,
+    };
+
     pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .variable => |name| try w.writeAll(name),
+            .as => |a| {
+                try w.print("(@ {s} ", .{a.name});
+                try a.pattern.sexpr(w);
+                try w.writeByte(')');
+            },
+            .conjunction => |c| {
+                try w.writeAll("(& ");
+                try c.left.sexpr(w);
+                try w.writeByte(' ');
+                try c.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .view => |v| {
+                try w.writeAll("(view ");
+                try v.function.sexpr(w);
+                try w.writeByte(' ');
+                try v.pattern.sexpr(w);
+                try w.writeByte(')');
+            },
+            .literal => |l| switch (l) {
+                .number => |n| try w.print("{d}", .{n}),
+                .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
+                .regex => |r| try w.print("(regex \"{s}\")", .{r}),
+                .kind => |k| try w.print("(kind {s})", .{k}),
+            },
+            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .constructor => |c| {
                 if (c.arguments.len == 0) return w.writeAll(c.name);
                 try w.print("({s}", .{c.name});

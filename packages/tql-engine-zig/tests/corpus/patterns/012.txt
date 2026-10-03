@@ -1,0 +1,18 @@
+title: a wildcard bind runs the rest once per element and binds nothing
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const $ do {
+  _ <- [1, 2];
+  return 3;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 3]
+
+--- core ---
+main = const (concat_map (\_ -> return 3) (Cons 1 (Cons 2 Nil)))

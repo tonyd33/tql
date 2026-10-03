@@ -442,6 +442,8 @@ const Walker = struct {
         parenthesized,
     };
 
+    const LiteralKind = enum { number, string, regex, boolean, kind };
+
     fn expression(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Expression {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
@@ -789,16 +791,21 @@ const Walker = struct {
     fn caseAlternative(self: *Walker, node: ts.Node) !?cst.Case.Alternative {
         const pattern_node = try self.requiredField(node, "pattern") orelse return null;
         const body_node = try self.requiredField(node, "body") orelse return null;
-        const pattern = try self.casePattern(pattern_node) orelse return null;
+        const parsed = try self.pattern(pattern_node) orelse return null;
+        const guard: ?cst.Expression = if (node.childByFieldName("guard")) |guard_node|
+            try self.expression(guard_node) orelse return null
+        else
+            null;
         const body = try self.expression(body_node) orelse return null;
         return .{
-            .pattern = pattern,
+            .pattern = parsed,
+            .guard = guard,
             .body = body,
             .span = spanOf(node, self.source_id),
         };
     }
 
-    fn casePattern(self: *Walker, node: ts.Node) error{OutOfMemory}!?cst.Pattern {
+    fn pattern(self: *Walker, node: ts.Node) error{OutOfMemory}!?cst.Pattern {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
         if (std.mem.eql(u8, kind, "identifier")) {
@@ -815,7 +822,7 @@ const Walker = struct {
                 try self.missingField(node, "pattern");
                 return null;
             };
-            return try self.casePattern(inner);
+            return try self.pattern(inner);
         }
         if (std.mem.eql(u8, kind, "constructor_pattern")) {
             const name_node = try self.requiredField(node, "constructor") orelse return null;
@@ -826,7 +833,7 @@ const Walker = struct {
                 while (true) {
                     if (cursor.fieldName()) |field| {
                         if (std.mem.eql(u8, field, "argument")) {
-                            const argument = try self.casePattern(cursor.node()) orelse return null;
+                            const argument = try self.pattern(cursor.node()) orelse return null;
                             try arguments.append(self.allocator, argument);
                         }
                     }
@@ -847,7 +854,7 @@ const Walker = struct {
             while (i < node.namedChildCount()) : (i += 1) {
                 const child = node.namedChild(i).?;
                 if (child.isExtra()) continue;
-                const element = try self.casePattern(child) orelse return null;
+                const element = try self.pattern(child) orelse return null;
                 try elements.append(self.allocator, element);
             }
             return .{
@@ -858,10 +865,61 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "cons_pattern")) {
             const head_node = try self.requiredField(node, "head") orelse return null;
             const tail_node = try self.requiredField(node, "tail") orelse return null;
-            const head = try self.casePattern(head_node) orelse return null;
-            const tail = try self.casePattern(tail_node) orelse return null;
+            const head = try self.pattern(head_node) orelse return null;
+            const tail = try self.pattern(tail_node) orelse return null;
             return .{
                 .kind = .{ .cons = try self.boxed(cst.Pattern.Cons{ .head = head, .tail = tail }) },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "as_pattern")) {
+            const name_node = try self.requiredField(node, "name") orelse return null;
+            const inner_node = try self.requiredField(node, "pattern") orelse return null;
+            const inner = try self.pattern(inner_node) orelse return null;
+            return .{
+                .kind = .{ .as = try self.boxed(cst.Pattern.As{
+                    .name = try self.dupe(name_node),
+                    .name_span = spanOf(name_node, self.source_id),
+                    .pattern = inner,
+                }) },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "conjunction_pattern")) {
+            const left_node = try self.requiredField(node, "left") orelse return null;
+            const right_node = try self.requiredField(node, "right") orelse return null;
+            const left = try self.pattern(left_node) orelse return null;
+            const right = try self.pattern(right_node) orelse return null;
+            return .{
+                .kind = .{ .conjunction = try self.boxed(cst.Pattern.Conjunction{ .left = left, .right = right }) },
+                .span = span,
+            };
+        }
+        if (std.mem.eql(u8, kind, "view_pattern")) {
+            const view_node = try self.requiredField(node, "view") orelse return null;
+            const inner_node = try self.requiredField(node, "pattern") orelse return null;
+            const function = try self.expression(view_node) orelse return null;
+            const inner = try self.pattern(inner_node) orelse return null;
+            return .{
+                .kind = .{ .view = try self.boxed(cst.Pattern.View{
+                    .function = function,
+                    .written = try self.dupe(view_node),
+                    .pattern = inner,
+                }) },
+                .span = span,
+            };
+        }
+        if (std.meta.stringToEnum(LiteralKind, kind)) |_| {
+            const literal = try self.expression(node) orelse return null;
+            return .{
+                .kind = switch (literal.kind) {
+                    .number => |n| .{ .literal = .{ .number = n } },
+                    .string => |s| .{ .literal = .{ .string = s } },
+                    .regex => |r| .{ .literal = .{ .regex = r } },
+                    .kind_test => |k| .{ .literal = .{ .kind = k } },
+                    .boolean => |b| .{ .boolean = b },
+                    else => unreachable,
+                },
                 .span = span,
             };
         }
@@ -924,12 +982,12 @@ const Walker = struct {
             if (child.isExtra()) continue;
             const kind = child.grammarKind();
             if (std.mem.eql(u8, kind, "bind_statement")) {
-                const name_node = try self.requiredField(child, "name") orelse continue;
+                const pattern_node = try self.requiredField(child, "pattern") orelse continue;
                 const value_node = try self.requiredField(child, "value") orelse continue;
-                const name = try self.dupe(name_node);
+                const parsed = try self.pattern(pattern_node) orelse continue;
                 if (try self.expression(value_node)) |value| {
                     try statements.append(self.allocator, .{ .bind = .{
-                        .name = name,
+                        .pattern = parsed,
                         .value = value,
                         .span = spanOf(child, self.source_id),
                     } });
@@ -1314,6 +1372,33 @@ test "list and cons patterns keep their shape" {
             "(alt (list (Just a) _) a) " ++
             "(alt (: h t) h) " ++
             "(alt (: a (: b t)) b))))",
+    );
+}
+
+test "a case alternative takes a guard" {
+    try expectSexpr(
+        "main = case x of { n if n > 0 -> n; _ -> 0 };",
+        "(source_file (define main (params) (case x (alt n (if (> n 0)) n) (alt _ 0))))",
+    );
+}
+
+test "literal patterns keep their values" {
+    try expectSexpr(
+        "main = case x of { -3 -> 1; \"a\\n\" -> 2; r\"^a\" -> 3; true -> 4; :class_declaration -> 5 };",
+        "(source_file (define main (params) (case x " ++
+            "(alt -3 1) " ++
+            "(alt (string \"a\\n\") 2) " ++
+            "(alt (regex \"^a\") 3) " ++
+            "(alt true 4) " ++
+            "(alt (kind class_declaration) 5))))",
+    );
+}
+
+test "a bind statement takes a view, an as-pattern and a conjunction" {
+    try expectSexpr(
+        "main = do { (text -> \"a\") & x@[_] <- xs; x };",
+        "(source_file (define main (params) " ++
+            "(do (<- (& (view text (string \"a\")) (@ x (list _))) xs) x)))",
     );
 }
 

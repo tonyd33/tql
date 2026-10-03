@@ -1,0 +1,33 @@
+title: a view in a case uses a variable bound to its left
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+f xs = case xs of {
+  [n, ((+ n) -> 3)] -> n;
+  _ -> 0;
+};
+
+main = const [f [1, 2], f [2, 2], f [0, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 0, 0]
+
+--- core ---
+f = \xs ->
+  let alternative = 0 in
+  case xs of
+    Nil -> alternative
+    Cons n cons1 -> case cons1 of
+      Nil -> alternative
+      Cons cons0 cons1 ->
+        let view = (\x -> op[+] x n) cons0 in
+        case op[=] view 3 of
+          False -> alternative
+          True -> case cons1 of
+            Nil -> n
+            Cons _ _ -> alternative
+main = const (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))

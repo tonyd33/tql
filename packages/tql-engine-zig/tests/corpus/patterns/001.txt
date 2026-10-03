@@ -1,0 +1,65 @@
+title: a view pattern tests a node's shape through its fields and text
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  (of_kind :call_expression -> [
+    call & (#function -> [(of_kind :member_expression -> [
+      (#object -> [(text -> "console")]) & (#property -> [(text -> "error")])
+    ])])
+  ]) <- descendants root;
+  guard $ null $ (ancestors | of_kind :catch_clause) call;
+  return $ text call;
+};
+
+--- source ---
+console.error('a');
+try { console.error('t'); } catch (e) { console.error(e); }
+console.warn('b');
+
+--- values ---
+["console.error('a')", "console.error('t')"]
+
+--- core ---
+main = \root -> concat_map (
+  \scrutinee ->
+    let view = of_kind :call_expression scrutinee in
+    case view of
+      Nil -> Nil
+      Cons call cons1 ->
+        let view = field[function] call in
+        case view of
+          Nil -> Nil
+          Cons cons0 cons1' ->
+            let view = of_kind :member_expression cons0 in
+            case view of
+              Nil -> Nil
+              Cons cons0 cons1'' ->
+                let view = field[object] cons0 in
+                case view of
+                  Nil -> Nil
+                  Cons cons0' cons1''' ->
+                    let view = text cons0' in
+                    case op[=] view "console" of
+                      False -> Nil
+                      True -> case cons1''' of
+                        Nil ->
+                          let view = field[property] cons0 in
+                          case view of
+                            Nil -> Nil
+                            Cons cons0 cons1''' ->
+                              let view = text cons0 in
+                              case op[=] view "error" of
+                                False -> Nil
+                                True -> case cons1''' of
+                                  Nil -> case cons1'' of
+                                    Nil -> case cons1' of
+                                      Nil -> case cons1 of
+                                        Nil -> concat_map (\_ -> return (text call)) (guard (null (kleisli ancestors (of_kind :catch_clause) call)))
+                                        Cons _ _ -> Nil
+                                      Cons _ _ -> Nil
+                                    Cons _ _ -> Nil
+                                  Cons _ _ -> Nil
+                        Cons _ _ -> Nil
+) (descendants root)

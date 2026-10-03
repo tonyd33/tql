@@ -1,0 +1,20 @@
+title: a regex row matches a string the regex matches
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+f s = case s of { r"^on" -> "handler"; _ -> "other"; };
+
+main = const [f "onClick", f "render"];
+
+--- source ---
+class A {}
+
+--- values ---
+["handler", "other"]
+
+--- core ---
+f = \s -> case op[~] s r"^on" of
+  False -> "other"
+  True -> "handler"
+main = const (Cons (f "onClick") (Cons (f "render") Nil))

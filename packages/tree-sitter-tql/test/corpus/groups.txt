@@ -124,7 +124,7 @@ main root = do { c <- (children | is_kind :class_declaration) root; c#name };
     parameter: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (parenthesized
             (pipe
@@ -172,7 +172,7 @@ main = do { c <- x; c; };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier))
       (identifier))))
 
@@ -189,7 +189,7 @@ main = do { c <- x; let name = c#name; name };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier))
       (let_statement
         bindings: (binding
@@ -212,7 +212,7 @@ main = do { c <- x; let { a = 1; b = 2 }; a + b };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier))
       (let_statement
         bindings: (binding_group
@@ -239,10 +239,10 @@ main = do { c <- x; m <- c#body; m };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (navigation
           node: (identifier)
           field: (field_name)))
@@ -267,7 +267,7 @@ main = children | is_kind :class_declaration | do { m <- #body; m };
           argument: (kind)))
       right: (do_expression
         (bind_statement
-          name: (identifier)
+          pattern: (identifier)
           value: (leading_navigation
             field: (field_name)))
         (identifier)))))
@@ -285,7 +285,7 @@ main = do { c <- x; guard $ c = c; c };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier))
       (dollar_application
         function: (identifier)
@@ -323,7 +323,7 @@ main = do { c <- x };
     name: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (identifier)))))
 
 ========================================

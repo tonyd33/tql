@@ -1,0 +1,16 @@
+title: a string pattern does not match a node
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  "class" <- descendants root;
+  return 1;
+};
+
+--- error ---
+error[type-mismatch]: Expected `String`, found `Node`.
+ --> 2:14
+  |
+2 |   "class" <- descendants root;
+  |              ^^^^^^^^^^^^^^^^

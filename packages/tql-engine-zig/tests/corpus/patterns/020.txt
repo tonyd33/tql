@@ -1,0 +1,29 @@
+title: an as-pattern and a conjunction match one value in a case alternative
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+f xs = case xs of {
+  all@(x : _) & [_, _] -> x : all;
+  _ -> [];
+};
+
+main = const [f [5, 6], f [7], f [1, 2, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[[5, 5, 6], [], []]
+
+--- core ---
+f = \xs ->
+  let alternative = Nil in
+  case xs of
+    Nil -> alternative
+    Cons x cons1 -> case cons1 of
+      Nil -> alternative
+      Cons _ cons1 -> case cons1 of
+        Nil -> Cons x xs
+        Cons _ _ -> alternative
+main = const (Cons (f (Cons 5 (Cons 6 Nil))) (Cons (f (Cons 7 Nil)) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil)))

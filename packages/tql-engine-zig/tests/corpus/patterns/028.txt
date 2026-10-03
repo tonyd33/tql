@@ -1,0 +1,26 @@
+title: a kind literal pattern matches a `Kind` value in a bind
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  n <- named_children root;
+  :class_declaration <- [kind n];
+  return $ text n;
+};
+
+--- source ---
+class A {}
+function f() {}
+
+--- values ---
+["class A {}"]
+
+--- core ---
+main = \root -> concat_map (
+  \n -> concat_map (
+    \scrutinee -> case op[=] scrutinee :class_declaration of
+      False -> Nil
+      True -> return (text n)
+  ) (Cons (kind n) Nil)
+) (named_children root)

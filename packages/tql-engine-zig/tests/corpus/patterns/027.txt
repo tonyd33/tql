@@ -1,0 +1,32 @@
+title: a case on a node's kind dispatches on kind literals
+grammar: typescript
+asserts: core, values
+
+The scrutinee is read by two tests, so it is bound once.
+
+--- tql ---
+describe n = case kind n of {
+  :class_declaration -> "class";
+  :function_declaration -> "function";
+  _ -> "other";
+};
+
+main = named_children | arr describe;
+
+--- source ---
+class A {}
+function f() {}
+x;
+
+--- values ---
+["class", "function", "other"]
+
+--- core ---
+describe = \n ->
+  let scrutinee = kind n in
+  case op[=] scrutinee :class_declaration of
+    False -> case op[=] scrutinee :function_declaration of
+      False -> "other"
+      True -> "function"
+    True -> "class"
+main = kleisli named_children (arr describe)

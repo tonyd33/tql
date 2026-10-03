@@ -461,7 +461,7 @@ pub const Lowerer = struct {
         return self.builder.symbol(name, span);
     }
 
-    fn binaryTerms(
+    pub fn binaryTerms(
         self: *Lowerer,
         op: cst.BinaryOperator,
         left: core.Term,
@@ -506,7 +506,7 @@ pub const Lowerer = struct {
     }
 
     /// `concat_map (\name -> body) value`.
-    fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
+    pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
             try self.primitive("concat_map", span),
             &.{ try self.builder.lambda(name, body, body.span), value },
@@ -633,7 +633,7 @@ pub const Lowerer = struct {
         return result;
     }
 
-    fn doBlock(
+    pub fn doBlock(
         self: *Lowerer,
         statements: []const cst.Statement,
         result: cst.Expression,
@@ -643,19 +643,11 @@ pub const Lowerer = struct {
         if (statements.len == 0) return try self.expression(result, scope);
 
         switch (statements[0]) {
-            .bind => |b| {
-                const value = try self.expression(b.value, scope);
-                const symbol = try self.env.interner.fresh(b.name);
-                const entries = try self.builder.slice(resolve.Scope.Entry, 1);
-                entries[0] = .{ .name = b.name, .symbol = symbol };
-                const inner: resolve.Scope = .{ .parent = scope, .names = entries };
-                return try self.bind(
-                    symbol,
-                    value,
-                    try self.doBlock(statements[1..], result, &inner, span),
-                    b.span,
-                );
-            },
+            .bind => |b| return try match.bind(self, b, .{
+                .statements = statements[1..],
+                .result = result,
+                .span = span,
+            }, scope),
             .expression => |e| {
                 return try self.bind(
                     try self.env.interner.fresh("_"),

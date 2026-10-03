@@ -1,0 +1,18 @@
+title: a guard is a `Bool`
+grammar: typescript
+asserts: error
+
+--- tql ---
+f n = case n of {
+  m if m + 1 -> 1;
+  _ -> 0;
+};
+
+main = const [f 1];
+
+--- error ---
+error[type-mismatch]: Expected `Bool`, found `Int`.
+ --> 2:8
+  |
+2 |   m if m + 1 -> 1;
+  |        ^^^^^

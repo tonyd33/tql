@@ -1,0 +1,29 @@
+title: literal patterns test equality and bind nothing
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const $ do {
+  "a" <- ["a", "b", "a"];
+  true <- [true, false];
+  return 1;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 1]
+
+--- core ---
+main = const (
+  concat_map (
+    \scrutinee -> case op[=] scrutinee "a" of
+      False -> Nil
+      True -> concat_map (
+        \scrutinee -> case scrutinee of
+          False -> Nil
+          True -> return 1
+      ) (Cons True (Cons False Nil))
+  ) (Cons "a" (Cons "b" (Cons "a" Nil)))
+)

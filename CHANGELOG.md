@@ -12,6 +12,8 @@
 - `<|>` binds tighter than `|`: `a <|> b | f` is `(a <|> b) | f`.
 - Datatypes are declared with `data`: `data Bool = False | True;`.
 - `kind` returns a `Kind`, not a `String`: write `kind n = :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
+- `_ <- e` no longer puts `_` in scope.
+- A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 
 ### New Features
 
@@ -34,6 +36,11 @@
 - Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
 - A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];`.
 - Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
+- `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
+- Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
+- Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
+- Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
+- Added guards to `case` alternatives: in `[a, b] if a = b -> 1`, a false guard tries the alternatives after it.
 
 ### Improvements
 
