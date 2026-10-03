@@ -37,15 +37,26 @@ module.exports = grammar({
 
     comment: _ => token(seq("--", /.*/)),
 
-    _declaration: $ => choice($.signature, $.definition, $.type_declaration),
+    _declaration: $ =>
+      choice($.signature, $.definition, $.data_declaration, $.type_alias),
 
-    type_declaration: $ =>
+    data_declaration: $ =>
+      seq(
+        "data",
+        field("name", $.type_identifier),
+        repeat(field("parameter", $.type_variable)),
+        "=",
+        sep1(field("constructor", $.constructor_declaration), "|"),
+        ";",
+      ),
+
+    type_alias: $ =>
       seq(
         "type",
         field("name", $.type_identifier),
         repeat(field("parameter", $.type_variable)),
         "=",
-        sep1(field("constructor", $.constructor_declaration), "|"),
+        field("type", $._type),
         ";",
       ),
 

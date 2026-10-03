@@ -1,0 +1,20 @@
+title: an alias of a datatype is matched by its constructors
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Maybe a = Just a | Nothing;
+type Found = Maybe String;
+name :: Found -> [String];
+name f = case f of { Just s -> [s]; Nothing -> [] };
+main root = name (Just "x");
+
+--- source ---
+class A {}
+
+--- values ---
+["x"]
+
+--- types ---
+name :: Found -> [String]
+main :: Node -> [String]

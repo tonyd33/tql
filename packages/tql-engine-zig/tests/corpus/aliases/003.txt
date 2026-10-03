@@ -1,0 +1,22 @@
+title: an alias and its expansion are the same type
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type P = {x: Int};
+f :: P -> Int;
+f p = p.x;
+g :: {x: Int} -> P;
+g r = r;
+main root = [f {x = 1}, f (g {x = 2})];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]
+
+--- types ---
+f :: P -> Int
+g :: {x: Int} -> P
+main :: Node -> [Int]

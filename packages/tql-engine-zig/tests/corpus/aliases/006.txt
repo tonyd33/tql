@@ -1,0 +1,21 @@
+title: an inferred type names the alias in the scheme it came from
+grammar: typescript
+asserts: types, values
+
+`range`'s scheme is `Node -> Range`, so `Range` survives inference through `pick` and `twice`.
+
+--- tql ---
+pick n = range n;
+twice x = [x, x];
+main root = twice (pick root);
+
+--- source ---
+class A {}
+
+--- values ---
+[{"end_byte":10,"end_point":{"column":10,"row":0},"start_byte":0,"start_point":{"column":0,"row":0}},{"end_byte":10,"end_point":{"column":10,"row":0},"start_byte":0,"start_point":{"column":0,"row":0}}]
+
+--- types ---
+pick :: Node -> Range
+twice :: a -> [a]
+main :: Node -> [Range]

@@ -3,13 +3,13 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-type Box a = B a;
-type T = C (Box Int String);
+data Box a = B a;
+data T = C (Box Int String);
 main = pure 1;
 
 --- error ---
 error[type-mismatch]: `Box` takes 1 type argument(s), given 2
  --> 2:13
   |
-2 | type T = C (Box Int String);
+2 | data T = C (Box Int String);
   |             ^^^^^^^^^^^^^^

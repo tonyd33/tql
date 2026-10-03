@@ -1,0 +1,16 @@
+title: an alias parameter its body never uses is rejected
+grammar: typescript
+asserts: error
+
+An alias is transparent, so a parameter that does not appear in its body carries no type.
+
+--- tql ---
+type Tagged t = Int;
+main = const [];
+
+--- error ---
+error[type-mismatch]: `t` is a parameter of `Tagged` that its body never uses
+ --> 1:1
+  |
+1 | type Tagged t = Int;
+  | ^^^^^^^^^^^^^^^^^^^^

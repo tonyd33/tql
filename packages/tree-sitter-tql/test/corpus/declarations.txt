@@ -264,12 +264,12 @@ main = 1;
 a data type declaration
 ========================================
 
-type Bool = False | True;
+data Bool = False | True;
 
 ---
 
 (source_file
-  (type_declaration
+  (data_declaration
     name: (type_identifier)
     constructor: (constructor_declaration
       name: (type_identifier))
@@ -280,12 +280,12 @@ type Bool = False | True;
 a parameterized recursive data type
 ========================================
 
-type List a = Nil | Cons a (List a);
+data List a = Nil | Cons a (List a);
 
 ---
 
 (source_file
-  (type_declaration
+  (data_declaration
     name: (type_identifier)
     parameter: (type_variable)
     constructor: (constructor_declaration
@@ -302,18 +302,60 @@ type List a = Nil | Cons a (List a);
 a constructor field may be a primitive or a list
 ========================================
 
-type Pair = MkPair Int [String];
+data Pair = MkPair Int [String];
 
 ---
 
 (source_file
-  (type_declaration
+  (data_declaration
     name: (type_identifier)
     constructor: (constructor_declaration
       name: (type_identifier)
       field: (type_identifier)
       field: (list_type
         (type_identifier)))))
+
+========================================
+a type alias with a row parameter
+========================================
+
+type Named r = {name: String | r};
+
+---
+
+(source_file
+  (type_alias
+    name: (type_identifier)
+    parameter: (type_variable)
+    type: (record_type
+      (record_type_field
+        name: (identifier)
+        type: (type_identifier))
+      row: (type_variable))))
+
+========================================
+a type alias of a function type
+========================================
+
+type Pred = Node -> Bool;
+
+---
+
+(source_file
+  (type_alias
+    name: (type_identifier)
+    type: (function_type
+      from: (type_identifier)
+      to: (type_identifier))))
+
+========================================
+a type alias has no constructors to separate
+:error
+========================================
+
+type Both = A | B;
+
+---
 
 ========================================
 a signature naming a declared type at its arguments

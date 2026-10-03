@@ -1,0 +1,15 @@
+title: a constructor field may not be an alias of a record
+grammar: typescript
+asserts: error
+
+--- tql ---
+type P = {x: Int};
+data Box = Box P;
+main = const [];
+
+--- error ---
+error[type-mismatch]: a constructor field may not be a record yet
+ --> 2:16
+  |
+2 | data Box = Box P;
+  |                ^

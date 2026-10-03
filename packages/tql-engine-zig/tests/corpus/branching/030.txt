@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-type Maybe a = Just a | Nothing;
+data Maybe a = Just a | Nothing;
 
 only m = case m of {
   Just [x] -> x;

@@ -1,0 +1,14 @@
+title: an alias has no constructors to separate
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Both = A | B;
+main = const [];
+
+--- error ---
+error[parse]: syntax error
+ --> 1:15
+  |
+1 | type Both = A | B;
+  |               ^^^

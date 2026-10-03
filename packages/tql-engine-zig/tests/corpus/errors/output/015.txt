@@ -5,7 +5,7 @@ asserts: error
 A declared type has no JSON encoding.
 
 --- tql ---
-type Maybe a = Just a | Nothing;
+data Maybe a = Just a | Nothing;
 
 main = pure (Just 1);
 

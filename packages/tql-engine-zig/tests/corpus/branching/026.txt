@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-type Maybe a = Just a | Nothing;
+data Maybe a = Just a | Nothing;
 or_default m d = case m of { Just x -> x; Nothing -> d };
 main = pure $ or_default (Just 42) 0;
 

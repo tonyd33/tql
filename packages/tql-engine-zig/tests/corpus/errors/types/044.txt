@@ -1,0 +1,15 @@
+title: a mismatch against an alias names the alias
+grammar: typescript
+asserts: error
+
+--- tql ---
+starts :: Range -> Int;
+starts r = r.start_byte;
+main root = [starts 1];
+
+--- error ---
+error[type-mismatch]: Expected `Range`, found `Int`.
+ --> 3:21
+  |
+3 | main root = [starts 1];
+  |                     ^

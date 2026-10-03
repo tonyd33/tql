@@ -24,27 +24,29 @@ pub const Outcome = union(enum) {
 
 /// Decides `class t`.
 pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: types.Type) Outcome {
-    const head = subst.resolve(t);
-    return switch (head) {
+    // A failure names the type as written, alias included.
+    const written = subst.resolve(t);
+    return switch (subst.expand(written)) {
         .meta => |id| .{ .deferred = id },
         .variable => @panic("a bound type variable reached constraint solving"),
-        .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = head },
+        .alias => unreachable,
+        .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = written },
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
-            .never => .{ .fails = head },
+            .never => .{ .fails = written },
             // `Sized [a]` is the one that does not descend: a list has a
             // length whatever its elements are.
             .always => .holds,
             .fields => conjunction(subst, class, c.arguments),
         },
         .record => |r| switch (class) {
-            .Sized, .Ord => .{ .fails = head },
+            .Sized, .Ord => .{ .fails = written },
             // A row holds when every field it comes to have does.
             .Eq, .Serial => meet(
                 conjunction(subst, class, r.fields),
                 if (r.rest) |rest| entails(subst, class, rest.*) else .holds,
             ),
         },
-        .function => .{ .fails = head },
+        .function => .{ .fails = written },
     };
 }
 
@@ -87,20 +89,21 @@ pub fn reduce(
     out: *std.ArrayList(Residual),
     gpa: std.mem.Allocator,
 ) std.mem.Allocator.Error!?types.Type {
-    const head = subst.resolve(t);
-    switch (head) {
+    const written = subst.resolve(t);
+    switch (subst.expand(written)) {
         .meta => |id| try out.append(gpa, .{ .class = class, .meta = id }),
         .variable => @panic("a bound type variable reached constraint solving"),
-        .primitive => |p| if (!holdsForPrimitive(class, p)) return head,
+        .alias => unreachable,
+        .primitive => |p| if (!holdsForPrimitive(class, p)) return written,
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
-            .never => return head,
+            .never => return written,
             .always => {},
             .fields => for (c.arguments) |argument| {
                 if (try reduce(subst, class, argument, out, gpa)) |culprit| return culprit;
             },
         },
         .record => |r| switch (class) {
-            .Sized, .Ord => return head,
+            .Sized, .Ord => return written,
             .Eq, .Serial => {
                 for (r.fields) |f| {
                     if (try reduce(subst, class, f.type.*, out, gpa)) |culprit| return culprit;
@@ -108,7 +111,7 @@ pub fn reduce(
                 if (r.rest) |rest| return try reduce(subst, class, rest.*, out, gpa);
             },
         },
-        .function => return head,
+        .function => return written,
     }
     return null;
 }

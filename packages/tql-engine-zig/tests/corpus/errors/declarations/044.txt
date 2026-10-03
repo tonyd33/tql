@@ -1,0 +1,16 @@
+title: an alias used without its arguments is rejected
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Named r = {name: String | r};
+f :: Named -> String;
+f x = x.name;
+main = const [];
+
+--- error ---
+error[type-mismatch]: `Named` takes 1 type argument(s), given 0
+ --> 2:6
+  |
+2 | f :: Named -> String;
+  |      ^^^^^

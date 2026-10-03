@@ -1,0 +1,14 @@
+title: an alias may not name a parameter twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Two a a = {first: a};
+main = const [];
+
+--- error ---
+error[duplicate-definition]: `a` names two parameters of `Two`
+ --> 1:1
+  |
+1 | type Two a a = {first: a};
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^

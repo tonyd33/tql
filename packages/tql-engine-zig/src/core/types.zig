@@ -31,6 +31,9 @@ pub const Type = union(enum) {
     constructor: *const Constructed,
     record: Record,
     function: *const Arrow,
+    /// A type written through an alias: `Range`, or `Named r`. Transparent
+    /// to unification and classes, which see only `expansion`.
+    alias: *const Aliased,
 
     pub const Constructed = struct {
         name: datatypes.TypeId,
@@ -67,6 +70,13 @@ pub const Type = union(enum) {
     pub const Arrow = struct {
         from: Type,
         to: Type,
+    };
+
+    pub const Aliased = struct {
+        spelling: []const u8,
+        arguments: []const Type,
+        /// The alias's body with `arguments` substituted for its parameters.
+        expansion: Type,
     };
 
     pub fn format(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -131,6 +141,11 @@ pub const Type = union(enum) {
                 try arrow.from.clone(allocator),
                 try arrow.to.clone(allocator),
             ),
+            .alias => |a| {
+                const arguments = try allocator.alloc(Type, a.arguments.len);
+                for (a.arguments, arguments) |argument, *copy| copy.* = try argument.clone(allocator);
+                return try aliased(allocator, a.spelling, arguments, try a.expansion.clone(allocator));
+            },
         }
     }
 
@@ -164,6 +179,16 @@ pub const Type = union(enum) {
                 try w.writeAll(" -> ");
                 try arrow.to.write(w, .top, names);
                 if (position != .top) try w.writeByte(')');
+            },
+            .alias => |a| {
+                const parenthesize = position == .argument and a.arguments.len > 0;
+                if (parenthesize) try w.writeByte('(');
+                try w.writeAll(a.spelling);
+                for (a.arguments) |argument| {
+                    try w.writeByte(' ');
+                    try argument.write(w, .argument, names);
+                }
+                if (parenthesize) try w.writeByte(')');
             },
         }
     }
@@ -268,19 +293,24 @@ pub const regex_type: Type = .{ .primitive = .Regex };
 pub const node_type: Type = .{ .primitive = .Node };
 pub const kind_type: Type = .{ .primitive = .Kind };
 
-/// `Point`, a position in the queried file.
-pub const point_type: Type = .{ .record = .{ .fields = &.{
+/// The fields of `Point`, a position in the queried file.
+pub const point_record: Type = .{ .record = .{ .fields = &.{
     .{ .label = "column", .type = &int_type },
     .{ .label = "row", .type = &int_type },
 } } };
 
-/// `Range`, what `range` returns. Starts are inclusive and ends exclusive.
-pub const range_type: Type = .{ .record = .{ .fields = &.{
+pub const point_type: Type = .{ .alias = &.{ .spelling = "Point", .arguments = &.{}, .expansion = point_record } };
+
+/// The fields of `Range`, what `range` returns. Starts are inclusive and ends
+/// exclusive.
+pub const range_record: Type = .{ .record = .{ .fields = &.{
     .{ .label = "end_byte", .type = &int_type },
     .{ .label = "end_point", .type = &point_type },
     .{ .label = "start_byte", .type = &int_type },
     .{ .label = "start_point", .type = &point_type },
 } } };
+
+pub const range_type: Type = .{ .alias = &.{ .spelling = "Range", .arguments = &.{}, .expansion = range_record } };
 
 pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };
@@ -321,6 +351,87 @@ pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     const arrow = try allocator.create(Type.Arrow);
     arrow.* = .{ .from = from, .to = to };
     return .{ .function = arrow };
+}
+
+/// `expansion` written as `spelling` at `arguments`. Takes ownership of
+/// `arguments`.
+pub fn aliased(
+    allocator: std.mem.Allocator,
+    spelling: []const u8,
+    arguments: []const Type,
+    expansion: Type,
+) !Type {
+    const node = try allocator.create(Type.Aliased);
+    node.* = .{ .spelling = spelling, .arguments = arguments, .expansion = expansion };
+    return .{ .alias = node };
+}
+
+/// `t` with each bound variable replaced by `arguments` at its index.
+/// Returns `t` itself when it has no variable, and shares every unchanged
+/// subtree otherwise.
+///
+/// Preconditions:
+/// - Every variable in `t` indexes `arguments`.
+pub fn substitute(allocator: std.mem.Allocator, t: Type, arguments: []const Type) std.mem.Allocator.Error!Type {
+    switch (t) {
+        .variable => |index| return arguments[index],
+        .meta, .primitive => return t,
+        .constructor => |c| {
+            const changed = try substituteAll(allocator, c.arguments, arguments) orelse return t;
+            return try constructed(allocator, c.name, c.spelling, changed);
+        },
+        .record => |r| {
+            var copies: ?[]Type.Field = null;
+            for (r.fields, 0..) |f, i| {
+                const replaced = try substitute(allocator, f.type.*, arguments);
+                if (copies) |slots| {
+                    slots[i] = .{ .label = f.label, .type = try store(allocator, replaced) };
+                } else if (!std.meta.eql(replaced, f.type.*)) {
+                    const slots = try allocator.alloc(Type.Field, r.fields.len);
+                    @memcpy(slots[0..i], r.fields[0..i]);
+                    slots[i] = .{ .label = f.label, .type = try store(allocator, replaced) };
+                    copies = slots;
+                }
+            }
+            var rest = r.rest;
+            if (r.rest) |row| {
+                const replaced = try substitute(allocator, row.*, arguments);
+                if (!std.meta.eql(replaced, row.*)) rest = try store(allocator, replaced);
+            }
+            if (copies == null and rest == r.rest) return t;
+            return .{ .record = .{ .fields = copies orelse r.fields, .rest = rest } };
+        },
+        .function => |arrow| {
+            const from = try substitute(allocator, arrow.from, arguments);
+            const to = try substitute(allocator, arrow.to, arguments);
+            if (std.meta.eql(from, arrow.from) and std.meta.eql(to, arrow.to)) return t;
+            return try func(allocator, from, to);
+        },
+        .alias => |a| {
+            const changed = try substituteAll(allocator, a.arguments, arguments);
+            const expansion = try substitute(allocator, a.expansion, arguments);
+            if (changed == null and std.meta.eql(expansion, a.expansion)) return t;
+            return try aliased(allocator, a.spelling, changed orelse a.arguments, expansion);
+        },
+    }
+}
+
+/// `substitute` over each of `ts`, or null when none changed. Allocates from
+/// the first change on.
+fn substituteAll(allocator: std.mem.Allocator, ts: []const Type, arguments: []const Type) std.mem.Allocator.Error!?[]Type {
+    var copies: ?[]Type = null;
+    for (ts, 0..) |each, i| {
+        const replaced = try substitute(allocator, each, arguments);
+        if (copies) |slots| {
+            slots[i] = replaced;
+        } else if (!std.meta.eql(replaced, each)) {
+            const slots = try allocator.alloc(Type, ts.len);
+            @memcpy(slots[0..i], ts[0..i]);
+            slots[i] = replaced;
+            copies = slots;
+        }
+    }
+    return copies;
 }
 
 /// `[t]` at an arbitrary id. Printing keys on the spelling, not the id.
@@ -425,15 +536,37 @@ test "an open record prints its row after a bar" {
     try std.testing.expectEqualStrings("{start_byte: a | b}; {| a}; {}", buf.written());
 }
 
-test "a range is a record of its bounds" {
+test "a range prints by name and expands to a record of its bounds" {
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try range_type.format(&buf.writer);
+    try buf.writer.print("{f}; {f}", .{ range_type, range_type.alias.expansion });
     try std.testing.expectEqualStrings(
-        "{end_byte: Int, end_point: {column: Int, row: Int}, " ++
-            "start_byte: Int, start_point: {column: Int, row: Int}}",
+        "Range; {end_byte: Int, end_point: Point, start_byte: Int, start_point: Point}",
         buf.written(),
     );
+}
+
+test "an applied alias is parenthesized as an argument" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const named = try aliased(t, "Named", try t.dupe(Type, &.{variable_type(0)}), int_type);
+    try buf.writer.print("{f}", .{try testList(t, try constructed(t, @enumFromInt(2), "Maybe", &.{named}))});
+    try std.testing.expectEqualStrings("[Maybe (Named a)]", buf.written());
+}
+
+test "substitution replaces an alias's arguments and its expansion together" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const t = arena.allocator();
+    const named = try aliased(t, "Id", try t.dupe(Type, &.{variable_type(0)}), variable_type(0));
+    const substituted = try substitute(t, named, &.{string_type});
+    try buf.writer.print("{f}; {f}", .{ substituted, substituted.alias.expansion });
+    try std.testing.expectEqualStrings("Id String; String", buf.written());
 }
 
 test "metavariables are named by first appearance across one message" {

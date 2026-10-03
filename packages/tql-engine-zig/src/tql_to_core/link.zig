@@ -46,15 +46,21 @@ pub const Desugarer = struct {
         if (self.env) |*target| target.deinit();
     }
 
-    /// Registers a module's `type` declarations before any body is desugared,
-    /// so a constructor reference resolves like any other global.
+    /// Registers a module's `data` and `type` declarations before any body is
+    /// desugared, so a constructor reference resolves like any other global.
+    ///
+    /// An alias body or constructor field may name a type declared below it.
     fn declareTypes(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
         const arena = self.env.?.allocator();
         const interner = &self.env.?.interner;
 
+        const Pending = struct { declared: *const cst.DataDeclaration, id: datatypes.TypeId };
+        var pending: std.ArrayList(Pending) = .empty;
+        defer pending.deinit(self.allocator);
+
         for (source.declarations) |*decl| {
-            if (decl.* != .type_declaration) continue;
-            const declared = &decl.type_declaration;
+            if (decl.* != .data_declaration) continue;
+            const declared = &decl.data_declaration;
 
             // A structural type is reserved before any source is read, so its
             // declaration fills in the row already standing rather than
@@ -74,7 +80,9 @@ pub const Desugarer = struct {
                 continue;
             }
 
-            if (existing != null and structural == null) {
+            if ((existing != null and structural == null) or
+                self.env.?.datatypes.aliasNamed(declared.name) != null)
+            {
                 try sink.report(
                     .duplicate_definition,
                     declared.span,
@@ -114,7 +122,13 @@ pub const Desugarer = struct {
                 &.{},
                 .{ .Eq = .fields },
             );
+            try pending.append(self.allocator, .{ .declared = declared, .id = id });
+        }
 
+        try self.declareAliases(source, sink);
+
+        for (pending.items) |p| {
+            const declared = p.declared;
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
             var failed = false;
             for (declared.constructors, constructors, 0..) |written, *out, tag| {
@@ -144,14 +158,108 @@ pub const Desugarer = struct {
             }
             if (failed) continue;
 
-            self.env.?.datatypes.setConstructors(interner, id, constructors);
+            self.env.?.datatypes.setConstructors(interner, p.id, constructors);
         }
+    }
+
+    /// Translates a module's aliases, each after the aliases its body names.
+    fn declareAliases(self: *Desugarer, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+        var aliases: std.ArrayList(*const cst.TypeAlias) = .empty;
+        defer aliases.deinit(self.allocator);
+
+        for (source.declarations) |*decl| {
+            if (decl.* != .type_alias) continue;
+            const alias = &decl.type_alias;
+            if (annotation.builtinNamed(alias.name) != null) {
+                try sink.report(.symbol_collision, alias.span, "`{s}` is a built-in type", .{alias.name});
+                continue;
+            }
+            const repeated = for (aliases.items) |earlier| {
+                if (std.mem.eql(u8, earlier.name, alias.name)) break true;
+            } else false;
+            if (repeated or self.env.?.datatypes.lookup(alias.name) != null or
+                self.env.?.datatypes.aliasNamed(alias.name) != null)
+            {
+                try sink.report(
+                    .duplicate_definition,
+                    alias.span,
+                    "`{s}` is declared more than once",
+                    .{alias.name},
+                );
+                continue;
+            }
+            try aliases.append(self.allocator, alias);
+        }
+
+        const states = try self.allocator.alloc(AliasState, aliases.items.len);
+        defer self.allocator.free(states);
+        @memset(states, .unvisited);
+        for (0..aliases.items.len) |i| _ = try self.declareAlias(aliases.items, states, i, sink);
+    }
+
+    const AliasState = enum { unvisited, visiting, declared, failed };
+
+    /// Declares `aliases[i]` after every alias of `aliases` its body names.
+    /// Returns whether it was declared.
+    fn declareAlias(
+        self: *Desugarer,
+        aliases: []const *const cst.TypeAlias,
+        states: []AliasState,
+        i: usize,
+        sink: *diagnostic.Sink,
+    ) !bool {
+        switch (states[i]) {
+            .declared => return true,
+            .failed => return false,
+            .visiting => {
+                try sink.report(
+                    .cyclic_alias,
+                    aliases[i].span,
+                    "`{s}` is defined in terms of itself",
+                    .{aliases[i].name},
+                );
+                states[i] = .failed;
+                return false;
+            },
+            .unvisited => {},
+        }
+        states[i] = .visiting;
+
+        var names: std.ArrayList([]const u8) = .empty;
+        defer names.deinit(self.allocator);
+        try typeNames(self.allocator, aliases[i].type, &names);
+        for (names.items) |name| {
+            const j = for (aliases, 0..) |other, j| {
+                if (std.mem.eql(u8, other.name, name)) break j;
+            } else continue;
+            if (!try self.declareAlias(aliases, states, j, sink)) {
+                states[i] = .failed;
+                return false;
+            }
+        }
+
+        const translated = annotation.translateAlias(
+            self.env.?.allocator(),
+            self.allocator,
+            aliases[i],
+            &self.env.?.datatypes,
+            sink,
+        ) catch |err| switch (err) {
+            error.BadAnnotation => {
+                states[i] = .failed;
+                return false;
+            },
+            else => |e| return e,
+        };
+        try self.env.?.datatypes.defineAlias(translated);
+        states[i] = .declared;
+        return true;
     }
 
     /// Whether a written declaration matches what the evaluator expects of a
     /// structural type: the same arity, and the same constructor spellings in
     /// the same tag order.
-    fn conforms(s: datatypes.Registry.Structural, declared: cst.TypeDeclaration) bool {
+    fn conforms(s: datatypes.Registry.Structural, declared: cst.DataDeclaration) bool {
         if (declared.parameters.len != s.parameters) return false;
         if (declared.constructors.len != s.constructors.len) return false;
         for (declared.constructors, s.constructors) |written, expected| {
@@ -165,7 +273,7 @@ pub const Desugarer = struct {
     fn fieldType(
         self: *Desugarer,
         written: cst.Type,
-        declared: cst.TypeDeclaration,
+        declared: cst.DataDeclaration,
         sink: *diagnostic.Sink,
     ) !?types.Type {
         const arena = self.env.?.allocator();
@@ -196,8 +304,11 @@ pub const Desugarer = struct {
                     }
                     return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
                 }
+                if (self.env.?.datatypes.aliasNamed(name)) |alias| {
+                    return try self.aliasField(alias, &.{}, written.span, declared, sink);
+                }
                 if (annotation.builtinNamed(name)) |t| {
-                    if (t == .record) return try recordField(written.span, sink);
+                    if (hasRecord(t)) return try recordField(written.span, sink);
                     return t;
                 }
                 try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
@@ -205,6 +316,9 @@ pub const Desugarer = struct {
             },
             .application => |a| {
                 const id = self.env.?.datatypes.lookup(a.constructor) orelse {
+                    if (self.env.?.datatypes.aliasNamed(a.constructor)) |alias| {
+                        return try self.aliasField(alias, a.arguments, written.span, declared, sink);
+                    }
                     try sink.report(
                         .unresolved_name,
                         written.span,
@@ -246,6 +360,34 @@ pub const Desugarer = struct {
             },
             .record => return try recordField(written.span, sink),
         }
+    }
+
+    /// A constructor field written as `alias` at `written`, expanded.
+    fn aliasField(
+        self: *Desugarer,
+        alias: *const datatypes.Alias,
+        written: []const cst.Type,
+        span: diagnostic.Span,
+        declared: cst.DataDeclaration,
+        sink: *diagnostic.Sink,
+    ) std.mem.Allocator.Error!?types.Type {
+        const arena = self.env.?.allocator();
+        if (written.len != alias.parameters.len) {
+            try sink.report(
+                .type_mismatch,
+                span,
+                "`{s}` takes {d} type argument(s), given {d}",
+                .{ alias.name, alias.parameters.len, written.len },
+            );
+            return null;
+        }
+        const arguments = try arena.alloc(types.Type, written.len);
+        for (written, arguments) |argument, *slot| {
+            slot.* = try self.fieldType(argument, declared, sink) orelse return null;
+        }
+        const applied = try alias.apply(arena, arguments);
+        if (hasRecord(applied)) return try recordField(span, sink);
+        return applied;
     }
 
     fn recordField(span: diagnostic.Span, sink: *diagnostic.Sink) !?types.Type {
@@ -385,6 +527,41 @@ pub const Desugarer = struct {
         };
     }
 };
+
+/// Appends every type name `t` mentions to `out`.
+fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8)) !void {
+    switch (t.kind) {
+        .constructor => |name| try out.append(gpa, name),
+        .application => |a| {
+            try out.append(gpa, a.constructor);
+            for (a.arguments) |argument| try typeNames(gpa, argument, out);
+        },
+        .variable => {},
+        .function => |f| {
+            try typeNames(gpa, f.from, out);
+            try typeNames(gpa, f.to, out);
+        },
+        .filter => |f| {
+            try typeNames(gpa, f.input, out);
+            try typeNames(gpa, f.output, out);
+        },
+        .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
+        .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
+    }
+}
+
+/// Whether a record appears anywhere in `t`.
+fn hasRecord(t: types.Type) bool {
+    return switch (t) {
+        .variable, .meta, .primitive => false,
+        .record => true,
+        .constructor => |c| for (c.arguments) |argument| {
+            if (hasRecord(argument)) break true;
+        } else false,
+        .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
+        .alias => |a| hasRecord(a.expansion),
+    };
+}
 
 /// Copies one module's definitions in at `offset`, shifting its module-local
 /// edges into linked indices. Returns how many it placed.

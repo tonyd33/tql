@@ -3,7 +3,7 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-type Maybe a = Just a | Nothing;
+data Maybe a = Just a | Nothing;
 
 f xs = case xs of { Cons a t -> a; Nothing -> 0; };
 

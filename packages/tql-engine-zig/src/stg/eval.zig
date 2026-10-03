@@ -1049,9 +1049,9 @@ pub const Machine = struct {
             .{ .number = r.start_point.row },
         };
         for (thunks, values) |*thunk, v| thunk.* = value.Thunk.value(v);
-        labelFields(fields[0..4], core.types.range_type, thunks[0..4]);
-        labelFields(end_point, core.types.point_type, thunks[4..6]);
-        labelFields(start_point, core.types.point_type, thunks[6..8]);
+        labelFields(fields[0..4], core.types.range_record, thunks[0..4]);
+        labelFields(end_point, core.types.point_record, thunks[4..6]);
+        labelFields(start_point, core.types.point_record, thunks[6..8]);
         return .{ .record = fields[0..4] };
     }
 

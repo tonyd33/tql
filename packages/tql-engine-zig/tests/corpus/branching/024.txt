@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-type P = Mk Int Int;
+data P = Mk Int Int;
 main = pure $ case Mk 10 3 of { Mk a b -> a - b };
 
 --- source ---
