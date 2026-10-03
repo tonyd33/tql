@@ -20,6 +20,7 @@ const COMPARABLE_SECTIONS = [_]SectionKind{
     .source_tree,
     .core,
     .simplified,
+    .stg,
     .types,
     .@"error",
 };
@@ -833,6 +834,7 @@ fn runTestCase(
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
             .simplified = try allocator.dupe(u8, ""),
+            .stg = try allocator.dupe(u8, ""),
             .types = try allocator.dupe(u8, ""),
             .@"error" = try describeDiagnostics(allocator, parsed.diagnostics, tc.query.content),
         };
@@ -849,6 +851,8 @@ fn runTestCase(
     errdefer allocator.free(types_text);
     var simplified_text: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(simplified_text);
+    var stg_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(stg_text);
     var type_diagnostics: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(type_diagnostics);
 
@@ -865,7 +869,7 @@ fn runTestCase(
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
 
-            if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or expects_error) {
+            if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or tc.isAsserted(.stg) or expects_error) {
                 var type_sink = tql.diagnostic.Sink.init(allocator);
                 defer type_sink.deinit();
 
@@ -873,10 +877,16 @@ fn runTestCase(
                     allocator.free(types_text);
                     types_text = try fmt.formatTypes(allocator, &program);
 
-                    if (tc.isAsserted(.simplified)) {
+                    if (tc.isAsserted(.simplified) or tc.isAsserted(.stg)) {
                         try tql.core_to_core.run(&program);
                         allocator.free(simplified_text);
                         simplified_text = try fmt.formatCore(allocator, &program);
+                    }
+                    if (tc.isAsserted(.stg)) {
+                        var translated = try tql.core_to_stg.translate(allocator, &program);
+                        defer translated.deinit();
+                        allocator.free(stg_text);
+                        stg_text = try fmt.formatStg(allocator, &program, &translated);
                     }
                 } else |err| switch (err) {
                     error.TypeCheckFailed => {
@@ -912,6 +922,7 @@ fn runTestCase(
             .values = try allocator.dupe(u8, ""),
             .core = core_text,
             .simplified = simplified_text,
+            .stg = stg_text,
             .types = try allocator.dupe(u8, ""),
             .@"error" = type_diagnostics,
         };
@@ -928,6 +939,7 @@ fn runTestCase(
             .values = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
             .simplified = simplified_text,
+            .stg = stg_text,
             .types = try allocator.dupe(u8, ""),
             .@"error" = desugar_diagnostics,
         };
@@ -956,6 +968,7 @@ fn runTestCase(
             .values = values,
             .core = core_text,
             .simplified = simplified_text,
+            .stg = stg_text,
             .types = types_text,
             .@"error" = try allocator.dupe(u8, ""),
         };
@@ -972,6 +985,7 @@ fn runTestCase(
         .values = try allocator.dupe(u8, ""),
         .core = core_text,
         .simplified = simplified_text,
+        .stg = stg_text,
         .types = types_text,
         .@"error" = try allocator.dupe(u8, ""),
     };
@@ -1089,7 +1103,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, values, core, simplified, types, error (comma-separated); bare --update updates all but error",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, core, simplified, stg, types, error (comma-separated); bare --update updates all but error",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

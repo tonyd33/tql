@@ -1,0 +1,24 @@
+title: a nullary constructor argument is let-bound to a constructed value
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+main = const [true];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- stg ---
+main = {} \u {} ->
+  let
+    t2 = {} \u {} ->
+      let
+        c0 = True
+        c1 = Nil
+      in
+      Cons c0@0 c1@1
+  in
+  const t2@0

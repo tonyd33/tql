@@ -1,6 +1,6 @@
 title: a curried definition applied to all its arguments
 grammar: typescript
-asserts: core, types, values
+asserts: core, types, values, stg
 
 --- tql ---
 add x y = x + y;
@@ -19,3 +19,11 @@ main = pure (add 2 3)
 --- types ---
 add :: Int -> Int -> Int
 main :: Node -> [Int]
+
+--- stg ---
+add = {} \u {} ->
+  let t0 = {} \n {x,y} -> op[+]# x@0 y@1 in
+  t0@0
+main = {} \u {} ->
+  let t0 = {} \u {} -> add 2 3 in
+  pure t0@0

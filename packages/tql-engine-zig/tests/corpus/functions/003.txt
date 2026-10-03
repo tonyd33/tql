@@ -1,6 +1,6 @@
 title: partial application yields a function value
 grammar: typescript
-asserts: core, types, values
+asserts: core, types, values, stg
 
 `add 10` is applied to two different arguments, so the partial application was
 a reusable value rather than an error.
@@ -26,3 +26,24 @@ main =
 --- types ---
 add :: Int -> Int -> Int
 main :: Node -> [Int]
+
+--- stg ---
+add = {} \u {} ->
+  let t0 = {} \n {x,y} -> op[+]# x@0 y@1 in
+  t0@0
+main = {} \u {} ->
+  letrec add10 = {} \u {} -> add 10 in
+  let
+    t4 = {add10@0} \u {} ->
+      let
+        t0 = {add10@0} \u {} -> add10@0 1
+        t3 = {add10@0} \u {} ->
+          let
+            t1 = {add10@0} \u {} -> add10@0 2
+            c2 = Nil
+          in
+          Cons t1@1 c2@2
+      in
+      Cons t0@1 t3@2
+  in
+  const t4@1

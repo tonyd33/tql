@@ -1,6 +1,6 @@
 title: closures capture their lexical environment
 grammar: typescript
-asserts: types, values
+asserts: types, values, stg
 
 `bump` captures `step` from the enclosing group, not from its call site.
 
@@ -20,3 +20,24 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- stg ---
+main = {} \u {} ->
+  letrec
+    step = {} \u {} -> 10
+    bump = {step@0} \n {x} -> op[+]# x@1 step@0
+  in
+  let
+    t4 = {bump@1} \u {} ->
+      let
+        t0 = {bump@0} \u {} -> bump@0 1
+        t3 = {bump@0} \u {} ->
+          let
+            t1 = {bump@0} \u {} -> bump@0 2
+            c2 = Nil
+          in
+          Cons t1@1 c2@2
+      in
+      Cons t0@1 t3@2
+  in
+  const t4@2

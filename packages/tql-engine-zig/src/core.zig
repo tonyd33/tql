@@ -193,7 +193,7 @@ pub const Builder = struct {
     }
 };
 
-/// Lays a term out across lines by its structure. A term without `case`,
+/// Lay a term out across lines by its structure. A term without `case`,
 /// `letrec` or `bind` prints on one line.
 ///
 /// A binder prints with primes appended when its scope references another
@@ -207,7 +207,6 @@ pub const Printer = struct {
         try self.write(t, w, .top, 0, null);
     }
 
-    /// Writes `name = body`.
     pub fn definition(self: Printer, name: SymbolId, body: Term, w: *std.Io.Writer) Error!void {
         try w.print("{s} =", .{self.interner.spelling(name)});
         try self.writeAfterArrow(body, w, 0, null);
@@ -223,7 +222,6 @@ pub const Printer = struct {
         operand,
     };
 
-    /// A local in scope and the primes it prints with.
     const Scope = struct {
         symbol: SymbolId,
         primes: u32,
@@ -288,7 +286,7 @@ pub const Printer = struct {
         try w.writeByte(')');
     }
 
-    /// Writes ` t`, or `t` on its own line at `indent + 2` when it is a
+    /// Write ` t`, or `t` on its own line at `indent + 2` when it is a
     /// `letrec` or `bind`.
     fn writeAfterArrow(self: Printer, t: Term, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
         switch (t.kind) {
@@ -332,7 +330,7 @@ pub const Printer = struct {
         }
     }
 
-    /// Brings binders `i..` of `g` into scope, then writes what they scope.
+    /// Bring binders `i..` of `g` into scope, then write what they scope.
     fn enter(self: Printer, g: Group, i: usize, w: *std.Io.Writer, indent: usize, scope: ?*Scope) Error!void {
         if (i < g.len()) {
             var node: Scope = .{ .symbol = g.binder(i), .primes = 0, .parent = scope };
@@ -492,159 +490,92 @@ pub const Printer = struct {
     }
 };
 
-const TestTerms = struct {
-    arena: std.heap.ArenaAllocator,
-    interner: Interner,
+const test_support = @import("core/test_support.zig");
 
-    const span = diagnostic.Span.unknown;
+fn expectPrints(pb: *const test_support.ProgramBuilder, expected: []const u8, t: Term) !void {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+    const printer: Printer = .{ .interner = &pb.env.interner };
+    try printer.term(t, &w.writer);
+    try std.testing.expectEqualStrings(expected, w.written());
+}
 
-    fn init(self: *TestTerms) void {
-        self.arena = .init(std.testing.allocator);
-        self.interner = .init(self.arena.allocator());
-    }
-
-    fn deinit(self: *TestTerms) void {
-        self.arena.deinit();
-    }
-
-    fn b(self: *TestTerms) Builder {
-        return .{ .allocator = self.arena.allocator() };
-    }
-
-    fn global(self: *TestTerms, name: []const u8) !SymbolId {
-        return try self.interner.intern(name, .vanilla);
-    }
-
-    fn local(self: *TestTerms, name: []const u8) !SymbolId {
-        return try self.interner.fresh(name);
-    }
-
-    fn sym(self: *TestTerms, id: SymbolId) Term {
-        return self.b().symbol(id, span);
-    }
-
-    fn num(self: *TestTerms, n: i64) Term {
-        return self.b().literal(.{ .number = n }, span);
-    }
-
-    fn lam(self: *TestTerms, parameter: SymbolId, body: Term) !Term {
-        return try self.b().lambda(parameter, body, span);
-    }
-
-    fn app(self: *TestTerms, function: Term, arguments: []const Term) !Term {
-        return try self.b().applyMany(function, arguments, span);
-    }
-
-    fn case_(self: *TestTerms, scrutinee: Term, alternatives: []const Case.Alternative) !Term {
-        return try self.b().case(scrutinee, try self.b().dupeSlice(Case.Alternative, alternatives), span);
-    }
-
-    fn alt(self: *TestTerms, constructor: SymbolId, binders: []const SymbolId, body: Term) !Case.Alternative {
-        return .{ .constructor = constructor, .binders = try self.b().dupeSlice(SymbolId, binders), .body = body };
-    }
-
-    fn letrec(self: *TestTerms, bindings: []const Letrec.Binding, body: Term) !Term {
-        return try self.b().letrec(try self.b().dupeSlice(Letrec.Binding, bindings), body, span);
-    }
-
-    fn bind(self: *TestTerms, name: SymbolId, value: Term, body: Term) !Term {
-        return try self.b().bind(name, value, body, span);
-    }
-
-    fn expectPrints(self: *TestTerms, expected: []const u8, t: Term) !void {
-        var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
-        defer w.deinit();
-        const printer: Printer = .{ .interner = &self.interner };
-        try printer.term(t, &w.writer);
-        try std.testing.expectEqualStrings(expected, w.written());
-    }
-
-    fn expectDefinitionPrints(self: *TestTerms, expected: []const u8, name: SymbolId, body: Term) !void {
-        var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
-        defer w.deinit();
-        const printer: Printer = .{ .interner = &self.interner };
-        try printer.definition(name, body, &w.writer);
-        try std.testing.expectEqualStrings(expected, w.written());
-    }
-};
+fn expectDefinitionPrints(pb: *const test_support.ProgramBuilder, expected: []const u8, name: SymbolId, body: Term) !void {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+    const printer: Printer = .{ .interner = &pb.env.interner };
+    try printer.definition(name, body, &w.writer);
+    try std.testing.expectEqualStrings(expected, w.written());
+}
 
 test "a shadowing binder whose scope references the shadowed one is primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const term = try t.lam(outer, try t.lam(inner, try t.app(t.sym(outer), &.{t.sym(inner)})));
-    try t.expectPrints("\\x -> \\x' -> x x'", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const term = try pb.lambda(&.{ outer, inner }, try pb.apply(pb.symbol(outer), &.{pb.symbol(inner)}));
+    try expectPrints(&pb, "\\x -> \\x' -> x x'", term);
 }
 
 test "a shadowing binder whose scope does not reference the shadowed one is not primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const term = try t.lam(outer, try t.lam(inner, t.sym(inner)));
-    try t.expectPrints("\\x -> \\x -> x", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const term = try pb.lambda(&.{ outer, inner }, pb.symbol(inner));
+    try expectPrints(&pb, "\\x -> \\x -> x", term);
 }
 
 test "a local that hides a referenced global is primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const text = try t.global("text");
-    const local = try t.local("text");
-    const term = try t.lam(local, try t.app(t.sym(text), &.{t.sym(local)}));
-    try t.expectPrints("\\text' -> text text'", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const text = try pb.global("text");
+    const local = try pb.local("text");
+    const term = try pb.lambda(&.{local}, try pb.apply(pb.symbol(text), &.{pb.symbol(local)}));
+    try expectPrints(&pb, "\\text' -> text text'", term);
 }
 
 test "each level of shadowing adds a prime" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const x0 = try t.local("x");
-    const x1 = try t.local("x");
-    const x2 = try t.local("x");
-    const body = try t.app(t.sym(x0), &.{ t.sym(x1), t.sym(x2) });
-    const term = try t.lam(x0, try t.lam(x1, try t.lam(x2, body)));
-    try t.expectPrints("\\x -> \\x' -> \\x'' -> x x' x''", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const x0 = try pb.local("x");
+    const x1 = try pb.local("x");
+    const x2 = try pb.local("x");
+    const body = try pb.apply(pb.symbol(x0), &.{ pb.symbol(x1), pb.symbol(x2) });
+    try expectPrints(&pb, "\\x -> \\x' -> \\x'' -> x x' x''", try pb.lambda(&.{ x0, x1, x2 }, body));
 }
 
 test "an underscore binder is never primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("_");
-    const inner = try t.local("_");
-    const term = try t.lam(outer, try t.lam(inner, t.sym(outer)));
-    try t.expectPrints("\\_ -> \\_ -> _", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("_");
+    const inner = try pb.local("_");
+    try expectPrints(&pb, "\\_ -> \\_ -> _", try pb.lambda(&.{ outer, inner }, pb.symbol(outer)));
 }
 
 test "sibling binders of one spelling are told apart" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const cons = try t.global("Cons");
-    const xs = try t.local("xs");
-    const first = try t.local("y");
-    const second = try t.local("y");
-    const term = try t.lam(xs, try t.case_(t.sym(xs), &.{
-        try t.alt(cons, &.{ first, second }, try t.app(t.sym(first), &.{t.sym(second)})),
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const cons = try pb.global("Cons");
+    const xs = try pb.local("xs");
+    const first = try pb.local("y");
+    const second = try pb.local("y");
+    const term = try pb.lambda(&.{xs}, try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = cons, .binders = &.{ first, second }, .body = try pb.apply(pb.symbol(first), &.{pb.symbol(second)}) },
     }));
-    try t.expectPrints(
+    try expectPrints(&pb,
         \\\xs -> case xs of
         \\  Cons y' y -> y' y
     , term);
 }
 
 test "a bind's value is outside the scope of its name" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const term = try t.lam(outer, try t.bind(inner, t.sym(outer), t.sym(inner)));
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const term = try pb.lambda(&.{outer}, try pb.bind(inner, pb.symbol(outer), pb.symbol(inner)));
+    try expectPrints(&pb,
         \\\x ->
         \\  bind x <- x in
         \\  x
@@ -652,13 +583,13 @@ test "a bind's value is outside the scope of its name" {
 }
 
 test "a bind whose body references the shadowed name is primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const term = try t.lam(outer, try t.bind(inner, t.sym(outer), try t.app(t.sym(outer), &.{t.sym(inner)})));
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const body = try pb.apply(pb.symbol(outer), &.{pb.symbol(inner)});
+    const term = try pb.lambda(&.{outer}, try pb.bind(inner, pb.symbol(outer), body));
+    try expectPrints(&pb,
         \\\x ->
         \\  bind x' <- x in
         \\  x x'
@@ -666,17 +597,16 @@ test "a bind whose body references the shadowed name is primed" {
 }
 
 test "a letrec binding is in scope in its siblings' values" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("a");
-    const inner = try t.local("a");
-    const other = try t.local("b");
-    const term = try t.lam(outer, try t.letrec(&.{
-        .{ .name = inner, .value = t.num(1) },
-        .{ .name = other, .value = try t.app(t.sym(outer), &.{t.sym(inner)}) },
-    }, t.sym(other)));
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const outer = try pb.local("a");
+    const inner = try pb.local("a");
+    const other = try pb.local("b");
+    const term = try pb.lambda(&.{outer}, try pb.letrec(&.{
+        .{ .name = inner, .value = pb.number(1) },
+        .{ .name = other, .value = try pb.apply(pb.symbol(outer), &.{pb.symbol(inner)}) },
+    }, pb.symbol(other)));
+    try expectPrints(&pb,
         \\\a ->
         \\  letrec
         \\    a' = 1
@@ -687,43 +617,42 @@ test "a letrec binding is in scope in its siblings' values" {
 }
 
 test "a negative number argument is parenthesized" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const f = try t.global("f");
-    const term = try t.app(t.sym(f), &.{ t.num(-7), t.num(1) });
-    try t.expectPrints("f (-7) 1", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    try expectPrints(&pb, "f (-7) 1", try pb.apply(pb.symbol(f), &.{ pb.number(-7), pb.number(1) }));
 }
 
 test "a term without case, letrec or bind prints on one line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const f = try t.global("f");
-    const x = try t.local("x");
-    const y = try t.local("y");
-    const term = try t.lam(y, try t.app(t.sym(f), &.{ try t.lam(x, t.sym(x)), try t.app(t.sym(f), &.{t.sym(y)}) }));
-    try t.expectPrints("\\y -> f (\\x -> x) (f y)", term);
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const x = try pb.local("x");
+    const y = try pb.local("y");
+    const term = try pb.lambda(&.{y}, try pb.apply(pb.symbol(f), &.{
+        try pb.lambda(&.{x}, pb.symbol(x)),
+        try pb.apply(pb.symbol(f), &.{pb.symbol(y)}),
+    }));
+    try expectPrints(&pb, "\\y -> f (\\x -> x) (f y)", term);
 }
 
 test "case alternatives each take a line, and a case alternative body hangs" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const cons = try t.global("Cons");
-    const xs = try t.local("xs");
-    const h = try t.local("h");
-    const rest = try t.local("t");
-    const inner = try t.case_(t.sym(rest), &.{
-        try t.alt(nil, &.{}, t.sym(h)),
-        try t.alt(cons, &.{ try t.local("_"), try t.local("_") }, t.num(0)),
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const cons = try pb.global("Cons");
+    const xs = try pb.local("xs");
+    const h = try pb.local("h");
+    const rest = try pb.local("t");
+    const inner = try pb.case(pb.symbol(rest), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.symbol(h) },
+        .{ .constructor = cons, .binders = &.{ try pb.local("_"), try pb.local("_") }, .body = pb.number(0) },
     });
-    const term = try t.case_(t.sym(xs), &.{
-        try t.alt(nil, &.{}, t.num(0)),
-        try t.alt(cons, &.{ h, rest }, inner),
+    const term = try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+        .{ .constructor = cons, .binders = &.{ h, rest }, .body = inner },
     });
-    try t.expectPrints(
+    try expectPrints(&pb,
         \\case xs of
         \\  Nil -> 0
         \\  Cons h t -> case t of
@@ -733,16 +662,15 @@ test "case alternatives each take a line, and a case alternative body hangs" {
 }
 
 test "a case alternative whose body is a bind starts it on a new line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const xs = try t.local("xs");
-    const y = try t.local("y");
-    const term = try t.case_(t.sym(xs), &.{
-        try t.alt(nil, &.{}, try t.bind(y, t.sym(xs), t.sym(y))),
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const xs = try pb.local("xs");
+    const y = try pb.local("y");
+    const term = try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = try pb.bind(y, pb.symbol(xs), pb.symbol(y)) },
     });
-    try t.expectPrints(
+    try expectPrints(&pb,
         \\case xs of
         \\  Nil ->
         \\    bind y <- xs in
@@ -751,14 +679,13 @@ test "a case alternative whose body is a bind starts it on a new line" {
 }
 
 test "a letrec of one flat binding takes one line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const main = try t.global("main");
-    const f = try t.global("f");
-    const a = try t.local("a");
-    const term = try t.letrec(&.{.{ .name = a, .value = try t.app(t.sym(f), &.{t.num(1)}) }}, t.sym(a));
-    try t.expectDefinitionPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const a = try pb.local("a");
+    const term = try pb.letrec(&.{.{ .name = a, .value = try pb.apply(pb.symbol(f), &.{pb.number(1)}) }}, pb.symbol(a));
+    try expectDefinitionPrints(&pb,
         \\main =
         \\  letrec a = f 1 in
         \\  a
@@ -766,52 +693,53 @@ test "a letrec of one flat binding takes one line" {
 }
 
 test "a letrec binding whose value is not flat is laid out like several" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const a = try t.local("a");
-    const n = try t.local("n");
-    const value = try t.lam(n, try t.case_(t.sym(n), &.{try t.alt(nil, &.{}, t.num(0))}));
-    const term = try t.letrec(&.{.{ .name = a, .value = value }}, t.sym(a));
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const a = try pb.local("a");
+    const n = try pb.local("n");
+    const value = try pb.lambda(&.{n}, try pb.case(pb.symbol(n), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+    }));
+    try expectPrints(&pb,
         \\letrec
         \\  a = \n -> case n of
         \\    Nil -> 0
         \\in
         \\a
-    , term);
+    , try pb.letrec(&.{.{ .name = a, .value = value }}, pb.symbol(a)));
 }
 
 test "a bind whose value is not flat ends with in on its own line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const xs = try t.local("xs");
-    const y = try t.local("y");
-    const value = try t.case_(t.sym(xs), &.{try t.alt(nil, &.{}, t.num(0))});
-    const term = try t.lam(xs, try t.bind(y, value, t.sym(y)));
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const xs = try pb.local("xs");
+    const y = try pb.local("y");
+    const value = try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+    });
+    try expectPrints(&pb,
         \\\xs ->
         \\  bind y <- case xs of
         \\    Nil -> 0
         \\  in
         \\  y
-    , term);
+    , try pb.lambda(&.{xs}, try pb.bind(y, value, pb.symbol(y))));
 }
 
 test "an operand that is not flat is parenthesized across lines" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const main = try t.global("main");
-    const f = try t.global("f");
-    const nil = try t.global("Nil");
-    const xs = try t.local("xs");
-    const argument = try t.case_(t.sym(xs), &.{try t.alt(nil, &.{}, t.num(0))});
-    const term = try t.lam(xs, try t.app(t.sym(f), &.{ argument, t.num(1) }));
-    try t.expectDefinitionPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const nil = try pb.global("Nil");
+    const xs = try pb.local("xs");
+    const argument = try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+    });
+    const term = try pb.lambda(&.{xs}, try pb.apply(pb.symbol(f), &.{ argument, pb.number(1) }));
+    try expectDefinitionPrints(&pb,
         \\main = \xs -> f (
         \\  case xs of
         \\    Nil -> 0
@@ -820,14 +748,17 @@ test "an operand that is not flat is parenthesized across lines" {
 }
 
 test "a scrutinee that is not flat is parenthesized across lines" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const xs = try t.local("xs");
-    const inner = try t.case_(t.sym(xs), &.{try t.alt(nil, &.{}, t.sym(xs))});
-    const term = try t.case_(inner, &.{try t.alt(nil, &.{}, t.num(0))});
-    try t.expectPrints(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const xs = try pb.local("xs");
+    const inner = try pb.case(pb.symbol(xs), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.symbol(xs) },
+    });
+    const term = try pb.case(inner, &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+    });
+    try expectPrints(&pb,
         \\case (
         \\  case xs of
         \\    Nil -> xs
@@ -837,23 +768,22 @@ test "a scrutinee that is not flat is parenthesized across lines" {
 }
 
 test "a lambda whose body is a bind starts it on a new line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const main = try t.global("main");
-    const f = try t.global("f");
-    const root = try t.local("root");
-    const c = try t.local("c");
-    const n = try t.local("n");
-    const term = try t.lam(root, try t.bind(
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const root = try pb.local("root");
+    const c = try pb.local("c");
+    const n = try pb.local("n");
+    const body = try pb.bind(
         c,
-        try t.app(t.sym(f), &.{t.sym(root)}),
-        try t.bind(n, try t.app(t.sym(f), &.{t.sym(c)}), t.sym(n)),
-    ));
-    try t.expectDefinitionPrints(
+        try pb.apply(pb.symbol(f), &.{pb.symbol(root)}),
+        try pb.bind(n, try pb.apply(pb.symbol(f), &.{pb.symbol(c)}), pb.symbol(n)),
+    );
+    try expectDefinitionPrints(&pb,
         \\main = \root ->
         \\  bind c <- f root in
         \\  bind n <- f c in
         \\  n
-    , main, term);
+    , main, try pb.lambda(&.{root}, body));
 }

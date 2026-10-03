@@ -1,6 +1,6 @@
 title: a closure reads its captures and parameters at their own offsets
 grammar: typescript
-asserts: values
+asserts: values, stg
 
 --- tql ---
 main = pure $ (\a b c -> (\x -> c - a * x - b)) 1 30 3 0;
@@ -10,3 +10,24 @@ class A {}
 
 --- values ---
 [-27]
+
+--- stg ---
+main = {} \u {} ->
+  let
+    t4 = {} \u {} ->
+      let
+        t3 = {} \u {} ->
+          let
+            t2 = {} \n {a,b,c,x} ->
+              let
+                t1 = {c@2,a@0,x@3} \u {} ->
+                  let t0 = {a@1,x@2} \u {} -> op[*]# a@0 x@1 in
+                  op[-]# c@0 t0@3
+              in
+              op[-]# t1@4 b@1
+          in
+          t2@0
+      in
+      t3@0 1 30 3 0
+  in
+  pure t4@0

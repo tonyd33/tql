@@ -1,9 +1,12 @@
 title: an over-application applies the result to the rest
 grammar: typescript
-asserts: values
+asserts: values, stg
+
+`adder` takes one parameter and returns a closure, so `adder 1 10` calls a
+closure of arity one with two arguments.
 
 --- tql ---
-adder a = \b -> a + b;
+adder a = let { add b = a + b } in add;
 main = pure $ adder 1 10;
 
 --- source ---
@@ -11,3 +14,15 @@ class A {}
 
 --- values ---
 [11]
+
+--- stg ---
+adder = {} \u {} ->
+  let
+    t0 = {} \n {a} ->
+      letrec add = {a@0} \n {b} -> op[+]# a@0 b@1 in
+      add@1
+  in
+  t0@0
+main = {} \u {} ->
+  let t0 = {} \u {} -> adder 1 10 in
+  pure t0@0

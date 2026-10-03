@@ -274,7 +274,14 @@ test "a closure prints its captures, its update flag and its parameters" {
     try expectDefinition(
         &program,
         spread,
-        "{} \\u {} -> let { t0 = {} \\n {a,b} -> letrec { k = {b,a} \\u {} -> op[-]# b a } in k } in t0",
+        \\{} \u {} ->
+        \\  let
+        \\    t0 = {} \n {a,b} ->
+        \\      letrec k = {b@1,a@0} \u {} -> op[-]# b@0 a@1 in
+        \\      k@2
+        \\  in
+        \\  t0@0
+        ,
     );
 }
 
@@ -291,8 +298,16 @@ test "a constructor field that is not an atom becomes a thunk" {
     try expectDefinition(
         &program,
         append,
-        "{} \\u {} -> let { t1 = {} \\n {xs,ys} -> case xs of { Nil -> ys; " ++
-            "Cons h t -> let { t0 = {t,ys} \\u {} -> append t ys } in Cons h t0 } } in t1",
+        \\{} \u {} ->
+        \\  let
+        \\    t1 = {} \n {xs,ys} -> case xs@0 of
+        \\      Nil -> ys@1
+        \\      Cons h t ->
+        \\        let t0 = {t@3,ys@1} \u {} -> append t@0 ys@1 in
+        \\        Cons h@2 t0@4
+        \\  in
+        \\  t1@0
+        ,
     );
 }
 
@@ -321,8 +336,18 @@ test "a stream bind translates to a concat_map call" {
     try expectDefinition(
         &program,
         main,
-        "{} \\u {} -> let { t3 = {} \\n {xs} -> let { t2 = {} \\n {c} -> " ++
-            "let { c1 = Nil } in Cons c c1 } in concat_map t2 xs } in t3",
+        \\{} \u {} ->
+        \\  let
+        \\    t2 = {} \n {xs} ->
+        \\      let
+        \\        t1 = {} \n {c} ->
+        \\          let c0 = Nil in
+        \\          Cons c@0 c0@1
+        \\      in
+        \\      concat_map t1@1 xs@0
+        \\  in
+        \\  t2@0
+        ,
     );
 }
 

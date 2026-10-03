@@ -1,6 +1,6 @@
 title: a nested list pattern tells apart the tails it checks
 grammar: typescript
-asserts: core, values
+asserts: core, values, stg
 
 --- tql ---
 one xs = case xs of {
@@ -28,3 +28,90 @@ one = \xs ->
 main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))
 --- values ---
 [[1], [], []]
+
+--- stg ---
+one = {} \u {} ->
+  let
+    t2 = {} \n {xs} ->
+      letrec
+        alternative = {} \u {} ->
+          let c0 = Nil in
+          c0@0
+      in
+      case xs@0 of
+        Nil -> alternative@1
+        Cons cons0 cons1 -> case cons0@2 of
+          Nil -> alternative@1
+          Cons a cons1' -> case cons1'@5 of
+            Nil -> case cons1@3 of
+              Nil ->
+                let c1 = Nil in
+                Cons a@4 c1@6
+              Cons _ _ -> alternative@1
+            Cons _ _ -> alternative@1
+  in
+  t2@0
+main = {} \u {} ->
+  let
+    t22 = {} \u {} ->
+      let
+        t4 = {} \u {} ->
+          let
+            t3 = {} \u {} ->
+              let
+                t1 = {} \u {} ->
+                  let c0 = Nil in
+                  Cons 1 c0@0
+                c2 = Nil
+              in
+              Cons t1@0 c2@1
+          in
+          one t3@0
+        t21 = {} \u {} ->
+          let
+            t12 = {} \u {} ->
+              let
+                t11 = {} \u {} ->
+                  let
+                    t6 = {} \u {} ->
+                      let c5 = Nil in
+                      Cons 2 c5@0
+                    t10 = {} \u {} ->
+                      let
+                        t8 = {} \u {} ->
+                          let c7 = Nil in
+                          Cons 3 c7@0
+                        c9 = Nil
+                      in
+                      Cons t8@0 c9@1
+                  in
+                  Cons t6@0 t10@1
+              in
+              one t11@0
+            t20 = {} \u {} ->
+              let
+                t18 = {} \u {} ->
+                  let
+                    t17 = {} \u {} ->
+                      let
+                        t15 = {} \u {} ->
+                          let
+                            t14 = {} \u {} ->
+                              let c13 = Nil in
+                              Cons 5 c13@0
+                          in
+                          Cons 4 t14@0
+                        c16 = Nil
+                      in
+                      Cons t15@0 c16@1
+                  in
+                  one t17@0
+                c19 = Nil
+              in
+              Cons t18@0 c19@1
+          in
+          Cons t12@0 t20@1
+      in
+      Cons t4@0 t21@1
+  in
+  const t22@0

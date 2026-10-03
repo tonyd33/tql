@@ -1,6 +1,6 @@
 title: a letrec binding captures an enclosing parameter
 grammar: typescript
-asserts: values
+asserts: values, stg
 
 --- tql ---
 count_to limit =
@@ -12,3 +12,21 @@ class A {}
 
 --- values ---
 [10]
+
+--- stg ---
+count_to = {} \u {} ->
+  let
+    t1 = {} \n {limit} ->
+      letrec
+        go = {limit@0,go@1} \n {n} -> case op[=]# n@2 limit@0 of
+          False ->
+            let t0 = {n@2} \u {} -> op[+]# n@0 1 in
+            go@1 t0@3
+          True -> n@2
+      in
+      go@1 0
+  in
+  t1@0
+main = {} \u {} ->
+  let t0 = {} \u {} -> count_to 10 in
+  pure t0@0

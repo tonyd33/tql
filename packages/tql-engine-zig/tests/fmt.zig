@@ -26,6 +26,19 @@ pub fn formatCore(allocator: std.mem.Allocator, program: *const tql.core.Program
     return w.toOwnedSlice();
 }
 
+/// The entry module's definitions as translated to STG.
+pub fn formatStg(
+    allocator: std.mem.Allocator,
+    program: *const tql.core.Program,
+    translated: *const tql.stg.Program,
+) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    const printer: tql.stg.Printer = .{ .interner = &program.env.interner };
+    try printer.definitions(translated.definitions[program.entry_offset..], &w.writer);
+    return w.toOwnedSlice();
+}
+
 /// `name :: scheme` per entry-module definition, in declaration order.
 ///
 /// Entry definitions only, like `formatCore`: the prelude's schemes are

@@ -1,0 +1,21 @@
+title: a lambda chain becomes one closure taking every parameter
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+add x y = x + y;
+main = pure (add 1 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- stg ---
+add = {} \u {} ->
+  let t0 = {} \n {x,y} -> op[+]# x@0 y@1 in
+  t0@0
+main = {} \u {} ->
+  let t0 = {} \u {} -> add 1 2 in
+  pure t0@0

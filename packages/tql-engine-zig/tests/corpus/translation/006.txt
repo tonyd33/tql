@@ -1,0 +1,20 @@
+title: a letrec binding captures a sibling
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+main = let { a = 1; b = a + 1 } in pure b;
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- stg ---
+main = {} \u {} ->
+  letrec
+    a = {} \u {} -> 1
+    b = {a@0} \u {} -> op[+]# a@0 1
+  in
+  pure b@1

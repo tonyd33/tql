@@ -1,6 +1,6 @@
 title: a partial application saturates on a later call
 grammar: typescript
-asserts: values
+asserts: values, stg
 
 --- tql ---
 add3 a b c = a + b + c;
@@ -11,3 +11,17 @@ class A {}
 
 --- values ---
 [6]
+
+--- stg ---
+add3 = {} \u {} ->
+  let
+    t1 = {} \n {a,b,c} ->
+      let t0 = {a@0,b@1} \u {} -> op[+]# a@0 b@1 in
+      op[+]# t0@3 c@2
+  in
+  t1@0
+main = {} \u {} ->
+  letrec f = {} \u {} -> add3 1 in
+  letrec g = {f@0} \u {} -> f@0 2 in
+  let t0 = {g@1} \u {} -> g@0 3 in
+  pure t0@2
