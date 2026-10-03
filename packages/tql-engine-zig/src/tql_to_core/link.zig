@@ -162,9 +162,12 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = try self.fieldType(scope, field, declared.*, sink) orelse {
-                        failed = true;
-                        break;
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, scope, sink) catch |err| switch (err) {
+                        error.BadAnnotation => {
+                            failed = true;
+                            break;
+                        },
+                        else => |e| return e,
                     };
                 }
 
@@ -281,149 +284,6 @@ pub const Desugarer = struct {
             if (!std.mem.eql(u8, written.name, expected)) return false;
         }
         return true;
-    }
-
-    /// A constructor field's type, with the datatype's own parameters in
-    /// scope as bound variables.
-    fn fieldType(
-        self: *Desugarer,
-        scope: *const ModuleScope,
-        written: cst.Type,
-        declared: cst.DataDeclaration,
-        sink: *diagnostic.Sink,
-    ) !?types.Type {
-        const arena = self.env.?.allocator();
-        switch (written.kind) {
-            .variable => |name| {
-                for (declared.parameters, 0..) |parameter, i| {
-                    if (std.mem.eql(u8, parameter, name)) return types.variable_type(@intCast(i));
-                }
-                try sink.report(
-                    .unresolved_name,
-                    written.span,
-                    "`{s}` is not a parameter of `{s}`",
-                    .{ name, declared.name },
-                );
-                return null;
-            },
-            .constructor => |name| {
-                switch (scope.typeNamed(name)) {
-                    .found => |found| switch (found) {
-                        .datatype => |id| {
-                            const parameters = self.env.?.datatypes.get(id).parameters;
-                            if (parameters != 0) {
-                                try sink.report(
-                                    .type_mismatch,
-                                    written.span,
-                                    "`{s}` takes {d} type argument(s), given 0",
-                                    .{ name, parameters },
-                                );
-                                return null;
-                            }
-                            return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, &.{});
-                        },
-                        .alias => |alias| return try self.aliasField(scope, alias, &.{}, written.span, declared, sink),
-                    },
-                    .failed => |failure| {
-                        try scope.reportFailure(sink, written.span, name, failure);
-                        return null;
-                    },
-                    .missing => {},
-                }
-                if (annotation.builtinNamed(name)) |t| {
-                    if (hasRecord(t)) return try recordField(written.span, sink);
-                    return t;
-                }
-                try sink.report(.unresolved_name, written.span, "`{s}` is not a type", .{name});
-                return null;
-            },
-            .application => |a| {
-                const id = switch (scope.typeNamed(a.constructor)) {
-                    .found => |found| switch (found) {
-                        .datatype => |id| id,
-                        .alias => |alias| return try self.aliasField(scope, alias, a.arguments, written.span, declared, sink),
-                    },
-                    .failed => |failure| {
-                        try scope.reportFailure(sink, written.span, a.constructor, failure);
-                        return null;
-                    },
-                    .missing => {
-                        try sink.report(
-                            .unresolved_name,
-                            written.span,
-                            "`{s}` is not a type",
-                            .{a.constructor},
-                        );
-                        return null;
-                    },
-                };
-                const parameters = self.env.?.datatypes.get(id).parameters;
-                if (a.arguments.len != parameters) {
-                    try sink.report(
-                        .type_mismatch,
-                        written.span,
-                        "`{s}` takes {d} type argument(s), given {d}",
-                        .{ a.constructor, parameters, a.arguments.len },
-                    );
-                    return null;
-                }
-                const arguments = try arena.alloc(types.Type, a.arguments.len);
-                for (a.arguments, arguments) |argument, *slot| {
-                    slot.* = try self.fieldType(scope, argument, declared, sink) orelse return null;
-                }
-                return try types.constructed(arena, id, self.env.?.datatypes.get(id).name, arguments);
-            },
-            .list => |element| {
-                const inner = try self.fieldType(scope, element.*, declared, sink) orelse return null;
-                return try self.env.?.datatypes.list(arena, inner);
-            },
-            .parenthesized => |inner| return try self.fieldType(scope, inner.*, declared, sink),
-            .function => |f| {
-                const from = try self.fieldType(scope, f.from, declared, sink) orelse return null;
-                const to = try self.fieldType(scope, f.to, declared, sink) orelse return null;
-                return try types.func(arena, from, to);
-            },
-            .filter => |f| {
-                const input = try self.fieldType(scope, f.input, declared, sink) orelse return null;
-                const output = try self.fieldType(scope, f.output, declared, sink) orelse return null;
-                return try self.env.?.datatypes.filter(arena, input, output);
-            },
-            .record => return try recordField(written.span, sink),
-        }
-    }
-
-    /// A constructor field written as `alias` at `written`, expanded.
-    fn aliasField(
-        self: *Desugarer,
-        scope: *const ModuleScope,
-        alias: *const datatypes.Alias,
-        written: []const cst.Type,
-        span: diagnostic.Span,
-        declared: cst.DataDeclaration,
-        sink: *diagnostic.Sink,
-    ) std.mem.Allocator.Error!?types.Type {
-        const arena = self.env.?.allocator();
-        if (written.len != alias.parameters.len) {
-            try sink.report(
-                .type_mismatch,
-                span,
-                "`{s}` takes {d} type argument(s), given {d}",
-                .{ alias.name, alias.parameters.len, written.len },
-            );
-            return null;
-        }
-        const arguments = try arena.alloc(types.Type, written.len);
-        for (written, arguments) |argument, *slot| {
-            slot.* = try self.fieldType(scope, argument, declared, sink) orelse return null;
-        }
-        const applied = try alias.apply(arena, arguments);
-        if (hasRecord(applied)) return try recordField(span, sink);
-        return applied;
-    }
-
-    fn recordField(span: diagnostic.Span, sink: *diagnostic.Sink) !?types.Type {
-        try sink.report(.type_mismatch, span, "a constructor field may not be a record yet", .{});
-        return null;
     }
 
     /// Declares a module for `add`. `ModuleId.prelude` is declared already.
@@ -606,19 +466,6 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
-}
-
-/// Whether a record appears anywhere in `t`.
-fn hasRecord(t: types.Type) bool {
-    return switch (t) {
-        .variable, .meta, .primitive => false,
-        .record => true,
-        .constructor => |c| for (c.arguments) |argument| {
-            if (hasRecord(argument)) break true;
-        } else false,
-        .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
-        .alias => |a| hasRecord(a.expansion),
-    };
 }
 
 fn entrySymbol(

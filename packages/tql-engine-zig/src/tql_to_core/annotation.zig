@@ -60,6 +60,7 @@ pub fn translate(
         .vars = &vars,
         .scope = scope,
         .sink = sink,
+        .variables = .free,
     };
     const translated = try t.type(signature.type);
     const context = try arena.alloc(types.TypeClassConstraint, signature.context.len);
@@ -93,29 +94,23 @@ pub fn translateAlias(
         .vars = &vars,
         .scope = scope,
         .sink = sink,
+        .variables = .free,
     };
-    // Parameter `i` is variable `i` in the body.
     for (alias.parameters, 0..) |parameter, i| {
-        if (try t.binder(parameter, null, alias.span) == i) continue;
-        try sink.report(
-            .duplicate_definition,
-            alias.span,
-            "`{s}` names two parameters of `{s}`",
-            .{ parameter, alias.name },
-        );
-        return error.BadAnnotation;
+        for (alias.parameters[0..i]) |earlier| {
+            if (!std.mem.eql(u8, earlier, parameter)) continue;
+            try sink.report(
+                .duplicate_definition,
+                alias.span,
+                "`{s}` names two parameters of `{s}`",
+                .{ parameter, alias.name },
+            );
+            return error.BadAnnotation;
+        }
     }
+    try t.declaration(alias.name, alias.parameters, alias.span);
     const body = try t.type(alias.type);
 
-    if (vars.items.len > alias.parameters.len) {
-        try sink.report(
-            .unresolved_name,
-            alias.type.span,
-            "`{s}` is not a parameter of `{s}`",
-            .{ vars.items[alias.parameters.len].name, alias.name },
-        );
-        return error.BadAnnotation;
-    }
     const parameters = try arena.alloc(datatypes.Alias.Parameter, alias.parameters.len);
     for (vars.items, parameters) |v, *slot| {
         const sort = v.sort orelse {
@@ -137,12 +132,67 @@ pub fn translateAlias(
     };
 }
 
+/// Translates a constructor field's written type. Variable `i` is the
+/// datatype's parameter `i`.
+pub fn translateField(
+    arena: Allocator,
+    gpa: Allocator,
+    written: cst.Type,
+    declared: *const cst.DataDeclaration,
+    scope: *const ModuleScope,
+    sink: *diagnostic.Sink,
+) Error!types.Type {
+    var vars: std.ArrayList(Translator.Variable) = .empty;
+    defer vars.deinit(gpa);
+
+    var t = Translator{
+        .arena = arena,
+        .gpa = gpa,
+        .vars = &vars,
+        .scope = scope,
+        .sink = sink,
+        .variables = .free,
+    };
+    try t.declaration(declared.name, declared.parameters, declared.span);
+    const field = try t.type(written);
+    if (hasRecord(field)) {
+        try sink.report(.type_mismatch, written.span, "a constructor field may not be a record yet", .{});
+        return error.BadAnnotation;
+    }
+    return field;
+}
+
+/// Whether a record appears anywhere in `t`.
+fn hasRecord(t: types.Type) bool {
+    return switch (t) {
+        .variable, .meta, .primitive => false,
+        .record => true,
+        .constructor => |c| for (c.arguments) |argument| {
+            if (hasRecord(argument)) break true;
+        } else false,
+        .function => |arrow| hasRecord(arrow.from) or hasRecord(arrow.to),
+        .alias => |a| hasRecord(a.expansion),
+    };
+}
+
 const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
     vars: *std.ArrayList(Variable),
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
+    variables: union(enum) {
+        /// Each new variable becomes a `forall` binder.
+        free,
+        /// Only the parameters of the named declaration are in scope.
+        parameters_of: []const u8,
+    },
+
+    /// Bring `parameters` into scope as variables `0..` and admit no others.
+    fn declaration(self: *Translator, name: []const u8, parameters: []const []const u8, span: diagnostic.Span) Error!void {
+        for (parameters) |parameter| _ = try self.binder(parameter, null, span);
+        self.variables = .{ .parameters_of = name };
+    }
 
     fn @"type"(self: *Translator, node: cst.Type) Error!types.Type {
         return switch (node.kind) {
@@ -321,6 +371,13 @@ const Translator = struct {
                 return error.BadAnnotation;
             }
             return @intCast(i);
+        }
+        switch (self.variables) {
+            .free => {},
+            .parameters_of => |owner| {
+                try self.sink.report(.unresolved_name, span, "`{s}` is not a parameter of `{s}`", .{ name, owner });
+                return error.BadAnnotation;
+            },
         }
         if (self.vars.items.len == std.math.maxInt(types.TypeVar)) {
             try self.sink.report(

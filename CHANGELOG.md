@@ -32,6 +32,7 @@
 ### Improvements
 
 - A record literal with more fields than a type can index is reported at the literal. It was previously reported with no location.
+- A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 
 ## 0.3.1 (unreleased)
 
