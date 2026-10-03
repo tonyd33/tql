@@ -264,7 +264,14 @@ pub const Lowerer = struct {
                 e.span,
             ),
 
-            .binary => |b| return try self.binary(b.*, e.span, scope),
+            .binary => |b| return try self.binaryTerms(
+                b.operator,
+                try self.expression(b.left, scope),
+                try self.expression(b.right, scope),
+                e.span,
+            ),
+
+            .section => |s| return try self.section(s.*, e.span, scope),
 
             // The scalar conditional is `case` on `Bool`. Alternatives go in
             // tag order, so `False` precedes `True` and the alternative
@@ -356,13 +363,65 @@ pub const Lowerer = struct {
         return try self.builder.apply(try self.select(p.label, e.span), subject, e.span);
     }
 
-    fn binary(self: *Lowerer, b: cst.Binary, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {
-        const left = try self.expression(b.left, scope);
-        const right = try self.expression(b.right, scope);
+    /// `(op)` is `\x y -> x op y`, `(e op)` is `\y -> e op y` and `(op e)` is
+    /// `\x -> x op e`. A compound `e` is bound outside the lambda and
+    /// evaluated at most once.
+    fn section(self: *Lowerer, s: cst.Section, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {
+        if (s.operator == .function and s.left == null and s.right == null) {
+            return try self.expression(s.operator.function, scope);
+        }
 
+        var binding: ?core.Letrec.Binding = null;
+        const left = try self.sectionOperand(s.left, &binding, span, scope);
+        const right = try self.sectionOperand(s.right, &binding, span, scope);
+
+        const left_term = left orelse self.builder.symbol(try self.interner.fresh("x"), span);
+        const right_term = right orelse self.builder.symbol(try self.interner.fresh("y"), span);
+        var result = switch (s.operator) {
+            .binary => |operator| try self.binaryTerms(operator, left_term, right_term, span),
+            .dollar => try self.builder.apply(left_term, right_term, span),
+            .function => |f| try self.builder.applyMany(
+                try self.expression(f, scope),
+                &.{ left_term, right_term },
+                span,
+            ),
+        };
+        if (right == null) result = try self.builder.lambda(right_term.kind.symbol, result, span);
+        if (left == null) result = try self.builder.lambda(left_term.kind.symbol, result, span);
+
+        const operand = binding orelse return result;
+        return try self.builder.letrec(try self.builder.dupeSlice(core.Letrec.Binding, &.{operand}), result, span);
+    }
+
+    /// A written operand as an atom, setting `binding` when it is compound.
+    fn sectionOperand(
+        self: *Lowerer,
+        operand: ?cst.Expression,
+        binding: *?core.Letrec.Binding,
+        span: diagnostic.Span,
+        scope: ?*const resolve.Scope,
+    ) Error!?core.Term {
+        const written = operand orelse return null;
+        const term = try self.expression(written, scope);
+        switch (term.kind) {
+            .symbol, .literal => return term,
+            else => {},
+        }
+        const name = try self.interner.fresh("e");
+        binding.* = .{ .name = name, .value = term };
+        return self.builder.symbol(name, span);
+    }
+
+    fn binaryTerms(
+        self: *Lowerer,
+        op: cst.BinaryOperator,
+        left: core.Term,
+        right: core.Term,
+        span: diagnostic.Span,
+    ) Error!core.Term {
         // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
         // never lifted over filters.
-        const scalar: core.Scalar = switch (b.operator) {
+        const scalar: core.Scalar = switch (op) {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),

@@ -1,0 +1,21 @@
+title: a right section supplies the right operand
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+is_one = (= 1);
+main = const (map is_one [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- types ---
+is_one :: Int -> Bool
+main :: Node -> [Bool]
+
+--- core ---
+is_one = \x -> op[=] x 1
+main = const (map is_one (Cons 1 (Cons 2 Nil)))

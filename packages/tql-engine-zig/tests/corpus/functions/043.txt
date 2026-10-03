@@ -1,0 +1,17 @@
+title: a backticked name sections like an operator
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+mod a b = a % b;
+main = const (append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]));
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2, 1, 2, 1]
+
+--- core ---
+mod = \a -> \b -> op[%] a b
+main = const (append (map (\x -> mod x 3) (Cons 7 (Cons 8 Nil))) (append (map (\y -> mod 10 y) (Cons 3 (Cons 4 Nil))) (Cons (mod 7 3) Nil)))

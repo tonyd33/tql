@@ -1,0 +1,15 @@
+title: `subtract` takes the subtrahend first
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const (map (subtract 1) [5, 7]);
+
+--- source ---
+class A {}
+
+--- values ---
+[4, 6]
+
+--- types ---
+main :: Node -> [Int]

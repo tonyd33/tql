@@ -19,6 +19,8 @@
 - Added record field access: `r.start_byte` reads a field, and `_.start_byte` is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
 - Added open record types to signatures: `{name: String | r}` is any record with a `name` field.
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
+- Added operator sections: `(= 1)` is `\x -> x = 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
+- Added `subtract`.
 
 ## 0.3.1 (unreleased)
 

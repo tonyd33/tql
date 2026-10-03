@@ -1,0 +1,17 @@
+title: a section's parameter does not capture a variable of the same name
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+same x = map (= x) [1, 2];
+main = const (same 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- core ---
+same = \x -> map (\x' -> op[=] x' x) (Cons 1 (Cons 2 Nil))
+main = const (same 1)

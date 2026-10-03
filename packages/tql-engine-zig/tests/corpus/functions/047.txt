@@ -1,0 +1,31 @@
+title: dollar and composition section
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const (append (map ($ 1) [(+ 1), (* 2)]) [(. (+ 1)) (* 2) 5, ((* 2) .) (+ 1) 5]);
+
+--- source ---
+class A {}
+
+--- values ---
+[2, 2, 12, 12]
+
+--- core ---
+main = const (
+  append (map (\x -> x 1) (Cons (\x -> op[+] x 1) (Cons (\x -> op[*] x 2) Nil))) (
+    Cons (
+      (
+        letrec e = \x -> op[+] x 1 in
+        \x -> compose x e
+      ) (\x -> op[*] x 2) 5
+    ) (
+      Cons (
+        (
+          letrec e = \x -> op[*] x 2 in
+          \y -> compose e y
+        ) (\x -> op[+] x 1) 5
+      ) Nil
+    )
+  )
+)

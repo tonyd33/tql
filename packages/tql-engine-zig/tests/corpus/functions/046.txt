@@ -1,0 +1,16 @@
+title: a section composes into a predicate
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = descendants_of_kind :call_expression | keep (any ((= "import") . text) . #function) | arr text;
+
+--- source ---
+import("x");
+f("y");
+
+--- values ---
+["import(\"x\")"]
+
+--- core ---
+main = kleisli (kleisli (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> op[=] x "import") text)) field[function]))) (arr text)

@@ -512,6 +512,7 @@ test "the prelude's bodies compile to Core" {
         \\const = \x -> \y -> x
         \\compose = \f -> \g -> \x -> f (g x)
         \\flip = \f -> \x -> \y -> f y x
+        \\subtract = \x -> \y -> op[-] y x
         \\null = \xs -> case xs of
         \\  Nil -> True
         \\  Cons h t -> False
@@ -635,6 +636,7 @@ test "the prelude's schemes are inferred" {
         \\const :: a -> b -> a
         \\compose :: (a -> b) -> (c -> a) -> c -> b
         \\flip :: (a -> b -> c) -> b -> a -> c
+        \\subtract :: Int -> Int -> Int
         \\null :: [a] -> Bool
         \\append :: [a] -> [a] -> [a]
         \\concat :: [[a]] -> [a]

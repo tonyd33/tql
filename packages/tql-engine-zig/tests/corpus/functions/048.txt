@@ -1,0 +1,22 @@
+title: a section evaluates its operand once, outside the function it builds
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+inc x = x + 1;
+main = const (map (= inc 1) [2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- core ---
+inc = \x -> op[+] x 1
+main = const (
+  map (
+    letrec e = inc 1 in
+    \x -> op[=] x e
+  ) (Cons 2 (Cons 3 Nil))
+)
