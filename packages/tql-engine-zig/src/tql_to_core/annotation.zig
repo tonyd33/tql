@@ -58,7 +58,6 @@ pub fn translate(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .datatypes = scope.datatypes,
         .scope = scope,
         .sink = sink,
     };
@@ -92,7 +91,6 @@ pub fn translateAlias(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .datatypes = scope.datatypes,
         .scope = scope,
         .sink = sink,
     };
@@ -143,7 +141,6 @@ const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
     vars: *std.ArrayList(Variable),
-    datatypes: *const datatypes.Registry,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 
@@ -152,7 +149,7 @@ const Translator = struct {
             .constructor => |name| try self.named(name, node.span),
             .application => |a| try self.application(a.*, node.span),
             .variable => |name| .{ .variable = try self.binder(name, .type, node.span) },
-            .list => |element| try self.datatypes.list(self.arena, try self.type(element.*)),
+            .list => |element| try self.scope.datatypes.list(self.arena, try self.type(element.*)),
             .parenthesized => |inner| try self.type(inner.*),
             .function => |f| try types.func(self.arena, try self.type(f.from), try self.type(f.to)),
             // `Filter a b` is `a -> [b]`. The expansion happens here, so
@@ -160,7 +157,7 @@ const Translator = struct {
             .filter => |f| try types.func(
                 self.arena,
                 try self.type(f.input),
-                try self.datatypes.list(self.arena, try self.type(f.output)),
+                try self.scope.datatypes.list(self.arena, try self.type(f.output)),
             ),
             .record => |r| try self.record(r, node.span),
         };
@@ -170,7 +167,7 @@ const Translator = struct {
         switch (self.scope.typeNamed(name)) {
             .found => |found| switch (found) {
                 .datatype => |declared| {
-                    const parameters = self.datatypes.get(declared).parameters;
+                    const parameters = self.scope.datatypes.get(declared).parameters;
                     if (parameters != 0) {
                         try self.sink.report(
                             .type_mismatch,
@@ -180,7 +177,7 @@ const Translator = struct {
                         );
                         return error.BadAnnotation;
                     }
-                    return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
+                    return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, &.{});
                 },
                 .alias => |alias| return try self.aliasAt(alias, &.{}, span),
             },
@@ -214,7 +211,7 @@ const Translator = struct {
                 return error.BadAnnotation;
             },
         };
-        const parameters = self.datatypes.get(declared).parameters;
+        const parameters = self.scope.datatypes.get(declared).parameters;
         if (node.arguments.len != parameters) {
             try self.sink.report(
                 .type_mismatch,
@@ -226,7 +223,7 @@ const Translator = struct {
         }
         const arguments = try self.arena.alloc(types.Type, node.arguments.len);
         for (node.arguments, arguments) |argument, *copy| copy.* = try self.type(argument);
-        return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, arguments);
+        return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, arguments);
     }
 
     /// Preconditions:

@@ -222,7 +222,7 @@ fn constructorNamed(
     else
         try lowerer.resolveGlobal(c.name, span);
     if (found) |id| {
-        if (lowerer.datatypes.constructorOf(lowerer.interner, id)) |constructor| return constructor;
+        if (lowerer.scope.datatypes.constructorOf(lowerer.interner, id)) |constructor| return constructor;
     }
     try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{c.name});
     return error.DesugarFailed;
@@ -372,7 +372,7 @@ const Matcher = struct {
         };
 
         const owner = try self.columnOwner(rows, column);
-        const declared = self.lowerer.datatypes.get(owner);
+        const declared = self.lowerer.scope.datatypes.get(owner);
         const branches = try b.slice(Tree.Branch, declared.constructors.len);
         for (declared.constructors, branches) |constructor, *branch| {
             const fields = try b.slice(core.SymbolId, constructor.fields.len);
@@ -429,7 +429,7 @@ const Matcher = struct {
                     .type_mismatch,
                     pattern.span,
                     "`{s}` is not a constructor of `{s}`",
-                    .{ c.name, self.lowerer.datatypes.get(expected).name },
+                    .{ c.name, self.lowerer.scope.datatypes.get(expected).name },
                 );
                 return error.DesugarFailed;
             }
@@ -600,7 +600,7 @@ const Witness = struct {
 
     fn isList(self: Witness, step: Step) bool {
         const lowerer = self.matcher.lowerer;
-        return datatypes.ownerOf(lowerer.interner, step.constructor) == lowerer.datatypes.listId();
+        return datatypes.ownerOf(lowerer.interner, step.constructor) == lowerer.scope.datatypes.listId();
     }
 
     /// The step fixing the tail of the chain starting at `step`: a `Nil`, or

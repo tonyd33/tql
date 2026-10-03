@@ -116,10 +116,6 @@ const Builder = struct {
         return try types.func(self.arena, from, to);
     }
 
-    fn list(self: Builder, element: types.Type) !types.Type {
-        return try self.declared.list(self.arena, element);
-    }
-
     fn filter(self: Builder, input: types.Type, output: types.Type) !types.Type {
         return try self.declared.filter(self.arena, input, output);
     }

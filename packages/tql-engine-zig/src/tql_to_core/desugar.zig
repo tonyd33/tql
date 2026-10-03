@@ -19,7 +19,6 @@ const Synthesized = core.Synthesized;
 
 pub const Lowerer = struct {
     interner: *core.Interner,
-    datatypes: *const datatypes.Registry,
     scope: *const ModuleScope,
     /// The linked index of every definition in this module and those before.
     linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
@@ -42,7 +41,6 @@ pub const Lowerer = struct {
     ) Lowerer {
         return .{
             .interner = interner,
-            .datatypes = scope.datatypes,
             .scope = scope,
             .linked = linked,
             .language = language,

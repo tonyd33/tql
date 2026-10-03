@@ -521,8 +521,7 @@ pub const Desugarer = struct {
                 },
                 else => |e| return e,
             };
-            try self.env.?.annotate(.{
-                .symbol = d.symbol,
+            try self.env.?.annotate(d.symbol, .{
                 .scheme = scheme,
                 .span = signature.span,
             });

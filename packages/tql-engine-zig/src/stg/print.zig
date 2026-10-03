@@ -428,7 +428,6 @@ const TestTerms = struct {
     fn alternative(self: *TestTerms, constructor: core.SymbolId, binders: []const core.SymbolId, body: stg.Expr) !stg.Alternative {
         return .{
             .constructor = constructor,
-            .tag = 0,
             .binders = try self.allocator().dupe(core.SymbolId, binders),
             .body = body,
         };

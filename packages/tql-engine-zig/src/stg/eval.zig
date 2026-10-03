@@ -19,23 +19,12 @@ const Allocator = std.mem.Allocator;
 
 /// Allocation counters, by call site. Profiling only.
 pub const Site = enum {
-    global_thunk,
-    force_literal,
     run_env,
-    pending_append,
     enter_captures,
     let_thunk,
-    let_binder,
     case_binder,
-    apply_args,
-    primitive_args,
-    record_fields,
     range_fields,
-    toint_thunk,
-    filename_thunk,
-    construct_spill,
     node_thunk,
-    nil_thunk,
     cons_thunk,
     step_tail,
     alloc_captured,

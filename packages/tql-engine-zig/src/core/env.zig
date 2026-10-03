@@ -29,7 +29,6 @@ pub const Env = struct {
 
     /// A written signature, translated.
     pub const Annotation = struct {
-        symbol: symbols.SymbolId,
         scheme: types.Scheme,
         span: diagnostic.Span,
     };
@@ -76,7 +75,7 @@ pub const Env = struct {
         return self.annotations.get(id);
     }
 
-    pub fn annotate(self: *Env, a: Annotation) Allocator.Error!void {
-        try self.annotations.put(a.symbol, a);
+    pub fn annotate(self: *Env, symbol: symbols.SymbolId, a: Annotation) Allocator.Error!void {
+        try self.annotations.put(symbol, a);
     }
 };

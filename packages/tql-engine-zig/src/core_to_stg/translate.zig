@@ -325,10 +325,10 @@ pub const Translator = struct {
 
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |source, *alternative| {
-                    const constructor = self.program.env.datatypes.constructorOf(
+                    if (self.program.env.datatypes.constructorOf(
                         &self.program.env.interner,
                         source.constructor,
-                    ) orelse return error.Unsupported;
+                    ) == null) return error.Unsupported;
                     const binders = try self.arena.dupe(core.SymbolId, source.binders);
 
                     // In scope for this alternative's body only, and pushed in
@@ -339,7 +339,6 @@ pub const Translator = struct {
 
                     alternative.* = .{
                         .constructor = source.constructor,
-                        .tag = constructor.tag,
                         .binders = binders,
                         .body = try self.expression(source.body),
                     };

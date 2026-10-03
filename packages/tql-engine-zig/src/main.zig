@@ -327,8 +327,6 @@ fn runQuery(
         .format = format,
         .grammar = grammar_resolved,
         .workers = workers,
-        .stats = false,
-        .verbose = false,
         .progress = progress,
     }) catch |err| {
         try stderr.print("Error: {}\n", .{err});
@@ -892,8 +890,6 @@ const Config = struct {
     format: OutputFormat,
     grammar: *const Grammar,
     workers: usize = 1,
-    stats: bool,
-    verbose: bool,
     progress: bool,
 };
 

@@ -97,7 +97,6 @@ pub const Allocation = union(enum) {
 
 pub const Alternative = struct {
     constructor: core.SymbolId,
-    tag: u32,
     /// One per constructor field, bound to it in field order.
     binders: []const core.SymbolId,
     body: Expr,
@@ -190,19 +189,3 @@ pub const Program = struct {
         gpa.destroy(self.arena);
     }
 };
-
-test "an alternative's position is its tag" {
-    // The evaluator indexes `alternatives` by the scrutinee's tag rather than
-    // searching for a matching constructor, which is only sound while the
-    // translation keeps them in tag order.
-    const pair = [_]core.SymbolId{ @enumFromInt(7), @enumFromInt(8) };
-    var one = value.Thunk.value(.{ .number = 1 });
-    var two = value.Thunk.value(.{ .number = 2 });
-    const alternatives = [_]Alternative{
-        .{ .constructor = @enumFromInt(0), .tag = 0, .binders = &.{}, .body = .{ .atom = .{ .literal = &one } } },
-        .{ .constructor = @enumFromInt(1), .tag = 1, .binders = &pair, .body = .{ .atom = .{ .literal = &two } } },
-    };
-    for (alternatives, 0..) |alternative, i| {
-        try std.testing.expectEqual(i, alternative.tag);
-    }
-}
