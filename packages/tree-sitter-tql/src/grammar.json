@@ -342,6 +342,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "infix_application"
+        },
+        {
+          "type": "SYMBOL",
           "name": "application"
         },
         {
@@ -735,9 +739,59 @@
         ]
       }
     },
-    "application": {
+    "infix_application": {
       "type": "PREC_LEFT",
       "value": 12,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          },
+          {
+            "type": "STRING",
+            "value": "`"
+          },
+          {
+            "type": "FIELD",
+            "name": "function",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "identifier"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "type_identifier"
+                }
+              ]
+            }
+          },
+          {
+            "type": "STRING",
+            "value": "`"
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          }
+        ]
+      }
+    },
+    "application": {
+      "type": "PREC_LEFT",
+      "value": 13,
       "content": {
         "type": "SEQ",
         "members": [
@@ -791,7 +845,7 @@
     },
     "field_access": {
       "type": "PREC_LEFT",
-      "value": 13,
+      "value": 14,
       "content": {
         "type": "SEQ",
         "members": [
@@ -830,7 +884,7 @@
     },
     "navigation": {
       "type": "PREC_LEFT",
-      "value": 13,
+      "value": 14,
       "content": {
         "type": "SEQ",
         "members": [

@@ -1,0 +1,12 @@
+title: backtick infix reaches the prelude
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = const ([1] `append` [2] `append` [3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2, 3]

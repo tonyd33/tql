@@ -1,0 +1,19 @@
+title: backticks take a name, not an expression
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const [1 `(f x)` 2];
+
+--- error ---
+error[parse]: syntax error
+ --> 1:17
+  |
+1 | main = const [1 `(f x)` 2];
+  |                 ^
+
+error[parse]: syntax error
+ --> 1:23
+  |
+1 | main = const [1 `(f x)` 2];
+  |                       ^

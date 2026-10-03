@@ -1,0 +1,13 @@
+title: backtick infix type-checks as the prefix application
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const (1 `append` [2]);
+
+--- error ---
+error[type-mismatch]: Expected `[a]`, found `Int`.
+ --> 1:15
+  |
+1 | main = const (1 `append` [2]);
+  |               ^

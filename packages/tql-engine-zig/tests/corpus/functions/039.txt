@@ -1,0 +1,22 @@
+title: a constructor applies infix in backticks
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+type Pair = Pair Int Int;
+
+second :: Pair -> Int;
+second p = case p of { Pair _ b -> b; };
+
+main = const [second (1 `Pair` 2)];
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- core ---
+second = \p -> case p of
+  Pair _ b -> b
+main = const (Cons (second (Pair 1 2)) Nil)

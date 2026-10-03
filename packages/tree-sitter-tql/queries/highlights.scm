@@ -27,6 +27,7 @@
 (binding parameter: (_) @variable.parameter)
 (lambda parameter: (_) @variable.parameter)
 (bind_statement name: (_) @variable)
+(infix_application function: (identifier) @function)
 
 "Filter" @type.builtin
 (type_identifier) @type

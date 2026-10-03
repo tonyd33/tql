@@ -397,6 +397,9 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "application") or std.mem.eql(u8, kind, "dollar_application")) {
             return self.application(node, span);
         }
+        if (std.mem.eql(u8, kind, "infix_application")) {
+            return self.infixApplication(node, span);
+        }
         if (std.mem.eql(u8, kind, "if_expression")) {
             return self.ifExpr(node, span);
         }
@@ -504,6 +507,39 @@ const Walker = struct {
             .kind = .{ .apply = try self.boxed(cst.Apply{
                 .function = function,
                 .argument = argument,
+            }) },
+            .span = span,
+        };
+    }
+
+    /// ``a `f` b``, as `f a b`.
+    fn infixApplication(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+        const left_node = node.childByFieldName("left") orelse {
+            try self.missingField(node, "left");
+            return null;
+        };
+        const fn_node = node.childByFieldName("function") orelse {
+            try self.missingField(node, "function");
+            return null;
+        };
+        const right_node = node.childByFieldName("right") orelse {
+            try self.missingField(node, "right");
+            return null;
+        };
+        const left = try self.expression(left_node) orelse return null;
+        const function = try self.expression(fn_node) orelse return null;
+        const right = try self.expression(right_node) orelse return null;
+        const partial: cst.Expression = .{
+            .kind = .{ .apply = try self.boxed(cst.Apply{
+                .function = function,
+                .argument = left,
+            }) },
+            .span = left.span.join(function.span),
+        };
+        return .{
+            .kind = .{ .apply = try self.boxed(cst.Apply{
+                .function = partial,
+                .argument = right,
             }) },
             .span = span,
         };
