@@ -4,12 +4,12 @@ asserts: types, values
 
 --- tql ---
 starts_with_s n = text n ~ r"^S";
-named_s c = any starts_with_s (.name c);
+named_s c = any starts_with_s (#name c);
 
 main =
   children | of_kind :class_declaration
   | keep named_s
-  | .name | arr text;
+  | #name | arr text;
 
 --- source ---
 class Service {}

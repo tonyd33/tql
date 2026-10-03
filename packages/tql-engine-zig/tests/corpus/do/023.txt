@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main root = do {
   f <- descendants_of_kind :public_field_definition root;
-  t <- f.type;
+  t <- f#type;
   guard (text t = ": string") >> return (text f);
 };
 

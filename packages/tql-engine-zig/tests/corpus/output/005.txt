@@ -14,12 +14,12 @@ let s = "héllo";
 --- values ---
 [
   {
-    "start_byte": 8,
     "end_byte": 16,
-    "start_point": { "row": 0, "column": 8 },
-    "end_point": { "row": 0, "column": 16 }
+    "end_point": { "column": 16, "row": 0 },
+    "start_byte": 8,
+    "start_point": { "column": 8, "row": 0 }
   }
 ]
 
 --- types ---
-main :: Node -> [Range]
+main :: Node -> [{end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}}]

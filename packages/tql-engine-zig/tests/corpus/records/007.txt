@@ -1,0 +1,20 @@
+title: one row in two places is one record type
+grammar: typescript
+asserts: types, values
+
+Both arguments are records with `name` and the same other fields.
+
+--- tql ---
+same :: Eq r => {name: String | r} -> {name: String | r} -> Bool;
+same a b = a = b;
+main = const [same {name = "a", n = 1} {name = "a", n = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+same :: Eq a => {name: String | a} -> {name: String | a} -> Bool
+main :: Node -> [Bool]

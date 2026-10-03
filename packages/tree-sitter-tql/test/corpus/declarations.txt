@@ -220,6 +220,32 @@ g :: { name: string, size: int };
         type: (type_variable)))))
 
 ========================================
+an open record type names its row after a bar
+========================================
+
+f :: {start_byte: t | r} -> t;
+g :: {| r} -> Int;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (record_type
+        (record_type_field
+          name: (identifier)
+          type: (type_variable))
+        row: (type_variable))
+      to: (type_variable)))
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (record_type
+        row: (type_variable))
+      to: (type_identifier))))
+
+========================================
 a comment
 ========================================
 

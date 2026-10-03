@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main =
   let { is_named n = text n = "A"; }
-  in children | of_kind :class_declaration | .name | arr is_named;
+  in children | of_kind :class_declaration | #name | arr is_named;
 
 --- source ---
 class A {}

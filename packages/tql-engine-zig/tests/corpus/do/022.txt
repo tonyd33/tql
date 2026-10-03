@@ -6,7 +6,7 @@ asserts: types, values
 main root = do {
   c <- children root;
   guard $ is_kind :class_declaration c;
-  n <- c.name;
+  n <- c#name;
   return $ text n;
 };
 

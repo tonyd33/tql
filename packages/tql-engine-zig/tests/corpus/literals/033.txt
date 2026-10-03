@@ -11,7 +11,7 @@ Both union operands yield `Bool`, since union requires a single element type.
 
 --- tql ---
 main = children | of_kind :class_declaration
-  | .name
+  | #name
   | arr (\n -> text n = "A")
   <|> pure false
 ;

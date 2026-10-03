@@ -7,7 +7,7 @@ The body never runs.
 --- tql ---
 main root = do {
   i <- children_of_kind :interface_declaration root;
-  n <- i.name;
+  n <- i#name;
   return $ text n;
 };
 

@@ -1,0 +1,15 @@
+title: `.` reads a record field
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [{a = 1, b = "x"}.a];
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+main :: Node -> [Int]

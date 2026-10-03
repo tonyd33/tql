@@ -63,6 +63,7 @@ pub const PrimOp = enum {
     field,
     operator,
     record,
+    select,
 
     /// The single axis this one becomes when composed with a kind test, if
     /// there is one. `children` then `of_kind k` walks the same nodes as
@@ -87,6 +88,8 @@ pub const Synthesized = union(enum) {
     /// in the field count, so inference builds it from these rather than
     /// reading one off a table.
     record: []const []const u8,
+    /// `select[l]`, reading the record field labelled `l`.
+    select: []const u8,
 
     /// The machine operation this denotes.
     pub fn primop(self: Synthesized) PrimOp {
@@ -94,6 +97,7 @@ pub const Synthesized = union(enum) {
             .field => .field,
             .operator => .operator,
             .record => .record,
+            .select => .select,
         };
     }
 };

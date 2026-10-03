@@ -18,7 +18,7 @@ written as the durable part.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  cn <- c.name;
+  cn <- c#name;
   let {
     name = text cn;
     k = kind c

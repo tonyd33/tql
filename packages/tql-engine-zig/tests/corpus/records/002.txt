@@ -1,0 +1,19 @@
+title: a selector is polymorphic in the rest of the record
+grammar: typescript
+asserts: types, values
+
+`name` reads `name` from any record that has one, whatever its other fields.
+
+--- tql ---
+name r = r.name;
+main = const [name {name = "a"}, name {name = "b", n = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+["a", "b"]
+
+--- types ---
+name :: {name: a | b} -> a
+main :: Node -> [String]

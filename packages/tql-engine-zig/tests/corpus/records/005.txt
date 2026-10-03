@@ -1,0 +1,25 @@
+title: document order compares start bytes
+grammar: typescript
+asserts: types, values
+
+`range` returns a record, so a node's position is an `Int` to compare.
+
+--- tql ---
+before a b = (range a).start_byte < (range b).start_byte;
+main root = do {
+  a <- children root;
+  b <- children root;
+  guard $ before a b;
+  return {first = text a, second = text b};
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[{"first": "class A {}", "second": "class B {}"}]
+
+--- types ---
+before :: Node -> Node -> Bool
+main :: Node -> [{first: String, second: String}]

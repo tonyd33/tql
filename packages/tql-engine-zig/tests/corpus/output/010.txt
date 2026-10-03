@@ -4,8 +4,8 @@ asserts: types, values
 
 --- tql ---
 class_record c = do {
-  n <- c.name;
-  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
+  n <- c#name;
+  methods <- collect (#body | children | of_kind :method_definition | #name | arr text) c;
   return { name = text n, methods = methods };
 };
 main = collect $ children | of_kind :class_declaration | class_record;

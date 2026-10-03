@@ -14,8 +14,9 @@
 
 (kind) @type
 
-(field_access field: (_) @attribute)
-(leading_field field: (_) @attribute)
+(navigation field: (_) @attribute)
+(leading_navigation field: (_) @attribute)
+(field_access field: (_) @property)
 (record_field name: (_) @property)
 (record_type_field name: (_) @property)
 

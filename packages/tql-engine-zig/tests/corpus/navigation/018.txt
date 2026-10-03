@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = descendants_of_kind :class_declaration | .name | arr text;
+main = descendants_of_kind :class_declaration | #name | arr text;
 
 --- source ---
 class Outer {

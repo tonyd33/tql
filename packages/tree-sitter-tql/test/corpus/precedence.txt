@@ -580,6 +580,61 @@ main = f . g $ x;
       argument: (identifier))))
 
 ========================================
+navigation binds tighter than application
+========================================
+
+main = f x#name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (navigation
+        node: (identifier)
+        field: (field_name)))))
+
+========================================
+field access chains through navigation
+========================================
+
+main = (range c#name).start_point.row;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (field_access
+      record: (field_access
+        record: (parenthesized
+          (application
+            function: (identifier)
+            argument: (navigation
+              node: (identifier)
+              field: (field_name))))
+        field: (field_name))
+      field: (field_name))))
+
+========================================
+an attached leading navigation is an argument
+========================================
+
+main = f #name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (leading_navigation
+        field: (field_name)))))
+
+========================================
 field access binds tighter than composition
 ========================================
 
@@ -597,10 +652,10 @@ main = f.name . g;
       right: (identifier))))
 
 ========================================
-a leading field composes
+an underscore section composes
 ========================================
 
-main = f . .name;
+main = f . _.name;
 
 ---
 
@@ -609,24 +664,26 @@ main = f . .name;
     name: (identifier)
     body: (composition
       left: (identifier)
-      right: (leading_field
+      right: (field_access
+        record: (identifier)
         field: (field_name)))))
 
 ========================================
-an attached leading field is an argument, not a composition
+an underscore section chains
 ========================================
 
-main = f .name;
+main = _.start_point.row;
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (application
-      function: (identifier)
-      argument: (leading_field
-        field: (field_name)))))
+    body: (field_access
+      record: (field_access
+        record: (identifier)
+        field: (field_name))
+      field: (field_name))))
 
 ========================================
 a trailing dot is a syntax error

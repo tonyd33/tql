@@ -5,7 +5,8 @@
 //! type checker receives is a finished `Scheme` in a side table.
 //!
 //! The translation is syntax-directed: `Filter a b` expands to `a -> [b]`, and
-//! type variables become `forall` binders in order of first appearance.
+//! type variables become `forall` binders in order of first appearance. A
+//! variable after `|` in a record type is a row, and may not also be a type.
 
 const std = @import("std");
 const cst = @import("../lang/cst.zig");
@@ -16,17 +17,20 @@ const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
-pub const primitive_names = [_]struct { name: []const u8, type: types.Type }{
+/// The type names every signature may use without declaring them. `Range` and
+/// `Point` name record types.
+pub const builtin_names = [_]struct { name: []const u8, type: types.Type }{
     .{ .name = "Int", .type = types.int_type },
     .{ .name = "String", .type = types.string_type },
     .{ .name = "Regex", .type = types.regex_type },
     .{ .name = "Node", .type = types.node_type },
-    .{ .name = "Range", .type = types.range_type },
     .{ .name = "Kind", .type = types.kind_type },
+    .{ .name = "Range", .type = types.range_type },
+    .{ .name = "Point", .type = types.point_type },
 };
 
-pub fn primitiveNamed(name: []const u8) ?types.Type {
-    for (primitive_names) |row| {
+pub fn builtinNamed(name: []const u8) ?types.Type {
+    for (builtin_names) |row| {
         if (std.mem.eql(u8, row.name, name)) return row.type;
     }
     return null;
@@ -45,7 +49,7 @@ pub fn translate(
     declared: *const datatypes.Registry,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
-    var vars: std.ArrayList([]const u8) = .empty;
+    var vars: std.ArrayList(Translator.Variable) = .empty;
     defer vars.deinit(gpa);
 
     var t = Translator{
@@ -69,7 +73,7 @@ pub fn translate(
 const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
-    vars: *std.ArrayList([]const u8),
+    vars: *std.ArrayList(Variable),
     datatypes: *const datatypes.Registry,
     sink: *diagnostic.Sink,
 
@@ -77,7 +81,7 @@ const Translator = struct {
         return switch (node.kind) {
             .constructor => |name| try self.named(name, node.span),
             .application => |a| try self.application(a.*, node.span),
-            .variable => |name| .{ .variable = try self.binder(name, node.span) },
+            .variable => |name| .{ .variable = try self.binder(name, .type, node.span) },
             .list => |element| try self.datatypes.list(self.arena, try self.type(element.*)),
             .parenthesized => |inner| try self.type(inner.*),
             .function => |f| try types.func(self.arena, try self.type(f.from), try self.type(f.to)),
@@ -88,7 +92,7 @@ const Translator = struct {
                 try self.type(f.input),
                 try self.datatypes.list(self.arena, try self.type(f.output)),
             ),
-            .record => |fields| try self.record(fields),
+            .record => |r| try self.record(r, node.span),
         };
     }
 
@@ -106,7 +110,7 @@ const Translator = struct {
             }
             return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
         }
-        if (primitiveNamed(name)) |t| return t;
+        if (builtinNamed(name)) |t| return t;
         try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
         return error.BadAnnotation;
     }
@@ -144,7 +148,7 @@ const Translator = struct {
             return error.BadAnnotation;
         };
         for (self.vars.items, 0..) |seen, i| {
-            if (std.mem.eql(u8, seen, c.variable)) {
+            if (std.mem.eql(u8, seen.name, c.variable)) {
                 return .{ .class = class, .type = .{ .variable = @intCast(i) } };
             }
         }
@@ -157,10 +161,27 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
+    const Sort = enum { type, row };
+
+    const Variable = struct {
+        name: []const u8,
+        sort: Sort,
+    };
+
     /// The `forall` position of a type variable, assigned on first appearance.
-    fn binder(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.TypeVar {
+    fn binder(self: *Translator, name: []const u8, sort: Sort, span: diagnostic.Span) Error!types.TypeVar {
         for (self.vars.items, 0..) |seen, i| {
-            if (std.mem.eql(u8, seen, name)) return @intCast(i);
+            if (!std.mem.eql(u8, seen.name, name)) continue;
+            if (seen.sort != sort) {
+                try self.sink.report(
+                    .type_mismatch,
+                    span,
+                    "`{s}` stands for a record's other fields in one place and for a type in another",
+                    .{name},
+                );
+                return error.BadAnnotation;
+            }
+            return @intCast(i);
         }
         if (self.vars.items.len == std.math.maxInt(types.TypeVar)) {
             try self.sink.report(
@@ -171,18 +192,33 @@ const Translator = struct {
             );
             return error.BadAnnotation;
         }
-        try self.vars.append(self.gpa, name);
+        try self.vars.append(self.gpa, .{ .name = name, .sort = sort });
         return @intCast(self.vars.items.len - 1);
     }
 
-    fn record(self: *Translator, fields: []const cst.TypeField) Error!types.Type {
-        const copies = try self.arena.alloc(types.Type.Field, fields.len);
-        for (fields, copies) |f, *copy| {
+    fn record(self: *Translator, r: cst.RecordType, span: diagnostic.Span) Error!types.Type {
+        const copies = try self.arena.alloc(types.Type.Field, r.fields.len);
+        for (r.fields, copies) |f, *copy| {
             copy.* = .{
                 .label = try self.arena.dupe(u8, f.name),
                 .type = try types.store(self.arena, try self.type(f.type)),
             };
         }
-        return .{ .record = copies };
+        std.mem.sort(types.Type.Field, copies, {}, types.Type.Field.lessThan);
+        if (copies.len > 1) for (copies[0 .. copies.len - 1], copies[1..]) |previous, f| {
+            if (!std.mem.eql(u8, previous.label, f.label)) continue;
+            try self.sink.report(
+                .type_mismatch,
+                span,
+                "`{s}` labels two fields of one record",
+                .{f.label},
+            );
+            return error.BadAnnotation;
+        };
+        const rest = if (r.row) |name|
+            try types.store(self.arena, .{ .variable = try self.binder(name, .row, span) })
+        else
+            null;
+        return .{ .record = .{ .fields = copies, .rest = rest } };
     }
 };

@@ -8,8 +8,8 @@ value, so no product fan-out occurs.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
-  methods <- collect (.body | children | of_kind :method_definition | .name | arr text) c;
+  n <- c#name;
+  methods <- collect (#body | children | of_kind :method_definition | #name | arr text) c;
   return { name = text n, methods = methods };
 };
 

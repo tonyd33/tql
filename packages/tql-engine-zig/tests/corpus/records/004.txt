@@ -1,0 +1,16 @@
+title: `_.l.m` reads through both fields
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = children | arr range | arr _.start_point.row;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[0, 1]
+
+--- types ---
+main :: Node -> [Int]

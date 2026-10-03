@@ -1,0 +1,18 @@
+title: a signature names the rest of a record after a bar
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+size :: {name: String | r} -> Int;
+size r = length r.name;
+main = const [size {name = "abc", n = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- types ---
+size :: {name: String | a} -> Int
+main :: Node -> [Int]

@@ -9,7 +9,7 @@ record field beside node projections.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
+  n <- c#name;
   f <- filename c;
   return { file = f, name = text n };
 };

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-method_names = .body | children | of_kind :method_definition | .name | arr text;
+method_names = #body | children | of_kind :method_definition | #name | arr text;
 
 main =
   children | of_kind :class_declaration

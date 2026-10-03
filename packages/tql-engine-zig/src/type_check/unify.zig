@@ -1,4 +1,5 @@
-//! Structural unification with an occurs check.
+//! Structural unification with an occurs check, and row unification for
+//! records.
 
 const std = @import("std");
 const core = @import("../core.zig");
@@ -14,13 +15,22 @@ pub const Mismatch = struct {
     reason: Reason,
     expected: types.Type,
     found: types.Type,
+    /// For `labels`, a label one record has and the other cannot.
+    missing: ?Missing = null,
+
+    pub const Missing = struct {
+        label: []const u8,
+        /// The record without it.
+        from: enum { expected, found },
+    };
 
     pub const Reason = enum {
         /// Two different constructors, or two different primitives.
         incompatible,
         /// Binding would have built an infinite type.
         occurs,
-        /// Records whose label sets differ.
+        /// Records whose label sets differ where no row can make up the
+        /// difference.
         labels,
     };
 };
@@ -36,7 +46,7 @@ pub fn unify(
     subst: *Substitution,
     expected: types.Type,
     found: types.Type,
-) Result {
+) Allocator.Error!Result {
     const a = subst.resolve(expected);
     const b = subst.resolve(found);
 
@@ -63,7 +73,7 @@ pub fn unify(
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
             for (c.arguments, b.constructor.arguments) |expected_arg, found_arg| {
-                switch (unify(subst, expected_arg, found_arg)) {
+                switch (try unify(subst, expected_arg, found_arg)) {
                     .unified => {},
                     .mismatch => |m| return .{ .mismatch = m },
                 }
@@ -73,30 +83,16 @@ pub fn unify(
             if (b != .function) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            switch (unify(subst, arrow.from, b.function.from)) {
-                .unified => return unify(subst, arrow.to, b.function.to),
+            switch (try unify(subst, arrow.from, b.function.from)) {
+                .unified => return try unify(subst, arrow.to, b.function.to),
                 .mismatch => |m| return .{ .mismatch = m },
             }
         },
-        .record => |fields| {
+        .record => {
             if (b != .record) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            const others = b.record;
-            if (fields.len != others.len) {
-                return .{ .mismatch = .{ .reason = .labels, .expected = a, .found = b } };
-            }
-            // Records are closed and order-insensitive, so the label sets must
-            // match exactly. There is no row variable, so a missing label is a
-            // mismatch rather than something to solve for.
-            for (fields) |f| {
-                const match = findLabel(others, f.label) orelse
-                    return .{ .mismatch = .{ .reason = .labels, .expected = a, .found = b } };
-                switch (unify(subst, f.type.*, match.type.*)) {
-                    .unified => {},
-                    .mismatch => |m| return .{ .mismatch = m },
-                }
-            }
+            return try records(subst, a, b);
         },
     }
     return .unified;
@@ -110,9 +106,104 @@ fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Result {
     return .unified;
 }
 
-fn findLabel(fields: []const types.Type.Field, label: []const u8) ?types.Type.Field {
-    for (fields) |f| {
-        if (std.mem.eql(u8, f.label, label)) return f;
+/// Unifies two records label by label, then solves their rows for the labels
+/// only one side has.
+fn records(subst: *Substitution, a: types.Type, b: types.Type) Allocator.Error!Result {
+    const left = try subst.flatten(a.record);
+    const right = try subst.flatten(b.record);
+
+    var only_left: std.ArrayList(types.Type.Field) = .empty;
+    var only_right: std.ArrayList(types.Type.Field) = .empty;
+    var i: usize = 0;
+    var j: usize = 0;
+    while (i < left.fields.len and j < right.fields.len) {
+        const l = left.fields[i];
+        const r = right.fields[j];
+        switch (types.Type.Field.order(l.label, r.label)) {
+            .eq => {
+                switch (try unify(subst, l.type.*, r.type.*)) {
+                    .unified => {},
+                    .mismatch => |m| return .{ .mismatch = m },
+                }
+                i += 1;
+                j += 1;
+            },
+            .lt => {
+                try only_left.append(subst.arena, l);
+                i += 1;
+            },
+            .gt => {
+                try only_right.append(subst.arena, r);
+                j += 1;
+            },
+        }
     }
-    return null;
+    try only_left.appendSlice(subst.arena, left.fields[i..]);
+    try only_right.appendSlice(subst.arena, right.fields[j..]);
+
+    const left_row = row(left.rest);
+    const right_row = row(right.rest);
+
+    // A closed side has no row to hold the other side's extra labels, and one
+    // row on both sides cannot hold labels only one side has.
+    const same_row = left_row != null and left_row == right_row;
+    if ((right_row == null or same_row) and only_left.items.len > 0) {
+        return missing(a, b, only_left.items[0].label, .found);
+    }
+    if ((left_row == null or same_row) and only_right.items.len > 0) {
+        return missing(a, b, only_right.items[0].label, .expected);
+    }
+    if (same_row) return .unified;
+
+    const left_id = left_row orelse {
+        const right_id = right_row orelse return .unified;
+        return bindMeta(subst, right_id, .{ .record = .{ .fields = only_left.items } });
+    };
+    const right_id = right_row orelse {
+        return bindMeta(subst, left_id, .{ .record = .{ .fields = only_right.items } });
+    };
+
+    if (only_left.items.len == 0) {
+        return bindMeta(subst, left_id, try withFields(subst, only_right.items, .{ .meta = right_id }));
+    }
+    if (only_right.items.len == 0) {
+        return bindMeta(subst, right_id, try withFields(subst, only_left.items, .{ .meta = left_id }));
+    }
+    const shared = try subst.fresh();
+    switch (bindMeta(subst, left_id, try withFields(subst, only_right.items, shared))) {
+        .unified => {},
+        .mismatch => |m| return .{ .mismatch = m },
+    }
+    return bindMeta(subst, right_id, try withFields(subst, only_left.items, shared));
+}
+
+fn missing(
+    expected: types.Type,
+    found: types.Type,
+    label: []const u8,
+    from: @FieldType(Mismatch.Missing, "from"),
+) Result {
+    return .{ .mismatch = .{
+        .reason = .labels,
+        .expected = expected,
+        .found = found,
+        .missing = .{ .label = label, .from = from },
+    } };
+}
+
+/// The metavariable a flattened record's `rest` is, or null for a closed
+/// record.
+fn row(rest: ?*const types.Type) ?types.Meta {
+    const t = rest orelse return null;
+    return switch (t.*) {
+        .meta => |id| id,
+        .variable => @panic("a bound type variable reached unification"),
+        else => unreachable,
+    };
+}
+
+/// `{fields | rest}`, or `rest` itself when `fields` is empty.
+fn withFields(subst: *Substitution, fields: []const types.Type.Field, rest: types.Type) Allocator.Error!types.Type {
+    if (fields.len == 0) return rest;
+    return .{ .record = .{ .fields = fields, .rest = try types.store(subst.arena, rest) } };
 }

@@ -7,6 +7,33 @@ const types = core.types;
 
 const Allocator = std.mem.Allocator;
 
+/// What `rewrite` does at a metavariable or bound variable.
+const Leaf = union(enum) {
+    /// Leaves every leaf as it resolves.
+    resolved,
+    /// Replaces each metavariable listed with the bound variable at its
+    /// index.
+    bound: []const types.Meta,
+    /// Replaces each bound variable with the metavariable at its index.
+    substituted: []const types.Type,
+
+    /// Whether solved metavariables are followed before rewriting.
+    fn resolves(self: Leaf) bool {
+        return self != .substituted;
+    }
+
+    fn replace(self: Leaf, head: types.Type) types.Type {
+        switch (self) {
+            .resolved => {},
+            .bound => |metas| if (head == .meta) for (metas, 0..) |m, index| {
+                if (m == head.meta) return .{ .variable = @intCast(index) };
+            },
+            .substituted => |metas| if (head == .variable) return metas[head.variable],
+        }
+        return head;
+    }
+};
+
 /// The unification state.
 pub const Substitution = struct {
     arena: Allocator,
@@ -73,19 +100,43 @@ pub const Substitution = struct {
         return current;
     }
 
+    /// `r` with its row followed to the end: every field reachable through
+    /// `rest`, sorted by label, and a `rest` that is null, an unsolved
+    /// metavariable or a bound variable.
+    ///
+    /// Shallow in the field types. Returns `r` itself when its row is already
+    /// at the end.
+    pub fn flatten(self: *Substitution, r: types.Type.Record) Allocator.Error!types.Type.Record {
+        var fields = r.fields;
+        var rest = r.rest orelse return r;
+        while (true) {
+            const head = self.resolve(rest.*);
+            switch (head) {
+                .record => |more| {
+                    fields = try mergeFields(self.arena, fields, more.fields);
+                    rest = more.rest orelse return .{ .fields = fields };
+                },
+                else => {
+                    if (fields.ptr == r.fields.ptr and std.meta.eql(head, r.rest.?.*)) return r;
+                    return .{ .fields = fields, .rest = try types.store(self.arena, head) };
+                },
+            }
+        }
+    }
+
     /// `resolve`, applied through the whole tree. Returns `t` itself when
     /// nothing changed, so a fully-solved type costs no allocation.
     pub fn resolveDeep(self: *Substitution, t: types.Type) !types.Type {
-        return self.rewrite(t, Resolved{});
+        return self.rewrite(t, .resolved);
     }
 
     /// `t` with each metavariable and bound variable replaced by
-    /// `leaf.replace` of it, resolving every node first when `leaf.resolves`.
+    /// `leaf.replace` of it, resolving every node first when `leaf.resolves()`.
     ///
     /// Allocates in the arena only along a path where a leaf changed, and
     /// returns `t` itself when none did.
-    fn rewrite(self: *Substitution, t: types.Type, leaf: anytype) Allocator.Error!types.Type {
-        const head = if (@TypeOf(leaf).resolves) self.resolve(t) else t;
+    fn rewrite(self: *Substitution, t: types.Type, leaf: Leaf) Allocator.Error!types.Type {
+        const head = if (leaf.resolves()) self.resolve(t) else t;
         switch (head) {
             .variable, .meta => return leaf.replace(head),
             .primitive => return head,
@@ -107,20 +158,28 @@ pub const Substitution = struct {
                 const changed = copies orelse return head;
                 return try types.constructed(self.arena, c.name, c.spelling, changed);
             },
-            .record => |fields| {
+            .record => |written| {
+                const r = if (leaf.resolves()) try self.flatten(written) else written;
                 var copies: ?[]types.Type.Field = null;
-                for (fields, 0..) |f, i| {
+                for (r.fields, 0..) |f, i| {
                     const rewritten = try self.rewrite(f.type.*, leaf);
                     if (copies) |slots| {
                         slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
                     } else if (!std.meta.eql(rewritten, f.type.*)) {
-                        const slots = try self.arena.alloc(types.Type.Field, fields.len);
-                        @memcpy(slots[0..i], fields[0..i]);
+                        const slots = try self.arena.alloc(types.Type.Field, r.fields.len);
+                        @memcpy(slots[0..i], r.fields[0..i]);
                         slots[i] = .{ .label = f.label, .type = try types.store(self.arena, rewritten) };
                         copies = slots;
                     }
                 }
-                return .{ .record = copies orelse return head };
+                var rest = r.rest;
+                if (r.rest) |row| {
+                    const rewritten = try self.rewrite(row.*, leaf);
+                    if (!std.meta.eql(rewritten, row.*)) rest = try types.store(self.arena, rewritten);
+                }
+                const result: types.Type.Record = .{ .fields = copies orelse r.fields, .rest = rest };
+                if (std.meta.eql(result, written)) return head;
+                return .{ .record = result };
             },
             .function => |arrow| {
                 const from = try self.rewrite(arrow.from, leaf);
@@ -130,40 +189,6 @@ pub const Substitution = struct {
             },
         }
     }
-
-    /// Leaves every leaf as it resolves.
-    const Resolved = struct {
-        const resolves = true;
-
-        fn replace(_: Resolved, head: types.Type) types.Type {
-            return head;
-        }
-    };
-
-    /// Replaces each metavariable in `metas` with the bound variable at its
-    /// index.
-    const Bound = struct {
-        metas: []const types.Meta,
-        const resolves = true;
-
-        fn replace(self: Bound, head: types.Type) types.Type {
-            if (head == .meta) for (self.metas, 0..) |m, index| {
-                if (m == head.meta) return .{ .variable = @intCast(index) };
-            };
-            return head;
-        }
-    };
-
-    /// Replaces each bound variable with `metas[index]`.
-    const Substituted = struct {
-        metas: []const types.Type,
-        const resolves = false;
-
-        fn replace(self: Substituted, head: types.Type) types.Type {
-            if (head != .variable) return head;
-            return self.metas[head.variable];
-        }
-    };
 
     /// Whether `id` occurs anywhere in `t`. Binding a metavariable to a type
     /// containing it would build an infinite type, so unification checks this
@@ -176,9 +201,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
             } else false,
-            .record => |fields| for (fields) |f| {
+            .record => |r| for (r.fields) |f| {
                 if (self.occurs(id, f.type.*)) break true;
-            } else false,
+            } else if (r.rest) |rest| self.occurs(id, rest.*) else false,
             .function => |arrow| self.occurs(id, arrow.from) or self.occurs(id, arrow.to),
         };
     }
@@ -194,7 +219,10 @@ pub const Substitution = struct {
             },
             .variable, .primitive => {},
             .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
-            .record => |fields| for (fields) |f| try self.freeMetas(f.type.*, out),
+            .record => |r| {
+                for (r.fields) |f| try self.freeMetas(f.type.*, out);
+                if (r.rest) |rest| try self.freeMetas(rest.*, out);
+            },
             .function => |arrow| {
                 try self.freeMetas(arrow.from, out);
                 try self.freeMetas(arrow.to, out);
@@ -228,7 +256,7 @@ pub const Substitution = struct {
     /// bound variables index the same `forall` a scheme was instantiated with.
     pub fn instantiateWith(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
         if (metas.len == 0) return t;
-        return self.rewrite(t, Substituted{ .metas = metas });
+        return self.rewrite(t, .{ .substituted = metas });
     }
 
     /// The inverse of `instantiate`: turns the given free metavariables into
@@ -246,13 +274,39 @@ pub const Substitution = struct {
 
         const bound = try self.arena.alloc(types.TypeClassConstraint, constraint_list.len);
         for (constraint_list, bound) |c, *slot| {
-            slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, Bound{ .metas = metas }) };
+            slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, .{ .bound = metas }) };
         }
 
         return .{
             .quantified = @intCast(metas.len),
             .constraints = bound,
-            .type = try self.rewrite(t, Bound{ .metas = metas }),
+            .type = try self.rewrite(t, .{ .bound = metas }),
         };
     }
 };
+
+/// The fields of `first` and `second` in one list sorted by label. A label in
+/// both keeps both, `first`'s ahead.
+fn mergeFields(
+    arena: Allocator,
+    first: []const types.Type.Field,
+    second: []const types.Type.Field,
+) Allocator.Error![]const types.Type.Field {
+    if (second.len == 0) return first;
+    if (first.len == 0) return second;
+    const merged = try arena.alloc(types.Type.Field, first.len + second.len);
+    var i: usize = 0;
+    var j: usize = 0;
+    for (merged) |*slot| {
+        const take_first = j == second.len or
+            (i < first.len and types.Type.Field.order(first[i].label, second[j].label) != .gt);
+        if (take_first) {
+            slot.* = first[i];
+            i += 1;
+        } else {
+            slot.* = second[j];
+            j += 1;
+        }
+    }
+    return merged;
+}

@@ -221,30 +221,39 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
-            // A leading `.l` is the bare `field[l]`.
-            .field_access => |fa| {
-                const id = self.language.fieldIdForName(fa.field);
+            // A leading `#f` is the bare `field[f]`.
+            .navigation => |n| {
+                const id = self.language.fieldIdForName(n.field);
                 if (id == 0) {
                     try self.sink.report(
                         .unknown_field,
                         e.span,
                         "`{s}` is not a field in this grammar",
-                        .{fa.field},
+                        .{n.field},
                     );
                     return error.DesugarFailed;
                 }
                 const field = self.builder.symbol(
                     try self.synthesize(
                         "field[{s}]",
-                        .{fa.field},
-                        .{ .field = .{ .name = try self.builder.dupe(fa.field), .id = id } },
+                        .{n.field},
+                        .{ .field = .{ .name = try self.builder.dupe(n.field), .id = id } },
                     ),
                     e.span,
                 );
-                const subject = fa.record orelse return field;
-                return try self.builder.apply(
-                    field,
-                    try self.expression(subject, scope),
+                const subject = n.node orelse return field;
+                return try self.builder.apply(field, try self.expression(subject, scope), e.span);
+            },
+
+            // `_.l` is the bare `select[l]`, and `_.l.m` a lambda reading
+            // through both.
+            .projection => |p| {
+                if (p.record == null) return try self.select(p.label, e.span);
+                if (!isSection(e)) return try self.projections(e, null, scope);
+                const parameter = try self.interner.fresh("_");
+                return try self.builder.lambda(
+                    parameter,
+                    try self.projections(e, self.builder.symbol(parameter, e.span), scope),
                     e.span,
                 );
             },
@@ -314,6 +323,37 @@ pub const Lowerer = struct {
 
             .record => |r| return try self.record(r, e.span, scope),
         }
+    }
+
+    fn select(self: *Lowerer, label: []const u8, span: diagnostic.Span) Error!core.Term {
+        return self.builder.symbol(
+            try self.synthesize("select[{s}]", .{label}, .{ .select = try self.builder.dupe(label) }),
+            span,
+        );
+    }
+
+    /// Whether `e` is a projection chain starting at `_`.
+    fn isSection(e: cst.Expression) bool {
+        var current = e;
+        while (current.kind == .projection) {
+            current = current.kind.projection.record orelse return true;
+        }
+        return false;
+    }
+
+    /// The chain of projections `e`, read from `hole` in place of `_`.
+    fn projections(
+        self: *Lowerer,
+        e: cst.Expression,
+        hole: ?core.Term,
+        scope: ?*const resolve.Scope,
+    ) Error!core.Term {
+        const p = e.kind.projection;
+        const subject = if (p.record) |r| switch (r.kind) {
+            .projection => try self.projections(r, hole, scope),
+            else => try self.expression(r, scope),
+        } else hole.?;
+        return try self.builder.apply(try self.select(p.label, e.span), subject, e.span);
     }
 
     fn binary(self: *Lowerer, b: cst.Binary, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {

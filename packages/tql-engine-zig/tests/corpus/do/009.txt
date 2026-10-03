@@ -9,8 +9,8 @@ whose final expression is its only item.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  m <- (.body | children | of_kind :method_definition) c;
-  n <- m.name;
+  m <- (#body | children | of_kind :method_definition) c;
+  n <- m#name;
   return $ text n
 };
 

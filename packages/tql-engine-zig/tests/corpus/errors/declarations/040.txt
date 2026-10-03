@@ -1,0 +1,15 @@
+title: a record type labels each field once
+grammar: typescript
+asserts: error
+
+--- tql ---
+f :: {a: Int, a: String} -> Int;
+f x = 1;
+main = const [];
+
+--- error ---
+error[type-mismatch]: `a` labels two fields of one record
+ --> 1:6
+  |
+1 | f :: {a: Int, a: String} -> Int;
+  |      ^^^^^^^^^^^^^^^^^^^

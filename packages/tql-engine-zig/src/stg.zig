@@ -39,8 +39,6 @@ pub const count_allocations = eval.count_allocations;
 pub const Value = value.Value;
 pub const Thunk = value.Thunk;
 pub const Node = value.Node;
-pub const Range = value.Range;
-pub const Point = value.Point;
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;

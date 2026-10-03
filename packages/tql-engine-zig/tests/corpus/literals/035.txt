@@ -8,7 +8,7 @@ Field access yields a list, so `n.name` is a `[Node]` rather than a `Node`, and
 `map text` maps over it.
 
 --- tql ---
-name_of n = map text n.name;
+name_of n = map text n#name;
 main = children | of_kind :class_declaration | name_of;
 
 --- source ---

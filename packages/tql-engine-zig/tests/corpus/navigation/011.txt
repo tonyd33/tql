@@ -4,9 +4,9 @@ asserts: types, values
 
 --- tql ---
 main = children | of_kind :class_declaration
-  | .body
+  | #body
   | children | of_kind :method_definition
-  | .name
+  | #name
   | arr text
 ;
 

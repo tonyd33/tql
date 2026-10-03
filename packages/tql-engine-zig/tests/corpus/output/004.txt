@@ -11,12 +11,12 @@ class A {}
 --- values ---
 [
   {
-    "start_byte": 0,
     "end_byte": 10,
-    "start_point": { "row": 0, "column": 0 },
-    "end_point": { "row": 0, "column": 10 }
+    "end_point": { "column": 10, "row": 0 },
+    "start_byte": 0,
+    "start_point": { "column": 0, "row": 0 }
   }
 ]
 
 --- types ---
-main :: Node -> [Range]
+main :: Node -> [{end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}}]

@@ -15,7 +15,6 @@ pub const Primitive = enum {
     String,
     Regex,
     Node,
-    Range,
     Kind,
 
     pub fn spelling(self: Primitive) []const u8 {
@@ -30,7 +29,7 @@ pub const Type = union(enum) {
     /// A declared algebraic data type at its arguments. `[a]` is `List` at
     /// one argument and `Bool` is a nullary one.
     constructor: *const Constructed,
-    record: []const Field,
+    record: Record,
     function: *const Arrow,
 
     pub const Constructed = struct {
@@ -40,9 +39,29 @@ pub const Type = union(enum) {
         arguments: []const Type,
     };
 
+    /// `{l: t, ...}`, or `{l: t, ... | r}` when `rest` stands for further
+    /// fields.
+    ///
+    /// Invariants:
+    /// - `fields` are sorted by label.
+    /// - `rest` is a metavariable or bound variable, or resolves to another
+    ///   record whose fields extend these.
+    pub const Record = struct {
+        fields: []const Field,
+        rest: ?*const Type = null,
+    };
+
     pub const Field = struct {
         label: []const u8,
         type: *const Type,
+
+        pub fn order(a: []const u8, b: []const u8) std.math.Order {
+            return std.mem.order(u8, a, b);
+        }
+
+        pub fn lessThan(_: void, a: Field, b: Field) bool {
+            return order(a.label, b.label) == .lt;
+        }
     };
 
     pub const Arrow = struct {
@@ -99,12 +118,13 @@ pub const Type = union(enum) {
                 node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = arguments };
                 return .{ .constructor = node };
             },
-            .record => |fields| {
-                const copies = try allocator.alloc(Field, fields.len);
-                for (fields, copies) |f, *copy| {
+            .record => |r| {
+                const copies = try allocator.alloc(Field, r.fields.len);
+                for (r.fields, copies) |f, *copy| {
                     copy.* = .{ .label = f.label, .type = try store(allocator, try f.type.clone(allocator)) };
                 }
-                return .{ .record = copies };
+                const rest = if (r.rest) |t| try store(allocator, try t.clone(allocator)) else null;
+                return .{ .record = .{ .fields = copies, .rest = rest } };
             },
             .function => |arrow| return try func(
                 allocator,
@@ -125,12 +145,16 @@ pub const Type = union(enum) {
                 try writeConstructed(c, w, names);
                 if (parenthesize) try w.writeByte(')');
             },
-            .record => |fields| {
+            .record => |r| {
                 try w.writeByte('{');
-                for (fields, 0..) |f, i| {
+                for (r.fields, 0..) |f, i| {
                     if (i > 0) try w.writeAll(", ");
                     try w.print("{s}: ", .{f.label});
                     try f.type.write(w, .top, names);
+                }
+                if (r.rest) |rest| {
+                    try w.writeAll(if (r.fields.len > 0) " | " else "| ");
+                    try rest.write(w, .top, names);
                 }
                 try w.writeByte('}');
             },
@@ -242,8 +266,21 @@ pub const int_type: Type = .{ .primitive = .Int };
 pub const string_type: Type = .{ .primitive = .String };
 pub const regex_type: Type = .{ .primitive = .Regex };
 pub const node_type: Type = .{ .primitive = .Node };
-pub const range_type: Type = .{ .primitive = .Range };
 pub const kind_type: Type = .{ .primitive = .Kind };
+
+/// `Point`, a position in the queried file.
+pub const point_type: Type = .{ .record = .{ .fields = &.{
+    .{ .label = "column", .type = &int_type },
+    .{ .label = "row", .type = &int_type },
+} } };
+
+/// `Range`, what `range` returns. Starts are inclusive and ends exclusive.
+pub const range_type: Type = .{ .record = .{ .fields = &.{
+    .{ .label = "end_byte", .type = &int_type },
+    .{ .label = "end_point", .type = &point_type },
+    .{ .label = "start_byte", .type = &int_type },
+    .{ .label = "start_point", .type = &point_type },
+} } };
 
 pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };
@@ -373,6 +410,30 @@ test "a constraint parenthesizes an applied constructor" {
     };
     try scheme.format(&buf.writer);
     try std.testing.expectEqualStrings("Serial (Maybe a) => Maybe a", buf.written());
+}
+
+test "an open record prints its row after a bar" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    const open: Type = .{ .record = .{
+        .fields = &.{.{ .label = "start_byte", .type = &variable_type(0) }},
+        .rest = &variable_type(1),
+    } };
+    const only_row: Type = .{ .record = .{ .fields = &.{}, .rest = &variable_type(0) } };
+    const empty: Type = .{ .record = .{ .fields = &.{} } };
+    try buf.writer.print("{f}; {f}; {f}", .{ open, only_row, empty });
+    try std.testing.expectEqualStrings("{start_byte: a | b}; {| a}; {}", buf.written());
+}
+
+test "a range is a record of its bounds" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try range_type.format(&buf.writer);
+    try std.testing.expectEqualStrings(
+        "{end_byte: Int, end_point: {column: Int, row: Int}, " ++
+            "start_byte: Int, start_point: {column: Int, row: Int}}",
+        buf.written(),
+    );
 }
 
 test "metavariables are named by first appearance across one message" {

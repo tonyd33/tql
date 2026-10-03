@@ -7,7 +7,7 @@ accepted and becomes the exported scheme.
 
 --- tql ---
 name_of :: Node -> [String];
-name_of = .name | arr text;
+name_of = #name | arr text;
 main = children | of_kind :class_declaration | name_of;
 
 --- source ---

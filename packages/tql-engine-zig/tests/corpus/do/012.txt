@@ -8,7 +8,7 @@ asserts: types, values
 main root = do {
   c <- children_of_kind :class_declaration root;
   let expected = "A";
-  n <- c.name;
+  n <- c#name;
   return $ text n = expected;
 };
 

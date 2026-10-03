@@ -1,0 +1,15 @@
+title: `_.l` is a function reading the field
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = children | arr (\n -> {k = kind n, t = text n}) | arr _.k;
+
+--- source ---
+class A {}
+
+--- values ---
+["class_declaration"]
+
+--- types ---
+main :: Node -> [String]

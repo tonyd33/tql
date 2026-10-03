@@ -7,23 +7,51 @@ main = .;
 ---
 
 (source_file
-  (definition
-    name: (identifier)
-    body: (leading_field
-      field: (MISSING field_name))))
+  (ERROR
+    (identifier)))
 
 ========================================
-a leading field access
+an underscore section reads a field
 ========================================
 
-main = .name;
+main = _.name;
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (leading_field
+    body: (field_access
+      record: (identifier)
+      field: (field_name))))
+
+========================================
+a leading navigation
+========================================
+
+main = #name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (leading_navigation
+      field: (field_name))))
+
+========================================
+navigation on a name
+========================================
+
+main = c#name;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (navigation
+      node: (identifier)
       field: (field_name))))
 
 ========================================

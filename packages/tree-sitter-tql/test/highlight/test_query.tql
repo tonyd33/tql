@@ -1,16 +1,48 @@
 -- a highlighted query
-is_alloc : Filter node bool;
---         ^ type.builtin
-main =
-  do {
-    fn <- . / :function_definition;
---  ^ variable
---             ^ type
-    let name = fn.name;
---      ^ function
---                ^ attribute
-    if name ~ r"^alloc" then { n = name } else empty
---  ^ keyword
---            ^ string.regex
---                             ^ property
-  };
+type Size = Small | Large Int;
+--   ^ type
+--                        ^ type
+
+start :: {start_byte: Int | r} -> Int;
+-- <- function
+--        ^ property
+--                          ^ type
+start = _.start_byte;
+--        ^ property
+
+is_alloc :: Filter Node Node;
+-- <- function
+--          ^ type.builtin
+--                 ^ type
+is_alloc = #declarator | keep (\d -> text d ~ r"^alloc");
+--          ^ attribute
+--                              ^ variable.parameter
+--                                            ^ string.regex
+
+size xs = case xs of { [] -> Small; x : rest -> Large (length rest) };
+--   ^ variable.parameter
+
+main root = do {
+-- <- function
+--   ^ variable.parameter
+--          ^ keyword
+  fn <- descendants_of_kind :function_definition root;
+--^ variable
+--                          ^ type
+  name <- fn#declarator;
+--^ variable
+--           ^ attribute
+  let line = (range fn).start_point.row;
+--^ keyword
+--    ^ function
+--                      ^ property
+  guard $ not (has is_alloc fn) and start (range fn) >= 0;
+--                              ^ keyword
+  return if true then { name = text name, line = line } else { name = "", line = 0 };
+--       ^ keyword
+--          ^ constant.builtin
+--               ^ keyword
+--                      ^ property
+--                                                                    ^ string
+--                                                                               ^ number
+};

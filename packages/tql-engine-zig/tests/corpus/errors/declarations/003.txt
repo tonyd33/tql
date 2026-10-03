@@ -7,7 +7,7 @@ The binding is branch-local to the block.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
+  n <- c#name;
   return $ text n;
 };
 after = c;

@@ -1,9 +1,7 @@
 //! Schemes for the synthesized symbol families.
 //!
 //! A synthesized symbol is one the desugarer generated rather than the user
-//! wrote: `field[l]`, `op[+]`, `record[l,...]`. Stage 2
-//! recorded what each was generated from in `desugar.Synthesis`, because
-//! nothing downstream has the grammar.
+//! wrote: `field[l]`, `op[+]`, `record[l,...]`, `select[l]`.
 
 const std = @import("std");
 const primitives = @import("../primitives.zig");
@@ -38,6 +36,7 @@ pub fn schemeFor(subst: *Substitution, synthesized: core.Synthesized) Error!type
             operator,
         ),
         .record => |labels| try record(subst, labels),
+        .select => |label| try select(subst, label),
     };
 }
 
@@ -88,7 +87,7 @@ fn record(subst: *Substitution, labels: []const []const u8) Error!types.Scheme {
 
     // Built right to left: the record is the innermost, each field type
     // wrapping it in one more arrow.
-    var result: types.Type = .{ .record = fields };
+    var result: types.Type = .{ .record = .{ .fields = fields } };
     var i = labels.len;
     while (i > 0) {
         i -= 1;
@@ -96,4 +95,16 @@ fn record(subst: *Substitution, labels: []const []const u8) Error!types.Scheme {
     }
 
     return .{ .quantified = @intCast(labels.len), .type = result };
+}
+
+/// `select[l] : forall t r. {l: t | r} -> t`.
+fn select(subst: *Substitution, label: []const u8) Allocator.Error!types.Scheme {
+    const field = types.variable_type(0);
+    const fields = try subst.arena.alloc(types.Type.Field, 1);
+    fields[0] = .{ .label = label, .type = try types.store(subst.arena, field) };
+    const subject: types.Type = .{ .record = .{
+        .fields = fields,
+        .rest = try types.store(subst.arena, types.variable_type(1)),
+    } };
+    return .{ .quantified = 2, .type = try types.func(subst.arena, subject, field) };
 }

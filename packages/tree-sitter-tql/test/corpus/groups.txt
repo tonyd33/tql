@@ -66,7 +66,7 @@ main = let { a = 1; b = 2; } in a + b;
 a let binding with parameters
 ========================================
 
-main = let { is_named n = n.name } in is_named x;
+main = let { is_named n = n#name } in is_named x;
 
 ---
 
@@ -78,8 +78,8 @@ main = let { is_named n = n.name } in is_named x;
         (binding
           name: (identifier)
           parameter: (identifier)
-          value: (field_access
-            record: (identifier)
+          value: (navigation
+            node: (identifier)
             field: (field_name))))
       body: (application
         function: (identifier)
@@ -114,7 +114,7 @@ main = let { a = 1 } in let { b = 2 } in a + b;
 a do block with one bind statement
 ========================================
 
-main root = do { c <- (children | is_kind :class_declaration) root; c.name };
+main root = do { c <- (children | is_kind :class_declaration) root; c#name };
 
 ---
 
@@ -133,8 +133,8 @@ main root = do { c <- (children | is_kind :class_declaration) root; c.name };
                 function: (identifier)
                 argument: (kind))))
           argument: (identifier)))
-      (field_access
-        record: (identifier)
+      (navigation
+        node: (identifier)
         field: (field_name)))))
 
 ========================================
@@ -180,7 +180,7 @@ main = do { c <- x; c; };
 a do-local let statement with one binding
 ========================================
 
-main = do { c <- x; let name = c.name; name };
+main = do { c <- x; let name = c#name; name };
 
 ---
 
@@ -194,8 +194,8 @@ main = do { c <- x; let name = c.name; name };
       (let_statement
         bindings: (binding
           name: (identifier)
-          value: (field_access
-            record: (identifier)
+          value: (navigation
+            node: (identifier)
             field: (field_name))))
       (identifier))))
 
@@ -230,7 +230,7 @@ main = do { c <- x; let { a = 1; b = 2 }; a + b };
 several bind statements
 ========================================
 
-main = do { c <- x; m <- c.body; m };
+main = do { c <- x; m <- c#body; m };
 
 ---
 
@@ -243,8 +243,8 @@ main = do { c <- x; m <- c.body; m };
         value: (identifier))
       (bind_statement
         name: (identifier)
-        value: (field_access
-          record: (identifier)
+        value: (navigation
+          node: (identifier)
           field: (field_name)))
       (identifier))))
 
@@ -252,7 +252,7 @@ main = do { c <- x; m <- c.body; m };
 a do block as a pipe operand
 ========================================
 
-main = children | is_kind :class_declaration | do { m <- .body; m };
+main = children | is_kind :class_declaration | do { m <- #body; m };
 
 ---
 
@@ -268,7 +268,7 @@ main = children | is_kind :class_declaration | do { m <- .body; m };
       right: (do_expression
         (bind_statement
           name: (identifier)
-          value: (leading_field
+          value: (leading_navigation
             field: (field_name)))
         (identifier)))))
 

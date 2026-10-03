@@ -8,7 +8,7 @@ node after the current input has been rebased onto a class node.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  cn <- c.name;
+  cn <- c#name;
   return { root = kind root, class = text cn };
 };
 

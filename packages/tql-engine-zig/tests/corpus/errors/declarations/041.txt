@@ -1,0 +1,16 @@
+title: a constructor field may not be a Range
+grammar: typescript
+asserts: error
+
+`Range` names a record type, and constructor fields are not records yet.
+
+--- tql ---
+type Span = Span Range;
+main = const [];
+
+--- error ---
+error[type-mismatch]: a constructor field may not be a record yet
+ --> 1:18
+  |
+1 | type Span = Span Range;
+  |                  ^^^^^

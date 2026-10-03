@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 names_of :: Kind -> Filter Node String;
-names_of k = descendants_of_kind k | .name | arr text;
+names_of k = descendants_of_kind k | #name | arr text;
 
 main = names_of :class_declaration <|> names_of :interface_declaration;
 

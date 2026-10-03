@@ -9,7 +9,7 @@ the record is built from the bound name.
 --- tql ---
 main root = do {
   c <- children_of_kind :class_declaration root;
-  n <- c.name;
+  n <- c#name;
   return { kind = kind c, name = text n };
 };
 

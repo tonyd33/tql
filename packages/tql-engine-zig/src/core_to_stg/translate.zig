@@ -101,6 +101,7 @@ pub const Translator = struct {
                 for (labels, copies) |label, *copy| copy.* = try self.arena.dupe(u8, label);
                 break :blk .{ .record = copies };
             },
+            .select => |label| .{ .select = try self.arena.dupe(u8, label) },
         };
     }
 
@@ -466,10 +467,10 @@ pub const Translator = struct {
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         // A synthesized symbol has no row in the primitive table.
         switch (self.program.env.interner.details(name)) {
-            // `field[l]` is `Filter Node Node`, one argument; an operator
-            // takes two scalars.
+            // `field[l]` is `Filter Node Node` and `select[l]` takes the
+            // record, one argument each; an operator takes two scalars.
             .synthesized => |s| return switch (s) {
-                .field => 1,
+                .field, .select => 1,
                 .operator => 2,
                 .record => |labels| @intCast(labels.len),
             },

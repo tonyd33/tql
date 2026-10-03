@@ -5,7 +5,7 @@ asserts: core, types, values
 The result is one value, not three: collection changes multiplicity.
 
 --- tql ---
-main = collect $ children | of_kind :class_declaration | .name | arr text;
+main = collect $ children | of_kind :class_declaration | #name | arr text;
 
 --- source ---
 class A {}

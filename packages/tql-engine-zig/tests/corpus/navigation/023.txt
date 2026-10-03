@@ -5,7 +5,7 @@ asserts: types, values
 `for_in_clause.right` holds the iterables and the commas between them.
 
 --- tql ---
-main = descendants_of_kind :for_in_clause | .right | keep is_named | arr text;
+main = descendants_of_kind :for_in_clause | #right | keep is_named | arr text;
 
 --- source ---
 ys = [x for x in a, b]
