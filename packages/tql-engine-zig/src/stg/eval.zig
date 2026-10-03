@@ -761,8 +761,9 @@ pub const Machine = struct {
                     return try self.force(fields[index].thunk);
                 },
 
-                // Named children under one field, document order. A field the
-                // grammar knows but this node lacks yields no output.
+                // Children under one field, named or anonymous, document
+                // order. A field the grammar knows but this node lacks yields
+                // no output.
                 .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
             .builtin => |primop| switch (primop) {

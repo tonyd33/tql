@@ -1278,7 +1278,6 @@ test "an argument of the wrong type is a type mismatch" {
     });
     // `errors/types/001`: `double "text"`.
     try fix.expectFails(try fix.app(fix.pb.symbol(inc), fix.lit(.{ .string = "text" })), .type_mismatch);
-    try testing.expectEqual(infer.Rule.t_app, fix.inference.failure.?.rule);
 }
 
 test "applying a saturated function is over-application, not a mismatch" {
@@ -1344,7 +1343,6 @@ test "a scrutinee that is not a declared type is rejected" {
         fix.lit(.{ .number = 2 }),
     );
     try fix.expectFails(c, .type_mismatch);
-    try testing.expectEqual(infer.Rule.t_case, fix.inference.failure.?.rule);
 }
 
 test "alternatives of different types are rejected" {
@@ -1421,7 +1419,6 @@ test "a stream bind over a non-list is rejected" {
     const n = try fix.define("n", .{ .type = types.int_type });
     const c = try fix.pb.global("c");
     try fix.expectFails(try fix.pb.bind(c, fix.pb.symbol(n), fix.pb.symbol(c)), .type_mismatch);
-    try testing.expectEqual(infer.Rule.t_bind, fix.inference.failure.?.rule);
 }
 
 test "a bind body that is not a list is rejected" {

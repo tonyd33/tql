@@ -10,22 +10,9 @@ const unify = @import("unify.zig");
 const Allocator = std.mem.Allocator;
 const Substitution = @import("substitution.zig").Substitution;
 
-/// The typing judgement a step concluded under. Carried so a failure can name
-/// the rule it violated.
-pub const Rule = enum {
-    t_var,
-    t_lit,
-    t_lam,
-    t_app,
-    t_case,
-    t_letrec,
-    t_bind,
-};
-
 pub const Failure = struct {
     category: diagnostic.Category,
     span: diagnostic.Span,
-    rule: Rule,
     detail: Detail,
 
     pub const Detail = union(enum) {
@@ -138,7 +125,7 @@ pub const Inference = struct {
         for (scheme.constraints) |c| {
             const on = try self.subst.instantiateWith(c.type, inst.metas);
             if (try self.undecided.require(self.subst, c.class, on, span)) |v| {
-                return self.fail(.unsatisfied_constraint, span, .t_var, .{ .violation = v });
+                return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
             }
         }
         return inst.type;
@@ -175,7 +162,7 @@ pub const Inference = struct {
         };
         if (self.inferred.get(id)) |s| return try self.instantiate(s, span);
         if (self.env.schemeOf(id)) |s| return try self.instantiate(s, span);
-        return self.fail(.unresolved_name, span, .t_var, .{ .unbound = id });
+        return self.fail(.unresolved_name, span, .{ .unbound = id });
     }
 
     /// (T-Lam)       Gamma, x : alpha |- e : tau
@@ -206,7 +193,6 @@ pub const Inference = struct {
             return self.fail(
                 .over_application,
                 app.argument.span,
-                .t_app,
                 .{ .over_application = head },
             );
         }
@@ -219,7 +205,6 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .type_mismatch,
                 app.argument.span,
-                .t_app,
                 .{ .mismatch = m },
             ),
         }
@@ -228,7 +213,6 @@ pub const Inference = struct {
             return self.fail(
                 .unsatisfied_constraint,
                 v.origin,
-                .t_app,
                 .{ .violation = v },
             );
         }
@@ -253,7 +237,7 @@ pub const Inference = struct {
         const arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
         for (arguments) |*argument| argument.* = try self.subst.fresh();
         const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
-        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span, .t_case);
+        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
 
         var first: ?struct { type: types.Type, span: diagnostic.Span } = null;
         for (c.alternatives, declared.constructors) |alternative, constructor| {
@@ -270,9 +254,9 @@ pub const Inference = struct {
                 // Alternatives are checked in constructor order. Of two that
                 // disagree, blame the one later in the source.
                 if (alternative.body.span.start_byte >= f.span.start_byte) {
-                    try self.expect(body, f.type, alternative.body.span, .t_case);
+                    try self.expect(body, f.type, alternative.body.span);
                 } else {
-                    try self.expect(f.type, body, f.span, .t_case);
+                    try self.expect(f.type, body, f.span);
                 }
             } else {
                 first = .{ .type = body, .span = alternative.body.span };
@@ -328,7 +312,7 @@ pub const Inference = struct {
         // Each inferred body must unify with its placeholder.
         for (bindings, placeholders) |b, p| {
             const inferred = try self.term(b.value);
-            try self.expect(inferred, p, b.value.span, .t_letrec);
+            try self.expect(inferred, p, b.value.span);
         }
 
         // Generalize against the environment *outside* the group, so the
@@ -344,7 +328,7 @@ pub const Inference = struct {
     fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
         const source = try self.term(b.value);
         const element = try self.subst.fresh();
-        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span, .t_bind);
+        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -352,7 +336,7 @@ pub const Inference = struct {
 
         const body = try self.term(b.body);
         const result = try self.subst.fresh();
-        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span, .t_bind);
+        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span);
         return try self.subst.datatypes.list(self.subst.arena, result);
     }
 
@@ -382,7 +366,7 @@ pub const Inference = struct {
         out: []types.Scheme,
     ) Error!void {
         if (try self.undecided.recheck(self.subst)) |v| {
-            return self.fail(.unsatisfied_constraint, v.origin, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
         }
 
         var env: std.ArrayList(types.Meta) = .empty;
@@ -433,7 +417,7 @@ pub const Inference = struct {
                 }
             }
             scheme.* = self.subst.quantify(t, own, bare.items) catch |err| switch (err) {
-                error.TooManyVariables => return self.fail(.limit, span, .t_letrec, .{
+                error.TooManyVariables => return self.fail(.limit, span, .{
                     .too_many_variables = own.len,
                 }),
                 error.OutOfMemory => |e| return e,
@@ -534,7 +518,6 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .signature_mismatch,
                 span,
-                .t_letrec,
                 .{ .mismatch = m },
             ),
         }
@@ -550,7 +533,7 @@ pub const Inference = struct {
                 (resolved.meta == id or resolved.meta >= after) and
                 std.mem.indexOfScalar(types.Meta, representatives[0..i], resolved.meta) == null;
             if (!still_arbitrary) {
-                return self.fail(.signature_mismatch, span, .t_letrec, .{
+                return self.fail(.signature_mismatch, span, .{
                     .mismatch = .{
                         .reason = .incompatible,
                         .expected = declared.type,
@@ -570,7 +553,7 @@ pub const Inference = struct {
             const on = try self.subst.instantiateWith(c.type, flexible.metas);
             residuals.clearRetainingCapacity();
             if (try constraints.reduce(self.subst, c.class, on, &residuals, self.gpa)) |culprit| {
-                return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = .{
+                return self.fail(.unsatisfied_constraint, span, .{ .violation = .{
                     .class = c.class,
                     .type = culprit,
                     .origin = span,
@@ -579,14 +562,14 @@ pub const Inference = struct {
             for (residuals.items) |r| {
                 const index = std.mem.indexOfScalar(types.Meta, representatives, r.meta) orelse {
                     if (try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, span)) |v| {
-                        return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+                        return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
                     }
                     continue;
                 };
                 const on_declared = types.variable_type(@intCast(index));
                 for (declared.constraints) |d| {
                     if (d.class == r.class and d.type == .variable and d.type.variable == on_declared.variable) break;
-                } else return self.fail(.signature_mismatch, span, .t_letrec, .{ .violation = .{
+                } else return self.fail(.signature_mismatch, span, .{ .violation = .{
                     .class = r.class,
                     .type = on_declared,
                     .origin = span,
@@ -609,17 +592,16 @@ pub const Inference = struct {
             .mismatch => |m| return self.fail(
                 .main_type,
                 span,
-                .t_letrec,
                 .{ .mismatch = m },
             ),
         }
 
         // 2. `Serial tau`
         if (try self.undecided.require(self.subst, .Serial, output, span)) |v| {
-            return self.fail(.unsatisfied_constraint, span, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
         }
         if (try self.undecided.recheck(self.subst)) |v| {
-            return self.fail(.unsatisfied_constraint, v.origin, .t_letrec, .{ .violation = v });
+            return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
         }
 
         // 3. Nothing may remain undetermined
@@ -630,7 +612,7 @@ pub const Inference = struct {
         try self.subst.freeMetas(settled, &free);
 
         if (free.items.len > 0 or self.undecided.all().len > 0) {
-            return self.fail(.ambiguous_output, span, .t_letrec, .{
+            return self.fail(.ambiguous_output, span, .{
                 .mismatch = .{
                     .reason = .incompatible,
                     .expected = types.node_type,
@@ -653,13 +635,12 @@ pub const Inference = struct {
     }
 
     /// Unifies, converting a failure into a `type-mismatch` at `span`.
-    fn expect(self: *Inference, found: types.Type, want: types.Type, span: diagnostic.Span, rule: Rule) Error!void {
+    fn expect(self: *Inference, found: types.Type, want: types.Type, span: diagnostic.Span) Error!void {
         switch (try unify.unify(self.subst, want, found)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .type_mismatch,
                 span,
-                rule,
                 .{ .mismatch = m },
             ),
         }
@@ -669,13 +650,11 @@ pub const Inference = struct {
         self: *Inference,
         category: diagnostic.Category,
         span: diagnostic.Span,
-        rule: Rule,
         detail: Failure.Detail,
     ) Error {
         self.failure = .{
             .category = category,
             .span = span,
-            .rule = rule,
             .detail = detail,
         };
         return error.TypeError;
