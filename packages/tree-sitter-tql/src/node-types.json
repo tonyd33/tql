@@ -2375,6 +2375,42 @@
     }
   },
   {
+    "type": "data_declaration",
+    "named": true,
+    "fields": {
+      "constructor": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "constructor_declaration",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameter": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "definition",
     "named": true,
     "fields": {
@@ -7054,6 +7090,10 @@
       "required": false,
       "types": [
         {
+          "type": "data_declaration",
+          "named": true
+        },
+        {
           "type": "definition",
           "named": true
         },
@@ -7062,7 +7102,7 @@
           "named": true
         },
         {
-          "type": "type_declaration",
+          "type": "type_alias",
           "named": true
         }
       ]
@@ -7359,6 +7399,70 @@
     }
   },
   {
+    "type": "type_alias",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameter": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "filter_type",
+            "named": true
+          },
+          {
+            "type": "function_type",
+            "named": true
+          },
+          {
+            "type": "list_type",
+            "named": true
+          },
+          {
+            "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "record_type",
+            "named": true
+          },
+          {
+            "type": "type_application",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "type_application",
     "named": true,
     "fields": {
@@ -7394,42 +7498,6 @@
         "types": [
           {
             "type": "type_identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "type_declaration",
-    "named": true,
-    "fields": {
-      "constructor": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "constructor_declaration",
-            "named": true
-          }
-        ]
-      },
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_identifier",
-            "named": true
-          }
-        ]
-      },
-      "parameter": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "type_variable",
             "named": true
           }
         ]
@@ -7862,6 +7930,10 @@
     "type": "comment",
     "named": true,
     "extra": true
+  },
+  {
+    "type": "data",
+    "named": false
   },
   {
     "type": "do",

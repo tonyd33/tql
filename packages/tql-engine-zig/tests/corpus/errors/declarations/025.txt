@@ -6,12 +6,12 @@ A declared type is found before a built-in one, so `type Int` would change
 what `Int` means in every signature while primitives kept the real one.
 
 --- tql ---
-type Int = I;
+data Int = I;
 main = pure 1;
 
 --- error ---
 error[symbol-collision]: `Int` is a built-in type
  --> 1:1
   |
-1 | type Int = I;
+1 | data Int = I;
   | ^^^^^^^^^^^^^

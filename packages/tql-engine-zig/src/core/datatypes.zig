@@ -52,11 +52,34 @@ pub const Datatype = struct {
     classes: ClassRow,
 };
 
+/// `type Named r = {name: String | r};`
+pub const Alias = struct {
+    name: []const u8,
+    parameters: []const Parameter,
+    /// Names parameter `i` as `types.Type.variable` `i`.
+    body: types.Type,
+
+    pub const Parameter = struct {
+        name: []const u8,
+        sort: Sort,
+    };
+
+    /// What a type variable stands for: a type, or the fields after `|` in
+    /// an open record.
+    pub const Sort = enum { type, row };
+
+    /// The alias at `arguments`, expanded. Takes ownership of `arguments`.
+    pub fn apply(self: *const Alias, allocator: Allocator, arguments: []const types.Type) Allocator.Error!types.Type {
+        return try types.aliased(allocator, self.name, arguments, try types.substitute(allocator, self.body, arguments));
+    }
+};
+
 /// The declared types of one linked program.
 pub const Registry = struct {
     allocator: Allocator,
     datatypes: std.ArrayList(Datatype) = .empty,
     by_name: std.StringHashMapUnmanaged(TypeId) = .empty,
+    aliases: std.StringHashMapUnmanaged(Alias) = .empty,
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
@@ -200,6 +223,15 @@ pub const Registry = struct {
 
     pub fn lookup(self: *const Registry, name: []const u8) ?TypeId {
         return self.by_name.get(name);
+    }
+
+    /// `alias` and everything it points to must outlive the registry.
+    pub fn defineAlias(self: *Registry, alias: Alias) Allocator.Error!void {
+        try self.aliases.put(self.allocator, alias.name, alias);
+    }
+
+    pub fn aliasNamed(self: *const Registry, name: []const u8) ?*const Alias {
+        return self.aliases.getPtr(name);
     }
 
     pub fn constructorOf(

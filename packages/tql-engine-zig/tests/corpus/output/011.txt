@@ -24,4 +24,4 @@ class A {}
 ]
 
 --- types ---
-main :: Node -> [{at: {end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}}, k: String}]
+main :: Node -> [{at: Range, k: String}]

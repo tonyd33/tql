@@ -1,0 +1,19 @@
+title: an alias of a function type
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Pred a = a -> Bool;
+both :: Pred a -> Pred a -> Pred a;
+both p q x = p x and q x;
+main root = [both (\n -> n > 1) (\n -> n < 5) 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+both :: Pred a -> Pred a -> Pred a
+main :: Node -> [Bool]

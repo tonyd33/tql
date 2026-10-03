@@ -1,0 +1,19 @@
+title: an alias with a row parameter accepts any record with its fields
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Named r = {name: String | r};
+greet :: Named r -> String;
+greet x = x.name;
+main root = [greet {name = "a", age = 1}, greet {name = "b"}];
+
+--- source ---
+class A {}
+
+--- values ---
+["a","b"]
+
+--- types ---
+greet :: Named a -> String
+main :: Node -> [String]

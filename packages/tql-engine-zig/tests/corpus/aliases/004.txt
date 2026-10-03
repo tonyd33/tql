@@ -1,0 +1,20 @@
+title: an alias may name another alias, declared before or after it
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Ints = Both Int;
+type Both a = {first: a, second: a};
+total :: Ints -> Int;
+total b = b.first + b.second;
+main root = [total {first = 1, second = 2}];
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- types ---
+total :: Ints -> Int
+main :: Node -> [Int]

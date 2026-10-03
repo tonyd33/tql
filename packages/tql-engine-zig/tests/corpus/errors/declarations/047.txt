@@ -1,0 +1,14 @@
+title: an alias body may only name its parameters
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Box = {item: a};
+main = const [];
+
+--- error ---
+error[unresolved-name]: `a` is not a parameter of `Box`
+ --> 1:12
+  |
+1 | type Box = {item: a};
+  |            ^^^^^^^^^

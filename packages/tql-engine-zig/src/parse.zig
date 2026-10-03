@@ -179,9 +179,13 @@ const Walker = struct {
                     if (try self.definition(child)) |d| {
                         try declarations.append(self.allocator, .{ .definition = d });
                     }
-                } else if (std.mem.eql(u8, kind, "type_declaration")) {
-                    if (try self.typeDeclaration(child)) |t| {
-                        try declarations.append(self.allocator, .{ .type_declaration = t });
+                } else if (std.mem.eql(u8, kind, "data_declaration")) {
+                    if (try self.dataDeclaration(child)) |t| {
+                        try declarations.append(self.allocator, .{ .data_declaration = t });
+                    }
+                } else if (std.mem.eql(u8, kind, "type_alias")) {
+                    if (try self.typeAlias(child)) |t| {
+                        try declarations.append(self.allocator, .{ .type_alias = t });
                     }
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -626,7 +630,7 @@ const Walker = struct {
         };
     }
 
-    fn typeDeclaration(self: *Walker, node: ts.Node) !?cst.TypeDeclaration {
+    fn dataDeclaration(self: *Walker, node: ts.Node) !?cst.DataDeclaration {
         const name_node = node.childByFieldName("name") orelse {
             try self.missingField(node, "name");
             return null;
@@ -657,6 +661,40 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),
+            .span = spanOf(node),
+        };
+    }
+
+    fn typeAlias(self: *Walker, node: ts.Node) !?cst.TypeAlias {
+        const name_node = node.childByFieldName("name") orelse {
+            try self.missingField(node, "name");
+            return null;
+        };
+        const type_node = node.childByFieldName("type") orelse {
+            try self.missingField(node, "type");
+            return null;
+        };
+        const name = try self.dupe(name_node);
+        var params: std.ArrayList(cst.Identifier) = .empty;
+
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "parameter")) {
+                        try params.append(self.allocator, try self.dupe(cursor.node()));
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        const ty = try self.typeExpr(type_node) orelse return null;
+        return .{
+            .name = name,
+            .parameters = try params.toOwnedSlice(self.allocator),
+            .type = ty,
             .span = spanOf(node),
         };
     }
@@ -1384,6 +1422,20 @@ test "a record type of only a row" {
     try expectSexpr(
         "f :: {| r} -> Int;",
         "(source_file (signature f (-> (record_type | r) Int)))",
+    );
+}
+
+test "a type alias keeps its parameters and body" {
+    try expectSexpr(
+        "type Named r = {name: String | r};",
+        "(source_file (type Named (params r) (record_type (name String) | r)))",
+    );
+}
+
+test "a data declaration and a type alias side by side" {
+    try expectSexpr(
+        "data Box a = Box a; type Pred = Node -> Bool;",
+        "(source_file (data Box (params a) (con Box a)) (type Pred (params) (-> Node Bool)))",
     );
 }
 

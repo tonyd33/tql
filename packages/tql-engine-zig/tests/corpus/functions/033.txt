@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-type Pair = Pair Int Int;
+data Pair = Pair Int Int;
 
 second :: Pair -> Int;
 second p = case p of { Pair _ b -> b; };

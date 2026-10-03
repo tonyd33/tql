@@ -47,32 +47,37 @@ pub fn unify(
     expected: types.Type,
     found: types.Type,
 ) Allocator.Error!Result {
+    // `a` and `b` are as written, and are what a metavariable is bound to
+    // and a mismatch names. `left` and `right` are their expansions, and are
+    // what is compared.
     const a = subst.resolve(expected);
     const b = subst.resolve(found);
+    const left = subst.expand(a);
+    const right = subst.expand(b);
 
-    if (a == .meta and b == .meta and a.meta == b.meta) return .unified;
+    if (left == .meta and right == .meta and left.meta == right.meta) return .unified;
 
-    if (a != .meta and b == .meta) return bindMeta(subst, b.meta, a);
+    if (left != .meta and right == .meta) return bindMeta(subst, right.meta, a);
 
-    switch (a) {
+    switch (left) {
         .meta => |id| return bindMeta(subst, id, b),
         // A bound variable reaching unification means a scheme was used
         // without instantiation, which is a bug in the caller rather than a
         // type error in the program.
         .variable => @panic("a bound type variable reached unification"),
         .primitive => |p| {
-            if (b != .primitive or b.primitive != p) {
+            if (right != .primitive or right.primitive != p) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
         },
         // Nominal in the head, pointwise in the arguments.
         .constructor => |c| {
-            if (b != .constructor or b.constructor.name != c.name or
-                b.constructor.arguments.len != c.arguments.len)
+            if (right != .constructor or right.constructor.name != c.name or
+                right.constructor.arguments.len != c.arguments.len)
             {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            for (c.arguments, b.constructor.arguments) |expected_arg, found_arg| {
+            for (c.arguments, right.constructor.arguments) |expected_arg, found_arg| {
                 switch (try unify(subst, expected_arg, found_arg)) {
                     .unified => {},
                     .mismatch => |m| return .{ .mismatch = m },
@@ -80,20 +85,21 @@ pub fn unify(
             }
         },
         .function => |arrow| {
-            if (b != .function) {
+            if (right != .function) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            switch (try unify(subst, arrow.from, b.function.from)) {
-                .unified => return try unify(subst, arrow.to, b.function.to),
+            switch (try unify(subst, arrow.from, right.function.from)) {
+                .unified => return try unify(subst, arrow.to, right.function.to),
                 .mismatch => |m| return .{ .mismatch = m },
             }
         },
-        .record => {
-            if (b != .record) {
+        .record => |r| {
+            if (right != .record) {
                 return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
             }
-            return try records(subst, a, b);
+            return try records(subst, a, b, r, right.record);
         },
+        .alias => unreachable,
     }
     return .unified;
 }
@@ -107,10 +113,17 @@ fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Result {
 }
 
 /// Unifies two records label by label, then solves their rows for the labels
-/// only one side has.
-fn records(subst: *Substitution, a: types.Type, b: types.Type) Allocator.Error!Result {
-    const left = try subst.flatten(a.record);
-    const right = try subst.flatten(b.record);
+/// only one side has. `a` and `b` are the records as written, for a mismatch
+/// to name.
+fn records(
+    subst: *Substitution,
+    a: types.Type,
+    b: types.Type,
+    expected: types.Type.Record,
+    found: types.Type.Record,
+) Allocator.Error!Result {
+    const left = try subst.flatten(expected);
+    const right = try subst.flatten(found);
 
     var only_left: std.ArrayList(types.Type.Field) = .empty;
     var only_right: std.ArrayList(types.Type.Field) = .empty;

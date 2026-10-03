@@ -29,7 +29,8 @@ pub const SourceFile = struct {
 pub const Declaration = union(enum) {
     signature: Signature,
     definition: Definition,
-    type_declaration: TypeDeclaration,
+    data_declaration: DataDeclaration,
+    type_alias: TypeAlias,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -88,21 +89,37 @@ pub const Definition = struct {
     }
 };
 
-/// `type T a = C1 f1 f2 | C2;`
-pub const TypeDeclaration = struct {
+/// `data T a = C1 f1 f2 | C2;`
+pub const DataDeclaration = struct {
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
     span: diagnostic.Span = .unknown,
 
-    pub fn sexpr(self: TypeDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(type {s} (params", .{self.name});
+    pub fn sexpr(self: DataDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(data {s} (params", .{self.name});
         for (self.parameters) |p| try w.print(" {s}", .{p});
         try w.writeAll(")");
         for (self.constructors) |c| {
             try w.writeByte(' ');
             try c.sexpr(w);
         }
+        try w.writeByte(')');
+    }
+};
+
+/// `type T a = t;`
+pub const TypeAlias = struct {
+    name: Identifier,
+    parameters: []const Identifier,
+    type: Type,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: TypeAlias, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(type {s} (params", .{self.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p});
+        try w.writeAll(") ");
+        try self.type.sexpr(w);
         try w.writeByte(')');
     }
 };

@@ -19,4 +19,4 @@ class A {}
 ]
 
 --- types ---
-main :: Node -> [{end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}}]
+main :: Node -> [Range]

@@ -261,12 +261,12 @@ test "a row after the fields is a variable of the scheme" {
     try fix.expectScheme(written, "{start_byte: a | b} -> a");
 }
 
-test "Range and Point name records" {
+test "Range and Point keep their names" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectScheme(fix.node(.{ .constructor = "Point" }), "{column: Int, row: Int}");
+    try fix.expectScheme(fix.node(.{ .constructor = "Point" }), "Point");
 }
 
 test "a row variable used as a type is rejected" {
@@ -423,13 +423,13 @@ test "a constrained variable absent from the type is rejected" {
     try testing.expectEqual(1, fix.sink.items().len);
 }
 
-test "the built-in table is the five primitives, Range and Point" {
+test "the built-in table is the five primitives and the aliases Range and Point" {
     // A change to what a signature may name should fail here first. `Bool` is
     // absent because it is a declared type, resolved through the registry.
     try testing.expectEqual(7, annotation.builtin_names.len);
     try testing.expect(annotation.builtinNamed("Node") != null);
-    try testing.expect(annotation.builtinNamed("Range").? == .record);
-    try testing.expect(annotation.builtinNamed("Point").? == .record);
+    try testing.expect(annotation.builtinNamed("Range").? == .alias);
+    try testing.expect(annotation.builtinNamed("Point").? == .alias);
     try testing.expect(annotation.builtinNamed("Bool") == null);
     try testing.expect(annotation.builtinNamed("node") == null);
     try testing.expect(annotation.builtinNamed("Filter") == null);
@@ -496,4 +496,18 @@ test "linked components order library callees before entry callers" {
     try testing.expectEqualStrings("helper", order.items[0]);
     try testing.expectEqualStrings("wrapper", order.items[1]);
     try testing.expectEqualStrings("main", order.items[2]);
+}
+
+test "a datatype may not reuse an alias's name from an earlier module" {
+    try testing.expectError(error.DesugarFailed, link(&.{
+        "type X = Int;",
+        "data X = X Int; main = #name;",
+    }));
+}
+
+test "an alias may not reuse a datatype's name from an earlier module" {
+    try testing.expectError(error.DesugarFailed, link(&.{
+        "data X = X Int;",
+        "type X = Int; main = #name;",
+    }));
 }
