@@ -170,73 +170,39 @@ const grammars: []const TreeSitterGrammar = &.{
     },
 };
 
-fn addGrammar(
-    b: *std.Build,
-    mod: *std.Build.Module,
-    grammar: TreeSitterGrammar,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-) !void {
-    var buf: [std.posix.PATH_MAX]u8 = undefined;
-    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
-
-    const tree_sitter_grammar = b.dependency(grammar.dep_name, .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const grammar_mod = b.createModule(.{
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-    grammar_mod.addIncludePath(tree_sitter_grammar.path(include));
-    grammar_mod.addCSourceFiles(.{
-        .root = tree_sitter_grammar.path(grammar.root),
-        .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
-        .flags = grammar.flags,
-    });
-
-    const name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()});
-    const lib = b.addLibrary(.{
-        .name = name,
-        .root_module = grammar_mod,
-        .linkage = .static,
-    });
-    mod.linkLibrary(lib);
-}
-
-fn buildGrammarSharedLib(
+/// Builds a grammar's parser, and its scanner if it has one, as a library
+/// named `tree-sitter-<name>`.
+fn grammarLibrary(
     b: *std.Build,
     grammar: TreeSitterGrammar,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
+    linkage: std.builtin.LinkMode,
+    pic: ?bool,
 ) !*std.Build.Step.Compile {
-    var buf: [std.posix.PATH_MAX]u8 = undefined;
-    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
-
     const dep = b.dependency(grammar.dep_name, .{
         .target = target,
         .optimize = optimize,
     });
+    const root = dep.path(grammar.root);
 
     const mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .pic = pic,
     });
-    mod.addIncludePath(dep.path(include));
+    mod.addIncludePath(root.path(b, "src"));
     mod.addCSourceFiles(.{
-        .root = dep.path(grammar.root),
+        .root = root,
         .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
         .flags = grammar.flags,
     });
 
-    const name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()});
     return b.addLibrary(.{
-        .name = name,
+        .name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{grammar.outName()}),
         .root_module = mod,
-        .linkage = .dynamic,
+        .linkage = linkage,
     });
 }
 
@@ -249,38 +215,12 @@ fn buildGrammarWasmSideModule(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) !*std.Build.Step.Compile {
-    var buf: [std.posix.PATH_MAX]u8 = undefined;
-    const include = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ grammar.root, "src" });
-
-    const dep = b.dependency(grammar.dep_name, .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const mod = b.createModule(.{
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-        .pic = true,
-    });
-    mod.addIncludePath(dep.path(include));
-    mod.addCSourceFiles(.{
-        .root = dep.path(grammar.root),
-        .files = if (grammar.has_scanner) &.{ "src/parser.c", "src/scanner.c" } else &.{"src/parser.c"},
-        .flags = grammar.flags,
-    });
-
-    const out_name = grammar.outName();
-    const lib = b.addLibrary(.{
-        .name = try std.fmt.allocPrint(b.allocator, "tree-sitter-{s}", .{out_name}),
-        .root_module = mod,
-        .linkage = .dynamic,
-    });
+    const lib = try grammarLibrary(b, grammar, target, optimize, .dynamic, true);
     lib.rdynamic = true;
-    lib.root_module.export_symbol_names = b.allocator.dupe(
+    lib.root_module.export_symbol_names = try b.allocator.dupe(
         []const u8,
-        &.{try std.fmt.allocPrint(b.allocator, "tree_sitter_{s}", .{out_name})},
-    ) catch @panic("OOM");
+        &.{try std.fmt.allocPrint(b.allocator, "tree_sitter_{s}", .{grammar.outName()})},
+    );
     return lib;
 }
 
@@ -298,7 +238,7 @@ fn addEngineDeps(
     mod.addImport("tree-sitter", tree_sitter.module("tree_sitter"));
 
     for (selected) |grammar| {
-        try addGrammar(b, mod, grammar, target, optimize);
+        mod.linkLibrary(try grammarLibrary(b, grammar, target, optimize, .static, null));
     }
 
     const pcre2 = b.dependency("pcre2", .{
@@ -530,7 +470,7 @@ pub fn build(b: *std.Build) !void {
 
     const grammars_step = b.step("grammars", "Build shared libraries for the selected grammars");
     for (selected) |g| {
-        const lib = try buildGrammarSharedLib(b, g, target, optimize);
+        const lib = try grammarLibrary(b, g, target, optimize, .dynamic, null);
         const install = b.addInstallArtifact(lib, .{
             .dest_dir = .{ .override = .{ .custom = "lib/tql/grammars" } },
         });
