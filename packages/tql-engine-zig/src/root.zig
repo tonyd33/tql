@@ -569,10 +569,7 @@ test "the prelude's bodies compile to Core" {
     var w: std.Io.Writer.Allocating = .init(allocator);
     defer w.deinit();
     const printer: core.Printer = .{ .interner = &program.env.interner };
-    for (program.definitions[0..program.entry_offset], 0..) |definition, i| {
-        if (i > 0) try w.writer.writeByte('\n');
-        try printer.definition(definition.symbol, definition.body, &w.writer);
-    }
+    try printer.definitions(program.definitions[0..program.entry_offset], &w.writer);
 
     try std.testing.expectEqualStrings(
         \\identity = \x -> x

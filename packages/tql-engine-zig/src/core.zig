@@ -213,6 +213,14 @@ pub const Printer = struct {
         try self.writeAfterArrow(body, w, 0, null);
     }
 
+    /// Write `name = term` for each definition in `list`, one per line.
+    pub fn definitions(self: Printer, list: []const Definition, w: *std.Io.Writer) Error!void {
+        for (list, 0..) |d, i| {
+            if (i > 0) try w.writeByte('\n');
+            try self.definition(d.symbol, d.body, w);
+        }
+    }
+
     /// Where a term sits, which decides whether it needs parentheses.
     const Position = enum {
         /// Nothing binds tighter; never parenthesized.

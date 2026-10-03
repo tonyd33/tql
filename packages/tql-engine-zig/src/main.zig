@@ -231,13 +231,8 @@ fn runQuery(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = ArgTokenizer(main_cmds.query.opts).init(iter, &arg_diagnostic);
@@ -268,10 +263,8 @@ fn runQuery(
                         return @intFromEnum(ExitCode.invalid_args);
                     }
                 },
-                .grammar => grammar = registry.get(kv.value) catch |err| {
-                    try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
-                    return @intFromEnum(ExitCode.invalid_args);
-                },
+                .grammar => grammar = try grammars.get(kv.value, stderr) orelse
+                    return @intFromEnum(ExitCode.invalid_args),
                 .format => format = std.meta.stringToEnum(OutputFormat, kv.value) orelse {
                     try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
                     return @intFromEnum(ExitCode.invalid_args);
@@ -289,18 +282,9 @@ fn runQuery(
 
     // If --from-file, positionals are all target files.
     // Otherwise, first positional is the inline query, rest are target files.
-    const query: []const u8 = if (from_file) |query_file| blk: {
-        break :blk readQueryFile(io, gpa, query_file) catch |err| {
-            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
-            return @intFromEnum(ExitCode.invalid_args);
-        };
-    } else blk: {
-        if (positionals.items.len == 0) {
-            try stderr.print("Error: query is required\n", .{});
-            try printUsage(query_cmd, stderr);
-            return @intFromEnum(ExitCode.invalid_args);
-        }
-        break :blk try gpa.dupe(u8, positionals.items[0]);
+    const query = try loadQuery(io, gpa, from_file, positionals.items, stderr) orelse {
+        if (from_file == null) try printUsage(query_cmd, stderr);
+        return @intFromEnum(ExitCode.invalid_args);
     };
     defer gpa.free(query);
 
@@ -344,13 +328,8 @@ fn runInspect(
     environ_map: *const std.process.Environ.Map,
     iter: *std.process.Args.Iterator,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = ArgTokenizer(main_cmds.inspect.opts).init(iter, &arg_diagnostic);
@@ -371,10 +350,8 @@ fn runInspect(
                 .named => options.named_only = true,
             },
             .named_arg => |kv| switch (kv.field) {
-                .grammar => grammar = registry.get(kv.value) catch |err| {
-                    try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ kv.value, err });
-                    return @intFromEnum(ExitCode.invalid_args);
-                },
+                .grammar => grammar = try grammars.get(kv.value, stderr) orelse
+                    return @intFromEnum(ExitCode.invalid_args),
                 .kind => try kind_names.append(gpa, kv.value),
                 .format => format = std.meta.stringToEnum(InspectFormat, kv.value) orelse {
                     try stderr.print("Error: unknown format '{s}'\n", .{kv.value});
@@ -493,7 +470,7 @@ const InspectTarget = struct {
     written: bool = false,
 
     fn inspect(self: *InspectTarget, arena: std.mem.Allocator, path: []const u8) !void {
-        const source = try readTarget(self.io, arena, path);
+        const source = try std.Io.Dir.cwd().readFileAlloc(self.io, path, arena, .unlimited);
         const tree = self.parser.parseString(source, null) orelse return error.SourceParseFailed;
         defer tree.destroy();
 
@@ -542,13 +519,6 @@ const InspectTarget = struct {
         }
     }
 };
-
-fn readTarget(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
-    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
-    defer file.close(io);
-    var file_reader = file.reader(io, &.{});
-    return file_reader.interface.allocRemaining(gpa, .unlimited);
-}
 
 fn runGrammar(
     io: std.Io,
@@ -605,15 +575,10 @@ fn listGrammars(
     environ_map: *const std.process.Environ.Map,
     stderr: *std.Io.Writer,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
-    const dyn = try registry.listDynamic(io);
+    const dyn = try grammars.registry.listDynamic(io);
     defer {
         for (dyn) |d| {
             gpa.free(d.name);
@@ -790,11 +755,56 @@ const FileLoader = struct {
 };
 
 fn readQueryFile(io: std.Io, gpa: std.mem.Allocator, path: []const u8) ![]u8 {
-    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
-    defer file.close(io);
-    var file_reader = file.reader(io, &.{});
-    return file_reader.interface.allocRemaining(gpa, .limited(10 * 1024 * 1024));
+    return std.Io.Dir.cwd().readFileAlloc(io, path, gpa, .limited(10 * 1024 * 1024));
 }
+
+/// Returns the query, read from `from_file` or else taken from the first
+/// positional, or null after reporting why there is none. The caller owns it.
+fn loadQuery(
+    io: std.Io,
+    gpa: std.mem.Allocator,
+    from_file: ?[]const u8,
+    positionals: []const []const u8,
+    stderr: *std.Io.Writer,
+) !?[]u8 {
+    if (from_file) |path| {
+        return readQueryFile(io, gpa, path) catch |err| {
+            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ path, err });
+            return null;
+        };
+    }
+    if (positionals.len == 0) {
+        try stderr.print("Error: query is required\n", .{});
+        return null;
+    }
+    return try gpa.dupe(u8, positionals[0]);
+}
+
+/// The grammar registry over the search paths the environment names.
+const Grammars = struct {
+    search_paths: []const []const u8,
+    registry: tql.GrammarRegistry,
+
+    fn init(gpa: std.mem.Allocator, environ_map: *const std.process.Environ.Map) !Grammars {
+        const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
+        return .{ .search_paths = search_paths, .registry = tql.GrammarRegistry.init(gpa, search_paths) };
+    }
+
+    fn deinit(self: *Grammars, gpa: std.mem.Allocator) void {
+        self.registry.deinit();
+        for (self.search_paths) |p| gpa.free(p);
+        gpa.free(self.search_paths);
+    }
+
+    /// Returns the grammar named `name`, or null after reporting that it was
+    /// not found.
+    fn get(self: *Grammars, name: []const u8, stderr: *std.Io.Writer) !?*const Grammar {
+        return self.registry.get(name) catch |err| {
+            try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ name, err });
+            return null;
+        };
+    }
+};
 
 /// Print every diagnostic a compilation collected, one per line, with the
 /// source line it points at.
@@ -822,26 +832,11 @@ fn runDumpInstructions(
     grammar_name: ?[]const u8,
     positionals: []const []const u8,
 ) !u8 {
-    const search_paths = try tql.Grammar.resolveSearchPaths(gpa, environ_map);
-    defer {
-        for (search_paths) |p| gpa.free(p);
-        gpa.free(search_paths);
-    }
-    var registry = tql.GrammarRegistry.init(gpa, search_paths);
-    defer registry.deinit();
+    var grammars = try Grammars.init(gpa, environ_map);
+    defer grammars.deinit(gpa);
 
-    const query: []const u8 = if (from_file) |query_file| blk: {
-        break :blk readQueryFile(io, gpa, query_file) catch |err| {
-            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ query_file, err });
-            return @intFromEnum(ExitCode.invalid_args);
-        };
-    } else blk: {
-        if (positionals.len == 0) {
-            try stderr.print("Error: query is required\n", .{});
-            return @intFromEnum(ExitCode.invalid_args);
-        }
-        break :blk try gpa.dupe(u8, positionals[0]);
-    };
+    const query = try loadQuery(io, gpa, from_file, positionals, stderr) orelse
+        return @intFromEnum(ExitCode.invalid_args);
     defer gpa.free(query);
 
     const gname = grammar_name orelse {
@@ -849,10 +844,8 @@ fn runDumpInstructions(
         return @intFromEnum(ExitCode.invalid_args);
     };
 
-    const grammar = registry.get(gname) catch |err| {
-        try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ gname, err });
+    const grammar = try grammars.get(gname, stderr) orelse
         return @intFromEnum(ExitCode.invalid_args);
-    };
 
     var engine = try Engine.init(.{ .allocator = gpa, .io = io });
     defer engine.deinit();
@@ -871,11 +864,8 @@ fn runDumpInstructions(
     defer compiled.deinit();
 
     const printer = tql.stg.Printer{ .interner = &compiled.checked.env.interner };
-    for (compiled.translated.definitions) |definition| {
-        try stdout.print("{s} = ", .{compiled.checked.env.interner.spelling(definition.symbol)});
-        try printer.closure(definition.value, stdout);
-        try stdout.writeAll("\n");
-    }
+    try printer.definitions(compiled.translated.definitions, stdout);
+    try stdout.writeByte('\n');
 
     return @intFromEnum(ExitCode.success);
 }
