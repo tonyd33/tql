@@ -920,7 +920,10 @@ fn runTestCase(
                         if (evaluates) {
                             var arena: std.heap.ArenaAllocator = .init(allocator);
                             defer arena.deinit();
+                            var runner = try tql.Runner.init(&compiled);
+                            defer runner.deinit();
                             const outcome = try compiled.runTree(
+                                &runner,
                                 tree,
                                 tc.target.content,
                                 if (tc.file.len == 0) null else tc.file,

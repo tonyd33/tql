@@ -1003,17 +1003,17 @@ const SharedContext = struct {
     format: OutputFormat,
 };
 
-/// A fresh arena holding a copy of `path`.
-fn ownPath(ctx: *SharedContext, path: []const u8) !PathEntry {
+/// A fresh arena holding the path `parts` join to.
+fn ownPath(ctx: *SharedContext, parts: []const []const u8) !PathEntry {
     const arena = try ctx.allocator.create(std.heap.ArenaAllocator);
     errdefer ctx.allocator.destroy(arena);
     arena.* = std.heap.ArenaAllocator.init(ctx.allocator);
     errdefer arena.deinit();
-    return .{ .arena = arena, .path = try arena.allocator().dupe(u8, path) };
+    return .{ .arena = arena, .path = try std.fs.path.join(arena.allocator(), parts) };
 }
 
-fn pushFile(ctx: *SharedContext, path: []const u8) !void {
-    const entry = try ownPath(ctx, path);
+fn pushFile(ctx: *SharedContext, parts: []const []const u8) !void {
+    const entry = try ownPath(ctx, parts);
     errdefer {
         entry.arena.deinit();
         ctx.allocator.destroy(entry.arena);
@@ -1027,7 +1027,7 @@ fn pushFile(ctx: *SharedContext, path: []const u8) !void {
 /// Preconditions:
 /// - the path queue is still open, so the result queue is too
 fn pushFailure(ctx: *SharedContext, path: []const u8, err: anyerror) !void {
-    const entry = try ownPath(ctx, path);
+    const entry = try ownPath(ctx, &.{path});
     _ = ctx.progress.total.fetchAdd(1, .monotonic);
     _ = ctx.progress.done.fetchAdd(1, .monotonic);
     const result = failedResult(ctx, entry, err);
@@ -1062,12 +1062,7 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
     defer walker.deinit();
     while (try walker.next(ctx.io)) |entry| {
         if (entry.kind == .file and ctx.*.grammar.matchesFileName(entry.basename)) {
-            const joined = try std.fs.path.join(
-                ctx.*.allocator,
-                &[_][]const u8{ path, entry.path },
-            );
-            defer ctx.*.allocator.free(joined);
-            try pushFile(ctx, joined);
+            try pushFile(ctx, &.{ path, entry.path });
         }
     }
 }
@@ -1080,7 +1075,7 @@ fn walkerThread(ctx: *SharedContext) !void {
 
     for (ctx.paths) |path| {
         walkPush(ctx, path) catch |err| switch (err) {
-            error.NotDir => try pushFile(ctx, path),
+            error.NotDir => try pushFile(ctx, &.{path}),
             else => try pushFailure(ctx, path, err),
         };
     }
@@ -1144,6 +1139,8 @@ const worker_scratch_retained = 64 * 1024 * 1024;
 fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     defer arena.deinit();
+    var runner = try tql.Runner.init(ctx.compiled);
+    defer runner.deinit();
 
     while (try ctx.path_queue.pop()) |entry| {
         defer {
@@ -1152,7 +1149,7 @@ fn workerThread(ctx: *SharedContext) !void {
         }
 
         // A file that cannot be read or run is reported and skipped.
-        const result = queryFile(ctx, entry, arena.allocator()) catch |err|
+        const result = queryFile(ctx, &runner, entry, arena.allocator()) catch |err|
             failedResult(ctx, entry, err);
         if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
 
@@ -1164,7 +1161,7 @@ fn workerThread(ctx: *SharedContext) !void {
 }
 
 /// Read and run one target, rendering its outputs into the entry's arena.
-fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
+fn queryFile(ctx: *SharedContext, runner: *tql.Runner, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
     const read_start = std.Io.Timestamp.now(ctx.io, .real);
     const query_target: []align(std.heap.page_size_min) const u8 = blk: {
         const file = try std.Io.Dir.cwd().openFile(ctx.io, entry.path, .{});
@@ -1184,6 +1181,7 @@ fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) 
     defer if (query_target.len > 0) std.posix.munmap(query_target);
 
     const run_result = try ctx.compiled.run(
+        runner,
         query_target,
         entry.path,
         entry.arena.allocator(),
