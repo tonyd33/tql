@@ -177,6 +177,15 @@ const Walker = struct {
         );
     }
 
+    /// Returns `node`'s child in field `name`, or null after reporting it
+    /// missing.
+    fn requiredField(self: *Walker, node: ts.Node, name: []const u8) !?ts.Node {
+        return node.childByFieldName(name) orelse {
+            try self.missingField(node, name);
+            return null;
+        };
+    }
+
     fn sourceFile(self: *Walker, node: ts.Node) !cst.SourceFile {
         var declarations: std.ArrayList(cst.Declaration) = .empty;
         var imports: std.ArrayList(cst.Import) = .empty;
@@ -223,10 +232,7 @@ const Walker = struct {
     }
 
     fn moduleHeader(self: *Walker, node: ts.Node) !?cst.ModuleHeader {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
         var grammars: std.ArrayList([]const u8) = .empty;
         var cursor = node.walk();
         defer cursor.destroy();
@@ -247,10 +253,7 @@ const Walker = struct {
     }
 
     fn importDeclaration(self: *Walker, node: ts.Node) !?cst.Import {
-        const module_node = node.childByFieldName("module") orelse {
-            try self.missingField(node, "module");
-            return null;
-        };
+        const module_node = try self.requiredField(node, "module") orelse return null;
         const selects: cst.Filter = if (node.childByFieldName("items")) |listed|
             .{ .only = try self.items(listed) }
         else if (node.childByFieldName("hiding")) |hidden|
@@ -294,14 +297,8 @@ const Walker = struct {
     }
 
     fn signature(self: *Walker, node: ts.Node) !?cst.Signature {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
-        const type_node = node.childByFieldName("type") orelse {
-            try self.missingField(node, "type");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const type_node = try self.requiredField(node, "type") orelse return null;
         const name = try self.dupe(name_node);
         const constraints = if (node.childByFieldName("context")) |c|
             try self.context(c) orelse return null
@@ -320,14 +317,8 @@ const Walker = struct {
             while (true) {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "class_constraint")) {
-                    const class_node = child.childByFieldName("class") orelse {
-                        try self.missingField(child, "class");
-                        return null;
-                    };
-                    const variable_node = child.childByFieldName("variable") orelse {
-                        try self.missingField(child, "variable");
-                        return null;
-                    };
+                    const class_node = try self.requiredField(child, "class") orelse return null;
+                    const variable_node = try self.requiredField(child, "variable") orelse return null;
                     try collected.append(self.allocator, .{
                         .class = try self.dupe(class_node),
                         .variable = try self.dupe(variable_node),
@@ -342,17 +333,11 @@ const Walker = struct {
     }
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
         const name = try self.dupe(name_node);
         const params = try self.parameters(node);
 
-        const body_node = node.childByFieldName("body") orelse {
-            try self.missingField(node, "body");
-            return null;
-        };
+        const body_node = try self.requiredField(node, "body") orelse return null;
         const body = try self.expression(body_node) orelse return null;
 
         return .{
@@ -388,17 +373,11 @@ const Walker = struct {
     }
 
     fn binding(self: *Walker, node: ts.Node) !?cst.Binding {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
         const name = try self.dupe(name_node);
         const params = try self.parameters(node);
 
-        const value_node = node.childByFieldName("value") orelse {
-            try self.missingField(node, "value");
-            return null;
-        };
+        const value_node = try self.requiredField(node, "value") orelse return null;
         const value = try self.expression(value_node) orelse return null;
 
         return .{
@@ -434,115 +413,119 @@ const Walker = struct {
         return collected.toOwnedSlice(self.allocator);
     }
 
+    const ExpressionKind = enum {
+        identifier,
+        qualified_identifier,
+        kind,
+        number,
+        boolean,
+        string,
+        regex,
+        field_access,
+        navigation,
+        leading_navigation,
+        application,
+        dollar_application,
+        infix_application,
+        operator_name,
+        left_section,
+        right_section,
+        if_expression,
+        case_expression,
+        type_identifier,
+        qualified_type_identifier,
+        lambda,
+        let_expression,
+        do_expression,
+        list,
+        record,
+        parenthesized,
+    };
+
     fn expression(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Expression {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
 
-        if (std.mem.eql(u8, kind, "identifier") or std.mem.eql(u8, kind, "qualified_identifier")) {
-            return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
-        }
-        if (std.mem.eql(u8, kind, "kind")) {
-            // The lexeme includes the leading `:`, which is punctuation.
-            const text = textOf(node, self.source);
-            const name = try self.allocator.dupe(u8, text[1..]);
-            return .{ .kind = .{ .kind_test = name }, .span = span };
-        }
-        if (std.mem.eql(u8, kind, "number")) {
-            const text = textOf(node, self.source);
-            const value = std.fmt.parseInt(i64, text, 10) catch {
-                try self.sink.report(.parse, span, "integer literal out of range", .{});
-                return null;
-            };
-            return .{ .kind = .{ .number = value }, .span = span };
-        }
-        if (std.mem.eql(u8, kind, "boolean")) {
-            const text = textOf(node, self.source);
-            return .{
-                .kind = .{ .boolean = std.mem.eql(u8, text, "true") },
-                .span = span,
-            };
-        }
-        if (std.mem.eql(u8, kind, "string")) {
-            const text = textOf(node, self.source);
-            const body = if (text.len >= 2) text[1 .. text.len - 1] else text;
-            switch (try string_literal.decode(self.allocator, body)) {
-                .bytes => |bytes| return .{ .kind = .{ .string = bytes }, .span = span },
-                .invalid_escape => |at| {
-                    try self.sink.report(
-                        .parse,
-                        span,
-                        "`{s}` is not an escape; write `\\\\` for a backslash",
-                        .{body[at .. at + 2]},
-                    );
+        if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
+            .identifier, .qualified_identifier => {
+                return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
+            },
+            .kind => {
+                // The lexeme includes the leading `:`, which is punctuation.
+                const text = textOf(node, self.source);
+                const name = try self.allocator.dupe(u8, text[1..]);
+                return .{ .kind = .{ .kind_test = name }, .span = span };
+            },
+            .number => {
+                const text = textOf(node, self.source);
+                const value = std.fmt.parseInt(i64, text, 10) catch {
+                    try self.sink.report(.parse, span, "integer literal out of range", .{});
                     return null;
-                },
-            }
-        }
-        if (std.mem.eql(u8, kind, "regex")) {
-            // `r"..."`: two leading bytes, one trailing.
-            const text = textOf(node, self.source);
-            const body = if (text.len >= 3) text[2 .. text.len - 1] else text;
-            return .{
-                .kind = .{ .regex = try self.allocator.dupe(u8, body) },
-                .span = span,
-            };
-        }
-        if (std.mem.eql(u8, kind, "field_access")) {
-            return self.projection(node, span);
-        }
-        if (std.mem.eql(u8, kind, "navigation") or std.mem.eql(u8, kind, "leading_navigation")) {
-            return self.navigation(node, span);
-        }
-        if (std.mem.eql(u8, kind, "application") or std.mem.eql(u8, kind, "dollar_application")) {
-            return self.application(node, span);
-        }
-        if (std.mem.eql(u8, kind, "infix_application")) {
-            return self.infixApplication(node, span);
-        }
-        if (std.mem.eql(u8, kind, "operator_name") or
-            std.mem.eql(u8, kind, "left_section") or
-            std.mem.eql(u8, kind, "right_section"))
-        {
-            return self.section(node, span);
-        }
-        if (std.mem.eql(u8, kind, "if_expression")) {
-            return self.ifExpr(node, span);
-        }
-        if (std.mem.eql(u8, kind, "case_expression")) {
-            return self.caseExpr(node, span);
-        }
-        if (isConstructor(kind)) {
-            return cst.Expression{
-                .kind = .{ .constructor = try self.dupe(node) },
-                .span = span,
-            };
-        }
-        if (std.mem.eql(u8, kind, "lambda")) {
-            return self.lambda(node, span);
-        }
-        if (std.mem.eql(u8, kind, "let_expression")) {
-            return self.letExpr(node, span);
-        }
-        if (std.mem.eql(u8, kind, "do_expression")) {
-            return self.doExpr(node, span);
-        }
-        if (std.mem.eql(u8, kind, "list")) {
-            return self.list(node, span);
-        }
-        if (std.mem.eql(u8, kind, "record")) {
-            return self.record(node, span);
-        }
-        if (std.mem.eql(u8, kind, "parenthesized")) {
-            const inner_node = node.namedChild(0) orelse {
-                try self.missingField(node, "expression");
-                return null;
-            };
-            const inner = try self.expression(inner_node) orelse return null;
-            return .{
-                .kind = .{ .parenthesized = try self.boxed(inner) },
-                .span = span,
-            };
-        }
+                };
+                return .{ .kind = .{ .number = value }, .span = span };
+            },
+            .boolean => {
+                const text = textOf(node, self.source);
+                return .{
+                    .kind = .{ .boolean = std.mem.eql(u8, text, "true") },
+                    .span = span,
+                };
+            },
+            .string => {
+                const text = textOf(node, self.source);
+                const body = if (text.len >= 2) text[1 .. text.len - 1] else text;
+                switch (try string_literal.decode(self.allocator, body)) {
+                    .bytes => |bytes| return .{ .kind = .{ .string = bytes }, .span = span },
+                    .invalid_escape => |at| {
+                        try self.sink.report(
+                            .parse,
+                            span,
+                            "`{s}` is not an escape; write `\\\\` for a backslash",
+                            .{body[at .. at + 2]},
+                        );
+                        return null;
+                    },
+                }
+            },
+            .regex => {
+                // `r"..."`: two leading bytes, one trailing.
+                const text = textOf(node, self.source);
+                const body = if (text.len >= 3) text[2 .. text.len - 1] else text;
+                return .{
+                    .kind = .{ .regex = try self.allocator.dupe(u8, body) },
+                    .span = span,
+                };
+            },
+            .field_access => return self.projection(node, span),
+            .navigation, .leading_navigation => return self.navigation(node, span),
+            .application, .dollar_application => return self.application(node, span),
+            .infix_application => return self.infixApplication(node, span),
+            .operator_name, .left_section, .right_section => return self.section(node, span),
+            .if_expression => return self.ifExpr(node, span),
+            .case_expression => return self.caseExpr(node, span),
+            .type_identifier, .qualified_type_identifier => {
+                return cst.Expression{
+                    .kind = .{ .constructor = try self.dupe(node) },
+                    .span = span,
+                };
+            },
+            .lambda => return self.lambda(node, span),
+            .let_expression => return self.letExpr(node, span),
+            .do_expression => return self.doExpr(node, span),
+            .list => return self.list(node, span),
+            .record => return self.record(node, span),
+            .parenthesized => {
+                const inner_node = node.namedChild(0) orelse {
+                    try self.missingField(node, "expression");
+                    return null;
+                };
+                const inner = try self.expression(inner_node) orelse return null;
+                return .{
+                    .kind = .{ .parenthesized = try self.boxed(inner) },
+                    .span = span,
+                };
+            },
+        };
 
         if (binaryOperatorOf(kind)) |_| {
             return self.binary(node, span);
@@ -557,18 +540,12 @@ const Walker = struct {
 
     /// `r.l`, or the section `_.l`.
     fn projection(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const record_node = node.childByFieldName("record") orelse {
-            try self.missingField(node, "record");
-            return null;
-        };
+        const record_node = try self.requiredField(node, "record") orelse return null;
         const subject: ?cst.Expression = if (std.mem.eql(u8, textOf(record_node, self.source), "_"))
             null
         else
             try self.expression(record_node) orelse return null;
-        const label_node = node.childByFieldName("field") orelse {
-            try self.missingField(node, "field");
-            return null;
-        };
+        const label_node = try self.requiredField(node, "field") orelse return null;
         return .{
             .kind = .{ .projection = try self.boxed(cst.Projection{
                 .record = subject,
@@ -584,10 +561,7 @@ const Walker = struct {
             try self.expression(n) orelse return null
         else
             null;
-        const field_node = node.childByFieldName("field") orelse {
-            try self.missingField(node, "field");
-            return null;
-        };
+        const field_node = try self.requiredField(node, "field") orelse return null;
         return .{
             .kind = .{ .navigation = try self.boxed(cst.Navigation{
                 .node = subject,
@@ -598,14 +572,8 @@ const Walker = struct {
     }
 
     fn application(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const fn_node = node.childByFieldName("function") orelse {
-            try self.missingField(node, "function");
-            return null;
-        };
-        const arg_node = node.childByFieldName("argument") orelse {
-            try self.missingField(node, "argument");
-            return null;
-        };
+        const fn_node = try self.requiredField(node, "function") orelse return null;
+        const arg_node = try self.requiredField(node, "argument") orelse return null;
         const function = try self.expression(fn_node) orelse return null;
         const argument = try self.expression(arg_node) orelse return null;
         return .{
@@ -619,18 +587,9 @@ const Walker = struct {
 
     /// ``a `f` b``, as `f a b`.
     fn infixApplication(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const left_node = node.childByFieldName("left") orelse {
-            try self.missingField(node, "left");
-            return null;
-        };
-        const fn_node = node.childByFieldName("function") orelse {
-            try self.missingField(node, "function");
-            return null;
-        };
-        const right_node = node.childByFieldName("right") orelse {
-            try self.missingField(node, "right");
-            return null;
-        };
+        const left_node = try self.requiredField(node, "left") orelse return null;
+        const fn_node = try self.requiredField(node, "function") orelse return null;
+        const right_node = try self.requiredField(node, "right") orelse return null;
         const left = try self.expression(left_node) orelse return null;
         const function = try self.expression(fn_node) orelse return null;
         const right = try self.expression(right_node) orelse return null;
@@ -652,15 +611,9 @@ const Walker = struct {
 
     /// `(op)`, `(e op)` or `(op e)`.
     fn section(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const op_node = node.childByFieldName("operator") orelse {
-            try self.missingField(node, "operator");
-            return null;
-        };
+        const op_node = try self.requiredField(node, "operator") orelse return null;
         const operator: cst.SectionOperator = if (std.mem.eql(u8, op_node.grammarKind(), "backtick_operator")) blk: {
-            const fn_node = op_node.childByFieldName("function") orelse {
-                try self.missingField(op_node, "function");
-                return null;
-            };
+            const fn_node = try self.requiredField(op_node, "function") orelse return null;
             break :blk .{ .function = try self.expression(fn_node) orelse return null };
         } else if (std.mem.eql(u8, textOf(op_node, self.source), "$"))
             .dollar
@@ -690,14 +643,8 @@ const Walker = struct {
     }
 
     fn binary(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const left_node = node.childByFieldName("left") orelse {
-            try self.missingField(node, "left");
-            return null;
-        };
-        const right_node = node.childByFieldName("right") orelse {
-            try self.missingField(node, "right");
-            return null;
-        };
+        const left_node = try self.requiredField(node, "left") orelse return null;
+        const right_node = try self.requiredField(node, "right") orelse return null;
 
         const operator = if (node.childByFieldName("operator")) |op_node|
             operatorFromSpelling(textOf(op_node, self.source)) orelse {
@@ -726,10 +673,7 @@ const Walker = struct {
     }
 
     fn dataDeclaration(self: *Walker, node: ts.Node) !?cst.DataDeclaration {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
         const name = try self.dupe(name_node);
         var params: std.ArrayList(cst.Identifier) = .empty;
         var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
@@ -761,14 +705,8 @@ const Walker = struct {
     }
 
     fn typeAlias(self: *Walker, node: ts.Node) !?cst.TypeAlias {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
-        const type_node = node.childByFieldName("type") orelse {
-            try self.missingField(node, "type");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const type_node = try self.requiredField(node, "type") orelse return null;
         const name = try self.dupe(name_node);
         var params: std.ArrayList(cst.Identifier) = .empty;
 
@@ -795,10 +733,7 @@ const Walker = struct {
     }
 
     fn constructorDeclaration(self: *Walker, node: ts.Node) !?cst.ConstructorDeclaration {
-        const name_node = node.childByFieldName("name") orelse {
-            try self.missingField(node, "name");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "name") orelse return null;
         const name = try self.dupe(name_node);
         var fields: std.ArrayList(cst.Type) = .empty;
 
@@ -824,10 +759,7 @@ const Walker = struct {
     }
 
     fn caseExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const scrutinee_node = node.childByFieldName("scrutinee") orelse {
-            try self.missingField(node, "scrutinee");
-            return null;
-        };
+        const scrutinee_node = try self.requiredField(node, "scrutinee") orelse return null;
         const scrutinee = try self.expression(scrutinee_node) orelse return null;
         var alternatives: std.ArrayList(cst.Case.Alternative) = .empty;
 
@@ -855,14 +787,8 @@ const Walker = struct {
     }
 
     fn caseAlternative(self: *Walker, node: ts.Node) !?cst.Case.Alternative {
-        const pattern_node = node.childByFieldName("pattern") orelse {
-            try self.missingField(node, "pattern");
-            return null;
-        };
-        const body_node = node.childByFieldName("body") orelse {
-            try self.missingField(node, "body");
-            return null;
-        };
+        const pattern_node = try self.requiredField(node, "pattern") orelse return null;
+        const body_node = try self.requiredField(node, "body") orelse return null;
         const pattern = try self.casePattern(pattern_node) orelse return null;
         const body = try self.expression(body_node) orelse return null;
         return .{
@@ -892,10 +818,7 @@ const Walker = struct {
             return try self.casePattern(inner);
         }
         if (std.mem.eql(u8, kind, "constructor_pattern")) {
-            const name_node = node.childByFieldName("constructor") orelse {
-                try self.missingField(node, "constructor");
-                return null;
-            };
+            const name_node = try self.requiredField(node, "constructor") orelse return null;
             var arguments: std.ArrayList(cst.Pattern) = .empty;
             var cursor = node.walk();
             defer cursor.destroy();
@@ -933,14 +856,8 @@ const Walker = struct {
             };
         }
         if (std.mem.eql(u8, kind, "cons_pattern")) {
-            const head_node = node.childByFieldName("head") orelse {
-                try self.missingField(node, "head");
-                return null;
-            };
-            const tail_node = node.childByFieldName("tail") orelse {
-                try self.missingField(node, "tail");
-                return null;
-            };
+            const head_node = try self.requiredField(node, "head") orelse return null;
+            const tail_node = try self.requiredField(node, "tail") orelse return null;
             const head = try self.casePattern(head_node) orelse return null;
             const tail = try self.casePattern(tail_node) orelse return null;
             return .{
@@ -955,18 +872,9 @@ const Walker = struct {
     }
 
     fn ifExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const cond_node = node.childByFieldName("condition") orelse {
-            try self.missingField(node, "condition");
-            return null;
-        };
-        const then_node = node.childByFieldName("consequence") orelse {
-            try self.missingField(node, "consequence");
-            return null;
-        };
-        const else_node = node.childByFieldName("alternative") orelse {
-            try self.missingField(node, "alternative");
-            return null;
-        };
+        const cond_node = try self.requiredField(node, "condition") orelse return null;
+        const then_node = try self.requiredField(node, "consequence") orelse return null;
+        const else_node = try self.requiredField(node, "alternative") orelse return null;
         const condition = try self.expression(cond_node) orelse return null;
         const consequence = try self.expression(then_node) orelse return null;
         const alternative = try self.expression(else_node) orelse return null;
@@ -982,10 +890,7 @@ const Walker = struct {
 
     fn lambda(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const params = try self.parameters(node);
-        const body_node = node.childByFieldName("body") orelse {
-            try self.missingField(node, "body");
-            return null;
-        };
+        const body_node = try self.requiredField(node, "body") orelse return null;
         const body = try self.expression(body_node) orelse return null;
         return .{
             .kind = .{ .lambda = try self.boxed(cst.Lambda{
@@ -997,15 +902,9 @@ const Walker = struct {
     }
 
     fn letExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        const group_node = node.childByFieldName("bindings") orelse {
-            try self.missingField(node, "bindings");
-            return null;
-        };
+        const group_node = try self.requiredField(node, "bindings") orelse return null;
         const binding_list = try self.bindings(group_node);
-        const body_node = node.childByFieldName("body") orelse {
-            try self.missingField(node, "body");
-            return null;
-        };
+        const body_node = try self.requiredField(node, "body") orelse return null;
         const body = try self.expression(body_node) orelse return null;
         return .{
             .kind = .{ .let = try self.boxed(cst.Let{
@@ -1025,14 +924,8 @@ const Walker = struct {
             if (child.isExtra()) continue;
             const kind = child.grammarKind();
             if (std.mem.eql(u8, kind, "bind_statement")) {
-                const name_node = child.childByFieldName("name") orelse {
-                    try self.missingField(child, "name");
-                    continue;
-                };
-                const value_node = child.childByFieldName("value") orelse {
-                    try self.missingField(child, "value");
-                    continue;
-                };
+                const name_node = try self.requiredField(child, "name") orelse continue;
+                const value_node = try self.requiredField(child, "value") orelse continue;
                 const name = try self.dupe(name_node);
                 if (try self.expression(value_node)) |value| {
                     try statements.append(self.allocator, .{ .bind = .{
@@ -1042,10 +935,7 @@ const Walker = struct {
                     } });
                 }
             } else if (std.mem.eql(u8, kind, "let_statement")) {
-                const group_node = child.childByFieldName("bindings") orelse {
-                    try self.missingField(child, "bindings");
-                    continue;
-                };
+                const group_node = try self.requiredField(child, "bindings") orelse continue;
                 try statements.append(self.allocator, .{ .let = .{
                     .bindings = try self.bindings(group_node),
                     .span = spanOf(child, self.source_id),
@@ -1103,13 +993,11 @@ const Walker = struct {
             while (true) {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "record_field")) {
-                    const name_node = child.childByFieldName("name") orelse {
-                        try self.missingField(child, "name");
+                    const name_node = try self.requiredField(child, "name") orelse {
                         if (!cursor.gotoNextSibling()) break;
                         continue;
                     };
-                    const value_node = child.childByFieldName("value") orelse {
-                        try self.missingField(child, "value");
+                    const value_node = try self.requiredField(child, "value") orelse {
                         if (!cursor.gotoNextSibling()) break;
                         continue;
                     };
@@ -1133,10 +1021,7 @@ const Walker = struct {
     }
 
     fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
-        const name_node = node.childByFieldName("constructor") orelse {
-            try self.missingField(node, "constructor");
-            return null;
-        };
+        const name_node = try self.requiredField(node, "constructor") orelse return null;
         const constructor = try self.dupe(name_node);
         var arguments: std.ArrayList(cst.Type) = .empty;
 
@@ -1183,14 +1068,8 @@ const Walker = struct {
             };
         }
         if (std.mem.eql(u8, kind, "function_type")) {
-            const from_node = node.childByFieldName("from") orelse {
-                try self.missingField(node, "from");
-                return null;
-            };
-            const to_node = node.childByFieldName("to") orelse {
-                try self.missingField(node, "to");
-                return null;
-            };
+            const from_node = try self.requiredField(node, "from") orelse return null;
+            const to_node = try self.requiredField(node, "to") orelse return null;
             const from = try self.typeExpr(from_node) orelse return null;
             const to = try self.typeExpr(to_node) orelse return null;
             return cst.Type{
@@ -1202,14 +1081,8 @@ const Walker = struct {
             };
         }
         if (std.mem.eql(u8, kind, "filter_type")) {
-            const in_node = node.childByFieldName("input") orelse {
-                try self.missingField(node, "input");
-                return null;
-            };
-            const out_node = node.childByFieldName("output") orelse {
-                try self.missingField(node, "output");
-                return null;
-            };
+            const in_node = try self.requiredField(node, "input") orelse return null;
+            const out_node = try self.requiredField(node, "output") orelse return null;
             const input = try self.typeExpr(in_node) orelse return null;
             const output = try self.typeExpr(out_node) orelse return null;
             return cst.Type{
@@ -1251,13 +1124,11 @@ const Walker = struct {
                 while (true) {
                     const child = cursor.node();
                     if (std.mem.eql(u8, child.grammarKind(), "record_type_field")) {
-                        const name_node = child.childByFieldName("name") orelse {
-                            try self.missingField(child, "name");
+                        const name_node = try self.requiredField(child, "name") orelse {
                             if (!cursor.gotoNextSibling()) break;
                             continue;
                         };
-                        const type_node = child.childByFieldName("type") orelse {
-                            try self.missingField(child, "type");
+                        const type_node = try self.requiredField(child, "type") orelse {
                             if (!cursor.gotoNextSibling()) break;
                             continue;
                         };
