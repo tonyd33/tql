@@ -1,6 +1,6 @@
 title: an expression statement is a bind whose value is discarded
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `guard $ ...;` needs no `_ <-`.
 
@@ -22,3 +22,10 @@ class Store {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind class_decl <- children_of_kind :class_declaration root in
+  bind name <- field[name] class_decl in
+  bind _ <- guard (op[~] (text name) r"^S") in
+  return (text name)

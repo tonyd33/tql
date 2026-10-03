@@ -1,6 +1,6 @@
 title: comparison operators on integers
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = const [1 < 2, 2 <= 2, 3 > 4, 3 >= 3];
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = const (Cons (op[<] 1 2) (Cons (op[<=] 2 2) (Cons (op[>] 3 4) (Cons (op[>=] 3 3) Nil))))

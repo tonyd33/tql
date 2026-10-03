@@ -1,6 +1,6 @@
 title: nested patterns match a declared datatype
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 A nullary constructor in argument position needs no parentheses.
 
@@ -25,3 +25,19 @@ class A {}
 --- types ---
 both :: Maybe Int -> Maybe Int -> Int
 main :: Node -> [Int]
+
+--- core ---
+both = \m -> \n ->
+  letrec alternative = 0 in
+  case Cons m (Cons n Nil) of
+    Nil -> alternative
+    Cons cons0 cons1 -> case cons0 of
+      Just a -> case cons1 of
+        Nil -> alternative
+        Cons cons0 cons1 -> case cons0 of
+          Just b -> case cons1 of
+            Nil -> op[+] a b
+            Cons _ _ -> alternative
+          Nothing -> alternative
+      Nothing -> op[-] 0 1
+main = const (Cons (both (Just 1) (Just 2)) (Cons (both Nothing (Just 2)) (Cons (both (Just 1) Nothing) Nil)))

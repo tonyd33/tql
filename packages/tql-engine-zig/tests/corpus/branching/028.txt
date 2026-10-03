@@ -1,6 +1,6 @@
 title: a cons pattern binds head and tail
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 sum xs = case xs of {
@@ -18,3 +18,9 @@ class A {}
 --- types ---
 sum :: [Int] -> Int
 main :: Node -> [Int]
+
+--- core ---
+sum = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (sum t)
+main = pure (sum (Cons 1 (Cons 2 (Cons 3 Nil))))

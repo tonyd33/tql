@@ -1,6 +1,6 @@
 title: forward references between globals are valid
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `main` refers to `helper`, which is declared after it. Declaration heads are
 collected before any body is resolved.
@@ -18,3 +18,7 @@ class A {}
 --- types ---
 main :: Node -> [Int]
 helper :: Int -> Int
+
+--- core ---
+main = pure (helper 3)
+helper = \n -> op[*] n 2

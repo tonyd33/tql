@@ -1,6 +1,6 @@
 title: a `let` group is a recursive SCC
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `countdown` refers to itself. The group is inferred as a recursive SCC, so a
 self-reference resolves without a forward declaration.
@@ -18,3 +18,12 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec
+    countdown = \n -> case op[<=] n 0 of
+      False -> countdown (op[-] n 1)
+      True -> 0
+  in
+  pure (countdown 3)

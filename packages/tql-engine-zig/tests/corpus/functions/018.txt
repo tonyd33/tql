@@ -1,6 +1,6 @@
 title: a lambda used directly as a pipe stage argument
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 apply f x = f x;
@@ -15,3 +15,7 @@ class A {}
 --- types ---
 apply :: (a -> b) -> a -> b
 main :: Node -> [Int]
+
+--- core ---
+apply = \f -> \x -> f x
+main = pure (apply (\n -> op[*] n 3) 5)

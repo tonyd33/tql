@@ -1,9 +1,9 @@
-title: an outer input must be bound explicitly to survive a later bind
+title: the block's argument stays in scope after later binds
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
-`root` is bound before the navigation so the body can still reach the program
-node after the current input has been rebased onto a class node.
+`root` is `main`'s parameter, so the final expression can still read the
+program node after two binds.
 
 --- tql ---
 main root = do {
@@ -20,3 +20,9 @@ class A {}
 
 --- types ---
 main :: Node -> [{class: String, root: String}]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind cn <- field[name] c in
+  return (record[class,root] (text cn) (kind root))

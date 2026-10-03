@@ -1,6 +1,6 @@
 title: a global is forced at most once and memoized
 grammar: typescript
-asserts: types, values
+asserts: types, values, stg
 
 `shared` is referenced twice. Memoization is not directly observable as a
 value, so the evidence here is only that both references agree; that a global
@@ -19,3 +19,17 @@ class A {}
 --- types ---
 shared :: Int
 main :: Node -> [Int]
+
+--- stg ---
+shared = {} \u {} -> op[*]# 6 7
+main = {} \u {} ->
+  let
+    t2 = {} \u {} ->
+      let
+        t1 = {} \u {} ->
+          let c0 = Nil in
+          Cons shared c0@0
+      in
+      Cons shared t1@0
+  in
+  const t2@0

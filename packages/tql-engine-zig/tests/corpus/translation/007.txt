@@ -1,0 +1,29 @@
+title: every definition numbers its fresh binders from zero
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+f x = x + (1 + 2);
+main = pure (f (3 + 4));
+
+--- source ---
+class A {}
+
+--- values ---
+[10]
+
+--- stg ---
+f = {} \u {} ->
+  let
+    t1 = {} \n {x} ->
+      let t0 = {} \u {} -> op[+]# 1 2 in
+      op[+]# x@0 t0@1
+  in
+  t1@0
+main = {} \u {} ->
+  let
+    t1 = {} \u {} ->
+      let t0 = {} \u {} -> op[+]# 3 4 in
+      f t0@0
+  in
+  pure t1@0

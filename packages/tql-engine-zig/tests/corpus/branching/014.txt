@@ -1,6 +1,6 @@
 title: `and` and `or` are left-associative
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `false and true or true` groups as `(false and true) or true`. The alternative
 grouping `false and (true or true)` would yield `false`.
@@ -16,3 +16,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = pure (or (and False True) True)

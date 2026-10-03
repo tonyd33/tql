@@ -1,6 +1,6 @@
 title: pipe binds looser than comparison, union looser than pipe
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 The whole pipeline is the left operand of `<|>`. Union is the loosest
 operator, so it splits the expression last. Were it tighter than pipe, the last
@@ -25,3 +25,6 @@ class B {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = alt (kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[=] (text n) "A"))) (pure False)

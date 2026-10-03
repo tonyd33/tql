@@ -1,6 +1,6 @@
 title: `>>` after an empty left side yields nothing
 grammar: typescript
-asserts: values
+asserts: core, values
 
 --- tql ---
 main = const ([] >> [3]);
@@ -10,3 +10,9 @@ class A {}
 
 --- values ---
 []
+
+--- core ---
+main = const (
+  bind _ <- Nil in
+  Cons 3 Nil
+)

@@ -1,6 +1,6 @@
 title: a raw literal needs no escape for a slash
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `r"a/b"` is the three-character pattern `a/b`. A `/` is not special inside the
 literal, so it needs no escape; only `"` closes it.
@@ -16,3 +16,6 @@ let p = "xa/by";
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = kleisli (kleisli descendants (of_kind :string)) (arr (\s -> op[~] (text s) r"a/b"))

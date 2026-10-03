@@ -1,6 +1,6 @@
 title: an expression statement runs the rest of the block once per output
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -16,3 +16,8 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = \root ->
+  bind _ <- Cons 1 (Cons 2 Nil) in
+  return 3

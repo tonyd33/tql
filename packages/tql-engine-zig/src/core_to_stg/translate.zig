@@ -604,6 +604,7 @@ pub fn translate(
 
     const definitions = try arena.allocator().alloc(stg.Definition, program.definitions.len);
     for (program.definitions, definitions) |source, *definition| {
+        translator.generated = 0;
         definition.* = .{
             .symbol = source.symbol,
             .value = try translator.closure(&.{}, source.body),

@@ -7,6 +7,7 @@ const SECTION_TQL_TREE = "--- tql tree ---";
 const SECTION_VALUES = "--- values ---";
 const SECTION_CORE = "--- core ---";
 const SECTION_SIMPLIFIED = "--- simplified ---";
+const SECTION_STG = "--- stg ---";
 const SECTION_TYPES = "--- types ---";
 const SECTION_ERROR = "--- error ---";
 
@@ -18,6 +19,7 @@ pub const SectionKind = enum {
     values,
     core,
     simplified,
+    stg,
     types,
     @"error",
 
@@ -30,6 +32,7 @@ pub const SectionKind = enum {
             .values => "values",
             .core => "core",
             .simplified => "simplified",
+            .stg => "stg",
             .types => "types",
             .@"error" => "error",
         };
@@ -44,6 +47,7 @@ pub const SectionKind = enum {
             .values => SECTION_VALUES,
             .core => SECTION_CORE,
             .simplified => SECTION_SIMPLIFIED,
+            .stg => SECTION_STG,
             .types => SECTION_TYPES,
             .@"error" => SECTION_ERROR,
         };
@@ -140,6 +144,8 @@ pub const TestCase = struct {
     core: Section,
     /// The entry module's Core after checking and `core_to_core`.
     simplified: Section,
+    /// The entry module's definitions translated to STG, after `core_to_core`.
+    stg: Section,
     /// The inferred scheme of each entry-module definition, in declaration
     /// order. Independent of `core`: a program has an untyped Core term
     /// whether or not it typechecks.
@@ -160,6 +166,7 @@ pub const TestCase = struct {
             .values => self.values,
             .core => self.core,
             .simplified => self.simplified,
+            .stg => self.stg,
             .types => self.types,
             .@"error" => self.@"error",
         };
@@ -187,6 +194,7 @@ pub const TestCase = struct {
         self.values.deinit(allocator);
         self.core.deinit(allocator);
         self.simplified.deinit(allocator);
+        self.stg.deinit(allocator);
         self.types.deinit(allocator);
         self.@"error".deinit(allocator);
     }
@@ -377,6 +385,8 @@ fn parseSections(
     errdefer if (core) |s| s.deinit(allocator);
     var simplified: ?Section = null;
     errdefer if (simplified) |s| s.deinit(allocator);
+    var stg: ?Section = null;
+    errdefer if (stg) |s| s.deinit(allocator);
     var types: ?Section = null;
     errdefer if (types) |s| s.deinit(allocator);
     var err: ?Section = null;
@@ -399,6 +409,8 @@ fn parseSections(
             core = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_SIMPLIFIED)) {
             simplified = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_STG)) {
+            stg = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_TYPES)) {
             types = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_ERROR)) {
@@ -431,6 +443,7 @@ fn parseSections(
         .values = values orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
         .simplified = simplified orelse try dupeSection(allocator, here),
+        .stg = stg orelse try dupeSection(allocator, here),
         .types = types orelse try dupeSection(allocator, here),
         .@"error" = err orelse try dupeSection(allocator, here),
     };
@@ -444,6 +457,7 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_VALUES,
     SECTION_CORE,
     SECTION_SIMPLIFIED,
+    SECTION_STG,
     SECTION_TYPES,
     SECTION_ERROR,
 };
@@ -526,6 +540,7 @@ pub fn applyUpdates(
         .source_tree,
         .core,
         .simplified,
+        .stg,
         .types,
         .@"error",
     };
@@ -646,6 +661,7 @@ test "SectionKind.name returns correct strings" {
     try testing.expectEqualStrings("values", SectionKind.values.name());
     try testing.expectEqualStrings("core", SectionKind.core.name());
     try testing.expectEqualStrings("simplified", SectionKind.simplified.name());
+    try testing.expectEqualStrings("stg", SectionKind.stg.name());
     try testing.expectEqualStrings("error", SectionKind.@"error".name());
 }
 
@@ -668,6 +684,27 @@ test "a simplified section ends the section before it" {
     try testing.expectEqualStrings("main = kleisli children (of_kind :class_declaration)", tc.core.content);
     try testing.expectEqualStrings("main = children_of_kind :class_declaration", tc.simplified.content);
     try testing.expect(tc.asserts.has(.simplified));
+}
+
+test "an stg section ends the section before it" {
+    const input =
+        \\grammar: typescript
+        \\asserts: simplified, stg
+        \\
+        \\--- tql ---
+        \\main = pure 1;
+        \\--- simplified ---
+        \\main = pure 1
+        \\--- stg ---
+        \\main = {} \u {} -> pure 1
+    ;
+    var corpus = try parse(testing.allocator, input);
+    defer corpus.deinit();
+
+    const tc = corpus.case;
+    try testing.expectEqualStrings("main = pure 1", tc.simplified.content);
+    try testing.expectEqualStrings("main = {} \\u {} -> pure 1", tc.stg.content);
+    try testing.expect(tc.asserts.has(.stg));
 }
 
 test "parse single full case" {

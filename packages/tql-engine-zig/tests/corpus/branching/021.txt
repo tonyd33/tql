@@ -1,6 +1,6 @@
 title: the first alternative that matches wins
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `[1]` matches both `Cons x Nil` and `Cons x t`.
 
@@ -22,3 +22,11 @@ class A {}
 --- types ---
 shape :: [a] -> Int
 main :: Node -> [Int]
+
+--- core ---
+shape = \xs -> case xs of
+  Nil -> 0
+  Cons x t -> case t of
+    Nil -> 1
+    Cons _ _ -> 2
+main = const (Cons (shape (Cons 1 Nil)) (Cons (shape (Cons 1 (Cons 2 Nil))) (Cons (shape Nil) Nil)))

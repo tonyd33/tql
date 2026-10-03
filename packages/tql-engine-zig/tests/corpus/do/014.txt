@@ -1,6 +1,6 @@
 title: a `do` bind over a non-node stream
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 A bind is not node-specific; it binds each element of any list.
 
@@ -18,3 +18,8 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = \_ ->
+  bind n <- Cons 1 (Cons 2 (Cons 3 Nil)) in
+  return (op[*] n 10)

@@ -1,6 +1,6 @@
 title: a raw literal applies no escape processing
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `r"a\b"` is the pattern `a\b`: the backslash stands for itself and is passed to
 the regex engine unchanged. The JavaScript source writes that same backslash as
@@ -17,3 +17,6 @@ let p = "a\\b";
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = kleisli (kleisli descendants (of_kind :string)) (arr (\s -> op[~] (text s) r"a\b"))

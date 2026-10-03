@@ -1,0 +1,17 @@
+title: a saturated primitive is called directly
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+main = pure (length "ab");
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- stg ---
+main = {} \u {} ->
+  let t0 = {} \u {} -> length# "ab" in
+  pure t0@0

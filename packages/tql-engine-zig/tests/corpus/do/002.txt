@@ -1,6 +1,6 @@
-title: the body receives the bound value as its current input
+title: a bound name refers to the bound value, not the block's argument
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 The final expression reports the kind of `c`, the class node, rather than the
 root.
@@ -19,3 +19,8 @@ class A {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  return (kind c)

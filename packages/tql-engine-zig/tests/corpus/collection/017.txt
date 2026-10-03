@@ -1,6 +1,6 @@
 title: a list of records
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = collect $ children | of_kind :class_declaration
@@ -17,3 +17,6 @@ class B {}
 
 --- types ---
 main :: Node -> [[{name: String}]]
+
+--- core ---
+main = collect (kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> record[name] (text n))))

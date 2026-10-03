@@ -1,6 +1,6 @@
 title: a single stream bind runs the body once per output
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -17,3 +17,8 @@ class B {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  return (text c)

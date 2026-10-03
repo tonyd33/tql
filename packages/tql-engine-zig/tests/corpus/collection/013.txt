@@ -1,6 +1,6 @@
 title: field order is irrelevant for equality and type identity
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 The two record expressions list their labels in opposite order. They are the
 same value and the same type.
@@ -21,3 +21,11 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main =
+  letrec
+    x = record[a,b] 1 2
+    y = record[a,b] 1 2
+  in
+  pure (op[=] x y)

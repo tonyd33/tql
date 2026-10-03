@@ -1,6 +1,6 @@
 title: a record of scalars is built from bound nodes
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 Record fields are scalars, so the record is a scalar too. Navigation stays a
 filter, because a field may hold several nodes. A field read is bound first and
@@ -21,3 +21,9 @@ class Service {}
 
 --- types ---
 main :: Node -> [{kind: String, name: String}]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind n <- field[name] c in
+  return (record[kind,name] (kind c) (text n))

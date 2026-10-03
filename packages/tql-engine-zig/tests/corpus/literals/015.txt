@@ -1,6 +1,6 @@
 title: equality and inequality
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = const (Cons (op[=] 1 1) (Cons (op[!=] 1 1) (Cons (op[=] "a" "a") (Cons (op[=] "a" "b") Nil))))

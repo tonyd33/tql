@@ -1,6 +1,6 @@
 title: parentheses override precedence
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = pure $ (2 + 3) * 4;
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main = pure (op[*] (op[+] 2 3) 4)

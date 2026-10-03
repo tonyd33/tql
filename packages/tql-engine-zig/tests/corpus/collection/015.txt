@@ -1,6 +1,6 @@
 title: records nest and hold heterogeneous fields
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main root = do {
@@ -17,3 +17,9 @@ class A {}
 
 --- types ---
 main :: Node -> [{meta: {k: String, n: Int}, name: String}]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  bind n <- field[name] c in
+  return (record[meta,name] (record[k,n] (kind c) 1) (text n))

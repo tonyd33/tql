@@ -1,6 +1,6 @@
 title: a list pattern matches a fixed length
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 pair xs = case xs of {
@@ -18,3 +18,15 @@ class A {}
 --- types ---
 pair :: [a] -> [a]
 main :: Node -> [[Int]]
+
+--- core ---
+pair = \xs ->
+  letrec alternative = Nil in
+  case xs of
+    Nil -> alternative
+    Cons a cons1 -> case cons1 of
+      Nil -> alternative
+      Cons b cons1 -> case cons1 of
+        Nil -> Cons a (Cons b Nil)
+        Cons _ _ -> alternative
+main = alt (pure (pair (Cons 1 (Cons 2 Nil)))) (pure (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))

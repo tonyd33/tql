@@ -1,6 +1,6 @@
 title: an alternative's body sees the binders of every enclosing alternative
 grammar: typescript
-asserts: values
+asserts: core, values
 
 --- tql ---
 type P = Mk Int Int;
@@ -13,3 +13,10 @@ class A {}
 
 --- values ---
 [1234]
+
+--- core ---
+main = pure (
+  case Mk 1 2 of
+    Mk a b -> case Mk 3 4 of
+      Mk c d -> op[+] (op[+] (op[+] (op[*] 1000 a) (op[*] 100 b)) (op[*] 10 c)) d
+)

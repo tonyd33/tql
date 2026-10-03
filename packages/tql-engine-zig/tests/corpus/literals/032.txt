@@ -1,6 +1,6 @@
 title: comparison binds looser than arithmetic
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 --- tql ---
 main = pure $ 1 + 1 = 2;
@@ -13,3 +13,6 @@ class A {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = pure (op[=] (op[+] 1 1) 2)

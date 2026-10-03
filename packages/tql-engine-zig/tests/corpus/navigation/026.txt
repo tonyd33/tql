@@ -1,6 +1,6 @@
 title: a kind test on a child axis fuses into the axis
 grammar: typescript
-asserts: simplified, values
+asserts: core, simplified, values
 
 --- tql ---
 main = children | of_kind :class_declaration;
@@ -31,3 +31,6 @@ class B {}
 
 --- simplified ---
 main = children_of_kind :class_declaration
+
+--- core ---
+main = kleisli children (of_kind :class_declaration)

@@ -1,6 +1,6 @@
 title: bindings are order-independent
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `first` refers to `second`, which is written after it. Declaration order has no
 semantic effect, so this resolves.
@@ -21,3 +21,11 @@ class A {}
 
 --- types ---
 main :: Node -> [Int]
+
+--- core ---
+main =
+  letrec
+    first = op[+] second 1
+    second = 10
+  in
+  pure first

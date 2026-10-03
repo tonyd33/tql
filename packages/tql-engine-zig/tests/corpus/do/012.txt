@@ -1,6 +1,6 @@
-title: a bound scalar is lifted in an operator operand
+title: a `let`-bound scalar is an ordinary operator operand
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `expected` is a bound `String`, compared as an ordinary operand of `=`.
 
@@ -21,3 +21,10 @@ class B {}
 
 --- types ---
 main :: Node -> [Bool]
+
+--- core ---
+main = \root ->
+  bind c <- children_of_kind :class_declaration root in
+  letrec expected = "A" in
+  bind n <- field[name] c in
+  return (op[=] (text n) expected)

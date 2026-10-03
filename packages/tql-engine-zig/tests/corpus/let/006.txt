@@ -1,6 +1,6 @@
 title: a `let` binding holds a filter value used as a pipe stage
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 `names` is bound to a filter, not to its results. Binding does not run it; the
 pipe does.
@@ -19,3 +19,8 @@ class B {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main =
+  letrec names = kleisli field[name] (arr text) in
+  kleisli (kleisli children (of_kind :class_declaration)) names

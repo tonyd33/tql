@@ -504,8 +504,7 @@ test "the prelude's bodies compile to Core" {
     const printer: core.Printer = .{ .interner = &program.env.interner };
     for (program.definitions[0..program.entry_offset], 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try w.writer.print("{s} = ", .{program.env.interner.spelling(definition.symbol)});
-        try printer.term(definition.body, &w.writer);
+        try printer.definition(definition.symbol, definition.body, &w.writer);
     }
 
     try std.testing.expectEqualStrings(
@@ -513,22 +512,58 @@ test "the prelude's bodies compile to Core" {
         \\const = \x -> \y -> x
         \\compose = \f -> \g -> \x -> f (g x)
         \\flip = \f -> \x -> \y -> f y x
-        \\null = \xs -> case xs of { Nil -> True; Cons h t -> False }
-        \\append = \xs -> \ys -> case xs of { Nil -> ys; Cons h t -> Cons h (append t ys) }
-        \\concat = \xss -> case xss of { Nil -> Nil; Cons h t -> append h (concat t) }
-        \\map = \f -> \xs -> case xs of { Nil -> Nil; Cons h t -> Cons (f h) (map f t) }
-        \\concat_map = \f -> \xs -> case xs of { Nil -> Nil; Cons h t -> append (f h) (concat_map f t) }
-        \\filter = \p -> \xs -> case xs of { Nil -> Nil; Cons h t -> case p h of { False -> filter p t; True -> Cons h (filter p t) } }
-        \\foldr = \f -> \z -> \xs -> case xs of { Nil -> z; Cons h t -> f h (foldr f z t) }
-        \\not = \b -> case b of { False -> True; True -> False }
-        \\and = \a -> \b -> case a of { False -> False; True -> b }
-        \\or = \a -> \b -> case a of { False -> b; True -> True }
-        \\any = \p -> \xs -> case xs of { Nil -> False; Cons h t -> or (p h) (any p t) }
-        \\all = \p -> \xs -> case xs of { Nil -> True; Cons h t -> and (p h) (all p t) }
-        \\guard = \b -> case b of { False -> Nil; True -> Cons Unit Nil }
+        \\null = \xs -> case xs of
+        \\  Nil -> True
+        \\  Cons h t -> False
+        \\append = \xs -> \ys -> case xs of
+        \\  Nil -> ys
+        \\  Cons h t -> Cons h (append t ys)
+        \\concat = \xss -> case xss of
+        \\  Nil -> Nil
+        \\  Cons h t -> append h (concat t)
+        \\map = \f -> \xs -> case xs of
+        \\  Nil -> Nil
+        \\  Cons h t -> Cons (f h) (map f t)
+        \\concat_map = \f -> \xs -> case xs of
+        \\  Nil -> Nil
+        \\  Cons h t -> append (f h) (concat_map f t)
+        \\filter = \p -> \xs -> case xs of
+        \\  Nil -> Nil
+        \\  Cons h t -> case p h of
+        \\    False -> filter p t
+        \\    True -> Cons h (filter p t)
+        \\foldr = \f -> \z -> \xs -> case xs of
+        \\  Nil -> z
+        \\  Cons h t -> f h (foldr f z t)
+        \\not = \b -> case b of
+        \\  False -> True
+        \\  True -> False
+        \\and = \a -> \b -> case a of
+        \\  False -> False
+        \\  True -> b
+        \\or = \a -> \b -> case a of
+        \\  False -> b
+        \\  True -> True
+        \\any = \p -> \xs -> case xs of
+        \\  Nil -> False
+        \\  Cons h t -> or (p h) (any p t)
+        \\all = \p -> \xs -> case xs of
+        \\  Nil -> True
+        \\  Cons h t -> and (p h) (all p t)
+        \\guard = \b -> case b of
+        \\  False -> Nil
+        \\  True -> Cons Unit Nil
         \\return = \a -> Cons a Nil
-        \\take = \n -> \xs -> case op[<=] n 0 of { False -> case xs of { Nil -> Nil; Cons h t -> Cons h (take (op[-] n 1) t) }; True -> Nil }
-        \\drop = \n -> \xs -> case op[<=] n 0 of { False -> case xs of { Nil -> Nil; Cons h t -> drop (op[-] n 1) t }; True -> xs }
+        \\take = \n -> \xs -> case op[<=] n 0 of
+        \\  False -> case xs of
+        \\    Nil -> Nil
+        \\    Cons h t -> Cons h (take (op[-] n 1) t)
+        \\  True -> Nil
+        \\drop = \n -> \xs -> case op[<=] n 0 of
+        \\  False -> case xs of
+        \\    Nil -> Nil
+        \\    Cons h t -> drop (op[-] n 1) t
+        \\  True -> xs
         \\head = \xs -> take 1 xs
         \\tail = \xs -> drop 1 xs
         \\pure = \v -> \x -> Cons v Nil
@@ -537,10 +572,14 @@ test "the prelude's bodies compile to Core" {
         \\alt = \p -> \q -> \x -> append (p x) (q x)
         \\arr = \f -> \x -> Cons (f x) Nil
         \\collect = \p -> \x -> Cons (p x) Nil
-        \\keep = \p -> \x -> case p x of { False -> Nil; True -> Cons x Nil }
+        \\keep = \p -> \x -> case p x of
+        \\  False -> Nil
+        \\  True -> Cons x Nil
         \\has = \p -> \x -> not (null (p x))
         \\first = \p -> \x -> head (p x)
-        \\or_else = \primary -> \fallback -> \x -> case primary x of { Nil -> fallback x; Cons h t -> Cons h t }
+        \\or_else = \primary -> \fallback -> \x -> case primary x of
+        \\  Nil -> fallback x
+        \\  Cons h t -> Cons h t
     , w.written());
 }
 

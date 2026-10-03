@@ -1,6 +1,6 @@
 title: `let` inside a pipe stage
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 The group is evaluated once per input value from the left stage.
 
@@ -18,3 +18,9 @@ class B {}
 
 --- types ---
 main :: Node -> [String]
+
+--- core ---
+main = kleisli (kleisli children (of_kind :class_declaration)) (
+  letrec n = kleisli field[name] (arr text) in
+  n
+)

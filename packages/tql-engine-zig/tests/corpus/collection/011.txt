@@ -1,6 +1,6 @@
 title: a cross product over two streams is written with `do`
 grammar: typescript
-asserts: types, values
+asserts: core, types, values
 
 Record fields are scalars, so a record does not fan out. Two streams are
 combined by binding each in turn: `a` binds first and varies slowest, which is
@@ -26,3 +26,9 @@ class A {}
 
 --- types ---
 main :: Node -> [{a: Int, b: String}]
+
+--- core ---
+main = \_ ->
+  bind a <- Cons 1 (Cons 2 Nil) in
+  bind b <- Cons "x" (Cons "y" Nil) in
+  return (record[a,b] a b)

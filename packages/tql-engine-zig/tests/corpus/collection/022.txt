@@ -1,6 +1,6 @@
 title: a list literal builds its elements in order
 grammar: typescript
-asserts: values
+asserts: core, values
 
 --- tql ---
 main = const [[1, 1 + 1, 3], []];
@@ -10,3 +10,6 @@ class A {}
 
 --- values ---
 [[1, 2, 3], []]
+
+--- core ---
+main = const (Cons (Cons 1 (Cons (op[+] 1 1) (Cons 3 Nil))) (Cons Nil Nil))

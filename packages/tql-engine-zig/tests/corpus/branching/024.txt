@@ -1,6 +1,6 @@
 title: a constructor's fields bind in declaration order
 grammar: typescript
-asserts: values
+asserts: core, values
 
 --- tql ---
 type P = Mk Int Int;
@@ -11,3 +11,9 @@ class A {}
 
 --- values ---
 [7]
+
+--- core ---
+main = pure (
+  case Mk 10 3 of
+    Mk a b -> op[-] a b
+)

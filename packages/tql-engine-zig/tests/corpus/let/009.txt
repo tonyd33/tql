@@ -1,6 +1,6 @@
 title: mutual recursion inside one group
 grammar: typescript
-asserts: core, types, values
+asserts: core, types, values, stg
 
 `is_even` and `is_odd` refer to each other. Both are checked monomorphically as
 one component, then generalized together.
@@ -20,7 +20,49 @@ class A {}
 [true, false]
 
 --- core ---
-main = letrec { is_even = \n -> case op[=] n 0 of { False -> is_odd (op[-] n 1); True -> True }; is_odd = \n -> case op[=] n 0 of { False -> is_even (op[-] n 1); True -> False } } in const (Cons (is_even 4) (Cons (is_even 7) Nil))
+main =
+  letrec
+    is_even = \n -> case op[=] n 0 of
+      False -> is_odd (op[-] n 1)
+      True -> True
+    is_odd = \n -> case op[=] n 0 of
+      False -> is_even (op[-] n 1)
+      True -> False
+  in
+  const (Cons (is_even 4) (Cons (is_even 7) Nil))
 
 --- types ---
 main :: Node -> [Bool]
+
+--- stg ---
+main = {} \u {} ->
+  letrec
+    is_even = {is_odd@1} \n {n} -> case op[=]# n@1 0 of
+      False ->
+        let t0 = {n@1} \u {} -> op[-]# n@0 1 in
+        is_odd@0 t0@2
+      True ->
+        let c1 = True in
+        c1@2
+    is_odd = {is_even@0} \n {n} -> case op[=]# n@1 0 of
+      False ->
+        let t2 = {n@1} \u {} -> op[-]# n@0 1 in
+        is_even@0 t2@2
+      True ->
+        let c3 = False in
+        c3@2
+  in
+  let
+    t8 = {is_even@0} \u {} ->
+      let
+        t4 = {is_even@0} \u {} -> is_even@0 4
+        t7 = {is_even@0} \u {} ->
+          let
+            t5 = {is_even@0} \u {} -> is_even@0 7
+            c6 = Nil
+          in
+          Cons t5@1 c6@2
+      in
+      Cons t4@1 t7@2
+  in
+  const t8@2
