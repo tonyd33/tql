@@ -36,7 +36,7 @@
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 - `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
 
-## 0.3.1 (unreleased)
+## 0.3.1 (2026-10-03)
 
 ### New Features
 

@@ -4,7 +4,7 @@ endif
 
 LANGUAGE_NAME := tree-sitter-tql
 HOMEPAGE_URL := https://github.com/tree-sitter/tree-sitter-tql
-VERSION := 0.3.0
+VERSION := 0.3.1
 
 # repository
 SRC_DIR := src
