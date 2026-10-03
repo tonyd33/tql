@@ -305,33 +305,49 @@ pub const Inference = struct {
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
 
-        const placeholders = try self.gpa.alloc(types.Type, l.bindings.len);
-        defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh();
-
-        for (l.bindings, placeholders) |b, p| {
-            try self.scope.push(b.name, .{ .monomorphic = p });
-        }
-
-        // Each inferred body must unify with its placeholder.
-        for (l.bindings, placeholders) |b, p| {
-            const inferred = try self.term(b.value);
-            try self.expect(inferred, p, b.value.span, .t_letrec);
-        }
-
-        // Generalize together, then check the body against the resulting
-        // schemes rather than the placeholders.
-        self.scope.truncate(mark);
         const generalized = try self.gpa.alloc(types.Scheme, l.bindings.len);
         defer self.gpa.free(generalized);
         const spans = try self.gpa.alloc(diagnostic.Span, l.bindings.len);
         defer self.gpa.free(spans);
         for (l.bindings, spans) |b, *span| span.* = b.value.span;
-        try self.generalizeGroup(placeholders, spans, generalized);
+        try self.inferGroup(l.bindings, spans, generalized);
+
+        // Check the body against the generalized schemes.
         for (l.bindings, generalized) |b, scheme| {
             try self.scope.push(b.name, .{ .scheme = scheme });
         }
         return try self.term(l.body);
+    }
+
+    /// Infer a group of mutually recursive bindings and generalize them
+    /// together, writing each one's scheme to `out`. Generalization reports
+    /// against `spans`, one per binding.
+    fn inferGroup(
+        self: *Inference,
+        bindings: []const core.Letrec.Binding,
+        spans: []const diagnostic.Span,
+        out: []types.Scheme,
+    ) Error!void {
+        const placeholders = try self.gpa.alloc(types.Type, bindings.len);
+        defer self.gpa.free(placeholders);
+        for (placeholders) |*p| p.* = try self.subst.fresh();
+
+        const mark = self.scope.mark();
+        defer self.scope.truncate(mark);
+        for (bindings, placeholders) |b, p| {
+            try self.scope.push(b.name, .{ .monomorphic = p });
+        }
+
+        // Each inferred body must unify with its placeholder.
+        for (bindings, placeholders) |b, p| {
+            const inferred = try self.term(b.value);
+            try self.expect(inferred, p, b.value.span, .t_letrec);
+        }
+
+        // Generalize against the environment *outside* the group, so the
+        // placeholders being dropped is what lets them be quantified.
+        self.scope.truncate(mark);
+        try self.generalizeGroup(placeholders, spans, out);
     }
 
     /// (T-Bind)      Gamma |- e_1 : [a]
@@ -453,34 +469,19 @@ pub const Inference = struct {
         definitions: []const core.Definition,
         members: []const u32,
     ) Error!void {
-        // Create a set of fresh metavars for each node
-        const placeholders = try self.gpa.alloc(types.Type, members.len);
-        defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh();
-
-        // Each definition symbol is assigned to a monomorphic metavar
-        const mark = self.scope.mark();
-        defer self.scope.truncate(mark);
-        for (members, placeholders) |index, p| {
-            try self.scope.push(definitions[index].symbol, .{ .monomorphic = p });
-        }
-
-        // Infer each definition body to be a letrec
-        for (members, placeholders) |index, p| {
-            const definition = definitions[index];
-            const body = try self.term(definition.body);
-            try self.expect(body, p, definition.body.span, .t_letrec);
-        }
-
-        // Generalize against the environment *outside* the component, so the
-        // placeholders being dropped is what lets them be quantified.
-        self.scope.truncate(mark);
-        const generalized = try self.gpa.alloc(types.Scheme, members.len);
-        defer self.gpa.free(generalized);
+        // A component is inferred as one letrec of its definitions.
+        const bindings = try self.gpa.alloc(core.Letrec.Binding, members.len);
+        defer self.gpa.free(bindings);
         const spans = try self.gpa.alloc(diagnostic.Span, members.len);
         defer self.gpa.free(spans);
-        for (members, spans) |index, *span| span.* = definitions[index].span;
-        try self.generalizeGroup(placeholders, spans, generalized);
+        for (members, bindings, spans) |index, *binding, *span| {
+            const definition = definitions[index];
+            binding.* = .{ .name = definition.symbol, .value = definition.body };
+            span.* = definition.span;
+        }
+        const generalized = try self.gpa.alloc(types.Scheme, members.len);
+        defer self.gpa.free(generalized);
+        try self.inferGroup(bindings, spans, generalized);
 
         for (members, generalized) |index, scheme| {
             const symbol = definitions[index].symbol;

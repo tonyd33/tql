@@ -24,51 +24,11 @@ pub const Outcome = union(enum) {
 
 /// Decides `class t`.
 pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: types.Type) Outcome {
-    // A failure names the type as written, alias included.
-    const written = subst.resolve(t);
-    return switch (subst.expand(written)) {
-        .meta => |id| .{ .deferred = id },
-        .variable => @panic("a bound type variable reached constraint solving"),
-        .alias => unreachable,
-        .primitive => |p| if (holdsForPrimitive(class, p)) .holds else .{ .fails = written },
-        .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
-            .never => .{ .fails = written },
-            // `Sized [a]` is the one that does not descend: a list has a
-            // length whatever its elements are.
-            .always => .holds,
-            .fields => conjunction(subst, class, c.arguments),
-        },
-        .record => |r| switch (class) {
-            .Sized, .Ord => .{ .fails = written },
-            // A row holds when every field it comes to have does.
-            .Eq, .Serial => meet(
-                conjunction(subst, class, r.fields),
-                if (r.rest) |rest| entails(subst, class, rest.*) else .holds,
-            ),
-        },
-        .function => .{ .fails = written },
-    };
-}
-
-/// Whether `class` holds for every operand: constructor arguments, or record
-/// fields.
-fn conjunction(subst: *Substitution, class: types.TypeClassConstraint.Class, operands: anytype) Outcome {
-    var outcome: Outcome = .holds;
-    for (operands) |operand| {
-        const t: types.Type = if (@TypeOf(operand) == types.Type.Field) operand.type.* else operand;
-        outcome = meet(outcome, entails(subst, class, t));
-        if (outcome == .fails) return outcome;
-    }
-    return outcome;
-}
-
-/// Both outcomes together: the first failure, else the first deferral.
-fn meet(first: Outcome, second: Outcome) Outcome {
-    return switch (first) {
-        .fails => first,
-        .deferred => if (second == .fails) second else first,
-        .holds => second,
-    };
+    var first: ?types.Meta = null;
+    const culprit = walk(FirstResidual, .{ .first = &first }, subst, class, t) catch |e| switch (e) {};
+    if (culprit) |c| return .{ .fails = c };
+    if (first) |meta| return .{ .deferred = meta };
+    return .holds;
 }
 
 /// A constraint on a bare metavariable. On a row's metavariable, it holds
@@ -89,26 +49,67 @@ pub fn reduce(
     out: *std.ArrayList(Residual),
     gpa: std.mem.Allocator,
 ) std.mem.Allocator.Error!?types.Type {
+    return walk(Collect, .{ .out = out, .gpa = gpa }, subst, class, t);
+}
+
+/// Keeps the first residual and drops the rest.
+const FirstResidual = struct {
+    first: *?types.Meta,
+
+    const Error = error{};
+
+    fn residual(self: FirstResidual, r: Residual) Error!void {
+        if (self.first.* == null) self.first.* = r.meta;
+    }
+};
+
+/// Keeps every residual.
+const Collect = struct {
+    out: *std.ArrayList(Residual),
+    gpa: std.mem.Allocator,
+
+    const Error = std.mem.Allocator.Error;
+
+    fn residual(self: Collect, r: Residual) Error!void {
+        try self.out.append(self.gpa, r);
+    }
+};
+
+/// Reduces `class t`, handing each residual to `sink` in the order it is
+/// reached.
+///
+/// Returns the first refuted part of `t`, if any, written as `t` writes it,
+/// alias included.
+fn walk(
+    comptime Sink: type,
+    sink: Sink,
+    subst: *Substitution,
+    class: types.TypeClassConstraint.Class,
+    t: types.Type,
+) Sink.Error!?types.Type {
     const written = subst.resolve(t);
     switch (subst.expand(written)) {
-        .meta => |id| try out.append(gpa, .{ .class = class, .meta = id }),
+        .meta => |id| try sink.residual(.{ .class = class, .meta = id }),
         .variable => @panic("a bound type variable reached constraint solving"),
         .alias => unreachable,
         .primitive => |p| if (!holdsForPrimitive(class, p)) return written,
         .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
             .never => return written,
+            // `Sized [a]` is the one that does not descend: a list has a
+            // length whatever its elements are.
             .always => {},
             .fields => for (c.arguments) |argument| {
-                if (try reduce(subst, class, argument, out, gpa)) |culprit| return culprit;
+                if (try walk(Sink, sink, subst, class, argument)) |culprit| return culprit;
             },
         },
         .record => |r| switch (class) {
             .Sized, .Ord => return written,
+            // A row holds when every field it comes to have does.
             .Eq, .Serial => {
                 for (r.fields) |f| {
-                    if (try reduce(subst, class, f.type.*, out, gpa)) |culprit| return culprit;
+                    if (try walk(Sink, sink, subst, class, f.type.*)) |culprit| return culprit;
                 }
-                if (r.rest) |rest| return try reduce(subst, class, rest.*, out, gpa);
+                if (r.rest) |rest| return try walk(Sink, sink, subst, class, rest.*);
             },
         },
         .function => return written,
