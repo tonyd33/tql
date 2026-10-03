@@ -210,10 +210,8 @@ pub const Translator = struct {
                         allocated.* = .{ .constructor = c.symbol, .tag = c.tag, .fields = &.{} };
                         return try self.bindConstructed(allocated, hoisted);
                     }
-                    // One that still wants fields is a function. Desugaring
-                    // applies every constructor to all of them, so nothing
-                    // reaches this.
-                    return error.Unsupported;
+                    // One that still wants fields is a function.
+                    return try self.bindClosure(try self.constructorWrapper(c), hoisted);
                 },
                 // A primitive passed as a value, as `select p = branch p
                 // identity empty` passes both of its arms.
@@ -413,17 +411,24 @@ pub const Translator = struct {
         if (head.kind == .symbol) {
             switch (self.resolve(head.kind.symbol)) {
                 .constructor => |c| {
-                    // An unsaturated constructor would need a wrapper closure.
-                    // Desugaring emits every constructor applied to all its
-                    // fields, so nothing produces one.
-                    if (c.fields.len != arguments.len) return error.Unsupported;
-                    const node = try self.arena.create(stg.Constructed);
+                    if (c.fields.len == arguments.len) {
+                        const node = try self.arena.create(stg.Constructed);
+                        node.* = .{
+                            .constructor = c.symbol,
+                            .tag = c.tag,
+                            .fields = arguments,
+                        };
+                        return .{ .constructed = node };
+                    }
+
+                    // An under-applied constructor becomes a call to its
+                    // wrapper.
+                    const node = try self.arena.create(stg.Expr.Apply);
                     node.* = .{
-                        .constructor = c.symbol,
-                        .tag = c.tag,
-                        .fields = arguments,
+                        .callee = try self.bindClosure(try self.constructorWrapper(c), hoisted),
+                        .arguments = arguments,
                     };
-                    return .{ .constructed = node };
+                    return .{ .apply = node };
                 },
                 .primitive => |primop| {
                     // A primitive node is saturated by construction, so the
@@ -516,6 +521,33 @@ pub const Translator = struct {
             .free = &.{},
             .parameters = parameters,
             .body = .{ .primitive = call_node },
+        };
+        return node;
+    }
+
+    /// Wrap a constructor with fields in a closure that builds it, so it can
+    /// be passed as a value or applied to fewer than all its fields.
+    fn constructorWrapper(
+        self: *Translator,
+        c: *const datatypes.Constructor,
+    ) Error!*const stg.Closure {
+        const parameters = try self.arena.alloc(core.SymbolId, c.fields.len);
+        const fields = try self.arena.alloc(stg.Atom, c.fields.len);
+        // No free variables, so the frame is exactly the parameters and each
+        // one's offset is its position.
+        for (parameters, fields, 0..) |*parameter, *field, i| {
+            parameter.* = try self.freshBinder("f");
+            field.* = .{ .local = .{ .offset = @intCast(i), .name = parameter.* } };
+        }
+
+        const constructed = try self.arena.create(stg.Constructed);
+        constructed.* = .{ .constructor = c.symbol, .tag = c.tag, .fields = fields };
+
+        const node = try self.arena.create(stg.Closure);
+        node.* = .{
+            .free = &.{},
+            .parameters = parameters,
+            .body = .{ .constructed = constructed },
         };
         return node;
     }
