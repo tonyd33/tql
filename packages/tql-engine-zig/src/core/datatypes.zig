@@ -156,6 +156,27 @@ pub const Registry = struct {
         return self.get(self.listId()).constructors[1];
     }
 
+    /// The scheme of `constructor`, of type `id`: its fields curried onto the
+    /// type at its own parameters.
+    pub fn constructorScheme(
+        self: *const Registry,
+        arena: Allocator,
+        id: TypeId,
+        constructor: Constructor,
+    ) Allocator.Error!types.Scheme {
+        const declared = self.get(id);
+        const arguments = try arena.alloc(types.Type, declared.parameters);
+        for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
+
+        var result = try types.constructed(arena, id, declared.name, arguments);
+        var i = constructor.fields.len;
+        while (i > 0) {
+            i -= 1;
+            result = try types.func(arena, constructor.fields[i], result);
+        }
+        return .{ .quantified = declared.parameters, .type = result };
+    }
+
     /// `[t]`, for a caller that has the registry.
     pub fn list(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
         return try types.constructed(arena, self.listId(), types.list_spelling, &.{element});
@@ -287,11 +308,10 @@ test "a declared type is reachable by name, id, and constructor" {
 }
 
 test "the structural accessors follow the declared tag order" {
-    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena.deinit();
-    var registry = Registry.init(arena.allocator());
-    var interner = symbols.Interner.init(arena.allocator());
-    try test_support.declareStructural(&registry, &interner, arena.allocator());
+    var e = try test_support.env(std.testing.allocator);
+    defer e.deinit();
+    const registry = &e.datatypes;
+    const interner = &e.interner;
 
     const f = registry.boolConstructor(false);
     const t = registry.boolConstructor(true);

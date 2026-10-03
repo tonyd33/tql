@@ -29,6 +29,10 @@
 - `module A.B for javascript, typescript;` declares the grammars a module reads. Importing it under another grammar is an error, and an imported module without `for` may not use grammar-specific syntax like kinds or fields.
 - `tql-js` `query` takes `modules`, a record of module name to source.
 
+### Improvements
+
+- A record literal with more fields than a type can index is reported at the literal. It was previously reported with no location.
+
 ## 0.3.1 (unreleased)
 
 ### New Features

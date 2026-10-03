@@ -2,7 +2,6 @@
 
 const constraints = @import("type_check/constraints.zig");
 const infer = @import("type_check/infer.zig");
-const schemes = @import("type_check/schemes.zig");
 const substitution = @import("type_check/substitution.zig");
 const unify = @import("type_check/unify.zig");
 
@@ -24,7 +23,6 @@ test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(constraints);
     refAllDecls(infer);
-    refAllDecls(schemes);
     refAllDecls(substitution);
     refAllDecls(unify);
 }
@@ -32,6 +30,7 @@ test {
 const std = @import("std");
 const core = @import("core.zig");
 const diagnostic = @import("diagnostic.zig");
+const primitives = @import("primitives.zig");
 const test_support = core.test_support;
 
 const testing = std.testing;
@@ -58,16 +57,7 @@ const Fixture = struct {
         };
         self.subst = Substitution.init(gpa, self.pb.env.allocator(), &self.pb.env.datatypes);
         try self.pb.datatype("Flag", &.{ .{ "Off", &.{} }, .{ "On", &.{} } });
-        self.inference = infer.Inference.init(
-            gpa,
-            &self.subst,
-            &self.undecided,
-            .{
-                .context = self,
-                .lookupFn = lookupScheme,
-            },
-            &self.pb.env,
-        );
+        self.inference = infer.Inference.init(gpa, &self.subst, &self.undecided, &self.pb.env);
         return self;
     }
 
@@ -77,22 +67,6 @@ const Fixture = struct {
         self.subst.deinit();
         self.pb.deinit();
         gpa.destroy(self);
-    }
-
-    /// The global sources, minus annotations: the scheme table `define`
-    /// fills, then synthesized symbols and constructors built on demand.
-    fn lookupScheme(
-        context: *const anyopaque,
-        subst: *Substitution,
-        id: core.SymbolId,
-    ) infer.Error!?types.Scheme {
-        const self: *const Fixture = @ptrCast(@alignCast(context));
-        if (self.pb.env.schemeOf(id)) |s| return s;
-        switch (self.pb.env.interner.details(id)) {
-            .synthesized => |s| return try schemes.schemeFor(subst, s),
-            else => {},
-        }
-        return try infer.constructorSchemeOf(subst, &self.pb.env.datatypes, &self.pb.env.interner, id);
     }
 
     fn record(self: *Fixture, labels: []const []const u8, field_types: []const types.Type) !types.Type {
@@ -138,7 +112,7 @@ const Fixture = struct {
     }
 
     fn expectSynthesizedScheme(self: *Fixture, synthesized: core.Synthesized, expected: []const u8) !void {
-        const scheme = try schemes.schemeFor(&self.subst, synthesized);
+        const scheme = try primitives.synthesizedScheme(self.pb.env.allocator(), &self.pb.env.datatypes, synthesized);
         try testing.expectFmt(expected, "{f}", .{scheme});
     }
 
@@ -148,10 +122,12 @@ const Fixture = struct {
         return id;
     }
 
-    /// Interns a synthesized symbol under its bracketed spelling, the way the
-    /// desugarer does, and records what it was generated from.
+    /// Interns a synthesized symbol under its bracketed spelling with its
+    /// scheme, the way the desugarer does.
     fn synthesize(self: *Fixture, spelling: []const u8, what: core.Synthesized) !core.SymbolId {
-        return try self.pb.env.interner.internOrGet(spelling, .{ .synthesized = what });
+        const id = try self.pb.env.interner.internOrGet(spelling, .{ .synthesized = what });
+        try self.pb.env.setScheme(id, try primitives.synthesizedScheme(self.pb.env.allocator(), &self.pb.env.datatypes, what));
+        return id;
     }
 
     fn lit(self: *Fixture, l: core.Literal) core.Term {
@@ -1130,7 +1106,7 @@ test "an operator's scheme comes from the primitive table" {
     try fix.expectSynthesizedScheme(.{ .operator = .match }, "String -> Regex -> Bool");
 }
 
-test "a one-field schemes.record takes one field value and yields one record" {
+test "a one-field record scheme takes one field value and yields one record" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -1141,7 +1117,7 @@ test "a one-field schemes.record takes one field value and yields one record" {
     );
 }
 
-test "a two-field schemes.record takes one value per field" {
+test "a two-field record scheme takes one value per field" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -1152,16 +1128,16 @@ test "a two-field schemes.record takes one value per field" {
     );
 }
 
-test "a three-field schemes.record quantifies one variable per field" {
+test "a three-field record scheme quantifies one variable per field" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const scheme = try schemes.schemeFor(&fix.subst, .{ .record = &.{ "a", "b", "c" } });
+    const scheme = try primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = &.{ "a", "b", "c" } });
     try testing.expectEqual(3, scheme.quantified);
 }
 
-test "an empty schemes.record takes no arguments and is an empty record" {
+test "an empty record scheme takes no arguments and is an empty record" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -1183,40 +1159,40 @@ test "record labels keep the order the desugarer normalized them into" {
     );
 }
 
-test "too many schemes.record fields is an error rather than a wrapped variable index" {
+test "too many record scheme fields is an error rather than a wrapped variable index" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const labels = try gpa.alloc([]const u8, schemes.max_record_fields + 1);
+    const labels = try gpa.alloc([]const u8, primitives.max_record_fields + 1);
     defer gpa.free(labels);
     for (labels) |*l| l.* = "f";
 
     try testing.expectError(
         error.TooManyRecordFields,
-        schemes.schemeFor(&fix.subst, .{ .record = labels }),
+        primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = labels }),
     );
 }
 
-test "a schemes.record at the field ceiling still builds" {
+test "a record scheme at the field ceiling still builds" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const labels = try gpa.alloc([]const u8, schemes.max_record_fields);
+    const labels = try gpa.alloc([]const u8, primitives.max_record_fields);
     defer gpa.free(labels);
     for (labels) |*l| l.* = "f";
 
-    const scheme = try schemes.schemeFor(&fix.subst, .{ .record = labels });
-    try testing.expectEqual(schemes.max_record_fields, scheme.quantified);
+    const scheme = try primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = labels });
+    try testing.expectEqual(primitives.max_record_fields, scheme.quantified);
 }
 
-test "a schemes.record scheme instantiates to fresh metavariables" {
+test "a record scheme scheme instantiates to fresh metavariables" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const scheme = try schemes.schemeFor(&fix.subst, .{ .record = &.{ "k", "n" } });
+    const scheme = try primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = &.{ "k", "n" } });
     const inst = try fix.subst.instantiate(scheme);
 
     try testing.expectFmt("?0 -> ?1 -> {k: ?0, n: ?1}", "{f}", .{inst.type});

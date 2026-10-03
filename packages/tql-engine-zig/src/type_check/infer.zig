@@ -4,7 +4,6 @@ const std = @import("std");
 const constraints = @import("constraints.zig");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
-const schemes = @import("schemes.zig");
 const types = core.types;
 const unify = @import("unify.zig");
 
@@ -38,7 +37,7 @@ pub const Failure = struct {
     };
 };
 
-pub const Error = error{TypeError} || schemes.Error;
+pub const Error = error{TypeError} || Allocator.Error;
 
 /// What a symbol's type is, by where the symbol came from.
 const Binding = union(enum) {
@@ -87,20 +86,10 @@ const Scope = struct {
     }
 };
 
-pub const Globals = struct {
-    context: *const anyopaque,
-    lookupFn: *const fn (*const anyopaque, *Substitution, core.SymbolId) Error!?types.Scheme,
-
-    pub fn lookup(self: Globals, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
-        return self.lookupFn(self.context, subst, id);
-    }
-};
-
 pub const Inference = struct {
     gpa: Allocator,
     subst: *Substitution,
     undecided: *constraints.Set,
-    globals: Globals,
     scope: Scope,
     /// Schemes generalized so far, by symbol. An earlier SCC's result.
     inferred: core.SymbolTable(types.Scheme),
@@ -112,7 +101,6 @@ pub const Inference = struct {
         gpa: Allocator,
         subst: *Substitution,
         undecided: *constraints.Set,
-        globals: Globals,
         target: *const core.env.Env,
     ) Inference {
         return .{
@@ -120,7 +108,6 @@ pub const Inference = struct {
             .subst = subst,
             .undecided = undecided,
             .env = target,
-            .globals = globals,
             .scope = Scope.init(gpa),
             .inferred = core.SymbolTable(types.Scheme).init(gpa),
         };
@@ -178,8 +165,8 @@ pub const Inference = struct {
     /// 1. a lexical binder
     /// 2. this SCC's placeholder
     /// 3. an earlier SCC's scheme
-    /// 4. whatever's in `globals` (the primitive table, a synthesized scheme,
-    ///    or an annotation).
+    /// 4. the environment's scheme for a primitive, a synthesized symbol or a
+    ///    constructor
     fn variable(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!types.Type {
         if (self.scope.lookup(id)) |binding| return switch (binding) {
             // Monomorphic: used at one type, not instantiated.
@@ -187,7 +174,7 @@ pub const Inference = struct {
             .scheme => |s| try self.instantiate(s, span),
         };
         if (self.inferred.get(id)) |s| return try self.instantiate(s, span);
-        if (try self.globals.lookup(self.subst, id)) |s| return try self.instantiate(s, span);
+        if (self.env.schemeOf(id)) |s| return try self.instantiate(s, span);
         return self.fail(.unresolved_name, span, .t_var, .{ .unbound = id });
     }
 
@@ -695,43 +682,6 @@ pub const Inference = struct {
     }
 };
 
-pub fn constructorSchemeOf(
-    subst: *Substitution,
-    registry: *const core.datatypes.Registry,
-    interner: *const core.Interner,
-    id: core.SymbolId,
-) Error!?types.Scheme {
-    const owner = core.datatypes.ownerOf(interner, id) orelse return null;
-    const constructor = registry.constructorOf(interner, id).?;
-    return try schemes.constructorScheme(subst.arena, registry.get(owner), constructor.*, owner);
-}
-
-/// Resolves a global symbol against the program: a primitive's table scheme,
-/// or a synthesized symbol's constructed one.
-const ProgramGlobals = struct {
-    program: *const core.Program,
-    /// Constructed schemes, built once per symbol.
-    built: *core.SymbolTable(types.Scheme),
-
-    fn lookup(context: *const anyopaque, subst: *Substitution, id: core.SymbolId) Error!?types.Scheme {
-        const self: *const ProgramGlobals = @ptrCast(@alignCast(context));
-        if (self.program.env.schemeOf(id)) |s| return s;
-        if (self.built.get(id)) |s| return s;
-
-        const scheme = switch (self.program.env.interner.details(id)) {
-            .synthesized => |s| try schemes.schemeFor(subst, s),
-            else => try constructorSchemeOf(
-                subst,
-                &self.program.env.datatypes,
-                &self.program.env.interner,
-                id,
-            ) orelse return null,
-        };
-        try self.built.put(id, scheme);
-        return scheme;
-    }
-};
-
 /// Type-checks a linked program, reporting through `sink`.
 ///
 /// Inference is bottom-up: the first unification failure is reported at
@@ -752,13 +702,7 @@ pub fn check(
     var undecided = constraints.Set.init(gpa);
     defer undecided.deinit();
 
-    var built = core.SymbolTable(types.Scheme).init(gpa);
-    defer built.deinit();
-    var globals = ProgramGlobals{ .program = program, .built = &built };
-    var inference = Inference.init(gpa, &subst, &undecided, .{
-        .context = &globals,
-        .lookupFn = ProgramGlobals.lookup,
-    }, &program.env);
+    var inference = Inference.init(gpa, &subst, &undecided, &program.env);
     defer inference.deinit();
 
     inference.check(program) catch |err| switch (err) {
@@ -794,15 +738,6 @@ pub fn check(
             }
 
             try sink.report(failure.category, failure.span, "{s}", .{buf.written()});
-            return error.TypeCheckFailed;
-        },
-        error.TooManyRecordFields => {
-            try sink.report(
-                .type_mismatch,
-                diagnostic.Span.unknown,
-                "a record has more fields than the type system can index",
-                .{},
-            );
             return error.TypeCheckFailed;
         },
         else => |e| return e,

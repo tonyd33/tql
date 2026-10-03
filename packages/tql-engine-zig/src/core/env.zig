@@ -75,6 +75,19 @@ pub const Env = struct {
         try self.schemes.put(id, scheme);
     }
 
+    /// Fill in the constructors of `id`, declared with none yet, and give
+    /// each its scheme.
+    pub fn setConstructors(
+        self: *Env,
+        id: symbols.TypeId,
+        constructors: []const datatypes.Constructor,
+    ) Allocator.Error!void {
+        self.datatypes.setConstructors(&self.interner, id, constructors);
+        for (constructors) |c| {
+            try self.setScheme(c.symbol, try self.datatypes.constructorScheme(self.allocator(), id, c));
+        }
+    }
+
     pub fn annotationOf(self: *const Env, id: symbols.SymbolId) ?Annotation {
         return self.annotations.get(id);
     }

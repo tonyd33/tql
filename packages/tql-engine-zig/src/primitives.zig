@@ -85,6 +85,68 @@ pub fn operatorScheme(
     };
 }
 
+pub const max_record_fields = std.math.maxInt(types.TypeVar) - 1;
+
+pub const SchemeError = error{TooManyRecordFields} || Allocator.Error;
+
+/// The scheme of a synthesized symbol: `field[l]`, `op[+]`, `record[l,...]`
+/// or `select[l]`, built against `arena` and `declared`.
+pub fn synthesizedScheme(
+    arena: Allocator,
+    declared: *const datatypes.Registry,
+    synthesized: core.Synthesized,
+) SchemeError!types.Scheme {
+    const B = Builder{ .arena = arena, .declared = declared };
+    return switch (synthesized) {
+        // The field id is resolved and threaded, and deliberately unused: a
+        // field narrows the *value* but not yet the type.
+        .field => .{ .type = try B.filter(types.node_type, types.node_type) },
+        .operator => |operator| try operatorScheme(arena, declared, operator),
+        .record => |labels| try recordScheme(arena, labels),
+        .select => |label| try selectScheme(arena, label),
+    };
+}
+
+/// `record[l_1,...,l_n] : t_1 -> ... -> t_n -> {l_1: t_1, ..., l_n: t_n}`.
+///
+/// The one scheme whose *shape* depends on its symbol's metadata rather than
+/// its identity, so it is constructed per symbol with no table row. Quantifies
+/// one variable per field.
+fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.Scheme {
+    if (labels.len > max_record_fields) return error.TooManyRecordFields;
+
+    const fields = try arena.alloc(types.Type.Field, labels.len);
+    for (labels, fields, 0..) |label, *field, i| {
+        field.* = .{
+            .label = label,
+            .type = try types.store(arena, types.variable_type(@intCast(i))),
+        };
+    }
+
+    // Built right to left: the record is the innermost, each field type
+    // wrapping it in one more arrow.
+    var result: types.Type = .{ .record = .{ .fields = fields } };
+    var i = labels.len;
+    while (i > 0) {
+        i -= 1;
+        result = try types.func(arena, types.variable_type(@intCast(i)), result);
+    }
+
+    return .{ .quantified = @intCast(labels.len), .type = result };
+}
+
+/// `select[l] : forall t r. {l: t | r} -> t`.
+fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Scheme {
+    const field = types.variable_type(0);
+    const fields = try arena.alloc(types.Type.Field, 1);
+    fields[0] = .{ .label = label, .type = try types.store(arena, field) };
+    const subject: types.Type = .{ .record = .{
+        .fields = fields,
+        .rest = try types.store(arena, types.variable_type(1)),
+    } };
+    return .{ .quantified = 2, .type = try types.func(arena, subject, field) };
+}
+
 /// `class a => a -> a -> Bool`.
 fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.Scheme {
     const a = types.variable_type(0);

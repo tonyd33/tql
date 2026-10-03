@@ -172,7 +172,7 @@ pub const Desugarer = struct {
             }
             if (failed) continue;
 
-            self.env.?.datatypes.setConstructors(interner, p.id, constructors);
+            try self.env.?.setConstructors(p.id, constructors);
         }
     }
 
@@ -477,7 +477,7 @@ pub const Desugarer = struct {
         for (declarations.items.items, 0..) |d, i| {
             var lowerer = desugar.Lowerer.init(
                 builder,
-                interner,
+                &self.env.?,
                 &scope,
                 &self.linked,
                 if (g) |known| known.language else null,

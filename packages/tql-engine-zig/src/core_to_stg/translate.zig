@@ -453,18 +453,6 @@ pub const Translator = struct {
     /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
     /// primitive counts its input, making `pure` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
-        // A synthesized symbol has no row in the primitive table.
-        switch (self.program.env.interner.details(name)) {
-            // `field[l]` is `Filter Node Node` and `select[l]` takes the
-            // record, one argument each; an operator takes two scalars.
-            .synthesized => |s| return switch (s) {
-                .field, .select => 1,
-                .operator => 2,
-                .record => |labels| @intCast(labels.len),
-            },
-            else => {},
-        }
-
         const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
         var arity: u32 = 0;
         var walk = scheme.type;

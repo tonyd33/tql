@@ -482,6 +482,35 @@ test "forcing a global cycle reports it rather than hanging" {
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
 }
 
+test "a record wider than a scheme can index is rejected at its literal" {
+    const allocator = std.testing.allocator;
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    defer engine.deinit();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var query: std.Io.Writer.Allocating = .init(allocator);
+    defer query.deinit();
+    const prefix = "main root = [";
+    try query.writer.writeAll(prefix ++ "{");
+    for (0..primitives.max_record_fields + 1) |i| {
+        if (i > 0) try query.writer.writeAll(", ");
+        try query.writer.print("f{d} = 1", .{i});
+    }
+    try query.writer.writeAll("}];");
+
+    try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
+        query.written(),
+        try grammars.get("typescript"),
+        &sink,
+    ));
+    try std.testing.expectEqual(1, sink.items().len);
+    try std.testing.expectEqual(.type_mismatch, sink.items()[0].category);
+    try std.testing.expectEqual(prefix.len, sink.items()[0].span.start_byte);
+}
+
 test "a bundled module is importable with no loader" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});

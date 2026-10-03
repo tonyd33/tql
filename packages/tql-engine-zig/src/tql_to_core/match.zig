@@ -52,7 +52,7 @@ pub fn caseOf(
 
     const root = switch (scrutinee.kind) {
         .symbol => |s| s,
-        else => try lowerer.interner.fresh("scrutinee"),
+        else => try lowerer.env.interner.fresh("scrutinee"),
     };
 
     const rows = try b.slice(Row, expanded.len);
@@ -92,7 +92,7 @@ pub fn caseOf(
     for (expanded, matcher.uses, shared) |alternative, uses, *slot| {
         slot.* = null;
         if (uses < 2) continue;
-        const symbol = try lowerer.interner.fresh("alternative");
+        const symbol = try lowerer.env.interner.fresh("alternative");
         slot.* = symbol;
         try bindings.append(b.allocator, .{
             .name = symbol,
@@ -170,7 +170,7 @@ fn listPattern(
     const symbol = listConstructor(lowerer.scope.datatypes, which).symbol;
     return .{
         .kind = .{ .constructor = .{
-            .name = lowerer.interner.spelling(symbol),
+            .name = lowerer.env.interner.spelling(symbol),
             .arguments = arguments,
             .list = which,
         } },
@@ -240,7 +240,7 @@ fn constructorNamed(
     else
         try lowerer.resolveGlobal(c.name, span);
     if (found) |id| {
-        if (lowerer.scope.datatypes.constructorOf(lowerer.interner, id)) |constructor| return constructor;
+        if (lowerer.scope.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
     try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{c.name});
     return error.DesugarFailed;
@@ -268,7 +268,7 @@ fn sharedAlternative(
 
     const entries = try lowerer.builder.slice(Entry, names.items.len);
     for (names.items, entries) |name, *entry| {
-        entry.* = .{ .name = name, .symbol = try lowerer.interner.fresh(name) };
+        entry.* = .{ .name = name, .symbol = try lowerer.env.interner.fresh(name) };
     }
     const inner: resolve.Scope = .{ .parent = scope, .names = entries };
 
@@ -397,10 +397,10 @@ const Matcher = struct {
             for (fields, 0..) |*field, i| {
                 const name = fieldName(self.lowerer.scope, rows, column, constructor.symbol, i) orelse
                     try b.print("{s}{d}", .{
-                        try std.ascii.allocLowerString(b.allocator, self.lowerer.interner.spelling(constructor.symbol)),
+                        try std.ascii.allocLowerString(b.allocator, self.lowerer.env.interner.spelling(constructor.symbol)),
                         i,
                     });
-                field.* = try self.lowerer.interner.fresh(name);
+                field.* = try self.lowerer.env.interner.fresh(name);
             }
 
             const specialized = try self.specialize(rows, column, occurrences[column], constructor.symbol, fields.len);
@@ -437,7 +437,7 @@ const Matcher = struct {
                 .list, .cons => unreachable,
             };
             const id = constructorSymbol(self.lowerer.scope, c);
-            const this = datatypes.ownerOf(self.lowerer.interner, id).?;
+            const this = datatypes.ownerOf(&self.lowerer.env.interner, id).?;
             const expected = owner orelse {
                 owner = this;
                 continue;
@@ -601,7 +601,7 @@ const Witness = struct {
     pub fn format(self: Witness, w: *std.Io.Writer) std.Io.Writer.Error!void {
         const step = self.matcher.stepFor(self.occurrence) orelse return w.writeAll("_");
         if (self.isList(step)) return self.formatList(w, step);
-        const name = self.matcher.lowerer.interner.spelling(step.constructor);
+        const name = self.matcher.lowerer.env.interner.spelling(step.constructor);
         const parenthesize = self.nested and step.fields.len > 0;
         if (parenthesize) try w.writeByte('(');
         try w.writeAll(name);
@@ -618,7 +618,7 @@ const Witness = struct {
 
     fn isList(self: Witness, step: Step) bool {
         const lowerer = self.matcher.lowerer;
-        return datatypes.ownerOf(lowerer.interner, step.constructor) == lowerer.scope.datatypes.listId();
+        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == lowerer.scope.datatypes.listId();
     }
 
     /// The step fixing the tail of the chain starting at `step`: a `Nil`, or
