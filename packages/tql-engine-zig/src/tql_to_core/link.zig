@@ -81,20 +81,9 @@ pub const Desugarer = struct {
                 null;
             const existing = self.env.?.datatypes.lookup(scope.module, declared.name);
 
-            // A declared type is found before a primitive one, so this would
-            // silently replace `Int` in every signature.
-            if (annotation.builtinNamed(declared.name) != null) {
-                try sink.report(
-                    .symbol_collision,
-                    declared.span,
-                    "`{s}` is a built-in type",
-                    .{declared.name},
-                );
-                continue;
-            }
-
             if ((existing != null and structural == null) or
-                self.env.?.datatypes.aliasNamed(scope.module, declared.name) != null)
+                self.env.?.datatypes.aliasNamed(scope.module, declared.name) != null or
+                self.env.?.datatypes.primitiveNamed(scope.module, declared.name) != null)
             {
                 try sink.report(
                     .duplicate_definition,
@@ -187,15 +176,12 @@ pub const Desugarer = struct {
         for (source.declarations) |*decl| {
             if (decl.* != .type_alias) continue;
             const alias = &decl.type_alias;
-            if (annotation.builtinNamed(alias.name) != null) {
-                try sink.report(.symbol_collision, alias.span, "`{s}` is a built-in type", .{alias.name});
-                continue;
-            }
             const repeated = for (aliases.items) |earlier| {
                 if (std.mem.eql(u8, earlier.name, alias.name)) break true;
             } else false;
             if (repeated or self.env.?.datatypes.lookup(scope.module, alias.name) != null or
-                self.env.?.datatypes.aliasNamed(scope.module, alias.name) != null)
+                self.env.?.datatypes.aliasNamed(scope.module, alias.name) != null or
+                self.env.?.datatypes.primitiveNamed(scope.module, alias.name) != null)
             {
                 try sink.report(
                     .duplicate_definition,

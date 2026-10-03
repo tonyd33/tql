@@ -159,11 +159,11 @@ fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.S
     };
 }
 
-/// Declares the structural types, then interns the primitives with their
+/// Declares the built-in types, then interns the primitives with their
 /// schemes. Called once on a fresh environment, before any body is resolved,
 /// so a declaration colliding with a primitive's name fails on intern.
 pub fn populate(target: *core.env.Env) !void {
-    try target.datatypes.reserveStructural(&target.interner);
+    try target.datatypes.reserveBuiltins(&target.interner);
 
     const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
     for (std.enums.values(PrimOp)) |primop| {

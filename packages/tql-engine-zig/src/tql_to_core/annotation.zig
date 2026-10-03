@@ -19,25 +19,6 @@ const ModuleScope = @import("scope.zig").ModuleScope;
 
 const Allocator = std.mem.Allocator;
 
-/// The type names every signature may use without declaring them. `Range` and
-/// `Point` are aliases of record types.
-pub const builtin_names = [_]struct { name: []const u8, type: types.Type }{
-    .{ .name = "Int", .type = types.int_type },
-    .{ .name = "String", .type = types.string_type },
-    .{ .name = "Regex", .type = types.regex_type },
-    .{ .name = "Node", .type = types.node_type },
-    .{ .name = "Kind", .type = types.kind_type },
-    .{ .name = "Range", .type = types.range_type },
-    .{ .name = "Point", .type = types.point_type },
-};
-
-pub fn builtinNamed(name: []const u8) ?types.Type {
-    for (builtin_names) |row| {
-        if (std.mem.eql(u8, row.name, name)) return row.type;
-    }
-    return null;
-}
-
 pub const Error = error{BadAnnotation} || Allocator.Error;
 
 /// Translates a signature's written type into a scheme.
@@ -230,6 +211,7 @@ const Translator = struct {
                     return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, &.{});
                 },
                 .alias => |alias| return try self.aliasAt(alias, &.{}, span),
+                .primitive => |p| return .{ .primitive = p },
             },
             .failed => |failure| {
                 try self.scope.reportFailure(self.sink, span, name, failure);
@@ -237,7 +219,6 @@ const Translator = struct {
             },
             .missing => {},
         }
-        if (builtinNamed(name)) |t| return t;
         try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
         return error.BadAnnotation;
     }
@@ -251,6 +232,15 @@ const Translator = struct {
             .found => |found| switch (found) {
                 .datatype => |declared| declared,
                 .alias => |alias| return try self.aliasAt(alias, node.arguments, span),
+                .primitive => {
+                    try self.sink.report(
+                        .type_mismatch,
+                        span,
+                        "`{s}` takes 0 type argument(s), given {d}",
+                        .{ node.constructor, node.arguments.len },
+                    );
+                    return error.BadAnnotation;
+                },
             },
             .failed => |failure| {
                 try self.scope.reportFailure(self.sink, span, node.constructor, failure);

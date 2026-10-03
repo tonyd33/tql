@@ -1,0 +1,15 @@
+title: a query may declare an alias named like a built-in type
+grammar: typescript
+asserts: values
+
+--- tql ---
+type Range = Int;
+next :: Range -> Range;
+next x = x + 1;
+main root = [next 1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2]

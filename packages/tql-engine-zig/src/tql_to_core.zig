@@ -445,18 +445,6 @@ test "a constrained variable absent from the type is rejected" {
     try testing.expectEqual(1, fix.sink.items().len);
 }
 
-test "the built-in table is the five primitives and the aliases Range and Point" {
-    // A change to what a signature may name should fail here first. `Bool` is
-    // absent because it is a declared type, resolved through the registry.
-    try testing.expectEqual(7, annotation.builtin_names.len);
-    try testing.expect(annotation.builtinNamed("Node") != null);
-    try testing.expect(annotation.builtinNamed("Range").? == .alias);
-    try testing.expect(annotation.builtinNamed("Point").? == .alias);
-    try testing.expect(annotation.builtinNamed("Bool") == null);
-    try testing.expect(annotation.builtinNamed("node") == null);
-    try testing.expect(annotation.builtinNamed("Filter") == null);
-}
-
 // ============================================================================
 //                              resolve and link
 // ============================================================================

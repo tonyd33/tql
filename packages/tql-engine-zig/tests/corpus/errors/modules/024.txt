@@ -1,0 +1,16 @@
+title: hiding a built-in type removes it from scope
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude hiding (Int);
+one :: Int;
+one = 1;
+main root = [one];
+
+--- error ---
+error[unresolved-name]: `Int` is not a type
+ --> 2:8
+  |
+2 | one :: Int;
+  |        ^^^

@@ -1,0 +1,18 @@
+title: built-in types are prelude exports
+grammar: typescript
+asserts: values
+
+--- tql ---
+import Prelude (Int, Range);
+import Prelude as P;
+start :: Range -> Int;
+start r = r.start_byte;
+one :: P.Int;
+one = 1;
+main root = [start (P.range root) + one];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[1]

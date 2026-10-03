@@ -1,17 +1,16 @@
-title: a type may not be named after a built-in one
+title: a query's own Int is not the primitive Int
 grammar: typescript
 asserts: error
 
-A declared type is found before a built-in one, so `type Int` would change
-what `Int` means in every signature while primitives kept the real one.
-
 --- tql ---
 data Int = I;
-main = pure 1;
+one :: Int;
+one = 1;
+main root = [one];
 
 --- error ---
-error[symbol-collision]: `Int` is a built-in type
- --> 1:1
+error[signature-mismatch]: Expected `Int`, found `Int`.
+ --> 2:1
   |
-1 | data Int = I;
-  | ^^^^^^^^^^^^^
+2 | one :: Int;
+  | ^^^^^^^^^^^

@@ -80,6 +80,7 @@ pub const Registry = struct {
     datatypes: std.ArrayList(Datatype) = .empty,
     by_name: symbols.QualifiedName.Map(TypeId) = .empty,
     aliases: symbols.QualifiedName.Map(Alias) = .empty,
+    primitives: symbols.QualifiedName.Map(types.Primitive) = .empty,
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
@@ -114,10 +115,18 @@ pub const Registry = struct {
         pub const all: []const Structural = &.{ Structural.list, Structural.boolean };
     };
 
-    /// Reserves `List` and `Bool`, with no constructors yet. The primitive
-    /// schemes mention both, so their ids must exist before `prelude.tql` is
-    /// parsed; the prelude's own declarations fill the constructors in.
-    pub fn reserveStructural(self: *Registry, interner: *symbols.Interner) !void {
+    /// Declares the prelude's built-in types: the primitives, the aliases
+    /// `Range` and `Point`, and `List` and `Bool` with no constructors yet.
+    /// The primitive schemes mention `List` and `Bool`, so their ids must
+    /// exist before `prelude.tql` is parsed; the prelude's own declarations
+    /// fill the constructors in.
+    pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
+        for (std.enums.values(types.Primitive)) |p| {
+            try self.primitives.put(self.allocator, .{ .module = .prelude, .name = p.spelling() }, p);
+        }
+        for ([_]types.Type{ types.range_type, types.point_type }) |t| {
+            try self.defineAlias(.prelude, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
+        }
         for (Structural.all) |s| {
             _ = try self.declare(interner, .prelude, s.name, s.parameters, &.{}, s.classes);
         }
@@ -251,6 +260,11 @@ pub const Registry = struct {
     /// `alias` and everything it points to must outlive the registry.
     pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
         try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, alias);
+    }
+
+    /// The primitive type `module` declares as `name`.
+    pub fn primitiveNamed(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?types.Primitive {
+        return self.primitives.get(.{ .module = module, .name = name });
     }
 
     /// The alias `module` declares as `name`.

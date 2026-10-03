@@ -28,11 +28,13 @@
 - `tql query` finds `import A.B` as `A/B.tql` in the query file's directory, then each `-I dir`, then each directory in `TQL_PATH`.
 - `module A.B for javascript, typescript;` declares the grammars a module reads. Importing it under another grammar is an error, and an imported module without `for` may not use grammar-specific syntax like kinds or fields.
 - `tql-js` `query` takes `modules`, a record of module name to source.
+- The built-in types `Int`, `String`, `Regex`, `Node`, `Kind`, `Range` and `Point` are prelude exports: `import Prelude hiding (Int)` and `P.Int` work, and a module may declare its own `Int`.
 
 ### Improvements
 
 - A record literal with more fields than a type can index is reported at the literal. It was previously reported with no location.
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
+- `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
 
 ## 0.3.1 (unreleased)
 

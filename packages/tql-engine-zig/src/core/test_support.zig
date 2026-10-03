@@ -19,13 +19,13 @@ pub fn env(gpa: Allocator) !core.env.Env {
     return e;
 }
 
-/// Reserves `List` and `Bool` and fills in their constructors in the shape
-/// `prelude.tql` declares them.
+/// Reserves the built-in types and fills in the constructors of `List` and
+/// `Bool` in the shape `prelude.tql` declares them.
 pub fn declareStructural(e: *core.env.Env) !void {
     const registry = &e.datatypes;
     const interner = &e.interner;
     const arena = e.allocator();
-    try registry.reserveStructural(interner);
+    try registry.reserveBuiltins(interner);
 
     const element = types.variable_type(0);
     const self_ref = try types.constructed(

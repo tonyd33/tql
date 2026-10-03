@@ -26,10 +26,11 @@ pub const Failure = union(enum) {
     unknown_qualifier: []const u8,
 };
 
-/// A type name: a datatype or an alias.
+/// A type name: a datatype, an alias, or a primitive.
 pub const TypeName = union(enum) {
     datatype: datatypes.TypeId,
     alias: *const datatypes.Alias,
+    primitive: core.types.Primitive,
 };
 
 pub const Filter = cst.Filter;
@@ -148,6 +149,7 @@ pub const ModuleScope = struct {
     fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
         if (self.datatypes.lookup(module, name)) |id| return .{ .datatype = id };
         if (self.datatypes.aliasNamed(module, name)) |alias| return .{ .alias = alias };
+        if (self.datatypes.primitiveNamed(module, name)) |p| return .{ .primitive = p };
         return null;
     }
 
@@ -233,9 +235,16 @@ pub const ModuleScope = struct {
             return false;
         }
         if (item.kind != .type_and_constructors) return true;
-        if (declaredType(self, module, item.name).? == .alias) {
-            try sink.report(.unresolved_name, item.span, "`{s}` is an alias and has no constructors", .{item.name});
-            return false;
+        switch (declaredType(self, module, item.name).?) {
+            .datatype => {},
+            .alias => {
+                try sink.report(.unresolved_name, item.span, "`{s}` is an alias and has no constructors", .{item.name});
+                return false;
+            },
+            .primitive => {
+                try sink.report(.unresolved_name, item.span, "`{s}` is a primitive type and has no constructors", .{item.name});
+                return false;
+            },
         }
         if (admits(exports, .{ .constructors_of = item.name })) return true;
         try sink.report(
