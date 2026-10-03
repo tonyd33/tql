@@ -46,6 +46,28 @@ pub fn declareStructural(
     }));
 }
 
+/// A constructor's spelling and its field types.
+pub const Constructor = struct { []const u8, []const types.Type };
+
+/// Declares `name` in `module` with `constructors`, tagged in order.
+pub fn declareDatatype(
+    e: *core.env.Env,
+    module: symbols.ModuleId,
+    name: []const u8,
+    constructors: []const Constructor,
+) !void {
+    const arena = e.allocator();
+    const declared = try arena.alloc(datatypes.Constructor, constructors.len);
+    for (constructors, declared, 0..) |c, *slot, tag| {
+        slot.* = .{
+            .symbol = try e.interner.intern(module, c[0], .vanilla),
+            .tag = @intCast(tag),
+            .fields = try arena.dupe(types.Type, c[1]),
+        };
+    }
+    _ = try e.datatypes.declare(&e.interner, module, try arena.dupe(u8, name), 0, declared, .{});
+}
+
 /// Assembles a `core.Program` from hand-built definitions over `env`'s
 /// environment.
 pub const ProgramBuilder = struct {
@@ -82,23 +104,13 @@ pub const ProgramBuilder = struct {
         return try self.env.interner.fresh(spelling);
     }
 
-    /// Declares `name` with `constructors`, each a spelling and its field
-    /// types, tagged in order.
+    /// Declares `name` in the prelude with `constructors`, tagged in order.
     pub fn datatype(
         self: *ProgramBuilder,
         name: []const u8,
-        constructors: []const struct { []const u8, []const types.Type },
+        constructors: []const Constructor,
     ) !void {
-        const arena = self.env.allocator();
-        const declared = try arena.alloc(datatypes.Constructor, constructors.len);
-        for (constructors, declared, 0..) |c, *slot, tag| {
-            slot.* = .{
-                .symbol = try self.env.interner.intern(.prelude, c[0], .vanilla),
-                .tag = @intCast(tag),
-                .fields = try arena.dupe(types.Type, c[1]),
-            };
-        }
-        _ = try self.env.datatypes.declare(&self.env.interner, .prelude, try arena.dupe(u8, name), 0, declared, .{});
+        try declareDatatype(&self.env, .prelude, name, constructors);
     }
 
     pub fn define(self: *ProgramBuilder, name: core.SymbolId, body: core.Term) !void {

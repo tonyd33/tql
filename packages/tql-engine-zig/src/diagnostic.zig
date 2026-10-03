@@ -352,10 +352,7 @@ test "spans render as one-based line:col" {
         .start_point = .{ .row = 0, .column = 7 },
         .end_point = .{ .row = 0, .column = 13 },
     };
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
-    try span.format(&buf.writer);
-    try std.testing.expectEqualStrings("1:8-1:14", buf.written());
+    try std.testing.expectFmt("1:8-1:14", "{f}", .{span});
 }
 
 test "sink collects several diagnostics" {

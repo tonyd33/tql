@@ -290,16 +290,6 @@ const Fixture = struct {
             .datatypes = &self.env.datatypes,
         };
     }
-
-    /// Declares `name` in `module` with one nullary constructor per spelling.
-    fn datatype(self: *Fixture, module: ModuleId, name: []const u8, constructors: []const []const u8) !void {
-        const arena = self.env.allocator();
-        const declared = try arena.alloc(datatypes.Constructor, constructors.len);
-        for (constructors, declared, 0..) |c, *slot, tag| {
-            slot.* = .{ .symbol = try self.env.interner.intern(module, c, .vanilla), .tag = @intCast(tag), .fields = &.{} };
-        }
-        _ = try self.env.datatypes.declare(&self.env.interner, module, name, 0, declared, .{});
-    }
 };
 
 test "a module's own declaration hides an import's" {
@@ -445,7 +435,7 @@ test "a name the module does not export is not imported" {
 test "constructors come only with their type's (..)" {
     var fix = try Fixture.init();
     defer fix.deinit();
-    try fix.datatype(fix.left, "T", &.{"C"});
+    try test_support.declareDatatype(&fix.env, fix.left, "T", &.{.{ "C", &.{} }});
 
     const s = fix.scope(&.{.{ .module = fix.left }});
     fix.exports[@intFromEnum(fix.left)] = .{ .only = &.{.{ .name = "T", .kind = .type }} };
@@ -470,7 +460,7 @@ test "an import item the module does not export is reported" {
 test "importing the constructors of an abstract type is reported" {
     var fix = try Fixture.init();
     defer fix.deinit();
-    try fix.datatype(fix.left, "T", &.{"C"});
+    try test_support.declareDatatype(&fix.env, fix.left, "T", &.{.{ "C", &.{} }});
 
     fix.exports[@intFromEnum(fix.left)] = .{ .only = &.{.{ .name = "T", .kind = .type }} };
     const s = fix.scope(&.{.{

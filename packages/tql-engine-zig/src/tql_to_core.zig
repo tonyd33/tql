@@ -94,10 +94,7 @@ const Fixture = struct {
             &self.sink,
         );
 
-        var buf: std.Io.Writer.Allocating = .init(testing.allocator);
-        defer buf.deinit();
-        try scheme.format(&buf.writer);
-        try testing.expectEqualStrings(expected, buf.written());
+        try testing.expectFmt(expected, "{f}", .{scheme});
     }
 };
 

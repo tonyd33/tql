@@ -483,23 +483,6 @@ test "forcing a global cycle reports it rather than hanging" {
     try std.testing.expectError(error.Cycle, machine.force(machine.global(a).?));
 }
 
-/// Serves each module of `modules` under its path.
-const TestLoader = struct {
-    modules: []const load.Bundled,
-
-    fn loader(self: *TestLoader) Loader {
-        return .{ .context = self, .loadFn = loadFn };
-    }
-
-    fn loadFn(context: *anyopaque, name: []const u8) load.Loaded {
-        const self: *TestLoader = @ptrCast(@alignCast(context));
-        for (self.modules) |m| {
-            if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.path, .text = m.text } };
-        }
-        return .missing;
-    }
-};
-
 test "a bundled module is importable with no loader" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
@@ -525,7 +508,7 @@ test "a module both bundled and loaded is ambiguous" {
     var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
     defer engine.deinit();
     engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
-    var modules: TestLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
+    var modules: load.BundledLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
     engine.loader = modules.loader();
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();

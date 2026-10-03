@@ -239,15 +239,9 @@ test "operator schemes take scalars, not filters" {
     defer target.deinit();
     const arena = target.allocator();
 
-    var buf: std.Io.Writer.Allocating = .init(gpa);
-    defer buf.deinit();
+    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{try operatorScheme(arena, &target.datatypes, .eq)});
 
-    try (try operatorScheme(arena, &target.datatypes, .eq)).format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
-
-    buf.clearRetainingCapacity();
-    try (try operatorScheme(arena, &target.datatypes, .add)).format(&buf.writer);
-    try std.testing.expectEqualStrings("Int -> Int -> Int", buf.written());
+    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{try operatorScheme(arena, &target.datatypes, .add)});
 
     // Every operator has one, so a new member fails here rather than at
     // evaluation.

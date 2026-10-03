@@ -446,41 +446,25 @@ fn testFilter(arena: std.mem.Allocator, input: Type, output: Type) !Type {
 test "filter notation expands to a function returning a list" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     const t = try testFilter(arena.allocator(), node_type, string_type);
-    try t.format(&buf.writer);
-    try std.testing.expectEqualStrings("Node -> [String]", buf.written());
+    try std.testing.expectFmt("Node -> [String]", "{f}", .{t});
 }
 
 test "arrows are right-associative and group on the left" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
     const compose = try func(t, try testFilter(t, variable_type(0), variable_type(1)), try func(t, try testFilter(t, variable_type(1), variable_type(2)), try testFilter(t, variable_type(0), variable_type(2))));
-    try compose.format(&buf.writer);
-    try std.testing.expectEqualStrings(
-        "(a -> [b]) -> (b -> [c]) -> a -> [c]",
-        buf.written(),
-    );
+    try std.testing.expectFmt("(a -> [b]) -> (b -> [c]) -> a -> [c]", "{f}", .{compose});
 }
 
 test "a metavariable renders distinctly from a bound variable" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
-    try (Type{ .meta = 3 }).format(&buf.writer);
-    try std.testing.expectEqualStrings("?3", buf.written());
+    try std.testing.expectFmt("?3", "{f}", .{Type{ .meta = 3 }});
 
-    buf.clearRetainingCapacity();
-    try variable_type(3).format(&buf.writer);
-    try std.testing.expectEqualStrings("d", buf.written());
+    try std.testing.expectFmt("d", "{f}", .{variable_type(3)});
 }
 
 test "constrained scheme renders its context" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
@@ -490,26 +474,20 @@ test "constrained scheme renders its context" {
         .constraints = &.{.{ .class = .Eq, .type = variable_type(0) }},
         .type = try func(t, variable_type(0), try func(t, variable_type(0), boolean)),
     };
-    try eq.format(&buf.writer);
-    try std.testing.expectEqualStrings("Eq a => a -> a -> Bool", buf.written());
+    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{eq});
 }
 
 test "an applied constructor is parenthesized as an argument" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
     const inner = try constructed(t, @enumFromInt(2), "Maybe", &.{int_type});
     const outer = try constructed(t, @enumFromInt(2), "Maybe", &.{inner});
     const nested = try constructed(t, @enumFromInt(2), "Maybe", &.{try testList(t, inner)});
-    try buf.writer.print("{f}; {f}", .{ outer, nested });
-    try std.testing.expectEqualStrings("Maybe (Maybe Int); Maybe [Maybe Int]", buf.written());
+    try std.testing.expectFmt("Maybe (Maybe Int); Maybe [Maybe Int]", "{f}; {f}", .{ outer, nested });
 }
 
 test "a constraint parenthesizes an applied constructor" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
@@ -519,65 +497,50 @@ test "a constraint parenthesizes an applied constructor" {
         .constraints = &.{.{ .class = .Serial, .type = maybe }},
         .type = maybe,
     };
-    try scheme.format(&buf.writer);
-    try std.testing.expectEqualStrings("Serial (Maybe a) => Maybe a", buf.written());
+    try std.testing.expectFmt("Serial (Maybe a) => Maybe a", "{f}", .{scheme});
 }
 
 test "an open record prints its row after a bar" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     const open: Type = .{ .record = .{
         .fields = &.{.{ .label = "start_byte", .type = &variable_type(0) }},
         .rest = &variable_type(1),
     } };
     const only_row: Type = .{ .record = .{ .fields = &.{}, .rest = &variable_type(0) } };
     const empty: Type = .{ .record = .{ .fields = &.{} } };
-    try buf.writer.print("{f}; {f}; {f}", .{ open, only_row, empty });
-    try std.testing.expectEqualStrings("{start_byte: a | b}; {| a}; {}", buf.written());
+    try std.testing.expectFmt("{start_byte: a | b}; {| a}; {}", "{f}; {f}; {f}", .{ open, only_row, empty });
 }
 
 test "a range prints by name and expands to a record of its bounds" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
-    try buf.writer.print("{f}; {f}", .{ range_type, range_type.alias.expansion });
-    try std.testing.expectEqualStrings(
+    try std.testing.expectFmt(
         "Range; {end_byte: Int, end_point: Point, start_byte: Int, start_point: Point}",
-        buf.written(),
+        "{f}; {f}",
+        .{ range_type, range_type.alias.expansion },
     );
 }
 
 test "an applied alias is parenthesized as an argument" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
     const named = try aliased(t, "Named", try t.dupe(Type, &.{variable_type(0)}), int_type);
-    try buf.writer.print("{f}", .{try testList(t, try constructed(t, @enumFromInt(2), "Maybe", &.{named}))});
-    try std.testing.expectEqualStrings("[Maybe (Named a)]", buf.written());
+    try std.testing.expectFmt("[Maybe (Named a)]", "{f}", .{try testList(t, try constructed(t, @enumFromInt(2), "Maybe", &.{named}))});
 }
 
 test "substitution replaces an alias's arguments and its expansion together" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
     const named = try aliased(t, "Id", try t.dupe(Type, &.{variable_type(0)}), variable_type(0));
     const substituted = try substitute(t, named, &.{string_type});
-    try buf.writer.print("{f}; {f}", .{ substituted, substituted.alias.expansion });
-    try std.testing.expectEqualStrings("Id String; String", buf.written());
+    try std.testing.expectFmt("Id String; String", "{f}; {f}", .{ substituted, substituted.alias.expansion });
 }
 
 test "metavariables are named by first appearance across one message" {
-    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer buf.deinit();
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
     var names: MetaNames = .{};
     const first = try testFilter(t, Type{ .meta = 477 }, Type{ .meta = 12 });
     const second = try func(t, Type{ .meta = 12 }, Type{ .meta = 900 });
-    try buf.writer.print("{f} / {f}", .{ first.named(&names), second.named(&names) });
-    try std.testing.expectEqualStrings("a -> [b] / b -> c", buf.written());
+    try std.testing.expectFmt("a -> [b] / b -> c", "{f} / {f}", .{ first.named(&names), second.named(&names) });
 }
