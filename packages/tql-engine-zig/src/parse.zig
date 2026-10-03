@@ -400,6 +400,12 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "infix_application")) {
             return self.infixApplication(node, span);
         }
+        if (std.mem.eql(u8, kind, "operator_name") or
+            std.mem.eql(u8, kind, "left_section") or
+            std.mem.eql(u8, kind, "right_section"))
+        {
+            return self.section(node, span);
+        }
         if (std.mem.eql(u8, kind, "if_expression")) {
             return self.ifExpr(node, span);
         }
@@ -540,6 +546,45 @@ const Walker = struct {
             .kind = .{ .apply = try self.boxed(cst.Apply{
                 .function = partial,
                 .argument = right,
+            }) },
+            .span = span,
+        };
+    }
+
+    /// `(op)`, `(e op)` or `(op e)`.
+    fn section(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+        const op_node = node.childByFieldName("operator") orelse {
+            try self.missingField(node, "operator");
+            return null;
+        };
+        const operator: cst.SectionOperator = if (std.mem.eql(u8, op_node.grammarKind(), "backtick_operator")) blk: {
+            const fn_node = op_node.childByFieldName("function") orelse {
+                try self.missingField(op_node, "function");
+                return null;
+            };
+            break :blk .{ .function = try self.expression(fn_node) orelse return null };
+        } else if (std.mem.eql(u8, textOf(op_node, self.source), "$"))
+            .dollar
+        else
+            .{ .binary = operatorFromSpelling(textOf(op_node, self.source)) orelse {
+                try self.sink.report(.parse, span, "unknown operator", .{});
+                return null;
+            } };
+
+        const left: ?cst.Expression = if (node.childByFieldName("left")) |n|
+            try self.expression(n) orelse return null
+        else
+            null;
+        const right: ?cst.Expression = if (node.childByFieldName("right")) |n|
+            try self.expression(n) orelse return null
+        else
+            null;
+
+        return .{
+            .kind = .{ .section = try self.boxed(cst.Section{
+                .operator = operator,
+                .left = left,
+                .right = right,
             }) },
             .span = span,
         };
@@ -1144,6 +1189,13 @@ fn operatorFromSpelling(text: []const u8) ?cst.BinaryOperator {
         .{ ">", .gt },
         .{ "!~", .not_match },
         .{ "~", .match },
+        .{ "and", .@"and" },
+        .{ "or", .@"or" },
+        .{ "|", .pipe },
+        .{ "<|>", .stream_union },
+        .{ ".", .compose },
+        .{ ">>", .then },
+        .{ ":", .cons },
     };
     for (table) |entry| {
         if (std.mem.eql(u8, text, entry[0])) return entry[1];

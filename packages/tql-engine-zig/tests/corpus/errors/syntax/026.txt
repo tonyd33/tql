@@ -1,0 +1,15 @@
+title: a spaced minus does not start a section
+grammar: typescript
+asserts: error
+
+`(-1)` is the number; `subtract 1` is the function.
+
+--- tql ---
+main = const (map (- 1) [5]);
+
+--- error ---
+error[parse]: syntax error
+ --> 1:20
+  |
+1 | main = const (map (- 1) [5]);
+  |                    ^

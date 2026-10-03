@@ -369,6 +369,9 @@ module.exports = grammar({
         $.list,
         $.record,
         $.parenthesized,
+        $.operator_name,
+        $.left_section,
+        $.right_section,
         $.lambda,
         $.let_expression,
         $.do_expression,
@@ -378,6 +381,62 @@ module.exports = grammar({
       ),
 
     kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
+
+    operator_name: $ =>
+      seq("(", field("operator", $._bare_section_operator), ")"),
+
+    left_section: $ =>
+      seq(
+        "(",
+        field("left", $._expression),
+        field("operator", $._left_section_operator),
+        ")",
+      ),
+
+    right_section: $ =>
+      seq(
+        "(",
+        field("operator", $._right_section_operator),
+        field("right", $._expression),
+        ")",
+      ),
+
+    // An attached `:` valid after `(` outranks the kind token in `(:xs)`.
+    _bare_section_operator: $ => choice($._section_operator, ":", "-"),
+
+    _left_section_operator: $ =>
+      choice($._section_operator, $._cons_operator, "-"),
+
+    // `(- 1)` must not be a function beside the number `(-1)`. An attached
+    // `:` valid after `(` outranks the kind token in `(:xs)`.
+    _right_section_operator: $ => choice($._section_operator, ":"),
+
+    _section_operator: $ =>
+      choice(
+        "$",
+        ">>",
+        "|",
+        "<|>",
+        "or",
+        "and",
+        "=",
+        "!=",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "~",
+        "!~",
+        "+",
+        "*",
+        "/",
+        "%",
+        ".",
+        $.backtick_operator,
+      ),
+
+    backtick_operator: $ =>
+      seq("`", field("function", choice($.identifier, $.type_identifier)), "`"),
 
     parenthesized: $ => seq("(", $._expression, ")"),
 

@@ -20,6 +20,9 @@ compose f g x = f (g x);
 flip :: (a -> b -> c) -> b -> a -> c;
 flip f x y = f y x;
 
+subtract :: Int -> Int -> Int;
+subtract x y = y - x;
+
 null :: [a] -> Bool;
 null xs = case xs of {
   Nil -> True;

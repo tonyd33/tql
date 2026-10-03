@@ -200,6 +200,21 @@ pub const Binary = struct {
     right: Expression,
 };
 
+/// `(op)`, `(e op)` or `(op e)`.
+pub const Section = struct {
+    operator: SectionOperator,
+    left: ?Expression,
+    right: ?Expression,
+};
+
+pub const SectionOperator = union(enum) {
+    binary: BinaryOperator,
+    /// `$`, lowered as application.
+    dollar,
+    /// A backticked name: `` (`f` x) ``.
+    function: Expression,
+};
+
 pub const Apply = struct {
     function: Expression,
     argument: Expression,
@@ -308,6 +323,7 @@ pub const Expression = struct {
         projection: *Projection,
         apply: *Apply,
         binary: *Binary,
+        section: *Section,
         @"if": *If,
         case: *Case,
         /// A data constructor used as a value: `Nil`, `True`.
@@ -359,6 +375,19 @@ pub const Expression = struct {
                 try b.left.sexpr(w);
                 try w.writeByte(' ');
                 try b.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .section => |s| {
+                try w.writeAll("(section ");
+                switch (s.operator) {
+                    .binary => |o| try w.writeAll(o.spelling()),
+                    .dollar => try w.writeAll("$"),
+                    .function => |f| try f.sexpr(w),
+                }
+                for ([_]?Expression{ s.left, s.right }) |operand| {
+                    try w.writeByte(' ');
+                    if (operand) |o| try o.sexpr(w) else try w.writeAll("_");
+                }
                 try w.writeByte(')');
             },
             .case => |c| {

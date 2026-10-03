@@ -1,0 +1,26 @@
+title: pipe and union section
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = (| arr text) (descendants_of_kind :identifier) <|> (const ["c"] <|>) (const ["d"]);
+
+--- source ---
+a;
+b;
+
+--- values ---
+["a", "b", "c", "d"]
+
+--- core ---
+main = alt (
+  (
+    letrec e = arr text in
+    \x -> kleisli x e
+  ) (descendants_of_kind :identifier)
+) (
+  (
+    letrec e = const (Cons "c" Nil) in
+    \y -> alt e y
+  ) (const (Cons "d" Nil))
+)

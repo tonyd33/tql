@@ -1,0 +1,332 @@
+========================================
+a right section takes the operand after the operator
+========================================
+
+main = (= 1);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (number))))
+
+========================================
+a left section takes the operand before the operator
+========================================
+
+main = (1 =);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (number))))
+
+========================================
+a parenthesized operator is its function
+========================================
+
+main = (=);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name)))
+
+========================================
+a keyword operator sections
+========================================
+
+main = (and x);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (identifier))))
+
+========================================
+a match takes a regex on the right
+========================================
+
+main = (~ r"a");
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (regex))))
+
+========================================
+a composition right section needs no space
+========================================
+
+main = (.f);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (identifier))))
+
+========================================
+a composition left section
+========================================
+
+main = (f .);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (identifier))))
+
+========================================
+a bare dot in parentheses is composition
+========================================
+
+main = (.);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name)))
+
+========================================
+a spaced colon starts a cons right section
+========================================
+
+main = (: xs);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (identifier))))
+
+========================================
+an attached colon in parentheses is still a kind
+========================================
+
+main = (:xs);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (parenthesized
+      (kind))))
+
+========================================
+an attached colon ends a cons left section
+========================================
+
+main = (x:);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (identifier))))
+
+========================================
+a bare colon in parentheses is cons
+========================================
+
+main = (:);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name)))
+
+========================================
+a left section of subtraction
+========================================
+
+main = (1 -);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (number))))
+
+========================================
+a bare minus in parentheses is subtraction
+========================================
+
+main = (-);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name)))
+
+========================================
+an attached minus is still a negative number
+========================================
+
+main = (-1);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (parenthesized
+      (number))))
+
+========================================
+a backticked name sections on the right
+========================================
+
+main = (`mod` 5);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      operator: (backtick_operator
+        function: (identifier))
+      right: (number))))
+
+========================================
+a backticked name sections on the left
+========================================
+
+main = (8 `mod`);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (number)
+      operator: (backtick_operator
+        function: (identifier)))))
+
+========================================
+a parenthesized backticked name is the function
+========================================
+
+main = (`mod`);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name
+      operator: (backtick_operator
+        function: (identifier)))))
+
+========================================
+a left operand binds tighter than or as tight as the operator
+========================================
+
+main = (a + b +);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+a right operand extends to the closing parenthesis
+========================================
+
+main = (* a + b);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (right_section
+      right: (additive
+        left: (identifier)
+        right: (identifier)))))
+
+========================================
+an application is a left operand
+========================================
+
+main = (f x =);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (left_section
+      left: (application
+        function: (identifier)
+        argument: (identifier)))))
+
+========================================
+a spaced minus does not start a right section
+========================================
+
+main = (- 1);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (operator_name
+      (ERROR
+        (number)))))
+
+========================================
+a left operand looser than the operator is a syntax error
+========================================
+
+main = (a + b *);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (parenthesized
+      (additive
+        left: (identifier)
+        right: (identifier))
+      (ERROR))))
