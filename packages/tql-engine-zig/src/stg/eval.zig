@@ -40,7 +40,6 @@ pub const Site = enum {
     step_tail,
     alloc_captured,
     apply_partial,
-    apply_all,
 };
 /// Shared by every machine, so every worker thread writes them.
 pub var site_counts: std.EnumArray(Site, std.atomic.Value(u64)) = .initFill(.init(0));
@@ -755,15 +754,8 @@ pub const Machine = struct {
                     .constructed => blk: {
                         var count: i64 = 0;
                         var current = subject;
-                        while (true) {
-                            const c = switch (current) {
-                                .constructed => |k| k,
-                                else => return error.TypeError,
-                            };
-                            if (c.tag == self.program.structural.nil.tag) break;
-                            if (c.len != 2) return error.TypeError;
-                            count += 1;
-                            current = try self.force(c.fields()[1]);
+                        while (try self.uncons(current)) |cell| : (count += 1) {
+                            current = try self.force(cell.tail);
                         }
                         break :blk .{ .number = count };
                     },
@@ -1349,17 +1341,46 @@ pub const Machine = struct {
             const needed = closure.code.parameters.len - closure.applied.len;
             if (remaining.len < needed) return try self.partial(closure, remaining);
 
-            note(.apply_all, closure.code.parameters.len * @sizeOf(*value.Thunk));
-            const all = try self.arena.alloc(*value.Thunk, closure.code.parameters.len);
-            @memcpy(all[0..closure.applied.len], closure.applied);
-            @memcpy(all[closure.applied.len..], remaining[0..needed]);
-
+            var env = try self.takeEnv();
+            defer self.giveEnv(env);
+            const body = try self.enter(closure, remaining[0..needed], &env);
             // Over-applied, the result is a function and the rest are its
             // arguments.
-            function = try self.run(closure.code, closure.captured, all);
+            function = try self.expression(body, &env);
             remaining = remaining[needed..];
         }
         return function;
+    }
+
+    /// Returns the head and tail of a forced list cell, both unforced, or
+    /// null at `Nil`.
+    pub fn uncons(self: *const Machine, list: value.Value) Error!?Cell {
+        const c = switch (list) {
+            .constructed => |k| k,
+            else => return error.TypeError,
+        };
+        if (c.tag == self.program.structural.nil.tag) return null;
+        if (c.len != 2) return error.TypeError;
+        const fields = c.fields();
+        return .{ .head = fields[0], .tail = fields[1] };
+    }
+
+    pub const Cell = struct { head: *value.Thunk, tail: *value.Thunk };
+
+    /// Write a forced list as a JSON array, forcing its spine and every
+    /// element.
+    ///
+    /// Returns the number of elements written.
+    pub fn serializeList(self: *Machine, list: value.Value, jws: *std.json.Stringify) Error!usize {
+        try jws.beginArray();
+        var count: usize = 0;
+        var current = list;
+        while (try self.uncons(current)) |cell| : (count += 1) {
+            try self.serialize(try self.force(cell.head), jws);
+            current = try self.force(cell.tail);
+        }
+        try jws.endArray();
+        return count;
     }
 
     /// Write a forced value as JSON. This is the `Serial` boundary: it forces
@@ -1385,20 +1406,7 @@ pub const Machine = struct {
                 if (c.constructor == structural.true_.symbol or c.constructor == structural.false_.symbol) {
                     try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
-                    try jws.beginArray();
-                    var current = v;
-                    while (true) {
-                        const cell = switch (current) {
-                            .constructed => |k| k,
-                            else => return error.TypeError,
-                        };
-                        if (cell.tag == structural.nil.tag) break;
-                        if (cell.len != 2) return error.TypeError;
-                        const cell_fields = cell.fields();
-                        try self.serialize(try self.force(cell_fields[0]), jws);
-                        current = try self.force(cell_fields[1]);
-                    }
-                    try jws.endArray();
+                    _ = try self.serializeList(v, jws);
                 } else {
                     // A user datatype, which has no encoding until 0.4 gives
                     // it one.

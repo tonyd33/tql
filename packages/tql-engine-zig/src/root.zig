@@ -48,31 +48,6 @@ pub const Config = struct {
     io: std.Io,
 };
 
-/// Force a `[a]` spine into its elements, appending them to `out`. Elements
-/// are left unforced, so the caller decides what to force and when.
-///
-/// Diverges on an infinite list.
-fn listElements(
-    machine: *stg.Machine,
-    gpa: Allocator,
-    head: stg.Value,
-    out: *std.ArrayList(*stg.Thunk),
-) !void {
-    const nil_tag = machine.program.structural.nil.tag;
-    var current = head;
-    while (true) {
-        const constructed = switch (current) {
-            .constructed => |c| c,
-            else => return error.TypeError,
-        };
-        if (constructed.tag == nil_tag) return;
-        if (constructed.len != 2) return error.TypeError;
-        const fields = constructed.fields();
-        try out.append(gpa, fields[0]);
-        current = try machine.force(fields[1]);
-    }
-}
-
 /// A "batteries-included" interface to the TQL primitives.
 pub const Engine = struct {
     config: Config,
@@ -297,26 +272,18 @@ pub const CompiledQuery = struct {
         root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
         const outputs = try machine.apply(try machine.force(entry), &.{root});
 
-        var elements: std.ArrayList(*stg.Thunk) = .empty;
-        defer elements.deinit(scratch);
-        try listElements(&machine, scratch, outputs, &elements);
-
         // Serialized here, while the tree is alive. A node value borrows it,
         // so it cannot outlive this call.
         var w: std.Io.Writer.Allocating = .init(result_allocator);
         errdefer w.deinit();
         var jws = std.json.Stringify{ .writer = &w.writer };
-        try jws.beginArray();
-        for (elements.items) |element| {
-            try machine.serialize(try machine.force(element), &jws);
-        }
-        try jws.endArray();
+        const count = try machine.serializeList(outputs, &jws);
 
         const query_time = query_start.untilNow(self.io, .real);
 
         return .{
             .json = try w.toOwnedSlice(),
-            .count = elements.items.len,
+            .count = count,
             .parse_time = parse_time,
             .query_time = query_time,
         };
@@ -381,12 +348,11 @@ fn runQuery(
 
     const main_value = try machine.force(machine.global(program.entry).?);
     var unit: stg.Thunk = stg.Thunk.value(.{ .number = 0 });
-    try listElements(
-        &machine,
-        arena.allocator(),
-        try machine.apply(main_value, &.{&unit}),
-        out,
-    );
+    var current = try machine.apply(main_value, &.{&unit});
+    while (try machine.uncons(current)) |cell| {
+        try out.append(arena.allocator(), cell.head);
+        current = try machine.force(cell.tail);
+    }
 
     // Forced here, while the machine is alive, and copied out: a literal's
     // thunk belongs to the translated program, freed on return.
