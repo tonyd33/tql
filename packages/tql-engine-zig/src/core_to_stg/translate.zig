@@ -144,18 +144,6 @@ pub const Translator = struct {
         return error.UnboundLocal;
     }
 
-    /// Whether a symbol is a local rather than something reached by identity.
-    pub fn isLocal(context: *const anyopaque, symbol: core.SymbolId) bool {
-        const self: *const Translator = @ptrCast(@alignCast(context));
-        // A constructor, primitive or synthesized symbol is reached by
-        // identity. Missing one here makes a closure try to capture it.
-        switch (self.program.env.interner.details(symbol)) {
-            .constructor, .primop, .synthesized => return false,
-            .vanilla => {},
-        }
-        return self.global(symbol) == null;
-    }
-
     fn resolve(self: *Translator, name: core.SymbolId) Callee {
         switch (self.program.env.interner.details(name)) {
             .constructor => |c| return .{
@@ -570,11 +558,7 @@ pub const Translator = struct {
         parameters: []const core.SymbolId,
         body: core.Term,
     ) Error!*const stg.Closure {
-        var collector: free.Collector = .{
-            .gpa = self.gpa,
-            .is_local = isLocal,
-            .context = self,
-        };
+        var collector: free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
         defer collector.deinit();
 
         for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);
