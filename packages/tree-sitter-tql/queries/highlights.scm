@@ -9,6 +9,7 @@
   "case"
   "of"
   "type"
+  "data"
 ] @keyword
 
 (comment) @comment
