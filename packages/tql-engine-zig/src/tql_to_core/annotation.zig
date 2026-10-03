@@ -7,6 +7,7 @@
 //! The translation is syntax-directed: `Filter a b` expands to `a -> [b]`, and
 //! type variables become `forall` binders in order of first appearance. A
 //! variable after `|` in a record type is a row, and may not also be a type.
+//! An alias expands where it is written, keeping its name for printing.
 
 const std = @import("std");
 const cst = @import("../lang/cst.zig");
@@ -18,7 +19,7 @@ const types = core.types;
 const Allocator = std.mem.Allocator;
 
 /// The type names every signature may use without declaring them. `Range` and
-/// `Point` name record types.
+/// `Point` are aliases of record types.
 pub const builtin_names = [_]struct { name: []const u8, type: types.Type }{
     .{ .name = "Int", .type = types.int_type },
     .{ .name = "String", .type = types.string_type },
@@ -70,6 +71,71 @@ pub fn translate(
     };
 }
 
+/// Translates an alias declaration's body, numbering its variables by
+/// parameter position.
+///
+/// Preconditions:
+/// - Every alias the body names is already in `declared`.
+pub fn translateAlias(
+    arena: Allocator,
+    gpa: Allocator,
+    alias: *const cst.TypeAlias,
+    declared: *const datatypes.Registry,
+    sink: *diagnostic.Sink,
+) Error!datatypes.Alias {
+    var vars: std.ArrayList(Translator.Variable) = .empty;
+    defer vars.deinit(gpa);
+
+    var t = Translator{
+        .arena = arena,
+        .gpa = gpa,
+        .vars = &vars,
+        .datatypes = declared,
+        .sink = sink,
+    };
+    // Parameter `i` is variable `i` in the body.
+    for (alias.parameters, 0..) |parameter, i| {
+        if (try t.binder(parameter, null, alias.span) == i) continue;
+        try sink.report(
+            .duplicate_definition,
+            alias.span,
+            "`{s}` names two parameters of `{s}`",
+            .{ parameter, alias.name },
+        );
+        return error.BadAnnotation;
+    }
+    const body = try t.type(alias.type);
+
+    if (vars.items.len > alias.parameters.len) {
+        try sink.report(
+            .unresolved_name,
+            alias.type.span,
+            "`{s}` is not a parameter of `{s}`",
+            .{ vars.items[alias.parameters.len].name, alias.name },
+        );
+        return error.BadAnnotation;
+    }
+    const parameters = try arena.alloc(datatypes.Alias.Parameter, alias.parameters.len);
+    for (vars.items, parameters) |v, *slot| {
+        const sort = v.sort orelse {
+            try sink.report(
+                .type_mismatch,
+                alias.span,
+                "`{s}` is a parameter of `{s}` that its body never uses",
+                .{ v.name, alias.name },
+            );
+            return error.BadAnnotation;
+        };
+        slot.* = .{ .name = try arena.dupe(u8, v.name), .sort = sort };
+    }
+
+    return .{
+        .name = try arena.dupe(u8, alias.name),
+        .parameters = parameters,
+        .body = body,
+    };
+}
+
 const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
@@ -110,6 +176,7 @@ const Translator = struct {
             }
             return try types.constructed(self.arena, declared, self.datatypes.get(declared).name, &.{});
         }
+        if (self.datatypes.aliasNamed(name)) |alias| return try self.aliasAt(alias, &.{}, span);
         if (builtinNamed(name)) |t| return t;
         try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
         return error.BadAnnotation;
@@ -121,6 +188,9 @@ const Translator = struct {
         span: diagnostic.Span,
     ) Error!types.Type {
         const declared = self.datatypes.lookup(node.constructor) orelse {
+            if (self.datatypes.aliasNamed(node.constructor)) |alias| {
+                return try self.aliasAt(alias, node.arguments, span);
+            }
             try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{node.constructor});
             return error.BadAnnotation;
         };
@@ -161,18 +231,70 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
-    const Sort = enum { type, row };
+    const Sort = datatypes.Alias.Sort;
+
+    /// `alias` applied to `written`, expanded.
+    fn aliasAt(
+        self: *Translator,
+        alias: *const datatypes.Alias,
+        written: []const cst.Type,
+        span: diagnostic.Span,
+    ) Error!types.Type {
+        if (written.len != alias.parameters.len) {
+            try self.sink.report(
+                .type_mismatch,
+                span,
+                "`{s}` takes {d} type argument(s), given {d}",
+                .{ alias.name, alias.parameters.len, written.len },
+            );
+            return error.BadAnnotation;
+        }
+        const arguments = try self.arena.alloc(types.Type, written.len);
+        for (alias.parameters, written, arguments) |parameter, argument, *slot| {
+            slot.* = switch (parameter.sort) {
+                .type => try self.type(argument),
+                .row => try self.row(argument, alias, parameter),
+            };
+        }
+        return try alias.apply(self.arena, arguments);
+    }
+
+    /// The argument for a row parameter, which only a type variable can be.
+    fn row(
+        self: *Translator,
+        argument: cst.Type,
+        alias: *const datatypes.Alias,
+        parameter: datatypes.Alias.Parameter,
+    ) Error!types.Type {
+        var inner = argument;
+        while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
+        if (inner.kind != .variable) {
+            try self.sink.report(
+                .type_mismatch,
+                argument.span,
+                "`{s}` in `{s}` stands for a record's other fields, so its argument must be a type variable",
+                .{ parameter.name, alias.name },
+            );
+            return error.BadAnnotation;
+        }
+        return .{ .variable = try self.binder(inner.kind.variable, .row, argument.span) };
+    }
 
     const Variable = struct {
         name: []const u8,
-        sort: Sort,
+        /// Null for an alias parameter its body has not used yet.
+        sort: ?Sort,
     };
 
     /// The `forall` position of a type variable, assigned on first appearance.
-    fn binder(self: *Translator, name: []const u8, sort: Sort, span: diagnostic.Span) Error!types.TypeVar {
-        for (self.vars.items, 0..) |seen, i| {
+    fn binder(self: *Translator, name: []const u8, sort: ?Sort, span: diagnostic.Span) Error!types.TypeVar {
+        for (self.vars.items, 0..) |*seen, i| {
             if (!std.mem.eql(u8, seen.name, name)) continue;
-            if (seen.sort != sort) {
+            const known = seen.sort orelse {
+                seen.sort = sort;
+                return @intCast(i);
+            };
+            if (sort != null and known != sort.?) {
                 try self.sink.report(
                     .type_mismatch,
                     span,

@@ -1,0 +1,20 @@
+title: a constructor field may be written through an alias
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Pred = Node -> Bool;
+data Check = Check String Pred;
+run :: Check -> Node -> [String];
+run c n = case c of { Check label p -> if p n then [label] else [] };
+main = children | run (Check "named" is_named);
+
+--- source ---
+class A {}
+
+--- values ---
+["named"]
+
+--- types ---
+run :: Check -> Node -> [String]
+main :: Node -> [String]

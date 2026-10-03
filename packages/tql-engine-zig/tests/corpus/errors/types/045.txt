@@ -1,0 +1,16 @@
+title: a missing field under an alias names the alias
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Named r = {name: String | r};
+greet :: Named r -> String;
+greet x = x.name;
+main root = [greet {age = 1}];
+
+--- error ---
+error[type-mismatch]: Expected `Named a`, found `{age: Int}`.
+ --> 4:20
+  |
+4 | main root = [greet {age = 1}];
+  |                    ^^^^^^^^^

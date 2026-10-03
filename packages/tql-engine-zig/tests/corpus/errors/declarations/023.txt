@@ -5,12 +5,12 @@ asserts: error
 `List` takes one argument. A bare `List` is not a type a field can hold.
 
 --- tql ---
-type T = C List;
+data T = C List;
 main = pure 1;
 
 --- error ---
 error[type-mismatch]: `List` takes 1 type argument(s), given 0
  --> 1:12
   |
-1 | type T = C List;
+1 | data T = C List;
   |            ^^^^

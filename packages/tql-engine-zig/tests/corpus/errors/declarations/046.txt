@@ -1,0 +1,15 @@
+title: mutually recursive aliases are rejected once
+grammar: typescript
+asserts: error
+
+--- tql ---
+type A = [B];
+type B = {b: A};
+main = const [];
+
+--- error ---
+error[cyclic-alias]: `A` is defined in terms of itself
+ --> 1:1
+  |
+1 | type A = [B];
+  | ^^^^^^^^^^^^^

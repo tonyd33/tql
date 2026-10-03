@@ -1,0 +1,15 @@
+title: an alias may not share a name with a datatype
+grammar: typescript
+asserts: error
+
+--- tql ---
+data Box = Box Int;
+type Box = Int;
+main = const [];
+
+--- error ---
+error[duplicate-definition]: `Box` is declared more than once
+ --> 2:1
+  |
+2 | type Box = Int;
+  | ^^^^^^^^^^^^^^^

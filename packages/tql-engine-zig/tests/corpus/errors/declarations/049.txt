@@ -1,0 +1,16 @@
+title: a row parameter's argument must be a type variable
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Named r = {name: String | r};
+f :: Named Int -> String;
+f x = x.name;
+main = const [];
+
+--- error ---
+error[type-mismatch]: `r` in `Named` stands for a record's other fields, so its argument must be a type variable
+ --> 2:12
+  |
+2 | f :: Named Int -> String;
+  |            ^^^

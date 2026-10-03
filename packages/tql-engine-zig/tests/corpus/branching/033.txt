@@ -1,0 +1,20 @@
+title: a constructor field may name a datatype declared below it
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Even = Zero | E Odd;
+data Odd = O Even;
+depth :: Even -> Int;
+depth e = case e of { Zero -> 0; E (O rest) -> 2 + depth rest };
+main root = [depth (E (O (E (O Zero))))];
+
+--- source ---
+class A {}
+
+--- values ---
+[4]
+
+--- types ---
+depth :: Even -> Int
+main :: Node -> [Int]

@@ -1,0 +1,15 @@
+title: an alias may not be declared twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Id = Int;
+type Id = String;
+main = const [];
+
+--- error ---
+error[duplicate-definition]: `Id` is declared more than once
+ --> 2:1
+  |
+2 | type Id = String;
+  | ^^^^^^^^^^^^^^^^^

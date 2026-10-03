@@ -1,5 +1,5 @@
 -- a highlighted query
-type Size = Small | Large Int;
+data Size = Small | Large Int;
 --   ^ type
 --                        ^ type
 

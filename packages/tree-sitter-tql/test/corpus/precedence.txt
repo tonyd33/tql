@@ -290,12 +290,12 @@ main = (2 + 3) * 4;
 constructor fields do not absorb a following field as an argument
 ========================================
 
-type T a = C a a;
+data T a = C a a;
 
 ---
 
 (source_file
-  (type_declaration
+  (data_declaration
     name: (type_identifier)
     parameter: (type_variable)
     constructor: (constructor_declaration
@@ -307,12 +307,12 @@ type T a = C a a;
 a parenthesized field is a type application
 ========================================
 
-type T a = C (List a);
+data T a = C (List a);
 
 ---
 
 (source_file
-  (type_declaration
+  (data_declaration
     name: (type_identifier)
     parameter: (type_variable)
     constructor: (constructor_declaration

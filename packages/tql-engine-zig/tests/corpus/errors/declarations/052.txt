@@ -1,0 +1,14 @@
+title: an alias may not replace a built-in type
+grammar: typescript
+asserts: error
+
+--- tql ---
+type Range = Int;
+main = const [];
+
+--- error ---
+error[symbol-collision]: `Range` is a built-in type
+ --> 1:1
+  |
+1 | type Range = Int;
+  | ^^^^^^^^^^^^^^^^^

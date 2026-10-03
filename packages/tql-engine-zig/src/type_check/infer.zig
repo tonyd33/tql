@@ -214,7 +214,8 @@ pub const Inference = struct {
 
         // This isn't and can never be a function. Therefore we're over applying.
         const head = self.subst.resolve(callee);
-        if (head != .function and head != .meta) {
+        const expanded = self.subst.expand(head);
+        if (expanded != .function and expanded != .meta) {
             return self.fail(
                 .over_application,
                 app.argument.span,
@@ -556,7 +557,7 @@ pub const Inference = struct {
         defer self.gpa.free(representatives);
         for (representatives, 0..) |*slot, i| {
             const id: types.Meta = @intCast(before + i);
-            const resolved = self.subst.resolve(.{ .meta = id });
+            const resolved = self.subst.expand(.{ .meta = id });
             const still_arbitrary = resolved == .meta and
                 (resolved.meta == id or resolved.meta >= after) and
                 std.mem.indexOfScalar(types.Meta, representatives[0..i], resolved.meta) == null;

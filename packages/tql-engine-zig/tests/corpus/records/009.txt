@@ -1,4 +1,4 @@
-title: Range and Point name records in a signature
+title: Range and Point keep their names in a signature
 grammar: typescript
 asserts: types, values
 
@@ -14,5 +14,5 @@ class A {}
 [{"column": 0, "row": 0}]
 
 --- types ---
-line :: {end_byte: Int, end_point: {column: Int, row: Int}, start_byte: Int, start_point: {column: Int, row: Int}} -> {column: Int, row: Int}
-main :: Node -> [{column: Int, row: Int}]
+line :: Range -> Point
+main :: Node -> [Point]
