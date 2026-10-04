@@ -4,13 +4,13 @@ asserts: values, stg
 
 --- tql ---
 add3 a b c = a + b + c;
-main = let { f = add3 1 } in let { g = f 2 } in pure $ g 3;
+main = let { f = add3 1 } in let { g = f 2 } in const [g 3, g 4];
 
 --- source ---
 class A {}
 
 --- values ---
-[6]
+[6,7]
 
 --- stg ---
 add3 = {} \u {} ->
@@ -21,7 +21,18 @@ add3 = {} \u {} ->
   in
   t1@0
 main = {} \u {} ->
-  let f = {} \u {} -> add3 1 in
-  let g = {f@0} \u {} -> f@0 2 in
-  let t0 = {g@1} \u {} -> g@0 3 in
-  pure t0@2
+  let g = {} \u {} -> add3 1 2 in
+  let
+    t4 = {g@0} \u {} ->
+      let
+        t0 = {g@0} \u {} -> g@0 3
+        t3 = {g@0} \u {} ->
+          let
+            t1 = {g@0} \u {} -> g@0 4
+            c2 = Nil
+          in
+          Cons t1@1 c2@2
+      in
+      Cons t0@1 t3@2
+  in
+  const t4@1

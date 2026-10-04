@@ -1,0 +1,22 @@
+title: a binding to a string used twice stays
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { s = "ab" } in pure (length s + length s);
+
+--- source ---
+class A {}
+
+--- values ---
+[4]
+
+--- simplified ---
+main =
+  let s = "ab" in
+  pure (op[+] (length s) (length s))
+
+--- core ---
+main =
+  let s = "ab" in
+  pure (op[+] (length s) (length s))

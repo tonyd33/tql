@@ -602,7 +602,7 @@ pub const Lowerer = struct {
             edge.* = targets;
         }
 
-        var found = try resolve.stronglyConnectedComponents(self.builder.allocator, edges);
+        var found = try core.components.stronglyConnectedComponents(self.builder.allocator, edges);
         defer found.deinit();
 
         const components = try self.builder.slice(Group.Component, found.groups.len);

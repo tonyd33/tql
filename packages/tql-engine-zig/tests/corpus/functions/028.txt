@@ -3,7 +3,8 @@ grammar: typescript
 asserts: values, stg
 
 --- tql ---
-main = pure $ (\a b c -> (\x -> c - a * x - b)) 1 30 3 0;
+f a b c = \x -> c - a * x - b;
+main = pure $ f 1 30 3 0;
 
 --- source ---
 class A {}
@@ -12,22 +13,17 @@ class A {}
 [-27]
 
 --- stg ---
-main = {} \u {} ->
+f = {} \u {} ->
   let
-    t4 = {} \u {} ->
+    t2 = {} \n {a,b,c,x} ->
       let
-        t3 = {} \u {} ->
-          let
-            t2 = {} \n {a,b,c,x} ->
-              let
-                t1 = {c@2,a@0,x@3} \u {} ->
-                  let t0 = {a@1,x@2} \u {} -> op[*]# a@0 x@1 in
-                  op[-]# c@0 t0@3
-              in
-              op[-]# t1@4 b@1
-          in
-          t2@0
+        t1 = {c@2,a@0,x@3} \u {} ->
+          let t0 = {a@1,x@2} \u {} -> op[*]# a@0 x@1 in
+          op[-]# c@0 t0@3
       in
-      t3@0 1 30 3 0
+      op[-]# t1@4 b@1
   in
-  pure t4@0
+  t2@0
+main = {} \u {} ->
+  let t0 = {} \u {} -> f 1 30 3 0 in
+  pure t0@0

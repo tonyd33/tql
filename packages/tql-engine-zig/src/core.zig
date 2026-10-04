@@ -21,6 +21,8 @@ pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
 pub const print_scope = @import("core/print_scope.zig");
 pub const free = @import("core/free.zig");
+pub const components = @import("core/components.zig");
+pub const occurrence = @import("core/occurrence.zig");
 pub const test_support = @import("core/test_support.zig");
 const program = @import("core/program.zig");
 

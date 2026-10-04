@@ -1,0 +1,20 @@
+title: an unused binding is dropped
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { unused = 2 * 3 } in pure 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- simplified ---
+main = pure 1
+
+--- core ---
+main =
+  let unused = op[*] 2 3 in
+  pure 1

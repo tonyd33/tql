@@ -31,20 +31,16 @@ fst = {} \u {} ->
   t0@0
 pick = {} \u {} ->
   let
-    t4 = {} \n {p,q} -> case (
-      let s = {} \u {} -> 5 in
-      Mk s@2 6
-    ) of
-      Mk x y ->
-        let
-          t1 = {x@2,y@3} \u {} ->
-            let t0 = {y@1} \u {} -> op[*]# 10 y@0 in
-            op[+]# x@0 t0@2
-          t3 = {q@1} \u {} ->
-            let t2 = {q@0} \u {} -> fst q@0 in
-            op[*]# 100 t2@1
-        in
-        op[+]# t1@4 t3@5
+    t4 = {} \n {p,q} ->
+      let
+        t1 = {} \u {} ->
+          let t0 = {} \u {} -> op[*]# 10 6 in
+          op[+]# 5 t0@0
+        t3 = {q@1} \u {} ->
+          let t2 = {q@0} \u {} -> fst q@0 in
+          op[*]# 100 t2@1
+      in
+      op[+]# t1@2 t3@3
   in
   t4@0
 main = {} \u {} ->

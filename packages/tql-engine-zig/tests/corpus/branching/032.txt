@@ -32,25 +32,27 @@ main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (
 --- stg ---
 one = {} \u {} ->
   let
-    t2 = {} \n {xs} ->
-      let
-        alternative = {} \u {} ->
-          let c0 = Nil in
-          c0@0
-      in
-      case xs@0 of
-        Nil -> alternative@1
-        Cons cons0 cons1 -> case cons0@2 of
-          Nil -> alternative@1
-          Cons a cons1' -> case cons1'@5 of
-            Nil -> case cons1@3 of
-              Nil ->
-                let c1 = Nil in
-                Cons a@4 c1@6
-              Cons _ _ -> alternative@1
-            Cons _ _ -> alternative@1
+    t5 = {} \n {xs} -> case xs@0 of
+      Nil ->
+        let c0 = Nil in
+        c0@1
+      Cons cons0 cons1 -> case cons0@1 of
+        Nil ->
+          let c1 = Nil in
+          c1@3
+        Cons a cons1' -> case cons1'@4 of
+          Nil -> case cons1@2 of
+            Nil ->
+              let c2 = Nil in
+              Cons a@3 c2@5
+            Cons _ _ ->
+              let c3 = Nil in
+              c3@7
+          Cons _ _ ->
+            let c4 = Nil in
+            c4@7
   in
-  t2@0
+  t5@0
 main = {} \u {} ->
   let
     t22 = {} \u {} ->

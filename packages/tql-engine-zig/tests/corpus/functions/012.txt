@@ -7,7 +7,7 @@ asserts: types, values, stg
 --- tql ---
 main =
   let {
-    step = 10;
+    step = 5 + 5;
     bump = \x -> x + step;
   }
   in const [bump 1, bump 2];
@@ -23,7 +23,7 @@ main :: Node -> [Int]
 
 --- stg ---
 main = {} \u {} ->
-  let step = {} \u {} -> 10 in
+  let step = {} \u {} -> op[+]# 5 5 in
   let bump = {step@0} \n {x} -> op[+]# x@1 step@0 in
   let
     t4 = {bump@1} \u {} ->

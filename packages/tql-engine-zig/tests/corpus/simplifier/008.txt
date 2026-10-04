@@ -1,0 +1,20 @@
+title: a binding to a number is substituted at every use
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { a = 5 } in pure (a + a);
+
+--- source ---
+class A {}
+
+--- values ---
+[10]
+
+--- simplified ---
+main = pure (op[+] 5 5)
+
+--- core ---
+main =
+  let a = 5 in
+  pure (op[+] a a)

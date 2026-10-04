@@ -1,0 +1,24 @@
+title: a recursive binding whose recursion is unreachable becomes a let
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { go n = if true then n else go (n + 1) } in pure (go 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- simplified ---
+main = pure 1
+
+--- core ---
+main =
+  letrec
+    go = \n -> case True of
+      False -> go (op[+] n 1)
+      True -> n
+  in
+  pure (go 1)

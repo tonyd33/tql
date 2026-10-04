@@ -324,6 +324,7 @@ test {
     refAllDecls(primitives);
     refAllDecls(types);
     refAllDecls(type_check);
+    refAllDecls(core_to_core);
     refAllDecls(core_to_stg);
     refAllDecls(stg);
     refAllDecls(inspect);

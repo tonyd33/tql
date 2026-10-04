@@ -1,0 +1,23 @@
+title: an unused recursive group is dropped
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { evens = Cons 0 odds; odds = Cons 1 evens } in pure 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- simplified ---
+main = pure 1
+
+--- core ---
+main =
+  letrec
+    evens = Cons 0 odds
+    odds = Cons 1 evens
+  in
+  pure 1

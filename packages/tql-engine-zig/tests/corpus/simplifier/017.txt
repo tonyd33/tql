@@ -1,0 +1,29 @@
+title: a kind test fuses into an axis once a lambda is applied
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { only k = descendants | of_kind k } in only :class_declaration;
+
+--- source ---
+class A {}
+
+--- values ---
+[
+  {
+    "kind": "class_declaration",
+    "text": "class A {}",
+    "start_byte": 0,
+    "end_byte": 10,
+    "start_point": { "row": 0, "column": 0 },
+    "end_point": { "row": 0, "column": 10 }
+  }
+]
+
+--- simplified ---
+main = descendants_of_kind :class_declaration
+
+--- core ---
+main =
+  let only = \k -> kleisli descendants (of_kind k) in
+  only :class_declaration
