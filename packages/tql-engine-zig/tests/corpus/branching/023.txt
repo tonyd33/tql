@@ -28,7 +28,7 @@ main :: Node -> [Int]
 
 --- core ---
 both = \m -> \n ->
-  letrec alternative = 0 in
+  let alternative = 0 in
   case Cons m (Cons n Nil) of
     Nil -> alternative
     Cons cons0 cons1 -> case cons0 of

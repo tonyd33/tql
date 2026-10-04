@@ -334,6 +334,29 @@ pub const Translator = struct {
                 return .{ .case = node };
             },
 
+            .let => |let| {
+                // The evaluator fills a non-recursive group against the
+                // environment without its binders, so the value is translated
+                // before `let.name` is pushed.
+                const bindings = try self.arena.alloc(stg.Binding, 1);
+                bindings[0] = .{
+                    .binder = let.name,
+                    .value = .{ .closure = try self.closureOf(let.value) },
+                };
+
+                const mark = self.scope.items.len;
+                try self.scope.append(self.gpa, let.name);
+                defer self.scope.shrinkRetainingCapacity(mark);
+
+                const node = try self.arena.create(stg.Expr.Let);
+                node.* = .{
+                    .bindings = bindings,
+                    .recursive = false,
+                    .body = try self.expression(let.body),
+                };
+                return .{ .let = node };
+            },
+
             .letrec => |letrec| {
                 const bindings = try self.arena.alloc(stg.Binding, letrec.bindings.len);
 

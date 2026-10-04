@@ -82,6 +82,12 @@ const Pass = struct {
                     t.span,
                 );
             },
+            .let => |l| try self.builder.let(
+                l.name,
+                try self.term(l.value),
+                try self.term(l.body),
+                t.span,
+            ),
             .letrec => |l| blk: {
                 const bindings = try self.builder.slice(
                     core.Letrec.Binding,

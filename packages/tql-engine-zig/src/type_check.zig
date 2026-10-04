@@ -1391,6 +1391,28 @@ test "a letrec member is monomorphic while the group is checked" {
     try fix.expectType(try fix.pb.letrec(bindings, fix.pb.symbol(loop)), "?3 -> ?4");
 }
 
+test "a let generalizes its value and each use instantiates" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    // let id = \x -> x in id id 1
+    const x = try fix.pb.global("x");
+    const id = try fix.pb.global("id");
+    const body = try fix.app(try fix.app(fix.pb.symbol(id), fix.pb.symbol(id)), fix.lit(.{ .number = 1 }));
+    try fix.expectType(try fix.pb.let(id, try fix.lam(x, fix.pb.symbol(x)), body), "Int");
+}
+
+test "a let binder is not in scope in its value" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    // let x = x in x
+    const x = try fix.pb.global("x");
+    try fix.expectFails(try fix.pb.let(x, fix.pb.symbol(x), fix.pb.symbol(x)), .unresolved_name);
+}
+
 test "instantiating a constrained scheme raises the constraint at the use" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);

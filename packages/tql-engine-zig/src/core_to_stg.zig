@@ -285,6 +285,37 @@ test "a closure prints its captures, its update flag and its parameters" {
     );
 }
 
+test "a let becomes a non-recursive let of one binding" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+
+    // spread a b = let k = b - a in k
+    const spread = try pb.global("spread");
+    const a = try pb.local("a");
+    const b = try pb.local("b");
+    const k = try pb.local("k");
+    try pb.define(spread, try pb.lambda(&.{ a, b }, try pb.let(
+        k,
+        try pb.apply(pb.symbol(try pb.operator(.subtract)), &.{ pb.symbol(b), pb.symbol(a) }),
+        pb.symbol(k),
+    )));
+
+    var program = try pb.program(spread);
+    try expectTranslationPlaced(&program);
+    try expectDefinition(
+        &program,
+        spread,
+        \\{} \u {} ->
+        \\  let
+        \\    t0 = {} \n {a,b} ->
+        \\      let k = {b@1,a@0} \u {} -> op[-]# b@0 a@1 in
+        \\      k@2
+        \\  in
+        \\  t0@0
+        ,
+    );
+}
+
 test "a constructor field that is not an atom becomes a thunk" {
     var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
     defer pb.deinit();

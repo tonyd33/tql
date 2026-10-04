@@ -64,6 +64,13 @@ pub const Collector = struct {
                     self.bound.shrinkRetainingCapacity(mark);
                 }
             },
+            .let => |let| {
+                try self.walk(let.value);
+                const mark = self.bound.items.len;
+                try self.bound.append(self.gpa, let.name);
+                try self.walk(let.body);
+                self.bound.shrinkRetainingCapacity(mark);
+            },
             .letrec => |letrec| {
                 // Recursive: every binding is in scope in every right-hand
                 // side as well as in the body, so nothing here is free.
@@ -151,6 +158,29 @@ test "a letrec binding is not free in its own right-hand side" {
 
     try collector.walk(term);
     try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+}
+
+test "a let binding is free in its own value and not in its body" {
+    const gpa = testing.allocator;
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const builder: core.Builder = .{ .allocator = arena.allocator() };
+
+    // `let a = b in a`: only `b` is free.
+    {
+        var collector: Collector = .{ .gpa = gpa, .locals = &.{ @enumFromInt(1), @enumFromInt(2) } };
+        defer collector.deinit();
+        try collector.walk(try builder.let(@enumFromInt(1), sym(2), sym(1), span));
+        try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    }
+
+    // `let a = a in a`: the `a` in the value is free.
+    {
+        var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(1)} };
+        defer collector.deinit();
+        try collector.walk(try builder.let(@enumFromInt(1), sym(1), sym(1), span));
+        try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(1)}, collector.out.items);
+    }
 }
 
 test "a case alternative's binders are not free in its body" {

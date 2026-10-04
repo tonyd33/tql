@@ -443,7 +443,7 @@ pub const Lowerer = struct {
         if (left == null) result = try self.builder.lambda(left_term.kind.symbol, result, span);
 
         const operand = binding orelse return result;
-        return try self.builder.letrec(try self.builder.dupeSlice(core.Letrec.Binding, &.{operand}), result, span);
+        return try self.builder.let(operand.name, operand.value, result, span);
     }
 
     /// A written operand as an atom, setting `binding` when it is compound.

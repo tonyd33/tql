@@ -113,6 +113,7 @@ pub const Inference = struct {
             .lambda => |lam| try self.lambda(lam.*),
             .apply => |app| try self.application(app.*),
             .case => |c| try self.caseOf(c.*),
+            .let => |l| try self.let(l.*),
             .letrec => |l| try self.letrec(l.*),
         };
     }
@@ -263,6 +264,20 @@ pub const Inference = struct {
         }
 
         return first.?.type;
+    }
+
+    /// (T-Let)       Gamma |- e_1 : tau_1      sigma = Gen(Gamma, tau_1)
+    ///               Gamma, x : sigma |- e_2 : tau_2
+    ///               ------------------------------------------------
+    ///               Gamma |- let x = e_1 in e_2 : tau_2
+    fn let(self: *Inference, l: core.Let) Error!types.Type {
+        const value = try self.term(l.value);
+        const scheme = try self.generalize(value, l.value.span);
+
+        const mark = self.scope.mark();
+        defer self.scope.truncate(mark);
+        try self.scope.push(l.name, .{ .scheme = scheme });
+        return try self.term(l.body);
     }
 
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)

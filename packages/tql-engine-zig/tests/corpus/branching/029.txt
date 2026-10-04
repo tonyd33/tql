@@ -18,7 +18,7 @@ class A {}
 
 --- core ---
 second = \xs ->
-  letrec alternative = Nil in
+  let alternative = Nil in
   case xs of
     Nil -> alternative
     Cons _ cons1 -> case cons1 of

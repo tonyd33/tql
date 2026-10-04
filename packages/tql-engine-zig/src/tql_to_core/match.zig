@@ -89,6 +89,7 @@ pub fn caseOf(
 
     const shared = try b.slice(?core.SymbolId, c.alternatives.len);
     var bindings: std.ArrayList(core.Letrec.Binding) = .empty;
+    defer bindings.deinit(b.allocator);
     for (expanded, matcher.uses, shared) |alternative, uses, *slot| {
         slot.* = null;
         if (uses < 2) continue;
@@ -115,12 +116,12 @@ pub fn caseOf(
     // A scrutinee that is not already a name is bound only when an
     // alternative names it.
     if (scrutinee.kind != .symbol and emitter.root_bound) {
-        const letrec = try b.slice(core.Letrec.Binding, 1);
-        letrec[0] = .{ .name = root, .value = scrutinee };
-        term = try b.letrec(letrec, term, span);
+        term = try b.let(root, scrutinee, term, span);
     }
-    if (bindings.items.len > 0) {
-        term = try b.letrec(try bindings.toOwnedSlice(b.allocator), term, span);
+    var i = bindings.items.len;
+    while (i > 0) {
+        i -= 1;
+        term = try b.let(bindings.items[i].name, bindings.items[i].value, term, span);
     }
     return term;
 }

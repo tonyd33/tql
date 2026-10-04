@@ -6,6 +6,7 @@
 //!        | \x -> expr
 //!        | expr_1 expr_2
 //!        | case expr of { C x_1 .. x_n -> expr; ... }
+//!        | let x = expr_1 in expr_2
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //! ```
 
@@ -55,6 +56,7 @@ pub const Term = struct {
         lambda: *const Lambda,
         apply: *const Apply,
         case: *const Case,
+        let: *const Let,
         letrec: *const Letrec,
     };
 };
@@ -89,6 +91,13 @@ pub const Case = struct {
         binders: []const SymbolId,
         body: Term,
     };
+};
+
+/// `name` is in scope in `body` and not in `value`.
+pub const Let = struct {
+    name: SymbolId,
+    value: Term,
+    body: Term,
 };
 
 pub const Letrec = struct {
@@ -171,6 +180,18 @@ pub const Builder = struct {
         return .{ .kind = .{ .case = node }, .span = span };
     }
 
+    pub fn let(
+        self: Builder,
+        name: SymbolId,
+        value: Term,
+        body: Term,
+        span: diagnostic.Span,
+    ) !Term {
+        const node = try self.allocator.create(Let);
+        node.* = .{ .name = name, .value = value, .body = body };
+        return .{ .kind = .{ .let = node }, .span = span };
+    }
+
     pub fn letrec(
         self: Builder,
         bindings: []const Letrec.Binding,
@@ -183,8 +204,8 @@ pub const Builder = struct {
     }
 };
 
-/// Lay a term out across lines by its structure. A term without `case` or
-/// `letrec` prints on one line.
+/// Lay a term out across lines by its structure. A term without `case`, `let`
+/// or `letrec` prints on one line.
 ///
 /// A binder prints with primes appended when its scope references another
 /// symbol of the same printed name.
@@ -224,11 +245,12 @@ pub const Printer = struct {
     const Group = union(enum) {
         lambda: *const Lambda,
         alternative: *const Case.Alternative,
+        let: *const Let,
         letrec: *const Letrec,
 
         pub fn len(g: Group) usize {
             return switch (g) {
-                .lambda => 1,
+                .lambda, .let => 1,
                 .alternative => |a| a.binders.len,
                 .letrec => |l| l.bindings.len,
             };
@@ -238,6 +260,7 @@ pub const Printer = struct {
             return switch (g) {
                 .lambda => |l| l.parameter,
                 .alternative => |a| a.binders[i],
+                .let => |l| l.name,
                 .letrec => |l| l.bindings[i].name,
             };
         }
@@ -255,7 +278,7 @@ pub const Printer = struct {
             .symbol => false,
             .literal => |value| position == .operand and value == .number and value.number < 0,
             .apply => position == .operand,
-            .lambda, .case, .letrec => position != .top,
+            .lambda, .case, .let, .letrec => position != .top,
         };
         if (wrap) {
             try self.writeParenthesized(t, w, indent, scope);
@@ -276,11 +299,11 @@ pub const Printer = struct {
         try w.writeByte(')');
     }
 
-    /// Write ` t`, or `t` on its own line at `indent + 2` when it is a
-    /// `letrec`.
+    /// Write ` t`, or `t` on its own line at `indent + 2` when it is a `let`
+    /// or `letrec`.
     fn writeAfterArrow(self: Printer, t: Term, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (t.kind) {
-            .letrec => {
+            .let, .letrec => {
                 try print_scope.newline(w, indent + 2);
                 try self.write(t, w, .top, indent + 2, scope);
             },
@@ -315,6 +338,7 @@ pub const Printer = struct {
                     try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
                 }
             },
+            .let => |l| try self.enter(.{ .let = l }, w, indent, scope),
             .letrec => |l| try self.enter(.{ .letrec = l }, w, indent, scope),
         }
     }
@@ -328,6 +352,7 @@ pub const Printer = struct {
         return switch (g) {
             .lambda => |l| self.captures(l.body, binder, spelling, primes, scope),
             .alternative => |a| self.captures(a.body, binder, spelling, primes, scope),
+            .let => |l| self.captures(l.body, binder, spelling, primes, scope),
             .letrec => |l| {
                 for (l.bindings) |b| {
                     if (self.captures(b.value, binder, spelling, primes, scope)) return true;
@@ -355,6 +380,8 @@ pub const Printer = struct {
                 }
                 return false;
             },
+            .let => |l| self.captures(l.value, binder, spelling, primes, scope) or
+                self.captures(l.body, binder, spelling, primes, scope),
             .letrec => |l| {
                 for (l.bindings) |b| {
                     if (self.captures(b.value, binder, spelling, primes, scope)) return true;
@@ -380,28 +407,52 @@ pub const Printer = struct {
                 try w.writeAll(" ->");
                 try self.writeAfterArrow(a.body, w, indent, scope);
             },
-            .letrec => |l| {
-                if (l.bindings.len == 1 and isFlat(l.bindings[0].value)) {
-                    try w.writeAll("letrec ");
-                    try self.writeName(l.bindings[0].name, w, scope);
-                    try w.writeAll(" = ");
-                    try self.write(l.bindings[0].value, w, .top, indent, scope);
-                    try w.writeAll(" in");
-                } else {
-                    try w.writeAll("letrec");
-                    for (l.bindings) |b| {
-                        try print_scope.newline(w, indent + 2);
-                        try self.writeName(b.name, w, scope);
-                        try w.writeAll(" =");
-                        try self.writeAfterArrow(b.value, w, indent + 2, scope);
-                    }
-                    try print_scope.newline(w, indent);
-                    try w.writeAll("in");
-                }
-                try print_scope.newline(w, indent);
-                try self.write(l.body, w, .top, indent, scope);
-            },
+            // `scope`'s innermost node is the binder, so its parent is where
+            // the value is written.
+            .let => |l| try self.writeBindings(
+                "let",
+                &.{.{ .name = l.name, .value = l.value }},
+                l.body,
+                w,
+                indent,
+                scope,
+                scope.?.parent,
+            ),
+            .letrec => |l| try self.writeBindings("letrec", l.bindings, l.body, w, indent, scope, scope),
         }
+    }
+
+    /// Write `keyword`, each binding with its value in `value_scope`, `in`,
+    /// and `body` on the next line.
+    fn writeBindings(
+        self: Printer,
+        keyword: []const u8,
+        bindings: []const Letrec.Binding,
+        body: Term,
+        w: *std.Io.Writer,
+        indent: usize,
+        scope: ?*print_scope.Scope,
+        value_scope: ?*print_scope.Scope,
+    ) Error!void {
+        if (bindings.len == 1 and isFlat(bindings[0].value)) {
+            try w.print("{s} ", .{keyword});
+            try self.writeName(bindings[0].name, w, scope);
+            try w.writeAll(" = ");
+            try self.write(bindings[0].value, w, .top, indent, value_scope);
+            try w.writeAll(" in");
+        } else {
+            try w.writeAll(keyword);
+            for (bindings) |b| {
+                try print_scope.newline(w, indent + 2);
+                try self.writeName(b.name, w, scope);
+                try w.writeAll(" =");
+                try self.writeAfterArrow(b.value, w, indent + 2, value_scope);
+            }
+            try print_scope.newline(w, indent);
+            try w.writeAll("in");
+        }
+        try print_scope.newline(w, indent);
+        try self.write(body, w, .top, indent, scope);
     }
 
     fn writeName(self: Printer, id: SymbolId, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {
@@ -413,7 +464,7 @@ pub const Printer = struct {
             .symbol, .literal => true,
             .lambda => |l| isFlat(l.body),
             .apply => |a| isFlat(a.function) and isFlat(a.argument),
-            .case, .letrec => false,
+            .case, .let, .letrec => false,
         };
     }
 
@@ -521,6 +572,86 @@ test "a letrec binding is in scope in its siblings' values" {
         \\    b = a a'
         \\  in
         \\  b
+    , term);
+}
+
+test "a let of one flat binding takes one line" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const a = try pb.local("a");
+    try expectDefinitionPrints(&pb,
+        \\main =
+        \\  let a = f 1 in
+        \\  a
+    , main, try pb.let(a, try pb.apply(pb.symbol(f), &.{pb.number(1)}), pb.symbol(a)));
+}
+
+test "a let binding whose value is not flat is laid out like a letrec's" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const nil = try pb.global("Nil");
+    const a = try pb.local("a");
+    const n = try pb.local("n");
+    const value = try pb.lambda(&.{n}, try pb.case(pb.symbol(n), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.number(0) },
+    }));
+    try expectPrints(&pb,
+        \\let
+        \\  a = \n -> case n of
+        \\    Nil -> 0
+        \\in
+        \\a
+    , try pb.let(a, value, pb.symbol(a)));
+}
+
+test "a let operand is parenthesized across lines" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const a = try pb.local("a");
+    try expectPrints(&pb,
+        \\f (
+        \\  let a = 1 in
+        \\  a
+        \\) 2
+    , try pb.apply(pb.symbol(f), &.{ try pb.let(a, pb.number(1), pb.symbol(a)), pb.number(2) }));
+}
+
+test "a let binder is not in scope in its value" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const term = try pb.lambda(&.{outer}, try pb.let(
+        inner,
+        try pb.apply(pb.symbol(f), &.{pb.symbol(outer)}),
+        pb.symbol(inner),
+    ));
+    try expectPrints(&pb,
+        \\\x ->
+        \\  let x = f x in
+        \\  x
+    , term);
+}
+
+test "a let binder whose body references the shadowed one is primed" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const outer = try pb.local("x");
+    const inner = try pb.local("x");
+    const term = try pb.lambda(&.{outer}, try pb.let(
+        inner,
+        try pb.apply(pb.symbol(f), &.{pb.symbol(outer)}),
+        try pb.apply(pb.symbol(f), &.{ pb.symbol(outer), pb.symbol(inner) }),
+    ));
+    try expectPrints(&pb,
+        \\\x ->
+        \\  let x' = f x in
+        \\  f x x'
     , term);
 }
 
