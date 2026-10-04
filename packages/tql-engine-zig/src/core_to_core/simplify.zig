@@ -5,11 +5,21 @@ const std = @import("std");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
 const Laws = @import("laws.zig").Laws;
+const cost = @import("cost.zig");
+const Analyser = @import("occurrence.zig").Analyser;
 
 const Allocator = std.mem.Allocator;
-const Occurrence = core.occurrence.Occurrence;
+const Occurrence = @import("occurrence.zig").Occurrence;
+const Table = @import("occurrence.zig").Table;
 
 pub const Error = Allocator.Error;
+
+/// Which functions a call may inline.
+pub const Phase = enum {
+    /// Every function but those a law matches on.
+    laws,
+    final,
+};
 
 /// An operand waiting for its function, with the span of its application.
 const Argument = struct {
@@ -22,6 +32,12 @@ const Substitution = union(enum) {
     suspended: core.Term,
     /// Already simplified.
     done: core.Term,
+
+    fn value(self: Substitution) core.Term {
+        return switch (self) {
+            .suspended, .done => |t| t,
+        };
+    }
 };
 
 /// A saturated constructor application.
@@ -39,45 +55,62 @@ const Constructed = struct {
 ///   is a lambda, moves to its occurrence;
 /// - a binding whose value is trivial is substituted everywhere;
 /// - a `case` of a known constructor takes its alternative;
+/// - a saturated call to a function with an unfolding small enough, or
+///   marked to always inline, is replaced by a copy of the unfolding;
 /// - the laws.
 ///
-/// Binders are unique, so the substitution needs no scopes. Nothing here
-/// copies a term that binds a name.
+/// Binders are unique, so the substitution needs no scopes. A copied
+/// unfolding gets a fresh binder for each of its own, and is analysed.
 pub const Simplifier = struct {
     builder: core.Builder,
     /// Argument lists and the tables below.
     scratch: Allocator,
-    interner: *const core.Interner,
-    datatypes: *const core.datatypes.Registry,
-    occurrences: *const core.occurrence.Table,
+    env: *core.env.Env,
+    /// Holds the occurrence table, and analyses each copied unfolding into it.
+    analyser: *Analyser,
     laws: Laws,
+    phase: Phase,
     substitution: core.SymbolTable(Substitution),
     /// Locals bound to a constructor of trivial arguments.
     known: core.SymbolTable(Constructed),
+    /// Each binding that may be inlined, by its simplified value.
+    unfoldings: core.SymbolTable(core.Term),
     /// Whether a rewrite fired.
     changed: bool = false,
 
-    pub fn init(
-        builder: core.Builder,
-        scratch: Allocator,
-        env: *const core.env.Env,
-        occurrences: *const core.occurrence.Table,
-    ) Simplifier {
+    /// Preconditions: `analyser` has analysed every term this simplifies, and
+    /// reads `env`.
+    pub fn init(analyser: *Analyser, env: *core.env.Env, phase: Phase) Simplifier {
+        const builder = analyser.builder;
+        const scratch = analyser.scratch;
         return .{
             .builder = builder,
             .scratch = scratch,
-            .interner = &env.interner,
-            .datatypes = &env.datatypes,
-            .occurrences = occurrences,
+            .env = env,
+            .analyser = analyser,
             .laws = .{
                 .builder = builder,
                 .interner = &env.interner,
                 .primitives = &env.primitives,
                 .kleisli = env.interner.lookup(.prelude, "kleisli"),
             },
+            .phase = phase,
             .substitution = .init(scratch),
             .known = .init(scratch),
+            .unfoldings = .init(scratch),
         };
+    }
+
+    /// Record `value`, simplified, as `name`'s unfolding, when `name` is not a
+    /// loop breaker and `value` is a lambda or trivial.
+    pub fn unfold(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        if (self.recorded(name) == .loop_breaker) return;
+        if (value.kind != .lambda and !cost.trivial(value)) return;
+        try self.unfoldings.put(name, value);
+    }
+
+    fn recorded(self: *const Simplifier, binder: core.SymbolId) Occurrence {
+        return self.analyser.table.get(binder).?;
     }
 
     pub fn simplify(self: *Simplifier, t: core.Term) Error!core.Term {
@@ -89,11 +122,15 @@ pub const Simplifier = struct {
         switch (t.kind) {
             .literal => return try self.rebuild(t, arguments),
             .symbol => |id| {
-                const entry = self.substitution.get(id) orelse return try self.rebuild(t, arguments);
-                return switch (entry) {
+                if (self.substitution.get(id)) |entry| return switch (entry) {
                     .suspended => |value| try self.term(value, arguments),
                     .done => |value| if (arguments.len == 0) value else try self.term(value, arguments),
                 };
+                if (try self.inlined(id, arguments)) |unfolded| {
+                    self.changed = true;
+                    return try self.term(unfolded, arguments);
+                }
+                return try self.rebuild(t, arguments);
             },
             .apply => {
                 var spine: std.ArrayList(Argument) = .empty;
@@ -110,17 +147,22 @@ pub const Simplifier = struct {
                     return try self.builder.lambda(lambda.parameter, try self.term(lambda.body, &.{}), t.span);
                 }
                 self.changed = true;
-                return try self.bind(lambda.parameter, arguments[0].term, lambda.body, arguments[1..], t.span);
+                // Applied to fewer arguments than the chain takes, the
+                // parameter's uses stay under the rest of the chain.
+                const occurrence = self.recorded(lambda.parameter);
+                const seen = if (arguments.len < t.arity()) occurrence.insideLambda() else occurrence;
+                return try self.bind(lambda.parameter, seen, arguments[0].term, lambda.body, arguments[1..], t.span);
             },
             .let => |let| {
                 if (arguments.len > 0) self.changed = true;
-                return try self.bind(let.name, let.value, let.body, arguments, t.span);
+                return try self.bind(let.name, self.recorded(let.name), let.value, let.body, arguments, t.span);
             },
             .letrec => |letrec| {
                 if (arguments.len > 0) self.changed = true;
                 const bindings = try self.builder.slice(core.Letrec.Binding, letrec.bindings.len);
                 for (letrec.bindings, bindings) |old, *new| {
                     new.* = .{ .name = old.name, .value = try self.term(old.value, &.{}) };
+                    try self.unfold(new.name, new.value);
                 }
                 return try self.builder.letrec(bindings, try self.term(letrec.body, arguments), t.span);
             },
@@ -144,17 +186,18 @@ pub const Simplifier = struct {
         return result;
     }
 
-    /// Simplify `body` applied to `arguments` with `name` bound to `value`,
-    /// which is not yet simplified.
+    /// Simplify `body` applied to `arguments` with `name`, used as
+    /// `occurrence` says, bound to `value`, which is not yet simplified.
     fn bind(
         self: *Simplifier,
         name: core.SymbolId,
+        occurrence: Occurrence,
         value: core.Term,
         body: core.Term,
         arguments: []const Argument,
         span: diagnostic.Span,
     ) Error!core.Term {
-        switch (self.occurrences.get(name).?) {
+        switch (occurrence) {
             .dead => {
                 self.changed = true;
                 return try self.term(body, arguments);
@@ -168,17 +211,24 @@ pub const Simplifier = struct {
         }
 
         const simplified = try self.term(value, &.{});
-        if (!try self.bindSimplified(name, simplified)) return try self.term(body, arguments);
+        if (!try self.bindSimplified(name, occurrence, simplified)) return try self.term(body, arguments);
+        try self.unfold(name, simplified);
         return try self.builder.let(name, simplified, try self.term(body, arguments), span);
     }
 
-    /// Bind `name` to `value`, already simplified, by substitution when it may
-    /// be. Returns whether `name` must still be bound by a `let`.
-    fn bindSimplified(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!bool {
-        const substituted = switch (self.occurrences.get(name).?) {
+    /// Bind `name`, used as `occurrence` says, to `value`, already simplified,
+    /// by substitution when it may be. Returns whether `name` must still be
+    /// bound by a `let`.
+    fn bindSimplified(
+        self: *Simplifier,
+        name: core.SymbolId,
+        occurrence: Occurrence,
+        value: core.Term,
+    ) Error!bool {
+        const substituted = switch (occurrence) {
             .dead => true,
-            .once => |once| movable(once, value) or trivial(value),
-            .many, .loop_breaker => trivial(value),
+            .once => |once| movable(once, value) or cost.trivial(value),
+            .many, .loop_breaker => cost.trivial(value),
         };
         if (substituted) {
             self.changed = true;
@@ -186,7 +236,7 @@ pub const Simplifier = struct {
             return false;
         }
         if (try self.constructed(value)) |c| {
-            for (c.fields) |field| if (!trivial(field)) return true;
+            for (c.fields) |field| if (!cost.trivial(field)) return true;
             try self.known.put(name, c);
         }
         return true;
@@ -228,7 +278,8 @@ pub const Simplifier = struct {
     ) Error!core.Term {
         const kept = try self.scratch.alloc(bool, fields.len);
         for (alternative.binders, fields, kept) |binder, field, *keep| {
-            keep.* = try self.bindSimplified(binder, field);
+            keep.* = try self.bindSimplified(binder, self.recorded(binder), field);
+            if (keep.*) try self.unfold(binder, field);
         }
 
         var result = try self.term(alternative.body, arguments);
@@ -253,24 +304,119 @@ pub const Simplifier = struct {
     /// The constructor and fields of `t`, when it is a saturated constructor
     /// application.
     fn constructed(self: *Simplifier, t: core.Term) Error!?Constructed {
-        var head = t;
-        var count: usize = 0;
-        while (head.kind == .apply) : (head = head.kind.apply.function) count += 1;
-        const id = switch (head.kind) {
+        const id = switch (t.head().kind) {
             .symbol => |id| id,
             else => return null,
         };
-        const constructor = self.datatypes.constructorOf(self.interner, id) orelse return null;
-        if (constructor.fields.len != count) return null;
+        const constructor = self.env.datatypes.constructorOf(&self.env.interner, id) orelse return null;
 
-        const fields = try self.scratch.alloc(core.Term, count);
+        const fields = try self.scratch.alloc(core.Term, constructor.fields.len);
         var walk = t;
-        var i = count;
-        while (i > 0) : (walk = walk.kind.apply.function) {
+        var i = fields.len;
+        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
+            if (i == 0) return null;
             i -= 1;
             fields[i] = walk.kind.apply.argument;
         }
+        if (i != 0) return null;
         return .{ .constructor = id, .fields = fields };
+    }
+
+    /// A copy of `name`'s unfolding, analysed, when a call to it with
+    /// `arguments` inlines it.
+    fn inlined(self: *Simplifier, name: core.SymbolId, arguments: []const Argument) Error!?core.Term {
+        const unfolding = self.unfoldings.get(name) orelse return null;
+        if (self.phase == .laws and self.laws.names(name)) return null;
+        const arity = unfolding.arity();
+        if (arguments.len < arity) return null;
+
+        if (!self.env.alwaysInlines(name)) {
+            const parameters = try self.scratch.alloc(core.SymbolId, arity);
+            const known = try self.scratch.alloc(?cost.Known, arity);
+            var body = unfolding;
+            for (parameters, known, arguments[0..arity]) |*parameter, *argument_known, argument| {
+                parameter.* = body.kind.lambda.parameter;
+                body = body.kind.lambda.body;
+                argument_known.* = try self.argumentKnown(argument.term);
+            }
+            const measured = cost.measure(body, parameters, known);
+            if (measured.size > cost.inline_threshold + measured.discount) return null;
+        }
+
+        var renamed: std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId) = .empty;
+        return try self.analyser.analyse(try self.copy(unfolding, &renamed));
+    }
+
+    /// What an argument, not yet simplified, is known to be, looking through
+    /// the substitution.
+    fn argumentKnown(self: *Simplifier, argument: core.Term) Error!?cost.Known {
+        var t = argument;
+        while (t.kind == .symbol) t = (self.substitution.get(t.kind.symbol) orelse break).value();
+        if (try self.knownConstructor(t)) |known| return .{ .constructor = known.constructor };
+        return switch (t.kind) {
+            .lambda => .lambda,
+            .symbol => |id| if (self.unfoldings.get(id)) |unfolding|
+                if (unfolding.kind == .lambda) .lambda else null
+            else
+                null,
+            else => null,
+        };
+    }
+
+    /// `t` with a fresh binder in place of each of its own.
+    fn copy(
+        self: *Simplifier,
+        t: core.Term,
+        renamed: *std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId),
+    ) Error!core.Term {
+        switch (t.kind) {
+            .literal => return t,
+            .symbol => |id| return if (renamed.get(id)) |new_id| self.builder.symbol(new_id, t.span) else t,
+            .lambda => |lambda| {
+                const parameter = try self.fresh(lambda.parameter, renamed);
+                return try self.builder.lambda(parameter, try self.copy(lambda.body, renamed), t.span);
+            },
+            .apply => |apply| return try self.builder.apply(
+                try self.copy(apply.function, renamed),
+                try self.copy(apply.argument, renamed),
+                t.span,
+            ),
+            .case => |case_term| {
+                const scrutinee = try self.copy(case_term.scrutinee, renamed);
+                const alternatives = try self.builder.slice(core.Case.Alternative, case_term.alternatives.len);
+                for (case_term.alternatives, alternatives) |old, *new| {
+                    const binders = try self.builder.slice(core.SymbolId, old.binders.len);
+                    for (old.binders, binders) |binder, *new_binder| new_binder.* = try self.fresh(binder, renamed);
+                    new.* = .{
+                        .constructor = old.constructor,
+                        .binders = binders,
+                        .body = try self.copy(old.body, renamed),
+                    };
+                }
+                return try self.builder.case(scrutinee, alternatives, t.span);
+            },
+            .let => |let| {
+                const value = try self.copy(let.value, renamed);
+                const name = try self.fresh(let.name, renamed);
+                return try self.builder.let(name, value, try self.copy(let.body, renamed), t.span);
+            },
+            .letrec => |letrec| {
+                const bindings = try self.builder.slice(core.Letrec.Binding, letrec.bindings.len);
+                for (letrec.bindings, bindings) |old, *new| new.name = try self.fresh(old.name, renamed);
+                for (letrec.bindings, bindings) |old, *new| new.value = try self.copy(old.value, renamed);
+                return try self.builder.letrec(bindings, try self.copy(letrec.body, renamed), t.span);
+            },
+        }
+    }
+
+    fn fresh(
+        self: *Simplifier,
+        binder: core.SymbolId,
+        renamed: *std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId),
+    ) Error!core.SymbolId {
+        const id = try self.env.interner.fresh(self.env.interner.spelling(binder));
+        try renamed.put(self.scratch, binder, id);
+        return id;
     }
 };
 
@@ -279,17 +425,21 @@ fn movable(once: Occurrence.Once, value: core.Term) bool {
     return once.branches == 1 and (!once.inside_lambda or value.kind == .lambda);
 }
 
-/// Whether copying `t` costs nothing.
-fn trivial(t: core.Term) bool {
-    return switch (t.kind) {
-        .symbol => true,
-        .literal => |value| value == .number or value == .kind,
-        else => false,
-    };
-}
-
 const testing = std.testing;
 const test_support = core.test_support;
+
+const Simplified = struct { term: core.Term, changed: bool };
+
+/// Analyse `t` and simplify it once. `scratch` must outlive the result.
+fn simplifyOnce(pb: *test_support.ProgramBuilder, scratch: Allocator, t: core.Term) !Simplified {
+    const occurrences = try scratch.create(Table);
+    occurrences.* = .init(scratch);
+    const analyser = try scratch.create(Analyser);
+    analyser.* = .{ .scratch = scratch, .builder = pb.terms(), .env = &pb.env, .table = occurrences };
+    const analysed = try analyser.analyse(t);
+    var simplifier: Simplifier = .init(analyser, &pb.env, .final);
+    return .{ .term = try simplifier.simplify(analysed), .changed = simplifier.changed };
+}
 
 /// Analyse `t`, simplify it once, and print the result.
 fn expectSimplifies(
@@ -300,23 +450,9 @@ fn expectSimplifies(
 ) !void {
     var scratch: std.heap.ArenaAllocator = .init(testing.allocator);
     defer scratch.deinit();
-    var occurrences: core.occurrence.Table = .init(scratch.allocator());
-    var analyser: core.occurrence.Analyser = .{
-        .scratch = scratch.allocator(),
-        .builder = pb.terms(),
-        .interner = &pb.env.interner,
-        .table = &occurrences,
-    };
-    const analysed = try analyser.analyse(t);
-    var simplifier: Simplifier = .init(pb.terms(), scratch.allocator(), &pb.env, &occurrences);
-    const simplified = try simplifier.simplify(analysed);
-
-    var w: std.Io.Writer.Allocating = .init(testing.allocator);
-    defer w.deinit();
-    const printer: core.Printer = .{ .interner = &pb.env.interner };
-    try printer.term(simplified, &w.writer);
-    try testing.expectEqualStrings(expected, w.written());
-    try testing.expectEqual(changed, simplifier.changed);
+    const simplified = try simplifyOnce(pb, scratch.allocator(), t);
+    try test_support.expectPrints(pb, expected, simplified.term);
+    try testing.expectEqual(changed, simplified.changed);
 }
 
 test "a dead argument is dropped" {
@@ -539,4 +675,207 @@ test "a term with no redex is unchanged" {
     const g = try pb.global("g");
     const x = try pb.local("x");
     try expectSimplifies(&pb, "\\x -> g x", false, try pb.lambda(&.{x}, try pb.apply(pb.symbol(g), &.{pb.symbol(x)})));
+}
+
+test "a local function applied to every argument it takes is inlined at each call" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const h = try pb.local("h");
+    const y = try pb.local("y");
+    const term = try pb.let(
+        h,
+        try pb.lambda(&.{y}, try pb.apply(pb.symbol(f), &.{pb.symbol(y)})),
+        try pb.apply(pb.symbol(g), &.{
+            try pb.apply(pb.symbol(h), &.{pb.number(1)}),
+            try pb.apply(pb.symbol(h), &.{pb.number(2)}),
+        }),
+    );
+    try expectSimplifies(&pb,
+        \\let h = \y -> f y in
+        \\g (f 1) (f 2)
+    , true, term);
+}
+
+test "a call with fewer arguments than the function takes is not inlined" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const h = try pb.local("h");
+    const x = try pb.local("x");
+    const y = try pb.local("y");
+    const term = try pb.let(
+        h,
+        try pb.lambda(&.{ x, y }, try pb.apply(pb.symbol(f), &.{ pb.symbol(x), pb.symbol(y) })),
+        try pb.apply(pb.symbol(g), &.{
+            try pb.apply(pb.symbol(h), &.{pb.number(1)}),
+            try pb.apply(pb.symbol(h), &.{pb.number(2)}),
+        }),
+    );
+    try expectSimplifies(&pb,
+        \\let h = \x -> \y -> f x y in
+        \\g (h 1) (h 2)
+    , false, term);
+}
+
+/// `let h = \y -> f (f (f (f (f (f (f y)))))) in g (h 1) (h 2)`, whose
+/// unfolding is over the threshold.
+fn largeFunction(pb: *test_support.ProgramBuilder, h: core.SymbolId) !core.Term {
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const y = try pb.local("y");
+    var body = pb.symbol(y);
+    for (0..7) |_| body = try pb.apply(pb.symbol(f), &.{body});
+    return try pb.let(
+        h,
+        try pb.lambda(&.{y}, body),
+        try pb.apply(pb.symbol(g), &.{
+            try pb.apply(pb.symbol(h), &.{pb.number(1)}),
+            try pb.apply(pb.symbol(h), &.{pb.number(2)}),
+        }),
+    );
+}
+
+test "a function over the threshold is not inlined" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const h = try pb.local("h");
+    try expectSimplifies(&pb,
+        \\let h = \y -> f (f (f (f (f (f (f y)))))) in
+        \\g (h 1) (h 2)
+    , false, try largeFunction(&pb, h));
+}
+
+test "a function marked to always inline is inlined whatever its size" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const h = try pb.local("h");
+    try pb.env.markAlwaysInline(h);
+    try expectSimplifies(&pb,
+        \\let h = \y -> f (f (f (f (f (f (f y)))))) in
+        \\g (f (f (f (f (f (f (f 1))))))) (f (f (f (f (f (f (f 2)))))))
+    , true, try largeFunction(&pb, h));
+}
+
+test "a constructor argument the function scrutinizes earns a discount" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const false_ = try pb.global("False");
+    const true_ = try pb.global("True");
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const c = try pb.global("c");
+    const h = try pb.local("h");
+    const b = try pb.local("b");
+    var large = pb.number(0);
+    for (0..6) |_| large = try pb.apply(pb.symbol(f), &.{large});
+    const value = try pb.lambda(&.{b}, try pb.case(pb.symbol(b), &.{
+        .{ .constructor = false_, .binders = &.{}, .body = large },
+        .{ .constructor = true_, .binders = &.{}, .body = pb.number(1) },
+    }));
+    const term = try pb.let(h, value, try pb.apply(pb.symbol(g), &.{
+        try pb.apply(pb.symbol(h), &.{pb.symbol(true_)}),
+        try pb.apply(pb.symbol(h), &.{pb.symbol(c)}),
+    }));
+    try expectSimplifies(&pb,
+        \\let
+        \\  h = \b -> case b of
+        \\    False -> f (f (f (f (f (f 0)))))
+        \\    True -> 1
+        \\in
+        \\g 1 (h c)
+    , true, term);
+}
+
+test "a lambda argument the function applies earns a discount" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const c = try pb.global("c");
+    const h = try pb.local("h");
+    const k = try pb.local("k");
+    const a = try pb.local("a");
+    const b = try pb.local("b");
+    const value = try pb.lambda(&.{k}, try pb.apply(pb.symbol(f), &.{
+        try pb.apply(pb.symbol(k), &.{ pb.number(1), pb.number(2) }),
+        try pb.apply(pb.symbol(k), &.{ pb.number(3), pb.number(4) }),
+    }));
+    const term = try pb.let(h, value, try pb.apply(pb.symbol(g), &.{
+        try pb.apply(pb.symbol(h), &.{try pb.lambda(&.{ a, b }, pb.symbol(a))}),
+        try pb.apply(pb.symbol(h), &.{pb.symbol(c)}),
+    }));
+    try expectSimplifies(&pb,
+        \\let h = \k -> f (k 1 2) (k 3 4) in
+        \\g (
+        \\  let k = \a -> \b -> a in
+        \\  f 1 3
+        \\) (h c)
+    , true, term);
+}
+
+test "each copy of an inlined function binds fresh names" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const h = try pb.local("h");
+    const y = try pb.local("y");
+    const z = try pb.local("z");
+    const value = try pb.lambda(&.{y}, try pb.let(
+        z,
+        try pb.apply(pb.symbol(f), &.{pb.symbol(y)}),
+        try pb.apply(pb.symbol(g), &.{ pb.symbol(z), pb.symbol(z) }),
+    ));
+    const term = try pb.let(h, value, try pb.apply(pb.symbol(g), &.{
+        try pb.apply(pb.symbol(h), &.{pb.number(1)}),
+        try pb.apply(pb.symbol(h), &.{pb.number(2)}),
+    }));
+
+    var scratch: std.heap.ArenaAllocator = .init(testing.allocator);
+    defer scratch.deinit();
+    const simplified = try simplifyOnce(&pb, scratch.allocator(), term);
+
+    var binders: std.ArrayList(core.SymbolId) = .empty;
+    defer binders.deinit(testing.allocator);
+    try collectBinders(simplified.term, &binders);
+    try testing.expectEqual(5, binders.items.len);
+    for (binders.items, 0..) |binder, i| {
+        try testing.expect(std.mem.indexOfScalar(core.SymbolId, binders.items[i + 1 ..], binder) == null);
+    }
+}
+
+fn collectBinders(t: core.Term, out: *std.ArrayList(core.SymbolId)) !void {
+    switch (t.kind) {
+        .symbol, .literal => {},
+        .lambda => |lambda| {
+            try out.append(testing.allocator, lambda.parameter);
+            try collectBinders(lambda.body, out);
+        },
+        .apply => |apply| {
+            try collectBinders(apply.function, out);
+            try collectBinders(apply.argument, out);
+        },
+        .case => |case_term| {
+            try collectBinders(case_term.scrutinee, out);
+            for (case_term.alternatives) |alternative| {
+                try out.appendSlice(testing.allocator, alternative.binders);
+                try collectBinders(alternative.body, out);
+            }
+        },
+        .let => |let| {
+            try out.append(testing.allocator, let.name);
+            try collectBinders(let.value, out);
+            try collectBinders(let.body, out);
+        },
+        .letrec => |letrec| {
+            for (letrec.bindings) |binding| {
+                try out.append(testing.allocator, binding.name);
+                try collectBinders(binding.value, out);
+            }
+            try collectBinders(letrec.body, out);
+        },
+    }
 }

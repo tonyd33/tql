@@ -27,6 +27,9 @@ pub const Env = struct {
     /// from `schemes` so a written signature can be checked against what
     /// inference found.
     annotations: symbols.SymbolTable(Annotation),
+    /// Definitions the simplifier inlines at every saturated call, whatever
+    /// their size.
+    always_inline: symbols.SymbolTable(void),
     /// The symbol each primitive is interned as. Null before the primitives
     /// are populated.
     primitives: std.EnumArray(details.PrimOp, ?symbols.SymbolId) = .initFill(null),
@@ -54,6 +57,7 @@ pub const Env = struct {
             .datatypes = datatypes.Registry.init(scratch),
             .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
             .annotations = symbols.SymbolTable(Annotation).init(scratch),
+            .always_inline = symbols.SymbolTable(void).init(scratch),
         };
     }
 
@@ -94,5 +98,13 @@ pub const Env = struct {
 
     pub fn annotate(self: *Env, symbol: symbols.SymbolId, a: Annotation) Allocator.Error!void {
         try self.annotations.put(symbol, a);
+    }
+
+    pub fn markAlwaysInline(self: *Env, symbol: symbols.SymbolId) Allocator.Error!void {
+        try self.always_inline.put(symbol, {});
+    }
+
+    pub fn alwaysInlines(self: *const Env, symbol: symbols.SymbolId) bool {
+        return self.always_inline.get(symbol) != null;
     }
 };

@@ -40,7 +40,7 @@
 - A record literal with more fields than a type can index is reported at the literal. It was previously reported with no location.
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 - `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
-- Queries are simplified before they run: a binding used once moves to its use, a lambda applied in place is reduced, and a `case` of a known constructor takes its alternative.
+- Queries are simplified before they run: a binding used once moves to its use, a small function applied to all its arguments is inlined, and a `case` of a known constructor takes its alternative.
 
 ### Bug Fixes
 

@@ -1,0 +1,20 @@
+title: a local function used twice is inlined at both calls
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let { inc x = x + 1 } in const [inc 1, inc 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3]
+
+--- simplified ---
+main = const (Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil))
+
+--- core ---
+main =
+  let inc = \x -> op[+] x 1 in
+  const (Cons (inc 1) (Cons (inc 2) Nil))

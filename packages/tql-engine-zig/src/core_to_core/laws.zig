@@ -13,6 +13,12 @@ pub const Laws = struct {
     /// Null when the prelude has none.
     kleisli: ?core.SymbolId,
 
+    /// Whether a law matches on `symbol`.
+    pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
+        const kleisli = self.kleisli orelse return false;
+        return symbol == kleisli;
+    }
+
     /// The term a law rewrites `function argument` to, when one matches.
     ///
     /// Preconditions: `function` and `argument` are simplified.

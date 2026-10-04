@@ -1,0 +1,25 @@
+title: a constructor argument the function scrutinizes brings it under the threshold
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+pick b = if b then 1 + 2 + 3 else 4 + 5 + 6;
+main = const [pick true, pick (1 = 1)];
+
+--- source ---
+class A {}
+
+--- values ---
+[6,6]
+
+--- simplified ---
+pick = \b -> case b of
+  False -> op[+] (op[+] 4 5) 6
+  True -> op[+] (op[+] 1 2) 3
+main = const (Cons (op[+] (op[+] 1 2) 3) (Cons (pick (op[=] 1 1)) Nil))
+
+--- core ---
+pick = \b -> case b of
+  False -> op[+] (op[+] 4 5) 6
+  True -> op[+] (op[+] 1 2) 3
+main = const (Cons (pick True) (Cons (pick (op[=] 1 1)) Nil))

@@ -32,6 +32,11 @@ pub fn stronglyConnectedComponents(
     };
 }
 
+/// Whether `members`, a strongly connected component of `edges`, has a cycle.
+pub fn cyclic(members: []const u32, edges: []const []const u32) bool {
+    return members.len > 1 or std.mem.indexOfScalar(u32, edges[members[0]], members[0]) != null;
+}
+
 const Tarjan = struct {
     const unvisited = std.math.maxInt(u32);
 

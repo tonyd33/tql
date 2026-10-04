@@ -1,0 +1,42 @@
+title: a shared match alternative small enough is copied into its leaves
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+size xs = case xs of { [x] -> 1; ys -> length ys };
+main = const [size [1], size [1, 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]
+
+--- simplified ---
+size = \xs -> case xs of
+  Nil -> length xs
+  Cons x cons1 -> case cons1 of
+    Nil -> 1
+    Cons _ _ -> length xs
+main = const (
+  Cons 1 (
+    Cons (
+      let xs = Cons 1 (Cons 2 Nil) in
+      case xs of
+        Nil -> length xs
+        Cons x cons1 -> case cons1 of
+          Nil -> 1
+          Cons _ _ -> length xs
+    ) Nil
+  )
+)
+
+--- core ---
+size = \xs ->
+  let alternative = \ys -> length ys in
+  case xs of
+    Nil -> alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> 1
+      Cons _ _ -> alternative xs
+main = const (Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil))

@@ -2,12 +2,13 @@ title: an over-application applies the result to the rest
 grammar: typescript
 asserts: values, stg
 
-`adder` takes one parameter and returns a partial application, so
-`adder 1 10` calls a function of arity one with two arguments.
+`adder` takes one parameter and returns a function, so `adder 1 10` calls a
+function of arity one with two arguments. It is recursive, so the call is
+not inlined.
 
 --- tql ---
 add a b = a + b;
-adder a = add a;
+adder n = if n = 0 then identity else compose (add 1) (adder (n - 1));
 main = pure $ adder 1 10;
 
 --- source ---
@@ -21,8 +22,19 @@ add = {} \u {} ->
   let t0 = {} \n {a,b} -> op[+]# a@0 b@1 in
   t0@0
 adder = {} \u {} ->
-  let t0 = {} \n {a} -> add a@0 in
-  t0@0
+  let
+    t3 = {} \n {n} -> case op[=]# n@0 0 of
+      False ->
+        let
+          t0 = {} \u {} -> add 1
+          t2 = {n@0} \u {} ->
+            let t1 = {n@0} \u {} -> op[-]# n@0 1 in
+            adder t1@1
+        in
+        compose t0@1 t2@2
+      True -> identity
+  in
+  t3@0
 main = {} \u {} ->
   let t0 = {} \u {} -> adder 1 10 in
   pure t0@0

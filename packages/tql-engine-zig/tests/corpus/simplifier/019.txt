@@ -1,0 +1,21 @@
+title: a global function applied to fewer arguments than it takes stays a call
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+add x y = x + y;
+main = const (map (add 1) [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3]
+
+--- simplified ---
+add = \x -> \y -> op[+] x y
+main = const (map (add 1) (Cons 1 (Cons 2 Nil)))
+
+--- core ---
+add = \x -> \y -> op[+] x y
+main = const (map (add 1) (Cons 1 (Cons 2 Nil)))

@@ -611,8 +611,7 @@ pub const Lowerer = struct {
             for (members, members_bindings) |member, *binding| binding.* = resolved[member];
             component.* = .{
                 .bindings = members_bindings,
-                .recursive = members.len > 1 or
-                    std.mem.indexOfScalar(u32, edges[members[0]], members[0]) != null,
+                .recursive = core.components.cyclic(members, edges),
             };
         }
 

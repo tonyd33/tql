@@ -18,7 +18,7 @@ f = \b ->
   case b of
     False -> op[+] a 1
     True -> a
-main = const (Cons (f True) (Cons (f False) Nil))
+main = const (Cons (op[*] 2 3) (Cons (op[+] (op[*] 2 3) 1) Nil))
 
 --- core ---
 f = \b ->

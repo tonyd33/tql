@@ -1,0 +1,21 @@
+title: a function too large to inline stays a call
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+score n = n * n + n * 2 + n * 3 + 1;
+main = const [score 1, score 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[7,15]
+
+--- simplified ---
+score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1
+main = const (Cons (score 1) (Cons (score 2) Nil))
+
+--- core ---
+score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1
+main = const (Cons (score 1) (Cons (score 2) Nil))
