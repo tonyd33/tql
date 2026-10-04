@@ -1,0 +1,28 @@
+title: node patterns are case alternatives with guards and a catch-all
+grammar: typescript
+asserts: values
+
+--- tql ---
+classify n = case n of {
+  :call_expression { #function = :identifier {} } -> "plain call";
+  c@:call_expression {} if text c = "console.warn('b')" -> "warn";
+  :call_expression {} -> "method call";
+  :class_declaration { #name = x } -> text x;
+  _ -> "other";
+};
+
+main root = do {
+  n <- descendants root;
+  let r = classify n;
+  guard $ r != "other";
+  return r;
+};
+
+--- source ---
+console.warn('b');
+foo('x');
+a.b();
+class A {}
+
+--- values ---
+["warn", "plain call", "method call", "A"]

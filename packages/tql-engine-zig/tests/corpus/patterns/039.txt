@@ -1,0 +1,18 @@
+title: a bind fused onto an axis still reads the variable naming the whole node
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  s & (of_kind :class_declaration -> [n]) <- descendants root;
+  return [text s, text n];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[["class A {}", "class A {}"]]
+
+--- simplified ---
+main = \root -> concat_map (\n -> Cons (Cons (text n) (Cons (text n) Nil)) Nil) (descendants_of_kind :class_declaration root)

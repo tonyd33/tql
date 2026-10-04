@@ -38,11 +38,13 @@ module.exports = grammar({
   inline: $ => [$._constructor],
 
   // A `do` statement is a pattern or an expression until `<-`, and a pattern's
-  // `(` opens a view or a parenthesized pattern until `->` or `)`.
+  // `(` opens a view or a parenthesized pattern until `->` or `)`. `:k {` is a
+  // node pattern or `:k` applied to a record until `#` or `<-`.
   conflicts: $ => [
     [$.list_pattern, $.list],
     [$._simple_pattern, $._primary],
     [$.constructor_pattern, $._primary],
+    [$.node_pattern, $._primary],
   ],
 
   rules: {
@@ -412,8 +414,25 @@ module.exports = grammar({
         $.string,
         $.regex,
         $.boolean,
-        $.kind,
+        // `C :k { .. }` applies `C` to one node pattern.
+        prec(-1, $.kind),
+        $.node_pattern,
       ),
+
+    // `{}` is not a pattern.
+    node_pattern: $ =>
+      choice(
+        seq(
+          field("kind", $.kind),
+          "{",
+          optional(sep_trailing(field("field", $.field_pattern), ",")),
+          "}",
+        ),
+        seq("{", sep_trailing(field("field", $.field_pattern), ","), "}"),
+      ),
+
+    field_pattern: $ =>
+      seq("#", field("name", $.field_name), "=", field("pattern", $._pattern)),
 
     as_pattern: $ =>
       seq(

@@ -1,0 +1,15 @@
+title: a view inside a node pattern reads a variable bound to its left
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  x & :call_expression { #function = ((\f -> text x) -> t) } <- descendants root;
+  return t;
+};
+
+--- source ---
+a.b();
+
+--- values ---
+["a.b()"]

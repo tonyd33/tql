@@ -423,11 +423,15 @@ pub const Expression = struct {
         list: []const Expression,
         record: Record,
         parenthesized: *Expression,
+        /// A prelude name, whatever it means in scope. Never written; built
+        /// by desugaring.
+        primitive: []const u8,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .kind_test => |k| try w.print("(kind {s})", .{k}),
+            .primitive => |p| try w.print("(primitive {s})", .{p}),
             .name => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
@@ -627,6 +631,22 @@ pub const Pattern = struct {
         literal: Literal,
         /// `true` or `false`.
         boolean: bool,
+        /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
+        node: *Node,
+    };
+
+    pub const Node = struct {
+        /// Carried without the leading colon.
+        kind: ?Identifier,
+        kind_span: diagnostic.Span = .unknown,
+        fields: []const Field,
+
+        pub const Field = struct {
+            name: Identifier,
+            name_span: diagnostic.Span = .unknown,
+            pattern: Pattern,
+            span: diagnostic.Span = .unknown,
+        };
     };
 
     pub const Constructor = struct {
@@ -700,6 +720,16 @@ pub const Pattern = struct {
                 .kind => |k| try w.print("(kind {s})", .{k}),
             },
             .boolean => |b| try w.writeAll(if (b) "true" else "false"),
+            .node => |n| {
+                try w.writeAll("(node");
+                if (n.kind) |k| try w.print(" (kind {s})", .{k});
+                for (n.fields) |f| {
+                    try w.print(" (#{s} ", .{f.name});
+                    try f.pattern.sexpr(w);
+                    try w.writeByte(')');
+                }
+                try w.writeByte(')');
+            },
             .constructor => |c| {
                 if (c.arguments.len == 0) return w.writeAll(c.name);
                 try w.print("({s}", .{c.name});

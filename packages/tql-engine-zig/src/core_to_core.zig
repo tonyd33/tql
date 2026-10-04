@@ -184,3 +184,41 @@ test "the laws can be switched off" {
     try run(&program, .{});
     try expectMain(&program, "children_of_kind :class");
 }
+
+test "a bind over an axis whose case tests a kind walks only that kind" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    for ([_]core.PrimOp{ .descendants, .of_kind, .descendants_of_kind }) |primop| {
+        const id = try pb.env.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
+        pb.env.primitives.set(primop, id);
+    }
+    const nil = pb.env.datatypes.nilConstructor().symbol;
+    const cons = pb.env.datatypes.consConstructor().symbol;
+    const main = try pb.global("main");
+    const concat_map = try pb.global("concat_map");
+    const f = try pb.global("f");
+    const root = try pb.local("root");
+    const s = try pb.local("s");
+    const n = try pb.local("n");
+    const t = try pb.local("t");
+    const kind = pb.terms().literal(.{ .kind = .{ .name = "class", .id = 1 } }, .unknown);
+
+    // `concat_map (\s -> case of_kind :class s of { Nil -> Nil; Cons n t ->
+    // case t of { Nil -> f n s; Cons _ _ -> Nil } }) (descendants root)`.
+    const rest = try pb.case(pb.symbol(t), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = try pb.apply(pb.symbol(f), &.{ pb.symbol(n), pb.symbol(s) }) },
+        .{ .constructor = cons, .binders = &.{ try pb.local("_"), try pb.local("_") }, .body = pb.symbol(nil) },
+    });
+    const tested = try pb.case(try pb.apply(pb.symbol(pb.env.primitives.get(.of_kind).?), &.{ kind, pb.symbol(s) }), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = pb.symbol(nil) },
+        .{ .constructor = cons, .binders = &.{ n, t }, .body = rest },
+    });
+    try pb.define(main, try pb.lambda(&.{root}, try pb.apply(pb.symbol(concat_map), &.{
+        try pb.lambda(&.{s}, tested),
+        try pb.apply(pb.symbol(pb.env.primitives.get(.descendants).?), &.{pb.symbol(root)}),
+    })));
+    var program = try pb.program(main);
+
+    try run(&program, .{});
+    try expectMain(&program, "\\root -> concat_map (\\n -> f n n) (descendants_of_kind :class root)");
+}

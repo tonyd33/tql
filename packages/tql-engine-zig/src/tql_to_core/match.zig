@@ -47,7 +47,8 @@ const Body = union(enum) {
 
 const Arm = struct {
     written: cst.Pattern,
-    /// `written` with list, cons and boolean sugar rewritten as constructors.
+    /// `written` with list, cons and boolean sugar rewritten as constructors,
+    /// and node patterns as views.
     pattern: cst.Pattern,
     guard: ?cst.Expression,
     body: Body,
@@ -199,11 +200,16 @@ fn lower(
     return term;
 }
 
-/// Rewrite list, cons and boolean patterns as constructor patterns. The
-/// matcher sees no other sugar.
+/// Rewrite list, cons and boolean patterns as constructor patterns, and node
+/// patterns as views. The matcher sees no other sugar.
 fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
     const b = lowerer.builder;
     switch (pattern.kind) {
+        .node, .as, .conjunction => if (try narrow(lowerer, pattern)) |narrowed| return narrowed,
+        else => {},
+    }
+    switch (pattern.kind) {
+        .node => |n| return try fieldViews(lowerer, n, pattern.span),
         .variable, .literal => return pattern,
         .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, pattern.span),
         .constructor => |c| {
@@ -242,6 +248,123 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
             return .{ .kind = .{ .view = boxed }, .span = pattern.span };
         },
     }
+}
+
+/// Append the patterns `pattern` matches against its one value, with each
+/// as-pattern's name as a variable.
+fn flatten(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayList(cst.Pattern)) Error!void {
+    switch (pattern.kind) {
+        .as => |a| {
+            try out.append(allocator, .{ .kind = .{ .variable = a.name }, .span = a.name_span });
+            try flatten(allocator, a.pattern, out);
+        },
+        .conjunction => |c| {
+            try flatten(allocator, c.left, out);
+            try flatten(allocator, c.right, out);
+        },
+        else => try out.append(allocator, pattern),
+    }
+}
+
+fn isKindedNode(pattern: cst.Pattern) bool {
+    return pattern.kind == .node and pattern.kind.node.kind != null;
+}
+
+/// `p & :k { .. } & q` as `(of_kind :k -> [p & { .. } & q])`, keeping the
+/// conjuncts in the order they are written. The first kinded node pattern is
+/// the outer view; a later one nests inside it. Returns null when no conjunct
+/// is a kinded node pattern.
+fn narrow(lowerer: *Lowerer, pattern: cst.Pattern) Error!?cst.Pattern {
+    const b = lowerer.builder;
+    var conjuncts: std.ArrayList(cst.Pattern) = .empty;
+    try flatten(b.allocator, pattern, &conjuncts);
+
+    var outer: ?cst.Pattern = null;
+    var inside: std.ArrayList(cst.Pattern) = .empty;
+    for (conjuncts.items) |conjunct| {
+        if (outer != null or !isKindedNode(conjunct)) {
+            try inside.append(b.allocator, conjunct);
+            continue;
+        }
+        outer = conjunct;
+        const n = conjunct.kind.node;
+        if (n.fields.len == 0) continue;
+        const kindless = try b.allocator.create(cst.Pattern.Node);
+        kindless.* = .{ .kind = null, .fields = n.fields };
+        try inside.append(b.allocator, .{ .kind = .{ .node = kindless }, .span = conjunct.span });
+    }
+    const node = outer orelse return null;
+    const n = node.kind.node;
+
+    const element: cst.Pattern = if (inside.items.len == 0)
+        .{ .kind = .{ .variable = "_" }, .span = node.span }
+    else
+        try conjoin(lowerer, inside.items, pattern.span);
+
+    const apply = try b.allocator.create(cst.Apply);
+    apply.* = .{
+        .function = .{ .kind = .{ .primitive = "of_kind" }, .span = node.span },
+        .argument = .{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span },
+    };
+    return try view(
+        lowerer,
+        .{ .kind = .{ .apply = apply }, .span = node.span },
+        try b.print("of_kind :{s}", .{n.kind.?}),
+        try expand(lowerer, element),
+        node.span,
+    );
+}
+
+/// `{ #f = p, .. }` as `(#f -> [p]) & ..`.
+///
+/// Preconditions:
+/// - `n` has a field.
+fn fieldViews(lowerer: *Lowerer, n: *const cst.Pattern.Node, span: diagnostic.Span) Error!cst.Pattern {
+    const b = lowerer.builder;
+    const views = try b.slice(cst.Pattern, n.fields.len);
+    for (n.fields, views) |f, *out| {
+        const navigation = try b.allocator.create(cst.Navigation);
+        navigation.* = .{ .node = null, .field = f.name };
+        out.* = try view(
+            lowerer,
+            .{ .kind = .{ .navigation = navigation }, .span = f.name_span },
+            try b.print("#{s}", .{f.name}),
+            try expand(lowerer, f.pattern),
+            f.span,
+        );
+    }
+    return try conjoin(lowerer, views, span);
+}
+
+/// `patterns` joined left to right with `&`.
+///
+/// Preconditions:
+/// - `patterns` is not empty.
+fn conjoin(lowerer: *Lowerer, patterns: []const cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
+    var result = patterns[0];
+    for (patterns[1..]) |right| {
+        const boxed = try lowerer.builder.allocator.create(cst.Pattern.Conjunction);
+        boxed.* = .{ .left = result, .right = right };
+        result = .{ .kind = .{ .conjunction = boxed }, .span = span };
+    }
+    return result;
+}
+
+/// `(function -> [element])`, with `element` already expanded.
+fn view(
+    lowerer: *Lowerer,
+    function: cst.Expression,
+    written: []const u8,
+    element: cst.Pattern,
+    span: diagnostic.Span,
+) Error!cst.Pattern {
+    const boxed = try lowerer.builder.allocator.create(cst.Pattern.View);
+    boxed.* = .{
+        .function = function,
+        .written = written,
+        .pattern = try cell(lowerer, element, builtinPattern(lowerer, .nil, &.{}, span), span),
+    };
+    return .{ .kind = .{ .view = boxed }, .span = span };
 }
 
 fn cell(lowerer: *Lowerer, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
@@ -361,6 +484,14 @@ const Checker = struct {
             },
             .literal => |literal| _ = try self.lowerer.expression(literalExpression(literal, pattern.span), null),
             .boolean => {},
+            .node => |n| {
+                if (n.kind) |kind| _ = try self.lowerer.expression(.{ .kind = .{ .kind_test = kind }, .span = n.kind_span }, null);
+                for (n.fields) |f| {
+                    var navigation: cst.Navigation = .{ .node = null, .field = f.name };
+                    _ = try self.lowerer.expression(.{ .kind = .{ .navigation = &navigation }, .span = f.name_span }, null);
+                    try self.visit(f.pattern, false);
+                }
+            },
         }
     }
 
@@ -500,7 +631,7 @@ fn variables(
         },
         .view => |v| try variables(allocator, v.pattern, out),
         .literal => {},
-        .list, .cons, .boolean => unreachable,
+        .list, .cons, .boolean, .node => unreachable,
     }
 }
 
@@ -581,7 +712,7 @@ fn push(
             .pattern = pattern,
             .occurrence = occurrence,
         }),
-        .list, .cons, .boolean => unreachable,
+        .list, .cons, .boolean, .node => unreachable,
     }
 }
 
@@ -697,7 +828,7 @@ const Matcher = struct {
                     return try self.compile(rows[1..]);
                 },
                 .constructor, .view => {},
-                .as, .conjunction, .list, .cons, .boolean => unreachable,
+                .as, .conjunction, .list, .cons, .boolean, .node => unreachable,
             }
 
             const narrowed = try b.dupeSlice(Row, rows);
@@ -1152,6 +1283,17 @@ const Written = struct {
                 .kind => |k| try w.print(":{s}", .{k}),
             },
             .boolean => |b| try w.writeAll(if (b) "true" else "false"),
+            .node => |n| {
+                if (n.kind) |k| try w.print(":{s} ", .{k});
+                if (n.fields.len == 0) return w.writeAll("{}");
+                try w.writeAll("{ ");
+                for (n.fields, 0..) |f, i| {
+                    if (i > 0) try w.writeAll(", ");
+                    try w.print("#{s} = ", .{f.name});
+                    try (Written{ .pattern = f.pattern }).format(w);
+                }
+                try w.writeAll(" }");
+            },
         }
         if (parenthesize) try w.writeByte(')');
     }
@@ -1161,7 +1303,7 @@ const Written = struct {
             .conjunction => .conjunction,
             .cons => .cons,
             .constructor => |c| if (c.arguments.len > 0) .application else .atom,
-            .variable, .list, .as, .view, .literal, .boolean => .atom,
+            .variable, .list, .as, .view, .literal, .boolean, .node => .atom,
         };
     }
 };

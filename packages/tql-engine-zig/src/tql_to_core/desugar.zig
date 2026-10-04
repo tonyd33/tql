@@ -273,6 +273,8 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
+            .primitive => |name| return try self.primitive(name, e.span),
+
             // A leading `#f` is the bare `field[f]`.
             .navigation => |n| {
                 const id = (try self.grammar("field", n.field, e.span)).fieldIdForName(n.field);

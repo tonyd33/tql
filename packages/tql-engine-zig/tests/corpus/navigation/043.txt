@@ -4,8 +4,7 @@ asserts: core, values
 
 --- tql ---
 main root = do {
-  args <- descendants_of_kind :arguments root;
-  open <- first children args;
+  args@(children -> open : _) <- descendants_of_kind :arguments root;
   return {
     open = text open,
     descendants = map text (descendants_of_kind (kind open) root),
@@ -20,4 +19,10 @@ f(a, (b));
 [{"children": ["("], "descendants": ["(", "("], "open": "("}]
 
 --- core ---
-main = \root -> concat_map (\args -> concat_map (\open -> return (record[children,descendants,open] (map text (children_of_kind (kind open) args)) (map text (descendants_of_kind (kind open) root)) (text open))) (first children args)) (descendants_of_kind :arguments root)
+main = \root -> concat_map (
+  \args ->
+    let view = children args in
+    case view of
+      Nil -> Nil
+      Cons open _ -> return (record[children,descendants,open] (map text (children_of_kind (kind open) args)) (map text (descendants_of_kind (kind open) root)) (text open))
+) (descendants_of_kind :arguments root)

@@ -1,0 +1,15 @@
+title: a node pattern naming a field its kind lacks matches nothing
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  c@:class_declaration { #arguments = _ } <- descendants root;
+  return $ text c;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[]

@@ -64,5 +64,11 @@ first_call root = do {
   return f;
 };
 
+callee root = do {
+  c@:call_expression { #function = f } <- descendants root;
+--                      ^ attribute
+  return f;
+};
+
 sign n = case n of { 0 -> 0; m if m > 0 -> 1; _ -> 0 - 1 };
 --                             ^ keyword

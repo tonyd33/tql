@@ -669,6 +669,10 @@
             "named": true
           },
           {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
             "type": "number",
             "named": true
           },
@@ -766,6 +770,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {
@@ -1476,6 +1484,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {
@@ -2385,6 +2397,10 @@
             "named": true
           },
           {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
             "type": "number",
             "named": true
           },
@@ -2436,6 +2452,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {
@@ -2801,6 +2821,10 @@
             "named": true
           },
           {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
             "type": "number",
             "named": true
           },
@@ -2852,6 +2876,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {
@@ -2950,6 +2978,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {
@@ -3854,6 +3886,84 @@
           },
           {
             "type": "union",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "field_pattern",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "field_name",
+            "named": true
+          }
+        ]
+      },
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "as_pattern",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "conjunction_pattern",
+            "named": true
+          },
+          {
+            "type": "cons_pattern",
+            "named": true
+          },
+          {
+            "type": "constructor_pattern",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized_pattern",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "view_pattern",
             "named": true
           }
         ]
@@ -5701,6 +5811,10 @@
           "named": true
         },
         {
+          "type": "node_pattern",
+          "named": true
+        },
+        {
           "type": "number",
           "named": true
         },
@@ -6909,6 +7023,32 @@
     }
   },
   {
+    "type": "node_pattern",
+    "named": true,
+    "fields": {
+      "field": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "field_pattern",
+            "named": true
+          }
+        ]
+      },
+      "kind": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "kind",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "operator_name",
     "named": true,
     "fields": {
@@ -7201,6 +7341,10 @@
         },
         {
           "type": "list_pattern",
+          "named": true
+        },
+        {
+          "type": "node_pattern",
           "named": true
         },
         {
@@ -8975,6 +9119,10 @@
           },
           {
             "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
             "named": true
           },
           {

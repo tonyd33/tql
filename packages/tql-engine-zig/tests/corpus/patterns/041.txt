@@ -1,0 +1,24 @@
+title: an of_kind view as a case alternative drops its tail check
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+f x = case x of {
+  (of_kind :class_declaration -> [n]) -> text n;
+  _ -> "other";
+};
+
+main = children | arr f;
+
+--- source ---
+class A {}
+let x = 1;
+
+--- values ---
+["class A {}", "other"]
+
+--- simplified ---
+f = \x -> case of_kind :class_declaration x of
+  Nil -> "other"
+  Cons n cons1 -> text n
+main = kleisli children (arr f)

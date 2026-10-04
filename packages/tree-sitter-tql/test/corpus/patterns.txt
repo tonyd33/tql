@@ -464,3 +464,334 @@ main = case n of { (f -> x) & (g -> y) if x = y -> 1; _ -> 0 };
       (case_alternative
         pattern: (identifier)
         body: (number)))))
+
+================================================================================
+a node pattern with a kind and no fields
+================================================================================
+
+main = do { :class_declaration {} <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind))
+        value: (identifier))
+      (number))))
+
+================================================================================
+a node pattern matches fields by name
+================================================================================
+
+main = do { :call_expression { #function = f, #arguments = a } <- xs; f };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern without a kind
+================================================================================
+
+main = do { { #name = n } <- xs; n };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern takes a trailing comma
+================================================================================
+
+main = do { :pair { #key = k, #value = v, } <- xs; k };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern nests in a field
+================================================================================
+
+main = do { :call_expression { #function = :member_expression { #object = o } } <- xs; o };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (node_pattern
+              kind: (kind)
+              field: (field_pattern
+                name: (field_name)
+                pattern: (identifier)))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+an as-pattern names a node pattern
+================================================================================
+
+main = do { c@:call_expression { #function = f } <- xs; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (as_pattern
+          name: (identifier)
+          pattern: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a conjunction holds two node patterns
+================================================================================
+
+main = do { c & :call_expression { #function = f } & { #arguments = a } <- xs; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (conjunction_pattern
+          left: (conjunction_pattern
+            left: (identifier)
+            right: (node_pattern
+              kind: (kind)
+              field: (field_pattern
+                name: (field_name)
+                pattern: (identifier))))
+          right: (node_pattern
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a constructor takes a node pattern as its argument
+================================================================================
+
+main = case x of { Just :identifier {} -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (node_pattern
+            kind: (kind)))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a constructor takes a kind and then a node pattern
+================================================================================
+
+main = case x of { Pair :identifier :string { #fragment = f } -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (kind)
+          argument: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a node pattern is a case alternative with a guard
+================================================================================
+
+main = case n of { :identifier { #name = x } if text x = "a" -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        guard: (comparison
+          left: (application
+            function: (identifier)
+            argument: (identifier))
+          right: (string))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a kind applied to an empty record is an expression statement
+================================================================================
+
+main = do { :identifier {}; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (kind)
+        argument: (record))
+      (number))))
+
+================================================================================
+a kind applied to a record is an expression statement
+================================================================================
+
+main = do { :identifier { x = 1 }; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (kind)
+        argument: (record
+          (record_field
+            name: (identifier)
+            value: (number))))
+      (number))))
+
+================================================================================
+a constructor applied to a kind and a record is an expression statement
+================================================================================
+
+main = do { Pair :identifier { x = 1 }; Pair :identifier { #name = n } <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (application
+          function: (type_identifier)
+          argument: (kind))
+        argument: (record
+          (record_field
+            name: (identifier)
+            value: (number))))
+      (bind_statement
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (number))))
+
+================================================================================
+an empty brace is not a pattern
+:error
+================================================================================
+
+main = do { {} <- xs; 1 };
+
+---
+
+(source_file)
+
+================================================================================
+a brace mixing grammar fields and record labels is not a pattern
+:error
+================================================================================
+
+main = do { :pair { #key = k, value = v } <- xs; k };
+
+---
+
+(source_file)

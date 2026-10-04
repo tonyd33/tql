@@ -1,0 +1,34 @@
+title: conjuncts beside a kinded node pattern move inside its of_kind view
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  x & :class_declaration { #name = n } & (text -> t) <- children root;
+  return [text x, text n, t];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[["class A {}", "A", "class A {}"]]
+
+--- core ---
+main = \root -> concat_map (
+  \scrutinee ->
+    let view = of_kind :class_declaration scrutinee in
+    case view of
+      Nil -> Nil
+      Cons x cons1 ->
+        let view = field[name] x in
+        case view of
+          Nil -> Nil
+          Cons n cons1' -> case cons1' of
+            Nil ->
+              let t = text x in
+              case cons1 of
+                Nil -> return (Cons (text x) (Cons (text n) (Cons t Nil)))
+                Cons _ _ -> Nil
+            Cons _ _ -> Nil
+) (children root)

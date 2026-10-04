@@ -452,12 +452,7 @@ const Walker = struct {
             .identifier, .qualified_identifier => {
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
-            .kind => {
-                // The lexeme includes the leading `:`, which is punctuation.
-                const text = textOf(node, self.source);
-                const name = try self.allocator.dupe(u8, text[1..]);
-                return .{ .kind = .{ .kind_test = name }, .span = span };
-            },
+            .kind => return .{ .kind = .{ .kind_test = try self.kindName(node) }, .span = span },
             .number => {
                 const text = textOf(node, self.source);
                 const value = std.fmt.parseInt(i64, text, 10) catch {
@@ -909,6 +904,7 @@ const Walker = struct {
                 .span = span,
             };
         }
+        if (std.mem.eql(u8, kind, "node_pattern")) return try self.nodePattern(node, span);
         if (std.meta.stringToEnum(LiteralKind, kind)) |_| {
             const literal = try self.expression(node) orelse return null;
             return .{
@@ -927,6 +923,45 @@ const Walker = struct {
 
         try self.sink.report(.parse, span, "unexpected {s}", .{kind});
         return null;
+    }
+
+    /// A `kind` node's name.
+    fn kindName(self: *Walker, node: ts.Node) error{OutOfMemory}![]const u8 {
+        // The lexeme includes the leading `:`, which is punctuation.
+        return try self.allocator.dupe(u8, textOf(node, self.source)[1..]);
+    }
+
+    fn nodePattern(self: *Walker, node: ts.Node, span: Span) error{OutOfMemory}!?cst.Pattern {
+        const kind_node = node.childByFieldName("kind");
+        var fields: std.ArrayList(cst.Pattern.Node.Field) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "field")) {
+                        const field_node = cursor.node();
+                        const name_node = try self.requiredField(field_node, "name") orelse return null;
+                        const pattern_node = try self.requiredField(field_node, "pattern") orelse return null;
+                        try fields.append(self.allocator, .{
+                            .name = try self.dupe(name_node),
+                            .name_span = spanOf(name_node, self.source_id),
+                            .pattern = try self.pattern(pattern_node) orelse return null,
+                            .span = spanOf(field_node, self.source_id),
+                        });
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+        return .{
+            .kind = .{ .node = try self.boxed(cst.Pattern.Node{
+                .kind = if (kind_node) |k| try self.kindName(k) else null,
+                .kind_span = if (kind_node) |k| spanOf(k, self.source_id) else .unknown,
+                .fields = try fields.toOwnedSlice(self.allocator),
+            }) },
+            .span = span,
+        };
     }
 
     fn ifExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
@@ -1399,6 +1434,16 @@ test "a bind statement takes a view, an as-pattern and a conjunction" {
         "main = do { (text -> \"a\") & x@[_] <- xs; x };",
         "(source_file (define main (params) " ++
             "(do (<- (& (view text (string \"a\")) (@ x (list _))) xs) x)))",
+    );
+}
+
+test "a node pattern takes a kind, fields, or both" {
+    try expectSexpr(
+        "main = do { c@:call_expression { #function = { #object = o, }, #arguments = _ } <- xs; :comment {} <- ys; c };",
+        "(source_file (define main (params) (do " ++
+            "(<- (@ c (node (kind call_expression) (#function (node (#object o))) (#arguments _))) xs) " ++
+            "(<- (node (kind comment)) ys) " ++
+            "c)))",
     );
 }
 

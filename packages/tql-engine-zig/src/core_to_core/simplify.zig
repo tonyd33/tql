@@ -73,7 +73,8 @@ pub const Simplifier = struct {
     options: Options,
     phase: Phase,
     substitution: core.SymbolTable(Substitution),
-    /// Locals bound to a constructor of trivial arguments.
+    /// Locals bound to a constructor of trivial arguments, and the tail of a
+    /// singleton's `Cons`, bound to `Nil`.
     known: core.SymbolTable(Constructed),
     /// Each binding that may be inlined, by its simplified value.
     unfoldings: core.SymbolTable(core.Term),
@@ -95,6 +96,9 @@ pub const Simplifier = struct {
                 .interner = &env.interner,
                 .primitives = &env.primitives,
                 .kleisli = env.interner.lookup(.prelude, "kleisli"),
+                .concat_map = env.interner.lookup(.prelude, "concat_map"),
+                .nil = env.datatypes.nilConstructor().symbol,
+                .cons = env.datatypes.consConstructor().symbol,
             },
             .options = options,
             .phase = phase,
@@ -277,8 +281,12 @@ pub const Simplifier = struct {
             }
         }
 
+        const singleton = self.options.laws and self.laws.singleton(scrutinee);
         const alternatives = try self.builder.slice(core.Case.Alternative, case_term.alternatives.len);
         for (case_term.alternatives, alternatives) |old, *new| {
+            if (singleton and old.constructor == self.laws.cons) {
+                try self.known.put(old.binders[1], .{ .constructor = self.laws.nil, .fields = &.{} });
+            }
             new.* = .{
                 .constructor = old.constructor,
                 .binders = old.binders,

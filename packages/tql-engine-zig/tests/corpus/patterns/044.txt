@@ -1,0 +1,16 @@
+title: a node pattern without a kind matches any node with the field
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  { #function = f } <- descendants root;
+  return $ text f;
+};
+
+--- source ---
+a.b();
+c();
+
+--- values ---
+["a.b", "c"]

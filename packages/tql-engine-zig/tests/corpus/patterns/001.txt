@@ -1,6 +1,6 @@
 title: a view pattern tests a node's shape through its fields and text
 grammar: typescript
-asserts: core, values
+asserts: core, simplified, values
 
 --- tql ---
 main root = do {
@@ -63,3 +63,34 @@ main = \root -> concat_map (
                                   Cons _ _ -> Nil
                         Cons _ _ -> Nil
 ) (descendants root)
+
+--- simplified ---
+main = \root -> concat_map (
+  \call -> case field[function] call of
+    Nil -> Nil
+    Cons cons0 cons1 -> case of_kind :member_expression cons0 of
+      Nil -> Nil
+      Cons cons0 cons1' -> case field[object] cons0 of
+        Nil -> Nil
+        Cons cons0' cons1' -> case op[=] (text cons0') "console" of
+          False -> Nil
+          True -> case cons1' of
+            Nil -> case field[property] cons0 of
+              Nil -> Nil
+              Cons cons0 cons1' -> case op[=] (text cons0) "error" of
+                False -> Nil
+                True -> case cons1' of
+                  Nil -> case cons1 of
+                    Nil -> concat_map (\_ -> Cons (text call) Nil) (
+                      case (
+                        case concat_map (of_kind :catch_clause) (ancestors call) of
+                          Nil -> True
+                          Cons h t -> False
+                      ) of
+                        False -> Nil
+                        True -> Cons Unit Nil
+                    )
+                    Cons _ _ -> Nil
+                  Cons _ _ -> Nil
+            Cons _ _ -> Nil
+) (descendants_of_kind :call_expression root)

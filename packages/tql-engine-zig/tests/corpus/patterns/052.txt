@@ -1,0 +1,16 @@
+title: the name of a whole node pattern may shadow a local
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  n <- [1];
+  n@:class_declaration {} <- descendants root;
+  return $ text n;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["class A {}"]

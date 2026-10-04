@@ -1,0 +1,25 @@
+title: a named node pattern binds the node and its fields
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  c@:class_declaration { #name = n } <- descendants root;
+  return [text c, text n];
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["class A {}", "A"], ["class B {}", "B"]]
+
+--- simplified ---
+main = \root -> concat_map (
+  \c -> case field[name] c of
+    Nil -> Nil
+    Cons n cons1 -> case cons1 of
+      Nil -> Cons (Cons (text c) (Cons (text n) Nil)) Nil
+      Cons _ _ -> Nil
+) (descendants_of_kind :class_declaration root)
