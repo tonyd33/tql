@@ -12,7 +12,4 @@ class A {}
 []
 
 --- core ---
-main = const (
-  bind _ <- Nil in
-  Cons 3 Nil
-)
+main = const (concat_map (\_ -> Cons 3 Nil) Nil)

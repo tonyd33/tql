@@ -24,8 +24,4 @@ class Store {}
 main :: Node -> [String]
 
 --- core ---
-main = \root ->
-  bind class_decl <- children_of_kind :class_declaration root in
-  bind name <- field[name] class_decl in
-  bind _ <- guard (op[~] (text name) r"^S") in
-  return (text name)
+main = \root -> concat_map (\class_decl -> concat_map (\name -> concat_map (\_ -> return (text name)) (guard (op[~] (text name) r"^S"))) (field[name] class_decl)) (children_of_kind :class_declaration root)

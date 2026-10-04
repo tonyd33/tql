@@ -19,6 +19,4 @@ class B {}
 main :: Node -> [String]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  return (text c)
+main = \root -> concat_map (\c -> return (text c)) (children_of_kind :class_declaration root)

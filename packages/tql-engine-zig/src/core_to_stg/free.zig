@@ -73,15 +73,6 @@ pub const Collector = struct {
                 try self.walk(letrec.body);
                 self.bound.shrinkRetainingCapacity(mark);
             },
-            .bind => |bind_term| {
-                // `bind x <- v in body` binds `x` in the body only; `v` is
-                // evaluated in the enclosing scope.
-                try self.walk(bind_term.value);
-                const mark = self.bound.items.len;
-                try self.bound.append(self.gpa, bind_term.name);
-                try self.walk(bind_term.body);
-                self.bound.shrinkRetainingCapacity(mark);
-            },
         }
     }
 };
@@ -157,23 +148,6 @@ test "a letrec binding is not free in its own right-hand side" {
     const bindings = try arena.allocator().alloc(core.Letrec.Binding, 1);
     bindings[0] = .{ .name = @enumFromInt(1), .value = rhs };
     const term = try builder.letrec(bindings, sym(1), span);
-
-    try collector.walk(term);
-    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
-}
-
-test "a bind's value sees the enclosing scope, its body sees the binder" {
-    const gpa = testing.allocator;
-    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(2)} };
-    defer collector.deinit();
-
-    var arena: std.heap.ArenaAllocator = .init(gpa);
-    defer arena.deinit();
-    const builder: core.Builder = .{ .allocator = arena.allocator() };
-
-    // `bind x <- x in x`: the outer `x` in the value position is a different
-    // symbol from the binder.
-    const term = try builder.bind(@enumFromInt(1), sym(2), sym(1), span);
 
     try collector.walk(term);
     try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);

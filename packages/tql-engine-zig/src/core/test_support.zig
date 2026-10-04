@@ -168,10 +168,6 @@ pub const ProgramBuilder = struct {
         );
     }
 
-    pub fn bind(self: *const ProgramBuilder, name: core.SymbolId, value: core.Term, body: core.Term) !core.Term {
-        return try self.terms().bind(name, value, body, diagnostic.Span.unknown);
-    }
-
     /// A program over the builder's environment whose entry is `entry`, with
     /// every definition its own component, in definition order. The program
     /// borrows the environment: deinit the builder, not the program.

@@ -22,9 +22,4 @@ class B { p() {} }
 main :: Node -> [String]
 
 --- core ---
-main = kleisli (kleisli children (of_kind :class_declaration)) (
-  \c ->
-    bind m <- kleisli (kleisli field[body] children) (of_kind :method_definition) c in
-    bind n <- field[name] m in
-    return (text n)
-)
+main = kleisli (kleisli children (of_kind :class_declaration)) (\c -> concat_map (\m -> concat_map (\n -> return (text n)) (field[name] m)) (kleisli (kleisli field[body] children) (of_kind :method_definition) c))

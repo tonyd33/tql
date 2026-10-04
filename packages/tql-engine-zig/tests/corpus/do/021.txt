@@ -18,6 +18,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \root ->
-  bind _ <- Cons 1 (Cons 2 Nil) in
-  return 3
+main = \root -> concat_map (\_ -> return 3) (Cons 1 (Cons 2 Nil))

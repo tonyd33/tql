@@ -21,6 +21,4 @@ class A {}
 main :: Node -> [Kind]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  return (kind c)
+main = \root -> concat_map (\c -> return (kind c)) (children_of_kind :class_declaration root)

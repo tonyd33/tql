@@ -23,7 +23,4 @@ class Service {}
 main :: Node -> [{kind: Kind, name: String}]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind n <- field[name] c in
-  return (record[kind,name] (kind c) (text n))
+main = \root -> concat_map (\c -> concat_map (\n -> return (record[kind,name] (kind c) (text n))) (field[name] c)) (children_of_kind :class_declaration root)

@@ -114,7 +114,6 @@ pub const Inference = struct {
             .apply => |app| try self.application(app.*),
             .case => |c| try self.caseOf(c.*),
             .letrec => |l| try self.letrec(l.*),
-            .bind => |b| try self.streamBind(b.*),
         };
     }
 
@@ -319,25 +318,6 @@ pub const Inference = struct {
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
         try self.generalizeGroup(placeholders, spans, out);
-    }
-
-    /// (T-Bind)      Gamma |- e_1 : [a]
-    ///               Gamma, x : a |- e_2 : [b]
-    ///               --------------------------------
-    ///               Gamma |- bind x <- e_1 in e_2 : [b]
-    fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
-        const source = try self.term(b.value);
-        const element = try self.subst.fresh();
-        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span);
-
-        const mark = self.scope.mark();
-        defer self.scope.truncate(mark);
-        try self.scope.push(b.name, .{ .monomorphic = element });
-
-        const body = try self.term(b.body);
-        const result = try self.subst.fresh();
-        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span);
-        return try self.subst.datatypes.list(self.subst.arena, result);
     }
 
     /// `Gen(Gamma, tau)`: quantify the metavariables free in `tau`

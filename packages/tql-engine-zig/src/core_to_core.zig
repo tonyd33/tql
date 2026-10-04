@@ -96,12 +96,6 @@ const Pass = struct {
                     t.span,
                 );
             },
-            .bind => |b| try self.builder.bind(
-                b.name,
-                try self.term(b.value),
-                try self.term(b.body),
-                t.span,
-            ),
         };
     }
 

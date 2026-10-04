@@ -361,27 +361,6 @@ pub const Translator = struct {
                 };
                 return .{ .let = node };
             },
-
-            .bind => |bind_term| {
-                // `bind x <- v in body` is `concat_map (\x -> body) v`, an
-                // ordinary call. The evaluator never sees a bind.
-                const concat_map = self.program.env.interner.lookup(.prelude, "concat_map") orelse
-                    return error.Unsupported;
-
-                const source = try self.atomize(bind_term.value, hoisted);
-                const receiver = try self.closure(&.{bind_term.name}, bind_term.body);
-
-                const arguments = try self.arena.alloc(stg.Atom, 2);
-                arguments[0] = try self.bindClosure(receiver, hoisted);
-                arguments[1] = source;
-
-                const node = try self.arena.create(stg.Expr.Apply);
-                node.* = .{
-                    .callee = .{ .global = self.global(concat_map) orelse return error.Unsupported },
-                    .arguments = arguments,
-                };
-                return .{ .apply = node };
-            },
         }
     }
 

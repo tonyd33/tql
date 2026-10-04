@@ -478,7 +478,7 @@ pub const Lowerer = struct {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
-            .then => return try self.builder.bind(try self.env.interner.fresh("_"), left, right, span),
+            .then => return try self.bind(try self.env.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
                 self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
@@ -505,6 +505,15 @@ pub const Lowerer = struct {
         return try self.builder.applyMany(
             try self.primitive(name, span),
             &.{ left, right },
+            span,
+        );
+    }
+
+    /// `concat_map (\name -> body) value`.
+    fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
+        return try self.builder.applyMany(
+            try self.primitive("concat_map", span),
+            &.{ try self.builder.lambda(name, body, body.span), value },
             span,
         );
     }
@@ -593,7 +602,7 @@ pub const Lowerer = struct {
                 const entries = try self.builder.slice(resolve.Scope.Entry, 1);
                 entries[0] = .{ .name = b.name, .symbol = symbol };
                 const inner: resolve.Scope = .{ .parent = scope, .names = entries };
-                return try self.builder.bind(
+                return try self.bind(
                     symbol,
                     value,
                     try self.doBlock(statements[1..], result, &inner, span),
@@ -601,7 +610,7 @@ pub const Lowerer = struct {
                 );
             },
             .expression => |e| {
-                return try self.builder.bind(
+                return try self.bind(
                     try self.env.interner.fresh("_"),
                     try self.expression(e, scope),
                     try self.doBlock(statements[1..], result, scope, span),

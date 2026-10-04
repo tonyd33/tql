@@ -28,7 +28,4 @@ class A {}
 main :: Node -> [{a: Int, b: String}]
 
 --- core ---
-main = \_ ->
-  bind a <- Cons 1 (Cons 2 Nil) in
-  bind b <- Cons "x" (Cons "y" Nil) in
-  return (record[a,b] a b)
+main = \_ -> concat_map (\a -> concat_map (\b -> return (record[a,b] a b)) (Cons "x" (Cons "y" Nil))) (Cons 1 (Cons 2 Nil))

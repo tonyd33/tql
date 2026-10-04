@@ -36,11 +36,13 @@ class A {}
 main :: Node -> [{k: Kind, n: String}]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind cn <- field[name] c in
-  letrec
-    name = text cn
-    k = kind c
-  in
-  return (record[k,n] k name)
+main = \root -> concat_map (
+  \c -> concat_map (
+    \cn ->
+      letrec
+        name = text cn
+        k = kind c
+      in
+      return (record[k,n] k name)
+  ) (field[name] c)
+) (children_of_kind :class_declaration root)
