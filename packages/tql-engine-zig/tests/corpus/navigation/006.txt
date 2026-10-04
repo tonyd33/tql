@@ -18,4 +18,4 @@ class B {}
 ["class_declaration","class","type_identifier","class_body","{","method_definition","property_identifier","formal_parameters","(",")","statement_block","{","}","}","class_declaration","class","type_identifier","class_body","{","}"]
 
 --- types ---
-main :: Node -> [String]
+main :: Node -> [Kind]

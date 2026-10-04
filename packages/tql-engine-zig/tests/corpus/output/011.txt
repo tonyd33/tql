@@ -24,4 +24,4 @@ class A {}
 ]
 
 --- types ---
-main :: Node -> [{at: Range, k: String}]
+main :: Node -> [{at: Range, k: Kind}]

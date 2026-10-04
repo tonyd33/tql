@@ -11,6 +11,7 @@
 - `range` returns a record.
 - `<|>` binds tighter than `|`: `a <|> b | f` is `(a <|> b) | f`.
 - Datatypes are declared with `data`: `data Bool = False | True;`.
+- `kind` returns a `Kind`, not a `String`: write `kind n = :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
 
 ### New Features
 
@@ -29,6 +30,9 @@
 - `module A.B for javascript, typescript;` declares the grammars a module reads. Importing it under another grammar is an error, and an imported module without `for` may not use grammar-specific syntax like kinds or fields.
 - `tql-js` `query` takes `modules`, a record of module name to source.
 - The built-in types `Int`, `String`, `Regex`, `Node`, `Kind`, `Range` and `Point` are prelude exports: `import Prelude hiding (Int)` and `P.Int` work, and a module may declare its own `Int`.
+- Added `kind_name :: Node -> String`, a node's kind as a string. An anonymous token's is its spelling.
+- Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
+- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
 
 ### Improvements
 

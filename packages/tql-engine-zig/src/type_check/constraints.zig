@@ -120,8 +120,8 @@ fn walk(
 fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
     return switch (class) {
         .Eq => switch (p) {
-            .Int, .String, .Node => true,
-            .Regex, .Kind => false,
+            .Int, .String, .Node, .Kind => true,
+            .Regex => false,
         },
         .Ord => switch (p) {
             .Int, .String => true,
@@ -132,8 +132,8 @@ fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive)
             .Int, .Regex, .Node, .Kind => false,
         },
         .Serial => switch (p) {
-            .Int, .String, .Node => true,
-            .Regex, .Kind => false,
+            .Int, .String, .Node, .Kind => true,
+            .Regex => false,
         },
     };
 }

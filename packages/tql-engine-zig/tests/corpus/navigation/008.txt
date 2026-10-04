@@ -15,4 +15,4 @@ class A {}
 ["type_identifier", "class_body"]
 
 --- types ---
-main :: Node -> [String]
+main :: Node -> [Kind]

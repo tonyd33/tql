@@ -168,3 +168,6 @@ or_else primary fallback x = case primary x of {
   Nil -> fallback x;
   Cons h t -> Cons h t;
 };
+
+is_kind :: Kind -> Node -> Bool;
+is_kind k n = kind n = k;

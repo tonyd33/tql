@@ -45,7 +45,9 @@ pub const Scalar = enum {
 pub const PrimOp = enum {
     text,
     kind,
+    kind_name,
     is_named,
+    is_extra,
     range,
     length,
     toint,
@@ -58,7 +60,6 @@ pub const PrimOp = enum {
     named_descendants,
     children_of_kind,
     descendants_of_kind,
-    is_kind,
     of_kind,
 
     /// The single axis this one becomes when composed with a kind test, if

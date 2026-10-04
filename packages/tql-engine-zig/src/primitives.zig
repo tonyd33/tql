@@ -15,8 +15,9 @@ const PrimOp = core.PrimOp;
 fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
     const a = types.variable_type(0);
     return switch (primop) {
-        .text, .kind => .{ .type = try B.func(types.node_type, types.string_type) },
-        .is_named => .{ .type = try B.func(types.node_type, try B.boolType()) },
+        .text, .kind_name => .{ .type = try B.func(types.node_type, types.string_type) },
+        .kind => .{ .type = try B.func(types.node_type, types.kind_type) },
+        .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
         .length => .{
             .quantified = 1,
@@ -34,10 +35,6 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .descendants,
         .named_descendants,
         => .{ .type = try B.filter(types.node_type, types.node_type) },
-        .is_kind => .{ .type = try B.func(
-            types.kind_type,
-            try B.func(types.node_type, try B.boolType()),
-        ) },
         .of_kind, .children_of_kind, .descendants_of_kind => .{ .type = try B.func(
             types.kind_type,
             try B.filter(types.node_type, types.node_type),
@@ -186,11 +183,11 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",                "kind",     "is_named",       "range",
-        "length",              "toint",    "filename",       "parent",
-        "ancestors",           "children", "named_children", "descendants",
-        "named_descendants",   "is_kind",  "of_kind",        "children_of_kind",
-        "descendants_of_kind",
+        "text",             "kind",                "kind_name",         "is_named",
+        "is_extra",         "range",               "length",            "toint",
+        "filename",         "parent",              "ancestors",         "children",
+        "named_children",   "descendants",         "named_descendants", "of_kind",
+        "children_of_kind", "descendants_of_kind",
     };
 
     var target = try fixture(std.testing.allocator);

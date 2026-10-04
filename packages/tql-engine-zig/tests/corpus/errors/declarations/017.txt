@@ -5,12 +5,12 @@ asserts: error
 `kind` is a primitive the prelude declares.
 
 --- tql ---
-kind :: Node -> String;
+kind :: Node -> Kind;
 main = arr kind;
 
 --- error ---
 error[orphan-signature]: `kind` has a signature but no definition
  --> 1:1
   |
-1 | kind :: Node -> String;
-  | ^^^^^^^^^^^^^^^^^^^^^^^
+1 | kind :: Node -> Kind;
+  | ^^^^^^^^^^^^^^^^^^^^^

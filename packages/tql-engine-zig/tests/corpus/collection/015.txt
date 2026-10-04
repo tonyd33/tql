@@ -16,7 +16,7 @@ class A {}
 [{ "meta": { "k": "class_declaration", "n": 1 }, "name": "A" }]
 
 --- types ---
-main :: Node -> [{meta: {k: String, n: Int}, name: String}]
+main :: Node -> [{meta: {k: Kind, n: Int}, name: String}]
 
 --- core ---
 main = \root ->

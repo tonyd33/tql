@@ -1,0 +1,17 @@
+title: `kind_name` is a kind's name as a string, an anonymous token's included
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = descendants_of_kind :binary_expression
+  | children
+  | arr (\n -> { name = kind_name n, matches = kind_name n = "&&" });
+
+--- source ---
+x = a && b;
+
+--- values ---
+[{"matches":false,"name":"identifier"},{"matches":true,"name":"&&"},{"matches":false,"name":"identifier"}]
+
+--- types ---
+main :: Node -> [{matches: Bool, name: String}]

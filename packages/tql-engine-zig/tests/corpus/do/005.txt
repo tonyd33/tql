@@ -19,7 +19,7 @@ class A {}
 [{ "class": "A", "root": "program" }]
 
 --- types ---
-main :: Node -> [{class: String, root: String}]
+main :: Node -> [{class: String, root: Kind}]
 
 --- core ---
 main = \root ->

@@ -469,7 +469,7 @@ test "a field symbol carries the grammar id it resolved" {
 }
 
 test "a kind literal carries the grammar id it resolved" {
-    var program = try link(&.{"main = is_kind :class_declaration;"});
+    var program = try link(&.{"main = of_kind :class_declaration;"});
     defer program.deinit();
 
     var grammars = grammar.Registry.init(testing.allocator, &.{});
@@ -478,7 +478,7 @@ test "a kind literal carries the grammar id it resolved" {
 
     const body = program.entryDefinitions()[0].body;
     const function = body.kind.apply.function.kind.symbol;
-    try testing.expectEqual(core.PrimOp.is_kind, program.env.interner.details(function).primop);
+    try testing.expectEqual(core.PrimOp.of_kind, program.env.interner.details(function).primop);
     const kind = body.kind.apply.argument.kind.literal.kind;
     try testing.expectEqualStrings("class_declaration", kind.name);
     try testing.expectEqual(g.language.idForNodeKind("class_declaration", true), kind.id);

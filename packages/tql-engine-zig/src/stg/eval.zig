@@ -794,20 +794,23 @@ pub const Machine = struct {
                 },
                 .kind => {
                     const subject = try self.nodeArgument(arguments);
+                    return .{ .kind = .{ .name = subject.kind(), .id = subject.kindId() } };
+                },
+                .kind_name => {
+                    const subject = try self.nodeArgument(arguments);
                     return .{ .string = subject.kind() };
                 },
                 .is_named => {
                     const subject = try self.nodeArgument(arguments);
                     return try self.boolValue(subject.isNamed());
                 },
+                .is_extra => {
+                    const subject = try self.nodeArgument(arguments);
+                    return try self.boolValue(subject.isExtra());
+                },
                 .range => {
                     const subject = try self.nodeArgument(arguments);
                     return try self.rangeRecord(rangeOf(subject));
-                },
-
-                .is_kind => {
-                    const tested = try self.kindTestArguments(arguments);
-                    return try self.boolValue(tested.subject.kindId() == tested.kind_id);
                 },
 
                 // `[x]` when the kind matches, otherwise `[]`.
@@ -899,8 +902,7 @@ pub const Machine = struct {
         };
     }
 
-    /// The kind and node arguments of `is_kind`, `of_kind` and the `_of_kind`
-    /// axes.
+    /// The kind and node arguments of `of_kind` and the `_of_kind` axes.
     fn kindTestArguments(
         self: *Machine,
         arguments: []const *value.Thunk,
@@ -1158,6 +1160,10 @@ pub const Machine = struct {
                     .string => |b| return std.mem.eql(u8, a, b),
                     else => return error.TypeError,
                 },
+                .kind => |a| switch (right) {
+                    .kind => |b| return a.id == b.id,
+                    else => return error.TypeError,
+                },
                 .constructed => |a| {
                     const b = switch (right) {
                         .constructed => |c| c,
@@ -1306,6 +1312,7 @@ pub const Machine = struct {
         switch (v) {
             .number => |n| try jws.write(n),
             .string => |s| try jws.write(s),
+            .kind => |k| try jws.write(k.name),
             .record => |fields| {
                 try jws.beginObject();
                 for (fields) |field| {

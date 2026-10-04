@@ -1,0 +1,20 @@
+title: `kind` compares with a kind literal
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+main = descendants | keep (\n -> kind n = :comment) | arr text;
+
+--- source ---
+// a
+class A {}
+/* b */
+
+--- values ---
+["// a","/* b */"]
+
+--- types ---
+main :: Node -> [String]
+
+--- core ---
+main = kleisli (kleisli descendants (keep (\n -> op[=] (kind n) :comment))) (arr text)

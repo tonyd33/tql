@@ -724,7 +724,7 @@ const some_span: diagnostic.Span = .{
     .end_point = .{ .row = 0, .column = 16 },
 };
 
-test "Eq holds for the five scalars and not regex" {
+test "Eq holds for the six scalars and not regex" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -735,6 +735,7 @@ test "Eq holds for the five scalars and not regex" {
         types.string_type,
         types.range_type,
         types.node_type,
+        types.kind_type,
     }) |t| try fix.expectHolds(.Eq, t);
 
     try fix.expectRefuted(.Eq, types.regex_type);
@@ -750,6 +751,7 @@ test "Ord holds only for int and string" {
 
     try fix.expectRefuted(.Ord, types.node_type);
     try fix.expectHolds(.Eq, types.node_type);
+    try fix.expectRefuted(.Ord, types.kind_type);
 
     try fix.expectRefuted(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
     try fix.expectRefuted(.Ord, types.range_type);
@@ -790,7 +792,7 @@ test "Sized on a list of an unsolved metavariable holds without deferring" {
     try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
-test "Serial holds for the five scalars and not regex" {
+test "Serial holds for the six scalars and not regex" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -801,6 +803,7 @@ test "Serial holds for the five scalars and not regex" {
         types.string_type,
         types.node_type,
         types.range_type,
+        types.kind_type,
     }) |t| try fix.expectHolds(.Serial, t);
 
     try fix.expectRefuted(.Serial, types.regex_type);

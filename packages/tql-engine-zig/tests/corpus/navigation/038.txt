@@ -1,0 +1,20 @@
+title: a kind literal names the named kind, not a token of the same spelling
+grammar: typescript
+asserts: types, values
+
+TypeScript has a named `string`, the literal, and an anonymous `string`, the
+keyword in a type.
+
+--- tql ---
+main = descendants
+  | keep (\n -> kind_name n = "string")
+  | arr (\n -> { text = text n, literal = kind n = :string });
+
+--- source ---
+let x: string = "a";
+
+--- values ---
+[{"literal":false,"text":"string"},{"literal":true,"text":"\"a\""}]
+
+--- types ---
+main :: Node -> [{literal: Bool, text: String}]
