@@ -508,6 +508,26 @@ test "linked components order library callees before entry callers" {
     try testing.expectEqualStrings("main", order.items[2]);
 }
 
+test "a signature cuts the edges into its definition" {
+    var program = try link(&.{
+        \\a :: Int -> Int;
+        \\a x = b x;
+        \\b x = a x;
+        \\main = a;
+    });
+    defer program.deinit();
+
+    var order: std.ArrayList([]const u8) = .empty;
+    defer order.deinit(testing.allocator);
+    for (program.components[program.components.len - 3 ..]) |component| {
+        try testing.expectEqual(1, component.len);
+        try order.append(testing.allocator, program.env.interner.spelling(program.definitions[component[0]].symbol));
+    }
+    try testing.expectEqualStrings("b", order.items[0]);
+    try testing.expectEqualStrings("a", order.items[1]);
+    try testing.expectEqualStrings("main", order.items[2]);
+}
+
 test "a module may declare a datatype named like an imported alias" {
     var program = try link(&.{
         "type X = Int;",

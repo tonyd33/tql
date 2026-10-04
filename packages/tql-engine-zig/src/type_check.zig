@@ -1516,6 +1516,30 @@ test "a component's scheme is generalized and visible to later components" {
     try fix.expectScheme(use, "a -> a");
 }
 
+test "a reference to a signed definition is typed at its signature before it is inferred" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    // user = signed;  signed :: Int -> Int;  signed = \x -> x
+    const x = try fix.pb.global("x");
+    const signed = try fix.pb.global("signed");
+    const user = try fix.pb.global("user");
+    try fix.pb.env.annotate(signed, .{
+        .scheme = .{ .type = try types.func(fix.subst.arena, types.int_type, types.int_type) },
+        .span = .unknown,
+    });
+
+    const definitions = try fix.pb.terms().slice(core.Definition, 2);
+    definitions[0] = .{ .symbol = user, .body = fix.pb.symbol(signed), .span = .unknown };
+    definitions[1] = .{ .symbol = signed, .body = try fix.lam(x, fix.pb.symbol(x)), .span = .unknown };
+
+    try fix.inference.program(definitions, &.{ &.{0}, &.{1} });
+
+    try fix.expectScheme(user, "Int -> Int");
+    try fix.expectScheme(signed, "Int -> Int");
+}
+
 test "mutually recursive definitions are one component, generalized together" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);

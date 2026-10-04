@@ -148,13 +148,15 @@ pub const Inference = struct {
     ///               ------------------------------------------
     ///               Gamma |- x : tau
     ///
-    /// `Gamma(x)` has four sources, in scope order:
-    /// 1. a lexical binder
-    /// 2. this SCC's placeholder
-    /// 3. an earlier SCC's scheme
-    /// 4. the environment's scheme for a primitive, a synthesized symbol or a
+    /// `Gamma(x)` has five sources, in scope order:
+    /// 1. a written signature, wherever its definition's SCC is
+    /// 2. a lexical binder
+    /// 3. this SCC's placeholder
+    /// 4. an earlier SCC's scheme
+    /// 5. the environment's scheme for a primitive, a synthesized symbol or a
     ///    constructor
     fn variable(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!types.Type {
+        if (self.env.annotationOf(id)) |declared| return try self.instantiate(declared.scheme, span);
         if (self.scope.lookup(id)) |binding| return switch (binding) {
             // Monomorphic: used at one type, not instantiated.
             .monomorphic => |t| t,
@@ -425,7 +427,9 @@ pub const Inference = struct {
     ///
     /// T-LetRec at top level: placeholders, bodies, unify, generalize
     /// together. Mutual recursion works because every member is in scope
-    /// monomorphically while any body is checked.
+    /// monomorphically while any body is checked. A member with a signature
+    /// is a component of its own, and every use of it, its own included, is
+    /// at the signature.
     ///
     /// `desugar.Program.components` is already in dependency order, so a callee's
     /// scheme is generalized before its caller's body is inferred. The prelude

@@ -1,0 +1,22 @@
+title: a signature allows polymorphic recursion
+grammar: typescript
+asserts: types, values
+
+`nest` calls itself at `[a]`. The call is typed at the signature, so it may
+be at another type than the definition. Without the signature this is an
+occurs-check failure.
+
+--- tql ---
+nest :: Int -> a -> Int;
+nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];
+main = pure (nest 3 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- types ---
+nest :: Int -> a -> Int
+main :: Node -> [Int]
