@@ -18,5 +18,5 @@ main :: Node -> [Int]
 
 --- core ---
 main =
-  letrec inc = \x -> op[+] x 1 in
+  let inc = \x -> op[+] x 1 in
   pure (inc 4)

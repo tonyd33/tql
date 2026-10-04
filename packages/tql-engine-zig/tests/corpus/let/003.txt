@@ -24,8 +24,6 @@ main :: Node -> [Int]
 
 --- core ---
 main =
-  letrec
-    first = op[+] second 1
-    second = 10
-  in
+  let second = 10 in
+  let first = op[+] second 1 in
   pure first

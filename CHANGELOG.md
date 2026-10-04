@@ -42,6 +42,7 @@
 
 ### Bug Fixes
 
+- A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 
 ## 0.3.1 (2026-10-03)

@@ -1,7 +1,5 @@
 //! Free variables of a Core term.
 //!
-//! A closure captures exactly the locals its body mentions but does not bind.
-//!
 //! Every binder is globally unique, interned once by resolution, so two
 //! binders never share a SymbolId and a bound name cannot shadow another. The
 //! walk carries a flat bound set, not a scope chain.
@@ -14,10 +12,10 @@ const Allocator = std.mem.Allocator;
 /// Collect the free variables of `term` into `out`, in first-mention order.
 ///
 /// `bound` holds the binders already in scope. Globals, constructors and
-/// primitives are symbols too, and only a symbol in `locals` is captured.
+/// primitives are symbols too, and only a symbol in `locals` is collected.
 pub const Collector = struct {
     gpa: Allocator,
-    /// The locals in scope where the closure is built.
+    /// The symbols to collect.
     locals: []const core.SymbolId,
 
     bound: std.ArrayList(core.SymbolId) = .empty,

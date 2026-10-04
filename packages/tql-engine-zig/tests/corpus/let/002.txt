@@ -21,8 +21,6 @@ main :: Node -> [Int]
 
 --- core ---
 main =
-  letrec
-    lo = 2
-    hi = 5
-  in
+  let lo = 2 in
+  let hi = 5 in
   pure (op[+] lo hi)

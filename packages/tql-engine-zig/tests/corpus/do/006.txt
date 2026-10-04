@@ -24,7 +24,7 @@ main :: Node -> [String]
 main = \root -> concat_map (
   \c -> concat_map (
     \n ->
-      letrec name = text n in
+      let name = text n in
       return name
   ) (field[name] c)
 ) (children_of_kind :class_declaration root)

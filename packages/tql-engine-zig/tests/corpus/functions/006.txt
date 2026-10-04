@@ -24,8 +24,6 @@ main :: Node -> [Int]
 
 --- core ---
 main =
-  letrec
-    a = \x -> \y -> op[+] x y
-    b = \x -> \y -> op[+] x y
-  in
+  let a = \x -> \y -> op[+] x y in
+  let b = \x -> \y -> op[+] x y in
   const (Cons (a 1 2) (Cons (b 1 2) Nil))

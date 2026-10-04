@@ -1,0 +1,15 @@
+title: a function in a `do`-local `let` group is polymorphic to the other bindings
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  let { me x = x; a = me 1; b = me "s"; };
+  return (a + length b);
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[2]

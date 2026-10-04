@@ -1,0 +1,25 @@
+title: a binding uses one written after it at two types
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main =
+  let {
+    a = me 1;
+    b = me "s";
+    me x = x;
+  }
+  in pure (a + length b);
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- core ---
+main =
+  let me = \x -> x in
+  let a = me 1 in
+  let b = me "s" in
+  pure (op[+] a (length b))

@@ -12,7 +12,6 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
-const free = @import("free.zig");
 const primitives = @import("../primitives.zig");
 const pcre2 = @import("../regex.zig");
 const stg = @import("../stg.zig");
@@ -547,7 +546,7 @@ pub const Translator = struct {
         parameters: []const core.SymbolId,
         body: core.Term,
     ) Error!*const stg.Closure {
-        var collector: free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
+        var collector: core.free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
         defer collector.deinit();
 
         for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);

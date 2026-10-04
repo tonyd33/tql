@@ -21,7 +21,7 @@ add3 = {} \u {} ->
   in
   t1@0
 main = {} \u {} ->
-  letrec f = {} \u {} -> add3 1 in
-  letrec g = {f@0} \u {} -> f@0 2 in
+  let f = {} \u {} -> add3 1 in
+  let g = {f@0} \u {} -> f@0 2 in
   let t0 = {g@1} \u {} -> g@0 3 in
   pure t0@2

@@ -28,6 +28,6 @@ other :: String
 --- core ---
 label = "global"
 main =
-  letrec label = "local" in
+  let label = "local" in
   const (Cons label (Cons other Nil))
 other = label

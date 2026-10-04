@@ -19,7 +19,7 @@ class A {}
 adder = {} \u {} ->
   let
     t0 = {} \n {a} ->
-      letrec add = {a@0} \n {b} -> op[+]# a@0 b@1 in
+      let add = {a@0} \n {b} -> op[+]# a@0 b@1 in
       add@1
   in
   t0@0

@@ -27,5 +27,5 @@ main :: Node -> [String]
 --- core ---
 methods = kleisli (kleisli field[body] children) (of_kind :method_definition)
 main =
-  letrec has = \p -> \x -> not (null (p x)) in
+  let has = \p -> \x -> not (null (p x)) in
   kleisli (kleisli (kleisli (kleisli children (of_kind :class_declaration)) (keep (has methods))) field[name]) (arr text)

@@ -32,7 +32,7 @@ fst = {} \u {} ->
 pick = {} \u {} ->
   let
     t4 = {} \n {p,q} -> case (
-      letrec s = {} \u {} -> 5 in
+      let s = {} \u {} -> 5 in
       Mk s@2 6
     ) of
       Mk x y ->

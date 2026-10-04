@@ -21,6 +21,6 @@ main :: Node -> [Int]
 
 --- core ---
 main =
-  letrec outer = 10 in
-  letrec inner = op[+] outer 5 in
+  let outer = 10 in
+  let inner = op[+] outer 5 in
   pure inner

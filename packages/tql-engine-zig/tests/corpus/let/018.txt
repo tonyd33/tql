@@ -1,0 +1,37 @@
+title: a group splits into its strongly connected components
+grammar: typescript
+asserts: core, values
+
+`is_even` and `is_odd` refer to each other and stay one recursive group.
+`four` refers to nothing, and `answer` refers to all three, so it is bound
+innermost.
+
+--- tql ---
+main =
+  let {
+    answer = [is_even four, is_odd four];
+    is_even n = if n = 0 then true else is_odd (n - 1);
+    is_odd n = if n = 0 then false else is_even (n - 1);
+    four = 4;
+  }
+  in const answer;
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]
+
+--- core ---
+main =
+  letrec
+    is_even = \n -> case op[=] n 0 of
+      False -> is_odd (op[-] n 1)
+      True -> True
+    is_odd = \n -> case op[=] n 0 of
+      False -> is_even (op[-] n 1)
+      True -> False
+  in
+  let four = 4 in
+  let answer = Cons (is_even four) (Cons (is_odd four) Nil) in
+  const answer

@@ -25,6 +25,6 @@ main :: Node -> [Bool]
 --- core ---
 main = \root -> concat_map (
   \c ->
-    letrec expected = "A" in
+    let expected = "A" in
     concat_map (\n -> return (op[=] (text n) expected)) (field[name] c)
 ) (children_of_kind :class_declaration root)
