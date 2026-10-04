@@ -131,7 +131,7 @@ const Pass = struct {
 
         switch (composed.kind) {
             .symbol => |axis| {
-                const fused = self.fusedAxis(axis) orelse return null;
+                const fused = self.fusedAxis(axis, kind) orelse return null;
                 return try self.builder.apply(self.builder.symbol(fused, span), kind, span);
             },
             .apply => |a| {
@@ -140,7 +140,7 @@ const Pass = struct {
                     .symbol => |id| id,
                     else => return null,
                 };
-                const fused = self.fusedAxis(axis) orelse return null;
+                const fused = self.fusedAxis(axis, kind) orelse return null;
                 return try self.builder.applyMany(
                     self.builder.symbol(self.kleisli, span),
                     &.{ before, try self.builder.apply(self.builder.symbol(fused, span), kind, span) },
@@ -162,10 +162,14 @@ const Pass = struct {
         return a.argument;
     }
 
-    /// The primitive for `axis` with a kind test folded in, when `axis` has a
-    /// fused form.
-    fn fusedAxis(self: *const Pass, axis: core.SymbolId) ?core.SymbolId {
+    /// The primitive for `axis` with a test for `kind` folded in, when `axis`
+    /// has a fused form.
+    ///
+    /// A `kind` that is not a literal may be anonymous, and fuses only onto
+    /// `children` and `descendants`.
+    fn fusedAxis(self: *const Pass, axis: core.SymbolId, kind: core.Term) ?core.SymbolId {
         const primop = self.primopOf(axis) orelse return null;
+        if (kind.kind != .literal and (primop == .named_children or primop == .named_descendants)) return null;
         const fused = primop.fusedWithKindTest() orelse return null;
         return self.primitives.get(fused);
     }

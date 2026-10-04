@@ -1,0 +1,20 @@
+title: a kind read off an anonymous token keeps the token through a kind test on an axis
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  open <- descendants root;
+  guard $ text open = "(";
+  token <- (descendants | of_kind (kind open)) root;
+  return $ text token;
+};
+
+--- source ---
+f(a);
+
+--- values ---
+["("]
+
+--- simplified ---
+main = \root -> concat_map (\open -> concat_map (\_ -> concat_map (\token -> return (text token)) (descendants_of_kind (kind open) root)) (guard (op[=] (text open) "("))) (descendants root)

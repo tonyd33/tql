@@ -65,6 +65,7 @@ pub const PrimOp = enum {
     /// The single axis this one becomes when composed with a kind test, if
     /// there is one. `children` then `of_kind k` walks the same nodes as
     /// `children_of_kind k` without building the list between them.
+    /// `named_children` then `of_kind k` does only when `k` is named.
     pub fn fusedWithKindTest(self: PrimOp) ?PrimOp {
         return switch (self) {
             .children, .named_children => .children_of_kind,

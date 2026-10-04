@@ -1,0 +1,20 @@
+title: a kind read off an anonymous token finds nothing on a named axis
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  open <- descendants root;
+  guard $ text open = "(";
+  token <- (named_descendants | of_kind (kind open)) root;
+  return $ text token;
+};
+
+--- source ---
+f(a);
+
+--- values ---
+[]
+
+--- simplified ---
+main = \root -> concat_map (\open -> concat_map (\_ -> concat_map (\token -> return (text token)) (kleisli named_descendants (of_kind (kind open)) root)) (guard (op[=] (text open) "("))) (descendants root)

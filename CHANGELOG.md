@@ -40,6 +40,10 @@
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 - `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
 
+### Bug Fixes
+
+- `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
+
 ## 0.3.1 (2026-10-03)
 
 ### New Features

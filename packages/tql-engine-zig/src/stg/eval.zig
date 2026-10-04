@@ -1383,7 +1383,7 @@ fn keeps(t: value.Traversal) bool {
         .any => true,
         .named => t.cursor.node().isNamed(),
         .field => |id| t.cursor.fieldId() == id,
-        .kind => |id| t.cursor.node().isNamed() and t.cursor.node().kindId() == id,
+        .kind => |id| t.cursor.node().kindId() == id,
     };
 }
 
