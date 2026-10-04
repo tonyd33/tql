@@ -198,8 +198,8 @@ pub const CompiledQuery = struct {
     io: std.Io,
 
     pub const Options = struct {
-        /// Run `core_to_core` before translating.
-        simplify: bool = true,
+        /// The rewrites `core_to_core` runs before translating. Null skips it.
+        simplify: ?core_to_core.Options = .{},
     };
 
     /// Simplify and translate `checked`, taking ownership of it even on
@@ -214,7 +214,7 @@ pub const CompiledQuery = struct {
         var program = checked;
         errdefer program.deinit();
 
-        if (options.simplify) try core_to_core.run(&program);
+        if (options.simplify) |rewrites| try core_to_core.run(&program, rewrites);
 
         const translated = try core_to_stg.translate(allocator, &program);
         return .{

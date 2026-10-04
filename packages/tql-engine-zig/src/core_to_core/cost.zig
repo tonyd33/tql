@@ -3,10 +3,6 @@
 const std = @import("std");
 const core = @import("../core.zig");
 
-/// The largest unfolding, less its discounts, a call inlines without the
-/// always-inline mark.
-pub const inline_threshold = 12;
-
 /// Whether copying `t` costs nothing: a symbol, a number or a kind.
 pub fn trivial(t: core.Term) bool {
     return switch (t.kind) {

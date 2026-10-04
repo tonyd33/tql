@@ -816,7 +816,7 @@ fn unsimplifiedValues(
         program.deinit();
         return err;
     };
-    var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{ .simplify = false });
+    var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{ .simplify = null });
     defer compiled.deinit();
     return try values(allocator, &compiled, tree, tc);
 }

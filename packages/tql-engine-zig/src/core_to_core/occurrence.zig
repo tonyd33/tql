@@ -69,6 +69,8 @@ pub const Analyser = struct {
     builder: core.Builder,
     env: *const core.env.Env,
     table: *Table,
+    /// Drop a dead `let` and a recursive group nothing live mentions.
+    drop_dead: bool = true,
     /// The program's definitions, while a program is analysed.
     definitions: ?*const core.SymbolTable(void) = null,
 
@@ -156,7 +158,7 @@ pub const Analyser = struct {
             },
             .let => |let| {
                 var body = try self.walk(let.body);
-                if (!body.usage.contains(let.name)) return body;
+                if (self.drop_dead and !body.usage.contains(let.name)) return body;
                 try self.bind(&body.usage, let.name);
                 const value = try self.walk(let.value);
                 return .{
@@ -188,7 +190,7 @@ pub const Analyser = struct {
         while (i > 0) {
             i -= 1;
             const members = found.groups[i];
-            const live = for (members) |member| {
+            const live = !self.drop_dead or for (members) |member| {
                 if (usage.contains(letrec.bindings[member].name)) break true;
             } else false;
             if (!live) continue;

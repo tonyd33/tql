@@ -14,6 +14,9 @@ const std = @import("std");
 const core = @import("core.zig");
 const occurrence = @import("core_to_core/occurrence.zig");
 const simplify = @import("core_to_core/simplify.zig");
+
+/// Which rewrites run.
+pub const Options = @import("core_to_core/options.zig").Options;
 const Simplifier = simplify.Simplifier;
 
 const Allocator = std.mem.Allocator;
@@ -25,24 +28,21 @@ test {
     std.testing.refAllDecls(simplify);
 }
 
-/// Iterations per phase before the pass stops short of a fixpoint.
-pub const max_iterations = 4;
-
 /// Simplify every definition in `program`, in place.
 ///
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
-pub fn run(program: *core.Program) Error!void {
+pub fn run(program: *core.Program, options: Options) Error!void {
     for ([_]simplify.Phase{ .laws, .final }) |phase| {
-        for (0..max_iterations) |_| {
-            if (!try iterate(program, phase)) break;
+        for (0..options.max_iterations) |_| {
+            if (!try iterate(program, options, phase)) break;
         }
     }
 }
 
 /// Analyse and simplify every definition once, each after the definitions
 /// it may inline. Returns whether a rewrite fired.
-fn iterate(program: *core.Program, phase: simplify.Phase) Error!bool {
+fn iterate(program: *core.Program, options: Options, phase: simplify.Phase) Error!bool {
     var scratch: std.heap.ArenaAllocator = .init(program.env.gpa);
     defer scratch.deinit();
 
@@ -53,9 +53,10 @@ fn iterate(program: *core.Program, phase: simplify.Phase) Error!bool {
         .builder = builder,
         .env = &program.env,
         .table = &occurrences,
+        .drop_dead = options.dead_bindings,
     };
     const analysis = try analyser.program(program.definitions);
-    var simplifier: Simplifier = .init(&analyser, &program.env, phase);
+    var simplifier: Simplifier = .init(&analyser, &program.env, options, phase);
 
     const simplified = try builder.slice(core.Definition, program.definitions.len);
     for (analysis.order) |i| {
@@ -88,9 +89,9 @@ test "the pass runs until no rewrite fires" {
     }, try pb.apply(pb.symbol(go), &.{pb.number(1)})));
     var program = try pb.program(main);
 
-    try run(&program);
+    try run(&program, .{});
     try std.testing.expectEqual(1, program.definitions[0].body.kind.literal.number);
-    try std.testing.expect(!try iterate(&program, .final));
+    try std.testing.expect(!try iterate(&program, .{}, .final));
 }
 
 /// Prints through `program`'s interner, which inlining has grown past the
@@ -117,7 +118,7 @@ test "a global function applied to every argument it takes is inlined" {
     try pb.define(double, try pb.lambda(&.{x}, try pb.apply(pb.symbol(g), &.{ pb.symbol(x), pb.symbol(x) })));
     var program = try pb.program(main);
 
-    try run(&program);
+    try run(&program, .{});
     try expectMain(&program, "g 1 1");
 }
 
@@ -132,7 +133,7 @@ test "a loop breaker is not inlined" {
     try pb.define(main, try pb.apply(pb.symbol(go), &.{pb.number(1)}));
     var program = try pb.program(main);
 
-    try run(&program);
+    try run(&program, .{});
     try expectMain(&program, "go 1");
 }
 
@@ -155,8 +156,31 @@ test "a function a law names is inlined only in the second phase" {
     try pb.define(main, try pb.apply(pb.symbol(kleisli), &.{ pb.symbol(a), pb.symbol(b), pb.number(1) }));
     var program = try pb.program(main);
 
-    try std.testing.expect(!try iterate(&program, .laws));
+    try std.testing.expect(!try iterate(&program, .{}, .laws));
     try expectMain(&program, "kleisli a b 1");
-    try run(&program);
+    try run(&program, .{});
     try expectMain(&program, "concat_map b (a 1)");
+}
+
+test "the laws can be switched off" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    for ([_]core.PrimOp{ .children, .of_kind, .children_of_kind }) |primop| {
+        const id = try pb.env.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
+        pb.env.primitives.set(primop, id);
+    }
+    const main = try pb.global("main");
+    const kleisli = try pb.global("kleisli");
+    const kind = pb.terms().literal(.{ .kind = .{ .name = "class", .id = 1 } }, .unknown);
+
+    try pb.define(main, try pb.apply(pb.symbol(kleisli), &.{
+        pb.symbol(pb.env.primitives.get(.children).?),
+        try pb.apply(pb.symbol(pb.env.primitives.get(.of_kind).?), &.{kind}),
+    }));
+    var program = try pb.program(main);
+
+    try run(&program, .{ .laws = false });
+    try expectMain(&program, "kleisli children (of_kind :class)");
+    try run(&program, .{});
+    try expectMain(&program, "children_of_kind :class");
 }
