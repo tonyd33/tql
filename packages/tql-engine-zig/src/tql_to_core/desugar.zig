@@ -356,11 +356,7 @@ pub const Lowerer = struct {
 
             .let => |l| {
                 const group = try self.bindingGroup(l.bindings, scope, e.span);
-                return try self.builder.letrec(
-                    group.bindings,
-                    try self.expression(l.body, &group.scope),
-                    e.span,
-                );
+                return try self.nest(group, try self.expression(l.body, &group.scope), e.span);
             },
 
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
@@ -443,7 +439,7 @@ pub const Lowerer = struct {
         if (left == null) result = try self.builder.lambda(left_term.kind.symbol, result, span);
 
         const operand = binding orelse return result;
-        return try self.builder.letrec(try self.builder.dupeSlice(core.Letrec.Binding, &.{operand}), result, span);
+        return try self.builder.let(operand.name, operand.value, result, span);
     }
 
     /// A written operand as an atom, setting `binding` when it is compound.
@@ -478,7 +474,7 @@ pub const Lowerer = struct {
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
-            .then => return try self.builder.bind(try self.env.interner.fresh("_"), left, right, span),
+            .then => return try self.bind(try self.env.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
                 self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
@@ -505,6 +501,15 @@ pub const Lowerer = struct {
         return try self.builder.applyMany(
             try self.primitive(name, span),
             &.{ left, right },
+            span,
+        );
+    }
+
+    /// `concat_map (\name -> body) value`.
+    fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
+        return try self.builder.applyMany(
+            try self.primitive("concat_map", span),
+            &.{ try self.builder.lambda(name, body, body.span), value },
             span,
         );
     }
@@ -544,12 +549,19 @@ pub const Lowerer = struct {
     }
 
     const Group = struct {
-        bindings: []const core.Letrec.Binding,
+        /// In dependency order: a component's values reference only its own
+        /// members and earlier components.
+        components: []const Component,
         scope: resolve.Scope,
+
+        const Component = struct {
+            bindings: []const core.Letrec.Binding,
+            recursive: bool,
+        };
     };
 
-    /// A surface `let` group is a Core `letrec` even with one binding and no
-    /// recursion. Bindings are mutually scoped, so every name is in scope in
+    /// Lower a surface `let` group and split it into strongly connected
+    /// components. Bindings are mutually scoped, so every name is in scope in
     /// every value.
     fn bindingGroup(
         self: *Lowerer,
@@ -574,7 +586,52 @@ pub const Lowerer = struct {
             };
         }
 
-        return .{ .bindings = resolved, .scope = inner };
+        const symbols = try self.builder.slice(core.SymbolId, bindings.len);
+        for (entries, symbols) |entry, *symbol| symbol.* = entry.symbol;
+
+        const edges = try self.builder.slice([]const u32, bindings.len);
+        for (resolved, edges) |binding, *edge| {
+            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = symbols };
+            defer collector.deinit();
+            try collector.walk(binding.value);
+
+            const targets = try self.builder.slice(u32, collector.out.items.len);
+            for (collector.out.items, targets) |symbol, *target| {
+                target.* = @intCast(std.mem.indexOfScalar(core.SymbolId, symbols, symbol).?);
+            }
+            edge.* = targets;
+        }
+
+        var found = try resolve.stronglyConnectedComponents(self.builder.allocator, edges);
+        defer found.deinit();
+
+        const components = try self.builder.slice(Group.Component, found.groups.len);
+        for (found.groups, components) |members, *component| {
+            const members_bindings = try self.builder.slice(core.Letrec.Binding, members.len);
+            for (members, members_bindings) |member, *binding| binding.* = resolved[member];
+            component.* = .{
+                .bindings = members_bindings,
+                .recursive = members.len > 1 or
+                    std.mem.indexOfScalar(u32, edges[members[0]], members[0]) != null,
+            };
+        }
+
+        return .{ .components = components, .scope = inner };
+    }
+
+    /// Wrap `body` in every component of `group`, the first outermost.
+    fn nest(self: *Lowerer, group: Group, body: core.Term, span: diagnostic.Span) Error!core.Term {
+        var result = body;
+        var i = group.components.len;
+        while (i > 0) {
+            i -= 1;
+            const component = group.components[i];
+            result = if (component.recursive)
+                try self.builder.letrec(component.bindings, result, span)
+            else
+                try self.builder.let(component.bindings[0].name, component.bindings[0].value, result, span);
+        }
+        return result;
     }
 
     fn doBlock(
@@ -593,7 +650,7 @@ pub const Lowerer = struct {
                 const entries = try self.builder.slice(resolve.Scope.Entry, 1);
                 entries[0] = .{ .name = b.name, .symbol = symbol };
                 const inner: resolve.Scope = .{ .parent = scope, .names = entries };
-                return try self.builder.bind(
+                return try self.bind(
                     symbol,
                     value,
                     try self.doBlock(statements[1..], result, &inner, span),
@@ -601,7 +658,7 @@ pub const Lowerer = struct {
                 );
             },
             .expression => |e| {
-                return try self.builder.bind(
+                return try self.bind(
                     try self.env.interner.fresh("_"),
                     try self.expression(e, scope),
                     try self.doBlock(statements[1..], result, scope, span),
@@ -610,8 +667,8 @@ pub const Lowerer = struct {
             },
             .let => |l| {
                 const group = try self.bindingGroup(l.bindings, scope, l.span);
-                return try self.builder.letrec(
-                    group.bindings,
+                return try self.nest(
+                    group,
                     try self.doBlock(statements[1..], result, &group.scope, span),
                     l.span,
                 );

@@ -19,7 +19,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \root ->
-  bind l <- Cons 1 (Cons 2 Nil) in
-  bind r <- kleisli (kleisli children (of_kind :interface_declaration)) (pure 0) root in
-  return (op[+] l r)
+main = \root -> concat_map (\l -> concat_map (\r -> return (op[+] l r)) (kleisli (kleisli children (of_kind :interface_declaration)) (pure 0) root)) (Cons 1 (Cons 2 Nil))

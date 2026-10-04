@@ -16,4 +16,4 @@ class A { m() {} }
 ["method_definition", "class_body", "class_declaration", "program"]
 
 --- types ---
-main :: Node -> [String]
+main :: Node -> [Kind]

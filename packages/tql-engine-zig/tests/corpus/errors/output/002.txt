@@ -2,7 +2,7 @@ title: `main` bound to a projection is not a filter
 grammar: typescript
 asserts: error
 
-`main` must be `Filter Node output`. A projection is `Node -> String`, which
+`main` must be `Filter Node output`. `kind` is `Node -> Kind`, which
 is an ordinary function rather than a filter, so it does not unify with
 `Node -> [output]` for any `output`.
 
@@ -17,7 +17,7 @@ A projection reaches filter position through `arr`.
 main = kind;
 
 --- error ---
-error[main-type]: Expected `[a]`, found `String`.
+error[main-type]: Expected `[a]`, found `Kind`.
  --> 1:1
   |
 1 | main = kind;

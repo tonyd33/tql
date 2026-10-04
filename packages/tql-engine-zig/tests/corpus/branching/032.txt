@@ -15,7 +15,7 @@ class A {}
 
 --- core ---
 one = \xs ->
-  letrec alternative = Nil in
+  let alternative = Nil in
   case xs of
     Nil -> alternative
     Cons cons0 cons1 -> case cons0 of
@@ -33,7 +33,7 @@ main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (
 one = {} \u {} ->
   let
     t2 = {} \n {xs} ->
-      letrec
+      let
         alternative = {} \u {} ->
           let c0 = Nil in
           c0@0

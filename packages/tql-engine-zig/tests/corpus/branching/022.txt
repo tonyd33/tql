@@ -18,8 +18,8 @@ class A {}
 
 --- core ---
 count = \n ->
-  letrec alternative = \ys -> length ys in
-  letrec scrutinee = pure n 1 in
+  let alternative = \ys -> length ys in
+  let scrutinee = pure n 1 in
   case scrutinee of
     Nil -> alternative scrutinee
     Cons x cons1 -> case cons1 of

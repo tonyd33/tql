@@ -24,8 +24,6 @@ main :: Node -> [Bool]
 
 --- core ---
 main =
-  letrec
-    x = record[a,b] 1 2
-    y = record[a,b] 1 2
-  in
+  let x = record[a,b] 1 2 in
+  let y = record[a,b] 1 2 in
   pure (op[=] x y)

@@ -15,4 +15,4 @@ import {a} from "./b";
 [["import","type","import_clause","from","string",";"],["import","import_clause","from","string",";"]]
 
 --- types ---
-main :: Node -> [[String]]
+main :: Node -> [[Kind]]

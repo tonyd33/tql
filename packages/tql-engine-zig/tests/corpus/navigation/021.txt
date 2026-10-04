@@ -19,4 +19,4 @@ x = a && b;
 [{ "children": 0, "kind": "&&", "parent": ["binary_expression"] }]
 
 --- types ---
-main :: Node -> [{children: Int, kind: String, parent: [String]}]
+main :: Node -> [{children: Int, kind: Kind, parent: [Kind]}]

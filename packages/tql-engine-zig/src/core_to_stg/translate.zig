@@ -12,7 +12,6 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
-const free = @import("free.zig");
 const primitives = @import("../primitives.zig");
 const pcre2 = @import("../regex.zig");
 const stg = @import("../stg.zig");
@@ -334,6 +333,29 @@ pub const Translator = struct {
                 return .{ .case = node };
             },
 
+            .let => |let| {
+                // The evaluator fills a non-recursive group against the
+                // environment without its binders, so the value is translated
+                // before `let.name` is pushed.
+                const bindings = try self.arena.alloc(stg.Binding, 1);
+                bindings[0] = .{
+                    .binder = let.name,
+                    .value = .{ .closure = try self.closureOf(let.value) },
+                };
+
+                const mark = self.scope.items.len;
+                try self.scope.append(self.gpa, let.name);
+                defer self.scope.shrinkRetainingCapacity(mark);
+
+                const node = try self.arena.create(stg.Expr.Let);
+                node.* = .{
+                    .bindings = bindings,
+                    .recursive = false,
+                    .body = try self.expression(let.body),
+                };
+                return .{ .let = node };
+            },
+
             .letrec => |letrec| {
                 const bindings = try self.arena.alloc(stg.Binding, letrec.bindings.len);
 
@@ -360,27 +382,6 @@ pub const Translator = struct {
                     .body = try self.expression(letrec.body),
                 };
                 return .{ .let = node };
-            },
-
-            .bind => |bind_term| {
-                // `bind x <- v in body` is `concat_map (\x -> body) v`, an
-                // ordinary call. The evaluator never sees a bind.
-                const concat_map = self.program.env.interner.lookup(.prelude, "concat_map") orelse
-                    return error.Unsupported;
-
-                const source = try self.atomize(bind_term.value, hoisted);
-                const receiver = try self.closure(&.{bind_term.name}, bind_term.body);
-
-                const arguments = try self.arena.alloc(stg.Atom, 2);
-                arguments[0] = try self.bindClosure(receiver, hoisted);
-                arguments[1] = source;
-
-                const node = try self.arena.create(stg.Expr.Apply);
-                node.* = .{
-                    .callee = .{ .global = self.global(concat_map) orelse return error.Unsupported },
-                    .arguments = arguments,
-                };
-                return .{ .apply = node };
             },
         }
     }
@@ -545,7 +546,7 @@ pub const Translator = struct {
         parameters: []const core.SymbolId,
         body: core.Term,
     ) Error!*const stg.Closure {
-        var collector: free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
+        var collector: core.free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
         defer collector.deinit();
 
         for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);

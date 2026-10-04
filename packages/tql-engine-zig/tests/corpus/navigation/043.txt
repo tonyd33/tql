@@ -1,0 +1,23 @@
+title: the kind axes given an anonymous token's kind yield those tokens
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  args <- descendants_of_kind :arguments root;
+  open <- first children args;
+  return {
+    open = text open,
+    descendants = map text (descendants_of_kind (kind open) root),
+    children = map text (children_of_kind (kind open) args),
+  };
+};
+
+--- source ---
+f(a, (b));
+
+--- values ---
+[{"children": ["("], "descendants": ["(", "("], "open": "("}]
+
+--- core ---
+main = \root -> concat_map (\args -> concat_map (\open -> return (record[children,descendants,open] (map text (children_of_kind (kind open) args)) (map text (descendants_of_kind (kind open) root)) (text open))) (first children args)) (descendants_of_kind :arguments root)

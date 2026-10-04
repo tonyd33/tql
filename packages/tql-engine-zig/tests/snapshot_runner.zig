@@ -799,6 +799,47 @@ fn describeDiagnostics(
     return w.toOwnedSlice();
 }
 
+/// The values of the query compiled again with `core_to_core` skipped.
+fn unsimplifiedValues(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    engine: *Engine,
+    query: tql.cst.SourceFile,
+    grammar: *const tql.Grammar,
+    tree: *const ts.Tree,
+    tc: corpus_parser.TestCase,
+) ![]const u8 {
+    var sink = tql.diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+    var program = try engine.desugarParsed(query, grammar, &sink);
+    tql.type_check.check(allocator, &program, &sink) catch |err| {
+        program.deinit();
+        return err;
+    };
+    var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{ .simplify = false });
+    defer compiled.deinit();
+    return try values(allocator, &compiled, tree, tc);
+}
+
+/// The JSON of `compiled` run over the case's target.
+fn values(
+    allocator: std.mem.Allocator,
+    compiled: *tql.CompiledQuery,
+    tree: *const ts.Tree,
+    tc: corpus_parser.TestCase,
+) ![]const u8 {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const outcome = try compiled.runTree(
+        tree,
+        tc.target.content,
+        if (tc.file.len == 0) null else tc.file,
+        allocator,
+        arena.allocator(),
+    );
+    return outcome.json;
+}
+
 /// Postconditions:
 /// - On an unexpected parse, desugar, type or evaluation error, `unexpected`
 ///   holds the diagnostics, owned by `allocator`.
@@ -905,7 +946,7 @@ fn runTestCase(
 
                     if (tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates) {
                         owns_program = false;
-                        var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar);
+                        var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{});
                         defer compiled.deinit();
 
                         if (tc.isAsserted(.simplified)) {
@@ -918,17 +959,20 @@ fn runTestCase(
                         }
 
                         if (evaluates) {
-                            var arena: std.heap.ArenaAllocator = .init(allocator);
-                            defer arena.deinit();
-                            const outcome = try compiled.runTree(
-                                tree,
-                                tc.target.content,
-                                if (tc.file.len == 0) null else tc.file,
-                                allocator,
-                                arena.allocator(),
-                            );
+                            const evaluated = try values(allocator, &compiled, tree, tc);
                             allocator.free(values_text);
-                            values_text = outcome.json;
+                            values_text = evaluated;
+
+                            const unsimplified = try unsimplifiedValues(allocator, io, &engine, query_cst, grammar, tree, tc);
+                            defer allocator.free(unsimplified);
+                            if (!std.mem.eql(u8, values_text, unsimplified)) {
+                                unexpected.* = try std.fmt.allocPrint(
+                                    allocator,
+                                    "with core_to_core: {s}\nwithout core_to_core: {s}",
+                                    .{ values_text, unsimplified },
+                                );
+                                return error.SimplifyChangedValues;
+                            }
                         }
                     }
                 } else |err| switch (err) {

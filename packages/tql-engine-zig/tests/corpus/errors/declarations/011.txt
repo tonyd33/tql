@@ -7,7 +7,7 @@ The first signature is the accepted one.
 --- tql ---
 f :: Node -> String;
 f :: Node -> String;
-f = kind;
+f = kind_name;
 main = arr f;
 
 --- error ---

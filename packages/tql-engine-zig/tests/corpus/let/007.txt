@@ -19,5 +19,5 @@ main :: Node -> [Bool]
 
 --- core ---
 main =
-  letrec is_named = \n -> op[=] (text n) "A" in
+  let is_named = \n -> op[=] (text n) "A" in
   kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr is_named)

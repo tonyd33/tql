@@ -1,0 +1,18 @@
+title: a definition that calls a signed one back is held to its signature
+grammar: typescript
+asserts: error
+
+`b` is typed through `a`'s signature, so it takes a `Node`.
+
+--- tql ---
+a :: Node -> [String];
+a x = if true then [] else b x;
+b x = a x;
+main = pure (length (b 1));
+
+--- error ---
+error[type-mismatch]: Expected `Node`, found `Int`.
+ --> 4:24
+  |
+4 | main = pure (length (b 1));
+  |                        ^

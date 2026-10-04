@@ -20,7 +20,7 @@ class A {}
 
 --- core ---
 only = \m ->
-  letrec alternative = 0 in
+  let alternative = 0 in
   case m of
     Just just0 -> case just0 of
       Nil -> alternative

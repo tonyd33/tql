@@ -1,0 +1,37 @@
+title: two alternatives reached from several paths are each bound once
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+f xs = case xs of {
+  Cons (Cons a Nil) Nil -> [a];
+  Cons _ (Cons _ _) -> [2];
+  _ -> [3];
+};
+
+main = const [f [[1]], f [[2], [3]], f [[4, 5]], f [], f [[], []]];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1],[2],[3],[3],[2]]
+
+--- core ---
+f = \xs ->
+  let alternative = Cons 2 Nil in
+  let alternative' = Cons 3 Nil in
+  case xs of
+    Nil -> alternative'
+    Cons cons0 cons1 -> case cons0 of
+      Nil -> case cons1 of
+        Nil -> alternative'
+        Cons _ _ -> alternative
+      Cons a cons1' -> case cons1' of
+        Nil -> case cons1 of
+          Nil -> Cons a Nil
+          Cons _ _ -> alternative
+        Cons _ _ -> case cons1 of
+          Nil -> alternative'
+          Cons _ _ -> alternative
+main = const (Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))

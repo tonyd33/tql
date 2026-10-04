@@ -7,7 +7,7 @@ them apart.
 
 --- tql ---
 main = descendants_of_kind :import_statement
-  | keep (has (children | keep (\t -> kind t = "type")))
+  | keep (has (children | keep (\t -> kind_name t = "type")))
   | arr text;
 
 --- source ---

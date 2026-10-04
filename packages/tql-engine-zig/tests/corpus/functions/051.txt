@@ -1,0 +1,23 @@
+title: a signature types the definitions that call it back
+grammar: typescript
+asserts: types, values
+
+`a` and `b` call each other. `a`'s signature is used wherever `a` is
+referenced, so `b`, inferred before `a`, is `Node -> [String]`.
+
+--- tql ---
+a :: Node -> [String];
+a x = if true then [] else b x;
+b x = a x;
+main root = b root;
+
+--- source ---
+class A {}
+
+--- values ---
+[]
+
+--- types ---
+a :: Node -> [String]
+b :: Node -> [String]
+main :: Node -> [String]

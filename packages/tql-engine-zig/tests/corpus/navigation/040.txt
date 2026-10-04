@@ -1,0 +1,17 @@
+title: `is_extra` tells a comment from a named child
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = descendants_of_kind :arguments
+  | named_children
+  | arr (\n -> { text = text n, named = is_named n, extra = is_extra n });
+
+--- source ---
+f(/* c */ a);
+
+--- values ---
+[{"extra":true,"named":true,"text":"/* c */"},{"extra":false,"named":true,"text":"a"}]
+
+--- types ---
+main :: Node -> [{extra: Bool, named: Bool, text: String}]

@@ -21,6 +21,6 @@ main :: Node -> [String]
 
 --- core ---
 main = kleisli (kleisli children (of_kind :class_declaration)) (
-  letrec n = kleisli field[name] (arr text) in
+  let n = kleisli field[name] (arr text) in
   n
 )

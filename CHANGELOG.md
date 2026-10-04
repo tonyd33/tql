@@ -11,6 +11,7 @@
 - `range` returns a record.
 - `<|>` binds tighter than `|`: `a <|> b | f` is `(a <|> b) | f`.
 - Datatypes are declared with `data`: `data Bool = False | True;`.
+- `kind` returns a `Kind`, not a `String`: write `kind n = :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
 
 ### New Features
 
@@ -29,12 +30,22 @@
 - `module A.B for javascript, typescript;` declares the grammars a module reads. Importing it under another grammar is an error, and an imported module without `for` may not use grammar-specific syntax like kinds or fields.
 - `tql-js` `query` takes `modules`, a record of module name to source.
 - The built-in types `Int`, `String`, `Regex`, `Node`, `Kind`, `Range` and `Point` are prelude exports: `import Prelude hiding (Int)` and `P.Int` work, and a module may declare its own `Int`.
+- Added `kind_name :: Node -> String`, a node's kind as a string. An anonymous token's is its spelling.
+- Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
+- A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];`.
+- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
 
 ### Improvements
 
 - A record literal with more fields than a type can index is reported at the literal. It was previously reported with no location.
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 - `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
+
+### Bug Fixes
+
+- A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
+- A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
+- `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 
 ## 0.3.1 (2026-10-03)
 

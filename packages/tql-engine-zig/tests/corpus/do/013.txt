@@ -18,11 +18,9 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate :: a -> [Node -> [String]]
-main :: Node -> [String]
+make_predicate :: a -> [Node -> [Kind]]
+main :: Node -> [Kind]
 
 --- core ---
 make_predicate = pure (arr kind)
-main = \root ->
-  bind predicate <- make_predicate root in
-  predicate root
+main = \root -> concat_map (\predicate -> predicate root) (make_predicate root)

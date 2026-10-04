@@ -185,7 +185,7 @@ pub const Engine = struct {
         sink: *diagnostic.Sink,
     ) !CompiledQuery {
         const checked = try self.checkQuery(query_source, g, sink);
-        return try CompiledQuery.init(self.config.allocator, self.config.io, checked, g);
+        return try CompiledQuery.init(self.config.allocator, self.config.io, checked, g, .{});
     }
 };
 
@@ -197,13 +197,24 @@ pub const CompiledQuery = struct {
     allocator: Allocator,
     io: std.Io,
 
+    pub const Options = struct {
+        /// Run `core_to_core` before translating.
+        simplify: bool = true,
+    };
+
     /// Simplify and translate `checked`, taking ownership of it even on
     /// failure.
-    pub fn init(allocator: Allocator, io: std.Io, checked: core.Program, g: *const Grammar) !CompiledQuery {
+    pub fn init(
+        allocator: Allocator,
+        io: std.Io,
+        checked: core.Program,
+        g: *const Grammar,
+        options: Options,
+    ) !CompiledQuery {
         var program = checked;
         errdefer program.deinit();
 
-        try core_to_core.run(&program);
+        if (options.simplify) try core_to_core.run(&program);
 
         const translated = try core_to_stg.translate(allocator, &program);
         return .{
@@ -673,6 +684,7 @@ test "the prelude's bodies compile to Core" {
         \\or_else = \primary -> \fallback -> \x -> case primary x of
         \\  Nil -> fallback x
         \\  Cons h t -> Cons h t
+        \\is_kind = \k -> \n -> op[=] (kind n) k
     , w.written());
 }
 
@@ -757,5 +769,6 @@ test "the prelude's schemes are inferred" {
         \\has :: (a -> [b]) -> a -> Bool
         \\first :: (a -> [b]) -> a -> [b]
         \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\is_kind :: Kind -> Node -> Bool
     , w.written());
 }

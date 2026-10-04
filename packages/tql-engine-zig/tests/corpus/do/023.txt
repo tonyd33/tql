@@ -22,8 +22,4 @@ class A {
 main :: Node -> [String]
 
 --- core ---
-main = \root ->
-  bind f <- descendants_of_kind :public_field_definition root in
-  bind t <- field[type] f in
-  bind _ <- guard (op[=] (text t) ": string") in
-  return (text f)
+main = \root -> concat_map (\f -> concat_map (\t -> concat_map (\_ -> return (text f)) (guard (op[=] (text t) ": string"))) (field[type] f)) (descendants_of_kind :public_field_definition root)

@@ -1,4 +1,4 @@
-title: a letrec binding captures a sibling
+title: a binding captures another binding of its group
 grammar: typescript
 asserts: stg, values
 
@@ -13,8 +13,6 @@ class A {}
 
 --- stg ---
 main = {} \u {} ->
-  letrec
-    a = {} \u {} -> 1
-    b = {a@0} \u {} -> op[+]# a@0 1
-  in
+  let a = {} \u {} -> 1 in
+  let b = {a@0} \u {} -> op[+]# a@0 1 in
   pure b@1

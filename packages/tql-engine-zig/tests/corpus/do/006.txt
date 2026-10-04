@@ -21,8 +21,10 @@ class B {}
 main :: Node -> [String]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind n <- field[name] c in
-  letrec name = text n in
-  return name
+main = \root -> concat_map (
+  \c -> concat_map (
+    \n ->
+      let name = text n in
+      return name
+  ) (field[name] c)
+) (children_of_kind :class_declaration root)

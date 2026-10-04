@@ -23,8 +23,8 @@ class B {}
 main :: Node -> [Bool]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  letrec expected = "A" in
-  bind n <- field[name] c in
-  return (op[=] (text n) expected)
+main = \root -> concat_map (
+  \c ->
+    let expected = "A" in
+    concat_map (\n -> return (op[=] (text n) expected)) (field[name] c)
+) (children_of_kind :class_declaration root)

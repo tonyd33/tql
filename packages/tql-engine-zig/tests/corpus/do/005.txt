@@ -19,10 +19,7 @@ class A {}
 [{ "class": "A", "root": "program" }]
 
 --- types ---
-main :: Node -> [{class: String, root: String}]
+main :: Node -> [{class: String, root: Kind}]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind cn <- field[name] c in
-  return (record[class,root] (text cn) (kind root))
+main = \root -> concat_map (\c -> concat_map (\cn -> return (record[class,root] (text cn) (kind root))) (field[name] c)) (children_of_kind :class_declaration root)

@@ -20,7 +20,7 @@ class A {}
 --- core ---
 add = \x -> \y -> op[+] x y
 main =
-  letrec add10 = add 10 in
+  let add10 = add 10 in
   const (Cons (add10 1) (Cons (add10 2) Nil))
 
 --- types ---
@@ -32,7 +32,7 @@ add = {} \u {} ->
   let t0 = {} \n {x,y} -> op[+]# x@0 y@1 in
   t0@0
 main = {} \u {} ->
-  letrec add10 = {} \u {} -> add 10 in
+  let add10 = {} \u {} -> add 10 in
   let
     t4 = {add10@0} \u {} ->
       let

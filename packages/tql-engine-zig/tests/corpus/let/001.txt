@@ -19,5 +19,5 @@ main :: Node -> [Bool]
 
 --- core ---
 main =
-  letrec target = "A" in
+  let target = "A" in
   kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[=] (text n) target))

@@ -19,7 +19,4 @@ class A { m() {} n() {} }
 main :: Node -> [String]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind p <- descendants_of_kind :property_identifier c in
-  return (text p)
+main = \root -> concat_map (\c -> concat_map (\p -> return (text p)) (descendants_of_kind :property_identifier c)) (children_of_kind :class_declaration root)

@@ -160,16 +160,16 @@ pub const ProgramBuilder = struct {
         return try self.terms().case(scrutinee, copies, diagnostic.Span.unknown);
     }
 
+    pub fn let(self: *const ProgramBuilder, name: core.SymbolId, value: core.Term, body: core.Term) !core.Term {
+        return try self.terms().let(name, value, body, diagnostic.Span.unknown);
+    }
+
     pub fn letrec(self: *const ProgramBuilder, bindings: []const core.Letrec.Binding, body: core.Term) !core.Term {
         return try self.terms().letrec(
             try self.terms().dupeSlice(core.Letrec.Binding, bindings),
             body,
             diagnostic.Span.unknown,
         );
-    }
-
-    pub fn bind(self: *const ProgramBuilder, name: core.SymbolId, value: core.Term, body: core.Term) !core.Term {
-        return try self.terms().bind(name, value, body, diagnostic.Span.unknown);
     }
 
     /// A program over the builder's environment whose entry is `entry`, with

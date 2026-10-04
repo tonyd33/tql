@@ -20,7 +20,7 @@ class A {}
 
 --- core ---
 pair = \xs ->
-  letrec alternative = Nil in
+  let alternative = Nil in
   case xs of
     Nil -> alternative
     Cons a cons1 -> case cons1 of

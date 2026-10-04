@@ -1,0 +1,15 @@
+title: a kind is output as its name
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure :class_declaration <|> (descendants_of_kind :interface_declaration | arr kind);
+
+--- source ---
+interface I {}
+
+--- values ---
+["class_declaration","interface_declaration"]
+
+--- types ---
+main :: Node -> [Kind]

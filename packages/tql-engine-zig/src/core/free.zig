@@ -1,7 +1,5 @@
 //! Free variables of a Core term.
 //!
-//! A closure captures exactly the locals its body mentions but does not bind.
-//!
 //! Every binder is globally unique, interned once by resolution, so two
 //! binders never share a SymbolId and a bound name cannot shadow another. The
 //! walk carries a flat bound set, not a scope chain.
@@ -14,10 +12,10 @@ const Allocator = std.mem.Allocator;
 /// Collect the free variables of `term` into `out`, in first-mention order.
 ///
 /// `bound` holds the binders already in scope. Globals, constructors and
-/// primitives are symbols too, and only a symbol in `locals` is captured.
+/// primitives are symbols too, and only a symbol in `locals` is collected.
 pub const Collector = struct {
     gpa: Allocator,
-    /// The locals in scope where the closure is built.
+    /// The symbols to collect.
     locals: []const core.SymbolId,
 
     bound: std.ArrayList(core.SymbolId) = .empty,
@@ -64,6 +62,13 @@ pub const Collector = struct {
                     self.bound.shrinkRetainingCapacity(mark);
                 }
             },
+            .let => |let| {
+                try self.walk(let.value);
+                const mark = self.bound.items.len;
+                try self.bound.append(self.gpa, let.name);
+                try self.walk(let.body);
+                self.bound.shrinkRetainingCapacity(mark);
+            },
             .letrec => |letrec| {
                 // Recursive: every binding is in scope in every right-hand
                 // side as well as in the body, so nothing here is free.
@@ -71,15 +76,6 @@ pub const Collector = struct {
                 for (letrec.bindings) |binding| try self.bound.append(self.gpa, binding.name);
                 for (letrec.bindings) |binding| try self.walk(binding.value);
                 try self.walk(letrec.body);
-                self.bound.shrinkRetainingCapacity(mark);
-            },
-            .bind => |bind_term| {
-                // `bind x <- v in body` binds `x` in the body only; `v` is
-                // evaluated in the enclosing scope.
-                try self.walk(bind_term.value);
-                const mark = self.bound.items.len;
-                try self.bound.append(self.gpa, bind_term.name);
-                try self.walk(bind_term.body);
                 self.bound.shrinkRetainingCapacity(mark);
             },
         }
@@ -162,21 +158,27 @@ test "a letrec binding is not free in its own right-hand side" {
     try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
 }
 
-test "a bind's value sees the enclosing scope, its body sees the binder" {
+test "a let binding is free in its own value and not in its body" {
     const gpa = testing.allocator;
-    var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(2)} };
-    defer collector.deinit();
-
     var arena: std.heap.ArenaAllocator = .init(gpa);
     defer arena.deinit();
     const builder: core.Builder = .{ .allocator = arena.allocator() };
 
-    // `bind x <- x in x`: the outer `x` in the value position is a different
-    // symbol from the binder.
-    const term = try builder.bind(@enumFromInt(1), sym(2), sym(1), span);
+    // `let a = b in a`: only `b` is free.
+    {
+        var collector: Collector = .{ .gpa = gpa, .locals = &.{ @enumFromInt(1), @enumFromInt(2) } };
+        defer collector.deinit();
+        try collector.walk(try builder.let(@enumFromInt(1), sym(2), sym(1), span));
+        try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    }
 
-    try collector.walk(term);
-    try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(2)}, collector.out.items);
+    // `let a = a in a`: the `a` in the value is free.
+    {
+        var collector: Collector = .{ .gpa = gpa, .locals = &.{@enumFromInt(1)} };
+        defer collector.deinit();
+        try collector.walk(try builder.let(@enumFromInt(1), sym(1), sym(1), span));
+        try testing.expectEqualSlices(core.SymbolId, &.{@enumFromInt(1)}, collector.out.items);
+    }
 }
 
 test "a case alternative's binders are not free in its body" {

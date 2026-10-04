@@ -21,12 +21,13 @@ class A { m() {} n() {} }
 ["A", "A"]
 
 --- core ---
-main = \root ->
-  bind c <- children_of_kind :class_declaration root in
-  bind n <- field[name] c in
-  letrec prefix = text n in
-  bind m <- kleisli (kleisli field[body] children) (of_kind :method_definition) c in
-  return prefix
+main = \root -> concat_map (
+  \c -> concat_map (
+    \n ->
+      let prefix = text n in
+      concat_map (\m -> return prefix) (kleisli (kleisli field[body] children) (of_kind :method_definition) c)
+  ) (field[name] c)
+) (children_of_kind :class_declaration root)
 
 --- types ---
 main :: Node -> [String]

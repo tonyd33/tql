@@ -20,6 +20,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \_ ->
-  bind n <- Cons 1 (Cons 2 (Cons 3 Nil)) in
-  return (op[*] n 10)
+main = \_ -> concat_map (\n -> return (op[*] n 10)) (Cons 1 (Cons 2 (Cons 3 Nil)))

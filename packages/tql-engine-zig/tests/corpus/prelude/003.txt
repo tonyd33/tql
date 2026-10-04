@@ -24,4 +24,4 @@ class A { getX() {} }
 
 --- types ---
 getters :: Node -> [Node]
-main :: Node -> [String]
+main :: Node -> [Kind]

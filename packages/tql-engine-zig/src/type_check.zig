@@ -724,7 +724,7 @@ const some_span: diagnostic.Span = .{
     .end_point = .{ .row = 0, .column = 16 },
 };
 
-test "Eq holds for the five scalars and not regex" {
+test "Eq holds for the six scalars and not regex" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -735,6 +735,7 @@ test "Eq holds for the five scalars and not regex" {
         types.string_type,
         types.range_type,
         types.node_type,
+        types.kind_type,
     }) |t| try fix.expectHolds(.Eq, t);
 
     try fix.expectRefuted(.Eq, types.regex_type);
@@ -750,6 +751,7 @@ test "Ord holds only for int and string" {
 
     try fix.expectRefuted(.Ord, types.node_type);
     try fix.expectHolds(.Eq, types.node_type);
+    try fix.expectRefuted(.Ord, types.kind_type);
 
     try fix.expectRefuted(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
     try fix.expectRefuted(.Ord, types.range_type);
@@ -790,7 +792,7 @@ test "Sized on a list of an unsolved metavariable holds without deferring" {
     try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
-test "Serial holds for the five scalars and not regex" {
+test "Serial holds for the six scalars and not regex" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -801,6 +803,7 @@ test "Serial holds for the five scalars and not regex" {
         types.string_type,
         types.node_type,
         types.range_type,
+        types.kind_type,
     }) |t| try fix.expectHolds(.Serial, t);
 
     try fix.expectRefuted(.Serial, types.regex_type);
@@ -1388,74 +1391,26 @@ test "a letrec member is monomorphic while the group is checked" {
     try fix.expectType(try fix.pb.letrec(bindings, fix.pb.symbol(loop)), "?3 -> ?4");
 }
 
-test "a stream bind takes a list and yields a list" {
+test "a let generalizes its value and each use instantiates" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // bind c <- children_of in pure_of c
-    const children = try fix.define("children_of", .{
-        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
-    });
-    const pure_of = try fix.define("pure_of", .{
-        .quantified = 1,
-        .type = try types.func(
-            fix.subst.arena,
-            types.variable_type(0),
-            try fix.subst.datatypes.list(fix.subst.arena, types.variable_type(0)),
-        ),
-    });
-
-    const c = try fix.pb.global("c");
-    const body = try fix.app(fix.pb.symbol(pure_of), fix.pb.symbol(c));
-    try fix.expectType(try fix.pb.bind(c, fix.pb.symbol(children), body), "[Node]");
+    // let id = \x -> x in id id 1
+    const x = try fix.pb.global("x");
+    const id = try fix.pb.global("id");
+    const body = try fix.app(try fix.app(fix.pb.symbol(id), fix.pb.symbol(id)), fix.lit(.{ .number = 1 }));
+    try fix.expectType(try fix.pb.let(id, try fix.lam(x, fix.pb.symbol(x)), body), "Int");
 }
 
-test "a stream bind over a non-list is rejected" {
+test "a let binder is not in scope in its value" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const n = try fix.define("n", .{ .type = types.int_type });
-    const c = try fix.pb.global("c");
-    try fix.expectFails(try fix.pb.bind(c, fix.pb.symbol(n), fix.pb.symbol(c)), .type_mismatch);
-}
-
-test "a bind body that is not a list is rejected" {
-    const gpa = testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
-
-    // The body must produce `[b]`; a bare element is not one.
-    const children = try fix.define("children_of", .{
-        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
-    });
-    const c = try fix.pb.global("c");
-    try fix.expectFails(try fix.pb.bind(c, fix.pb.symbol(children), fix.pb.symbol(c)), .type_mismatch);
-}
-
-test "a bound name is monomorphic in the bind body" {
-    const gpa = testing.allocator;
-    const fix = try Fixture.init(gpa);
-    defer fix.deinit(gpa);
-
-    // `errors/output/013`: `c` cannot be used at two types. Here
-    // the second use forces `node` against `[?]`, which cannot hold.
-    const children = try fix.define("children_of", .{
-        .type = try fix.subst.datatypes.list(fix.subst.arena, types.node_type),
-    });
-    const length_of = try fix.define("length_of", .{
-        .quantified = 1,
-        .constraints = &.{.{ .class = .Sized, .type = types.variable_type(0) }},
-        .type = comptime types.func_type(types.variable_type(0), types.int_type),
-    });
-
-    const c = try fix.pb.global("c");
-    const sized_use = try fix.app(fix.pb.symbol(length_of), fix.pb.symbol(c));
-    const b = try fix.pb.bind(c, fix.pb.symbol(children), sized_use);
-
-    // `Sized node` is refuted, and the constraint was raised at the use site.
-    try fix.expectFails(b, .unsatisfied_constraint);
+    // let x = x in x
+    const x = try fix.pb.global("x");
+    try fix.expectFails(try fix.pb.let(x, fix.pb.symbol(x), fix.pb.symbol(x)), .unresolved_name);
 }
 
 test "instantiating a constrained scheme raises the constraint at the use" {
@@ -1559,6 +1514,30 @@ test "a component's scheme is generalized and visible to later components" {
     try fix.expectScheme(id, "a -> a");
     // `use` instantiated `id`'s scheme, then generalized its own.
     try fix.expectScheme(use, "a -> a");
+}
+
+test "a reference to a signed definition is typed at its signature before it is inferred" {
+    const gpa = testing.allocator;
+    const fix = try Fixture.init(gpa);
+    defer fix.deinit(gpa);
+
+    // user = signed;  signed :: Int -> Int;  signed = \x -> x
+    const x = try fix.pb.global("x");
+    const signed = try fix.pb.global("signed");
+    const user = try fix.pb.global("user");
+    try fix.pb.env.annotate(signed, .{
+        .scheme = .{ .type = try types.func(fix.subst.arena, types.int_type, types.int_type) },
+        .span = .unknown,
+    });
+
+    const definitions = try fix.pb.terms().slice(core.Definition, 2);
+    definitions[0] = .{ .symbol = user, .body = fix.pb.symbol(signed), .span = .unknown };
+    definitions[1] = .{ .symbol = signed, .body = try fix.lam(x, fix.pb.symbol(x)), .span = .unknown };
+
+    try fix.inference.program(definitions, &.{ &.{0}, &.{1} });
+
+    try fix.expectScheme(user, "Int -> Int");
+    try fix.expectScheme(signed, "Int -> Int");
 }
 
 test "mutually recursive definitions are one component, generalized together" {

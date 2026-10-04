@@ -412,6 +412,17 @@ pub const Desugarer = struct {
             sink,
         );
 
+        // A reference to a signed definition is not a dependency.
+        for (edges) |*edge| {
+            var kept: std.ArrayList(u32) = .empty;
+            for (edge.*) |target| {
+                if (self.env.?.annotationOf(definitions[target].symbol) == null) {
+                    try kept.append(scratch, target);
+                }
+            }
+            edge.* = kept.items;
+        }
+
         var components_result = try resolve.stronglyConnectedComponents(self.allocator, edges);
         defer components_result.deinit();
 

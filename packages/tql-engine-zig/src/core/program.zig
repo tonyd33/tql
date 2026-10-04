@@ -16,7 +16,8 @@ pub const Program = struct {
     env: core.env.Env,
     definitions: []const core.Definition,
     /// Indices into `definitions`, grouped by strongly connected component in
-    /// dependency order.
+    /// dependency order. A reference to a definition with a signature is not
+    /// a dependency.
     components: []const []const u32,
     /// The linked program's `main`.
     entry: core.SymbolId,

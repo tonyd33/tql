@@ -21,6 +21,4 @@ class A {}
 main :: Node -> [{a: Int, b: [String]}]
 
 --- core ---
-main = \root ->
-  bind b <- collect (kleisli (kleisli children (of_kind :interface_declaration)) (arr text)) root in
-  return (record[a,b] 1 b)
+main = \root -> concat_map (\b -> return (record[a,b] 1 b)) (collect (kleisli (kleisli children (of_kind :interface_declaration)) (arr text)) root)

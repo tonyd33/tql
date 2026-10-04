@@ -113,8 +113,8 @@ pub const Inference = struct {
             .lambda => |lam| try self.lambda(lam.*),
             .apply => |app| try self.application(app.*),
             .case => |c| try self.caseOf(c.*),
+            .let => |l| try self.let(l.*),
             .letrec => |l| try self.letrec(l.*),
-            .bind => |b| try self.streamBind(b.*),
         };
     }
 
@@ -148,13 +148,15 @@ pub const Inference = struct {
     ///               ------------------------------------------
     ///               Gamma |- x : tau
     ///
-    /// `Gamma(x)` has four sources, in scope order:
-    /// 1. a lexical binder
-    /// 2. this SCC's placeholder
-    /// 3. an earlier SCC's scheme
-    /// 4. the environment's scheme for a primitive, a synthesized symbol or a
+    /// `Gamma(x)` has five sources, in scope order:
+    /// 1. a written signature, wherever its definition's SCC is
+    /// 2. a lexical binder
+    /// 3. this SCC's placeholder
+    /// 4. an earlier SCC's scheme
+    /// 5. the environment's scheme for a primitive, a synthesized symbol or a
     ///    constructor
     fn variable(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!types.Type {
+        if (self.env.annotationOf(id)) |declared| return try self.instantiate(declared.scheme, span);
         if (self.scope.lookup(id)) |binding| return switch (binding) {
             // Monomorphic: used at one type, not instantiated.
             .monomorphic => |t| t,
@@ -266,6 +268,20 @@ pub const Inference = struct {
         return first.?.type;
     }
 
+    /// (T-Let)       Gamma |- e_1 : tau_1      sigma = Gen(Gamma, tau_1)
+    ///               Gamma, x : sigma |- e_2 : tau_2
+    ///               ------------------------------------------------
+    ///               Gamma |- let x = e_1 in e_2 : tau_2
+    fn let(self: *Inference, l: core.Let) Error!types.Type {
+        const value = try self.term(l.value);
+        const scheme = try self.generalize(value, l.value.span);
+
+        const mark = self.scope.mark();
+        defer self.scope.truncate(mark);
+        try self.scope.push(l.name, .{ .scheme = scheme });
+        return try self.term(l.body);
+    }
+
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)
     ///               alpha_i unifies with tau_i
     ///               sigma_i = Gen(Gamma, tau_i)                (each i)
@@ -319,25 +335,6 @@ pub const Inference = struct {
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
         try self.generalizeGroup(placeholders, spans, out);
-    }
-
-    /// (T-Bind)      Gamma |- e_1 : [a]
-    ///               Gamma, x : a |- e_2 : [b]
-    ///               --------------------------------
-    ///               Gamma |- bind x <- e_1 in e_2 : [b]
-    fn streamBind(self: *Inference, b: core.Bind) Error!types.Type {
-        const source = try self.term(b.value);
-        const element = try self.subst.fresh();
-        try self.expect(source, try self.subst.datatypes.list(self.subst.arena, element), b.value.span);
-
-        const mark = self.scope.mark();
-        defer self.scope.truncate(mark);
-        try self.scope.push(b.name, .{ .monomorphic = element });
-
-        const body = try self.term(b.body);
-        const result = try self.subst.fresh();
-        try self.expect(body, try self.subst.datatypes.list(self.subst.arena, result), b.body.span);
-        return try self.subst.datatypes.list(self.subst.arena, result);
     }
 
     /// `Gen(Gamma, tau)`: quantify the metavariables free in `tau`
@@ -430,7 +427,9 @@ pub const Inference = struct {
     ///
     /// T-LetRec at top level: placeholders, bodies, unify, generalize
     /// together. Mutual recursion works because every member is in scope
-    /// monomorphically while any body is checked.
+    /// monomorphically while any body is checked. A member with a signature
+    /// is a component of its own, and every use of it, its own included, is
+    /// at the signature.
     ///
     /// `desugar.Program.components` is already in dependency order, so a callee's
     /// scheme is generalized before its caller's body is inferred. The prelude

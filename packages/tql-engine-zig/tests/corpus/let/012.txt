@@ -19,4 +19,4 @@ class A { m() {} }
 ["class_declaration", "property_identifier"]
 
 --- types ---
-main :: Node -> [String]
+main :: Node -> [Kind]

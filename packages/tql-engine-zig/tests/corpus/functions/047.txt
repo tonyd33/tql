@@ -16,13 +16,13 @@ main = const (
   append (map (\x -> x 1) (Cons (\x -> op[+] x 1) (Cons (\x -> op[*] x 2) Nil))) (
     Cons (
       (
-        letrec e = \x -> op[+] x 1 in
+        let e = \x -> op[+] x 1 in
         \x -> compose x e
       ) (\x -> op[*] x 2) 5
     ) (
       Cons (
         (
-          letrec e = \x -> op[*] x 2 in
+          let e = \x -> op[*] x 2 in
           \y -> compose e y
         ) (\x -> op[+] x 1) 5
       ) Nil

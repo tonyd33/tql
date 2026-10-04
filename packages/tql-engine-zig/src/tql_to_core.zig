@@ -469,7 +469,7 @@ test "a field symbol carries the grammar id it resolved" {
 }
 
 test "a kind literal carries the grammar id it resolved" {
-    var program = try link(&.{"main = is_kind :class_declaration;"});
+    var program = try link(&.{"main = of_kind :class_declaration;"});
     defer program.deinit();
 
     var grammars = grammar.Registry.init(testing.allocator, &.{});
@@ -478,7 +478,7 @@ test "a kind literal carries the grammar id it resolved" {
 
     const body = program.entryDefinitions()[0].body;
     const function = body.kind.apply.function.kind.symbol;
-    try testing.expectEqual(core.PrimOp.is_kind, program.env.interner.details(function).primop);
+    try testing.expectEqual(core.PrimOp.of_kind, program.env.interner.details(function).primop);
     const kind = body.kind.apply.argument.kind.literal.kind;
     try testing.expectEqualStrings("class_declaration", kind.name);
     try testing.expectEqual(g.language.idForNodeKind("class_declaration", true), kind.id);
@@ -505,6 +505,26 @@ test "linked components order library callees before entry callers" {
     try testing.expectEqual(3, order.items.len);
     try testing.expectEqualStrings("helper", order.items[0]);
     try testing.expectEqualStrings("wrapper", order.items[1]);
+    try testing.expectEqualStrings("main", order.items[2]);
+}
+
+test "a signature cuts the edges into its definition" {
+    var program = try link(&.{
+        \\a :: Int -> Int;
+        \\a x = b x;
+        \\b x = a x;
+        \\main = a;
+    });
+    defer program.deinit();
+
+    var order: std.ArrayList([]const u8) = .empty;
+    defer order.deinit(testing.allocator);
+    for (program.components[program.components.len - 3 ..]) |component| {
+        try testing.expectEqual(1, component.len);
+        try order.append(testing.allocator, program.env.interner.spelling(program.definitions[component[0]].symbol));
+    }
+    try testing.expectEqualStrings("b", order.items[0]);
+    try testing.expectEqualStrings("a", order.items[1]);
     try testing.expectEqualStrings("main", order.items[2]);
 }
 

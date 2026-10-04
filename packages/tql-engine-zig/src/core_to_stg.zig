@@ -1,6 +1,5 @@
 //! Lowering: checked Core to STG terms.
 
-const free = @import("core_to_stg/free.zig");
 const translate_mod = @import("core_to_stg/translate.zig");
 
 /// Translates a checked program into the term language.
@@ -13,7 +12,6 @@ pub const Error = translate_mod.Error;
 
 test {
     const refAllDecls = std.testing.refAllDecls;
-    refAllDecls(free);
     refAllDecls(translate_mod);
 }
 
@@ -285,6 +283,37 @@ test "a closure prints its captures, its update flag and its parameters" {
     );
 }
 
+test "a let becomes a non-recursive let of one binding" {
+    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+
+    // spread a b = let k = b - a in k
+    const spread = try pb.global("spread");
+    const a = try pb.local("a");
+    const b = try pb.local("b");
+    const k = try pb.local("k");
+    try pb.define(spread, try pb.lambda(&.{ a, b }, try pb.let(
+        k,
+        try pb.apply(pb.symbol(try pb.operator(.subtract)), &.{ pb.symbol(b), pb.symbol(a) }),
+        pb.symbol(k),
+    )));
+
+    var program = try pb.program(spread);
+    try expectTranslationPlaced(&program);
+    try expectDefinition(
+        &program,
+        spread,
+        \\{} \u {} ->
+        \\  let
+        \\    t0 = {} \n {a,b} ->
+        \\      let k = {b@1,a@0} \u {} -> op[-]# b@0 a@1 in
+        \\      k@2
+        \\  in
+        \\  t0@0
+        ,
+    );
+}
+
 test "a constructor field that is not an atom becomes a thunk" {
     var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
     defer pb.deinit();
@@ -307,46 +336,6 @@ test "a constructor field that is not an atom becomes a thunk" {
         \\        Cons h@2 t0@4
         \\  in
         \\  t1@0
-        ,
-    );
-}
-
-test "a stream bind translates to a concat_map call" {
-    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-
-    // concat_map f xs = xs
-    const concat_map = try pb.global("concat_map");
-    {
-        const f = try pb.local("f");
-        const xs = try pb.local("xs");
-        try pb.define(concat_map, try pb.lambda(&.{ f, xs }, pb.symbol(xs)));
-    }
-
-    // main xs = bind c <- xs in Cons c Nil
-    const main = try pb.global("main");
-    {
-        const xs = try pb.local("xs");
-        const c = try pb.local("c");
-        const single = try pb.apply(pb.symbol(try pb.global("Cons")), &.{ pb.symbol(c), pb.symbol(try pb.global("Nil")) });
-        try pb.define(main, try pb.lambda(&.{xs}, try pb.bind(c, pb.symbol(xs), single)));
-    }
-
-    var program = try pb.program(main);
-    try expectDefinition(
-        &program,
-        main,
-        \\{} \u {} ->
-        \\  let
-        \\    t2 = {} \n {xs} ->
-        \\      let
-        \\        t1 = {} \n {c} ->
-        \\          let c0 = Nil in
-        \\          Cons c@0 c0@1
-        \\      in
-        \\      concat_map t1@1 xs@0
-        \\  in
-        \\  t2@0
         ,
     );
 }
