@@ -1,0 +1,15 @@
+title: a synonym body binding a variable that is not a parameter
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Call f <- :call_expression { #function = f, #arguments = args };
+
+main root = 1;
+
+--- error ---
+error[unresolved-name]: `args` is not a parameter of `Call`, and a synonym binds only its parameters
+ --> 1:66
+  |
+1 | pattern Call f <- :call_expression { #function = f, #arguments = args };
+  |                                                                  ^^^^

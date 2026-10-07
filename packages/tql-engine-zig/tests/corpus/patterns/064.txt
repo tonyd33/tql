@@ -1,0 +1,19 @@
+title: a synonym reads the names in its body where it is declared
+grammar: typescript
+asserts: values
+
+--- tql ---
+pattern Text s <- (text -> s);
+
+main root = do {
+  let text = "shadowed";
+  i@(Text "a") <- descendants_of_kind :identifier root;
+  return [text, kind_name i];
+};
+
+--- source ---
+a;
+b;
+
+--- values ---
+[["shadowed","identifier"]]

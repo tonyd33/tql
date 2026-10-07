@@ -1,0 +1,15 @@
+title: a synonym naming one parameter twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Pair a a <- [a, a];
+
+main root = 1;
+
+--- error ---
+error[duplicate-definition]: `a` names two parameters of `Pair`
+ --> 1:16
+  |
+1 | pattern Pair a a <- [a, a];
+  |                ^

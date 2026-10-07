@@ -1,0 +1,138 @@
+title: a synonym nested three deep inlines flat
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+pattern Callee f <- :call_expression { #function = f };
+pattern Method o p <- Callee (:member_expression { #object = o, #property = p });
+pattern ConsoleCall p <- Method (:identifier {} & (text -> "console")) p;
+
+main root = do {
+  ConsoleCall p <- descendants root;
+  return (text p);
+};
+
+--- source ---
+console.error("a");
+console.log("b");
+foo.warn("c");
+
+--- values ---
+["error","log"]
+--- simplified ---
+main = \root -> concat_map (
+  \cons0 -> case field[function] cons0 of
+    Nil -> Nil
+    Cons f cons1 -> case cons1 of
+      Nil -> case of_kind :member_expression f of
+        Nil -> Nil
+        Cons cons0 cons1 -> case field[object] cons0 of
+          Nil -> Nil
+          Cons o cons1 -> case cons1 of
+            Nil -> case field[property] cons0 of
+              Nil -> Nil
+              Cons p cons1 -> case cons1 of
+                Nil -> case of_kind :identifier o of
+                  Nil -> Nil
+                  Cons cons0 cons1 -> case op[=] (text cons0) "console" of
+                    False -> Nil
+                    True -> Cons (text p) Nil
+                Cons _ _ -> Nil
+            Cons _ _ -> Nil
+      Cons _ _ -> Nil
+) (descendants_of_kind :call_expression root)
+$mCallee = \s -> \k -> \f -> case of_kind :call_expression s of
+  Nil -> f
+  Cons cons0 cons1 -> case field[function] cons0 of
+    Nil -> f
+    Cons f' cons1 -> case cons1 of
+      Nil -> k f'
+      Cons _ _ -> f
+$mMethod = \s -> \k -> \f -> case of_kind :call_expression s of
+  Nil -> f
+  Cons cons0 cons1 -> case field[function] cons0 of
+    Nil -> f
+    Cons f' cons1 -> case cons1 of
+      Nil -> case of_kind :member_expression f' of
+        Nil -> f
+        Cons cons0 cons1 -> case field[object] cons0 of
+          Nil -> f
+          Cons o cons1 -> case cons1 of
+            Nil -> case field[property] cons0 of
+              Nil -> f
+              Cons p cons1 -> case cons1 of
+                Nil -> k o p
+                Cons _ _ -> f
+            Cons _ _ -> f
+      Cons _ _ -> f
+$mConsoleCall = \s -> \k -> \f -> case of_kind :call_expression s of
+  Nil -> f
+  Cons cons0 cons1 -> case field[function] cons0 of
+    Nil -> f
+    Cons f' cons1 -> case cons1 of
+      Nil -> case of_kind :member_expression f' of
+        Nil -> f
+        Cons cons0 cons1 -> case field[object] cons0 of
+          Nil -> f
+          Cons o cons1 -> case cons1 of
+            Nil -> case field[property] cons0 of
+              Nil -> f
+              Cons p cons1 -> case cons1 of
+                Nil -> case of_kind :identifier o of
+                  Nil -> f
+                  Cons cons0 cons1 -> case op[=] (text cons0) "console" of
+                    False -> f
+                    True -> k p
+                Cons _ _ -> f
+            Cons _ _ -> f
+      Cons _ _ -> f
+
+--- core ---
+main = \root -> concat_map (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil) (descendants root)
+$mCallee = \s -> \k -> \f ->
+  let view = of_kind :call_expression s in
+  case view of
+    Nil -> f
+    Cons cons0 cons1 ->
+      let view = field[function] cons0 in
+      case view of
+        Nil -> f
+        Cons f' cons1' -> case cons1' of
+          Nil -> case cons1 of
+            Nil -> k f'
+            Cons _ _ -> f
+          Cons _ _ -> f
+$mMethod = \s -> \k -> \f -> $mCallee s (
+  \callee0 ->
+    let view = of_kind :member_expression callee0 in
+    case view of
+      Nil -> f
+      Cons cons0 cons1 ->
+        let view = field[object] cons0 in
+        case view of
+          Nil -> f
+          Cons o cons1' -> case cons1' of
+            Nil ->
+              let view = field[property] cons0 in
+              case view of
+                Nil -> f
+                Cons p cons1' -> case cons1' of
+                  Nil -> case cons1 of
+                    Nil -> k o p
+                    Cons _ _ -> f
+                  Cons _ _ -> f
+            Cons _ _ -> f
+) f
+$mConsoleCall = \s -> \k -> \f -> $mMethod s (
+  \method0 -> \p ->
+    let view = of_kind :identifier method0 in
+    case view of
+      Nil -> f
+      Cons cons0 cons1 ->
+        let view = text cons0 in
+        case op[=] view "console" of
+          False -> f
+          True -> case cons1 of
+            Nil -> k p
+            Cons _ _ -> f
+) f

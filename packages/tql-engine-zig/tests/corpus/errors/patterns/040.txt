@@ -1,0 +1,19 @@
+title: a synonym signature narrower than its body rejects a use outside it
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Single :: Node -> [Node];
+pattern Single x <- [x];
+
+main root = do {
+  Single 3 <- [children root];
+  return 1;
+};
+
+--- error ---
+error[type-mismatch]: Expected `Node`, found `Int`.
+ --> 5:10
+  |
+5 |   Single 3 <- [children root];
+  |          ^

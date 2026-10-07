@@ -1,0 +1,22 @@
+title: an import list names a synonym the module does not export
+grammar: typescript
+asserts: error
+
+--- module Hidden ---
+module Hidden (other) for typescript;
+
+other = 1;
+
+pattern Callee f <- :call_expression { #function = f };
+
+--- tql ---
+import Hidden (pattern Callee);
+
+main root = 1;
+
+--- error ---
+error[unresolved-name]: `Hidden` does not export `Callee`
+ --> 1:16
+  |
+1 | import Hidden (pattern Callee);
+  |                ^^^^^^^^^^^^^^

@@ -27,7 +27,7 @@ pub const Printer = struct {
     pub fn definitions(self: Printer, list: []const stg.Definition, w: *std.Io.Writer) Error!void {
         for (list, 0..) |d, i| {
             if (i > 0) try w.writeByte('\n');
-            try w.print("{s} = ", .{self.interner.spelling(d.symbol)});
+            try w.print("{f} = ", .{self.interner.printed(d.symbol)});
             try self.closure(d.value, w);
         }
     }
@@ -277,7 +277,7 @@ pub const Printer = struct {
     fn writeAtom(self: Printer, a: stg.Atom, w: *std.Io.Writer, position: Position, scope: ?*print_scope.Scope) Error!void {
         switch (a) {
             .local => |local| try self.writeLocal(local, w, scope),
-            .global => |g| try w.writeAll(self.interner.spelling(g.symbol)),
+            .global => |g| try self.interner.printed(g.symbol).format(w),
             .literal => |thunk| switch (thunk.state.evaluated) {
                 .number => |n| if (position == .argument and n < 0)
                     try w.print("({d})", .{n})

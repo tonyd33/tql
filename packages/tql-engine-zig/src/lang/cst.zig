@@ -44,10 +44,11 @@ pub const SourceFile = struct {
             .hiding => |items| items,
         };
         try w.print(" ({s}", .{if (filter == .hiding) "hiding" else label});
-        for (items) |item| {
-            try w.print(" {s}", .{item.name});
-            if (item.kind == .type_and_constructors) try w.writeAll("(..)");
-        }
+        for (items) |item| switch (item.kind) {
+            .synonym => try w.print(" (pattern {s})", .{item.name}),
+            .type_and_constructors => try w.print(" {s}(..)", .{item.name}),
+            .value, .type => try w.print(" {s}", .{item.name}),
+        };
         try w.writeByte(')');
     }
 
@@ -85,13 +86,13 @@ pub const Filter = union(enum) {
     hiding: []const Item,
 };
 
-/// `x`, `T`, or `T(..)` in an export or import list.
+/// `x`, `T`, `T(..)` or `pattern P` in an export or import list.
 pub const Item = struct {
     name: []const u8,
     kind: Kind,
     span: diagnostic.Span = .unknown,
 
-    pub const Kind = enum { value, type, type_and_constructors };
+    pub const Kind = enum { value, type, type_and_constructors, synonym };
 };
 
 /// `name :: type;` or `name p1 p2 = body;`.
@@ -100,6 +101,8 @@ pub const Declaration = union(enum) {
     definition: Definition,
     data_declaration: DataDeclaration,
     type_alias: TypeAlias,
+    pattern_synonym: PatternSynonym,
+    pattern_signature: PatternSignature,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -188,6 +191,35 @@ pub const TypeAlias = struct {
         try w.print("(type {s} (params", .{self.name});
         for (self.parameters) |p| try w.print(" {s}", .{p});
         try w.writeAll(") ");
+        try self.type.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+/// `pattern P x1 x2 <- p;`
+pub const PatternSynonym = struct {
+    name: Identifier,
+    parameters: []const Parameter,
+    body: Pattern,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: PatternSynonym, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(pattern {s} (params", .{self.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p.name});
+        try w.writeAll(") ");
+        try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+/// `pattern P :: t;`
+pub const PatternSignature = struct {
+    name: Identifier,
+    type: Type,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: PatternSignature, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(pattern_signature {s} ", .{self.name});
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
@@ -423,6 +455,8 @@ pub const Expression = struct {
         list: []const Expression,
         record: Record,
         parenthesized: *Expression,
+        /// `of_shape p`: the filter keeping a value `p` matches.
+        of_shape: *Pattern,
         /// A prelude name, whatever it means in scope. Never written; built
         /// by desugaring.
         primitive: []const u8,
@@ -556,6 +590,11 @@ pub const Expression = struct {
                 }
                 try w.writeByte(')');
             },
+            .of_shape => |p| {
+                try w.writeAll("(of_shape ");
+                try p.sexpr(w);
+                try w.writeByte(')');
+            },
             .parenthesized => |e| {
                 try w.writeAll("(paren ");
                 try e.sexpr(w);
@@ -633,6 +672,9 @@ pub const Pattern = struct {
         boolean: bool,
         /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
         node: *Node,
+        /// A constructor pattern naming a pattern synonym. Never written;
+        /// built by desugaring.
+        synonym: Constructor,
     };
 
     pub const Node = struct {
@@ -730,7 +772,7 @@ pub const Pattern = struct {
                 }
                 try w.writeByte(')');
             },
-            .constructor => |c| {
+            .constructor, .synonym => |c| {
                 if (c.arguments.len == 0) return w.writeAll(c.name);
                 try w.print("({s}", .{c.name});
                 for (c.arguments) |argument| {

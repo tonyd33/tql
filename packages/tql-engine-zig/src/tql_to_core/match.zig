@@ -6,9 +6,11 @@
 //! splits over every constructor of the occurrence's datatype, so each Core
 //! `case` it emits is exhaustive. A view binds its expression applied to the
 //! occurrence and matches the result in place of the view. A literal tests
-//! equality, and a failed test drops only the row it came from. A constructor
-//! no row covers is reported with the value that falls through, and an
-//! alternative that no path reaches is reported as never matched.
+//! equality, and a failed test drops only the row it came from. A pattern
+//! synonym calls its matcher, matches its arguments against the values the
+//! matcher hands back, and like a literal drops only its own row on failure. A
+//! constructor no row covers is reported with the value that falls through,
+//! and an alternative that no path reaches is reported as never matched.
 //!
 //! An alternative reached from one path is lowered in place. One reached from
 //! several is bound once, as a function of its pattern variables, and each
@@ -43,6 +45,15 @@ pub const Rest = struct {
 const Body = union(enum) {
     expression: cst.Expression,
     rest: Rest,
+    holes: Holes,
+};
+
+/// A matcher's success: `continuation` applied to the pattern variables
+/// `names`, in order.
+const Holes = struct {
+    continuation: core.SymbolId,
+    names: []const []const u8,
+    span: diagnostic.Span,
 };
 
 const Arm = struct {
@@ -55,11 +66,13 @@ const Arm = struct {
 };
 
 /// What a match does when no row matches.
-const NoMatch = enum {
+const NoMatch = union(enum) {
     /// Report the value that falls through.
     report,
     /// Yield `Nil`.
     nil,
+    /// Yield this term.
+    fallthrough: core.Term,
 };
 
 /// Lower `case scrutinee of { alternatives }`.
@@ -119,6 +132,102 @@ pub fn bind(
     return try lowerer.bind(root, value, term, statement.span);
 }
 
+/// The matcher `synonym` declares: `\s k f -> case s of { body -> k x_1 .. x_n }`,
+/// yielding `f` when `body` does not match.
+pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!core.Term {
+    const b = lowerer.builder;
+    try checkParameters(lowerer, synonym);
+    try check(lowerer, synonym.body, null);
+
+    const span = synonym.span;
+    const s = try lowerer.env.interner.fresh("s");
+    const k = try lowerer.env.interner.fresh("k");
+    const f = try lowerer.env.interner.fresh("f");
+    const names = try b.slice([]const u8, synonym.parameters.len);
+    for (synonym.parameters, names) |parameter, *name| name.* = parameter.name;
+
+    const arms = try b.dupeSlice(Arm, &.{.{
+        .written = synonym.body,
+        .pattern = try expand(lowerer, synonym.body),
+        .guard = null,
+        .body = .{ .holes = .{ .continuation = k, .names = names, .span = synonym.body.span } },
+    }});
+    const term = try lower(lowerer, arms, null, synonym.body.span, s, b.symbol(s, span), .{ .fallthrough = b.symbol(f, span) });
+    return try b.lambda(s, try b.lambda(k, try b.lambda(f, term, span), span), span);
+}
+
+/// Reject a synonym whose parameters repeat, whose body binds a variable that
+/// is not a parameter, or whose body leaves a parameter unbound.
+fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!void {
+    for (synonym.parameters, 0..) |parameter, i| {
+        for (synonym.parameters[0..i]) |earlier| {
+            if (!std.mem.eql(u8, earlier.name, parameter.name)) continue;
+            try lowerer.sink.report(
+                .duplicate_definition,
+                parameter.span,
+                "`{s}` names two parameters of `{s}`",
+                .{ parameter.name, synonym.name },
+            );
+            return error.DesugarFailed;
+        }
+    }
+
+    var binders: std.ArrayList(Variable) = .empty;
+    try boundVariables(lowerer.builder.allocator, synonym.body, &binders);
+    for (binders.items) |variable| {
+        for (synonym.parameters) |parameter| {
+            if (std.mem.eql(u8, parameter.name, variable.name)) break;
+        } else {
+            try lowerer.sink.report(
+                .unresolved_name,
+                variable.span,
+                "`{s}` is not a parameter of `{s}`, and a synonym binds only its parameters",
+                .{ variable.name, synonym.name },
+            );
+            return error.DesugarFailed;
+        }
+    }
+    for (synonym.parameters) |parameter| {
+        for (binders.items) |variable| {
+            if (std.mem.eql(u8, parameter.name, variable.name)) break;
+        } else {
+            try lowerer.sink.report(
+                .unresolved_name,
+                parameter.span,
+                "the parameter `{s}` of `{s}` is not bound by its pattern",
+                .{ parameter.name, synonym.name },
+            );
+            return error.DesugarFailed;
+        }
+    }
+}
+
+const Variable = struct { name: []const u8, span: diagnostic.Span };
+
+/// Append every variable `pattern` binds, as written.
+fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayList(Variable)) Error!void {
+    switch (pattern.kind) {
+        .variable => |name| if (!isWildcard(name)) try out.append(allocator, .{ .name = name, .span = pattern.span }),
+        .as => |a| {
+            if (!isWildcard(a.name)) try out.append(allocator, .{ .name = a.name, .span = a.name_span });
+            try boundVariables(allocator, a.pattern, out);
+        },
+        .conjunction => |c| {
+            try boundVariables(allocator, c.left, out);
+            try boundVariables(allocator, c.right, out);
+        },
+        .cons => |c| {
+            try boundVariables(allocator, c.head, out);
+            try boundVariables(allocator, c.tail, out);
+        },
+        .constructor, .synonym => |c| for (c.arguments) |argument| try boundVariables(allocator, argument, out),
+        .list => |elements| for (elements) |element| try boundVariables(allocator, element, out),
+        .view => |v| try boundVariables(allocator, v.pattern, out),
+        .node => |n| for (n.fields) |f| try boundVariables(allocator, f.pattern, out),
+        .literal, .boolean => {},
+    }
+}
+
 fn lower(
     lowerer: *Lowerer,
     arms: []const Arm,
@@ -146,6 +255,7 @@ fn lower(
     };
     defer matcher.path.deinit(b.allocator);
     defer matcher.facts.deinit(b.allocator);
+    defer matcher.calls.deinit(b.allocator);
     @memset(matcher.uses, 0);
 
     const tree = try matcher.compile(rows);
@@ -184,6 +294,7 @@ fn lower(
         .scrutinee = scrutinee,
         .root_bound = binds(tree, root) or reads(tree, root) > 1,
         .shared = shared,
+        .no_match = no_match,
     };
     var term = try emitter.emit(tree);
 
@@ -215,11 +326,13 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
         .constructor => |c| {
             const arguments = try b.slice(cst.Pattern, c.arguments.len);
             for (c.arguments, arguments) |argument, *out| out.* = try expand(lowerer, argument);
+            const expanded: cst.Pattern.Constructor = .{ .name = c.name, .arguments = arguments, .builtin = c.builtin };
             return .{
-                .kind = .{ .constructor = .{ .name = c.name, .arguments = arguments, .builtin = c.builtin } },
+                .kind = if (isSynonym(lowerer.scope, c)) .{ .synonym = expanded } else .{ .constructor = expanded },
                 .span = pattern.span,
             };
         },
+        .synonym => unreachable,
         .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), pattern.span),
         .list => |elements| {
             var spine = builtinPattern(lowerer, .nil, &.{}, pattern.span);
@@ -465,6 +578,19 @@ const Checker = struct {
             },
             .view => |v| try self.visit(v.pattern, false),
             .constructor => |c| {
+                if (try synonymNamed(self.lowerer, c, pattern.span)) |arity| {
+                    if (c.arguments.len != arity) {
+                        try self.lowerer.sink.report(
+                            .type_mismatch,
+                            pattern.span,
+                            "`{s}` takes {d} argument(s), given {d}",
+                            .{ c.name, arity, c.arguments.len },
+                        );
+                        return error.DesugarFailed;
+                    }
+                    for (c.arguments) |argument| try self.visit(argument, false);
+                    return;
+                }
                 const constructor = try constructorNamed(self.lowerer, c, pattern.span);
                 if (c.arguments.len != constructor.fields.len) {
                     try self.lowerer.sink.report(
@@ -492,6 +618,7 @@ const Checker = struct {
                     try self.visit(f.pattern, false);
                 }
             },
+            .synonym => unreachable,
         }
     }
 
@@ -567,8 +694,27 @@ fn constructorNamed(
     if (found) |id| {
         if (lowerer.scope.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
-    try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{c.name});
+    try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor or a pattern synonym", .{c.name});
     return error.DesugarFailed;
+}
+
+/// The arity of the pattern synonym `c` names, or null when it names none.
+fn synonymNamed(lowerer: *Lowerer, c: cst.Pattern.Constructor, span: diagnostic.Span) Error!?u32 {
+    if (c.builtin != null) return null;
+    const id = try lowerer.resolveGlobal(c.name, span) orelse return null;
+    return switch (lowerer.env.interner.details(id)) {
+        .synonym => |s| s.arity,
+        else => null,
+    };
+}
+
+/// Whether the constructor pattern `c` names a pattern synonym.
+///
+/// Preconditions:
+/// - `check` accepted the pattern `c` is in.
+fn isSynonym(scope: *const ModuleScope, c: cst.Pattern.Constructor) bool {
+    if (c.builtin != null) return false;
+    return scope.interner.details(scope.value(c.name).found) == .synonym;
 }
 
 /// The symbol a constructor pattern names.
@@ -577,6 +723,14 @@ fn constructorNamed(
 /// - `check` accepted the pattern `c` is in.
 fn constructorSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
     if (c.builtin) |which| return builtinConstructor(scope.datatypes, which).symbol;
+    return scope.value(c.name).found;
+}
+
+/// The matcher a synonym pattern calls.
+///
+/// Preconditions:
+/// - `check` accepted the pattern `c` is in.
+fn synonymSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
     return scope.value(c.name).found;
 }
 
@@ -610,6 +764,11 @@ fn lowerBody(lowerer: *Lowerer, body: Body, scope: *const resolve.Scope) Error!c
     return switch (body) {
         .expression => |e| try lowerer.expression(e, scope),
         .rest => |r| try lowerer.doBlock(r.statements, r.result, scope, r.span),
+        .holes => |h| {
+            const arguments = try lowerer.builder.slice(core.Term, h.names.len);
+            for (h.names, arguments) |name, *argument| argument.* = lowerer.builder.symbol(scope.lookup(name).?, h.span);
+            return try lowerer.builder.applyMany(lowerer.builder.symbol(h.continuation, h.span), arguments, h.span);
+        },
     };
 }
 
@@ -620,7 +779,7 @@ fn variables(
 ) Error!void {
     switch (pattern.kind) {
         .variable => |name| if (!isWildcard(name)) try out.append(allocator, name),
-        .constructor => |c| for (c.arguments) |argument| try variables(allocator, argument, out),
+        .constructor, .synonym => |c| for (c.arguments) |argument| try variables(allocator, argument, out),
         .as => |a| {
             if (!isWildcard(a.name)) try out.append(allocator, a.name);
             try variables(allocator, a.pattern, out);
@@ -651,6 +810,7 @@ fn binds(tree: *const Tree, occurrence: core.SymbolId) bool {
         },
         .view => |v| return bound(v.bindings, occurrence) or binds(v.tree, occurrence),
         .literal => |l| return binds(l.matched, occurrence) or binds(l.failed, occurrence),
+        .synonym => |s| return binds(s.matched, occurrence) or binds(s.failed, occurrence),
         .fail => return false,
     }
 }
@@ -677,12 +837,14 @@ fn reads(tree: *const Tree, occurrence: core.SymbolId) usize {
         .view => |v| return reads(v.tree, occurrence) + @intFromBool(v.occurrence == occurrence),
         .literal => |l| return reads(l.matched, occurrence) + reads(l.failed, occurrence) +
             @intFromBool(l.occurrence == occurrence),
+        .synonym => |s| return reads(s.matched, occurrence) + reads(s.failed, occurrence) +
+            @intFromBool(s.occurrence == occurrence),
         .fail => return 0,
     }
 }
 
 /// A pattern still to match, and the occurrence it matches against. The
-/// pattern is a variable, a constructor, a view or a literal.
+/// pattern is a variable, a constructor, a view, a literal or a synonym.
 const Item = struct {
     pattern: cst.Pattern,
     occurrence: core.SymbolId,
@@ -708,7 +870,7 @@ fn push(
             try push(allocator, items, c.left, occurrence);
             try push(allocator, items, c.right, occurrence);
         },
-        .variable, .constructor, .view, .literal => try items.append(allocator, .{
+        .variable, .constructor, .view, .literal, .synonym => try items.append(allocator, .{
             .pattern = pattern,
             .occurrence = occurrence,
         }),
@@ -729,6 +891,7 @@ const Tree = union(enum) {
     test_: Test,
     view: View,
     literal: Literal,
+    synonym: Synonym,
     /// No row matches.
     fail,
 
@@ -772,6 +935,19 @@ const Tree = union(enum) {
         matched: *const Tree,
         failed: *const Tree,
     };
+
+    /// `matcher` applied to `occurrence`, to `matched` under a lambda for
+    /// each of `holes`, and to `failed`.
+    const Synonym = struct {
+        occurrence: core.SymbolId,
+        matcher: core.SymbolId,
+        holes: []const core.SymbolId,
+        /// The span of the argument pattern matched against each hole.
+        hole_spans: []const diagnostic.Span,
+        span: diagnostic.Span,
+        matched: *const Tree,
+        failed: *const Tree,
+    };
 };
 
 /// A constructor test taken on the way to the current subtree.
@@ -788,6 +964,15 @@ const Fact = struct {
     holds: bool,
 };
 
+/// The outcome of a synonym test taken on the way to the current subtree, and
+/// where it put the values it matched.
+const Call = struct {
+    occurrence: core.SymbolId,
+    matcher: core.SymbolId,
+    holes: []const core.SymbolId,
+    holds: bool,
+};
+
 const Matcher = struct {
     lowerer: *Lowerer,
     arms: []const Arm,
@@ -798,11 +983,12 @@ const Matcher = struct {
     uses: []u32,
     path: std.ArrayList(Step) = .empty,
     facts: std.ArrayList(Fact) = .empty,
+    calls: std.ArrayList(Call) = .empty,
 
     fn compile(self: *Matcher, rows: []const Row) Error!*const Tree {
         const b = self.lowerer.builder;
         if (rows.len == 0) {
-            if (self.no_match == .nil) return try self.node(.fail);
+            if (self.no_match != .report) return try self.node(.fail);
             try self.lowerer.sink.report(
                 .type_mismatch,
                 self.span,
@@ -827,6 +1013,15 @@ const Matcher = struct {
                     if (holds) continue;
                     return try self.compile(rows[1..]);
                 },
+                .synonym => |s| if (self.called(item.occurrence, synonymSymbol(self.lowerer.scope, s))) |call| {
+                    if (!call.holds) return try self.compile(rows[1..]);
+                    var items: std.ArrayList(Item) = .empty;
+                    for (s.arguments, call.holes) |argument, hole| try push(b.allocator, &items, argument, hole);
+                    try items.appendSlice(b.allocator, first.items[i + 1 ..]);
+                    const replaced = try b.dupeSlice(Row, rows);
+                    replaced[0] = .{ .items = items.items, .bindings = bindings.items, .alternative = first.alternative };
+                    return try self.compile(replaced);
+                },
                 .constructor, .view => {},
                 .as, .conjunction, .list, .cons, .boolean, .node => unreachable,
             }
@@ -841,6 +1036,7 @@ const Matcher = struct {
                 .constructor => try self.split(narrowed, item),
                 .view => |v| try self.bindView(narrowed, item, v),
                 .literal => |literal| try self.testLiteral(narrowed, item, literal),
+                .synonym => |s| try self.testSynonym(narrowed, item, s),
                 else => unreachable,
             };
         }
@@ -1007,6 +1203,58 @@ const Matcher = struct {
         } });
     }
 
+    /// Call the matcher of the first row's first item, a synonym. A failed
+    /// call drops only that row.
+    fn testSynonym(self: *Matcher, rows: []const Row, item: Item, s: cst.Pattern.Constructor) Error!*const Tree {
+        const b = self.lowerer.builder;
+        const first = rows[0];
+        const matcher = synonymSymbol(self.lowerer.scope, s);
+
+        const holes = try b.slice(core.SymbolId, s.arguments.len);
+        const hole_spans = try b.slice(diagnostic.Span, s.arguments.len);
+        for (s.arguments, holes, hole_spans, 0..) |argument, *hole, *span, i| {
+            const unqualified = if (std.mem.cutScalarLast(u8, s.name, '.')) |cut| cut[1] else s.name;
+            const name = givenName(argument) orelse try b.print("{s}{d}", .{
+                try std.ascii.allocLowerString(b.allocator, unqualified),
+                i,
+            });
+            hole.* = try self.lowerer.env.interner.fresh(name);
+            span.* = argument.span;
+        }
+
+        try self.calls.append(b.allocator, .{ .occurrence = item.occurrence, .matcher = matcher, .holes = holes, .holds = false });
+        const failed = try self.compile(rows[1..]);
+        _ = self.calls.pop();
+
+        var items: std.ArrayList(Item) = .empty;
+        for (s.arguments, holes) |argument, hole| try push(b.allocator, &items, argument, hole);
+        try items.appendSlice(b.allocator, first.items[1..]);
+        const matching = try b.dupeSlice(Row, rows);
+        matching[0] = .{ .items = items.items, .bindings = first.bindings, .alternative = first.alternative };
+        try self.calls.append(b.allocator, .{ .occurrence = item.occurrence, .matcher = matcher, .holes = holes, .holds = true });
+        const matched = try self.compile(matching);
+        _ = self.calls.pop();
+
+        return try self.node(.{ .synonym = .{
+            .occurrence = item.occurrence,
+            .matcher = matcher,
+            .holes = holes,
+            .hole_spans = hole_spans,
+            .span = item.pattern.span,
+            .matched = matched,
+            .failed = failed,
+        } });
+    }
+
+    /// The call of `matcher` on `occurrence` taken on the current path, if one
+    /// was.
+    fn called(self: *const Matcher, occurrence: core.SymbolId, matcher: core.SymbolId) ?Call {
+        for (self.calls.items) |call| {
+            if (call.occurrence == occurrence and call.matcher == matcher) return call;
+        }
+        return null;
+    }
+
     /// Whether the literal tests on the current path decide whether
     /// `occurrence` matches `literal`.
     fn known(self: *const Matcher, occurrence: core.SymbolId, literal: cst.Pattern.Literal) ?bool {
@@ -1080,6 +1328,7 @@ const Emitter = struct {
     /// Whether the scrutinee is read through `root`.
     root_bound: bool,
     shared: []const ?core.SymbolId,
+    no_match: NoMatch,
 
     fn emit(self: Emitter, tree: *const Tree) Error!core.Term {
         const b = self.lowerer.builder;
@@ -1123,7 +1372,25 @@ const Emitter = struct {
                 const matched = try self.emit(l.matched);
                 return try self.choose(condition, try self.emit(l.failed), matched, l.span);
             },
-            .fail => return b.symbol(self.lowerer.scope.datatypes.nilConstructor().symbol, self.span),
+            .synonym => |s| {
+                try self.lowerer.recordReference(s.matcher);
+                var continuation = try self.emit(s.matched);
+                var i = s.holes.len;
+                while (i > 0) {
+                    i -= 1;
+                    continuation = try b.lambda(s.holes[i], continuation, s.hole_spans[i]);
+                }
+                return try b.applyMany(
+                    b.symbol(s.matcher, s.span),
+                    &.{ self.occurrence(s.occurrence, s.span), continuation, try self.emit(s.failed) },
+                    s.span,
+                );
+            },
+            .fail => return switch (self.no_match) {
+                .fallthrough => |term| term,
+                .nil => b.symbol(self.lowerer.scope.datatypes.nilConstructor().symbol, self.span),
+                .report => unreachable,
+            },
         }
     }
 
@@ -1242,7 +1509,7 @@ const Written = struct {
         if (parenthesize) try w.writeByte('(');
         switch (self.pattern.kind) {
             .variable => |name| try w.writeAll(name),
-            .constructor => |c| {
+            .constructor, .synonym => |c| {
                 try w.writeAll(c.name);
                 for (c.arguments) |argument| {
                     try w.writeByte(' ');
@@ -1302,7 +1569,7 @@ const Written = struct {
         return switch (pattern.kind) {
             .conjunction => .conjunction,
             .cons => .cons,
-            .constructor => |c| if (c.arguments.len > 0) .application else .atom,
+            .constructor, .synonym => |c| if (c.arguments.len > 0) .application else .atom,
             .variable, .list, .as, .view, .literal, .boolean, .node => .atom,
         };
     }

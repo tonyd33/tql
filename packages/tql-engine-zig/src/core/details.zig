@@ -106,4 +106,6 @@ pub const Details = union(enum) {
     synthesized: Synthesized,
     /// A data constructor, at its position in the datatype that declares it.
     constructor: struct { owner: symbols.TypeId, tag: u32 },
+    /// A pattern synonym, whose definition is its matcher.
+    synonym: struct { arity: u32 },
 };

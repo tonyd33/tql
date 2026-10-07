@@ -1,0 +1,20 @@
+title: a nullary synonym in a case
+grammar: typescript
+asserts: values
+
+--- tql ---
+pattern Arrow <- :arrow_function {};
+
+classify n = case n of {
+  Arrow -> "arrow";
+  _ -> "other";
+};
+
+main = descendants_of_kind :variable_declarator | #value | arr classify;
+
+--- source ---
+const f = () => 1;
+const g = 2;
+
+--- values ---
+["arrow","other"]

@@ -1,0 +1,38 @@
+title: two rows with one synonym on one scrutinee call its matcher once
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+pattern Pair a b <- [a, b];
+
+describe xs = case xs of {
+  Pair 1 b -> b;
+  Pair a 2 -> a;
+  _ -> 0;
+};
+
+main root = [describe [1, 5], describe [7, 2], describe [3, 3]];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[5,7,0]
+--- core ---
+describe = \xs ->
+  let alternative = 0 in
+  $mPair xs (
+    \pair0 -> \b -> case op[=] pair0 1 of
+      False -> case op[=] b 2 of
+        False -> alternative
+        True -> pair0
+      True -> b
+  ) alternative
+main = \root -> Cons (describe (Cons 1 (Cons 5 Nil))) (Cons (describe (Cons 7 (Cons 2 Nil))) (Cons (describe (Cons 3 (Cons 3 Nil))) Nil))
+$mPair = \s -> \k -> \f -> case s of
+  Nil -> f
+  Cons a cons1 -> case cons1 of
+    Nil -> f
+    Cons b cons1 -> case cons1 of
+      Nil -> k a b
+      Cons _ _ -> f

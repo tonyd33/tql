@@ -1,0 +1,51 @@
+title: a synonym fuses its kind test onto the axis it binds over
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+pattern Callee f <- :call_expression { #function = f };
+
+main root = do {
+  Callee f <- descendants root;
+  return $ text f;
+};
+
+--- source ---
+f(1);
+g(h(2));
+
+--- values ---
+["f","g","h"]
+
+--- core ---
+main = \root -> concat_map (\scrutinee -> $mCallee scrutinee (\f -> return (text f)) Nil) (descendants root)
+$mCallee = \s -> \k -> \f ->
+  let view = of_kind :call_expression s in
+  case view of
+    Nil -> f
+    Cons cons0 cons1 ->
+      let view = field[function] cons0 in
+      case view of
+        Nil -> f
+        Cons f' cons1' -> case cons1' of
+          Nil -> case cons1 of
+            Nil -> k f'
+            Cons _ _ -> f
+          Cons _ _ -> f
+
+--- simplified ---
+main = \root -> concat_map (
+  \cons0 -> case field[function] cons0 of
+    Nil -> Nil
+    Cons f cons1 -> case cons1 of
+      Nil -> Cons (text f) Nil
+      Cons _ _ -> Nil
+) (descendants_of_kind :call_expression root)
+$mCallee = \s -> \k -> \f -> case of_kind :call_expression s of
+  Nil -> f
+  Cons cons0 cons1 -> case field[function] cons0 of
+    Nil -> f
+    Cons f' cons1 -> case cons1 of
+      Nil -> k f'
+      Cons _ _ -> f
+

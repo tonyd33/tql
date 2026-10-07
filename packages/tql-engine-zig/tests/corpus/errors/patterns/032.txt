@@ -1,0 +1,22 @@
+title: synonyms defined in terms of each other
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Even x <- [Odd x];
+pattern Odd x <- [Even x];
+
+main root = 1;
+
+--- error ---
+error[cyclic-synonym]: `Even` is defined in terms of itself, through `Odd`
+ --> 1:1
+  |
+1 | pattern Even x <- [Odd x];
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[cyclic-synonym]: `Odd` is defined in terms of itself, through `Even`
+ --> 2:1
+  |
+2 | pattern Odd x <- [Even x];
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^

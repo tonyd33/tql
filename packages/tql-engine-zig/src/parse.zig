@@ -218,6 +218,14 @@ const Walker = struct {
                     if (try self.typeAlias(child)) |t| {
                         try declarations.append(self.allocator, .{ .type_alias = t });
                     }
+                } else if (std.mem.eql(u8, kind, "pattern_synonym")) {
+                    if (try self.patternSynonym(child)) |p| {
+                        try declarations.append(self.allocator, .{ .pattern_synonym = p });
+                    }
+                } else if (std.mem.eql(u8, kind, "pattern_signature")) {
+                    if (try self.patternSignature(child)) |p| {
+                        try declarations.append(self.allocator, .{ .pattern_signature = p });
+                    }
                 }
                 if (!cursor.gotoNextSibling()) break;
             }
@@ -276,7 +284,13 @@ const Walker = struct {
             while (true) {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "item")) {
-                    if (child.childByFieldName("name")) |name| {
+                    if (child.childByFieldName("synonym")) |name| {
+                        try out.append(self.allocator, .{
+                            .name = try self.dupe(name),
+                            .kind = .synonym,
+                            .span = spanOf(child, self.source_id),
+                        });
+                    } else if (child.childByFieldName("name")) |name| {
                         const kind: cst.Item.Kind = if (std.mem.eql(u8, name.grammarKind(), "identifier"))
                             .value
                         else if (child.childByFieldName("constructors") != null)
@@ -440,6 +454,7 @@ const Walker = struct {
         list,
         record,
         parenthesized,
+        of_shape,
     };
 
     const LiteralKind = enum { number, string, regex, boolean, kind };
@@ -511,6 +526,11 @@ const Walker = struct {
             .do_expression => return self.doExpr(node, span),
             .list => return self.list(node, span),
             .record => return self.record(node, span),
+            .of_shape => {
+                const pattern_node = try self.requiredField(node, "pattern") orelse return null;
+                const shape = try self.pattern(pattern_node) orelse return null;
+                return .{ .kind = .{ .of_shape = try self.boxed(shape) }, .span = span };
+            },
             .parenthesized => {
                 const inner_node = node.namedChild(0) orelse {
                     try self.missingField(node, "expression");
@@ -725,6 +745,27 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .type = ty,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn patternSynonym(self: *Walker, node: ts.Node) !?cst.PatternSynonym {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const pattern_node = try self.requiredField(node, "pattern") orelse return null;
+        return .{
+            .name = try self.dupe(name_node),
+            .parameters = try self.parameters(node),
+            .body = try self.pattern(pattern_node) orelse return null,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn patternSignature(self: *Walker, node: ts.Node) !?cst.PatternSignature {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const type_node = try self.requiredField(node, "type") orelse return null;
+        return .{
+            .name = try self.dupe(name_node),
+            .type = try self.typeExpr(type_node) orelse return null,
             .span = spanOf(node, self.source_id),
         };
     }
@@ -1530,6 +1571,48 @@ test "a data declaration and a type alias side by side" {
     try expectSexpr(
         "data Box a = Box a; type Pred = Node -> Bool;",
         "(source_file (data Box (params a) (con Box a)) (type Pred (params) (-> Node Bool)))",
+    );
+}
+
+test "a pattern synonym keeps its parameters and body" {
+    try expectSexpr(
+        "pattern Arrow <- :arrow_function {}; pattern Call f a <- :call_expression { #function = f, #arguments = a };",
+        "(source_file (pattern Arrow (params) (node (kind arrow_function))) " ++
+            "(pattern Call (params f a) (node (kind call_expression) (#function f) (#arguments a))))",
+    );
+}
+
+test "a pattern synonym signature" {
+    try expectSexpr(
+        "pattern Call :: Node -> Node -> Node;",
+        "(source_file (pattern_signature Call (-> Node (-> Node Node))))",
+    );
+}
+
+test "pattern names a value where a declaration starts" {
+    try expectSexpr(
+        "pattern :: Int -> Int; pattern x = x;",
+        "(source_file (signature pattern (-> Int Int)) (define pattern (params x) x))",
+    );
+}
+
+test "export and import lists name a pattern synonym" {
+    try expectSexpr(
+        \\module A (pattern Call, pattern);
+        \\import B (pattern Text);
+        \\import C hiding (pattern Arrow);
+        \\pattern = 1;
+    ,
+        "(source_file (module A (exports (pattern Call) pattern)) (import B (items (pattern Text))) " ++
+            "(import C (hiding (pattern Arrow))) (define pattern (params) 1))",
+    );
+}
+
+test "of_shape takes an atomic pattern and applies as a function" {
+    try expectSexpr(
+        "main = descendants | of_shape (Call (Text \"f\") _); keep = of_shape Arrow root;",
+        "(source_file (define main (params) (| descendants (of_shape (Call (Text (string \"f\")) _)))) " ++
+            "(define keep (params) (apply (of_shape Arrow) root)))",
     );
 }
 

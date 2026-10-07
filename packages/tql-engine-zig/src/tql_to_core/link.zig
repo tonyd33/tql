@@ -15,6 +15,7 @@ const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
 const scope_mod = @import("scope.zig");
 const desugar = @import("desugar.zig");
+const match = @import("match.zig");
 const primitives = @import("../primitives.zig");
 const datatypes = core.datatypes;
 const types = core.types;
@@ -307,16 +308,22 @@ pub const Desugarer = struct {
         defer declarations.deinit();
 
         if (!try scope.checkItems(sink)) return error.DesugarFailed;
-        var failed = false;
+        var failed = !try checkSynonymCycles(self.allocator, &scope, declarations.synonyms.items, sink);
 
+        // A synonym's matcher is a definition, linked after the module's own.
+        const written = declarations.items.items.len;
         const offset: u32 = @intCast(self.linked.count());
         for (declarations.items.items, 0..) |d, i| {
             const index: u32 = @intCast(i);
             try self.linked.put(self.allocator, d.symbol, offset + index);
         }
+        for (declarations.synonyms.items, written..) |s, i| {
+            const index: u32 = @intCast(i);
+            try self.linked.put(self.allocator, s.symbol, offset + index);
+        }
 
-        const definitions = try builder.slice(core.Definition, declarations.items.items.len);
-        const edges = try builder.slice([]const u32, declarations.items.items.len);
+        const definitions = try builder.slice(core.Definition, written + declarations.synonyms.items.len);
+        const edges = try builder.slice([]const u32, definitions.len);
         @memset(edges, &.{});
 
         // IMPROVE: desugar the entire module at once with a single desugar pass?
@@ -350,6 +357,56 @@ pub const Desugarer = struct {
                 .span = d.definition.span,
             };
             edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
+        }
+
+        if (!failed) for (declarations.synonyms.items, written..) |s, i| {
+            var lowerer = desugar.Lowerer.init(
+                builder,
+                &self.env.?,
+                &scope,
+                &self.linked,
+                if (g) |known| known.language else null,
+                sink,
+            );
+            defer lowerer.deinit();
+
+            const body = match.matcherOf(&lowerer, s.declaration) catch |err| switch (err) {
+                error.DesugarFailed => {
+                    failed = true;
+                    continue;
+                },
+                else => |e| return e,
+            };
+
+            definitions[i] = .{
+                .symbol = s.symbol,
+                .body = body,
+                .span = s.declaration.span,
+            };
+            edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
+            try self.env.?.markAlwaysInline(s.symbol);
+        };
+
+        for (declarations.synonyms.items) |s| {
+            const signature = s.signature orelse continue;
+            const scheme = annotation.translateSynonym(
+                builder.allocator,
+                self.allocator,
+                signature,
+                @intCast(s.declaration.parameters.len),
+                &scope,
+                sink,
+            ) catch |err| switch (err) {
+                error.BadAnnotation => {
+                    failed = true;
+                    continue;
+                },
+                else => |e| return e,
+            };
+            try self.env.?.annotate(s.symbol, .{
+                .scheme = scheme,
+                .span = signature.span,
+            });
         }
 
         for (declarations.items.items) |d| {
@@ -442,6 +499,85 @@ pub const Desugarer = struct {
         };
     }
 };
+
+/// Reports each synonym whose body uses itself, directly or through other
+/// synonyms of `synonyms`. Returns whether there was none.
+fn checkSynonymCycles(
+    gpa: std.mem.Allocator,
+    scope: *const ModuleScope,
+    synonyms: []const resolve.Synonym,
+    sink: *diagnostic.Sink,
+) !bool {
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const edges = try allocator.alloc([]const u32, synonyms.len);
+    for (synonyms, edges) |s, *edge| {
+        var used: std.ArrayList(u32) = .empty;
+        try synonymsUsed(allocator, scope, synonyms, s.declaration.body, &used);
+        edge.* = used.items;
+    }
+
+    var found = try core.components.stronglyConnectedComponents(gpa, edges);
+    defer found.deinit();
+
+    var ok = true;
+    for (found.groups) |members| {
+        if (!core.components.cyclic(members, edges)) continue;
+        ok = false;
+        for (members) |member| {
+            var others: std.Io.Writer.Allocating = .init(allocator);
+            for (members) |other| {
+                if (other == member) continue;
+                try others.writer.print(", through `{s}`", .{synonyms[other].name});
+            }
+            try sink.report(
+                .cyclic_synonym,
+                synonyms[member].declaration.span,
+                "`{s}` is defined in terms of itself{s}",
+                .{ synonyms[member].name, others.written() },
+            );
+        }
+    }
+    return ok;
+}
+
+/// Appends the index in `synonyms` of each one `pattern` uses.
+fn synonymsUsed(
+    allocator: std.mem.Allocator,
+    scope: *const ModuleScope,
+    synonyms: []const resolve.Synonym,
+    pattern: cst.Pattern,
+    out: *std.ArrayList(u32),
+) !void {
+    switch (pattern.kind) {
+        .variable, .literal, .boolean => {},
+        .constructor, .synonym => |c| {
+            if (c.builtin == null) {
+                if (scope.value(c.name) == .found) {
+                    const symbol = scope.value(c.name).found;
+                    for (synonyms, 0..) |s, i| {
+                        if (s.symbol == symbol) try out.append(allocator, @intCast(i));
+                    }
+                }
+            }
+            for (c.arguments) |argument| try synonymsUsed(allocator, scope, synonyms, argument, out);
+        },
+        .list => |elements| for (elements) |element| try synonymsUsed(allocator, scope, synonyms, element, out),
+        .cons => |c| {
+            try synonymsUsed(allocator, scope, synonyms, c.head, out);
+            try synonymsUsed(allocator, scope, synonyms, c.tail, out);
+        },
+        .as => |a| try synonymsUsed(allocator, scope, synonyms, a.pattern, out),
+        .conjunction => |c| {
+            try synonymsUsed(allocator, scope, synonyms, c.left, out);
+            try synonymsUsed(allocator, scope, synonyms, c.right, out);
+        },
+        .view => |v| try synonymsUsed(allocator, scope, synonyms, v.pattern, out),
+        .node => |n| for (n.fields) |f| try synonymsUsed(allocator, scope, synonyms, f.pattern, out),
+    }
+}
 
 /// Appends every type name `t` mentions to `out`.
 fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8)) !void {

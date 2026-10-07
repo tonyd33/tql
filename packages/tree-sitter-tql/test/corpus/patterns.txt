@@ -795,3 +795,166 @@ main = do { :pair { #key = k, value = v } <- xs; k };
 ---
 
 (source_file)
+
+================================================================================
+a pattern synonym with no parameters
+================================================================================
+
+pattern Arrow <- :arrow_function {};
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    pattern: (node_pattern
+      kind: (kind))))
+
+================================================================================
+a pattern synonym with one parameter
+================================================================================
+
+pattern Text s <- (text -> s);
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    parameter: (identifier)
+    pattern: (view_pattern
+      view: (identifier)
+      pattern: (identifier))))
+
+================================================================================
+a pattern synonym with two parameters
+================================================================================
+
+pattern MemberCall obj prop <- :call_expression {
+  #function = :member_expression { #object = obj, #property = prop },
+};
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    parameter: (identifier)
+    parameter: (identifier)
+    pattern: (node_pattern
+      kind: (kind)
+      field: (field_pattern
+        name: (field_name)
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))))))
+
+================================================================================
+a pattern synonym signature
+================================================================================
+
+pattern MemberCall :: Node -> Node -> Node;
+
+---
+
+(source_file
+  (pattern_signature
+    name: (type_identifier)
+    type: (function_type
+      from: (type_identifier)
+      to: (function_type
+        from: (type_identifier)
+        to: (type_identifier)))))
+
+================================================================================
+pattern names a value where a declaration starts
+================================================================================
+
+pattern :: Int -> Int;
+pattern x = x;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_identifier)
+      to: (type_identifier)))
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (identifier)))
+
+================================================================================
+of_shape takes an atomic pattern
+================================================================================
+
+main = of_shape :arrow_function {};
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (of_shape
+      pattern: (node_pattern
+        kind: (kind)))))
+
+================================================================================
+of_shape takes a parenthesized synonym application
+================================================================================
+
+main = of_shape (MemberCall (Text "console") _);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (of_shape
+      pattern: (parenthesized_pattern
+        (constructor_pattern
+          constructor: (type_identifier)
+          argument: (parenthesized_pattern
+            (constructor_pattern
+              constructor: (type_identifier)
+              argument: (string)))
+          argument: (identifier))))))
+
+================================================================================
+of_shape in a pipeline
+================================================================================
+
+main = descendants | of_shape Arrow;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (identifier)
+      right: (of_shape
+        pattern: (type_identifier)))))
+
+================================================================================
+of_shape applied to an argument applies the filter
+================================================================================
+
+main = of_shape PromiseAll outer;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (of_shape
+        pattern: (type_identifier))
+      argument: (identifier))))

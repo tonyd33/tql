@@ -15,6 +15,8 @@
   "hiding"
   "for"
   "as"
+  "pattern"
+  "of_shape"
 ] @keyword
 
 (module_name) @module
@@ -40,6 +42,7 @@
 (binding name: (_) @function)
 (binding parameter: (_) @variable.parameter)
 (lambda parameter: (_) @variable.parameter)
+(pattern_synonym parameter: (_) @variable.parameter)
 (bind_statement pattern: (identifier) @variable)
 (as_pattern name: (_) @variable)
 (infix_application function: (identifier) @function)

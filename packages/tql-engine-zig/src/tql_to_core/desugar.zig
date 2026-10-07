@@ -87,6 +87,10 @@ pub const Lowerer = struct {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         };
+        if (self.env.interner.details(id) == .synonym) {
+            try self.sink.report(.unresolved_name, span, "`{s}` is a pattern synonym, which matches but does not build", .{name});
+            return error.DesugarFailed;
+        }
         if (datatypes.ownerOf(&self.env.interner, id) == null) {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
@@ -94,7 +98,7 @@ pub const Lowerer = struct {
         return self.builder.symbol(id, span);
     }
 
-    fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
+    pub fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
         const index = self.linked.get(symbol) orelse return;
         for (self.references.items) |existing| {
             if (existing == index) return;
@@ -253,6 +257,11 @@ pub const Lowerer = struct {
 
             // Parentheses are grouping only; the CST keeps them, Core does not.
             .parenthesized => |inner| return try self.expression(inner.*, scope),
+
+            .of_shape => {
+                try self.sink.report(.parse, e.span, "`of_shape` is not supported yet", .{});
+                return error.DesugarFailed;
+            },
 
             .name => |name| {
                 if (scope) |s| {

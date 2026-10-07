@@ -1,0 +1,27 @@
+title: a case of synonym rows alone is not exhaustive
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Pair a b <- [a, b];
+pattern Single a <- [a];
+
+size xs = case xs of {
+  Pair _ _ -> 2;
+  Single _ -> 1;
+};
+
+main root = [size [1]];
+
+--- error ---
+error[type-mismatch]: `_` is not matched
+ --> 4:11
+  |
+4 | size xs = case xs of {
+  |           ^^^^^^^^^^^^
+5 |   Pair _ _ -> 2;
+  |   ^^^^^^^^^^^^^^
+6 |   Single _ -> 1;
+  |   ^^^^^^^^^^^^^^
+7 | };
+  | ^

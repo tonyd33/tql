@@ -1,0 +1,15 @@
+title: a synonym parameter its body binds twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Twice a <- [a, a];
+
+main root = 1;
+
+--- error ---
+error[duplicate-definition]: `a` is bound twice in one pattern
+ --> 1:24
+  |
+1 | pattern Twice a <- [a, a];
+  |                        ^

@@ -236,7 +236,7 @@ pub const Printer = struct {
     }
 
     pub fn definition(self: Printer, name: SymbolId, body: Term, w: *std.Io.Writer) Error!void {
-        try w.print("{s} =", .{self.interner.spelling(name)});
+        try w.print("{f} =", .{self.interner.printed(name)});
         try self.writeAfterArrow(body, w, 0, null);
     }
 

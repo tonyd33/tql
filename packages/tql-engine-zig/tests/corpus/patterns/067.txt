@@ -1,0 +1,21 @@
+title: a synonym signature equal to its inferred scheme
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pattern Callee :: Node -> Node;
+pattern Callee f <- :call_expression { #function = f };
+
+main root = do {
+  Callee f <- descendants root;
+  return (text f);
+};
+
+--- source ---
+f(1);
+
+--- values ---
+["f"]
+--- types ---
+main :: Node -> [String]
+Callee :: Node -> Node

@@ -82,11 +82,12 @@ module.exports = grammar({
 
     item: $ =>
       choice(
-        field("name", $.identifier),
+        field("name", value_name($)),
         seq(
           field("name", $.type_identifier),
           optional(field("constructors", $.all_constructors)),
         ),
+        seq("pattern", field("synonym", $.type_identifier)),
       ),
 
     all_constructors: _ => seq("(", "..", ")"),
@@ -102,7 +103,33 @@ module.exports = grammar({
     comment: _ => token(seq("--", /.*/)),
 
     _declaration: $ =>
-      choice($.signature, $.definition, $.data_declaration, $.type_alias),
+      choice(
+        $.signature,
+        $.definition,
+        $.data_declaration,
+        $.type_alias,
+        $.pattern_synonym,
+        $.pattern_signature,
+      ),
+
+    pattern_synonym: $ =>
+      seq(
+        "pattern",
+        field("name", $.type_identifier),
+        repeat(field("parameter", $.identifier)),
+        "<-",
+        field("pattern", $._pattern),
+        ";",
+      ),
+
+    pattern_signature: $ =>
+      seq(
+        "pattern",
+        field("name", $.type_identifier),
+        "::",
+        field("type", $._type),
+        ";",
+      ),
 
     data_declaration: $ =>
       seq(
@@ -132,7 +159,7 @@ module.exports = grammar({
 
     signature: $ =>
       seq(
-        field("name", $.identifier),
+        field("name", value_name($)),
         "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
@@ -158,7 +185,7 @@ module.exports = grammar({
 
     definition: $ =>
       seq(
-        field("name", $.identifier),
+        field("name", value_name($)),
         repeat(field("parameter", $.identifier)),
         "=",
         field("body", $._expression),
@@ -452,6 +479,8 @@ module.exports = grammar({
 
     parenthesized_pattern: $ => seq("(", $._pattern, ")"),
 
+    of_shape: $ => seq("of_shape", field("pattern", $._atomic_pattern)),
+
     if_expression: $ =>
       prec.right(
         seq(
@@ -494,6 +523,7 @@ module.exports = grammar({
         $.do_expression,
         $.if_expression,
         $.case_expression,
+        $.of_shape,
         $.qualified_identifier,
         $._constructor,
       ),
@@ -647,6 +677,15 @@ module.exports = grammar({
     regex: _ => token(seq('r"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
   },
 });
+
+/**
+ * A value's name where a declaration or item may start, which may be spelled
+ * `pattern`.
+ * @param {GrammarSymbols<string>} $
+ */
+function value_name($) {
+  return choice($.identifier, alias("pattern", $.identifier));
+}
 
 function sep1(rule, sep) {
   return seq(rule, repeat(seq(sep, rule)));

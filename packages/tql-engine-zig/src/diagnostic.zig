@@ -136,6 +136,7 @@ pub const Category = enum {
     main_parameters,
     signature_mismatch,
     cyclic_alias,
+    cyclic_synonym,
     limit,
 
     pub fn name(self: Category) []const u8 {
@@ -167,6 +168,7 @@ pub const Category = enum {
             .main_parameters => "main-parameters",
             .signature_mismatch => "signature-mismatch",
             .cyclic_alias => "cyclic-alias",
+            .cyclic_synonym => "cyclic-synonym",
             .limit => "limit",
         };
     }

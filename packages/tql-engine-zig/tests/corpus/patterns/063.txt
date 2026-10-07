@@ -1,0 +1,20 @@
+title: a synonym whose body always matches
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pattern Id x <- x;
+
+main root = do {
+  Id n <- children root;
+  return (kind_name n);
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+["lexical_declaration"]
+--- types ---
+main :: Node -> [String]
+Id :: a -> a

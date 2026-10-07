@@ -41,11 +41,13 @@ const Subject = union(enum) {
     type: []const u8,
     /// A constructor, admitted only through `T(..)` for its type.
     constructors_of: []const u8,
+    synonym: []const u8,
 
     fn of(item: cst.Item) Subject {
         return switch (item.kind) {
             .value => .{ .value = item.name },
             .type, .type_and_constructors => .{ .type = item.name },
+            .synonym => .{ .synonym = item.name },
         };
     }
 };
@@ -62,8 +64,9 @@ fn listed(items: []const cst.Item, subject: Subject) bool {
     for (items) |item| {
         const matches = switch (subject) {
             .value => |name| item.kind == .value and std.mem.eql(u8, item.name, name),
-            .type => |name| item.kind != .value and std.mem.eql(u8, item.name, name),
+            .type => |name| (item.kind == .type or item.kind == .type_and_constructors) and std.mem.eql(u8, item.name, name),
             .constructors_of => |name| item.kind == .type_and_constructors and std.mem.eql(u8, item.name, name),
+            .synonym => |name| item.kind == .synonym and std.mem.eql(u8, item.name, name),
         };
         if (matches) return true;
     }
@@ -154,6 +157,7 @@ pub const ModuleScope = struct {
     }
 
     fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
+        if (self.interner.details(symbol) == .synonym) return .{ .synonym = name };
         const owner = datatypes.ownerOf(self.interner, symbol) orelse return .{ .value = name };
         return .{ .constructors_of = self.datatypes.get(owner).name };
     }
@@ -220,6 +224,10 @@ pub const ModuleScope = struct {
             else
                 false,
             .type, .type_and_constructors => declaredType(self, module, item.name) != null,
+            .synonym => if (self.interner.lookup(module, item.name)) |symbol|
+                self.interner.details(symbol) == .synonym
+            else
+                false,
         };
         if (!declared) {
             if (module == self.module) {

@@ -44,12 +44,23 @@ pub const Declaration = struct {
     signature: ?*const cst.Signature = null,
 };
 
+/// A collected pattern synonym: the declaration, its symbol, and the
+/// signature that annotates it, if any.
+pub const Synonym = struct {
+    name: []const u8,
+    symbol: core.SymbolId,
+    declaration: *const cst.PatternSynonym,
+    signature: ?*const cst.PatternSignature = null,
+};
+
 pub const Declarations = struct {
     allocator: std.mem.Allocator,
     items: std.ArrayList(Declaration) = .empty,
+    synonyms: std.ArrayList(Synonym) = .empty,
 
     pub fn deinit(self: *Declarations) void {
         self.items.deinit(self.allocator);
+        self.synonyms.deinit(self.allocator);
     }
 
     pub fn find(self: *const Declarations, name: []const u8) ?*const Declaration {
@@ -146,7 +157,82 @@ pub fn collect(
         target.signature = signature;
     }
 
+    try collectSynonyms(&declarations, interner, module, source, sink);
     return declarations;
+}
+
+fn collectSynonyms(
+    declarations: *Declarations,
+    interner: *core.Interner,
+    module: core.ModuleId,
+    source: cst.SourceFile,
+    sink: *diagnostic.Sink,
+) !void {
+    for (source.declarations) |*decl| {
+        if (decl.* != .pattern_synonym) continue;
+        const synonym = &decl.pattern_synonym;
+
+        const repeated = for (declarations.synonyms.items) |earlier| {
+            if (std.mem.eql(u8, earlier.name, synonym.name)) break true;
+        } else false;
+        if (repeated) {
+            try sink.report(
+                .duplicate_definition,
+                synonym.span,
+                "`{s}` is defined more than once",
+                .{synonym.name},
+            );
+            continue;
+        }
+
+        const arity: u32 = @intCast(synonym.parameters.len);
+        const symbol = interner.intern(module, synonym.name, .{ .synonym = .{ .arity = arity } }) catch |err| switch (err) {
+            error.Collision => {
+                try sink.report(
+                    .symbol_collision,
+                    synonym.span,
+                    "`{s}` collides with an existing symbol",
+                    .{synonym.name},
+                );
+                continue;
+            },
+            else => |e| return e,
+        };
+
+        try declarations.synonyms.append(declarations.allocator, .{
+            .name = synonym.name,
+            .symbol = symbol,
+            .declaration = synonym,
+        });
+    }
+
+    for (source.declarations) |*decl| {
+        if (decl.* != .pattern_signature) continue;
+        const signature = &decl.pattern_signature;
+
+        const target = for (declarations.synonyms.items) |*s| {
+            if (std.mem.eql(u8, s.name, signature.name)) break s;
+        } else {
+            try sink.report(
+                .orphan_signature,
+                signature.span,
+                "`{s}` has a signature but no pattern synonym",
+                .{signature.name},
+            );
+            continue;
+        };
+
+        if (target.signature != null) {
+            try sink.report(
+                .duplicate_signature,
+                signature.span,
+                "`{s}` has more than one signature",
+                .{signature.name},
+            );
+            continue;
+        }
+        target.signature = signature;
+    }
 }
 
 test "scopes resolve innermost first" {

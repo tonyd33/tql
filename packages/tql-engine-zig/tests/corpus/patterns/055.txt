@@ -1,0 +1,29 @@
+title: a synonym names a shape with holes that take patterns
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pattern MemberCall obj prop <- :call_expression {
+  #function = :member_expression { #object = obj, #property = prop },
+};
+
+pattern Text s <- (text -> s);
+
+main root = do {
+  call@(MemberCall (Text "console") (Text "error")) <- descendants root;
+  guard $ not $ has (ancestors | of_kind :catch_clause) call;
+  return (text call);
+};
+
+--- source ---
+console.error("a");
+console.log("b");
+foo.error("c");
+try { console.error("d"); } catch (e) { console.error("e"); }
+
+--- values ---
+["console.error(\"a\")","console.error(\"d\")"]
+--- types ---
+main :: Node -> [String]
+MemberCall :: Node -> Node -> Node
+Text :: String -> Node

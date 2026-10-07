@@ -1,0 +1,15 @@
+title: a synonym in expression position
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee f <- :call_expression { #function = f };
+
+main root = [Callee];
+
+--- error ---
+error[unresolved-name]: `Callee` is a pattern synonym, which matches but does not build
+ --> 3:14
+  |
+3 | main root = [Callee];
+  |              ^^^^^^

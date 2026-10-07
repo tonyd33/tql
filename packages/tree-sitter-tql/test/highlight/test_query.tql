@@ -72,3 +72,11 @@ callee root = do {
 
 sign n = case n of { 0 -> 0; m if m > 0 -> 1; _ -> 0 - 1 };
 --                             ^ keyword
+
+pattern Callee c <- :call_expression { #function = c };
+-- <- keyword
+--      ^ type
+--             ^ variable.parameter
+
+arrows = descendants | of_shape :arrow_function {};
+--                     ^ keyword

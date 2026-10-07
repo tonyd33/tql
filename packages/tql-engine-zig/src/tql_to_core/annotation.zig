@@ -54,6 +54,58 @@ pub fn translate(
     };
 }
 
+/// Translates a pattern synonym's signature `P :: T_1 -> .. -> T_n -> T` into
+/// its matcher's scheme, `forall r. T -> (T_1 -> .. -> T_n -> r) -> r -> r`.
+pub fn translateSynonym(
+    arena: Allocator,
+    gpa: Allocator,
+    signature: *const cst.PatternSignature,
+    arity: u32,
+    scope: *const ModuleScope,
+    sink: *diagnostic.Sink,
+) Error!types.Scheme {
+    const written: cst.Signature = .{ .name = signature.name, .type = signature.type, .span = signature.span };
+    const scheme = try translate(arena, gpa, &written, scope, sink);
+    if (scheme.quantified == std.math.maxInt(types.TypeVar)) {
+        try sink.report(
+            .limit,
+            signature.span,
+            "a signature has more than {d} type variables",
+            .{std.math.maxInt(types.TypeVar) - 1},
+        );
+        return error.BadAnnotation;
+    }
+
+    const holes = try gpa.alloc(types.Type, arity);
+    defer gpa.free(holes);
+    var matched = scheme.type;
+    for (holes, 0..) |*hole, i| {
+        const arrow = types.arrowOf(matched) orelse {
+            try sink.report(
+                .signature_mismatch,
+                signature.span,
+                "`{s}` takes {d} argument(s), but its signature gives {d}",
+                .{ signature.name, arity, i },
+            );
+            return error.BadAnnotation;
+        };
+        hole.* = arrow.from;
+        matched = arrow.to;
+    }
+
+    const result = types.variable_type(scheme.quantified);
+    var continuation = result;
+    var i = holes.len;
+    while (i > 0) {
+        i -= 1;
+        continuation = try types.func(arena, holes[i], continuation);
+    }
+    return .{
+        .quantified = scheme.quantified + 1,
+        .type = try types.func(arena, matched, try types.func(arena, continuation, try types.func(arena, result, result))),
+    };
+}
+
 /// Translates an alias declaration's body, numbering its variables by
 /// parameter position.
 ///

@@ -104,6 +104,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -268,6 +272,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -429,6 +437,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -576,6 +588,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -899,6 +915,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -1072,6 +1092,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -1251,6 +1275,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -1398,6 +1426,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -1619,6 +1651,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -1811,6 +1847,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -1999,6 +2039,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -2155,6 +2199,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -2302,6 +2350,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -2587,6 +2639,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -2734,6 +2790,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -3186,6 +3246,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -3370,6 +3434,10 @@
           "named": true
         },
         {
+          "type": "of_shape",
+          "named": true
+        },
+        {
           "type": "operator_name",
           "named": true
         },
@@ -3525,6 +3593,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -3672,6 +3744,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -3838,6 +3914,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -4227,6 +4307,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -4377,6 +4461,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -4524,6 +4612,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -4751,6 +4843,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -4901,6 +4997,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -4968,12 +5068,22 @@
       },
       "name": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "identifier",
             "named": true
           },
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "synonym": {
+        "multiple": false,
+        "required": false,
+        "types": [
           {
             "type": "type_identifier",
             "named": true
@@ -5099,6 +5209,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -5281,6 +5395,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -5544,6 +5662,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -5717,6 +5839,10 @@
         },
         {
           "type": "number",
+          "named": true
+        },
+        {
+          "type": "of_shape",
           "named": true
         },
         {
@@ -5989,6 +6115,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -6136,6 +6266,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -6295,6 +6429,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -6442,6 +6580,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -6637,6 +6779,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -6802,6 +6948,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -6971,6 +7121,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -7042,6 +7196,70 @@
         "types": [
           {
             "type": "kind",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "of_shape",
+    "named": true,
+    "fields": {
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "as_pattern",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized_pattern",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "view_pattern",
             "named": true
           }
         ]
@@ -7253,6 +7471,10 @@
           "named": true
         },
         {
+          "type": "of_shape",
+          "named": true
+        },
+        {
           "type": "operator_name",
           "named": true
         },
@@ -7418,6 +7640,152 @@
     }
   },
   {
+    "type": "pattern_signature",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "filter_type",
+            "named": true
+          },
+          {
+            "type": "function_type",
+            "named": true
+          },
+          {
+            "type": "list_type",
+            "named": true
+          },
+          {
+            "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "record_type",
+            "named": true
+          },
+          {
+            "type": "type_application",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "pattern_synonym",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameter": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "as_pattern",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "conjunction_pattern",
+            "named": true
+          },
+          {
+            "type": "cons_pattern",
+            "named": true
+          },
+          {
+            "type": "constructor_pattern",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "list_pattern",
+            "named": true
+          },
+          {
+            "type": "node_pattern",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "parenthesized_pattern",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "view_pattern",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "pipe",
     "named": true,
     "fields": {
@@ -7519,6 +7887,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -7669,6 +8041,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -7850,6 +8226,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -8183,6 +8563,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -8341,6 +8725,14 @@
           "named": true
         },
         {
+          "type": "pattern_signature",
+          "named": true
+        },
+        {
+          "type": "pattern_synonym",
+          "named": true
+        },
+        {
           "type": "signature",
           "named": true
         },
@@ -8453,6 +8845,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -8603,6 +8999,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -8880,6 +9280,10 @@
             "named": true
           },
           {
+            "type": "of_shape",
+            "named": true
+          },
+          {
             "type": "operator_name",
             "named": true
           },
@@ -9027,6 +9431,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -9245,6 +9653,10 @@
           },
           {
             "type": "number",
+            "named": true
+          },
+          {
+            "type": "of_shape",
             "named": true
           },
           {
@@ -9521,7 +9933,15 @@
     "named": false
   },
   {
+    "type": "of_shape",
+    "named": false
+  },
+  {
     "type": "or",
+    "named": false
+  },
+  {
+    "type": "pattern",
     "named": false
   },
   {

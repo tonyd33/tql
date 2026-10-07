@@ -61,7 +61,7 @@ pub fn outerPrimes(interner: *const symbols.Interner, id: SymbolId, scope: ?*Sco
 }
 
 pub fn writeName(interner: *const symbols.Interner, id: SymbolId, w: *std.Io.Writer, scope: ?*Scope) Error!void {
-    try w.writeAll(interner.spelling(id));
+    try interner.printed(id).format(w);
     try w.splatByteAll('\'', outerPrimes(interner, id, scope) orelse 0);
 }
 
