@@ -1,0 +1,8 @@
+leaf n = {
+  kind = kind n,
+  text = text n,
+  row = (range n).start_point.row,
+  column = (range n).start_point.column,
+};
+
+main = descendants | keep is_named | keep (null . named_children) | arr leaf;

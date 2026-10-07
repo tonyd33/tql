@@ -56,6 +56,8 @@ fn runImpl(
     jws.endWriteRaw();
     try jws.objectField("stats");
     try jws.beginObject();
+    try jws.objectField("compile");
+    try jws.write(compiled.times);
     try jws.objectField("parse_time_ns");
     try jws.write(run_result.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");

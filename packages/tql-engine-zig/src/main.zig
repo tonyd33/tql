@@ -948,8 +948,12 @@ const FileStats = struct {
     query_time: std.Io.Duration = .zero,
 };
 
-fn writeStats(jws: *std.json.Stringify, stats: FileStats, peak_rss: ?u64) !void {
+fn writeStats(jws: *std.json.Stringify, stats: FileStats, peak_rss: ?u64, compile: ?tql.CompileTimes) !void {
     try jws.beginObject();
+    if (compile) |times| {
+        try jws.objectField("compile");
+        try jws.write(times);
+    }
     try jws.objectField("read_time_ns");
     try jws.write(stats.read_time.nanoseconds);
     try jws.objectField("parse_time_ns");
@@ -1141,12 +1145,12 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         try jws.writer.writeAll(result.values);
         jws.endWriteRaw();
         try jws.objectField("stats");
-        try writeStats(jws, result.stats, null);
+        try writeStats(jws, result.stats, null, null);
         try jws.endObject();
     }
     try jws.endArray();
     try jws.objectField("stats");
-    try writeStats(jws, totals, peakRss());
+    try writeStats(jws, totals, peakRss(), ctx.compiled.times);
     try jws.endObject();
 }
 

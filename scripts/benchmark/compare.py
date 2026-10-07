@@ -12,14 +12,14 @@ number of runs. Runs on the same machine are correlated, so pooling them as
 independent samples would overstate precision.
 
 Usage:
-    compare.py --head DIR --base DIR [--markdown FILE]
+    compare.py --head DIR --base DIR [--markdown FILE] [--json FILE]
     compare.py --example
 
 Each `*.jsonl` file in DIR holds one machine's runs, and its stem names the
 machine: a head file and a base file with the same stem are paired. The
-report goes to stdout unless `--markdown` names a file. The exit status is 1
-when a benchmark regressed past `--regression-pct`, exceeded its `limit_s`,
-or failed on head.
+report goes to stdout unless `--markdown` names a file. `--json` writes every
+field's comparison in full. The exit status is 1 when a benchmark regressed
+past `--regression-pct`, exceeded its `limit_s`, or failed on head.
 """
 
 from __future__ import annotations
@@ -146,13 +146,21 @@ GRID = [
     0.0, 0.02, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30,
 ]
 
-FIELDS = {
-    "read_time_ns": "Read",
-    "parse_time_ns": "Parse",
-    "query_time_ns": "Query",
-    "wall_time_ns": "Wall",
-    "peak_rss_bytes": "Peak RSS",
-}
+FIELDS = [
+    "read_time_ns",
+    "parse_time_ns",
+    "query_time_ns",
+    "wall_time_ns",
+    "peak_rss_bytes",
+    "compile_ns",
+    "compile_parse_ns",
+    "compile_load_ns",
+    "compile_prelude_ns",
+    "compile_desugar_ns",
+    "compile_type_check_ns",
+    "compile_simplify_ns",
+    "compile_translate_ns",
+]
 
 GATED = "query_time_ns"
 
@@ -165,6 +173,11 @@ def load(directory: Path) -> Runs:
     for file in sorted(directory.glob("*.jsonl")):
         for line in file.read_text().splitlines():
             record = json.loads(line)
+            compile_times = record.pop("compile", None)
+            if compile_times is not None:
+                for stage, ns in compile_times.items():
+                    record[f"compile_{stage}"] = ns
+                record["compile_ns"] = sum(compile_times.values())
             runs.setdefault(record["benchmark"], {}).setdefault(file.stem, []).append(record)
     return runs
 
@@ -203,6 +216,8 @@ def compare(head: dict[str, list[dict]], base: dict[str, list[dict]], key: str) 
 def fmt(key: str, value: float) -> str:
     if key == "peak_rss_bytes":
         return f"{value / 2**20:.0f} MiB"
+    if key.startswith("compile"):
+        return f"{value / 1e6:.1f}ms"
     return f"{value / 1e9:.2f}s"
 
 
@@ -243,40 +258,24 @@ def problems(name: str, head: dict[str, list[dict]], base: dict[str, list[dict]]
     return [f"⚠️ **{name}**: {p}" for p in found]
 
 
-def details(name: str, head: dict[str, list[dict]], base: dict[str, list[dict]]) -> list[str]:
-    q = compare(head, base, GATED)
-    if q is None:
-        return []
-    lines = [
-        "",
-        f"<details><summary>{name}</summary>",
-        "",
-        "| Stage | Head median | Base median | Δ (paired) | 95% confidence |",
-        "| --- | --- | --- | --- | --- |",
-    ]
-    for key, label in FIELDS.items():
-        if compare(head, base, key) is not None:
-            lines.append(f"| {label} | " + " | ".join(cells(key, head, base)) + " |")
-    lines += [
-        "",
-        "| Machine | Query Δ |",
-        "| --- | --- |",
-        *(f"| {m} | {pct(math.exp(d) - 1.0)} |" for m, d in q.paired.by_machine.items()),
-        "",
-        f"Paired across {q.paired.n} machines (df={q.paired.df}); sample size is machines, not runs, since same-machine runs are correlated.",
-        "",
-        f"- 95% confident: {bound_phrase(GATED, q.paired.bound(0.95))}",
-        f"- 99% confident: {bound_phrase(GATED, q.paired.bound(0.99))}",
-        "",
-        "| Head faster by at least | Confidence |",
-        "| --- | --- |",
-        *(f"| {'+' if x >= 0 else ''}{x * 100:.0f}% | {q.paired.confidence(x) * 100:.1f}% |" for x in GRID),
-        "",
-        "Negative rows read as regressions: the +0% row is the confidence that head is faster at all.",
-        "",
-        "</details>",
-    ]
-    return lines
+def comparison(head: Runs, base: Runs) -> dict:
+    """Returns every field's paired comparison per benchmark head ran, as plain data."""
+    out = {}
+    for name in sorted(head):
+        fields = {}
+        for key in FIELDS:
+            c = compare(head[name], base.get(name, {}), key)
+            fields[key] = None if c is None else {
+                "head_median": c.head,
+                "base_median": c.base,
+                "speedup": c.paired.point_estimate,
+                "bound_95": c.paired.bound(0.95),
+                "bound_99": c.paired.bound(0.99),
+                "per_machine_speedup": {m: 1.0 - math.exp(d) for m, d in c.paired.by_machine.items()},
+                "curve": [{"x": x, "confidence": c.paired.confidence(x)} for x in GRID],
+            }
+        out[name] = fields
+    return out
 
 
 def report(head: Runs, base: Runs, regression_pct: float, base_ref: str | None) -> tuple[str, bool]:
@@ -296,15 +295,15 @@ def report(head: Runs, base: Runs, regression_pct: float, base_ref: str | None) 
         lines.append(f"Base: `{base_ref[:7]}`")
     lines += [
         "",
-        "| Benchmark | Query (head) | Query (base) | Δ | 95% confidence | Peak RSS (head) | Peak RSS (base) | Δ |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Benchmark | Query (head) | Query (base) | Δ | 95% confidence "
+        "| Compile (head) | Compile (base) | Δ | Peak RSS (head) | Peak RSS (base) | Δ |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for n in names:
         query = cells(GATED, head[n], base.get(n, {}))
+        compile_ = cells("compile_ns", head[n], base.get(n, {}))[:3]
         rss = cells("peak_rss_bytes", head[n], base.get(n, {}))[:3]
-        lines.append(f"| {n} | " + " | ".join(query + rss) + " |")
-    for n in names:
-        lines += details(n, head[n], base.get(n, {}))
+        lines.append(f"| {n} | " + " | ".join(query + compile_ + rss) + " |")
     return "\n".join(lines) + "\n", bool(found)
 
 
@@ -328,6 +327,7 @@ def example() -> tuple[Runs, Runs]:
                     "query_time_ns": 10.0e9 * machine_speed * factor * rng.gauss(1.0, 0.03),
                     "wall_time_ns": 9.0e9 * machine_speed * rng.gauss(1.0, 0.03),
                     "peak_rss_bytes": 200 * 2**20 * rng.gauss(1.0, 0.01),
+                    "compile_ns": 2.0e7 * machine_speed * rng.gauss(1.0, 0.03),
                 }
                 for _ in range(3)
             ]
@@ -345,6 +345,7 @@ def main() -> int:
     parser.add_argument("--regression-pct", type=float, default=10.0)
     parser.add_argument("--base-ref", help="commit printed in the report")
     parser.add_argument("--markdown", type=Path, help="write the report here instead of stdout")
+    parser.add_argument("--json", type=Path, help="write every field's comparison here")
     parser.add_argument("--example", action="store_true", help="compare synthetic results")
     args = parser.parse_args()
 
@@ -356,6 +357,8 @@ def main() -> int:
         parser.error("give --head and --base, or --example")
 
     text, failed = report(head, base, args.regression_pct, args.base_ref)
+    if args.json:
+        args.json.write_text(json.dumps(comparison(head, base), indent=2))
     if args.markdown:
         args.markdown.write_text(text)
     else:
