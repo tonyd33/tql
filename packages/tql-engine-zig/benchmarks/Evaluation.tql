@@ -22,20 +22,24 @@ sort_into acc xs = case xs of {
   h : t -> case insert h acc of { [] -> []; s -> sort_into s t; };
 };
 
-large_values sizes = concat_map (\s -> case s of { Large v -> [v]; _ -> []; }) sizes;
+large s = case s of { Large v -> [v]; _ -> []; };
+
+called = descendants_of_kind :call_expression | #function | of_kind :identifier | arr text;
+
+numbers = descendants_of_kind :number_literal | arr text | toint;
 
 main root = do {
   f <- descendants_of_kind :function_definition root;
   name <- first (#declarator | descendants_of_kind :identifier) f;
   body <- #body f;
-  let callees = sort_into [] ((descendants_of_kind :call_expression | #function | of_kind :identifier | arr text) body);
-  let large = large_values (map classify ((descendants_of_kind :number_literal | arr text | toint) body));
-  guard $ not (null large) or length callees >= 8;
+  let callees = sort_into [] (called body);
+  let larges = concat_map large (map classify (numbers body));
+  guard $ not (null larges) or length callees >= 8;
   return {
     name = text name,
     depth = depth body,
     callees = take 5 callees,
-    large = length large,
-    largest = max_of 0 large,
+    large = length larges,
+    largest = max_of 0 larges,
   };
 };

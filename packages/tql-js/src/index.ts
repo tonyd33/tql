@@ -50,7 +50,18 @@ export interface QueryArgs {
   modules?: Record<string, string>;
 }
 
+export interface CompileStats {
+  parse_ns: number;
+  load_ns: number;
+  prelude_ns: number;
+  desugar_ns: number;
+  type_check_ns: number;
+  simplify_ns: number;
+  translate_ns: number;
+}
+
 export interface QueryStats {
+  compile: CompileStats;
   parse_time_ns: number;
   query_time_ns: number;
 }

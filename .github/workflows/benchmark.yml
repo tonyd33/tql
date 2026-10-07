@@ -176,8 +176,16 @@ jobs:
           python3 tql/scripts/benchmark/compare.py \
             --head artifacts/head --base artifacts/base \
             --regression-pct "$REGRESSION_PCT" --base-ref "$BASE_SHA" \
-            --markdown body.md || status=$?
+            --markdown body.md --json comparison.json || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload comparison
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-comparison
+          path: |
+            body.md
+            comparison.json
 
       - name: Job summary
         run: cat body.md >> "$GITHUB_STEP_SUMMARY"
