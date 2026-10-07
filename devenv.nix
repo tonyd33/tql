@@ -205,6 +205,7 @@ let
       go-task
       wasmtime
       python3
+      yq-go
     ];
     query_languages = with pkgs; [
       semgrep
@@ -262,7 +263,7 @@ in
   git-hooks.hooks = {
     nixfmt.enable = true;
     actionlint.enable = true;
-    # zizmor.enable = true;
+    shellcheck.enable = true;
     biome = {
       enable = true;
       args = [ "--no-errors-on-unmatched" ];

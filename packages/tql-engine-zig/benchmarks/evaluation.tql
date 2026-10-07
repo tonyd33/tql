@@ -1,0 +1,41 @@
+data Size = Small | Medium | Large Int;
+
+classify n = if n < 16 then Small else if n < 4096 then Medium else Large n;
+
+max_of acc xs = case xs of {
+  [] -> acc;
+  h : t -> if h > acc then max_of h t else max_of acc t;
+};
+
+depth n = 1 + max_of 0 (map depth (named_children n));
+
+insert x xs = case xs of {
+  [] -> [x];
+  h : t ->
+    if x = h then xs
+    else if x < h then x : xs
+    else case insert x t of { [] -> [h]; r -> h : r; };
+};
+
+sort_into acc xs = case xs of {
+  [] -> acc;
+  h : t -> case insert h acc of { [] -> []; s -> sort_into s t; };
+};
+
+large_values sizes = concat_map (\s -> case s of { Large v -> [v]; _ -> []; }) sizes;
+
+main root = do {
+  f <- descendants_of_kind :function_definition root;
+  name <- first (#declarator | descendants_of_kind :identifier) f;
+  body <- #body f;
+  let callees = sort_into [] ((descendants_of_kind :call_expression | #function | of_kind :identifier | arr text) body);
+  let large = large_values (map classify ((descendants_of_kind :number_literal | arr text | toint) body));
+  guard $ not (null large) or length callees >= 8;
+  return {
+    name = text name,
+    depth = depth body,
+    callees = take 5 callees,
+    large = length large,
+    largest = max_of 0 large,
+  };
+};
