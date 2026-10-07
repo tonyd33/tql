@@ -42,6 +42,31 @@ pub const Parser = parse.Parser;
 pub const Grammar = grammar.Grammar;
 pub const GrammarRegistry = grammar.Registry;
 
+/// How long each stage of compiling a query took.
+pub const CompileTimes = struct {
+    parse: std.Io.Duration = .zero,
+    /// Reading and parsing every module the query imports.
+    load: std.Io.Duration = .zero,
+    /// Parsing and desugaring `prelude.tql`.
+    prelude: std.Io.Duration = .zero,
+    /// Desugaring and linking the query and its imports.
+    desugar: std.Io.Duration = .zero,
+    type_check: std.Io.Duration = .zero,
+    /// `core_to_core`.
+    simplify: std.Io.Duration = .zero,
+    translate: std.Io.Duration = .zero,
+
+    /// Write each stage as `<stage>_ns`.
+    pub fn jsonStringify(self: CompileTimes, jws: anytype) !void {
+        try jws.beginObject();
+        inline for (std.meta.fields(CompileTimes)) |f| {
+            try jws.objectField(f.name ++ "_ns");
+            try jws.write(@field(self, f.name).nanoseconds);
+        }
+        try jws.endObject();
+    }
+};
+
 pub const Config = struct {
     allocator: Allocator,
     // Do I really need this?
@@ -57,6 +82,8 @@ pub const Engine = struct {
     bundled: []const load.Bundled = bundled_modules,
     /// What the latest compilation read besides its query.
     sources: diagnostic.Sources,
+    /// How long the latest compilation's stages took, up to type checking.
+    times: CompileTimes = .{},
 
     pub fn init(config: Config) !Engine {
         return Engine{
@@ -95,8 +122,11 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
+        self.times = .{};
+        const start = std.Io.Timestamp.now(self.config.io, .real);
         var parsed = try self.tql_parser.parseCollecting(query_source, .entry);
         defer parsed.deinit();
+        self.times.parse = start.untilNow(self.config.io, .real);
         if (parsed.hasErrors()) {
             try sink.extend(parsed.diagnostics);
             return error.DesugarFailed;
@@ -111,11 +141,14 @@ pub const Engine = struct {
         g: *const Grammar,
         sink: *diagnostic.Sink,
     ) !core.Program {
+        const io = self.config.io;
         self.sources.clear();
         var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
         defer desugarer.deinit();
 
+        const prelude_start = std.Io.Timestamp.now(io, .real);
         try self.addPrelude(&desugarer, sink);
+        self.times.prelude = prelude_start.untilNow(io, .real);
 
         var shipped: load.BundledLoader = .{ .modules = self.bundled };
         var loaders: std.ArrayList(Loader) = .empty;
@@ -130,13 +163,18 @@ pub const Engine = struct {
             .sources = &self.sources,
         };
         defer graph.deinit();
+        const load_start = std.Io.Timestamp.now(io, .real);
         try graph.visitEntry(query, sink);
         if (sink.hasErrors()) return error.DesugarFailed;
         try graph.checkGrammars(g, sink);
         if (sink.hasErrors()) return error.DesugarFailed;
-        try graph.link(&desugarer, g, sink);
+        self.times.load = load_start.untilNow(io, .real);
 
-        return try desugarer.finish(query.span, sink);
+        const desugar_start = std.Io.Timestamp.now(io, .real);
+        try graph.link(&desugarer, g, sink);
+        const program = try desugarer.finish(query.span, sink);
+        self.times.desugar = desugar_start.untilNow(io, .real);
+        return program;
     }
 
     /// Parse, desugar, link and type-check a query. Diagnostics are collected;
@@ -151,7 +189,9 @@ pub const Engine = struct {
         var program = try self.desugarQuery(query_source, g, sink);
         errdefer program.deinit();
 
+        const start = std.Io.Timestamp.now(self.config.io, .real);
         try type_check.check(self.config.allocator, &program, sink);
+        self.times.type_check = start.untilNow(self.config.io, .real);
         return program;
     }
 
@@ -185,7 +225,12 @@ pub const Engine = struct {
         sink: *diagnostic.Sink,
     ) !CompiledQuery {
         const checked = try self.checkQuery(query_source, g, sink);
-        return try CompiledQuery.init(self.config.allocator, self.config.io, checked, g, .{});
+        var compiled = try CompiledQuery.init(self.config.allocator, self.config.io, checked, g, .{});
+        var times = self.times;
+        times.simplify = compiled.times.simplify;
+        times.translate = compiled.times.translate;
+        compiled.times = times;
+        return compiled;
     }
 };
 
@@ -196,6 +241,9 @@ pub const CompiledQuery = struct {
     grammar: *const Grammar,
     allocator: Allocator,
     io: std.Io,
+    /// How long compiling took. `init` measures only `simplify` and
+    /// `translate`; `Engine.compileQuery` fills in the rest.
+    times: CompileTimes = .{},
 
     pub const Options = struct {
         /// Run `core_to_core` before translating.
@@ -214,15 +262,21 @@ pub const CompiledQuery = struct {
         var program = checked;
         errdefer program.deinit();
 
+        var times: CompileTimes = .{};
+        const simplify_start = std.Io.Timestamp.now(io, .real);
         if (options.simplify) try core_to_core.run(&program);
+        times.simplify = simplify_start.untilNow(io, .real);
 
+        const translate_start = std.Io.Timestamp.now(io, .real);
         const translated = try core_to_stg.translate(allocator, &program);
+        times.translate = translate_start.untilNow(io, .real);
         return .{
             .checked = program,
             .translated = translated,
             .grammar = g,
             .allocator = allocator,
             .io = io,
+            .times = times,
         };
     }
 
@@ -341,7 +395,7 @@ fn runQuery(
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -464,7 +518,7 @@ test "forcing a global cycle reports it rather than hanging" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -497,7 +551,7 @@ test "a record wider than a scheme can index is rejected at its literal" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
@@ -526,7 +580,7 @@ test "a bundled module is importable with no loader" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
     engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
     var sink = diagnostic.Sink.init(allocator);
@@ -544,7 +598,7 @@ test "a module both bundled and loaded is ambiguous" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
     engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
     var modules: load.BundledLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
@@ -569,7 +623,7 @@ test "a definition's span names the source it came from" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -596,7 +650,7 @@ test "the prelude's bodies compile to Core" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -695,7 +749,7 @@ test "every local in the prelude reads the slot it names" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -717,7 +771,7 @@ test "the prelude's schemes are inferred" {
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    var engine = try Engine.init(.{ .allocator = allocator, .io = undefined });
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
 
     var sink = diagnostic.Sink.init(allocator);
@@ -770,5 +824,36 @@ test "the prelude's schemes are inferred" {
         \\first :: (a -> [b]) -> a -> [b]
         \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
         \\is_kind :: Kind -> Node -> Bool
+    , w.written());
+}
+
+test "compileQuery times every stage" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
+    defer engine.deinit();
+
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+
+    var compiled = try engine.compileQuery("main = children;", g, &sink);
+    defer compiled.deinit();
+
+    inline for (std.meta.fields(CompileTimes)) |f| {
+        try std.testing.expect(@field(compiled.times, f.name).nanoseconds > 0);
+    }
+}
+
+test "compile times serialize as <stage>_ns" {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+    var jws: std.json.Stringify = .{ .writer = &w.writer };
+    try jws.write(CompileTimes{ .parse = .fromNanoseconds(1), .translate = .fromNanoseconds(7) });
+    try std.testing.expectEqualStrings(
+        \\{"parse_ns":1,"load_ns":0,"prelude_ns":0,"desugar_ns":0,"type_check_ns":0,"simplify_ns":0,"translate_ns":7}
     , w.written());
 }

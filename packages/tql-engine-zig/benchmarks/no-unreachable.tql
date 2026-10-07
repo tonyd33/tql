@@ -1,22 +1,26 @@
-statements b = filter (\n -> not (is_extra n)) (named_children b);
+statements = named_children | keep (not . is_extra);
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration, :class_static_block];
 
 loop_kinds = [:while_statement, :do_statement, :for_statement, :for_in_statement];
 
-is_one_of ks n = any (\k -> is_kind k n) ks;
+is_one_of ks n = any (= kind n) ks;
 
 is_breakable n = is_one_of loop_kinds n or is_kind :switch_statement n;
 
-unlabeled = keep (\j -> null (#label j));
+is_jump_target n = is_breakable n or is_one_of function_kinds n;
 
-jump_target = first (ancestors | keep (\a -> is_breakable a or is_one_of function_kinds a));
+unlabeled = keep (null . #label);
 
-exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (\t -> t = n)) n;
+jump_target = first $ ancestors | keep is_jump_target;
 
-label_broken l = has (#label | (\name -> (descendants_of_kind :break_statement | #label | keep (\x -> text x = text name)) l)) l;
+exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (= n)) n;
 
-is_true n = has (statements | of_kind :true) n;
+breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((= text name) . text)) l;
+
+label_broken l = any (breaks_to l) (#label l);
+
+is_true = has $ statements | of_kind :true;
 
 infinite n =
   (is_kind :while_statement n and has (#condition | keep is_true) n)
@@ -25,11 +29,13 @@ infinite n =
 
 last_of xs = case xs of { [] -> []; [x] -> [x]; _ : t -> last_of t; };
 
+clause_abrupt c = any abrupt (#body c);
+
 abrupt n =
   if is_one_of [:return_statement, :throw_statement, :break_statement, :continue_statement] n then True
   else if is_kind :statement_block n then any abrupt (statements n)
   else if is_kind :if_statement n then
-    has (#alternative) n
+    has #alternative n
     and all abrupt (#consequence n)
     and all abrupt ((#alternative | statements) n)
   else if is_kind :try_statement n then
@@ -38,7 +44,7 @@ abrupt n =
   else if is_kind :switch_statement n then
     has (#body | named_children | of_kind :switch_default) n
     and not (exited_by :break_statement n)
-    and all (\c -> any abrupt (#body c)) (last_of ((#body | named_children | keep (\c -> not (is_extra c))) n))
+    and all clause_abrupt (last_of ((#body | statements) n))
   else if is_kind :do_statement n then
     not (exited_by :break_statement n)
     and (infinite n or (all abrupt (#body n) and not (exited_by :continue_statement n)))
@@ -49,7 +55,7 @@ abrupt n =
 hoisted n =
   is_kind :function_declaration n
   or is_kind :generator_function_declaration n
-  or (is_kind :variable_declaration n and all (\d -> null (#value d)) (named_children n));
+  or (is_kind :variable_declaration n and all (null . #value) (named_children n));
 
 run_starts skip in_run xs = case xs of {
   [] -> [];
@@ -65,16 +71,22 @@ unreachable_after xs = case xs of {
 
 is_field m = kind_name m = "field_definition" or kind_name m = "public_field_definition";
 
-calls_super n = has (descendants_of_kind :call_expression | #function | of_kind :super) n;
+calls_super = has $ descendants_of_kind :call_expression | #function | of_kind :super;
 
-is_static m = has (children | keep (\t -> not (is_named t) and kind_name t = "static")) m;
+is_token s t = not (is_named t) and kind_name t = s;
+
+is_static = has $ children | keep (is_token "static");
+
+skips_field m = not (is_field m) or is_static m;
+
+is_constructor = has $ #name | keep ((= "constructor") . text);
 
 unreachable_fields class_ = do {
   children_of_kind :class_heritage class_;
   body <- #body class_;
-  ctor <- (named_children | of_kind :method_definition | keep (has (#name | keep (\n -> text n = "constructor")))) body;
+  ctor <- (named_children | of_kind :method_definition | keep is_constructor) body;
   guard $ not $ calls_super ctor;
-  run_starts (\m -> not (is_field m) or is_static m) False (filter (\m -> not (is_extra m)) (named_children body));
+  run_starts skips_field False (statements body);
 };
 
 statement_lists =

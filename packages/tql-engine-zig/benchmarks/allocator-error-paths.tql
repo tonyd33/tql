@@ -1,4 +1,4 @@
-matches re = keep (\n -> text n ~ re);
+matches re = keep ((~ re) . text);
 
 allocator_call =
   descendants_of_kind :call_expression
@@ -10,10 +10,12 @@ error_goto =
   | #label
   | matches r"^(err|out)(_\w+)?$";
 
+named n = { name = text n };
+
 main =
   children_of_kind :function_definition
   | keep (has (#body | allocator_call))
   | keep (has (#body | error_goto))
   | children_of_kind :function_declarator
   | children_of_kind :identifier
-  | arr (\n -> { name = text n });
+  | arr named;
