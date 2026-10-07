@@ -1,0 +1,43 @@
+benchmarks:
+  - name: allocator-error-paths
+    query: allocator-error-paths.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [.]
+    limit_s: 65
+
+  - name: axes
+    query: axes.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [kernel, mm, fs]
+
+  - name: evaluation
+    query: evaluation.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [kernel, mm, fs]
+
+  - name: leaves
+    query: leaves.tql
+    grammar: typescript
+    repository: https://github.com/microsoft/vscode.git
+    commit: 67cb2a17e24d903be7d50486a70d9bd835e95ad6
+    paths: [src/vs/base, src/vs/editor]
+
+  - name: no-unreachable
+    query: no-unreachable.tql
+    grammar: javascript
+    repository: https://github.com/facebook/react.git
+    commit: d75b0697a605e874fc1af56d7e1bf6c4b41a4f78
+    paths: [packages]
+
+  - name: no-dupe-keys
+    query: no-dupe-keys.tql
+    grammar: javascript
+    repository: https://github.com/vercel/next.js.git
+    commit: 65498960a66473c0bf937ad41270e27b33949854
+    paths: [packages/next/src/compiled]

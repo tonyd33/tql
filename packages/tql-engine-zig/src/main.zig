@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const tql = @import("tql");
 const goz = @import("goz");
 const Engine = tql.Engine;
@@ -947,7 +948,7 @@ const FileStats = struct {
     query_time: std.Io.Duration = .zero,
 };
 
-fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
+fn writeStats(jws: *std.json.Stringify, stats: FileStats, peak_rss: ?u64) !void {
     try jws.beginObject();
     try jws.objectField("read_time_ns");
     try jws.write(stats.read_time.nanoseconds);
@@ -955,7 +956,19 @@ fn writeStats(jws: *std.json.Stringify, stats: FileStats) !void {
     try jws.write(stats.parse_time.nanoseconds);
     try jws.objectField("query_time_ns");
     try jws.write(stats.query_time.nanoseconds);
+    if (peak_rss) |bytes| {
+        try jws.objectField("peak_rss_bytes");
+        try jws.write(bytes);
+    }
     try jws.endObject();
+}
+
+fn peakRss() ?u64 {
+    return switch (builtin.os.tag) {
+        .linux => @intCast(std.posix.getrusage(std.posix.rusage.SELF).maxrss * 1024),
+        .macos => @intCast(std.posix.getrusage(std.posix.rusage.SELF).maxrss),
+        else => null,
+    };
 }
 
 const FileResult = struct {
@@ -1128,12 +1141,12 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         try jws.writer.writeAll(result.values);
         jws.endWriteRaw();
         try jws.objectField("stats");
-        try writeStats(jws, result.stats);
+        try writeStats(jws, result.stats, null);
         try jws.endObject();
     }
     try jws.endArray();
     try jws.objectField("stats");
-    try writeStats(jws, totals);
+    try writeStats(jws, totals, peakRss());
     try jws.endObject();
 }
 

@@ -33,3 +33,5 @@ __pycache__
 /result-*
 
 .nvim.lua
+
+/.benchmark-cache
