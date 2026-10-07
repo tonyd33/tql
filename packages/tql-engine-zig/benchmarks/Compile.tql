@@ -1,0 +1,5 @@
+import Compile.Unreachable (unreachable);
+import Compile.DupeKeys (dupe_keys);
+import Compile.UnusedVars (unused_vars);
+
+main = unreachable <|> dupe_keys <|> unused_vars;
