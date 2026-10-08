@@ -1,0 +1,34 @@
+title: a case of a binding to a constructor of variables takes its alternative
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+data P = Mk Int Int;
+f x = let { p = Mk x 3 } in const [case p of { Mk a b -> a + b }, case p of { Mk a b -> a * b }];
+main = f 2;
+
+--- source ---
+class A {}
+
+--- values ---
+[5,6]
+
+--- simplified ---
+f = \x -> const (Cons (op[+] x 3) (Cons (op[*] x 3) Nil))
+main = f 2
+
+--- core ---
+f = \x ->
+  let p = Mk x 3 in
+  const (
+    Cons (
+      case p of
+        Mk a b -> op[+] a b
+    ) (
+      Cons (
+        case p of
+          Mk a b -> op[*] a b
+      ) Nil
+    )
+  )
+main = f 2

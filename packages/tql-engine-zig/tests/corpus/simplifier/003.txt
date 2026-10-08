@@ -1,0 +1,26 @@
+title: an argument passes into the body of a let
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = pure ((let { k = 2 * 3 } in \x -> x + k * k) 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[37]
+
+--- simplified ---
+main = pure (
+  let k = op[*] 2 3 in
+  op[+] 1 (op[*] k k)
+)
+
+--- core ---
+main = pure (
+  (
+    let k = op[*] 2 3 in
+    \x -> op[+] x (op[*] k k)
+  ) 1
+)

@@ -1,0 +1,21 @@
+title: a prelude combinator applied in a do block is inlined
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main root = do {
+  guard true;
+  return 1;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- simplified ---
+main = \root -> concat_map (\_ -> Cons 1 Nil) (Cons Unit Nil)
+
+--- core ---
+main = \root -> concat_map (\_ -> return 1) (guard True)

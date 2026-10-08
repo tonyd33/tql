@@ -1,0 +1,22 @@
+title: a case of a constructor takes its alternative
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+data P = Mk Int Int;
+main = pure (case Mk 10 3 of { Mk a b -> a - b });
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- simplified ---
+main = pure (op[-] 10 3)
+
+--- core ---
+main = pure (
+  case Mk 10 3 of
+    Mk a b -> op[-] a b
+)

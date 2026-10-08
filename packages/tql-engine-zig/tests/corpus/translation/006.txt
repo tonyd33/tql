@@ -3,16 +3,17 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = let { a = 1; b = a + 1 } in pure b;
+main = let { a = 1 + 2; b = a * a } in pure (b + b);
 
 --- source ---
 class A {}
 
 --- values ---
-[2]
+[18]
 
 --- stg ---
 main = {} \u {} ->
-  let a = {} \u {} -> 1 in
-  let b = {a@0} \u {} -> op[+]# a@0 1 in
-  pure b@1
+  let a = {} \u {} -> op[+]# 1 2 in
+  let b = {a@0} \u {} -> op[*]# a@0 a@0 in
+  let t0 = {b@1} \u {} -> op[+]# b@0 b@0 in
+  pure t0@2

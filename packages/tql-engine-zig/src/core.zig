@@ -21,6 +21,7 @@ pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
 pub const print_scope = @import("core/print_scope.zig");
 pub const free = @import("core/free.zig");
+pub const components = @import("core/components.zig");
 pub const test_support = @import("core/test_support.zig");
 const program = @import("core/program.zig");
 
@@ -60,6 +61,21 @@ pub const Term = struct {
         let: *const Let,
         letrec: *const Letrec,
     };
+
+    /// How many lambdas the term starts with.
+    pub fn arity(t: Term) usize {
+        var count: usize = 0;
+        var body = t;
+        while (body.kind == .lambda) : (body = body.kind.lambda.body) count += 1;
+        return count;
+    }
+
+    /// The function at the head of an application spine, or the term itself.
+    pub fn head(t: Term) Term {
+        var result = t;
+        while (result.kind == .apply) result = result.kind.apply.function;
+        return result;
+    }
 };
 
 pub const Literal = union(enum) {
@@ -479,13 +495,7 @@ pub const Printer = struct {
     }
 };
 
-fn expectPrints(pb: *const test_support.ProgramBuilder, expected: []const u8, t: Term) !void {
-    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer w.deinit();
-    const printer: Printer = .{ .interner = &pb.env.interner };
-    try printer.term(t, &w.writer);
-    try std.testing.expectEqualStrings(expected, w.written());
-}
+const expectPrints = test_support.expectPrints;
 
 fn expectDefinitionPrints(pb: *const test_support.ProgramBuilder, expected: []const u8, name: SymbolId, body: Term) !void {
     var w: std.Io.Writer.Allocating = .init(std.testing.allocator);

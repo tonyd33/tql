@@ -423,7 +423,7 @@ pub const Desugarer = struct {
             edge.* = kept.items;
         }
 
-        var components_result = try resolve.stronglyConnectedComponents(self.allocator, edges);
+        var components_result = try core.components.stronglyConnectedComponents(self.allocator, edges);
         defer components_result.deinit();
 
         const components = try scratch.alloc([]const u32, components_result.groups.len);

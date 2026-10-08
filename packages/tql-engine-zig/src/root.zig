@@ -246,8 +246,8 @@ pub const CompiledQuery = struct {
     times: CompileTimes = .{},
 
     pub const Options = struct {
-        /// Run `core_to_core` before translating.
-        simplify: bool = true,
+        /// The rewrites `core_to_core` runs before translating. Null skips it.
+        simplify: ?core_to_core.Options = .{},
     };
 
     /// Simplify and translate `checked`, taking ownership of it even on
@@ -264,7 +264,7 @@ pub const CompiledQuery = struct {
 
         var times: CompileTimes = .{};
         const simplify_start = std.Io.Timestamp.now(io, .real);
-        if (options.simplify) try core_to_core.run(&program);
+        if (options.simplify) |rewrites| try core_to_core.run(&program, rewrites);
         times.simplify = simplify_start.untilNow(io, .real);
 
         const translate_start = std.Io.Timestamp.now(io, .real);
@@ -378,6 +378,7 @@ test {
     refAllDecls(primitives);
     refAllDecls(types);
     refAllDecls(type_check);
+    refAllDecls(core_to_core);
     refAllDecls(core_to_stg);
     refAllDecls(stg);
     refAllDecls(inspect);

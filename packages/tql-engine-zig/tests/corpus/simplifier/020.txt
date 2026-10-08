@@ -1,0 +1,25 @@
+title: a recursive global function stays a call
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+count n = if n = 0 then 0 else 1 + count (n - 1);
+main = pure (count 3);
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- simplified ---
+count = \n -> case op[=] n 0 of
+  False -> op[+] 1 (count (op[-] n 1))
+  True -> 0
+main = pure (count 3)
+
+--- core ---
+count = \n -> case op[=] n 0 of
+  False -> op[+] 1 (count (op[-] n 1))
+  True -> 0
+main = pure (count 3)

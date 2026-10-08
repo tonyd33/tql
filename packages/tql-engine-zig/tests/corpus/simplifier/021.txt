@@ -1,0 +1,44 @@
+title: of two mutually recursive functions, the one that is not a loop breaker is inlined
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = let {
+  is_even n = if n = 0 then true else is_odd (n - 1);
+  is_odd n = not (is_even n);
+} in const [is_even 4, is_odd 7];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true]
+
+--- simplified ---
+main =
+  letrec
+    is_even = \n -> case op[=] n 0 of
+      False -> case is_even (op[-] n 1) of
+        False -> True
+        True -> False
+      True -> True
+  in
+  const (
+    Cons (is_even 4) (
+      Cons (
+        case is_even 7 of
+          False -> True
+          True -> False
+      ) Nil
+    )
+  )
+
+--- core ---
+main =
+  letrec
+    is_even = \n -> case op[=] n 0 of
+      False -> is_odd (op[-] n 1)
+      True -> True
+    is_odd = \n -> not (is_even n)
+  in
+  const (Cons (is_even 4) (Cons (is_odd 7) Nil))

@@ -7,10 +7,10 @@ asserts: types, values, stg
 --- tql ---
 main =
   let {
-    step = 10;
+    step = 5 + 5;
     bump = \x -> x + step;
   }
-  in const [bump 1, bump 2];
+  in const (map bump [1, 2]);
 
 --- source ---
 class A {}
@@ -23,19 +23,21 @@ main :: Node -> [Int]
 
 --- stg ---
 main = {} \u {} ->
-  let step = {} \u {} -> 10 in
-  let bump = {step@0} \n {x} -> op[+]# x@1 step@0 in
+  let step = {} \u {} -> op[+]# 5 5 in
   let
-    t4 = {bump@1} \u {} ->
+    t5 = {step@0} \u {} ->
       let
-        t0 = {bump@0} \u {} -> bump@0 1
-        t3 = {bump@0} \u {} ->
+        t1 = {step@0} \u {} ->
+          let t0 = {step@0} \n {x} -> op[+]# x@1 step@0 in
+          t0@1
+        t4 = {} \u {} ->
           let
-            t1 = {bump@0} \u {} -> bump@0 2
-            c2 = Nil
+            t3 = {} \u {} ->
+              let c2 = Nil in
+              Cons 2 c2@0
           in
-          Cons t1@1 c2@2
+          Cons 1 t3@0
       in
-      Cons t0@1 t3@2
+      map t1@1 t4@2
   in
-  const t4@2
+  const t5@1

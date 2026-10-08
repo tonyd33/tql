@@ -22,8 +22,11 @@ f = {} \u {} ->
   t1@0
 main = {} \u {} ->
   let
-    t1 = {} \u {} ->
-      let t0 = {} \u {} -> op[+]# 3 4 in
-      f t0@0
+    t2 = {} \u {} ->
+      let
+        t0 = {} \u {} -> op[+]# 3 4
+        t1 = {} \u {} -> op[+]# 1 2
+      in
+      op[+]# t0@0 t1@1
   in
-  pure t1@0
+  pure t2@0

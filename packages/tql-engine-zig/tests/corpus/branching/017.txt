@@ -42,7 +42,10 @@ pick = {} \u {} ->
             let t0 = {y@1} \u {} -> op[*]# 10 y@0 in
             op[+]# x@0 t0@2
           t3 = {q@1} \u {} ->
-            let t2 = {q@0} \u {} -> fst q@0 in
+            let
+              t2 = {q@0} \u {} -> case q@0 of
+                Mk a b -> a@1
+            in
             op[*]# 100 t2@1
         in
         op[+]# t1@4 t3@5

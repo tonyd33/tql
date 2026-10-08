@@ -1,205 +1,186 @@
-//! Core-to-Core rewrites over a checked program.
+//! Core-to-Core simplification of a checked program.
 //!
-//! Skipping this pass changes no observable result: every rewrite maps a term
-//! onto another term the surface language can express, and the corpus is run
-//! both ways. Desugaring stays literal so its goldens keep meaning one surface
-//! form per Core term, and this is where algebraic laws live instead.
+//! Each iteration analyses every binder's occurrences, then simplifies every
+//! definition in one traversal, until no rewrite fires. That runs twice: first
+//! holding back from inlining the functions a law matches on, then not.
+//! Every rewrite is an
+//! equation of the call-by-need lambda calculus or a law of the language, so
+//! skipping this pass changes no observable result, and the corpus is run
+//! both ways.
 //!
 //! Runs after inference, so a rewrite may assume its input type-checked.
 
 const std = @import("std");
 const core = @import("core.zig");
-const diagnostic = @import("diagnostic.zig");
+const occurrence = @import("core_to_core/occurrence.zig");
+const simplify = @import("core_to_core/simplify.zig");
+
+/// Which rewrites run.
+pub const Options = @import("core_to_core/options.zig").Options;
+const Simplifier = simplify.Simplifier;
 
 const Allocator = std.mem.Allocator;
 
 pub const Error = Allocator.Error;
 
-/// Rewrite every definition in `program`, in place.
+test {
+    std.testing.refAllDecls(occurrence);
+    std.testing.refAllDecls(simplify);
+}
+
+/// Simplify every definition in `program`, in place.
 ///
 /// Terms are allocated from the program's own arena, so the rewritten program
 /// owns its terms exactly as the desugared one did.
-pub fn run(program: *core.Program) Error!void {
-    const kleisli = program.env.interner.lookup(.prelude, "kleisli") orelse return;
-
-    var pass: Pass = .{
-        .builder = .{ .allocator = program.env.allocator() },
-        .interner = &program.env.interner,
-        .primitives = &program.env.primitives,
-        .kleisli = kleisli,
-    };
-
-    const definitions = try program.env.allocator().alloc(
-        core.Definition,
-        program.definitions.len,
-    );
-    for (program.definitions, definitions) |old, *new| {
-        new.* = .{
-            .symbol = old.symbol,
-            .body = try pass.term(old.body),
-            .span = old.span,
-        };
-    }
-    program.definitions = definitions;
-}
-
-const Pass = struct {
-    builder: core.Builder,
-    interner: *core.Interner,
-    primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
-    kleisli: core.SymbolId,
-
-    /// Rewrite `t`, bottom up. A rewrite sees operands that are already
-    /// rewritten, so one traversal reaches a fused axis nested in a fused axis.
-    fn term(self: *Pass, t: core.Term) Error!core.Term {
-        return switch (t.kind) {
-            .symbol, .literal => t,
-            .lambda => |l| try self.builder.lambda(
-                l.parameter,
-                try self.term(l.body),
-                t.span,
-            ),
-            .apply => |a| try self.apply(
-                try self.term(a.function),
-                try self.term(a.argument),
-                t.span,
-            ),
-            .case => |c| blk: {
-                const alternatives = try self.builder.slice(
-                    core.Case.Alternative,
-                    c.alternatives.len,
-                );
-                for (c.alternatives, alternatives) |old, *new| {
-                    new.* = .{
-                        .constructor = old.constructor,
-                        .binders = old.binders,
-                        .body = try self.term(old.body),
-                    };
-                }
-                break :blk try self.builder.case(
-                    try self.term(c.scrutinee),
-                    alternatives,
-                    t.span,
-                );
-            },
-            .let => |l| try self.builder.let(
-                l.name,
-                try self.term(l.value),
-                try self.term(l.body),
-                t.span,
-            ),
-            .letrec => |l| blk: {
-                const bindings = try self.builder.slice(
-                    core.Letrec.Binding,
-                    l.bindings.len,
-                );
-                for (l.bindings, bindings) |old, *new| {
-                    new.* = .{ .name = old.name, .value = try self.term(old.value) };
-                }
-                break :blk try self.builder.letrec(
-                    bindings,
-                    try self.term(l.body),
-                    t.span,
-                );
-            },
-        };
-    }
-
-    /// Rebuild an application, applying any law that matches it.
-    fn apply(
-        self: *Pass,
-        function: core.Term,
-        argument: core.Term,
-        span: diagnostic.Span,
-    ) Error!core.Term {
-        if (try self.fuseKindAxis(function, argument, span)) |fused| return fused;
-        return try self.builder.apply(function, argument, span);
-    }
-
-    /// `kleisli <axis> (of_kind k)` becomes the axis that yields only `k`.
-    ///
-    /// Both spellings are writable by hand and denote the same list, so this
-    /// removes the intermediate list without changing what the query means.
-    /// `k` need not be a literal.
-    ///
-    /// `|` associates left, so an axis after an earlier stage arrives as
-    /// `kleisli (kleisli p <axis>) (of_kind k)`. That is
-    /// `kleisli p (kleisli <axis> (of_kind k))`, and becomes `kleisli p` of the
-    /// fused axis.
-    fn fuseKindAxis(
-        self: *Pass,
-        function: core.Term,
-        argument: core.Term,
-        span: diagnostic.Span,
-    ) Error!?core.Term {
-        const kind = self.kindTested(argument) orelse return null;
-        const composed = self.kleisliOperand(function) orelse return null;
-
-        switch (composed.kind) {
-            .symbol => |axis| {
-                const fused = self.fusedAxis(axis, kind) orelse return null;
-                return try self.builder.apply(self.builder.symbol(fused, span), kind, span);
-            },
-            .apply => |a| {
-                const before = self.kleisliOperand(a.function) orelse return null;
-                const axis = switch (a.argument.kind) {
-                    .symbol => |id| id,
-                    else => return null,
-                };
-                const fused = self.fusedAxis(axis, kind) orelse return null;
-                return try self.builder.applyMany(
-                    self.builder.symbol(self.kleisli, span),
-                    &.{ before, try self.builder.apply(self.builder.symbol(fused, span), kind, span) },
-                    span,
-                );
-            },
-            else => return null,
+pub fn run(program: *core.Program, options: Options) Error!void {
+    for ([_]simplify.Phase{ .laws, .final }) |phase| {
+        for (0..options.max_iterations) |_| {
+            if (!try iterate(program, options, phase)) break;
         }
     }
+}
 
-    /// `p`, when `t` is `kleisli p`.
-    fn kleisliOperand(self: *const Pass, t: core.Term) ?core.Term {
-        const a = switch (t.kind) {
-            .apply => |a| a,
-            else => return null,
-        };
-        if (a.function.kind != .symbol) return null;
-        if (a.function.kind.symbol != self.kleisli) return null;
-        return a.argument;
-    }
+/// Analyse and simplify every definition once, each after the definitions
+/// it may inline. Returns whether a rewrite fired.
+fn iterate(program: *core.Program, options: Options, phase: simplify.Phase) Error!bool {
+    var scratch: std.heap.ArenaAllocator = .init(program.env.gpa);
+    defer scratch.deinit();
 
-    /// The primitive for `axis` with a test for `kind` folded in, when `axis`
-    /// has a fused form.
-    ///
-    /// A `kind` that is not a literal may be anonymous, and fuses only onto
-    /// `children` and `descendants`.
-    fn fusedAxis(self: *const Pass, axis: core.SymbolId, kind: core.Term) ?core.SymbolId {
-        const primop = self.primopOf(axis) orelse return null;
-        if (kind.kind != .literal and (primop == .named_children or primop == .named_descendants)) return null;
-        const fused = primop.fusedWithKindTest() orelse return null;
-        return self.primitives.get(fused);
-    }
+    const builder: core.Builder = .{ .allocator = program.env.allocator() };
+    var occurrences: occurrence.Table = .init(scratch.allocator());
+    var analyser: occurrence.Analyser = .{
+        .scratch = scratch.allocator(),
+        .builder = builder,
+        .env = &program.env,
+        .table = &occurrences,
+        .drop_dead = options.dead_bindings,
+    };
+    const analysis = try analyser.program(program.definitions);
+    var simplifier: Simplifier = .init(&analyser, &program.env, options, phase);
 
-    /// `k`, when `t` is `of_kind k`.
-    fn kindTested(self: *const Pass, t: core.Term) ?core.Term {
-        const a = switch (t.kind) {
-            .apply => |a| a,
-            else => return null,
-        };
-        const id = switch (a.function.kind) {
-            .symbol => |s| s,
-            else => return null,
-        };
-        if (self.primopOf(id) != .of_kind) return null;
-        return a.argument;
+    const simplified = try builder.slice(core.Definition, program.definitions.len);
+    for (analysis.order) |i| {
+        const old = analysis.definitions[i];
+        const body = try simplifier.simplify(old.body);
+        simplified[i] = .{ .symbol = old.symbol, .body = body, .span = old.span };
+        try simplifier.unfold(old.symbol, body);
     }
+    program.definitions = simplified;
+    return simplifier.changed;
+}
 
-    /// The primitive a symbol names, when it names one. A local binding that
-    /// shadows the name is a different symbol, so this cannot confuse the two.
-    fn primopOf(self: *const Pass, id: core.SymbolId) ?core.PrimOp {
-        return switch (self.interner.details(id)) {
-            .primop => |p| p,
-            else => null,
-        };
+test "the pass runs until no rewrite fires" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const false_ = try pb.global("False");
+    const true_ = try pb.global("True");
+    const go = try pb.local("go");
+    const n = try pb.local("n");
+
+    // `letrec go = \n -> case True of { False -> go n; True -> n } in go 1`:
+    // the first iteration removes the recursion, the second the `let`.
+    const recursion = try pb.case(pb.symbol(true_), &.{
+        .{ .constructor = false_, .binders = &.{}, .body = try pb.apply(pb.symbol(go), &.{pb.symbol(n)}) },
+        .{ .constructor = true_, .binders = &.{}, .body = pb.symbol(n) },
+    });
+    try pb.define(main, try pb.letrec(&.{
+        .{ .name = go, .value = try pb.lambda(&.{n}, recursion) },
+    }, try pb.apply(pb.symbol(go), &.{pb.number(1)})));
+    var program = try pb.program(main);
+
+    try run(&program, .{});
+    try std.testing.expectEqual(1, program.definitions[0].body.kind.literal.number);
+    try std.testing.expect(!try iterate(&program, .{}, .final));
+}
+
+/// Prints through `program`'s interner, which inlining has grown past the
+/// builder's copy.
+fn expectMain(program: *const core.Program, expected: []const u8) !void {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+    const printer: core.Printer = .{ .interner = &program.env.interner };
+    for (program.definitions) |definition| {
+        if (definition.symbol == program.entry) try printer.term(definition.body, &w.writer);
     }
-};
+    try std.testing.expectEqualStrings(expected, w.written());
+}
+
+test "a global function applied to every argument it takes is inlined" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const double = try pb.global("double");
+    const g = try pb.global("g");
+    const x = try pb.local("x");
+
+    try pb.define(main, try pb.apply(pb.symbol(double), &.{pb.number(1)}));
+    try pb.define(double, try pb.lambda(&.{x}, try pb.apply(pb.symbol(g), &.{ pb.symbol(x), pb.symbol(x) })));
+    var program = try pb.program(main);
+
+    try run(&program, .{});
+    try expectMain(&program, "g 1 1");
+}
+
+test "a loop breaker is not inlined" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const go = try pb.global("go");
+    const n = try pb.local("n");
+
+    try pb.define(go, try pb.lambda(&.{n}, try pb.apply(pb.symbol(go), &.{pb.symbol(n)})));
+    try pb.define(main, try pb.apply(pb.symbol(go), &.{pb.number(1)}));
+    var program = try pb.program(main);
+
+    try run(&program, .{});
+    try expectMain(&program, "go 1");
+}
+
+test "a function a law names is inlined only in the second phase" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const kleisli = try pb.global("kleisli");
+    const concat_map = try pb.global("concat_map");
+    const a = try pb.global("a");
+    const b = try pb.global("b");
+    const p = try pb.local("p");
+    const q = try pb.local("q");
+    const x = try pb.local("x");
+
+    try pb.define(kleisli, try pb.lambda(&.{ p, q, x }, try pb.apply(pb.symbol(concat_map), &.{
+        pb.symbol(q),
+        try pb.apply(pb.symbol(p), &.{pb.symbol(x)}),
+    })));
+    try pb.define(main, try pb.apply(pb.symbol(kleisli), &.{ pb.symbol(a), pb.symbol(b), pb.number(1) }));
+    var program = try pb.program(main);
+
+    try std.testing.expect(!try iterate(&program, .{}, .laws));
+    try expectMain(&program, "kleisli a b 1");
+    try run(&program, .{});
+    try expectMain(&program, "concat_map b (a 1)");
+}
+
+test "the laws can be switched off" {
+    var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+    defer pb.deinit();
+    for ([_]core.PrimOp{ .children, .of_kind, .children_of_kind }) |primop| {
+        const id = try pb.env.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
+        pb.env.primitives.set(primop, id);
+    }
+    const main = try pb.global("main");
+    const kleisli = try pb.global("kleisli");
+    const kind = pb.terms().literal(.{ .kind = .{ .name = "class", .id = 1 } }, .unknown);
+
+    try pb.define(main, try pb.apply(pb.symbol(kleisli), &.{
+        pb.symbol(pb.env.primitives.get(.children).?),
+        try pb.apply(pb.symbol(pb.env.primitives.get(.of_kind).?), &.{kind}),
+    }));
+    var program = try pb.program(main);
+
+    try run(&program, .{ .laws = false });
+    try expectMain(&program, "kleisli children (of_kind :class)");
+    try run(&program, .{});
+    try expectMain(&program, "children_of_kind :class");
+}

@@ -188,3 +188,12 @@ pub const ProgramBuilder = struct {
         };
     }
 };
+
+/// Expect `t` to print as `expected`.
+pub fn expectPrints(pb: *const ProgramBuilder, expected: []const u8, t: core.Term) !void {
+    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer w.deinit();
+    const printer: core.Printer = .{ .interner = &pb.env.interner };
+    try printer.term(t, &w.writer);
+    try std.testing.expectEqualStrings(expected, w.written());
+}
