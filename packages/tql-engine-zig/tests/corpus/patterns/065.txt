@@ -18,7 +18,6 @@ g(h(2));
 ["f","g","h"]
 
 --- core ---
-main = \root -> concat_map (\scrutinee -> $mCallee scrutinee (\f -> return (text f)) Nil) (descendants root)
 $mCallee = \s -> \k -> \f ->
   let view = of_kind :call_expression s in
   case view of
@@ -32,20 +31,21 @@ $mCallee = \s -> \k -> \f ->
             Nil -> k f'
             Cons _ _ -> f
           Cons _ _ -> f
+main = \root -> concat_map (\scrutinee -> $mCallee scrutinee (\f -> return (text f)) Nil) (descendants root)
 
 --- simplified ---
+$mCallee = \s -> \k -> \f -> case is_kind :call_expression s of
+  False -> f
+  True -> case field[function] s of
+    Nil -> f
+    Cons f' cons1 -> case cons1 of
+      Nil -> k f'
+      Cons _ _ -> f
 main = \root -> concat_map (
-  \cons0 -> case field[function] cons0 of
+  \scrutinee -> case field[function] scrutinee of
     Nil -> Nil
     Cons f cons1 -> case cons1 of
       Nil -> Cons (text f) Nil
       Cons _ _ -> Nil
 ) (descendants_of_kind :call_expression root)
-$mCallee = \s -> \k -> \f -> case of_kind :call_expression s of
-  Nil -> f
-  Cons cons0 cons1 -> case field[function] cons0 of
-    Nil -> f
-    Cons f' cons1 -> case cons1 of
-      Nil -> k f'
-      Cons _ _ -> f
 

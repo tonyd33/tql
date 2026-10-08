@@ -35,35 +35,44 @@ pub const Scope = struct {
     }
 };
 
-/// A collected top-level declaration: the definition, its symbol, and the
-/// signature that annotates it, if any.
+/// A collected top-level declaration: its name, the symbol of the definition
+/// it binds, and what it is.
 pub const Declaration = struct {
     name: []const u8,
+    /// A value's own symbol, or a pattern synonym's matcher.
     symbol: core.SymbolId,
-    definition: *const cst.Definition,
-    signature: ?*const cst.Signature = null,
-};
+    kind: Kind,
 
-/// A collected pattern synonym: the declaration, its symbol, and the
-/// signature that annotates it, if any.
-pub const Synonym = struct {
-    name: []const u8,
-    symbol: core.SymbolId,
-    declaration: *const cst.PatternSynonym,
-    signature: ?*const cst.PatternSignature = null,
+    pub const Kind = union(enum) {
+        value: struct {
+            definition: *const cst.Definition,
+            signature: ?*const cst.Signature = null,
+        },
+        synonym: struct {
+            declaration: *const cst.PatternSynonym,
+            signature: ?*const cst.PatternSignature = null,
+            /// The symbol a pattern names the synonym by.
+            pattern: core.SymbolId,
+        },
+    };
+
+    pub fn span(self: Declaration) diagnostic.Span {
+        return switch (self.kind) {
+            .value => |v| v.definition.span,
+            .synonym => |s| s.declaration.span,
+        };
+    }
 };
 
 pub const Declarations = struct {
     allocator: std.mem.Allocator,
     items: std.ArrayList(Declaration) = .empty,
-    synonyms: std.ArrayList(Synonym) = .empty,
 
     pub fn deinit(self: *Declarations) void {
         self.items.deinit(self.allocator);
-        self.synonyms.deinit(self.allocator);
     }
 
-    pub fn find(self: *const Declarations, name: []const u8) ?*const Declaration {
+    fn find(self: *Declarations, name: []const u8) ?*Declaration {
         for (self.items.items) |*d| {
             if (std.mem.eql(u8, d.name, name)) return d;
         }
@@ -72,8 +81,8 @@ pub const Declarations = struct {
 };
 
 /// Walks declarations, interning each head under `module` and pairing
-/// signatures with definitions. Every problem found is reported; collection
-/// continues so one run reports them all.
+/// signatures with definitions and pattern synonyms. Every problem found is
+/// reported; collection continues so one run reports them all.
 pub fn collect(
     allocator: std.mem.Allocator,
     interner: *core.Interner,
@@ -87,152 +96,90 @@ pub fn collect(
     // Captured by pointer into the array: iterating by value would copy the
     // element, and a pointer into that copy dies with the iteration.
     for (source.declarations) |*decl| {
-        if (decl.* != .definition) continue;
-        const definition = &decl.definition;
+        const name, const span = switch (decl.*) {
+            .definition => |*d| .{ d.name, d.span },
+            .pattern_synonym => |*s| .{ s.name, s.span },
+            else => continue,
+        };
 
-        if (declarations.find(definition.name)) |_| {
-            try sink.report(
-                .duplicate_definition,
-                definition.span,
-                "`{s}` is defined more than once",
-                .{definition.name},
-            );
+        if (declarations.find(name)) |_| {
+            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{name});
             continue;
         }
 
-        const symbol = interner.intern(module, definition.name, .vanilla) catch |err| switch (err) {
+        const declaration = intern(interner, module, decl) catch |err| switch (err) {
             error.Collision => {
-                try sink.report(
-                    .symbol_collision,
-                    definition.span,
-                    "`{s}` collides with an existing symbol",
-                    .{definition.name},
-                );
+                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
                 continue;
             },
             else => |e| return e,
         };
-
-        try declarations.items.append(allocator, .{
-            .name = definition.name,
-            .symbol = symbol,
-            .definition = definition,
-        });
+        try declarations.items.append(allocator, declaration);
     }
 
     for (source.declarations) |*decl| {
-        if (decl.* != .signature) continue;
-        const signature = &decl.signature;
+        const name, const span, const noun = switch (decl.*) {
+            .signature => |*s| .{ s.name, s.span, "definition" },
+            .pattern_signature => |*s| .{ s.name, s.span, "pattern synonym" },
+            else => continue,
+        };
 
-        const target = for (declarations.items.items) |*d| {
-            if (std.mem.eql(u8, d.name, signature.name)) break d;
-        } else {
-            if (interner.lookup(module, signature.name)) |_| {
-                try sink.report(
-                    .symbol_collision,
-                    signature.span,
-                    "`{s}` collides with an existing symbol",
-                    .{signature.name},
-                );
+        const target = declarations.find(name) orelse {
+            if (interner.lookup(module, name)) |_| {
+                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
                 continue;
             }
-            try sink.report(
-                .orphan_signature,
-                signature.span,
-                "`{s}` has a signature but no definition",
-                .{signature.name},
-            );
+            try sink.report(.orphan_signature, span, "`{s}` has a signature but no {s}", .{ name, noun });
             continue;
         };
 
-        if (target.signature != null) {
-            try sink.report(
-                .duplicate_signature,
-                signature.span,
-                "`{s}` has more than one signature",
-                .{signature.name},
-            );
-            continue;
+        // A value's name and a pattern synonym's never coincide.
+        const attached = switch (decl.*) {
+            .signature => |*s| attach(cst.Signature, &target.kind.value.signature, s),
+            .pattern_signature => |*s| attach(cst.PatternSignature, &target.kind.synonym.signature, s),
+            else => unreachable,
+        };
+        if (!attached) {
+            try sink.report(.duplicate_signature, span, "`{s}` has more than one signature", .{name});
         }
-        target.signature = signature;
     }
 
-    try collectSynonyms(&declarations, interner, module, source, sink);
     return declarations;
 }
 
-fn collectSynonyms(
-    declarations: *Declarations,
-    interner: *core.Interner,
-    module: core.ModuleId,
-    source: cst.SourceFile,
-    sink: *diagnostic.Sink,
-) !void {
-    for (source.declarations) |*decl| {
-        if (decl.* != .pattern_synonym) continue;
-        const synonym = &decl.pattern_synonym;
-
-        const repeated = for (declarations.synonyms.items) |earlier| {
-            if (std.mem.eql(u8, earlier.name, synonym.name)) break true;
-        } else false;
-        if (repeated) {
-            try sink.report(
-                .duplicate_definition,
-                synonym.span,
-                "`{s}` is defined more than once",
-                .{synonym.name},
-            );
-            continue;
-        }
-
-        const arity: u32 = @intCast(synonym.parameters.len);
-        const symbol = interner.intern(module, synonym.name, .{ .synonym = .{ .arity = arity } }) catch |err| switch (err) {
-            error.Collision => {
-                try sink.report(
-                    .symbol_collision,
-                    synonym.span,
-                    "`{s}` collides with an existing symbol",
-                    .{synonym.name},
-                );
-                continue;
-            },
-            else => |e| return e,
-        };
-
-        try declarations.synonyms.append(declarations.allocator, .{
-            .name = synonym.name,
-            .symbol = symbol,
-            .declaration = synonym,
-        });
+/// Intern the head `decl` declares. A pattern synonym `P` interns its matcher
+/// `$mP` too.
+fn intern(interner: *core.Interner, module: core.ModuleId, decl: *const cst.Declaration) !Declaration {
+    switch (decl.*) {
+        .definition => |*d| return .{
+            .name = d.name,
+            .symbol = try interner.intern(module, d.name, .vanilla),
+            .kind = .{ .value = .{ .definition = d } },
+        },
+        .pattern_synonym => |*s| {
+            if (interner.lookup(module, s.name) != null) return error.Collision;
+            const spelling = try std.fmt.allocPrint(interner.allocator, "$m{s}", .{s.name});
+            defer interner.allocator.free(spelling);
+            const matcher = try interner.intern(module, spelling, .vanilla);
+            const pattern = try interner.intern(module, s.name, .{ .synonym = .{
+                .arity = @intCast(s.parameters.len),
+                .matcher = matcher,
+            } });
+            return .{
+                .name = s.name,
+                .symbol = matcher,
+                .kind = .{ .synonym = .{ .declaration = s, .pattern = pattern } },
+            };
+        },
+        else => unreachable,
     }
+}
 
-    for (source.declarations) |*decl| {
-        if (decl.* != .pattern_signature) continue;
-        const signature = &decl.pattern_signature;
-
-        const target = for (declarations.synonyms.items) |*s| {
-            if (std.mem.eql(u8, s.name, signature.name)) break s;
-        } else {
-            try sink.report(
-                .orphan_signature,
-                signature.span,
-                "`{s}` has a signature but no pattern synonym",
-                .{signature.name},
-            );
-            continue;
-        };
-
-        if (target.signature != null) {
-            try sink.report(
-                .duplicate_signature,
-                signature.span,
-                "`{s}` has more than one signature",
-                .{signature.name},
-            );
-            continue;
-        }
-        target.signature = signature;
-    }
+/// Attach `signature` to `slot`. Returns false when `slot` already holds one.
+fn attach(comptime T: type, slot: *?*const T, signature: *const T) bool {
+    if (slot.* != null) return false;
+    slot.* = signature;
+    return true;
 }
 
 test "scopes resolve innermost first" {

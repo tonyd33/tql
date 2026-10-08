@@ -23,6 +23,13 @@ f(w, y);
 --- values ---
 ["xy","neither","neither"]
 --- simplified ---
+$mBoth = \s -> \k -> \f -> case s of
+  Nil -> f
+  Cons cons0 cons1 -> case cons1 of
+    Nil -> f
+    Cons cons0' cons1 -> case cons1 of
+      Nil -> k (text cons0) (text cons0')
+      Cons _ _ -> f
 describe = \xs ->
   let alternative = "neither" in
   case xs of
@@ -37,10 +44,3 @@ describe = \xs ->
             True -> "xy"
         Cons _ _ -> alternative
 main = \root -> concat_map (\a -> Cons (describe (children_of_kind :identifier a)) Nil) (descendants_of_kind :arguments root)
-$mBoth = \s -> \k -> \f -> case s of
-  Nil -> f
-  Cons cons0 cons1 -> case cons1 of
-    Nil -> f
-    Cons cons0' cons1 -> case cons1 of
-      Nil -> k (text cons0) (text cons0')
-      Cons _ _ -> f

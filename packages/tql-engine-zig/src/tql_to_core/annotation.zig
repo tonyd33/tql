@@ -94,12 +94,7 @@ pub fn translateSynonym(
     }
 
     const result = types.variable_type(scheme.quantified);
-    var continuation = result;
-    var i = holes.len;
-    while (i > 0) {
-        i -= 1;
-        continuation = try types.func(arena, holes[i], continuation);
-    }
+    const continuation = try types.arrows(arena, holes, result);
     return .{
         .quantified = scheme.quantified + 1,
         .type = try types.func(arena, matched, try types.func(arena, continuation, try types.func(arena, result, result))),

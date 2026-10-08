@@ -18,7 +18,7 @@ let x = 1;
 ["class A {}", "other"]
 
 --- simplified ---
-f = \x -> case of_kind :class_declaration x of
-  Nil -> "other"
-  Cons n cons1 -> text n
+f = \x -> case is_kind :class_declaration x of
+  False -> "other"
+  True -> text x
 main = kleisli children (arr f)

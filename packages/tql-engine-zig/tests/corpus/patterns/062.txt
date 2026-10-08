@@ -19,6 +19,13 @@ let x = 1;
 --- values ---
 [5,7,0]
 --- core ---
+$mPair = \s -> \k -> \f -> case s of
+  Nil -> f
+  Cons a cons1 -> case cons1 of
+    Nil -> f
+    Cons b cons1 -> case cons1 of
+      Nil -> k a b
+      Cons _ _ -> f
 describe = \xs ->
   let alternative = 0 in
   $mPair xs (
@@ -29,10 +36,3 @@ describe = \xs ->
       True -> b
   ) alternative
 main = \root -> Cons (describe (Cons 1 (Cons 5 Nil))) (Cons (describe (Cons 7 (Cons 2 Nil))) (Cons (describe (Cons 3 (Cons 3 Nil))) Nil))
-$mPair = \s -> \k -> \f -> case s of
-  Nil -> f
-  Cons a cons1 -> case cons1 of
-    Nil -> f
-    Cons b cons1 -> case cons1 of
-      Nil -> k a b
-      Cons _ _ -> f

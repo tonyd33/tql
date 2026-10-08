@@ -20,75 +20,74 @@ foo.warn("c");
 --- values ---
 ["error","log"]
 --- simplified ---
-main = \root -> concat_map (
-  \cons0 -> case field[function] cons0 of
-    Nil -> Nil
-    Cons f cons1 -> case cons1 of
-      Nil -> case of_kind :member_expression f of
-        Nil -> Nil
-        Cons cons0 cons1 -> case field[object] cons0 of
-          Nil -> Nil
-          Cons o cons1 -> case cons1 of
-            Nil -> case field[property] cons0 of
-              Nil -> Nil
-              Cons p cons1 -> case cons1 of
-                Nil -> case of_kind :identifier o of
-                  Nil -> Nil
-                  Cons cons0 cons1 -> case op[=] (text cons0) "console" of
-                    False -> Nil
-                    True -> Cons (text p) Nil
-                Cons _ _ -> Nil
-            Cons _ _ -> Nil
-      Cons _ _ -> Nil
-) (descendants_of_kind :call_expression root)
-$mCallee = \s -> \k -> \f -> case of_kind :call_expression s of
-  Nil -> f
-  Cons cons0 cons1 -> case field[function] cons0 of
+$mCallee = \s -> \k -> \f -> case is_kind :call_expression s of
+  False -> f
+  True -> case field[function] s of
     Nil -> f
     Cons f' cons1 -> case cons1 of
       Nil -> k f'
       Cons _ _ -> f
-$mMethod = \s -> \k -> \f -> case of_kind :call_expression s of
-  Nil -> f
-  Cons cons0 cons1 -> case field[function] cons0 of
+$mMethod = \s -> \k -> \f -> case is_kind :call_expression s of
+  False -> f
+  True -> case field[function] s of
     Nil -> f
     Cons f' cons1 -> case cons1 of
-      Nil -> case of_kind :member_expression f' of
-        Nil -> f
-        Cons cons0 cons1 -> case field[object] cons0 of
+      Nil -> case is_kind :member_expression f' of
+        False -> f
+        True -> case field[object] f' of
           Nil -> f
           Cons o cons1 -> case cons1 of
-            Nil -> case field[property] cons0 of
+            Nil -> case field[property] f' of
               Nil -> f
               Cons p cons1 -> case cons1 of
                 Nil -> k o p
                 Cons _ _ -> f
             Cons _ _ -> f
       Cons _ _ -> f
-$mConsoleCall = \s -> \k -> \f -> case of_kind :call_expression s of
-  Nil -> f
-  Cons cons0 cons1 -> case field[function] cons0 of
+$mConsoleCall = \s -> \k -> \f -> case is_kind :call_expression s of
+  False -> f
+  True -> case field[function] s of
     Nil -> f
     Cons f' cons1 -> case cons1 of
-      Nil -> case of_kind :member_expression f' of
-        Nil -> f
-        Cons cons0 cons1 -> case field[object] cons0 of
+      Nil -> case is_kind :member_expression f' of
+        False -> f
+        True -> case field[object] f' of
           Nil -> f
           Cons o cons1 -> case cons1 of
-            Nil -> case field[property] cons0 of
+            Nil -> case field[property] f' of
               Nil -> f
               Cons p cons1 -> case cons1 of
-                Nil -> case of_kind :identifier o of
-                  Nil -> f
-                  Cons cons0 cons1 -> case op[=] (text cons0) "console" of
+                Nil -> case is_kind :identifier o of
+                  False -> f
+                  True -> case op[=] (text o) "console" of
                     False -> f
                     True -> k p
                 Cons _ _ -> f
             Cons _ _ -> f
       Cons _ _ -> f
+main = \root -> concat_map (
+  \scrutinee -> case field[function] scrutinee of
+    Nil -> Nil
+    Cons f cons1 -> case cons1 of
+      Nil -> case is_kind :member_expression f of
+        False -> Nil
+        True -> case field[object] f of
+          Nil -> Nil
+          Cons o cons1 -> case cons1 of
+            Nil -> case field[property] f of
+              Nil -> Nil
+              Cons p cons1 -> case cons1 of
+                Nil -> case is_kind :identifier o of
+                  False -> Nil
+                  True -> case op[=] (text o) "console" of
+                    False -> Nil
+                    True -> Cons (text p) Nil
+                Cons _ _ -> Nil
+            Cons _ _ -> Nil
+      Cons _ _ -> Nil
+) (descendants_of_kind :call_expression root)
 
 --- core ---
-main = \root -> concat_map (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil) (descendants root)
 $mCallee = \s -> \k -> \f ->
   let view = of_kind :call_expression s in
   case view of
@@ -136,3 +135,4 @@ $mConsoleCall = \s -> \k -> \f -> $mMethod s (
             Nil -> k p
             Cons _ _ -> f
 ) f
+main = \root -> concat_map (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil) (descendants root)

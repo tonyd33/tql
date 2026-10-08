@@ -73,8 +73,7 @@ pub const Simplifier = struct {
     options: Options,
     phase: Phase,
     substitution: core.SymbolTable(Substitution),
-    /// Locals bound to a constructor of trivial arguments, and the tail of a
-    /// singleton's `Cons`, bound to `Nil`.
+    /// Locals bound to a constructor of trivial arguments.
     known: core.SymbolTable(Constructed),
     /// Each binding that may be inlined, by its simplified value.
     unfoldings: core.SymbolTable(core.Term),
@@ -99,6 +98,8 @@ pub const Simplifier = struct {
                 .concat_map = env.interner.lookup(.prelude, "concat_map"),
                 .nil = env.datatypes.nilConstructor().symbol,
                 .cons = env.datatypes.consConstructor().symbol,
+                .false_ = env.datatypes.boolConstructor(false).symbol,
+                .true_ = env.datatypes.boolConstructor(true).symbol,
             },
             .options = options,
             .phase = phase,
@@ -271,22 +272,26 @@ pub const Simplifier = struct {
         arguments: []const Argument,
         span: diagnostic.Span,
     ) Error!core.Term {
-        const scrutinee = try self.term(case_term.scrutinee, &.{});
+        var scrutinee = try self.term(case_term.scrutinee, &.{});
+        var case_alternatives = case_term.alternatives;
+        if (self.options.laws) {
+            if (try self.laws.rewriteCase(scrutinee, case_alternatives, span)) |rewritten| {
+                self.changed = true;
+                scrutinee = rewritten.scrutinee;
+                case_alternatives = rewritten.alternatives;
+            }
+        }
         const known = if (self.options.case_of_known_constructor) try self.knownConstructor(scrutinee) else null;
         if (known) |known_constructor| {
-            for (case_term.alternatives) |alternative| {
+            for (case_alternatives) |alternative| {
                 if (alternative.constructor != known_constructor.constructor) continue;
                 self.changed = true;
                 return try self.select(alternative, known_constructor.fields, arguments, span);
             }
         }
 
-        const singleton = self.options.laws and self.laws.singleton(scrutinee);
-        const alternatives = try self.builder.slice(core.Case.Alternative, case_term.alternatives.len);
-        for (case_term.alternatives, alternatives) |old, *new| {
-            if (singleton and old.constructor == self.laws.cons) {
-                try self.known.put(old.binders[1], .{ .constructor = self.laws.nil, .fields = &.{} });
-            }
+        const alternatives = try self.builder.slice(core.Case.Alternative, case_alternatives.len);
+        for (case_alternatives, alternatives) |old, *new| {
             new.* = .{
                 .constructor = old.constructor,
                 .binders = old.binders,

@@ -57,7 +57,7 @@ pub const Lowerer = struct {
     /// A primitive or prelude name that sugar desugars to, resolved in the
     /// prelude whatever this module declares. Missing only when the prelude
     /// was not linked beneath this module.
-    fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
+    pub fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const id = self.env.interner.lookup(.prelude, name) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
             return error.DesugarFailed;
@@ -282,8 +282,6 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
-            .primitive => |name| return try self.primitive(name, e.span),
-
             // A leading `#f` is the bare `field[f]`.
             .navigation => |n| {
                 const id = (try self.grammar("field", n.field, e.span)).fieldIdForName(n.field);
@@ -337,26 +335,11 @@ pub const Lowerer = struct {
 
             .section => |s| return try self.section(s.*, e.span, scope),
 
-            // The scalar conditional is `case` on `Bool`. Alternatives go in
-            // tag order, so `False` precedes `True` and the alternative
-            // bodies are the *opposite* order from how they are written.
+            // The scalar conditional is `case` on `Bool`.
             .@"if" => |i| {
-                const alternatives = try self.builder.slice(core.Case.Alternative, 2);
-                alternatives[0] = .{
-                    .constructor = self.scope.datatypes.boolConstructor(false).symbol,
-                    .binders = &.{},
-                    .body = try self.expression(i.alternative, scope),
-                };
-                alternatives[1] = .{
-                    .constructor = self.scope.datatypes.boolConstructor(true).symbol,
-                    .binders = &.{},
-                    .body = try self.expression(i.consequence, scope),
-                };
-                return try self.builder.case(
-                    try self.expression(i.condition, scope),
-                    alternatives,
-                    e.span,
-                );
+                const otherwise = try self.expression(i.alternative, scope);
+                const matched = try self.expression(i.consequence, scope);
+                return try self.choose(try self.expression(i.condition, scope), otherwise, matched, e.span);
             },
 
             .constructor => |name| return try self.constructorRef(name, e.span),
@@ -514,6 +497,25 @@ pub const Lowerer = struct {
             &.{ left, right },
             span,
         );
+    }
+
+    /// `case condition of { False -> otherwise; True -> matched }`.
+    ///
+    /// Alternatives go in tag order, so `False` precedes `True` and the
+    /// alternative bodies are the opposite order from how an `if` writes them.
+    pub fn choose(
+        self: *Lowerer,
+        condition: core.Term,
+        otherwise: core.Term,
+        matched: core.Term,
+        span: diagnostic.Span,
+    ) Error!core.Term {
+        const registry = self.scope.datatypes;
+        const alternatives = try self.builder.dupeSlice(core.Case.Alternative, &.{
+            .{ .constructor = registry.boolConstructor(false).symbol, .binders = &.{}, .body = otherwise },
+            .{ .constructor = registry.boolConstructor(true).symbol, .binders = &.{}, .body = matched },
+        });
+        return try self.builder.case(condition, alternatives, span);
     }
 
     /// `concat_map (\name -> body) value`.

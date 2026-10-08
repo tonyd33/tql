@@ -25,7 +25,7 @@ function f() {}
 ["A"]
 --- simplified ---
 main = \root -> concat_map (
-  \cons0 -> case field[name] cons0 of
+  \scrutinee -> case field[name] scrutinee of
     Nil -> Nil
     Cons cons0 cons1 -> case cons1 of
       Nil -> Cons (text cons0) Nil

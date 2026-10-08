@@ -17,5 +17,5 @@ let x = 1;
 --- values ---
 ["lexical_declaration"]
 --- types ---
+$mSingle :: [Node] -> (Node -> a) -> a -> a
 main :: Node -> [String]
-Single :: Node -> [Node]

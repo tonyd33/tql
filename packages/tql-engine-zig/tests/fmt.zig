@@ -58,14 +58,7 @@ pub fn formatTypes(
             try w.writer.writeAll("<unchecked>");
             continue;
         };
-        switch (program.env.interner.details(definition.symbol)) {
-            .synonym => |s| {
-                var arena: std.heap.ArenaAllocator = .init(allocator);
-                defer arena.deinit();
-                try (try tql.core.types.synonymScheme(arena.allocator(), scheme, s.arity)).format(&w.writer);
-            },
-            else => try scheme.format(&w.writer),
-        }
+        try scheme.format(&w.writer);
     }
     return w.toOwnedSlice();
 }

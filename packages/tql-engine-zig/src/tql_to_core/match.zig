@@ -27,7 +27,6 @@ const datatypes = core.datatypes;
 
 const Error = desugar.Error;
 const Lowerer = desugar.Lowerer;
-const ModuleScope = @import("scope.zig").ModuleScope;
 const Entry = resolve.Scope.Entry;
 
 fn isWildcard(name: []const u8) bool {
@@ -58,19 +57,57 @@ const Holes = struct {
 
 const Arm = struct {
     written: cst.Pattern,
-    /// `written` with list, cons and boolean sugar rewritten as constructors,
-    /// and node patterns as views.
-    pattern: cst.Pattern,
+    pattern: Pattern,
     guard: ?cst.Expression,
     body: Body,
+};
+
+/// A pattern as the matcher sees it: names resolved, and sugar rewritten as
+/// constructors and views.
+const Pattern = struct {
+    kind: Kind,
+    span: diagnostic.Span,
+
+    const Kind = union(enum) {
+        variable: []const u8,
+        constructor: Constructor,
+        synonym: Synonym,
+        view: *const View,
+        literal: cst.Pattern.Literal,
+        /// Each of these against the one value.
+        all: []const Pattern,
+    };
+
+    const Constructor = struct {
+        symbol: core.SymbolId,
+        arguments: []const Pattern,
+    };
+
+    const Synonym = struct {
+        symbol: core.SymbolId,
+        matcher: core.SymbolId,
+        arguments: []const Pattern,
+    };
+
+    const View = struct {
+        function: Function,
+        pattern: Pattern,
+        /// Set when `function` yields `[]` or `[x]` for the value `x` it views.
+        yields_self: bool = false,
+    };
+};
+
+/// A view's function: as written, lowered in the scope of the variables bound
+/// before the view, or already lowered.
+const Function = union(enum) {
+    written: cst.Expression,
+    lowered: core.Term,
 };
 
 /// What a match does when no row matches.
 const NoMatch = union(enum) {
     /// Report the value that falls through.
     report,
-    /// Yield `Nil`.
-    nil,
     /// Yield this term.
     fallthrough: core.Term,
 };
@@ -128,7 +165,8 @@ pub fn bind(
         .guard = null,
         .body = .{ .rest = rest },
     }});
-    const term = try lower(lowerer, arms, scope, span, root, b.symbol(root, span), .nil);
+    const nil = b.symbol(lowerer.scope.datatypes.nilConstructor().symbol, span);
+    const term = try lower(lowerer, arms, scope, span, root, b.symbol(root, span), .{ .fallthrough = nil });
     return try lowerer.bind(root, value, term, statement.span);
 }
 
@@ -220,7 +258,7 @@ fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.
             try boundVariables(allocator, c.head, out);
             try boundVariables(allocator, c.tail, out);
         },
-        .constructor, .synonym => |c| for (c.arguments) |argument| try boundVariables(allocator, argument, out),
+        .constructor => |c| for (c.arguments) |argument| try boundVariables(allocator, argument, out),
         .list => |elements| for (elements) |element| try boundVariables(allocator, element, out),
         .view => |v| try boundVariables(allocator, v.pattern, out),
         .node => |n| for (n.fields) |f| try boundVariables(allocator, f.pattern, out),
@@ -271,17 +309,19 @@ fn lower(
         return error.DesugarFailed;
     }
 
-    const shared = try b.slice(?core.SymbolId, arms.len);
+    const shared = try b.slice(?Shared, arms.len);
     var bindings: std.ArrayList(core.Letrec.Binding) = .empty;
     defer bindings.deinit(b.allocator);
     for (arms, matcher.uses, shared) |arm, uses, *slot| {
         slot.* = null;
         if (uses < 2) continue;
+        var variables: std.ArrayList(Variable) = .empty;
+        try boundVariables(b.allocator, arm.written, &variables);
         const symbol = try lowerer.env.interner.fresh("alternative");
-        slot.* = symbol;
+        slot.* = .{ .symbol = symbol, .variables = variables.items };
         try bindings.append(b.allocator, .{
             .name = symbol,
-            .value = try sharedAlternative(lowerer, arm, scope, span),
+            .value = try sharedAlternative(lowerer, arm, variables.items, scope, span),
         });
     }
 
@@ -311,54 +351,55 @@ fn lower(
     return term;
 }
 
-/// Rewrite list, cons and boolean patterns as constructor patterns, and node
-/// patterns as views. The matcher sees no other sugar.
-fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!cst.Pattern {
+/// Resolve the names `pattern` uses, and rewrite list, cons and boolean
+/// patterns as constructor patterns, node patterns as views, and as-patterns
+/// and conjunctions as `all`.
+///
+/// Preconditions:
+/// - `check` accepted `pattern`.
+fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
     const b = lowerer.builder;
+    const span = pattern.span;
     switch (pattern.kind) {
-        .node, .as, .conjunction => if (try narrow(lowerer, pattern)) |narrowed| return narrowed,
-        else => {},
-    }
-    switch (pattern.kind) {
-        .node => |n| return try fieldViews(lowerer, n, pattern.span),
-        .variable, .literal => return pattern,
-        .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, pattern.span),
+        .variable => |name| return .{ .kind = .{ .variable = name }, .span = span },
+        .literal => |literal| return .{ .kind = .{ .literal = literal }, .span = span },
+        .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, span),
         .constructor => |c| {
-            const arguments = try b.slice(cst.Pattern, c.arguments.len);
+            const arguments = try b.slice(Pattern, c.arguments.len);
             for (c.arguments, arguments) |argument, *out| out.* = try expand(lowerer, argument);
-            const expanded: cst.Pattern.Constructor = .{ .name = c.name, .arguments = arguments, .builtin = c.builtin };
+            const symbol = lowerer.scope.value(c.name).found;
             return .{
-                .kind = if (isSynonym(lowerer.scope, c)) .{ .synonym = expanded } else .{ .constructor = expanded },
-                .span = pattern.span,
+                .kind = switch (lowerer.env.interner.details(symbol)) {
+                    .synonym => |s| .{ .synonym = .{ .symbol = symbol, .matcher = s.matcher, .arguments = arguments } },
+                    else => .{ .constructor = .{ .symbol = symbol, .arguments = arguments } },
+                },
+                .span = span,
             };
         },
-        .synonym => unreachable,
-        .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), pattern.span),
+        .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), span),
         .list => |elements| {
-            var spine = builtinPattern(lowerer, .nil, &.{}, pattern.span);
+            var spine = builtinPattern(lowerer, .nil, &.{}, span);
             var i = elements.len;
             while (i > 0) {
                 i -= 1;
                 // An inner cell spans its head element.
-                const span = if (i == 0) pattern.span else elements[i].span;
-                spine = try cell(lowerer, try expand(lowerer, elements[i]), spine, span);
+                const cell_span = if (i == 0) span else elements[i].span;
+                spine = try cell(lowerer, try expand(lowerer, elements[i]), spine, cell_span);
             }
             return spine;
         },
-        .as => |a| {
-            const boxed = try b.allocator.create(cst.Pattern.As);
-            boxed.* = .{ .name = a.name, .name_span = a.name_span, .pattern = try expand(lowerer, a.pattern) };
-            return .{ .kind = .{ .as = boxed }, .span = pattern.span };
-        },
-        .conjunction => |c| {
-            const boxed = try b.allocator.create(cst.Pattern.Conjunction);
-            boxed.* = .{ .left = try expand(lowerer, c.left), .right = try expand(lowerer, c.right) };
-            return .{ .kind = .{ .conjunction = boxed }, .span = pattern.span };
-        },
         .view => |v| {
-            const boxed = try b.allocator.create(cst.Pattern.View);
-            boxed.* = .{ .function = v.function, .written = v.written, .pattern = try expand(lowerer, v.pattern) };
-            return .{ .kind = .{ .view = boxed }, .span = pattern.span };
+            const boxed = try b.allocator.create(Pattern.View);
+            boxed.* = .{
+                .function = .{ .written = v.function },
+                .pattern = try expand(lowerer, v.pattern),
+            };
+            return .{ .kind = .{ .view = boxed }, .span = span };
+        },
+        .node, .as, .conjunction => {
+            var conjuncts: std.ArrayList(cst.Pattern) = .empty;
+            try flatten(b.allocator, pattern, &conjuncts);
+            return try conjoin(lowerer, conjuncts.items, span);
         },
     }
 }
@@ -379,132 +420,84 @@ fn flatten(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayLi
     }
 }
 
-fn isKindedNode(pattern: cst.Pattern) bool {
-    return pattern.kind == .node and pattern.kind.node.kind != null;
-}
-
-/// `p & :k { .. } & q` as `(of_kind :k -> [p & { .. } & q])`, keeping the
-/// conjuncts in the order they are written. The first kinded node pattern is
-/// the outer view; a later one nests inside it. Returns null when no conjunct
-/// is a kinded node pattern.
-fn narrow(lowerer: *Lowerer, pattern: cst.Pattern) Error!?cst.Pattern {
+/// `conjuncts` against one value, keeping the order they are written. A node
+/// pattern's fields become `(#f -> [p])` views. The first kinded node pattern
+/// `:k { .. }` becomes the outer view `(of_kind :k -> [..])` holding every
+/// conjunct; a later one nests inside it.
+fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.Span) Error!Pattern {
     const b = lowerer.builder;
-    var conjuncts: std.ArrayList(cst.Pattern) = .empty;
-    try flatten(b.allocator, pattern, &conjuncts);
-
     var outer: ?cst.Pattern = null;
-    var inside: std.ArrayList(cst.Pattern) = .empty;
-    for (conjuncts.items) |conjunct| {
-        if (outer != null or !isKindedNode(conjunct)) {
-            try inside.append(b.allocator, conjunct);
-            continue;
+    var inside: std.ArrayList(Pattern) = .empty;
+    for (conjuncts) |conjunct| {
+        const n = switch (conjunct.kind) {
+            .node => |n| n,
+            else => {
+                try inside.append(b.allocator, try expand(lowerer, conjunct));
+                continue;
+            },
+        };
+        if (n.kind != null) {
+            if (outer != null) {
+                try inside.append(b.allocator, try conjoin(lowerer, &.{conjunct}, conjunct.span));
+                continue;
+            }
+            outer = conjunct;
         }
-        outer = conjunct;
-        const n = conjunct.kind.node;
-        if (n.fields.len == 0) continue;
-        const kindless = try b.allocator.create(cst.Pattern.Node);
-        kindless.* = .{ .kind = null, .fields = n.fields };
-        try inside.append(b.allocator, .{ .kind = .{ .node = kindless }, .span = conjunct.span });
+        for (n.fields) |f| {
+            var navigation: cst.Navigation = .{ .node = null, .field = f.name };
+            const function = try lowerer.expression(.{ .kind = .{ .navigation = &navigation }, .span = f.name_span }, null);
+            try inside.append(b.allocator, try view(lowerer, function, try expand(lowerer, f.pattern), false, f.span));
+        }
     }
-    const node = outer orelse return null;
-    const n = node.kind.node;
 
-    const element: cst.Pattern = if (inside.items.len == 0)
+    const node = outer orelse return try all(lowerer, inside.items, span);
+    const n = node.kind.node;
+    const element: Pattern = if (inside.items.len == 0)
         .{ .kind = .{ .variable = "_" }, .span = node.span }
     else
-        try conjoin(lowerer, inside.items, pattern.span);
-
-    const apply = try b.allocator.create(cst.Apply);
-    apply.* = .{
-        .function = .{ .kind = .{ .primitive = "of_kind" }, .span = node.span },
-        .argument = .{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span },
-    };
-    return try view(
-        lowerer,
-        .{ .kind = .{ .apply = apply }, .span = node.span },
-        try b.print("of_kind :{s}", .{n.kind.?}),
-        try expand(lowerer, element),
-        node.span,
-    );
+        try all(lowerer, inside.items, span);
+    const kind = try lowerer.expression(.{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span }, null);
+    const function = try b.apply(try lowerer.primitive("of_kind", node.span), kind, node.span);
+    return try view(lowerer, function, element, true, node.span);
 }
 
-/// `{ #f = p, .. }` as `(#f -> [p]) & ..`.
-///
-/// Preconditions:
-/// - `n` has a field.
-fn fieldViews(lowerer: *Lowerer, n: *const cst.Pattern.Node, span: diagnostic.Span) Error!cst.Pattern {
-    const b = lowerer.builder;
-    const views = try b.slice(cst.Pattern, n.fields.len);
-    for (n.fields, views) |f, *out| {
-        const navigation = try b.allocator.create(cst.Navigation);
-        navigation.* = .{ .node = null, .field = f.name };
-        out.* = try view(
-            lowerer,
-            .{ .kind = .{ .navigation = navigation }, .span = f.name_span },
-            try b.print("#{s}", .{f.name}),
-            try expand(lowerer, f.pattern),
-            f.span,
-        );
-    }
-    return try conjoin(lowerer, views, span);
+/// Each of `patterns` against one value.
+fn all(lowerer: *Lowerer, patterns: []const Pattern, span: diagnostic.Span) Error!Pattern {
+    if (patterns.len == 1) return patterns[0];
+    return .{ .kind = .{ .all = try lowerer.builder.dupeSlice(Pattern, patterns) }, .span = span };
 }
 
-/// `patterns` joined left to right with `&`.
-///
-/// Preconditions:
-/// - `patterns` is not empty.
-fn conjoin(lowerer: *Lowerer, patterns: []const cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
-    var result = patterns[0];
-    for (patterns[1..]) |right| {
-        const boxed = try lowerer.builder.allocator.create(cst.Pattern.Conjunction);
-        boxed.* = .{ .left = result, .right = right };
-        result = .{ .kind = .{ .conjunction = boxed }, .span = span };
-    }
-    return result;
-}
-
-/// `(function -> [element])`, with `element` already expanded.
-fn view(
-    lowerer: *Lowerer,
-    function: cst.Expression,
-    written: []const u8,
-    element: cst.Pattern,
-    span: diagnostic.Span,
-) Error!cst.Pattern {
-    const boxed = try lowerer.builder.allocator.create(cst.Pattern.View);
+/// `(function -> [element])`.
+fn view(lowerer: *Lowerer, function: core.Term, element: Pattern, yields_self: bool, span: diagnostic.Span) Error!Pattern {
+    const boxed = try lowerer.builder.allocator.create(Pattern.View);
     boxed.* = .{
-        .function = function,
-        .written = written,
+        .function = .{ .lowered = function },
         .pattern = try cell(lowerer, element, builtinPattern(lowerer, .nil, &.{}, span), span),
+        .yields_self = yields_self,
     };
     return .{ .kind = .{ .view = boxed }, .span = span };
 }
 
-fn cell(lowerer: *Lowerer, head: cst.Pattern, tail: cst.Pattern, span: diagnostic.Span) Error!cst.Pattern {
-    const arguments = try lowerer.builder.slice(cst.Pattern, 2);
+fn cell(lowerer: *Lowerer, head: Pattern, tail: Pattern, span: diagnostic.Span) Error!Pattern {
+    const arguments = try lowerer.builder.slice(Pattern, 2);
     arguments[0] = head;
     arguments[1] = tail;
     return builtinPattern(lowerer, .cons, arguments, span);
 }
 
-fn builtinPattern(
-    lowerer: *Lowerer,
-    which: cst.Pattern.Builtin,
-    arguments: []const cst.Pattern,
-    span: diagnostic.Span,
-) cst.Pattern {
-    const symbol = builtinConstructor(lowerer.scope.datatypes, which).symbol;
+const Builtin = enum { nil, cons, false, true };
+
+fn builtinPattern(lowerer: *Lowerer, which: Builtin, arguments: []const Pattern, span: diagnostic.Span) Pattern {
     return .{
         .kind = .{ .constructor = .{
-            .name = lowerer.env.interner.spelling(symbol),
+            .symbol = builtinConstructor(lowerer.scope.datatypes, which).symbol,
             .arguments = arguments,
-            .builtin = which,
         } },
         .span = span,
     };
 }
 
-fn builtinConstructor(registry: *const datatypes.Registry, which: cst.Pattern.Builtin) datatypes.Constructor {
+fn builtinConstructor(registry: *const datatypes.Registry, which: Builtin) datatypes.Constructor {
     return switch (which) {
         .nil => registry.nilConstructor(),
         .cons => registry.consConstructor(),
@@ -527,20 +520,28 @@ fn literalExpression(literal: cst.Pattern.Literal, span: diagnostic.Span) cst.Ex
 }
 
 /// The variable naming the whole value `pattern` matches, if one does.
-fn givenName(pattern: cst.Pattern) ?[]const u8 {
-    return switch (pattern.kind) {
-        .variable => |name| if (isWildcard(name)) null else name,
-        .as => |a| if (isWildcard(a.name)) givenName(a.pattern) else a.name,
-        .conjunction => |c| givenName(c.left) orelse givenName(c.right),
-        else => null,
-    };
+fn givenName(pattern: Pattern) ?[]const u8 {
+    switch (pattern.kind) {
+        .variable => |name| return if (isWildcard(name)) null else name,
+        .view => |v| return if (v.yields_self) givenName(v.pattern.kind.constructor.arguments[0]) else null,
+        .all => |patterns| {
+            for (patterns) |p| {
+                if (givenName(p)) |name| return name;
+            }
+            return null;
+        },
+        else => return null,
+    }
 }
 
 /// The name a bind gives the value it matches.
-fn binderName(pattern: cst.Pattern) []const u8 {
+fn binderName(pattern: Pattern) []const u8 {
     if (givenName(pattern)) |name| return name;
-    if (pattern.kind == .variable) return "_";
-    return "scrutinee";
+    return switch (pattern.kind) {
+        .variable => "_",
+        .view => |v| if (v.yields_self) binderName(v.pattern.kind.constructor.arguments[0]) else "scrutinee",
+        else => "scrutinee",
+    };
 }
 
 /// Reject a pattern naming an unknown constructor or kind, giving a
@@ -563,8 +564,15 @@ const Checker = struct {
         switch (pattern.kind) {
             .variable => |name| try self.variable(name, pattern.span, whole),
             .as, .conjunction => {
+                var conjuncts: std.ArrayList(cst.Pattern) = .empty;
+                try flatten(self.lowerer.builder.allocator, pattern, &conjuncts);
                 var names: usize = 0;
-                countNames(pattern, &names);
+                for (conjuncts.items) |conjunct| switch (conjunct.kind) {
+                    .variable => |name| if (!isWildcard(name)) {
+                        names += 1;
+                    },
+                    else => {},
+                };
                 if (names > 1) {
                     try self.lowerer.sink.report(
                         .duplicate_definition,
@@ -574,7 +582,7 @@ const Checker = struct {
                     );
                     return error.DesugarFailed;
                 }
-                try self.conjuncts(pattern, whole);
+                for (conjuncts.items) |conjunct| try self.visit(conjunct, whole);
             },
             .view => |v| try self.visit(v.pattern, false),
             .constructor => |c| {
@@ -618,22 +626,6 @@ const Checker = struct {
                     try self.visit(f.pattern, false);
                 }
             },
-            .synonym => unreachable,
-        }
-    }
-
-    /// Visit the patterns an as-pattern or conjunction matches against its one value.
-    fn conjuncts(self: *Checker, pattern: cst.Pattern, whole: bool) Error!void {
-        switch (pattern.kind) {
-            .as => |a| {
-                try self.variable(a.name, a.name_span, whole);
-                try self.conjuncts(a.pattern, whole);
-            },
-            .conjunction => |c| {
-                try self.conjuncts(c.left, whole);
-                try self.conjuncts(c.right, whole);
-            },
-            else => try self.visit(pattern, whole),
         }
     }
 
@@ -664,34 +656,12 @@ const Checker = struct {
     }
 };
 
-/// Count the variables naming the value an as-pattern or conjunction matches.
-fn countNames(pattern: cst.Pattern, count: *usize) void {
-    switch (pattern.kind) {
-        .variable => |name| {
-            if (!isWildcard(name)) count.* += 1;
-        },
-        .as => |a| {
-            if (!isWildcard(a.name)) count.* += 1;
-            countNames(a.pattern, count);
-        },
-        .conjunction => |c| {
-            countNames(c.left, count);
-            countNames(c.right, count);
-        },
-        else => {},
-    }
-}
-
 fn constructorNamed(
     lowerer: *Lowerer,
     c: cst.Pattern.Constructor,
     span: diagnostic.Span,
 ) Error!*const datatypes.Constructor {
-    const found = if (c.builtin) |which|
-        builtinConstructor(lowerer.scope.datatypes, which).symbol
-    else
-        try lowerer.resolveGlobal(c.name, span);
-    if (found) |id| {
+    if (try lowerer.resolveGlobal(c.name, span)) |id| {
         if (lowerer.scope.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
     try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor or a pattern synonym", .{c.name});
@@ -700,7 +670,6 @@ fn constructorNamed(
 
 /// The arity of the pattern synonym `c` names, or null when it names none.
 fn synonymNamed(lowerer: *Lowerer, c: cst.Pattern.Constructor, span: diagnostic.Span) Error!?u32 {
-    if (c.builtin != null) return null;
     const id = try lowerer.resolveGlobal(c.name, span) orelse return null;
     return switch (lowerer.env.interner.details(id)) {
         .synonym => |s| s.arity,
@@ -708,46 +677,25 @@ fn synonymNamed(lowerer: *Lowerer, c: cst.Pattern.Constructor, span: diagnostic.
     };
 }
 
-/// Whether the constructor pattern `c` names a pattern synonym.
-///
-/// Preconditions:
-/// - `check` accepted the pattern `c` is in.
-fn isSynonym(scope: *const ModuleScope, c: cst.Pattern.Constructor) bool {
-    if (c.builtin != null) return false;
-    return scope.interner.details(scope.value(c.name).found) == .synonym;
-}
+/// An alternative bound once as a function of its pattern variables.
+const Shared = struct {
+    symbol: core.SymbolId,
+    /// The parameters, in the order they are written.
+    variables: []const Variable,
+};
 
-/// The symbol a constructor pattern names.
-///
-/// Preconditions:
-/// - `check` accepted the pattern `c` is in.
-fn constructorSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
-    if (c.builtin) |which| return builtinConstructor(scope.datatypes, which).symbol;
-    return scope.value(c.name).found;
-}
-
-/// The matcher a synonym pattern calls.
-///
-/// Preconditions:
-/// - `check` accepted the pattern `c` is in.
-fn synonymSymbol(scope: *const ModuleScope, c: cst.Pattern.Constructor) core.SymbolId {
-    return scope.value(c.name).found;
-}
-
-/// `\x_1 ... x_n -> body` over the alternative's pattern variables, in the
-/// order they are written.
+/// `\x_1 ... x_n -> body` over `variables`, the alternative's pattern
+/// variables.
 fn sharedAlternative(
     lowerer: *Lowerer,
     arm: Arm,
+    variables: []const Variable,
     scope: ?*const resolve.Scope,
     span: diagnostic.Span,
 ) Error!core.Term {
-    var names: std.ArrayList([]const u8) = .empty;
-    try variables(lowerer.builder.allocator, arm.pattern, &names);
-
-    const entries = try lowerer.builder.slice(Entry, names.items.len);
-    for (names.items, entries) |name, *entry| {
-        entry.* = .{ .name = name, .symbol = try lowerer.env.interner.fresh(name) };
+    const entries = try lowerer.builder.slice(Entry, variables.len);
+    for (variables, entries) |variable, *entry| {
+        entry.* = .{ .name = variable.name, .symbol = try lowerer.env.interner.fresh(variable.name) };
     }
     const inner: resolve.Scope = .{ .parent = scope, .names = entries };
 
@@ -770,28 +718,6 @@ fn lowerBody(lowerer: *Lowerer, body: Body, scope: *const resolve.Scope) Error!c
             return try lowerer.builder.applyMany(lowerer.builder.symbol(h.continuation, h.span), arguments, h.span);
         },
     };
-}
-
-fn variables(
-    allocator: std.mem.Allocator,
-    pattern: cst.Pattern,
-    out: *std.ArrayList([]const u8),
-) Error!void {
-    switch (pattern.kind) {
-        .variable => |name| if (!isWildcard(name)) try out.append(allocator, name),
-        .constructor, .synonym => |c| for (c.arguments) |argument| try variables(allocator, argument, out),
-        .as => |a| {
-            if (!isWildcard(a.name)) try out.append(allocator, a.name);
-            try variables(allocator, a.pattern, out);
-        },
-        .conjunction => |c| {
-            try variables(allocator, c.left, out);
-            try variables(allocator, c.right, out);
-        },
-        .view => |v| try variables(allocator, v.pattern, out),
-        .literal => {},
-        .list, .cons, .boolean, .node => unreachable,
-    }
 }
 
 /// Whether any leaf or view of `tree` binds a variable to `occurrence`.
@@ -844,37 +770,23 @@ fn reads(tree: *const Tree, occurrence: core.SymbolId) usize {
 }
 
 /// A pattern still to match, and the occurrence it matches against. The
-/// pattern is a variable, a constructor, a view, a literal or a synonym.
+/// pattern is never `all`.
 const Item = struct {
-    pattern: cst.Pattern,
+    pattern: Pattern,
     occurrence: core.SymbolId,
 };
 
-/// Append `pattern` against `occurrence` to `items`, with each as-pattern and
-/// conjunction split into the patterns it matches against the one value.
+/// Append `pattern` against `occurrence` to `items`, with each `all` split
+/// into the patterns it matches against the one value.
 fn push(
     allocator: std.mem.Allocator,
     items: *std.ArrayList(Item),
-    pattern: cst.Pattern,
+    pattern: Pattern,
     occurrence: core.SymbolId,
 ) Error!void {
     switch (pattern.kind) {
-        .as => |a| {
-            try items.append(allocator, .{
-                .pattern = .{ .kind = .{ .variable = a.name }, .span = a.name_span },
-                .occurrence = occurrence,
-            });
-            try push(allocator, items, a.pattern, occurrence);
-        },
-        .conjunction => |c| {
-            try push(allocator, items, c.left, occurrence);
-            try push(allocator, items, c.right, occurrence);
-        },
-        .variable, .constructor, .view, .literal, .synonym => try items.append(allocator, .{
-            .pattern = pattern,
-            .occurrence = occurrence,
-        }),
-        .list, .cons, .boolean, .node => unreachable,
+        .all => |patterns| for (patterns) |p| try push(allocator, items, p, occurrence),
+        else => try items.append(allocator, .{ .pattern = pattern, .occurrence = occurrence }),
     }
 }
 
@@ -920,7 +832,7 @@ const Tree = union(enum) {
     /// `tree`.
     const View = struct {
         symbol: core.SymbolId,
-        function: cst.Expression,
+        function: Function,
         occurrence: core.SymbolId,
         /// The variables `function` may name, besides the enclosing scope's.
         bindings: []const Entry,
@@ -1013,25 +925,23 @@ const Matcher = struct {
                     if (holds) continue;
                     return try self.compile(rows[1..]);
                 },
-                .synonym => |s| if (self.called(item.occurrence, synonymSymbol(self.lowerer.scope, s))) |call| {
+                .synonym => |s| if (self.called(item.occurrence, s.matcher)) |call| {
                     if (!call.holds) return try self.compile(rows[1..]);
-                    var items: std.ArrayList(Item) = .empty;
-                    for (s.arguments, call.holes) |argument, hole| try push(b.allocator, &items, argument, hole);
-                    try items.appendSlice(b.allocator, first.items[i + 1 ..]);
-                    const replaced = try b.dupeSlice(Row, rows);
-                    replaced[0] = .{ .items = items.items, .bindings = bindings.items, .alternative = first.alternative };
-                    return try self.compile(replaced);
+                    return try self.compile(try self.withFirst(rows, .{
+                        .items = try self.afterCall(s.arguments, call.holes, first.items[i + 1 ..]),
+                        .bindings = bindings.items,
+                        .alternative = first.alternative,
+                    }));
                 },
                 .constructor, .view => {},
-                .as, .conjunction, .list, .cons, .boolean, .node => unreachable,
+                .all => unreachable,
             }
 
-            const narrowed = try b.dupeSlice(Row, rows);
-            narrowed[0] = .{
+            const narrowed = try self.withFirst(rows, .{
                 .items = first.items[i..],
                 .bindings = bindings.items,
                 .alternative = first.alternative,
-            };
+            });
             return switch (item.pattern.kind) {
                 .constructor => try self.split(narrowed, item),
                 .view => |v| try self.bindView(narrowed, item, v),
@@ -1068,7 +978,7 @@ const Matcher = struct {
         for (declared.constructors, branches) |constructor, *branch| {
             const fields = try b.slice(core.SymbolId, constructor.fields.len);
             for (fields, 0..) |*field, i| {
-                const name = fieldName(self.lowerer.scope, rows, occurrence, constructor.symbol, i) orelse
+                const name = fieldName(rows, occurrence, constructor.symbol, i) orelse
                     try b.print("{s}{d}", .{
                         try std.ascii.allocLowerString(b.allocator, self.lowerer.env.interner.spelling(constructor.symbol)),
                         i,
@@ -1104,8 +1014,7 @@ const Matcher = struct {
                     .constructor => |c| c,
                     else => continue,
                 };
-                const id = constructorSymbol(self.lowerer.scope, c);
-                const this = datatypes.ownerOf(&self.lowerer.env.interner, id).?;
+                const this = datatypes.ownerOf(&self.lowerer.env.interner, c.symbol).?;
                 const expected = found orelse {
                     found = this;
                     continue;
@@ -1115,7 +1024,7 @@ const Matcher = struct {
                         .type_mismatch,
                         item.pattern.span,
                         "`{s}` is not a constructor of `{s}`",
-                        .{ c.name, self.lowerer.scope.datatypes.get(expected).name },
+                        .{ self.lowerer.env.interner.spelling(c.symbol), self.lowerer.scope.datatypes.get(expected).name },
                     );
                     return error.DesugarFailed;
                 }
@@ -1144,7 +1053,7 @@ const Matcher = struct {
                     continue;
                 }
                 const c = item.pattern.kind.constructor;
-                if (constructorSymbol(self.lowerer.scope, c) != constructor) continue :rows;
+                if (c.symbol != constructor) continue :rows;
                 for (c.arguments, fields) |argument, field| try push(b.allocator, &items, argument, field);
             }
             try out.append(b.allocator, .{
@@ -1158,7 +1067,7 @@ const Matcher = struct {
 
     /// Bind the first row's first item, a view, and match its pattern
     /// against the result.
-    fn bindView(self: *Matcher, rows: []const Row, item: Item, v: *const cst.Pattern.View) Error!*const Tree {
+    fn bindView(self: *Matcher, rows: []const Row, item: Item, v: *const Pattern.View) Error!*const Tree {
         const b = self.lowerer.builder;
         const first = rows[0];
         const symbol = try self.lowerer.env.interner.fresh(givenName(v.pattern) orelse "view");
@@ -1166,8 +1075,7 @@ const Matcher = struct {
         try push(b.allocator, &items, v.pattern, symbol);
         try items.appendSlice(b.allocator, first.items[1..]);
 
-        const replaced = try b.dupeSlice(Row, rows);
-        replaced[0] = .{ .items = items.items, .bindings = first.bindings, .alternative = first.alternative };
+        const replaced = try self.withFirst(rows, .{ .items = items.items, .bindings = first.bindings, .alternative = first.alternative });
         return try self.node(.{ .view = .{
             .symbol = symbol,
             .function = v.function,
@@ -1188,8 +1096,7 @@ const Matcher = struct {
         const failed = try self.compile(rows[1..]);
         _ = self.facts.pop();
 
-        const matching = try b.dupeSlice(Row, rows);
-        matching[0] = .{ .items = first.items[1..], .bindings = first.bindings, .alternative = first.alternative };
+        const matching = try self.withFirst(rows, .{ .items = first.items[1..], .bindings = first.bindings, .alternative = first.alternative });
         try self.facts.append(b.allocator, .{ .occurrence = item.occurrence, .literal = literal, .holds = true });
         const matched = try self.compile(matching);
         _ = self.facts.pop();
@@ -1205,19 +1112,16 @@ const Matcher = struct {
 
     /// Call the matcher of the first row's first item, a synonym. A failed
     /// call drops only that row.
-    fn testSynonym(self: *Matcher, rows: []const Row, item: Item, s: cst.Pattern.Constructor) Error!*const Tree {
+    fn testSynonym(self: *Matcher, rows: []const Row, item: Item, s: Pattern.Synonym) Error!*const Tree {
         const b = self.lowerer.builder;
         const first = rows[0];
-        const matcher = synonymSymbol(self.lowerer.scope, s);
+        const matcher = s.matcher;
 
         const holes = try b.slice(core.SymbolId, s.arguments.len);
         const hole_spans = try b.slice(diagnostic.Span, s.arguments.len);
+        const prefix = try std.ascii.allocLowerString(b.allocator, self.lowerer.env.interner.spelling(s.symbol));
         for (s.arguments, holes, hole_spans, 0..) |argument, *hole, *span, i| {
-            const unqualified = if (std.mem.cutScalarLast(u8, s.name, '.')) |cut| cut[1] else s.name;
-            const name = givenName(argument) orelse try b.print("{s}{d}", .{
-                try std.ascii.allocLowerString(b.allocator, unqualified),
-                i,
-            });
+            const name = givenName(argument) orelse try b.print("{s}{d}", .{ prefix, i });
             hole.* = try self.lowerer.env.interner.fresh(name);
             span.* = argument.span;
         }
@@ -1226,11 +1130,11 @@ const Matcher = struct {
         const failed = try self.compile(rows[1..]);
         _ = self.calls.pop();
 
-        var items: std.ArrayList(Item) = .empty;
-        for (s.arguments, holes) |argument, hole| try push(b.allocator, &items, argument, hole);
-        try items.appendSlice(b.allocator, first.items[1..]);
-        const matching = try b.dupeSlice(Row, rows);
-        matching[0] = .{ .items = items.items, .bindings = first.bindings, .alternative = first.alternative };
+        const matching = try self.withFirst(rows, .{
+            .items = try self.afterCall(s.arguments, holes, first.items[1..]),
+            .bindings = first.bindings,
+            .alternative = first.alternative,
+        });
         try self.calls.append(b.allocator, .{ .occurrence = item.occurrence, .matcher = matcher, .holes = holes, .holds = true });
         const matched = try self.compile(matching);
         _ = self.calls.pop();
@@ -1244,6 +1148,23 @@ const Matcher = struct {
             .matched = matched,
             .failed = failed,
         } });
+    }
+
+    /// Returns `rows` with its first row replaced by `first`.
+    fn withFirst(self: *const Matcher, rows: []const Row, first: Row) Error![]const Row {
+        const replaced = try self.lowerer.builder.dupeSlice(Row, rows);
+        replaced[0] = first;
+        return replaced;
+    }
+
+    /// Returns the items a row continues with once a synonym call binds
+    /// `holes`: each argument against its hole, then `rest`.
+    fn afterCall(self: *const Matcher, arguments: []const Pattern, holes: []const core.SymbolId, rest: []const Item) Error![]const Item {
+        const allocator = self.lowerer.builder.allocator;
+        var items: std.ArrayList(Item) = .empty;
+        for (arguments, holes) |argument, hole| try push(allocator, &items, argument, hole);
+        try items.appendSlice(allocator, rest);
+        return items.items;
     }
 
     /// The call of `matcher` on `occurrence` taken on the current path, if one
@@ -1295,7 +1216,6 @@ fn excludes(held: cst.Pattern.Literal, other: cst.Pattern.Literal) bool {
 /// The first variable written for a field. Returns null for a field some row
 /// tests but none names, and `_` for a field nothing uses.
 fn fieldName(
-    scope: *const ModuleScope,
     rows: []const Row,
     occurrence: core.SymbolId,
     constructor: core.SymbolId,
@@ -1309,7 +1229,7 @@ fn fieldName(
                 .constructor => |c| c,
                 else => continue,
             };
-            if (constructorSymbol(scope, c) != constructor) continue;
+            if (c.symbol != constructor) continue;
             const argument = c.arguments[index];
             if (givenName(argument)) |name| return name;
             if (argument.kind != .variable) tested = true;
@@ -1327,7 +1247,7 @@ const Emitter = struct {
     scrutinee: core.Term,
     /// Whether the scrutinee is read through `root`.
     root_bound: bool,
-    shared: []const ?core.SymbolId,
+    shared: []const ?Shared,
     no_match: NoMatch,
 
     fn emit(self: Emitter, tree: *const Tree) Error!core.Term {
@@ -1339,7 +1259,7 @@ const Emitter = struct {
                 const guard = self.arms[leaf.alternative].guard.?;
                 const condition = try self.lowerer.expression(guard, &inner);
                 const matched = try self.body(leaf, &inner);
-                return try self.choose(condition, try self.emit(otherwise), matched, guard.span);
+                return try self.lowerer.choose(condition, try self.emit(otherwise), matched, guard.span);
             },
             .test_ => |t| {
                 const alternatives = try b.slice(core.Case.Alternative, t.branches.len);
@@ -1354,8 +1274,12 @@ const Emitter = struct {
             },
             .view => |v| {
                 const inner: resolve.Scope = .{ .parent = self.scope, .names = v.bindings };
+                const function = switch (v.function) {
+                    .written => |e| try self.lowerer.expression(e, &inner),
+                    .lowered => |term| term,
+                };
                 const value = try b.apply(
-                    try self.lowerer.expression(v.function, &inner),
+                    function,
                     self.occurrence(v.occurrence, v.span),
                     v.span,
                 );
@@ -1370,7 +1294,7 @@ const Emitter = struct {
                     l.span,
                 );
                 const matched = try self.emit(l.matched);
-                return try self.choose(condition, try self.emit(l.failed), matched, l.span);
+                return try self.lowerer.choose(condition, try self.emit(l.failed), matched, l.span);
             },
             .synonym => |s| {
                 try self.lowerer.recordReference(s.matcher);
@@ -1388,7 +1312,6 @@ const Emitter = struct {
             },
             .fail => return switch (self.no_match) {
                 .fallthrough => |term| term,
-                .nil => b.symbol(self.lowerer.scope.datatypes.nilConstructor().symbol, self.span),
                 .report => unreachable,
             },
         }
@@ -1399,33 +1322,15 @@ const Emitter = struct {
         return self.lowerer.builder.symbol(symbol, span);
     }
 
-    /// `case condition of { False -> otherwise; True -> matched }`.
-    fn choose(
-        self: Emitter,
-        condition: core.Term,
-        otherwise: core.Term,
-        matched: core.Term,
-        span: diagnostic.Span,
-    ) Error!core.Term {
-        const registry = self.lowerer.scope.datatypes;
-        const alternatives = try self.lowerer.builder.dupeSlice(core.Case.Alternative, &.{
-            .{ .constructor = registry.boolConstructor(false).symbol, .binders = &.{}, .body = otherwise },
-            .{ .constructor = registry.boolConstructor(true).symbol, .binders = &.{}, .body = matched },
-        });
-        return try self.lowerer.builder.case(condition, alternatives, span);
-    }
-
     fn body(self: Emitter, leaf: Tree.Leaf, inner: *const resolve.Scope) Error!core.Term {
         const b = self.lowerer.builder;
         const arm = self.arms[leaf.alternative];
-        const function = self.shared[leaf.alternative] orelse return try lowerBody(self.lowerer, arm.body, inner);
-        var names: std.ArrayList([]const u8) = .empty;
-        try variables(b.allocator, arm.pattern, &names);
-        const arguments = try b.slice(core.Term, names.items.len);
-        for (names.items, arguments) |name, *argument| {
-            argument.* = b.symbol(lookup(leaf.bindings, name), self.span);
+        const shared = self.shared[leaf.alternative] orelse return try lowerBody(self.lowerer, arm.body, inner);
+        const arguments = try b.slice(core.Term, shared.variables.len);
+        for (shared.variables, arguments) |variable, *argument| {
+            argument.* = b.symbol(lookup(leaf.bindings, variable.name), self.span);
         }
-        return try b.applyMany(b.symbol(function, self.span), arguments, self.span);
+        return try b.applyMany(b.symbol(shared.symbol, self.span), arguments, self.span);
     }
 
     fn lookup(bindings: []const Entry, name: []const u8) core.SymbolId {
@@ -1509,7 +1414,7 @@ const Written = struct {
         if (parenthesize) try w.writeByte('(');
         switch (self.pattern.kind) {
             .variable => |name| try w.writeAll(name),
-            .constructor, .synonym => |c| {
+            .constructor => |c| {
                 try w.writeAll(c.name);
                 for (c.arguments) |argument| {
                     try w.writeByte(' ');
@@ -1569,7 +1474,7 @@ const Written = struct {
         return switch (pattern.kind) {
             .conjunction => .conjunction,
             .cons => .cons,
-            .constructor, .synonym => |c| if (c.arguments.len > 0) .application else .atom,
+            .constructor => |c| if (c.arguments.len > 0) .application else .atom,
             .variable, .list, .as, .view, .literal, .boolean, .node => .atom,
         };
     }

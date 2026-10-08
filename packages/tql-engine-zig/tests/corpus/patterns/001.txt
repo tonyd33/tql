@@ -66,11 +66,11 @@ main = \root -> concat_map (
 
 --- simplified ---
 main = \root -> concat_map (
-  \call -> case field[function] call of
+  \scrutinee -> case field[function] scrutinee of
     Nil -> Nil
-    Cons cons0 cons1 -> case of_kind :member_expression cons0 of
-      Nil -> Nil
-      Cons cons0 cons1' -> case field[object] cons0 of
+    Cons cons0 cons1 -> case is_kind :member_expression cons0 of
+      False -> Nil
+      True -> case field[object] cons0 of
         Nil -> Nil
         Cons cons0' cons1' -> case op[=] (text cons0') "console" of
           False -> Nil
@@ -81,9 +81,9 @@ main = \root -> concat_map (
                 False -> Nil
                 True -> case cons1' of
                   Nil -> case cons1 of
-                    Nil -> concat_map (\_ -> Cons (text call) Nil) (
+                    Nil -> concat_map (\_ -> Cons (text scrutinee) Nil) (
                       case (
-                        case concat_map (of_kind :catch_clause) (ancestors call) of
+                        case concat_map (of_kind :catch_clause) (ancestors scrutinee) of
                           Nil -> True
                           Cons h t -> False
                       ) of

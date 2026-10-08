@@ -185,40 +185,110 @@ test "the laws can be switched off" {
     try expectMain(&program, "children_of_kind :class");
 }
 
-test "a bind over an axis whose case tests a kind walks only that kind" {
+/// A program builder with `primops` as primitives.
+fn kindTestFixture(primops: []const core.PrimOp) !core.test_support.ProgramBuilder {
     var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-    for ([_]core.PrimOp{ .descendants, .of_kind, .descendants_of_kind }) |primop| {
+    errdefer pb.deinit();
+    for (primops) |primop| {
         const id = try pb.env.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
         pb.env.primitives.set(primop, id);
     }
+    return pb;
+}
+
+/// `case of_kind :class subject of { Nil -> failed; Cons n t -> case t of {
+/// Nil -> matched; Cons _ _ -> failed } }`.
+fn kindCase(
+    pb: *core.test_support.ProgramBuilder,
+    subject: core.Term,
+    n: core.SymbolId,
+    matched: core.Term,
+    failed: core.Term,
+) !core.Term {
     const nil = pb.env.datatypes.nilConstructor().symbol;
     const cons = pb.env.datatypes.consConstructor().symbol;
+    const t = try pb.local("t");
+    const kind = pb.terms().literal(.{ .kind = .{ .name = "class", .id = 1 } }, .unknown);
+    const rest = try pb.case(pb.symbol(t), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = matched },
+        .{ .constructor = cons, .binders = &.{ try pb.local("_"), try pb.local("_") }, .body = failed },
+    });
+    return try pb.case(try pb.apply(pb.symbol(pb.env.primitives.get(.of_kind).?), &.{ kind, subject }), &.{
+        .{ .constructor = nil, .binders = &.{}, .body = failed },
+        .{ .constructor = cons, .binders = &.{ n, t }, .body = rest },
+    });
+}
+
+test "a bind over an axis whose case tests a kind walks only that kind" {
+    var pb = try kindTestFixture(&.{ .descendants, .of_kind, .is_kind, .descendants_of_kind });
+    defer pb.deinit();
+    const nil = pb.env.datatypes.nilConstructor().symbol;
     const main = try pb.global("main");
     const concat_map = try pb.global("concat_map");
     const f = try pb.global("f");
     const root = try pb.local("root");
     const s = try pb.local("s");
     const n = try pb.local("n");
-    const t = try pb.local("t");
-    const kind = pb.terms().literal(.{ .kind = .{ .name = "class", .id = 1 } }, .unknown);
 
-    // `concat_map (\s -> case of_kind :class s of { Nil -> Nil; Cons n t ->
-    // case t of { Nil -> f n s; Cons _ _ -> Nil } }) (descendants root)`.
-    const rest = try pb.case(pb.symbol(t), &.{
-        .{ .constructor = nil, .binders = &.{}, .body = try pb.apply(pb.symbol(f), &.{ pb.symbol(n), pb.symbol(s) }) },
-        .{ .constructor = cons, .binders = &.{ try pb.local("_"), try pb.local("_") }, .body = pb.symbol(nil) },
-    });
-    const tested = try pb.case(try pb.apply(pb.symbol(pb.env.primitives.get(.of_kind).?), &.{ kind, pb.symbol(s) }), &.{
-        .{ .constructor = nil, .binders = &.{}, .body = pb.symbol(nil) },
-        .{ .constructor = cons, .binders = &.{ n, t }, .body = rest },
-    });
+    const matched = try pb.apply(pb.symbol(f), &.{ pb.symbol(n), pb.symbol(s) });
     try pb.define(main, try pb.lambda(&.{root}, try pb.apply(pb.symbol(concat_map), &.{
-        try pb.lambda(&.{s}, tested),
+        try pb.lambda(&.{s}, try kindCase(&pb, pb.symbol(s), n, matched, pb.symbol(nil))),
         try pb.apply(pb.symbol(pb.env.primitives.get(.descendants).?), &.{pb.symbol(root)}),
     })));
     var program = try pb.program(main);
 
     try run(&program, .{});
-    try expectMain(&program, "\\root -> concat_map (\\n -> f n n) (descendants_of_kind :class root)");
+    try expectMain(&program, "\\root -> concat_map (\\s -> f s s) (descendants_of_kind :class root)");
+}
+
+test "a case of a kind test on a local tests the kind and matches the local" {
+    var pb = try kindTestFixture(&.{ .of_kind, .is_kind });
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const x = try pb.local("x");
+    const n = try pb.local("n");
+    const matched = try pb.apply(pb.symbol(f), &.{pb.symbol(n)});
+    try pb.define(main, try pb.lambda(&.{x}, try kindCase(&pb, pb.symbol(x), n, matched, pb.symbol(g))));
+    var program = try pb.program(main);
+
+    try run(&program, .{ .laws = false });
+    try expectMain(&program,
+        \\\x -> case of_kind :class x of
+        \\  Nil -> g
+        \\  Cons n t -> case t of
+        \\    Nil -> f n
+        \\    Cons _ _ -> g
+    );
+    try run(&program, .{});
+    try expectMain(&program,
+        \\\x -> case is_kind :class x of
+        \\  False -> g
+        \\  True -> f x
+    );
+}
+
+test "a case of a kind test on a compound subject is left alone" {
+    var pb = try kindTestFixture(&.{ .of_kind, .is_kind });
+    defer pb.deinit();
+    const main = try pb.global("main");
+    const f = try pb.global("f");
+    const g = try pb.global("g");
+    const h = try pb.global("h");
+    const x = try pb.local("x");
+    const n = try pb.local("n");
+    const subject = try pb.apply(pb.symbol(h), &.{pb.symbol(x)});
+    const matched = try pb.apply(pb.symbol(f), &.{pb.symbol(n)});
+    try pb.define(main, try pb.lambda(&.{x}, try kindCase(&pb, subject, n, matched, pb.symbol(g))));
+    var program = try pb.program(main);
+
+    try run(&program, .{});
+    try expectMain(&program,
+        \\\x -> case of_kind :class (h x) of
+        \\  Nil -> g
+        \\  Cons n t -> case t of
+        \\    Nil -> f n
+        \\    Cons _ _ -> g
+    );
 }

@@ -457,15 +457,11 @@ pub const Expression = struct {
         parenthesized: *Expression,
         /// `of_shape p`: the filter keeping a value `p` matches.
         of_shape: *Pattern,
-        /// A prelude name, whatever it means in scope. Never written; built
-        /// by desugaring.
-        primitive: []const u8,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .kind_test => |k| try w.print("(kind {s})", .{k}),
-            .primitive => |p| try w.print("(primitive {s})", .{p}),
             .name => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
@@ -672,9 +668,6 @@ pub const Pattern = struct {
         boolean: bool,
         /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
         node: *Node,
-        /// A constructor pattern naming a pattern synonym. Never written;
-        /// built by desugaring.
-        synonym: Constructor,
     };
 
     pub const Node = struct {
@@ -694,12 +687,7 @@ pub const Pattern = struct {
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
-        /// Set by list and boolean sugar: the constructor this is, whatever
-        /// `name` means in the module.
-        builtin: ?Builtin = null,
     };
-
-    pub const Builtin = enum { nil, cons, false, true };
 
     pub const Cons = struct {
         head: Pattern,
@@ -772,7 +760,7 @@ pub const Pattern = struct {
                 }
                 try w.writeByte(')');
             },
-            .constructor, .synonym => |c| {
+            .constructor => |c| {
                 if (c.arguments.len == 0) return w.writeAll(c.name);
                 try w.print("({s}", .{c.name});
                 for (c.arguments) |argument| {

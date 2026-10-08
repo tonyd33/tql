@@ -1,0 +1,15 @@
+title: a synonym whose view calls its own matcher
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Deep x <- ((\n -> case n of { Deep y -> [y]; _ -> [] }) -> [x]);
+
+main root = 1;
+
+--- error ---
+error[cyclic-synonym]: `Deep` is defined in terms of itself
+ --> 1:1
+  |
+1 | pattern Deep x <- ((\n -> case n of { Deep y -> [y]; _ -> [] }) -> [x]);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

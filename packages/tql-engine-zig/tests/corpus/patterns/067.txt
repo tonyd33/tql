@@ -17,5 +17,5 @@ f(1);
 --- values ---
 ["f"]
 --- types ---
+$mCallee :: Node -> (Node -> a) -> a -> a
 main :: Node -> [String]
-Callee :: Node -> Node

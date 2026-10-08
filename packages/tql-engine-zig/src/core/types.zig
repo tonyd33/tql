@@ -356,88 +356,21 @@ pub fn arrowOf(t: Type) ?*const Type.Arrow {
     };
 }
 
-/// A pattern synonym's scheme as a constructor's, `T_1 -> .. -> T_n -> T`,
-/// from its matcher's, `T -> (T_1 -> .. -> T_n -> r) -> f -> r`.
-///
-/// Preconditions:
-/// - `matcher` is the scheme of a matcher of a synonym of `arity` parameters.
-pub fn synonymScheme(allocator: std.mem.Allocator, matcher: Scheme, arity: u32) !Scheme {
-    const scrutinee = arrowOf(matcher.type).?;
-    var continuation = arrowOf(scrutinee.to).?.from;
-    const holes = try allocator.alloc(Type, arity);
-    for (holes) |*hole| {
-        const arrow = arrowOf(continuation).?;
-        hole.* = arrow.from;
-        continuation = arrow.to;
-    }
-    var written = scrutinee.from;
-    var i = holes.len;
-    while (i > 0) {
-        i -= 1;
-        written = try func(allocator, holes[i], written);
-    }
-
-    var renumbering: Renumbering = .{ .allocator = allocator };
-    const renumbered = try renumbering.copy(written);
-    var constraints: std.ArrayList(TypeClassConstraint) = .empty;
-    for (matcher.constraints) |c| {
-        if (c.type == .variable and renumbering.map[c.type.variable] == null) continue;
-        try constraints.append(allocator, .{ .class = c.class, .type = try renumbering.copy(c.type) });
-    }
-    return .{
-        .quantified = renumbering.next,
-        .constraints = constraints.items,
-        .type = renumbered,
-    };
-}
-
-/// Renumbers the variables of the types it copies in order of first
-/// appearance.
-const Renumbering = struct {
-    allocator: std.mem.Allocator,
-    map: [256]?TypeVar = @splat(null),
-    next: TypeVar = 0,
-
-    fn copy(self: *Renumbering, t: Type) std.mem.Allocator.Error!Type {
-        switch (t) {
-            .variable => |v| {
-                const slot = &self.map[v];
-                if (slot.* == null) {
-                    slot.* = self.next;
-                    self.next += 1;
-                }
-                return .{ .variable = slot.*.? };
-            },
-            .meta, .primitive => return t,
-            .constructor => |c| {
-                const arguments = try self.allocator.alloc(Type, c.arguments.len);
-                for (c.arguments, arguments) |argument, *slot| slot.* = try self.copy(argument);
-                const node = try self.allocator.create(Type.Constructed);
-                node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = arguments };
-                return .{ .constructor = node };
-            },
-            .record => |r| {
-                const fields = try self.allocator.alloc(Type.Field, r.fields.len);
-                for (r.fields, fields) |f, *slot| {
-                    slot.* = .{ .label = f.label, .type = try store(self.allocator, try self.copy(f.type.*)) };
-                }
-                const rest = if (r.rest) |rest| try store(self.allocator, try self.copy(rest.*)) else null;
-                return .{ .record = .{ .fields = fields, .rest = rest } };
-            },
-            .function => |arrow| return try func(self.allocator, try self.copy(arrow.from), try self.copy(arrow.to)),
-            .alias => |a| {
-                const arguments = try self.allocator.alloc(Type, a.arguments.len);
-                for (a.arguments, arguments) |argument, *slot| slot.* = try self.copy(argument);
-                return try aliased(self.allocator, a.spelling, arguments, try self.copy(a.expansion));
-            },
-        }
-    }
-};
-
 pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     const arrow = try allocator.create(Type.Arrow);
     arrow.* = .{ .from = from, .to = to };
     return .{ .function = arrow };
+}
+
+/// Returns `froms[0] -> .. -> froms[n-1] -> to`.
+pub fn arrows(allocator: std.mem.Allocator, froms: []const Type, to: Type) !Type {
+    var result = to;
+    var i = froms.len;
+    while (i > 0) {
+        i -= 1;
+        result = try func(allocator, froms[i], result);
+    }
+    return result;
 }
 
 /// `expansion` written as `spelling` at `arguments`. Takes ownership of

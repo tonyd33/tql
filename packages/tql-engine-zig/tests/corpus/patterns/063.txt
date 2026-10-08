@@ -16,5 +16,5 @@ let x = 1;
 --- values ---
 ["lexical_declaration"]
 --- types ---
+$mId :: a -> (a -> b) -> c -> b
 main :: Node -> [String]
-Id :: a -> a

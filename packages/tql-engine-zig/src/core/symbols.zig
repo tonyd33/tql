@@ -210,22 +210,6 @@ pub const Interner = struct {
         return self.entries.items[@intFromEnum(id)].spelling;
     }
 
-    /// Formats as `id` is written in compiler output: a pattern synonym's
-    /// matcher as `$mP`.
-    pub fn printed(self: *const Interner, id: SymbolId) Printed {
-        return .{ .interner = self, .id = id };
-    }
-
-    pub const Printed = struct {
-        interner: *const Interner,
-        id: SymbolId,
-
-        pub fn format(self: Printed, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            if (self.interner.details(self.id) == .synonym) try w.writeAll("$m");
-            try w.writeAll(self.interner.spelling(self.id));
-        }
-    };
-
     pub fn details(self: *const Interner, id: SymbolId) Details {
         return self.entries.items[@intFromEnum(id)].details;
     }

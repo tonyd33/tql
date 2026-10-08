@@ -24,6 +24,6 @@ try { console.error("d"); } catch (e) { console.error("e"); }
 --- values ---
 ["console.error(\"a\")","console.error(\"d\")"]
 --- types ---
+$mMemberCall :: Node -> (Node -> Node -> a) -> a -> a
+$mText :: Node -> (String -> a) -> b -> a
 main :: Node -> [String]
-MemberCall :: Node -> Node -> Node
-Text :: String -> Node
