@@ -1,0 +1,26 @@
+is_loop n = is_kind :for_statement n or is_kind :while_statement n or is_kind :do_statement n;
+
+goto_in_loop =
+  descendants
+  | keep (is_kind :goto_statement)
+  | keep (has (ancestors | keep is_loop));
+
+assignment_in_condition =
+  named_descendants
+  | keep (is_kind :assignment_expression)
+  | keep (has (parent | keep (is_kind :parenthesized_expression) | parent | keep (not . is_kind :expression_statement)));
+
+empty_block =
+  named_descendants
+  | keep (is_kind :compound_statement)
+  | keep ((= 2) . length . children);
+
+wide_call =
+  named_descendants
+  | keep (is_kind :argument_list)
+  | keep ((>= 6) . length . named_children)
+  | parent;
+
+row n = { kind = kind n, row = (range n).start_point.row };
+
+main = (goto_in_loop <|> assignment_in_condition <|> empty_block <|> wide_call) | arr row;

@@ -1,0 +1,59 @@
+module Compile.DupeKeys (dupe_keys) for javascript;
+
+data Member = Member String String Node;
+
+is_accessor t = not (is_named t) and (kind_name t = "get" or kind_name t = "set");
+
+accessor = or_else (children | keep is_accessor | arr kind_name) $ pure "init";
+
+string_value s = case named_children s of {
+  [] -> "";
+  [f] -> text f;
+  _ -> text s;
+};
+
+key_name =
+  (of_kind :property_identifier | arr text)
+  <|> (of_kind :string | arr string_value)
+  <|> (of_kind :number | arr text)
+  <|> (of_kind :computed_property_name | named_children | of_kind :string | arr string_value);
+
+method m = do {
+  k <- #name m;
+  n <- key_name k;
+  a <- accessor m;
+  return $ Member n a m;
+};
+
+pair m = do {
+  k <- #key m;
+  n <- key_name k;
+  return $ Member n "init" m;
+};
+
+shorthand n = Member (text n) "init" n;
+
+is_proto_setter = has $ #key | keep (not . is_kind :computed_property_name) | key_name | keep (= "__proto__");
+
+member =
+  (of_kind :pair | keep (not . is_proto_setter) | pair)
+  <|> (of_kind :shorthand_property_identifier | arr shorthand)
+  <|> (of_kind :method_definition | method);
+
+clashes x y = case x of {
+  Member n a _ -> case y of {
+    Member n2 b _ -> n = n2 and (a = "init" or b = "init" or a = b);
+  };
+};
+
+dupes seen ms = case ms of {
+  [] -> [];
+  m : rest -> case m of {
+    Member _ _ node ->
+      append (if any (clashes m) seen then [node] else []) (dupes (m : seen) rest);
+  };
+};
+
+object_dupes o = dupes [] (concat_map member (named_children o));
+
+dupe_keys = descendants_of_kind :object | object_dupes;

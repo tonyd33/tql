@@ -1,0 +1,101 @@
+module Compile.Unreachable (unreachable) for javascript;
+
+statements = named_children | keep (not . is_extra);
+
+function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration, :class_static_block];
+
+loop_kinds = [:while_statement, :do_statement, :for_statement, :for_in_statement];
+
+is_one_of ks n = any (= kind n) ks;
+
+is_breakable n = is_one_of loop_kinds n or is_kind :switch_statement n;
+
+is_jump_target n = is_breakable n or is_one_of function_kinds n;
+
+unlabeled = keep (null . #label);
+
+jump_target = first $ ancestors | keep is_jump_target;
+
+exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (= n)) n;
+
+breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((= text name) . text)) l;
+
+label_broken l = any (breaks_to l) (#label l);
+
+is_true = has $ statements | of_kind :true;
+
+infinite n =
+  (is_kind :while_statement n and has (#condition | keep is_true) n)
+  or (is_kind :do_statement n and has (#condition | keep is_true) n)
+  or (is_kind :for_statement n and has (#condition | of_kind :empty_statement) n);
+
+last_of xs = case xs of { [] -> []; [x] -> [x]; _ : t -> last_of t; };
+
+clause_abrupt c = any abrupt (#body c);
+
+abrupt n =
+  if is_one_of [:return_statement, :throw_statement, :break_statement, :continue_statement] n then True
+  else if is_kind :statement_block n then any abrupt (statements n)
+  else if is_kind :if_statement n then
+    has #alternative n
+    and all abrupt (#consequence n)
+    and all abrupt ((#alternative | statements) n)
+  else if is_kind :try_statement n then
+    any abrupt ((#finalizer | #body) n)
+    or (all abrupt (#body n) and all abrupt ((#handler | #body) n))
+  else if is_kind :switch_statement n then
+    has (#body | named_children | of_kind :switch_default) n
+    and not (exited_by :break_statement n)
+    and all clause_abrupt (last_of ((#body | statements) n))
+  else if is_kind :do_statement n then
+    not (exited_by :break_statement n)
+    and (infinite n or (all abrupt (#body n) and not (exited_by :continue_statement n)))
+  else if is_one_of loop_kinds n then infinite n and not (exited_by :break_statement n)
+  else if is_kind :labeled_statement n then all abrupt (#body n) and not (label_broken n)
+  else False;
+
+hoisted n =
+  is_kind :function_declaration n
+  or is_kind :generator_function_declaration n
+  or (is_kind :variable_declaration n and all (null . #value) (named_children n));
+
+run_starts skip in_run xs = case xs of {
+  [] -> [];
+  x : rest ->
+    if skip x then run_starts skip False rest
+    else append (if in_run then [] else [x]) (run_starts skip True rest);
+};
+
+unreachable_after xs = case xs of {
+  [] -> [];
+  s : rest -> if abrupt s then run_starts hoisted False rest else unreachable_after rest;
+};
+
+is_field m = kind_name m = "field_definition" or kind_name m = "public_field_definition";
+
+calls_super = has $ descendants_of_kind :call_expression | #function | of_kind :super;
+
+is_token s t = not (is_named t) and kind_name t = s;
+
+is_static = has $ children | keep (is_token "static");
+
+skips_field m = not (is_field m) or is_static m;
+
+is_constructor = has $ #name | keep ((= "constructor") . text);
+
+unreachable_fields class_ = do {
+  children_of_kind :class_heritage class_;
+  body <- #body class_;
+  ctor <- (named_children | of_kind :method_definition | keep is_constructor) body;
+  guard $ not $ calls_super ctor;
+  run_starts skips_field False (statements body);
+};
+
+statement_lists =
+  (descendants_of_kind :statement_block | arr statements)
+  <|> ((descendants_of_kind :switch_case <|> descendants_of_kind :switch_default) | collect #body)
+  <|> arr statements;
+
+unreachable =
+  (statement_lists | unreachable_after)
+  <|> ((descendants_of_kind :class_declaration <|> descendants_of_kind :class) | unreachable_fields);

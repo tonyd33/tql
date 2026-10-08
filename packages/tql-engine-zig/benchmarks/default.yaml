@@ -1,0 +1,78 @@
+benchmarks:
+  - name: allocator-error-paths
+    query: AllocatorErrorPaths.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [.]
+    limit_s: 65
+
+  - name: axes
+    query: Axes.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [kernel, mm, fs]
+
+  - name: evaluation
+    query: Evaluation.tql
+    grammar: c
+    repository: https://github.com/torvalds/linux.git
+    commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
+    paths: [kernel, mm, fs]
+
+  - name: leaves
+    query: Leaves.tql
+    grammar: typescript
+    repository: https://github.com/microsoft/vscode.git
+    commit: 67cb2a17e24d903be7d50486a70d9bd835e95ad6
+    paths: [src/vs/base, src/vs/editor]
+
+  - name: no-unreachable
+    query: NoUnreachable.tql
+    grammar: javascript
+    repository: https://github.com/facebook/react.git
+    commit: d75b0697a605e874fc1af56d7e1bf6c4b41a4f78
+    paths: [packages]
+
+  - name: no-dupe-keys
+    query: NoDupeKeys.tql
+    grammar: javascript
+    repository: https://github.com/vercel/next.js.git
+    commit: 65498960a66473c0bf937ad41270e27b33949854
+    paths: [packages/next/src/compiled]
+
+  - name: small-files
+    query: SmallFiles.tql
+    grammar: javascript
+    repository: https://github.com/babel/babel.git
+    commit: c2e6b0701a09805b7f084fd01b088840e336dc99
+    paths: [packages]
+
+  - name: no-unused-vars
+    query: NoUnusedVars.tql
+    grammar: javascript
+    repository: https://github.com/eslint/eslint.git
+    commit: a438ec39512c3381f4785a1f3058982ce9845970
+    paths: [lib]
+
+  - name: compile
+    query: Compile.tql
+    grammar: javascript
+    repository: https://github.com/facebook/react.git
+    commit: d75b0697a605e874fc1af56d7e1bf6c4b41a4f78
+    paths: [packages/react/src]
+
+  - name: enclosing-function
+    query: EnclosingFunction.tql
+    grammar: javascript
+    repository: https://github.com/vercel/next.js.git
+    commit: 65498960a66473c0bf937ad41270e27b33949854
+    paths: [packages/next/src/compiled/babel, packages/next/src/compiled/@babel, packages/next/src/compiled/terser]
+
+  - name: python
+    query: Python.tql
+    grammar: python
+    repository: https://github.com/django/django.git
+    commit: 135d7c606fc66a9f47f690e5f242ced386524954
+    paths: [django, tests]
