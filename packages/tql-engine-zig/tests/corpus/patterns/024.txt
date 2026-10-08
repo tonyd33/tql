@@ -1,0 +1,35 @@
+title: a guard that fails falls through to the next row
+grammar: typescript
+asserts: core, values
+
+`[1, 2]` matches the first row's pattern, its guard is false, and the second
+row matches. The last row is reached from several paths and is bound once.
+
+--- tql ---
+f xs = case xs of {
+  [a, b] if a = b -> "pair";
+  [_, _] -> "two";
+  _ -> "other";
+};
+
+main = const [f [1, 1], f [1, 2], f [1]];
+
+--- source ---
+class A {}
+
+--- values ---
+["pair", "two", "other"]
+
+--- core ---
+f = \xs ->
+  let alternative = "other" in
+  case xs of
+    Nil -> alternative
+    Cons a cons1 -> case cons1 of
+      Nil -> alternative
+      Cons b cons1 -> case cons1 of
+        Nil -> case op[=] a b of
+          False -> "two"
+          True -> "pair"
+        Cons _ _ -> alternative
+main = const (Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))

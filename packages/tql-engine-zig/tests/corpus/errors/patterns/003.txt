@@ -1,0 +1,18 @@
+title: a nested pattern variable may not shadow a local
+grammar: typescript
+asserts: error
+
+--- tql ---
+named name n = do {
+  (#name -> [(text -> name)]) <- [n];
+  return n;
+};
+
+main root = (descendants | named "A") root;
+
+--- error ---
+error[shadowed-local]: `name` in a pattern would shadow the local `name`; bind another name and compare after the bind
+ --> 2:23
+  |
+2 |   (#name -> [(text -> name)]) <- [n];
+  |                       ^^^^

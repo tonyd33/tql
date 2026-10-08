@@ -1,0 +1,33 @@
+title: list and cons patterns in a bind match by shape
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const $ do {
+  [a, b] <- [[1, 2], [3], [4, 5], [6, 7, 8]];
+  h : _ <- [[a + b], []];
+  return h;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[3, 9]
+
+--- core ---
+main = const (
+  concat_map (
+    \scrutinee -> case scrutinee of
+      Nil -> Nil
+      Cons a cons1 -> case cons1 of
+        Nil -> Nil
+        Cons b cons1 -> case cons1 of
+          Nil -> concat_map (
+            \scrutinee -> case scrutinee of
+              Nil -> Nil
+              Cons h _ -> return h
+          ) (Cons (Cons (op[+] a b) Nil) (Cons Nil Nil))
+          Cons _ _ -> Nil
+  ) (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil))))
+)

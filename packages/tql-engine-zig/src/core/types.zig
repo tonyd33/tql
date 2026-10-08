@@ -347,10 +347,30 @@ pub fn constructed(
     return .{ .constructor = node };
 }
 
+/// The arrow `t` is, looking through aliases.
+pub fn arrowOf(t: Type) ?*const Type.Arrow {
+    return switch (t) {
+        .function => |arrow| arrow,
+        .alias => |a| arrowOf(a.expansion),
+        else => null,
+    };
+}
+
 pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     const arrow = try allocator.create(Type.Arrow);
     arrow.* = .{ .from = from, .to = to };
     return .{ .function = arrow };
+}
+
+/// Returns `froms[0] -> .. -> froms[n-1] -> to`.
+pub fn arrows(allocator: std.mem.Allocator, froms: []const Type, to: Type) !Type {
+    var result = to;
+    var i = froms.len;
+    while (i > 0) {
+        i -= 1;
+        result = try func(allocator, froms[i], result);
+    }
+    return result;
 }
 
 /// `expansion` written as `spelling` at `arguments`. Takes ownership of

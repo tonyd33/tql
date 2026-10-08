@@ -1,0 +1,24 @@
+title: a case of node patterns with no catch-all is not exhaustive
+grammar: typescript
+asserts: error
+
+--- tql ---
+only n = case n of {
+  :call_expression {} -> 1;
+  :class_declaration {} -> 2;
+};
+
+main root = descendants root | arr only;
+
+--- error ---
+error[type-mismatch]: `_` is not matched
+ --> 1:10
+  |
+1 | only n = case n of {
+  |          ^^^^^^^^^^^
+2 |   :call_expression {} -> 1;
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |   :class_declaration {} -> 2;
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 | };
+  | ^

@@ -177,13 +177,8 @@ pub const Registry = struct {
         const arguments = try arena.alloc(types.Type, declared.parameters);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
 
-        var result = try types.constructed(arena, id, declared.name, arguments);
-        var i = constructor.fields.len;
-        while (i > 0) {
-            i -= 1;
-            result = try types.func(arena, constructor.fields[i], result);
-        }
-        return .{ .quantified = declared.parameters, .type = result };
+        const result = try types.constructed(arena, id, declared.name, arguments);
+        return .{ .quantified = declared.parameters, .type = try types.arrows(arena, constructor.fields, result) };
     }
 
     /// `[t]`, for a caller that has the registry.

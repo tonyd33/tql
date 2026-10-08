@@ -1,0 +1,16 @@
+title: a node pattern names a supertype
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  c@:expression {} <- descendants root;
+  return $ text c;
+};
+
+--- error ---
+error[supertype-kind]: `expression` is a supertype, so no node has this kind
+ --> 2:5
+  |
+2 |   c@:expression {} <- descendants root;
+  |     ^^^^^^^^^^^

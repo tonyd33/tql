@@ -1,0 +1,35 @@
+title: enumerating a multi-node field is a bind after the pattern
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  (of_kind :class_declaration -> [class_ & (#name -> [name])]) <- descendants root;
+  decorator <- #decorator class_;
+  return [text name, text decorator];
+};
+
+--- source ---
+@a @b class A {}
+class B {}
+@a class C {}
+
+--- values ---
+[["A", "@a"], ["A", "@b"], ["C", "@a"]]
+
+--- core ---
+main = \root -> concat_map (
+  \scrutinee ->
+    let view = of_kind :class_declaration scrutinee in
+    case view of
+      Nil -> Nil
+      Cons class_ cons1 ->
+        let view = field[name] class_ in
+        case view of
+          Nil -> Nil
+          Cons name cons1' -> case cons1' of
+            Nil -> case cons1 of
+              Nil -> concat_map (\decorator -> return (Cons (text name) (Cons (text decorator) Nil))) (field[decorator] class_)
+              Cons _ _ -> Nil
+            Cons _ _ -> Nil
+) (descendants root)

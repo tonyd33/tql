@@ -1,0 +1,15 @@
+title: a synonym defined in terms of itself
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Nested x <- [Nested x];
+
+main root = 1;
+
+--- error ---
+error[cyclic-synonym]: `Nested` is defined in terms of itself
+ --> 1:1
+  |
+1 | pattern Nested x <- [Nested x];
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

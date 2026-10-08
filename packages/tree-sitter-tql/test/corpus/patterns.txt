@@ -1,0 +1,960 @@
+================================================================================
+a view pattern applies an expression and matches its result
+================================================================================
+
+main = do { (text -> "a") <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (view_pattern
+          view: (identifier)
+          pattern: (string))
+        value: (identifier))
+      (number))))
+
+================================================================================
+an as-pattern names the value its pattern matches
+================================================================================
+
+main = do { n@(is_kind :class_declaration -> True) <- xs; n };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (as_pattern
+          name: (identifier)
+          pattern: (view_pattern
+            view: (application
+              function: (identifier)
+              argument: (kind))
+            pattern: (constructor_pattern
+              constructor: (type_identifier))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a conjunction is left-associative and looser than cons
+================================================================================
+
+main = do { h : t & (f -> x) & [y] <- xs; h };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (conjunction_pattern
+          left: (conjunction_pattern
+            left: (cons_pattern
+              head: (identifier)
+              tail: (identifier))
+            right: (view_pattern
+              view: (identifier)
+              pattern: (identifier)))
+          right: (list_pattern
+            (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+an as-pattern binds tighter than a conjunction and a cons
+================================================================================
+
+main = do { x@p & q <- xs; y@_ : t <- ys; x };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (conjunction_pattern
+          left: (as_pattern
+            name: (identifier)
+            pattern: (identifier))
+          right: (identifier))
+        value: (identifier))
+      (bind_statement
+        pattern: (cons_pattern
+          head: (as_pattern
+            name: (identifier)
+            pattern: (identifier))
+          tail: (identifier))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+an as-pattern needs `@` attached to its name
+================================================================================
+
+main = case x of { y @z -> 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (identifier)
+        (ERROR
+          (UNEXPECTED '@')
+          (identifier))
+        body: (number)))))
+
+================================================================================
+a view nests inside a list pattern
+================================================================================
+
+main = do { (#name -> [(text -> r"^on")]) <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (view_pattern
+          view: (leading_navigation
+            field: (field_name))
+          pattern: (list_pattern
+            (view_pattern
+              view: (identifier)
+              pattern: (regex))))
+        value: (identifier))
+      (number))))
+
+================================================================================
+literal patterns
+================================================================================
+
+main = do { [true, "s", r"re", -1, :comment, _] <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (list_pattern
+          (boolean)
+          (string)
+          (regex)
+          (number)
+          (kind)
+          (identifier))
+        value: (identifier))
+      (number))))
+
+================================================================================
+an attached cons in a bind is a cons pattern
+================================================================================
+
+main = do { h:t <- xs; h };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (cons_pattern
+          head: (identifier)
+          tail: (identifier))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a parenthesized pattern before `<-` is a pattern
+================================================================================
+
+main = do { (x) <- xs; x };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (parenthesized_pattern
+          (identifier))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a do statement in parentheses stays an expression
+================================================================================
+
+main = do { (f x); [1] };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (parenthesized
+        (application
+          function: (identifier)
+          argument: (identifier)))
+      (list
+        (number)))))
+
+================================================================================
+a statement shaped like a pattern without `<-` stays an expression
+================================================================================
+
+main = do { [a, b]; Cons 1 Nil; "s"; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (list
+        (identifier)
+        (identifier))
+      (application
+        function: (application
+          function: (type_identifier)
+          argument: (number))
+        argument: (type_identifier))
+      (string)
+      (number))))
+
+================================================================================
+a lambda inside a view ends before the view's arrow
+================================================================================
+
+main = do { (\n -> n -> m) <- xs; m };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (view_pattern
+          view: (lambda
+            parameter: (identifier)
+            body: (identifier))
+          pattern: (identifier))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a section is a view
+================================================================================
+
+main = do { ((= 1) -> True) <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (view_pattern
+          view: (right_section
+            right: (number))
+          pattern: (constructor_pattern
+            constructor: (type_identifier)))
+        value: (identifier))
+      (number))))
+
+================================================================================
+a pipeline is a view
+================================================================================
+
+main = do { (#name | first -> [n]) <- xs; n };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (view_pattern
+          view: (pipe
+            left: (leading_navigation
+              field: (field_name))
+            right: (identifier))
+          pattern: (list_pattern
+            (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+case alternatives take the same patterns
+================================================================================
+
+main = case x of { a@(f -> True) & _ -> a };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (conjunction_pattern
+          left: (as_pattern
+            name: (identifier)
+            pattern: (view_pattern
+              view: (identifier)
+              pattern: (constructor_pattern
+                constructor: (type_identifier))))
+          right: (identifier))
+        body: (identifier)))))
+
+================================================================================
+a constructor's arguments take literals and as-patterns
+================================================================================
+
+main = case x of { Just 3 -> 1; Just :k -> 2; Just y@[_] -> 3; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (number))
+        body: (number))
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (kind))
+        body: (number))
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (as_pattern
+            name: (identifier)
+            pattern: (list_pattern
+              (identifier))))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+kind literals are patterns
+================================================================================
+
+main = case kind n of { :a -> 1; :b -> 2; _ -> 3 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (application
+        function: (identifier)
+        argument: (identifier))
+      (case_alternative
+        pattern: (kind)
+        body: (number))
+      (case_alternative
+        pattern: (kind)
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a guard follows the pattern
+================================================================================
+
+main = case x of { y if y > 1 -> y; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (identifier)
+        guard: (comparison
+          left: (identifier)
+          right: (number))
+        body: (identifier))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a guard ends at the arrow, before a body that is an if
+================================================================================
+
+main = case x of { y if a -> if b then 1 else 2; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (identifier)
+        guard: (identifier)
+        body: (if_expression
+          condition: (identifier)
+          consequence: (number)
+          alternative: (number)))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a guard reads a conjunction's bindings
+================================================================================
+
+main = case n of { (f -> x) & (g -> y) if x = y -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (conjunction_pattern
+          left: (view_pattern
+            view: (identifier)
+            pattern: (identifier))
+          right: (view_pattern
+            view: (identifier)
+            pattern: (identifier)))
+        guard: (comparison
+          left: (identifier)
+          right: (identifier))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a node pattern with a kind and no fields
+================================================================================
+
+main = do { :class_declaration {} <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind))
+        value: (identifier))
+      (number))))
+
+================================================================================
+a node pattern matches fields by name
+================================================================================
+
+main = do { :call_expression { #function = f, #arguments = a } <- xs; f };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern without a kind
+================================================================================
+
+main = do { { #name = n } <- xs; n };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern takes a trailing comma
+================================================================================
+
+main = do { :pair { #key = k, #value = v, } <- xs; k };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a node pattern nests in a field
+================================================================================
+
+main = do { :call_expression { #function = :member_expression { #object = o } } <- xs; o };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (node_pattern
+              kind: (kind)
+              field: (field_pattern
+                name: (field_name)
+                pattern: (identifier)))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+an as-pattern names a node pattern
+================================================================================
+
+main = do { c@:call_expression { #function = f } <- xs; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (as_pattern
+          name: (identifier)
+          pattern: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a conjunction holds two node patterns
+================================================================================
+
+main = do { c & :call_expression { #function = f } & { #arguments = a } <- xs; c };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (bind_statement
+        pattern: (conjunction_pattern
+          left: (conjunction_pattern
+            left: (identifier)
+            right: (node_pattern
+              kind: (kind)
+              field: (field_pattern
+                name: (field_name)
+                pattern: (identifier))))
+          right: (node_pattern
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (identifier))))
+
+================================================================================
+a constructor takes a node pattern as its argument
+================================================================================
+
+main = case x of { Just :identifier {} -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (node_pattern
+            kind: (kind)))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a constructor takes a kind and then a node pattern
+================================================================================
+
+main = case x of { Pair :identifier :string { #fragment = f } -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (kind)
+          argument: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a node pattern is a case alternative with a guard
+================================================================================
+
+main = case n of { :identifier { #name = x } if text x = "a" -> 1; _ -> 0 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (case_expression
+      scrutinee: (identifier)
+      (case_alternative
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))
+        guard: (comparison
+          left: (application
+            function: (identifier)
+            argument: (identifier))
+          right: (string))
+        body: (number))
+      (case_alternative
+        pattern: (identifier)
+        body: (number)))))
+
+================================================================================
+a kind applied to an empty record is an expression statement
+================================================================================
+
+main = do { :identifier {}; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (kind)
+        argument: (record))
+      (number))))
+
+================================================================================
+a kind applied to a record is an expression statement
+================================================================================
+
+main = do { :identifier { x = 1 }; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (kind)
+        argument: (record
+          (record_field
+            name: (identifier)
+            value: (number))))
+      (number))))
+
+================================================================================
+a constructor applied to a kind and a record is an expression statement
+================================================================================
+
+main = do { Pair :identifier { x = 1 }; Pair :identifier { #name = n } <- xs; 1 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (do_expression
+      (application
+        function: (application
+          function: (type_identifier)
+          argument: (kind))
+        argument: (record
+          (record_field
+            name: (identifier)
+            value: (number))))
+      (bind_statement
+        pattern: (constructor_pattern
+          constructor: (type_identifier)
+          argument: (node_pattern
+            kind: (kind)
+            field: (field_pattern
+              name: (field_name)
+              pattern: (identifier))))
+        value: (identifier))
+      (number))))
+
+================================================================================
+an empty brace is not a pattern
+:error
+================================================================================
+
+main = do { {} <- xs; 1 };
+
+---
+
+(source_file)
+
+================================================================================
+a brace mixing grammar fields and record labels is not a pattern
+:error
+================================================================================
+
+main = do { :pair { #key = k, value = v } <- xs; k };
+
+---
+
+(source_file)
+
+================================================================================
+a pattern synonym with no parameters
+================================================================================
+
+pattern Arrow <- :arrow_function {};
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    pattern: (node_pattern
+      kind: (kind))))
+
+================================================================================
+a pattern synonym with one parameter
+================================================================================
+
+pattern Text s <- (text -> s);
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    parameter: (identifier)
+    pattern: (view_pattern
+      view: (identifier)
+      pattern: (identifier))))
+
+================================================================================
+a pattern synonym with two parameters
+================================================================================
+
+pattern MemberCall obj prop <- :call_expression {
+  #function = :member_expression { #object = obj, #property = prop },
+};
+
+---
+
+(source_file
+  (pattern_synonym
+    name: (type_identifier)
+    parameter: (identifier)
+    parameter: (identifier)
+    pattern: (node_pattern
+      kind: (kind)
+      field: (field_pattern
+        name: (field_name)
+        pattern: (node_pattern
+          kind: (kind)
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier))
+          field: (field_pattern
+            name: (field_name)
+            pattern: (identifier)))))))
+
+================================================================================
+a pattern synonym signature
+================================================================================
+
+pattern MemberCall :: Node -> Node -> Node;
+
+---
+
+(source_file
+  (pattern_signature
+    name: (type_identifier)
+    type: (function_type
+      from: (type_identifier)
+      to: (function_type
+        from: (type_identifier)
+        to: (type_identifier)))))
+
+================================================================================
+pattern names a value where a declaration starts
+================================================================================
+
+pattern :: Int -> Int;
+pattern x = x;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_identifier)
+      to: (type_identifier)))
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    body: (identifier)))
+
+================================================================================
+of_shape takes an atomic pattern
+================================================================================
+
+main = of_shape :arrow_function {};
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (of_shape
+      pattern: (node_pattern
+        kind: (kind)))))
+
+================================================================================
+of_shape takes a parenthesized synonym application
+================================================================================
+
+main = of_shape (MemberCall (Text "console") _);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (of_shape
+      pattern: (parenthesized_pattern
+        (constructor_pattern
+          constructor: (type_identifier)
+          argument: (parenthesized_pattern
+            (constructor_pattern
+              constructor: (type_identifier)
+              argument: (string)))
+          argument: (identifier))))))
+
+================================================================================
+of_shape in a pipeline
+================================================================================
+
+main = descendants | of_shape Arrow;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (pipe
+      left: (identifier)
+      right: (of_shape
+        pattern: (type_identifier)))))
+
+================================================================================
+of_shape applied to an argument applies the filter
+================================================================================
+
+main = of_shape PromiseAll outer;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (of_shape
+        pattern: (type_identifier))
+      argument: (identifier))))

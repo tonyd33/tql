@@ -1,0 +1,29 @@
+title: a top-level as-pattern may shadow an earlier bind
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const $ do {
+  x <- [[1]];
+  x@[y] <- [[2], [3, 4]];
+  return [x, [y]];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[[[2], [2]]]
+
+--- core ---
+main = const (
+  concat_map (
+    \x -> concat_map (
+      \x -> case x of
+        Nil -> Nil
+        Cons y cons1 -> case cons1 of
+          Nil -> return (Cons x (Cons (Cons y Nil) Nil))
+          Cons _ _ -> Nil
+    ) (Cons (Cons 2 Nil) (Cons (Cons 3 (Cons 4 Nil)) Nil))
+  ) (Cons (Cons 1 Nil) Nil)
+)

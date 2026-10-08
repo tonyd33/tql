@@ -1,0 +1,25 @@
+title: a synonym an export list omits is not imported
+grammar: typescript
+asserts: error
+
+--- module Hidden ---
+module Hidden (other) for typescript;
+
+other = 1;
+
+pattern Callee f <- :call_expression { #function = f };
+
+--- tql ---
+import Hidden;
+
+main root = do {
+  Callee f <- descendants root;
+  return (text f);
+};
+
+--- error ---
+error[unresolved-name]: `Callee` is not a constructor or a pattern synonym
+ --> 4:3
+  |
+4 |   Callee f <- descendants root;
+  |   ^^^^^^^^

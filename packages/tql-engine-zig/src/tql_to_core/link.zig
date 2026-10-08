@@ -15,6 +15,7 @@ const annotation = @import("annotation.zig");
 const resolve = @import("resolve.zig");
 const scope_mod = @import("scope.zig");
 const desugar = @import("desugar.zig");
+const match = @import("match.zig");
 const primitives = @import("../primitives.zig");
 const datatypes = core.datatypes;
 const types = core.types;
@@ -33,7 +34,12 @@ pub const Desugarer = struct {
     allocator: std.mem.Allocator,
     /// Null once `finish` has handed it to the `Program`.
     env: ?core.env.Env,
-    modules: std.ArrayList(desugar.Module) = .empty,
+    /// Every definition added so far, in link order.
+    definitions: std.ArrayList(core.Definition) = .empty,
+    /// `edges[i]` holds the linked indices `definitions[i]` references.
+    edges: std.ArrayList([]const u32) = .empty,
+    /// Where the last source added begins in `definitions`.
+    entry_offset: u32 = 0,
     /// The linked index of every definition added so far.
     linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
     /// What each module exports, by `ModuleId`.
@@ -50,7 +56,8 @@ pub const Desugarer = struct {
     }
 
     pub fn deinit(self: *Desugarer) void {
-        self.modules.deinit(self.allocator);
+        self.definitions.deinit(self.allocator);
+        self.edges.deinit(self.allocator);
         self.linked.deinit(self.allocator);
         self.exports.deinit(self.allocator);
         if (self.env) |*target| target.deinit();
@@ -309,34 +316,23 @@ pub const Desugarer = struct {
         if (!try scope.checkItems(sink)) return error.DesugarFailed;
         var failed = false;
 
-        const offset: u32 = @intCast(self.linked.count());
-        for (declarations.items.items, 0..) |d, i| {
-            const index: u32 = @intCast(i);
-            try self.linked.put(self.allocator, d.symbol, offset + index);
+        const first: u32 = @intCast(self.linked.count());
+        for (declarations.items.items, first..) |d, index| {
+            try self.linked.put(self.allocator, d.symbol, @intCast(index));
         }
 
         const definitions = try builder.slice(core.Definition, declarations.items.items.len);
-        const edges = try builder.slice([]const u32, declarations.items.items.len);
+        const edges = try builder.slice([]const u32, definitions.len);
         @memset(edges, &.{});
 
-        // IMPROVE: desugar the entire module at once with a single desugar pass?
+        const language = if (g) |known| known.language else null;
+        var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, language, sink);
         for (declarations.items.items, 0..) |d, i| {
-            var lowerer = desugar.Lowerer.init(
-                builder,
-                &self.env.?,
-                &scope,
-                &self.linked,
-                if (g) |known| known.language else null,
-                sink,
-            );
-            defer lowerer.deinit();
-
-            const body = lowerer.parameterized(
-                d.definition.parameters,
-                d.definition.body,
-                null,
-                d.definition.span,
-            ) catch |err| switch (err) {
+            const lowered = switch (d.kind) {
+                .value => |v| lowerer.parameterized(v.definition.parameters, v.definition.body, null, v.definition.span),
+                .synonym => |s| match.matcherOf(&lowerer, s.declaration),
+            };
+            const body = lowered catch |err| switch (err) {
                 error.DesugarFailed => {
                     failed = true;
                     continue;
@@ -344,41 +340,53 @@ pub const Desugarer = struct {
                 else => |e| return e,
             };
 
-            definitions[i] = .{
-                .symbol = d.symbol,
-                .body = body,
-                .span = d.definition.span,
-            };
-            edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
+            definitions[i] = .{ .symbol = d.symbol, .body = body, .span = d.span() };
+            edges[i] = try self.references(builder, body);
+            if (d.kind == .synonym) try self.env.?.markAlwaysInline(d.symbol);
+        }
+        if (!try checkSynonymCycles(self.allocator, declarations.items.items, edges, first, sink)) {
+            failed = true;
         }
 
         for (declarations.items.items) |d| {
-            const signature = d.signature orelse continue;
-            const scheme = annotation.translate(
-                builder.allocator,
-                self.allocator,
-                signature,
-                &scope,
-                sink,
-            ) catch |err| switch (err) {
+            const span, const translated = switch (d.kind) {
+                .value => |v| blk: {
+                    const signature = v.signature orelse continue;
+                    break :blk .{ signature.span, annotation.translate(builder.allocator, self.allocator, signature, &scope, sink) };
+                },
+                .synonym => |s| blk: {
+                    const signature = s.signature orelse continue;
+                    const arity: u32 = @intCast(s.declaration.parameters.len);
+                    break :blk .{ signature.span, annotation.translateSynonym(builder.allocator, self.allocator, signature, arity, &scope, sink) };
+                },
+            };
+            const scheme = translated catch |err| switch (err) {
                 error.BadAnnotation => {
                     failed = true;
                     continue;
                 },
                 else => |e| return e,
             };
-            try self.env.?.annotate(d.symbol, .{
-                .scheme = scheme,
-                .span = signature.span,
-            });
+            try self.env.?.annotate(d.symbol, .{ .scheme = scheme, .span = span });
         }
 
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 
-        try self.modules.append(self.allocator, .{
-            .definitions = definitions,
-            .edges = edges,
-        });
+        self.entry_offset = first;
+        try self.definitions.appendSlice(self.allocator, definitions);
+        try self.edges.appendSlice(self.allocator, edges);
+    }
+
+    /// The linked indices of the definitions `body` mentions, in first-mention
+    /// order.
+    fn references(self: *const Desugarer, builder: core.Builder, body: core.Term) ![]const u32 {
+        var collector: core.free.Collector = .{ .gpa = self.allocator, .locals = .{ .keys = &self.linked } };
+        defer collector.deinit();
+        try collector.walk(body);
+
+        const targets = try builder.slice(u32, collector.out.items.len);
+        for (collector.out.items, targets) |symbol, *target| target.* = self.linked.get(symbol).?;
+        return targets;
     }
 
     /// Assembles the added sources into a program. The last one added is the
@@ -390,20 +398,9 @@ pub const Desugarer = struct {
     ) Error!Program {
         const scratch = self.env.?.allocator();
 
-        var total: usize = 0;
-        for (self.modules.items) |m| total += m.definitions.len;
-
-        const definitions = try scratch.alloc(core.Definition, total);
-        const edges = try scratch.alloc([]const u32, total);
-
-        var offset: u32 = 0;
-        var entry_offset: u32 = 0;
-        for (self.modules.items, 0..) |m, i| {
-            if (i + 1 == self.modules.items.len) entry_offset = offset;
-            @memcpy(definitions[offset..][0..m.definitions.len], m.definitions);
-            @memcpy(edges[offset..][0..m.edges.len], m.edges);
-            offset += @intCast(m.definitions.len);
-        }
+        const definitions = try scratch.dupe(core.Definition, self.definitions.items);
+        const edges = self.edges.items;
+        const entry_offset = self.entry_offset;
 
         const main = try entrySymbol(
             definitions[entry_offset..],
@@ -442,6 +439,64 @@ pub const Desugarer = struct {
         };
     }
 };
+
+/// Reports each synonym whose matcher calls itself, directly or through the
+/// matchers of other synonyms of `declarations`. Returns whether there was
+/// none.
+///
+/// Preconditions:
+/// - `references[i]` holds the linked indices the definition of
+///   `declarations[i]` references.
+/// - `declarations` are linked in order from `first`.
+fn checkSynonymCycles(
+    gpa: std.mem.Allocator,
+    declarations: []const resolve.Declaration,
+    references: []const []const u32,
+    first: u32,
+    sink: *diagnostic.Sink,
+) !bool {
+    for (declarations) |d| {
+        if (d.kind == .synonym) break;
+    } else return true;
+
+    var arena: std.heap.ArenaAllocator = .init(gpa);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const edges = try allocator.alloc([]const u32, declarations.len);
+    for (declarations, references, edges) |d, targets, *edge| {
+        var among: std.ArrayList(u32) = .empty;
+        if (d.kind == .synonym) for (targets) |target| {
+            if (target < first or target - first >= declarations.len) continue;
+            const index = target - first;
+            if (declarations[index].kind == .synonym) try among.append(allocator, index);
+        };
+        edge.* = among.items;
+    }
+
+    var found = try core.components.stronglyConnectedComponents(gpa, edges);
+    defer found.deinit();
+
+    var ok = true;
+    for (found.groups) |members| {
+        if (!core.components.cyclic(members, edges)) continue;
+        ok = false;
+        for (members) |member| {
+            var others: std.Io.Writer.Allocating = .init(allocator);
+            for (members) |other| {
+                if (other == member) continue;
+                try others.writer.print(", through `{s}`", .{declarations[other].name});
+            }
+            try sink.report(
+                .cyclic_synonym,
+                declarations[member].span(),
+                "`{s}` is defined in terms of itself{s}",
+                .{ declarations[member].name, others.written() },
+            );
+        }
+    }
+    return ok;
+}
 
 /// Appends every type name `t` mentions to `out`.
 fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8)) !void {

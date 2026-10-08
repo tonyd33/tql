@@ -21,43 +21,31 @@ pub const Lowerer = struct {
     /// Where symbols are interned and synthesized ones get their schemes.
     env: *core.env.Env,
     scope: *const ModuleScope,
-    /// The linked index of every definition in this module and those before.
-    linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
     /// Null in a grammar-generic module, which may not use kinds or fields.
     language: ?*const ts.Language,
     sink: *diagnostic.Sink,
     builder: core.Builder,
 
-    /// Global references made by the body currently being desugared, as
-    /// linked indices. Feeds the reference graph.
-    references: std.ArrayList(u32) = .empty,
-
     pub fn init(
         builder: core.Builder,
         env: *core.env.Env,
         scope: *const ModuleScope,
-        linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
         language: ?*const ts.Language,
         sink: *diagnostic.Sink,
     ) Lowerer {
         return .{
             .env = env,
             .scope = scope,
-            .linked = linked,
             .language = language,
             .sink = sink,
             .builder = builder,
         };
     }
 
-    pub fn deinit(self: *Lowerer) void {
-        self.references.deinit(self.builder.allocator);
-    }
-
     /// A primitive or prelude name that sugar desugars to, resolved in the
     /// prelude whatever this module declares. Missing only when the prelude
     /// was not linked beneath this module.
-    fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
+    pub fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const id = self.env.interner.lookup(.prelude, name) orelse {
             try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
             return error.DesugarFailed;
@@ -87,19 +75,15 @@ pub const Lowerer = struct {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         };
+        if (self.env.interner.details(id) == .synonym) {
+            try self.sink.report(.unresolved_name, span, "`{s}` is a pattern synonym, which matches but does not build", .{name});
+            return error.DesugarFailed;
+        }
         if (datatypes.ownerOf(&self.env.interner, id) == null) {
             try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
             return error.DesugarFailed;
         }
         return self.builder.symbol(id, span);
-    }
-
-    fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
-        const index = self.linked.get(symbol) orelse return;
-        for (self.references.items) |existing| {
-            if (existing == index) return;
-        }
-        try self.references.append(self.builder.allocator, index);
     }
 
     /// The grammar a kind or field `name` resolves against. A grammar-generic
@@ -254,14 +238,16 @@ pub const Lowerer = struct {
             // Parentheses are grouping only; the CST keeps them, Core does not.
             .parenthesized => |inner| return try self.expression(inner.*, scope),
 
+            .of_shape => {
+                try self.sink.report(.parse, e.span, "`of_shape` is not supported yet", .{});
+                return error.DesugarFailed;
+            },
+
             .name => |name| {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (try self.resolveGlobal(name, e.span)) |global| {
-                    try self.recordReference(global);
-                    return self.builder.symbol(global, e.span);
-                }
+                if (try self.resolveGlobal(name, e.span)) |global| return self.builder.symbol(global, e.span);
                 try self.sink.report(
                     .unresolved_name,
                     e.span,
@@ -326,26 +312,11 @@ pub const Lowerer = struct {
 
             .section => |s| return try self.section(s.*, e.span, scope),
 
-            // The scalar conditional is `case` on `Bool`. Alternatives go in
-            // tag order, so `False` precedes `True` and the alternative
-            // bodies are the *opposite* order from how they are written.
+            // The scalar conditional is `case` on `Bool`.
             .@"if" => |i| {
-                const alternatives = try self.builder.slice(core.Case.Alternative, 2);
-                alternatives[0] = .{
-                    .constructor = self.scope.datatypes.boolConstructor(false).symbol,
-                    .binders = &.{},
-                    .body = try self.expression(i.alternative, scope),
-                };
-                alternatives[1] = .{
-                    .constructor = self.scope.datatypes.boolConstructor(true).symbol,
-                    .binders = &.{},
-                    .body = try self.expression(i.consequence, scope),
-                };
-                return try self.builder.case(
-                    try self.expression(i.condition, scope),
-                    alternatives,
-                    e.span,
-                );
+                const otherwise = try self.expression(i.alternative, scope);
+                const matched = try self.expression(i.consequence, scope);
+                return try self.choose(try self.expression(i.condition, scope), otherwise, matched, e.span);
             },
 
             .constructor => |name| return try self.constructorRef(name, e.span),
@@ -461,7 +432,7 @@ pub const Lowerer = struct {
         return self.builder.symbol(name, span);
     }
 
-    fn binaryTerms(
+    pub fn binaryTerms(
         self: *Lowerer,
         op: cst.BinaryOperator,
         left: core.Term,
@@ -505,8 +476,27 @@ pub const Lowerer = struct {
         );
     }
 
+    /// `case condition of { False -> otherwise; True -> matched }`.
+    ///
+    /// Alternatives go in tag order, so `False` precedes `True` and the
+    /// alternative bodies are the opposite order from how an `if` writes them.
+    pub fn choose(
+        self: *Lowerer,
+        condition: core.Term,
+        otherwise: core.Term,
+        matched: core.Term,
+        span: diagnostic.Span,
+    ) Error!core.Term {
+        const registry = self.scope.datatypes;
+        const alternatives = try self.builder.dupeSlice(core.Case.Alternative, &.{
+            .{ .constructor = registry.boolConstructor(false).symbol, .binders = &.{}, .body = otherwise },
+            .{ .constructor = registry.boolConstructor(true).symbol, .binders = &.{}, .body = matched },
+        });
+        return try self.builder.case(condition, alternatives, span);
+    }
+
     /// `concat_map (\name -> body) value`.
-    fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
+    pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
             try self.primitive("concat_map", span),
             &.{ try self.builder.lambda(name, body, body.span), value },
@@ -591,7 +581,7 @@ pub const Lowerer = struct {
 
         const edges = try self.builder.slice([]const u32, bindings.len);
         for (resolved, edges) |binding, *edge| {
-            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = symbols };
+            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = .{ .list = symbols } };
             defer collector.deinit();
             try collector.walk(binding.value);
 
@@ -633,7 +623,7 @@ pub const Lowerer = struct {
         return result;
     }
 
-    fn doBlock(
+    pub fn doBlock(
         self: *Lowerer,
         statements: []const cst.Statement,
         result: cst.Expression,
@@ -643,19 +633,11 @@ pub const Lowerer = struct {
         if (statements.len == 0) return try self.expression(result, scope);
 
         switch (statements[0]) {
-            .bind => |b| {
-                const value = try self.expression(b.value, scope);
-                const symbol = try self.env.interner.fresh(b.name);
-                const entries = try self.builder.slice(resolve.Scope.Entry, 1);
-                entries[0] = .{ .name = b.name, .symbol = symbol };
-                const inner: resolve.Scope = .{ .parent = scope, .names = entries };
-                return try self.bind(
-                    symbol,
-                    value,
-                    try self.doBlock(statements[1..], result, &inner, span),
-                    b.span,
-                );
-            },
+            .bind => |b| return try match.bind(self, b, .{
+                .statements = statements[1..],
+                .result = result,
+                .span = span,
+            }, scope),
             .expression => |e| {
                 return try self.bind(
                     try self.env.interner.fresh("_"),
@@ -674,12 +656,4 @@ pub const Lowerer = struct {
             },
         }
     }
-};
-
-/// One desugared source file: definitions and the references between them.
-///
-/// `edges` are module-local indices into `definitions`.
-pub const Module = struct {
-    definitions: []const core.Definition,
-    edges: []const []const u32,
 };

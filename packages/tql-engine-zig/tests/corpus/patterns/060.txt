@@ -1,0 +1,18 @@
+title: a literal argument compares the hole it is matched against
+grammar: typescript
+asserts: values
+
+--- tql ---
+pattern Text s <- (text -> s);
+
+main root = do {
+  i@(Text "console") <- descendants_of_kind :identifier root;
+  return (text i);
+};
+
+--- source ---
+console.log(console);
+other.log(1);
+
+--- values ---
+["console","console"]

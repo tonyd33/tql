@@ -1,0 +1,16 @@
+title: a node pattern names an unknown kind
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  c@:class_decl {} <- descendants root;
+  return $ text c;
+};
+
+--- error ---
+error[unknown-kind]: `class_decl` is not a node kind in this grammar
+ --> 2:5
+  |
+2 |   c@:class_decl {} <- descendants root;
+  |     ^^^^^^^^^^^

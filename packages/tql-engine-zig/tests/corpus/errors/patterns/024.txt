@@ -1,0 +1,16 @@
+title: a node pattern names an unknown field
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  { #nope = x } <- descendants root;
+  return $ text x;
+};
+
+--- error ---
+error[unknown-field]: `nope` is not a field in this grammar
+ --> 2:6
+  |
+2 |   { #nope = x } <- descendants root;
+  |      ^^^^

@@ -1,0 +1,22 @@
+title: an irrefutable bind emits no case
+grammar: typescript
+asserts: core, values
+
+`x`, `x@_` and `_` match every value, so each lowers to a bare `bind`.
+
+--- tql ---
+main = const $ do {
+  x <- [1, 2];
+  y@_ <- [x];
+  _ <- [y];
+  return y;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2]
+
+--- core ---
+main = const (concat_map (\x -> concat_map (\y -> concat_map (\_ -> return y) (Cons y Nil)) (Cons x Nil)) (Cons 1 (Cons 2 Nil)))

@@ -1,0 +1,16 @@
+title: a pattern naming neither a constructor nor a synonym
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  Nope f <- descendants root;
+  return (text f);
+};
+
+--- error ---
+error[unresolved-name]: `Nope` is not a constructor or a pattern synonym
+ --> 2:3
+  |
+2 |   Nope f <- descendants root;
+  |   ^^^^^^

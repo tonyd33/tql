@@ -1,0 +1,15 @@
+title: two node patterns with different kinds on one value match nothing
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  c@(:call_expression {} & :member_expression {}) <- descendants root;
+  return $ text c;
+};
+
+--- source ---
+a.b();
+
+--- values ---
+[]

@@ -1,0 +1,19 @@
+title: a variable in a synonym argument shadowing a local
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee f <- :call_expression { #function = f };
+
+main root = do {
+  let f = 1;
+  Callee f <- descendants root;
+  return f;
+};
+
+--- error ---
+error[shadowed-local]: `f` in a pattern would shadow the local `f`; bind another name and compare after the bind
+ --> 5:10
+  |
+5 |   Callee f <- descendants root;
+  |          ^

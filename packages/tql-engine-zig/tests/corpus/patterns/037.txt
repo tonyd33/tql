@@ -1,0 +1,40 @@
+title: an of_kind view bound over an axis walks the fused axis
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+kids root = do {
+  (of_kind :class_declaration -> [n]) <- children root;
+  return $ text n;
+};
+
+named_kids root = do {
+  (of_kind :class_declaration -> [n]) <- named_children root;
+  return $ text n;
+};
+
+all root = do {
+  (of_kind :class_declaration -> [n]) <- descendants root;
+  return $ text n;
+};
+
+named_all root = do {
+  (of_kind :class_declaration -> [n]) <- named_descendants root;
+  return $ text n;
+};
+
+main = kids <|> named_kids <|> all <|> named_all;
+
+--- source ---
+class A {}
+function f() { class B {} }
+
+--- values ---
+["class A {}", "class A {}", "class A {}", "class B {}", "class A {}", "class B {}"]
+
+--- simplified ---
+kids = \root -> concat_map (\scrutinee -> Cons (text scrutinee) Nil) (children_of_kind :class_declaration root)
+named_kids = \root -> concat_map (\scrutinee -> Cons (text scrutinee) Nil) (children_of_kind :class_declaration root)
+all = \root -> concat_map (\scrutinee -> Cons (text scrutinee) Nil) (descendants_of_kind :class_declaration root)
+named_all = \root -> concat_map (\scrutinee -> Cons (text scrutinee) Nil) (descendants_of_kind :class_declaration root)
+main = alt (alt (alt kids named_kids) all) named_all

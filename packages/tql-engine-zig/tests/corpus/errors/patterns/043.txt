@@ -1,0 +1,19 @@
+title: a synonym signature with fewer arguments than the synonym
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee :: Node;
+pattern Callee f <- :call_expression { #function = f };
+
+main root = do {
+  Callee f <- descendants root;
+  return (text f);
+};
+
+--- error ---
+error[signature-mismatch]: `Callee` takes 1 argument(s), but its signature gives 0
+ --> 1:1
+  |
+1 | pattern Callee :: Node;
+  | ^^^^^^^^^^^^^^^^^^^^^^^

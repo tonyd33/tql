@@ -1,0 +1,17 @@
+title: a local named of_kind does not change what a node pattern means
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  let of_kind = \k n -> [n];
+  c@:class_declaration {} <- descendants root;
+  return $ text c;
+};
+
+--- source ---
+class A {}
+let x = 1;
+
+--- values ---
+["class A {}"]

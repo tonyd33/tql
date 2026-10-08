@@ -1,0 +1,26 @@
+title: a view row that does not match falls through to the next row
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+describe c = case c of {
+  (#decorator -> _ : _) -> "decorated";
+  _ -> "plain";
+};
+
+main = descendants_of_kind :class_declaration | arr describe;
+
+--- source ---
+@a class A {}
+class B {}
+
+--- values ---
+["decorated", "plain"]
+
+--- core ---
+describe = \c ->
+  let view = field[decorator] c in
+  case view of
+    Nil -> "plain"
+    Cons _ _ -> "decorated"
+main = kleisli (descendants_of_kind :class_declaration) (arr describe)

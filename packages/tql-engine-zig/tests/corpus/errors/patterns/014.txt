@@ -1,0 +1,29 @@
+title: a view inside a list pattern leaves the list's shape unmatched
+grammar: typescript
+asserts: error
+
+The value that falls through is a one-element list whose element the view
+rejects.
+
+--- tql ---
+f xs = case xs of {
+  [] -> 0;
+  [(\x -> x > 0 -> True)] -> 1;
+  _ : _ : _ -> 2;
+};
+
+main = const [f [1]];
+
+--- error ---
+error[type-mismatch]: `[_]` is not matched
+ --> 1:8
+  |
+1 | f xs = case xs of {
+  |        ^^^^^^^^^^^^
+2 |   [] -> 0;
+  |   ^^^^^^^^
+...
+4 |   _ : _ : _ -> 2;
+  |   ^^^^^^^^^^^^^^^
+5 | };
+  | ^

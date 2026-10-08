@@ -126,6 +126,7 @@ pub const Category = enum {
     duplicate_signature,
     orphan_signature,
     duplicate_definition,
+    shadowed_local,
     type_mismatch,
     over_application,
     unsatisfied_constraint,
@@ -135,6 +136,7 @@ pub const Category = enum {
     main_parameters,
     signature_mismatch,
     cyclic_alias,
+    cyclic_synonym,
     limit,
 
     pub fn name(self: Category) []const u8 {
@@ -156,6 +158,7 @@ pub const Category = enum {
             .duplicate_signature => "duplicate-signature",
             .orphan_signature => "orphan-signature",
             .duplicate_definition => "duplicate-definition",
+            .shadowed_local => "shadowed-local",
             .type_mismatch => "type-mismatch",
             .over_application => "over-application",
             .unsatisfied_constraint => "unsatisfied-constraint",
@@ -165,6 +168,7 @@ pub const Category = enum {
             .main_parameters => "main-parameters",
             .signature_mismatch => "signature-mismatch",
             .cyclic_alias => "cyclic-alias",
+            .cyclic_synonym => "cyclic-synonym",
             .limit => "limit",
         };
     }

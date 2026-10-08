@@ -1,0 +1,21 @@
+title: a synonym signature narrower than its body
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+pattern Single :: Node -> [Node];
+pattern Single x <- [x];
+
+main root = do {
+  Single c <- [children root];
+  return (kind_name c);
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+["lexical_declaration"]
+--- types ---
+$mSingle :: [Node] -> (Node -> a) -> a -> a
+main :: Node -> [String]

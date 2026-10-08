@@ -1,0 +1,57 @@
+title: a view over a filter matches `[]`, `[d]` or `_ : _` once per node
+grammar: typescript
+asserts: core, values
+
+A class with two decorators matches `_ : _` once.
+
+--- tql ---
+undecorated c = do {
+  (#decorator -> []) <- [c];
+  return "none";
+};
+
+one_decorator c = do {
+  (#decorator -> [d]) <- [c];
+  return $ text d;
+};
+
+decorated c = do {
+  (#decorator -> _ : _) <- [c];
+  return "some";
+};
+
+main = descendants_of_kind :class_declaration | (undecorated <|> one_decorator <|> decorated);
+
+--- source ---
+class A {}
+@a class B {}
+@a @b class C {}
+
+--- values ---
+["none", "@a", "some", "some"]
+
+--- core ---
+undecorated = \c -> concat_map (
+  \scrutinee ->
+    let view = field[decorator] scrutinee in
+    case view of
+      Nil -> return "none"
+      Cons _ _ -> Nil
+) (Cons c Nil)
+one_decorator = \c -> concat_map (
+  \scrutinee ->
+    let view = field[decorator] scrutinee in
+    case view of
+      Nil -> Nil
+      Cons d cons1 -> case cons1 of
+        Nil -> return (text d)
+        Cons _ _ -> Nil
+) (Cons c Nil)
+decorated = \c -> concat_map (
+  \scrutinee ->
+    let view = field[decorator] scrutinee in
+    case view of
+      Nil -> Nil
+      Cons _ _ -> return "some"
+) (Cons c Nil)
+main = kleisli (descendants_of_kind :class_declaration) (alt (alt undecorated one_decorator) decorated)

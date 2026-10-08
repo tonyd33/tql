@@ -739,7 +739,6 @@ test "the prelude's bodies compile to Core" {
         \\or_else = \primary -> \fallback -> \x -> case primary x of
         \\  Nil -> fallback x
         \\  Cons h t -> Cons h t
-        \\is_kind = \k -> \n -> op[=] (kind n) k
     , w.written());
 }
 
@@ -824,7 +823,6 @@ test "the prelude's schemes are inferred" {
         \\has :: (a -> [b]) -> a -> Bool
         \\first :: (a -> [b]) -> a -> [b]
         \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
-        \\is_kind :: Kind -> Node -> Bool
     , w.written());
 }
 

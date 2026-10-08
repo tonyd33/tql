@@ -1,0 +1,16 @@
+title: node patterns nest through fields
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  :call_expression { #function = :member_expression { #property = p } } <- descendants root;
+  return $ text p;
+};
+
+--- source ---
+a.b();
+c();
+
+--- values ---
+["b"]

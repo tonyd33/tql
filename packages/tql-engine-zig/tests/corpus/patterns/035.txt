@@ -1,0 +1,16 @@
+title: a top-level variable in a case alternative may shadow a local
+grammar: typescript
+asserts: values
+
+A variable naming the whole scrutinee shadows, as a bind's variable does.
+
+--- tql ---
+f x = case x + 1 of { x -> x; };
+
+main = const [f 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[2]

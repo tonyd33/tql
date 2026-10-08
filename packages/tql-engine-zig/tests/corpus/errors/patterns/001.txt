@@ -1,0 +1,16 @@
+title: a variable bound twice in one pattern is a compile error
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  (#left -> [x]) & (#right -> [x]) <- descendants root;
+  return x;
+};
+
+--- error ---
+error[duplicate-definition]: `x` is bound twice in one pattern
+ --> 2:32
+  |
+2 |   (#left -> [x]) & (#right -> [x]) <- descendants root;
+  |                                ^

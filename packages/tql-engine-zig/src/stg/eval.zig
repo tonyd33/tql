@@ -819,6 +819,10 @@ pub const Machine = struct {
                     if (tested.subject.kindId() != tested.kind_id) return self.nil();
                     return self.singleton(arguments[1]);
                 },
+                .is_kind => {
+                    const tested = try self.kindTestArguments(arguments);
+                    return try self.boolValue(tested.subject.kindId() == tested.kind_id);
+                },
 
                 // `[parent]`, or `[]` at the root.
                 .parent => {
@@ -902,7 +906,8 @@ pub const Machine = struct {
         };
     }
 
-    /// The kind and node arguments of `of_kind` and the `_of_kind` axes.
+    /// The kind and node arguments of `of_kind`, `is_kind` and the `_of_kind`
+    /// axes.
     fn kindTestArguments(
         self: *Machine,
         arguments: []const *value.Thunk,

@@ -1,0 +1,28 @@
+title: a literal argument of a constructor pattern
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+data Maybe a = Just a | Nothing;
+
+describe m = case m of {
+  Just 0 -> "zero";
+  Just _ -> "some";
+  Nothing -> "none";
+};
+
+main = const [describe (Just 0), describe (Just 5), describe Nothing];
+
+--- source ---
+class A {}
+
+--- values ---
+["zero", "some", "none"]
+
+--- core ---
+describe = \m -> case m of
+  Just just0 -> case op[=] just0 0 of
+    False -> "some"
+    True -> "zero"
+  Nothing -> "none"
+main = const (Cons (describe (Just 0)) (Cons (describe (Just 5)) (Cons (describe Nothing) Nil)))

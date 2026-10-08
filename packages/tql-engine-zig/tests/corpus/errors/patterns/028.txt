@@ -1,0 +1,15 @@
+title: a synonym parameter its body does not bind
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Pair a b <- [a];
+
+main root = 1;
+
+--- error ---
+error[unresolved-name]: the parameter `b` of `Pair` is not bound by its pattern
+ --> 1:16
+  |
+1 | pattern Pair a b <- [a];
+  |                ^

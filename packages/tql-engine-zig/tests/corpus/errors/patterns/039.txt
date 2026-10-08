@@ -1,0 +1,21 @@
+title: a synonym row repeating an earlier one is never matched
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Pair a b <- [a, b];
+
+size xs = case xs of {
+  Pair _ _ -> 2;
+  Pair a _ -> a;
+  _ -> 0;
+};
+
+main root = [size [1]];
+
+--- error ---
+error[type-mismatch]: `Pair a _` is never matched
+ --> 5:3
+  |
+5 |   Pair a _ -> a;
+  |   ^^^^^^^^

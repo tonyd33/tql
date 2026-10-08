@@ -1,0 +1,54 @@
+title: the children view matches tokens positionally
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main root = do {
+  (of_kind :call_expression -> [
+    (#arguments -> [(children -> [(text -> "("), argument, (text -> ")")])])
+  ]) <- descendants root;
+  return $ text argument;
+};
+
+--- source ---
+f(a);
+f(b, c);
+f();
+
+--- values ---
+["a"]
+
+--- core ---
+main = \root -> concat_map (
+  \scrutinee ->
+    let view = of_kind :call_expression scrutinee in
+    case view of
+      Nil -> Nil
+      Cons cons0 cons1 ->
+        let view = field[arguments] cons0 in
+        case view of
+          Nil -> Nil
+          Cons cons0 cons1' ->
+            let view = children cons0 in
+            case view of
+              Nil -> Nil
+              Cons cons0 cons1'' ->
+                let view = text cons0 in
+                case op[=] view "(" of
+                  False -> Nil
+                  True -> case cons1'' of
+                    Nil -> Nil
+                    Cons argument cons1'' -> case cons1'' of
+                      Nil -> Nil
+                      Cons cons0 cons1'' ->
+                        let view = text cons0 in
+                        case op[=] view ")" of
+                          False -> Nil
+                          True -> case cons1'' of
+                            Nil -> case cons1' of
+                              Nil -> case cons1 of
+                                Nil -> return (text argument)
+                                Cons _ _ -> Nil
+                              Cons _ _ -> Nil
+                            Cons _ _ -> Nil
+) (descendants root)

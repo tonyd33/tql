@@ -190,22 +190,22 @@ main root = do {
     parameter: (identifier)
     body: (do_expression
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
       (bind_statement
-        name: (identifier)
+        pattern: (identifier)
         value: (application
           function: (identifier)
           argument: (identifier)))
@@ -244,3 +244,46 @@ f for = for;
     name: (identifier)
     parameter: (identifier)
     body: (identifier)))
+
+========================================
+a pattern synonym in an export list
+========================================
+
+module Shapes (pattern MemberCall, pattern, Call(..));
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)
+    exports: (item_list
+      (item
+        synonym: (type_identifier))
+      (item
+        name: (identifier))
+      (item
+        name: (type_identifier)
+        constructors: (all_constructors)))))
+
+========================================
+a pattern synonym in an import list
+========================================
+
+import Shapes (pattern MemberCall, text);
+import Other hiding (pattern Text);
+
+---
+
+(source_file
+  import: (import_declaration
+    module: (module_name)
+    items: (item_list
+      (item
+        synonym: (type_identifier))
+      (item
+        name: (identifier))))
+  import: (import_declaration
+    module: (module_name)
+    hiding: (item_list
+      (item
+        synonym: (type_identifier)))))

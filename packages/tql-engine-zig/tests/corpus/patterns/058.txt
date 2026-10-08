@@ -1,0 +1,20 @@
+title: a synonym over lists beside the list patterns it abbreviates
+grammar: typescript
+asserts: values
+
+--- tql ---
+pattern Pair a b <- [a, b];
+
+size xs = case xs of {
+  [] -> "empty";
+  Pair _ _ -> "pair";
+  _ -> "other";
+};
+
+main root = [size [], size [1, 2], size [1], size [1, 2, 3]];
+
+--- source ---
+let x = 1;
+
+--- values ---
+["empty","pair","other","other"]

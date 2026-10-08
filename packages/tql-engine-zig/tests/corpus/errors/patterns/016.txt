@@ -1,0 +1,16 @@
+title: a view expression cannot read a variable bound to its right
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const $ do {
+  ((+ y) -> 3) & y <- [1, 2];
+  return y;
+};
+
+--- error ---
+error[unresolved-name]: `y` is not defined
+ --> 2:7
+  |
+2 |   ((+ y) -> 3) & y <- [1, 2];
+  |       ^

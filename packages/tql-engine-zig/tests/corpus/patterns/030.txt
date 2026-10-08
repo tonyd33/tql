@@ -1,0 +1,26 @@
+title: a view uses a variable bound to its left in the same conjunction
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = const $ do {
+  n & ((* n) -> 9) <- [1, 2, 3, 4];
+  return n;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- core ---
+main = const (
+  concat_map (
+    \n ->
+      let view = (\x -> op[*] x n) n in
+      case op[=] view 9 of
+        False -> Nil
+        True -> return n
+  ) (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil))))
+)

@@ -1,0 +1,19 @@
+title: a nullary synonym in a bind
+grammar: typescript
+asserts: values
+
+--- tql ---
+pattern Arrow <- :arrow_function {};
+
+main root = do {
+  a@Arrow <- descendants root;
+  return (text a);
+};
+
+--- source ---
+const f = () => 1;
+function g() {}
+const h = (x) => x;
+
+--- values ---
+["() => 1","(x) => x"]

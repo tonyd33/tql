@@ -1,0 +1,17 @@
+title: a kind literal pattern names a kind of the grammar
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = do {
+  n <- named_children root;
+  :no_such_kind <- [kind n];
+  return n;
+};
+
+--- error ---
+error[unknown-kind]: `no_such_kind` is not a node kind in this grammar
+ --> 3:3
+  |
+3 |   :no_such_kind <- [kind n];
+  |   ^^^^^^^^^^^^^

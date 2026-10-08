@@ -1,0 +1,22 @@
+title: a module exports a synonym and another imports it by name
+grammar: typescript
+asserts: values
+
+--- module Shapes ---
+module Shapes (pattern Callee) for typescript;
+
+pattern Callee f <- :call_expression { #function = f };
+
+--- tql ---
+import Shapes (pattern Callee);
+
+main root = do {
+  Callee f <- descendants root;
+  return (text f);
+};
+
+--- source ---
+f(1);
+
+--- values ---
+["f"]

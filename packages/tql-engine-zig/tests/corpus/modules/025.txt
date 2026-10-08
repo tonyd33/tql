@@ -1,0 +1,22 @@
+title: a synonym is used qualified
+grammar: typescript
+asserts: values
+
+--- module Shapes ---
+module Shapes (pattern Callee) for typescript;
+
+pattern Callee f <- :call_expression { #function = f };
+
+--- tql ---
+import Shapes as Q;
+
+main root = do {
+  Q.Callee f <- descendants root;
+  return (text f);
+};
+
+--- source ---
+f(1);
+
+--- values ---
+["f"]

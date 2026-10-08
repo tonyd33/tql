@@ -1,0 +1,23 @@
+title: boolean literal patterns cover `Bool` without a catch-all
+grammar: typescript
+asserts: core, values
+
+`true` and `false` are the constructors `True` and `False`, so two rows
+are exhaustive.
+
+--- tql ---
+f b = case b of { true -> "yes"; false -> "no"; };
+
+main = const [f true, f false];
+
+--- source ---
+class A {}
+
+--- values ---
+["yes", "no"]
+
+--- core ---
+f = \b -> case b of
+  False -> "no"
+  True -> "yes"
+main = const (Cons (f True) (Cons (f False) Nil))

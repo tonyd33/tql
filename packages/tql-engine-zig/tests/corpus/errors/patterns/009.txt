@@ -1,0 +1,17 @@
+title: a variable nested under a conjunction may not shadow a local
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const $ do {
+  c <- [[1]];
+  [c] & _ <- [c];
+  return c;
+};
+
+--- error ---
+error[shadowed-local]: `c` in a pattern would shadow the local `c`; bind another name and compare after the bind
+ --> 3:4
+  |
+3 |   [c] & _ <- [c];
+  |    ^

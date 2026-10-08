@@ -1,0 +1,27 @@
+title: a case whose rows are all views has no catch-all
+grammar: typescript
+asserts: error
+
+A view contributes nothing to exhaustiveness, so the value that falls
+through is any value.
+
+--- tql ---
+f n = case n of {
+  (text -> "a") -> 1;
+  (text -> "b") -> 2;
+};
+
+main = children | arr f;
+
+--- error ---
+error[type-mismatch]: `_` is not matched
+ --> 1:7
+  |
+1 | f n = case n of {
+  |       ^^^^^^^^^^^
+2 |   (text -> "a") -> 1;
+  |   ^^^^^^^^^^^^^^^^^^^
+3 |   (text -> "b") -> 2;
+  |   ^^^^^^^^^^^^^^^^^^^
+4 | };
+  | ^

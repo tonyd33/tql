@@ -1,0 +1,20 @@
+title: a literal row that does not match falls through to the next row
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+f n = case n of { 3 -> 1; _ -> 0; };
+
+main = const [f 3, f 4];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 0]
+
+--- core ---
+f = \n -> case op[=] n 3 of
+  False -> 0
+  True -> 1
+main = const (Cons (f 3) (Cons (f 4) Nil))

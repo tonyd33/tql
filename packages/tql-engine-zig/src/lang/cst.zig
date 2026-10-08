@@ -44,10 +44,11 @@ pub const SourceFile = struct {
             .hiding => |items| items,
         };
         try w.print(" ({s}", .{if (filter == .hiding) "hiding" else label});
-        for (items) |item| {
-            try w.print(" {s}", .{item.name});
-            if (item.kind == .type_and_constructors) try w.writeAll("(..)");
-        }
+        for (items) |item| switch (item.kind) {
+            .synonym => try w.print(" (pattern {s})", .{item.name}),
+            .type_and_constructors => try w.print(" {s}(..)", .{item.name}),
+            .value, .type => try w.print(" {s}", .{item.name}),
+        };
         try w.writeByte(')');
     }
 
@@ -85,13 +86,13 @@ pub const Filter = union(enum) {
     hiding: []const Item,
 };
 
-/// `x`, `T`, or `T(..)` in an export or import list.
+/// `x`, `T`, `T(..)` or `pattern P` in an export or import list.
 pub const Item = struct {
     name: []const u8,
     kind: Kind,
     span: diagnostic.Span = .unknown,
 
-    pub const Kind = enum { value, type, type_and_constructors };
+    pub const Kind = enum { value, type, type_and_constructors, synonym };
 };
 
 /// `name :: type;` or `name p1 p2 = body;`.
@@ -100,6 +101,8 @@ pub const Declaration = union(enum) {
     definition: Definition,
     data_declaration: DataDeclaration,
     type_alias: TypeAlias,
+    pattern_synonym: PatternSynonym,
+    pattern_signature: PatternSignature,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -188,6 +191,35 @@ pub const TypeAlias = struct {
         try w.print("(type {s} (params", .{self.name});
         for (self.parameters) |p| try w.print(" {s}", .{p});
         try w.writeAll(") ");
+        try self.type.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+/// `pattern P x1 x2 <- p;`
+pub const PatternSynonym = struct {
+    name: Identifier,
+    parameters: []const Parameter,
+    body: Pattern,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: PatternSynonym, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(pattern {s} (params", .{self.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p.name});
+        try w.writeAll(") ");
+        try self.body.sexpr(w);
+        try w.writeByte(')');
+    }
+};
+
+/// `pattern P :: t;`
+pub const PatternSignature = struct {
+    name: Identifier,
+    type: Type,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: PatternSignature, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(pattern_signature {s} ", .{self.name});
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
@@ -351,7 +383,9 @@ pub const Statement = union(enum) {
     pub fn sexpr(self: Statement, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .bind => |b| {
-                try w.print("(<- {s} ", .{b.name});
+                try w.writeAll("(<- ");
+                try b.pattern.sexpr(w);
+                try w.writeByte(' ');
                 try b.value.sexpr(w);
                 try w.writeByte(')');
             },
@@ -373,7 +407,7 @@ pub const Statement = union(enum) {
 };
 
 pub const BindStatement = struct {
-    name: Identifier,
+    pattern: Pattern,
     value: Expression,
     span: diagnostic.Span = .unknown,
 };
@@ -421,6 +455,8 @@ pub const Expression = struct {
         list: []const Expression,
         record: Record,
         parenthesized: *Expression,
+        /// `of_shape p`: the filter keeping a value `p` matches.
+        of_shape: *Pattern,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -482,6 +518,11 @@ pub const Expression = struct {
                 for (c.alternatives) |a| {
                     try w.writeAll(" (alt ");
                     try a.pattern.sexpr(w);
+                    if (a.guard) |g| {
+                        try w.writeAll(" (if ");
+                        try g.sexpr(w);
+                        try w.writeByte(')');
+                    }
                     try w.writeByte(' ');
                     try a.body.sexpr(w);
                     try w.writeByte(')');
@@ -545,6 +586,11 @@ pub const Expression = struct {
                 }
                 try w.writeByte(')');
             },
+            .of_shape => |p| {
+                try w.writeAll("(of_shape ");
+                try p.sexpr(w);
+                try w.writeByte(')');
+            },
             .parenthesized => |e| {
                 try w.writeAll("(paren ");
                 try e.sexpr(w);
@@ -586,19 +632,20 @@ pub const RecordType = struct {
     row: ?Identifier = null,
 };
 
-/// `case e of { p -> e; ... }`
+/// `case e of { p -> e; p if g -> e; ... }`
 pub const Case = struct {
     scrutinee: Expression,
     alternatives: []const Alternative,
 
     pub const Alternative = struct {
         pattern: Pattern,
+        guard: ?Expression = null,
         body: Expression,
         span: diagnostic.Span = .unknown,
     };
 };
 
-/// The left side of a `case` alternative.
+/// The left side of a `case` alternative or a `do` bind.
 pub const Pattern = struct {
     kind: Kind,
     span: diagnostic.Span = .unknown,
@@ -610,26 +657,109 @@ pub const Pattern = struct {
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
         cons: *Cons,
+        /// `x@p`
+        as: *As,
+        /// `p & q`
+        conjunction: *Conjunction,
+        /// `(e -> p)`
+        view: *View,
+        literal: Literal,
+        /// `true` or `false`.
+        boolean: bool,
+        /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
+        node: *Node,
+    };
+
+    pub const Node = struct {
+        /// Carried without the leading colon.
+        kind: ?Identifier,
+        kind_span: diagnostic.Span = .unknown,
+        fields: []const Field,
+
+        pub const Field = struct {
+            name: Identifier,
+            name_span: diagnostic.Span = .unknown,
+            pattern: Pattern,
+            span: diagnostic.Span = .unknown,
+        };
     };
 
     pub const Constructor = struct {
         name: Identifier,
         arguments: []const Pattern,
-        /// Set by list-pattern sugar: the list constructor this is, whatever
-        /// `name` means in the module.
-        list: ?ListConstructor = null,
     };
-
-    pub const ListConstructor = enum { nil, cons };
 
     pub const Cons = struct {
         head: Pattern,
         tail: Pattern,
     };
 
+    pub const As = struct {
+        name: Identifier,
+        name_span: diagnostic.Span = .unknown,
+        pattern: Pattern,
+    };
+
+    pub const Conjunction = struct {
+        left: Pattern,
+        right: Pattern,
+    };
+
+    pub const View = struct {
+        function: Expression,
+        /// The view expression's source text.
+        written: []const u8,
+        pattern: Pattern,
+    };
+
+    /// Matched by `=` against the value, or by `~` for a regex.
+    pub const Literal = union(enum) {
+        number: i64,
+        string: []const u8,
+        regex: []const u8,
+        /// A node kind, carried without the leading colon.
+        kind: Identifier,
+    };
+
     pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .variable => |name| try w.writeAll(name),
+            .as => |a| {
+                try w.print("(@ {s} ", .{a.name});
+                try a.pattern.sexpr(w);
+                try w.writeByte(')');
+            },
+            .conjunction => |c| {
+                try w.writeAll("(& ");
+                try c.left.sexpr(w);
+                try w.writeByte(' ');
+                try c.right.sexpr(w);
+                try w.writeByte(')');
+            },
+            .view => |v| {
+                try w.writeAll("(view ");
+                try v.function.sexpr(w);
+                try w.writeByte(' ');
+                try v.pattern.sexpr(w);
+                try w.writeByte(')');
+            },
+            .literal => |l| switch (l) {
+                .number => |n| try w.print("{d}", .{n}),
+                .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
+                .regex => |r| try w.print("(regex \"{s}\")", .{r}),
+                .kind => |k| try w.print("(kind {s})", .{k}),
+            },
+            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
+            .node => |n| {
+                try w.writeAll("(node");
+                if (n.kind) |k| try w.print(" (kind {s})", .{k});
+                for (n.fields) |f| {
+                    try w.print(" (#{s} ", .{f.name});
+                    try f.pattern.sexpr(w);
+                    try w.writeByte(')');
+                }
+                try w.writeByte(')');
+            },
             .constructor => |c| {
                 if (c.arguments.len == 0) return w.writeAll(c.name);
                 try w.print("({s}", .{c.name});

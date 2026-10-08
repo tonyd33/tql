@@ -1,0 +1,16 @@
+title: a wildcard bind puts nothing in scope
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = const $ do {
+  _ <- [1];
+  return _;
+};
+
+--- error ---
+error[unresolved-name]: `_` is not defined
+ --> 3:10
+  |
+3 |   return _;
+  |          ^

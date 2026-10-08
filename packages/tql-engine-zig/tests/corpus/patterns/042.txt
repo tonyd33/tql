@@ -1,0 +1,19 @@
+title: a kind with no fields matches every node of that kind
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  :class_declaration {} <- descendants root;
+  return "class";
+};
+
+--- source ---
+class A {}
+function f() { class B {} }
+
+--- values ---
+["class", "class"]
+
+--- simplified ---
+main = \root -> concat_map (\_ -> Cons "class" Nil) (descendants_of_kind :class_declaration root)

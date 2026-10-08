@@ -1,0 +1,16 @@
+title: a synonym signature its body does not have
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee :: String -> Node;
+pattern Callee f <- :call_expression { #function = f };
+
+main root = 1;
+
+--- error ---
+error[signature-mismatch]: Expected `String`, found `Node`.
+ --> 1:1
+  |
+1 | pattern Callee :: String -> Node;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -39,6 +39,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
             types.kind_type,
             try B.filter(types.node_type, types.node_type),
         ) },
+        .is_kind => .{ .type = try B.func(types.kind_type, try B.func(types.node_type, try B.boolType())) },
     };
 }
 
@@ -187,7 +188,7 @@ test "primitives are the documented set" {
         "is_extra",         "range",               "length",            "toint",
         "filename",         "parent",              "ancestors",         "children",
         "named_children",   "descendants",         "named_descendants", "of_kind",
-        "children_of_kind", "descendants_of_kind",
+        "children_of_kind", "descendants_of_kind", "is_kind",
     };
 
     var target = try fixture(std.testing.allocator);

@@ -1,0 +1,15 @@
+title: a synonym signature without a synonym
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee :: Node -> Node;
+
+main root = 1;
+
+--- error ---
+error[orphan-signature]: `Callee` has a signature but no pattern synonym
+ --> 1:1
+  |
+1 | pattern Callee :: Node -> Node;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

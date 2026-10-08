@@ -1,0 +1,46 @@
+title: a fallthrough reached from several tests is bound once
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+pattern Both a b <- [(text -> a), (text -> b)];
+
+describe xs = case xs of {
+  Both "x" "y" -> "xy";
+  _ -> "neither";
+};
+
+main root = do {
+  a <- descendants_of_kind :arguments root;
+  return (describe (children_of_kind :identifier a));
+};
+
+--- source ---
+f(x, y);
+f(x, z);
+f(w, y);
+
+--- values ---
+["xy","neither","neither"]
+--- simplified ---
+$mBoth = \s -> \k -> \f -> case s of
+  Nil -> f
+  Cons cons0 cons1 -> case cons1 of
+    Nil -> f
+    Cons cons0' cons1 -> case cons1 of
+      Nil -> k (text cons0) (text cons0')
+      Cons _ _ -> f
+describe = \xs ->
+  let alternative = "neither" in
+  case xs of
+    Nil -> alternative
+    Cons cons0 cons1 -> case cons1 of
+      Nil -> alternative
+      Cons cons0' cons1 -> case cons1 of
+        Nil -> case op[=] (text cons0) "x" of
+          False -> alternative
+          True -> case op[=] (text cons0') "y" of
+            False -> alternative
+            True -> "xy"
+        Cons _ _ -> alternative
+main = \root -> concat_map (\a -> Cons (describe (children_of_kind :identifier a)) Nil) (descendants_of_kind :arguments root)

@@ -61,6 +61,7 @@ pub const PrimOp = enum {
     children_of_kind,
     descendants_of_kind,
     of_kind,
+    is_kind,
 
     /// The single axis this one becomes when composed with a kind test, if
     /// there is one. `children` then `of_kind k` walks the same nodes as
@@ -106,4 +107,6 @@ pub const Details = union(enum) {
     synthesized: Synthesized,
     /// A data constructor, at its position in the datatype that declares it.
     constructor: struct { owner: symbols.TypeId, tag: u32 },
+    /// A pattern synonym of `arity` parameters, matched by calling `matcher`.
+    synonym: struct { arity: u32, matcher: symbols.SymbolId },
 };

@@ -1,0 +1,19 @@
+title: a literal row after the same literal is never matched
+grammar: typescript
+asserts: error
+
+--- tql ---
+f n = case n of {
+  1 -> "one";
+  1 -> "uno";
+  _ -> "other";
+};
+
+main = const [f 1];
+
+--- error ---
+error[type-mismatch]: `1` is never matched
+ --> 3:3
+  |
+3 |   1 -> "uno";
+  |   ^

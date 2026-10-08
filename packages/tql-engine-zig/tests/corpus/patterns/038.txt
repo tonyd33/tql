@@ -1,0 +1,27 @@
+title: an of_kind view inside a field view drops its own tail check and keeps the field's
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+main root = do {
+  (of_kind :call_expression -> [(#function -> [(of_kind :member_expression -> [m])])]) <- descendants root;
+  return $ text m;
+};
+
+--- source ---
+a.b();
+c();
+
+--- values ---
+["a.b"]
+
+--- simplified ---
+main = \root -> concat_map (
+  \scrutinee -> case field[function] scrutinee of
+    Nil -> Nil
+    Cons cons0 cons1 -> case is_kind :member_expression cons0 of
+      False -> Nil
+      True -> case cons1 of
+        Nil -> Cons (text cons0) Nil
+        Cons _ _ -> Nil
+) (descendants_of_kind :call_expression root)

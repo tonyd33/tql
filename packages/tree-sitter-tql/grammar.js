@@ -37,6 +37,16 @@ module.exports = grammar({
 
   inline: $ => [$._constructor],
 
+  // A `do` statement is a pattern or an expression until `<-`, and a pattern's
+  // `(` opens a view or a parenthesized pattern until `->` or `)`. `:k {` is a
+  // node pattern or `:k` applied to a record until `#` or `<-`.
+  conflicts: $ => [
+    [$.list_pattern, $.list],
+    [$._simple_pattern, $._primary],
+    [$.constructor_pattern, $._primary],
+    [$.node_pattern, $._primary],
+  ],
+
   rules: {
     source_file: $ =>
       seq(
@@ -72,11 +82,12 @@ module.exports = grammar({
 
     item: $ =>
       choice(
-        field("name", $.identifier),
+        field("name", value_name($)),
         seq(
           field("name", $.type_identifier),
           optional(field("constructors", $.all_constructors)),
         ),
+        seq("pattern", field("synonym", $.type_identifier)),
       ),
 
     all_constructors: _ => seq("(", "..", ")"),
@@ -92,7 +103,33 @@ module.exports = grammar({
     comment: _ => token(seq("--", /.*/)),
 
     _declaration: $ =>
-      choice($.signature, $.definition, $.data_declaration, $.type_alias),
+      choice(
+        $.signature,
+        $.definition,
+        $.data_declaration,
+        $.type_alias,
+        $.pattern_synonym,
+        $.pattern_signature,
+      ),
+
+    pattern_synonym: $ =>
+      seq(
+        "pattern",
+        field("name", $.type_identifier),
+        repeat(field("parameter", $.identifier)),
+        "<-",
+        field("pattern", $._pattern),
+        ";",
+      ),
+
+    pattern_signature: $ =>
+      seq(
+        "pattern",
+        field("name", $.type_identifier),
+        "::",
+        field("type", $._type),
+        ";",
+      ),
 
     data_declaration: $ =>
       seq(
@@ -122,7 +159,7 @@ module.exports = grammar({
 
     signature: $ =>
       seq(
-        field("name", $.identifier),
+        field("name", value_name($)),
         "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
@@ -148,7 +185,7 @@ module.exports = grammar({
 
     definition: $ =>
       seq(
-        field("name", $.identifier),
+        field("name", value_name($)),
         repeat(field("parameter", $.identifier)),
         "=",
         field("body", $._expression),
@@ -341,7 +378,7 @@ module.exports = grammar({
       choice($.bind_statement, $.let_statement, $._expression),
 
     bind_statement: $ =>
-      seq(field("name", $.identifier), "<-", field("value", $._expression)),
+      seq(field("pattern", $._pattern), "<-", field("value", $._expression)),
 
     let_statement: $ =>
       seq("let", field("bindings", choice($.binding, $.binding_group))),
@@ -357,31 +394,29 @@ module.exports = grammar({
       ),
 
     case_alternative: $ =>
-      seq(field("pattern", $._pattern), "->", field("body", $._expression)),
+      seq(
+        field("pattern", $._pattern),
+        optional(seq("if", field("guard", $._expression))),
+        "->",
+        field("body", $._expression),
+      ),
 
-    _pattern: $ =>
-      choice(
-        $.cons_pattern,
-        $.constructor_pattern,
-        $.identifier,
-        $.list_pattern,
-        $.parenthesized_pattern,
+    _pattern: $ => choice($.conjunction_pattern, $._conjunct),
+
+    _conjunct: $ =>
+      choice($.cons_pattern, $.constructor_pattern, $._simple_pattern),
+
+    conjunction_pattern: $ =>
+      prec.left(
+        seq(field("left", $._pattern), "&", field("right", $._conjunct)),
       ),
 
     cons_pattern: $ =>
       prec.right(
         seq(
-          field(
-            "head",
-            choice(
-              $.constructor_pattern,
-              $.identifier,
-              $.list_pattern,
-              $.parenthesized_pattern,
-            ),
-          ),
+          field("head", choice($.constructor_pattern, $._simple_pattern)),
           $._cons_operator,
-          field("tail", $._pattern),
+          field("tail", $._conjunct),
         ),
       ),
 
@@ -393,15 +428,58 @@ module.exports = grammar({
         repeat(field("argument", $._atomic_pattern)),
       ),
 
-    _atomic_pattern: $ =>
+    _atomic_pattern: $ => choice($._constructor, $._simple_pattern),
+
+    _simple_pattern: $ =>
       choice(
         $.identifier,
-        $._constructor,
         $.list_pattern,
         $.parenthesized_pattern,
+        $.view_pattern,
+        $.as_pattern,
+        $.number,
+        $.string,
+        $.regex,
+        $.boolean,
+        // `C :k { .. }` applies `C` to one node pattern.
+        prec(-1, $.kind),
+        $.node_pattern,
+      ),
+
+    // `{}` is not a pattern.
+    node_pattern: $ =>
+      choice(
+        seq(
+          field("kind", $.kind),
+          "{",
+          optional(sep_trailing(field("field", $.field_pattern), ",")),
+          "}",
+        ),
+        seq("{", sep_trailing(field("field", $.field_pattern), ","), "}"),
+      ),
+
+    field_pattern: $ =>
+      seq("#", field("name", $.field_name), "=", field("pattern", $._pattern)),
+
+    as_pattern: $ =>
+      seq(
+        field("name", $.identifier),
+        token.immediate("@"),
+        field("pattern", $._atomic_pattern),
+      ),
+
+    view_pattern: $ =>
+      seq(
+        "(",
+        field("view", $._expression),
+        "->",
+        field("pattern", $._pattern),
+        ")",
       ),
 
     parenthesized_pattern: $ => seq("(", $._pattern, ")"),
+
+    of_shape: $ => seq("of_shape", field("pattern", $._atomic_pattern)),
 
     if_expression: $ =>
       prec.right(
@@ -445,6 +523,7 @@ module.exports = grammar({
         $.do_expression,
         $.if_expression,
         $.case_expression,
+        $.of_shape,
         $.qualified_identifier,
         $._constructor,
       ),
@@ -598,6 +677,15 @@ module.exports = grammar({
     regex: _ => token(seq('r"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
   },
 });
+
+/**
+ * A value's name where a declaration or item may start, which may be spelled
+ * `pattern`.
+ * @param {GrammarSymbols<string>} $
+ */
+function value_name($) {
+  return choice($.identifier, alias("pattern", $.identifier));
+}
 
 function sep1(rule, sep) {
   return seq(rule, repeat(seq(sep, rule)));

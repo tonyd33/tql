@@ -1,0 +1,24 @@
+title: kind literal rows without a catch-all are not exhaustive
+grammar: typescript
+asserts: error
+
+--- tql ---
+describe n = case kind n of {
+  :class_declaration -> "class";
+  :function_declaration -> "function";
+};
+
+main = named_children | arr describe;
+
+--- error ---
+error[type-mismatch]: `_` is not matched
+ --> 1:14
+  |
+1 | describe n = case kind n of {
+  |              ^^^^^^^^^^^^^^^^
+2 |   :class_declaration -> "class";
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |   :function_declaration -> "function";
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 | };
+  | ^

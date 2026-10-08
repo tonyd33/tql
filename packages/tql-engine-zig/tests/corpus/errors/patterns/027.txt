@@ -1,0 +1,18 @@
+title: a synonym given fewer arguments than it takes
+grammar: typescript
+asserts: error
+
+--- tql ---
+pattern Callee f <- :call_expression { #function = f };
+
+main root = do {
+  c@Callee <- descendants root;
+  return (text c);
+};
+
+--- error ---
+error[type-mismatch]: `Callee` takes 1 argument(s), given 0
+ --> 4:5
+  |
+4 |   c@Callee <- descendants root;
+  |     ^^^^^^
