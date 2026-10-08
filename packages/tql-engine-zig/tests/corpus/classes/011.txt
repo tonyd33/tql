@@ -1,0 +1,39 @@
+title: a recursive group shares one context
+grammar: typescript
+asserts: types, values
+
+`ping` raises only `Describe` and `pong` only `Labelled`, but each calls the
+other, so both take both dictionaries.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+class Labelled a where {
+  label :: a -> String;
+};
+
+instance Describe Int where {
+  describe n = "int";
+};
+
+instance Labelled String where {
+  label s = s;
+};
+
+ping n x y = if n = 0 then [describe x] else pong (n - 1) x y;
+pong n x y = if n = 0 then [label y] else ping (n - 1) x y;
+
+main root = append (ping 3 1 "odd") (ping 2 1 "odd");
+
+--- source ---
+class A {}
+
+--- values ---
+["odd", "int"]
+
+--- types ---
+ping :: (Describe a, Labelled b) => Int -> a -> b -> [String]
+pong :: (Describe a, Labelled b) => Int -> a -> b -> [String]
+main :: Node -> [String]

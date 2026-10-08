@@ -1,0 +1,18 @@
+title: a built-in class hidden from the prelude is not in scope
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude hiding (Eq);
+
+same :: Eq a => a -> a -> Bool;
+same x y = x = y;
+
+main root = [same 1 1];
+
+--- error ---
+error[unresolved-name]: `Eq` is not a class
+ --> 3:9
+  |
+3 | same :: Eq a => a -> a -> Bool;
+  |         ^^^^

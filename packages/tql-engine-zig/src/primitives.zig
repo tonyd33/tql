@@ -22,7 +22,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .length => .{
             .quantified = 1,
             .constraints = try B.arena.dupe(types.TypeClassConstraint, &.{
-                .{ .class = .Sized, .type = a },
+                .{ .class = .sized, .type = a },
             }),
             .type = try B.func(a, types.int_type),
         },
@@ -70,8 +70,8 @@ pub fn operatorScheme(
     const B = Builder{ .arena = arena, .declared = declared };
 
     return switch (operator) {
-        .eq, .ne => try comparisonScheme(B, .Eq),
-        .lt, .lte, .gt, .gte => try comparisonScheme(B, .Ord),
+        .eq, .ne => try comparisonScheme(B, .eq),
+        .lt, .lte, .gt, .gte => try comparisonScheme(B, .ord),
         .match, .not_match => .{ .type = try B.func(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
@@ -146,7 +146,7 @@ fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Schem
 }
 
 /// `class a => a -> a -> Bool`.
-fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.Scheme {
+fn comparisonScheme(B: Builder, class: core.classes.ClassId) !types.Scheme {
     const a = types.variable_type(0);
     return .{
         .quantified = 1,
@@ -231,9 +231,9 @@ test "operator schemes take scalars, not filters" {
     defer target.deinit();
     const arena = target.allocator();
 
-    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{try operatorScheme(arena, &target.datatypes, .eq)});
+    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{(try operatorScheme(arena, &target.datatypes, .eq)).named(&target.classes)});
 
-    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{try operatorScheme(arena, &target.datatypes, .add)});
+    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{(try operatorScheme(arena, &target.datatypes, .add)).named(&target.classes)});
 
     // Every operator has one, so a new member fails here rather than at
     // evaluation.

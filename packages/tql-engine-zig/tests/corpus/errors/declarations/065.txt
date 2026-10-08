@@ -1,0 +1,24 @@
+title: an instance missing a method
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+  label :: a -> String;
+};
+instance Describe Int where {
+  describe n = "int";
+};
+main = const [];
+
+--- error ---
+error[invalid-instance]: `Describe Int` does not define `label`
+ --> 5:1
+  |
+5 | instance Describe Int where {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6 |   describe n = "int";
+  |   ^^^^^^^^^^^^^^^^^^^
+7 | };
+  | ^^

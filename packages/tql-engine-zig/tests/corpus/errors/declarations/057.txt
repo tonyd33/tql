@@ -1,0 +1,16 @@
+title: an unknown superclass
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Nope a => Describe a where {
+  describe :: a -> String;
+};
+main = const [];
+
+--- error ---
+error[unresolved-name]: `Nope` is not a class
+ --> 1:7
+  |
+1 | class Nope a => Describe a where {
+  |       ^^^^^^

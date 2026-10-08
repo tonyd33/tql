@@ -103,6 +103,8 @@ pub const Declaration = union(enum) {
     type_alias: TypeAlias,
     pattern_synonym: PatternSynonym,
     pattern_signature: PatternSignature,
+    class_declaration: ClassDeclaration,
+    instance_declaration: InstanceDeclaration,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -135,6 +137,52 @@ pub const Signature = struct {
         try w.writeByte(')');
     }
 };
+
+/// `class Eq a => Describe a where { describe :: a -> String; };`
+pub const ClassDeclaration = struct {
+    name: Identifier,
+    parameter: Identifier,
+    superclasses: []const ClassConstraint = &.{},
+    methods: []const Signature,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: ClassDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(class {s} {s}", .{ self.name, self.parameter });
+        try sexprContext(w, self.superclasses);
+        for (self.methods) |m| {
+            try w.writeByte(' ');
+            try m.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+};
+
+/// `instance Describe a => Describe [a] where { describe xs = ...; };`
+pub const InstanceDeclaration = struct {
+    class: Identifier,
+    head: Type,
+    context: []const ClassConstraint = &.{},
+    methods: []const Definition,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: InstanceDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(instance {s} ", .{self.class});
+        try self.head.sexpr(w);
+        try sexprContext(w, self.context);
+        for (self.methods) |m| {
+            try w.writeByte(' ');
+            try m.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+};
+
+fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writer.Error!void {
+    if (context.len == 0) return;
+    try w.writeAll(" (=>");
+    for (context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+    try w.writeByte(')');
+}
 
 /// `Sized a` in a signature's context.
 pub const ClassConstraint = struct {

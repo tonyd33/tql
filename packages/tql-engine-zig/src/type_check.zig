@@ -55,7 +55,7 @@ const Fixture = struct {
             .undecided = constraints.Set.init(gpa),
             .inference = undefined,
         };
-        self.subst = Substitution.init(gpa, self.pb.env.allocator(), &self.pb.env.datatypes);
+        self.subst = Substitution.init(gpa, self.pb.env.allocator(), &self.pb.env.datatypes, &self.pb.env.classes);
         try self.pb.datatype("Flag", &.{ .{ "Off", &.{} }, .{ "On", &.{} } });
         self.inference = infer.Inference.init(gpa, &self.subst, &self.undecided, &self.pb.env);
         return self;
@@ -99,21 +99,21 @@ const Fixture = struct {
         };
     }
 
-    fn expectHolds(self: *Fixture, class: types.TypeClassConstraint.Class, t: types.Type) !void {
+    fn expectHolds(self: *Fixture, class: core.classes.ClassId, t: types.Type) !void {
         try testing.expectEqual(constraints.Outcome.holds, constraints.entails(&self.subst, class, t));
     }
 
-    fn expectRefuted(self: *Fixture, class: types.TypeClassConstraint.Class, t: types.Type) !void {
+    fn expectRefuted(self: *Fixture, class: core.classes.ClassId, t: types.Type) !void {
         try testing.expect(constraints.entails(&self.subst, class, t) == .fails);
     }
 
-    fn expectDeferred(self: *Fixture, class: types.TypeClassConstraint.Class, t: types.Type) !void {
+    fn expectDeferred(self: *Fixture, class: core.classes.ClassId, t: types.Type) !void {
         try testing.expect(constraints.entails(&self.subst, class, t) == .deferred);
     }
 
     fn expectSynthesizedScheme(self: *Fixture, synthesized: core.Synthesized, expected: []const u8) !void {
         const scheme = try primitives.synthesizedScheme(self.pb.env.allocator(), &self.pb.env.datatypes, synthesized);
-        try testing.expectFmt(expected, "{f}", .{scheme});
+        try testing.expectFmt(expected, "{f}", .{scheme.named(&self.pb.env.classes)});
     }
 
     fn define(self: *Fixture, spelling: []const u8, scheme: types.Scheme) !core.SymbolId {
@@ -174,7 +174,7 @@ const Fixture = struct {
     }
 
     fn expectScheme(self: *Fixture, id: core.SymbolId, expected: []const u8) !void {
-        try testing.expectFmt(expected, "{f}", .{self.inference.schemeOf(id).?});
+        try testing.expectFmt(expected, "{f}", .{self.inference.schemeOf(id).?.named(&self.pb.env.classes)});
     }
 
     fn expectFails(self: *Fixture, t: core.Term, category: diagnostic.Category) !void {
@@ -346,7 +346,7 @@ test "instantiation leaves the source scheme untouched" {
     const inst = try t.subst.instantiate(scheme);
     t.subst.bind(inst.metas[0].meta, types.int_type);
 
-    try std.testing.expectFmt("a -> [a]", "{f}", .{scheme});
+    try std.testing.expectFmt("a -> [a]", "{f}", .{scheme.named(&t.pb.env.classes)});
 }
 
 test "resolveDeep rewrites through every constructor" {
@@ -376,7 +376,7 @@ test "quantify turns free metavariables into forall positions" {
     const shape = try types.func(t.subst.arena, a, try t.subst.datatypes.list(t.subst.arena, a));
     const scheme = try t.subst.quantify(shape, &.{a.meta}, &.{});
 
-    try std.testing.expectFmt("a -> [a]", "{f}", .{scheme});
+    try std.testing.expectFmt("a -> [a]", "{f}", .{scheme.named(&t.pb.env.classes)});
     try std.testing.expectEqual(1, scheme.quantified);
 }
 
@@ -391,7 +391,7 @@ test "quantify leaves metavariables it was not given free" {
     const scheme = try t.subst.quantify(shape, &.{a.meta}, &.{});
 
     // `b` is still owed by an enclosing scope, so it stays a metavariable.
-    try std.testing.expectFmt("a -> ?1", "{f}", .{scheme});
+    try std.testing.expectFmt("a -> ?1", "{f}", .{scheme.named(&t.pb.env.classes)});
 }
 
 test "quantify rewrites constraints onto the bound variables" {
@@ -404,10 +404,10 @@ test "quantify rewrites constraints onto the bound variables" {
     const scheme = try t.subst.quantify(
         shape,
         &.{a.meta},
-        &.{.{ .class = .Sized, .type = a }},
+        &.{.{ .class = .sized, .type = a }},
     );
 
-    try std.testing.expectFmt("Sized a => a -> Int", "{f}", .{scheme});
+    try std.testing.expectFmt("Sized a => a -> Int", "{f}", .{scheme.named(&t.pb.env.classes)});
 }
 
 test "quantify then instantiate round-trips" {
@@ -435,7 +435,7 @@ test "quantify resolves before binding" {
     // `a` resolves to `b`, so quantifying over `b` must catch it through the
     // chain rather than only matching syntactically.
     const scheme = try t.subst.quantify(try types.func(t.subst.arena, a, b), &.{b.meta}, &.{});
-    try std.testing.expectFmt("a -> a", "{f}", .{scheme});
+    try std.testing.expectFmt("a -> a", "{f}", .{scheme.named(&t.pb.env.classes)});
 }
 
 // ============================================================================
@@ -736,9 +736,9 @@ test "Eq holds for the six scalars and not regex" {
         types.range_type,
         types.node_type,
         types.kind_type,
-    }) |t| try fix.expectHolds(.Eq, t);
+    }) |t| try fix.expectHolds(.eq, t);
 
-    try fix.expectRefuted(.Eq, types.regex_type);
+    try fix.expectRefuted(.eq, types.regex_type);
 }
 
 test "Ord holds only for int and string" {
@@ -746,16 +746,16 @@ test "Ord holds only for int and string" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.Ord, types.int_type);
-    try fix.expectHolds(.Ord, types.string_type);
+    try fix.expectHolds(.ord, types.int_type);
+    try fix.expectHolds(.ord, types.string_type);
 
-    try fix.expectRefuted(.Ord, types.node_type);
-    try fix.expectHolds(.Eq, types.node_type);
-    try fix.expectRefuted(.Ord, types.kind_type);
+    try fix.expectRefuted(.ord, types.node_type);
+    try fix.expectHolds(.eq, types.node_type);
+    try fix.expectRefuted(.ord, types.kind_type);
 
-    try fix.expectRefuted(.Ord, try fix.subst.datatypes.boolType(fix.subst.arena));
-    try fix.expectRefuted(.Ord, types.range_type);
-    try fix.expectRefuted(.Ord, types.regex_type);
+    try fix.expectRefuted(.ord, try fix.subst.datatypes.boolType(fix.subst.arena));
+    try fix.expectRefuted(.ord, types.range_type);
+    try fix.expectRefuted(.ord, types.regex_type);
 }
 
 test "Sized holds for string and lists, not for int" {
@@ -763,9 +763,9 @@ test "Sized holds for string and lists, not for int" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.Sized, types.string_type);
-    try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
-    try fix.expectRefuted(.Sized, types.int_type);
+    try fix.expectHolds(.sized, types.string_type);
+    try fix.expectHolds(.sized, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
+    try fix.expectRefuted(.sized, types.int_type);
 }
 
 test "Sized on a list does not descend" {
@@ -779,8 +779,8 @@ test "Sized on a list does not descend" {
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
     );
-    try fix.expectHolds(.Sized, of_functions);
-    try fix.expectRefuted(.Serial, of_functions);
+    try fix.expectHolds(.sized, of_functions);
+    try fix.expectRefuted(.serial, of_functions);
 }
 
 test "Sized on a list of an unsolved metavariable holds without deferring" {
@@ -789,7 +789,7 @@ test "Sized on a list of an unsolved metavariable holds without deferring" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectHolds(.Sized, try fix.subst.datatypes.list(fix.subst.arena, a));
+    try fix.expectHolds(.sized, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
 test "Serial holds for the six scalars and not regex" {
@@ -804,9 +804,9 @@ test "Serial holds for the six scalars and not regex" {
         types.node_type,
         types.range_type,
         types.kind_type,
-    }) |t| try fix.expectHolds(.Serial, t);
+    }) |t| try fix.expectHolds(.serial, t);
 
-    try fix.expectRefuted(.Serial, types.regex_type);
+    try fix.expectRefuted(.serial, types.regex_type);
 }
 
 test "structural classes descend into lists" {
@@ -814,9 +814,9 @@ test "structural classes descend into lists" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.Eq, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
-    try fix.expectRefuted(.Eq, try fix.subst.datatypes.list(fix.subst.arena, types.regex_type));
-    try fix.expectHolds(.Serial, try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.node_type)));
+    try fix.expectHolds(.eq, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectRefuted(.eq, try fix.subst.datatypes.list(fix.subst.arena, types.regex_type));
+    try fix.expectHolds(.serial, try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.node_type)));
 }
 
 test "structural classes descend into records" {
@@ -824,11 +824,11 @@ test "structural classes descend into records" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.Serial, try fix.record(
+    try fix.expectHolds(.serial, try fix.record(
         &.{ "k", "n" },
         &.{ types.string_type, types.int_type },
     ));
-    try fix.expectRefuted(.Serial, try fix.record(
+    try fix.expectRefuted(.serial, try fix.record(
         &.{ "k", "bad" },
         &.{ types.string_type, types.regex_type },
     ));
@@ -840,8 +840,8 @@ test "Ord and Sized do not hold for records" {
     defer fix.deinit(gpa);
 
     const r = try fix.record(&.{"n"}, &.{types.int_type});
-    try fix.expectRefuted(.Ord, r);
-    try fix.expectRefuted(.Sized, r);
+    try fix.expectRefuted(.ord, r);
+    try fix.expectRefuted(.sized, r);
 }
 
 test "Ord does not hold for a list even of ordered elements" {
@@ -850,7 +850,7 @@ test "Ord does not hold for a list even of ordered elements" {
     defer fix.deinit(gpa);
 
     // `Ord` is exactly `Int` and `String`; nothing structural joins it.
-    try fix.expectRefuted(.Ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectRefuted(.ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
 }
 
 test "a function fails every class, and a filter is a function" {
@@ -861,7 +861,7 @@ test "a function fails every class, and a filter is a function" {
     const projection = try types.func(fix.subst.arena, types.node_type, types.string_type);
     const filter = try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.string_type);
 
-    for ([_]types.TypeClassConstraint.Class{ .Eq, .Ord, .Serial, .Sized }) |class| {
+    for ([_]core.classes.ClassId{ .eq, .ord, .serial, .sized }) |class| {
         try fix.expectRefuted(class, projection);
         try fix.expectRefuted(class, filter);
     }
@@ -878,8 +878,8 @@ test "a container holding a function is outside Eq and Serial" {
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
     );
-    try fix.expectRefuted(.Eq, of_projections);
-    try fix.expectRefuted(.Serial, of_projections);
+    try fix.expectRefuted(.eq, of_projections);
+    try fix.expectRefuted(.serial, of_projections);
 }
 
 test "the reported culprit is the element, not the container" {
@@ -888,7 +888,7 @@ test "the reported culprit is the element, not the container" {
     defer fix.deinit(gpa);
 
     const nested = try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.regex_type));
-    const outcome = constraints.entails(&fix.subst, .Serial, nested);
+    const outcome = constraints.entails(&fix.subst, .serial, nested);
 
     try testing.expectFmt("Regex", "{f}", .{outcome.fails});
 }
@@ -899,8 +899,8 @@ test "an unsolved metavariable defers" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectDeferred(.Serial, a);
-    try fix.expectDeferred(.Eq, try fix.subst.datatypes.list(fix.subst.arena, a));
+    try fix.expectDeferred(.serial, a);
+    try fix.expectDeferred(.eq, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
 test "deferral resolves once the metavariable is solved" {
@@ -909,10 +909,10 @@ test "deferral resolves once the metavariable is solved" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectDeferred(.Ord, a);
+    try fix.expectDeferred(.ord, a);
 
     fix.subst.bind(a.meta, types.int_type);
-    try fix.expectHolds(.Ord, a);
+    try fix.expectHolds(.ord, a);
 }
 
 test "a failing field beats a deferring one" {
@@ -924,7 +924,7 @@ test "a failing field beats a deferring one" {
     // No solution for `a` can rescue the `regex`, so the answer is failure
     // rather than deferral.
     const mixed = try fix.record(&.{ "open", "bad" }, &.{ a, types.regex_type });
-    try fix.expectRefuted(.Serial, mixed);
+    try fix.expectRefuted(.serial, mixed);
 }
 
 test "a deferring field defers the whole when the rest hold" {
@@ -934,7 +934,7 @@ test "a deferring field defers the whole when the rest hold" {
 
     const a = try fix.subst.fresh();
     const mixed = try fix.record(&.{ "n", "open" }, &.{ types.int_type, a });
-    try fix.expectDeferred(.Serial, mixed);
+    try fix.expectDeferred(.serial, mixed);
 }
 
 test "require decides eagerly and stores only the undecided" {
@@ -946,13 +946,13 @@ test "require decides eagerly and stores only the undecided" {
 
     try testing.expectEqual(
         null,
-        try fix.undecided.require(&fix.subst, .Eq, types.int_type, some_span),
+        try fix.undecided.require(&fix.subst, .eq, types.int_type, some_span),
     );
     try testing.expectEqual(0, fix.undecided.all().len);
 
     try testing.expectEqual(
         null,
-        try fix.undecided.require(&fix.subst, .Serial, a, some_span),
+        try fix.undecided.require(&fix.subst, .serial, a, some_span),
     );
     try testing.expectEqual(1, fix.undecided.all().len);
 }
@@ -962,7 +962,7 @@ test "require reports a violation at the origin span" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const v = (try fix.undecided.require(&fix.subst, .Eq, types.regex_type, some_span)).?;
+    const v = (try fix.undecided.require(&fix.subst, .eq, types.regex_type, some_span)).?;
     try testing.expectEqual(some_span.start_byte, v.origin.start_byte);
     try testing.expectEqual(some_span.end_byte, v.origin.end_byte);
     try testing.expectEqual(0, fix.undecided.all().len);
@@ -973,10 +973,10 @@ test "a violation renders as the fixture writes it" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    const v = (try fix.undecided.require(&fix.subst, .Eq, types.regex_type, some_span)).?;
+    const v = (try fix.undecided.require(&fix.subst, .eq, types.regex_type, some_span)).?;
 
     // `errors/types/015` asserts exactly this sentence.
-    try testing.expectFmt("`Eq Regex` is not satisfied.", "{f}", .{v});
+    try testing.expectFmt("`Eq Regex` is not satisfied.", "{f}", .{v.named(&fix.pb.env.classes)});
 }
 
 test "recheck drops constraints that have come to hold" {
@@ -985,7 +985,7 @@ test "recheck drops constraints that have come to hold" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .Serial, a, some_span);
+    _ = try fix.undecided.require(&fix.subst, .serial, a, some_span);
     try testing.expectEqual(1, fix.undecided.all().len);
 
     fix.subst.bind(a.meta, types.node_type);
@@ -999,11 +999,11 @@ test "recheck reports a constraint that has become unsatisfiable" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .Ord, a, some_span);
+    _ = try fix.undecided.require(&fix.subst, .ord, a, some_span);
 
     fix.subst.bind(a.meta, types.node_type);
     const v = (try fix.undecided.recheck(&fix.subst)).?;
-    try testing.expectEqual(types.TypeClassConstraint.Class.Ord, v.class);
+    try testing.expectEqual(core.classes.ClassId.ord, v.class);
     // Still attributed to the term that raised it, not to where it was found.
     try testing.expectEqual(some_span.start_byte, v.origin.start_byte);
 }
@@ -1015,7 +1015,7 @@ test "recheck keeps a constraint that is still undecided" {
 
     const a = try fix.subst.fresh();
     const b = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .Serial, a, some_span);
+    _ = try fix.undecided.require(&fix.subst, .serial, a, some_span);
 
     fix.subst.bind(a.meta, try fix.subst.datatypes.list(fix.subst.arena, b));
     try testing.expectEqual(null, try fix.undecided.recheck(&fix.subst));
@@ -1029,8 +1029,8 @@ test "generalization takes the constraints on the quantified metavariables" {
 
     const a = try fix.subst.fresh();
     const b = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .Sized, a, some_span);
-    _ = try fix.undecided.require(&fix.subst, .Serial, b, some_span);
+    _ = try fix.undecided.require(&fix.subst, .sized, a, some_span);
+    _ = try fix.undecided.require(&fix.subst, .serial, b, some_span);
 
     var taken: std.ArrayList(constraints.Constraint) = .empty;
     defer taken.deinit(gpa);
@@ -1039,9 +1039,9 @@ test "generalization takes the constraints on the quantified metavariables" {
     // `a`'s constraint goes into the scheme; `b`'s is still owed by the
     // enclosing scope.
     try testing.expectEqual(1, taken.items.len);
-    try testing.expectEqual(types.TypeClassConstraint.Class.Sized, taken.items[0].class);
+    try testing.expectEqual(core.classes.ClassId.sized, taken.items[0].class);
     try testing.expectEqual(1, fix.undecided.all().len);
-    try testing.expectEqual(types.TypeClassConstraint.Class.Serial, fix.undecided.all()[0].class);
+    try testing.expectEqual(core.classes.ClassId.serial, fix.undecided.all()[0].class);
 }
 
 test "a constraint on a type mentioning a quantified metavariable is taken" {
@@ -1050,7 +1050,7 @@ test "a constraint on a type mentioning a quantified metavariable is taken" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .Serial, try fix.subst.datatypes.list(fix.subst.arena, a), some_span);
+    _ = try fix.undecided.require(&fix.subst, .serial, try fix.subst.datatypes.list(fix.subst.arena, a), some_span);
 
     var taken: std.ArrayList(constraints.Constraint) = .empty;
     defer taken.deinit(gpa);
@@ -1068,7 +1068,7 @@ test "the length primitive's Sized constraint defers on an open input" {
     const a = try fix.subst.fresh();
     try testing.expectEqual(
         null,
-        try fix.undecided.require(&fix.subst, .Sized, a, some_span),
+        try fix.undecided.require(&fix.subst, .sized, a, some_span),
     );
 
     fix.subst.bind(a.meta, types.string_type);
@@ -1420,7 +1420,7 @@ test "instantiating a constrained scheme raises the constraint at the use" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .Sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
@@ -1436,7 +1436,7 @@ test "a constraint on an open type defers rather than rejecting" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .Sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
@@ -1457,7 +1457,7 @@ test "generalization quantifies what the environment does not hold" {
     const inferred = try fix.inference.term(try fix.lam(x, fix.pb.symbol(x)));
 
     const scheme = try fix.inference.generalize(inferred, diagnostic.Span.unknown);
-    try testing.expectFmt("a -> a", "{f}", .{scheme});
+    try testing.expectFmt("a -> a", "{f}", .{scheme.named(&fix.pb.env.classes)});
     try testing.expectEqual(1, scheme.quantified);
 }
 
@@ -1482,7 +1482,7 @@ test "generalization carries the residual constraint into the scheme" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .Sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
@@ -1492,7 +1492,7 @@ test "generalization carries the residual constraint into the scheme" {
 
     const scheme = try fix.inference.generalize(inferred, diagnostic.Span.unknown);
     // The deferred `Sized` follows the variable it constrains.
-    try testing.expectFmt("Sized a => a -> Int", "{f}", .{scheme});
+    try testing.expectFmt("Sized a => a -> Int", "{f}", .{scheme.named(&fix.pb.env.classes)});
 }
 
 test "a component's scheme is generalized and visible to later components" {
@@ -1784,4 +1784,102 @@ test "a synthesized field access composes with a kind test" {
     const first = try fix.app(try fix.app(fix.pb.symbol(compose), fix.pb.symbol(children)), class_declaration);
     const chain = try fix.app(try fix.app(fix.pb.symbol(compose), first), fix.pb.symbol(field));
     try fix.expectType(chain, "Node -> [Node]");
+}
+
+// ============================================================================
+//                              elaboration
+// ============================================================================
+
+/// Checks `source` and expects the definitions named by `names`, wherever
+/// they are in the link, to print as `expected`, one per line.
+fn expectElaborated(source: []const u8, names: []const []const u8, expected: []const u8) !void {
+    const engine_module = @import("root.zig");
+    const gpa = testing.allocator;
+
+    var grammars = @import("lang/grammar.zig").Registry.init(gpa, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("typescript");
+
+    var engine = try engine_module.Engine.init(.{ .allocator = gpa, .io = testing.io });
+    defer engine.deinit();
+    var sink = diagnostic.Sink.init(gpa);
+    defer sink.deinit();
+
+    var program = try engine.checkQuery(source, g, &sink);
+    defer program.deinit();
+
+    var w: std.Io.Writer.Allocating = .init(gpa);
+    defer w.deinit();
+    const printer: core.Printer = .{ .interner = &program.env.interner };
+    for (names, 0..) |name, i| {
+        if (i > 0) try w.writer.writeByte('\n');
+        const definition = for (program.definitions) |d| {
+            if (std.mem.eql(u8, program.env.interner.spelling(d.symbol), name)) break d;
+        } else return error.TestUnexpectedResult;
+        try printer.definition(definition.symbol, definition.body, &w.writer);
+    }
+    try testing.expectEqualStrings(expected, w.written());
+}
+
+const describe_class =
+    \\class Describe a where { describe :: a -> String; };
+    \\instance Describe Int where { describe n = "int"; };
+    \\
+;
+
+test "a constrained definition takes a dictionary parameter" {
+    try expectElaborated(describe_class ++
+        \\twice x = [describe x, describe x];
+        \\main root = twice 1;
+    , &.{ "twice", "main" },
+        \\twice = \d -> \x -> Cons (describe d x) (Cons (describe d x) Nil)
+        \\main = \root -> twice instance[Describe,Int] 1
+    );
+}
+
+test "a use at a type with a context applies the instance to the context's evidence" {
+    try expectElaborated(describe_class ++
+        \\instance Describe a => Describe [a] where { describe xs = "list"; };
+        \\main root = [describe [1]];
+    , &.{ "main", "instance[Describe,List]", "describe[List]", "describe" },
+        \\main = \root -> Cons (describe (instance[Describe,List] instance[Describe,Int]) (Cons 1 Nil)) Nil
+        \\instance[Describe,List] = \d -> dict[Describe] (describe[List] d)
+        \\describe[List] = \d -> \xs -> "list"
+        \\describe = \d -> case d of
+        \\  dict[Describe] m -> m
+    );
+}
+
+test "a superclass's dictionary is selected from a subclass's" {
+    try expectElaborated(
+        \\class Labelled a where { label :: a -> String; };
+        \\class Labelled a => Describe a where { describe :: a -> String; };
+        \\instance Labelled Int where { label n = "one"; };
+        \\instance Describe Int where { describe n = "int"; };
+        \\name :: Describe a => a -> [String];
+        \\name x = [label x];
+        \\main root = name 1;
+    , &.{ "name", "instance[Describe,Int]", "super[Describe,Labelled]" },
+        \\name = \d -> \x -> Cons (label (super[Describe,Labelled] d) x) Nil
+        \\instance[Describe,Int] = dict[Describe] instance[Labelled,Int] describe[Int]
+        \\super[Describe,Labelled] = \d -> case d of
+        \\  dict[Describe] m _ -> m
+    );
+}
+
+test "the members of a recursive group take the group's dictionaries" {
+    try expectElaborated(describe_class ++
+        \\class Labelled a where { label :: a -> String; };
+        \\instance Labelled String where { label s = s; };
+        \\ping n x y = if n = 0 then [describe x] else pong (n - 1) x y;
+        \\pong n x y = if n = 0 then [label y] else ping (n - 1) x y;
+        \\main root = ping 1 1 "s";
+    , &.{ "ping", "pong" },
+        \\ping = \d -> \d' -> \n -> \x -> \y -> case op[=] n 0 of
+        \\  False -> pong d d' (op[-] n 1) x y
+        \\  True -> Cons (describe d x) Nil
+        \\pong = \d -> \d' -> \n -> \x -> \y -> case op[=] n 0 of
+        \\  False -> ping d d' (op[-] n 1) x y
+        \\  True -> Cons (label d' y) Nil
+    );
 }

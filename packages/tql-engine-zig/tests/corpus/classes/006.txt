@@ -1,0 +1,30 @@
+title: a method dispatches on a primitive and a declared type
+grammar: typescript
+asserts: values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+data Shape = Circle Int | Square Int;
+
+instance Describe Int where {
+  describe n = "int";
+};
+
+instance Describe String where {
+  describe s = s;
+};
+
+instance Describe Shape where {
+  describe s = case s of { Circle _ -> "circle"; Square _ -> "square" };
+};
+
+main root = [describe 1, describe "text", describe (Square 2)];
+
+--- source ---
+class A {}
+
+--- values ---
+["int", "text", "square"]

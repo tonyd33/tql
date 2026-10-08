@@ -1,0 +1,35 @@
+title: a superclass's method is used through a subclass's constraint
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class Labelled a where {
+  label :: a -> String;
+};
+
+class Labelled a => Describe a where {
+  describe :: a -> [String];
+};
+
+instance Labelled Int where {
+  label n = "one";
+};
+
+instance Describe Int where {
+  describe n = ["int", label n];
+};
+
+both :: Describe a => a -> [String];
+both x = append [label x] (describe x);
+
+main root = both 1;
+
+--- source ---
+class A {}
+
+--- values ---
+["one", "int", "one"]
+
+--- types ---
+both :: Describe a => a -> [String]
+main :: Node -> [String]

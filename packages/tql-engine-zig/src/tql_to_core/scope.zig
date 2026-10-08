@@ -5,6 +5,7 @@ const std = @import("std");
 const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
+const classes = core.classes;
 const datatypes = core.datatypes;
 
 const ModuleId = core.ModuleId;
@@ -26,11 +27,13 @@ pub const Failure = union(enum) {
     unknown_qualifier: []const u8,
 };
 
-/// A type name: a datatype, an alias, or a primitive.
+/// A name in the type namespace: a datatype, an alias, a primitive, or a
+/// class.
 pub const TypeName = union(enum) {
     datatype: datatypes.TypeId,
     alias: *const datatypes.Alias,
     primitive: core.types.Primitive,
+    class: classes.ClassId,
 };
 
 pub const Filter = cst.Filter;
@@ -41,6 +44,8 @@ const Subject = union(enum) {
     type: []const u8,
     /// A constructor, admitted only through `T(..)` for its type.
     constructors_of: []const u8,
+    /// A method, admitted by its own name or through `C(..)` for its class.
+    method: struct { name: []const u8, class: []const u8 },
     synonym: []const u8,
 
     fn of(item: cst.Item) Subject {
@@ -66,6 +71,8 @@ fn listed(items: []const cst.Item, subject: Subject) bool {
             .value => |name| item.kind == .value and std.mem.eql(u8, item.name, name),
             .type => |name| (item.kind == .type or item.kind == .type_and_constructors) and std.mem.eql(u8, item.name, name),
             .constructors_of => |name| item.kind == .type_and_constructors and std.mem.eql(u8, item.name, name),
+            .method => |m| (item.kind == .value and std.mem.eql(u8, item.name, m.name)) or
+                (item.kind == .type_and_constructors and std.mem.eql(u8, item.name, m.class)),
             .synonym => |name| item.kind == .synonym and std.mem.eql(u8, item.name, name),
         };
         if (matches) return true;
@@ -94,6 +101,7 @@ pub const ModuleScope = struct {
     exports: []const Filter,
     interner: *const core.Interner,
     datatypes: *const datatypes.Registry,
+    classes: *const classes.Registry,
 
     pub fn value(self: *const ModuleScope, written: []const u8) Resolved(core.SymbolId) {
         return self.resolve(core.SymbolId, written, declaredValue, valueSubject);
@@ -149,15 +157,20 @@ pub const ModuleScope = struct {
         return self.interner.lookup(module, name);
     }
 
-    fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
+    pub fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
         if (self.datatypes.lookup(module, name)) |id| return .{ .datatype = id };
         if (self.datatypes.aliasNamed(module, name)) |alias| return .{ .alias = alias };
         if (self.datatypes.primitiveNamed(module, name)) |p| return .{ .primitive = p };
+        if (self.classes.lookup(module, name)) |id| return .{ .class = id };
         return null;
     }
 
     fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
-        if (self.interner.details(symbol) == .synonym) return .{ .synonym = name };
+        switch (self.interner.details(symbol)) {
+            .synonym => return .{ .synonym = name },
+            .method => |m| return .{ .method = .{ .name = name, .class = self.classes.spelling(m.class) } },
+            else => {},
+        }
         const owner = datatypes.ownerOf(self.interner, symbol) orelse return .{ .value = name };
         return .{ .constructors_of = self.datatypes.get(owner).name };
     }
@@ -218,14 +231,15 @@ pub const ModuleScope = struct {
         item: cst.Item,
         sink: *diagnostic.Sink,
     ) !bool {
-        const declared = admits(exports, Subject.of(item)) and switch (item.kind) {
+        const declared = switch (item.kind) {
             .value => if (self.interner.lookup(module, item.name)) |symbol|
-                datatypes.ownerOf(self.interner, symbol) == null
+                datatypes.ownerOf(self.interner, symbol) == null and admits(exports, self.valueSubject(symbol, item.name))
             else
                 false,
-            .type, .type_and_constructors => declaredType(self, module, item.name) != null,
+            .type, .type_and_constructors => admits(exports, Subject.of(item)) and
+                declaredType(self, module, item.name) != null,
             .synonym => if (self.interner.lookup(module, item.name)) |symbol|
-                self.interner.details(symbol) == .synonym
+                admits(exports, Subject.of(item)) and self.interner.details(symbol) == .synonym
             else
                 false,
         };
@@ -243,8 +257,9 @@ pub const ModuleScope = struct {
             return false;
         }
         if (item.kind != .type_and_constructors) return true;
-        switch (declaredType(self, module, item.name).?) {
-            .datatype => {},
+        const noun = switch (declaredType(self, module, item.name).?) {
+            .datatype => "constructors",
+            .class => "methods",
             .alias => {
                 try sink.report(.unresolved_name, item.span, "`{s}` is an alias and has no constructors", .{item.name});
                 return false;
@@ -253,13 +268,13 @@ pub const ModuleScope = struct {
                 try sink.report(.unresolved_name, item.span, "`{s}` is a primitive type and has no constructors", .{item.name});
                 return false;
             },
-        }
+        };
         if (admits(exports, .{ .constructors_of = item.name })) return true;
         try sink.report(
             .unresolved_name,
             item.span,
-            "`{s}` does not export the constructors of `{s}`",
-            .{ self.interner.moduleName(module), item.name },
+            "`{s}` does not export the {s} of `{s}`",
+            .{ self.interner.moduleName(module), noun, item.name },
         );
         return false;
     }
@@ -305,6 +320,7 @@ const Fixture = struct {
             .exports = &self.exports,
             .interner = &self.env.interner,
             .datatypes = &self.env.datatypes,
+            .classes = &self.env.classes,
         };
     }
 };

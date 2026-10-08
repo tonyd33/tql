@@ -93,6 +93,7 @@ pub const Simplifier = struct {
             .laws = .{
                 .builder = builder,
                 .interner = &env.interner,
+                .classes = &env.classes,
                 .primitives = &env.primitives,
                 .kleisli = env.interner.lookup(.prelude, "kleisli"),
                 .concat_map = env.interner.lookup(.prelude, "concat_map"),

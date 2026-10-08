@@ -12,6 +12,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
+const classes_mod = @import("classes.zig");
 const resolve = @import("resolve.zig");
 const scope_mod = @import("scope.zig");
 const desugar = @import("desugar.zig");
@@ -86,12 +87,13 @@ pub const Desugarer = struct {
                 datatypes.Registry.structuralNamed(declared.name)
             else
                 null;
-            const existing = self.env.?.datatypes.lookup(scope.module, declared.name);
+            const taken = scope.declaredType(scope.module, declared.name);
+            const existing = if (taken) |t| switch (t) {
+                .datatype => |id| id,
+                else => null,
+            } else null;
 
-            if ((existing != null and structural == null) or
-                self.env.?.datatypes.aliasNamed(scope.module, declared.name) != null or
-                self.env.?.datatypes.primitiveNamed(scope.module, declared.name) != null)
-            {
+            if (taken != null and (existing == null or structural == null)) {
                 try sink.report(
                     .duplicate_definition,
                     declared.span,
@@ -186,10 +188,7 @@ pub const Desugarer = struct {
             const repeated = for (aliases.items) |earlier| {
                 if (std.mem.eql(u8, earlier.name, alias.name)) break true;
             } else false;
-            if (repeated or self.env.?.datatypes.lookup(scope.module, alias.name) != null or
-                self.env.?.datatypes.aliasNamed(scope.module, alias.name) != null or
-                self.env.?.datatypes.primitiveNamed(scope.module, alias.name) != null)
-            {
+            if (repeated or scope.declaredType(scope.module, alias.name) != null) {
                 try sink.report(
                     .duplicate_definition,
                     alias.span,
@@ -285,8 +284,9 @@ pub const Desugarer = struct {
         return try self.env.?.interner.declareModule(name);
     }
 
-    /// Desugars one source file as `module` and adds it to the link: collect
-    /// heads, resolve bodies. Kinds and fields resolve against grammar `g`.
+    /// Desugars one source file as `module` and adds it to the link: declare
+    /// classes, types and instances, collect heads, resolve bodies. Kinds and
+    /// fields resolve against grammar `g`.
     ///
     /// Preconditions:
     /// - Each module `imports` names was added before.
@@ -306,15 +306,27 @@ pub const Desugarer = struct {
             .exports = self.exports.items,
             .interner = interner,
             .datatypes = &self.env.?.datatypes,
+            .classes = &self.env.?.classes,
         };
 
+        var class_linker: classes_mod.Linker = .{ .gpa = self.allocator, .env = &self.env.?, .scope = &scope, .sink = sink };
+        try class_linker.declareClasses(source);
         try self.declareTypes(&scope, source, sink);
+        try class_linker.declareMembers(source);
+        var methods: std.ArrayList(classes_mod.Method) = .empty;
+        defer methods.deinit(self.allocator);
+        try class_linker.declareInstances(source, &methods);
 
         var declarations = try resolve.collect(self.allocator, interner, module, source, sink);
         defer declarations.deinit();
+        for (methods.items) |m| try declarations.items.append(self.allocator, .{
+            .name = m.definition.name,
+            .symbol = m.symbol,
+            .kind = .{ .value = .{ .definition = m.definition } },
+        });
 
         if (!try scope.checkItems(sink)) return error.DesugarFailed;
-        var failed = false;
+        var failed = class_linker.failed;
 
         const first: u32 = @intCast(self.linked.count());
         for (declarations.items.items, first..) |d, index| {
@@ -398,6 +410,8 @@ pub const Desugarer = struct {
     ) Error!Program {
         const scratch = self.env.?.allocator();
 
+        if (!try classes_mod.checkSuperclasses(self.allocator, &self.env.?, sink)) return error.LinkFailed;
+
         const definitions = try scratch.dupe(core.Definition, self.definitions.items);
         const edges = self.edges.items;
         const entry_offset = self.entry_offset;
@@ -436,6 +450,7 @@ pub const Desugarer = struct {
             .components = components,
             .entry = main,
             .entry_offset = entry_offset,
+            .entry_end = @intCast(definitions.len),
         };
     }
 };

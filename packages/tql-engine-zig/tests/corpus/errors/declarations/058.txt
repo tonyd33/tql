@@ -1,0 +1,20 @@
+title: an instance of an unknown class
+grammar: typescript
+asserts: error
+
+--- tql ---
+instance Nope Int where {
+  nope n = n;
+};
+main = const [];
+
+--- error ---
+error[unresolved-name]: `Nope` is not a class
+ --> 1:1
+  |
+1 | instance Nope Int where {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |   nope n = n;
+  |   ^^^^^^^^^^^
+3 | };
+  | ^^

@@ -1,0 +1,24 @@
+title: a method imported alone is a value
+grammar: typescript
+asserts: types
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+instance Describe Int where { describe n = "int"; };
+
+--- tql ---
+import Classes (describe);
+
+label x = [describe x];
+
+main root = label 1;
+
+--- source ---
+class A {}
+
+--- types ---
+label :: Describe a => a -> [String]
+main :: Node -> [String]

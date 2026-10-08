@@ -9,6 +9,7 @@ const Allocator = std.mem.Allocator;
 pub const Laws = struct {
     builder: core.Builder,
     interner: *const core.Interner,
+    classes: *const core.classes.Registry,
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
     /// Null when the prelude has none.
     kleisli: ?core.SymbolId,
@@ -21,7 +22,10 @@ pub const Laws = struct {
 
     /// Whether a law matches on `symbol`.
     pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
-        return symbol == self.kleisli or symbol == self.concat_map;
+        return switch (self.interner.details(symbol)) {
+            .method, .instance => true,
+            else => symbol == self.kleisli or symbol == self.concat_map,
+        };
     }
 
     /// The term a law rewrites `function argument` to, when one matches.
@@ -34,7 +38,46 @@ pub const Laws = struct {
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
         if (try self.fuseKindAxis(function, argument, span)) |fused| return fused;
+        if (try self.selectKnownMethod(function, argument, span)) |selected| return selected;
         return try self.fuseKindBind(function, argument, span);
+    }
+
+    /// Applies `result` to the arguments of `t`'s spine, in order.
+    fn spine(self: *const Laws, t: core.Term, result: *core.Term, span: diagnostic.Span) Allocator.Error!void {
+        if (t.kind != .apply) return;
+        try self.spine(t.kind.apply.function, result, span);
+        result.* = try self.builder.apply(result.*, t.kind.apply.argument, span);
+    }
+
+    /// `m (instance[C,T] d_1 .. d_n)` becomes `m[T] d_1 .. d_n`, when `m` is a
+    /// method of `C` and `d_1 .. d_n` is the evidence for each constraint of
+    /// the instance's context with a dictionary.
+    fn selectKnownMethod(
+        self: *const Laws,
+        function: core.Term,
+        argument: core.Term,
+        span: diagnostic.Span,
+    ) Allocator.Error!?core.Term {
+        if (function.kind != .symbol) return null;
+        const method = switch (self.interner.details(function.kind.symbol)) {
+            .method => |m| m,
+            else => return null,
+        };
+        const head = argument.head();
+        if (head.kind != .symbol) return null;
+        const instance = switch (self.interner.details(head.kind.symbol)) {
+            .instance => |id| self.classes.instance(id),
+            else => return null,
+        };
+        if (instance.class != method.class) return null;
+
+        var applied: usize = 0;
+        var t = argument;
+        while (t.kind == .apply) : (t = t.kind.apply.function) applied += 1;
+        if (applied != instance.dictionary_context.len) return null;
+        var result = self.builder.symbol(instance.methods[method.index], span);
+        try self.spine(argument, &result, span);
+        return result;
     }
 
     /// `case of_kind k x of { Nil -> a; Cons n t -> b }` becomes

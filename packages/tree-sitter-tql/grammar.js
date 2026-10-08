@@ -110,6 +110,34 @@ module.exports = grammar({
         $.type_alias,
         $.pattern_synonym,
         $.pattern_signature,
+        $.class_declaration,
+        $.instance_declaration,
+      ),
+
+    class_declaration: $ =>
+      seq(
+        "class",
+        optional(seq(field("context", $.context), "=>")),
+        field("name", $.type_identifier),
+        field("parameter", $._type_variable),
+        "where",
+        "{",
+        repeat(field("method", $.signature)),
+        "}",
+        ";",
+      ),
+
+    instance_declaration: $ =>
+      seq(
+        "instance",
+        optional(seq(field("context", $.context), "=>")),
+        field("class", $.type_identifier),
+        field("type", $._type_operand),
+        "where",
+        "{",
+        repeat(field("method", $.definition)),
+        "}",
+        ";",
       ),
 
     pattern_synonym: $ =>
@@ -135,7 +163,7 @@ module.exports = grammar({
       seq(
         "data",
         field("name", $.type_identifier),
-        repeat(field("parameter", $.type_variable)),
+        repeat(field("parameter", $._type_variable)),
         "=",
         sep1(field("constructor", $.constructor_declaration), "|"),
         ";",
@@ -145,7 +173,7 @@ module.exports = grammar({
       seq(
         "type",
         field("name", $.type_identifier),
-        repeat(field("parameter", $.type_variable)),
+        repeat(field("parameter", $._type_variable)),
         "=",
         field("type", $._type),
         ";",
@@ -180,7 +208,7 @@ module.exports = grammar({
     class_constraint: $ =>
       seq(
         field("class", $.type_identifier),
-        field("variable", $.type_variable),
+        field("variable", $._type_variable),
       ),
 
     definition: $ =>
@@ -614,7 +642,7 @@ module.exports = grammar({
         $.list_type,
         $.record_type,
         $._constructor,
-        $.type_variable,
+        $._type_variable,
         $.parenthesized_type,
       ),
 
@@ -636,7 +664,7 @@ module.exports = grammar({
         $.list_type,
         $.record_type,
         $._constructor,
-        $.type_variable,
+        $._type_variable,
         $.parenthesized_type,
       ),
 
@@ -649,7 +677,7 @@ module.exports = grammar({
           "{",
           optional(sep1($.record_type_field, ",")),
           "|",
-          field("row", $.type_variable),
+          field("row", $._type_variable),
           "}",
         ),
       ),
@@ -664,7 +692,8 @@ module.exports = grammar({
 
     type_identifier: _ => UPPER_NAME,
 
-    type_variable: _ => /[a-z][a-zA-Z0-9_]*/,
+    // Must be the word token, so keywords are not type variables.
+    _type_variable: $ => alias($.identifier, $.type_variable),
 
     identifier: _ => LOWER_NAME,
 

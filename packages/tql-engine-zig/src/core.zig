@@ -19,6 +19,7 @@ pub const details = @import("core/details.zig");
 pub const env = @import("core/env.zig");
 pub const types = @import("core/types.zig");
 pub const datatypes = @import("core/datatypes.zig");
+pub const classes = @import("core/classes.zig");
 pub const print_scope = @import("core/print_scope.zig");
 pub const free = @import("core/free.zig");
 pub const components = @import("core/components.zig");
@@ -183,6 +184,17 @@ pub const Builder = struct {
     pub fn applyMany(self: Builder, function: Term, arguments: []const Term, span: diagnostic.Span) !Term {
         var result = function;
         for (arguments) |argument| result = try self.apply(result, argument, span);
+        return result;
+    }
+
+    /// `\p_1 .. p_n -> body`, at `body`'s span.
+    pub fn abstract(self: Builder, parameters: []const SymbolId, body: Term) !Term {
+        var result = body;
+        var i = parameters.len;
+        while (i > 0) {
+            i -= 1;
+            result = try self.lambda(parameters[i], result, body.span);
+        }
         return result;
     }
 

@@ -1,0 +1,44 @@
+title: an instance in its type's module reaches a query that imports none of its names
+grammar: typescript
+asserts: types
+
+The query imports nothing from `Shapes`, but `Shapes` is in the link, and so
+is its instance.
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+--- module Shapes ---
+module Shapes (Shape(..));
+
+import Classes;
+
+data Shape = Circle Int | Square Int;
+
+instance Describe Shape where {
+  describe s = case s of { Circle _ -> "circle"; Square _ -> "square" };
+};
+
+--- module Gallery ---
+module Gallery (gallery);
+
+import Shapes;
+
+gallery = [Circle 1, Square 2];
+
+--- tql ---
+import Classes;
+import Gallery;
+
+names = map describe gallery;
+
+main root = names;
+
+--- source ---
+class A {}
+
+--- types ---
+names :: [String]
+main :: Node -> [String]

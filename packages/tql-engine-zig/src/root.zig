@@ -786,7 +786,7 @@ test "the prelude's schemes are inferred" {
     for (result.definitions[0..result.entry_offset], 0..) |definition, i| {
         if (i > 0) try w.writer.writeByte('\n');
         try w.writer.print("{s} :: ", .{result.env.interner.spelling(definition.symbol)});
-        try result.env.schemeOf(definition.symbol).?.format(&w.writer);
+        try result.env.schemeOf(definition.symbol).?.named(&result.env.classes).format(&w.writer);
     }
 
     try std.testing.expectEqualStrings(

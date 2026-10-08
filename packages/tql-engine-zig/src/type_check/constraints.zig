@@ -1,14 +1,14 @@
 const std = @import("std");
 const diagnostic = @import("../diagnostic.zig");
 const core = @import("../core.zig");
-const datatypes = core.datatypes;
+const classes = core.classes;
 const types = core.types;
 
 const Substitution = @import("substitution.zig").Substitution;
 
 /// A constraint together with where it came from.
 pub const Constraint = struct {
-    class: types.TypeClassConstraint.Class,
+    class: classes.ClassId,
     type: types.Type,
     origin: diagnostic.Span,
 };
@@ -23,9 +23,9 @@ pub const Outcome = union(enum) {
 };
 
 /// Decides `class t`.
-pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: types.Type) Outcome {
+pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) Outcome {
     var first: ?types.Meta = null;
-    const culprit = walk(FirstResidual, .{ .first = &first }, subst, class, t) catch |e| switch (e) {};
+    const culprit = classes.reduce(subst.classes, subst.datatypes, class, t, subst, FirstResidual{ .first = &first }) catch |e| switch (e) {};
     if (culprit) |c| return .{ .fails = c };
     if (first) |meta| return .{ .deferred = meta };
     return .holds;
@@ -34,32 +34,33 @@ pub fn entails(subst: *Substitution, class: types.TypeClassConstraint.Class, t: 
 /// A constraint on a bare metavariable. On a row's metavariable, it holds
 /// when it holds of every field the row comes to have.
 pub const Residual = struct {
-    class: types.TypeClassConstraint.Class,
+    class: classes.ClassId,
     meta: types.Meta,
 };
 
 /// Reduces `class t` to the constraints on bare metavariables it holds under,
-/// appending them to `out`.
+/// appending them to `out`. A dictionary class reduces through its instances'
+/// contexts, so each residual is in head-normal form.
 ///
 /// Returns the refuted part of `t`, if any.
 pub fn reduce(
     subst: *Substitution,
-    class: types.TypeClassConstraint.Class,
+    class: classes.ClassId,
     t: types.Type,
     out: *std.ArrayList(Residual),
     gpa: std.mem.Allocator,
 ) std.mem.Allocator.Error!?types.Type {
-    return walk(Collect, .{ .out = out, .gpa = gpa }, subst, class, t);
+    return classes.reduce(subst.classes, subst.datatypes, class, t, subst, Collect{ .out = out, .gpa = gpa });
 }
 
 /// Keeps the first residual and drops the rest.
 const FirstResidual = struct {
     first: *?types.Meta,
 
-    const Error = error{};
+    pub const Error = error{};
 
-    fn residual(self: FirstResidual, r: Residual) Error!void {
-        if (self.first.* == null) self.first.* = r.meta;
+    pub fn leaf(self: FirstResidual, _: classes.ClassId, t: types.Type) Error!void {
+        if (self.first.* == null) self.first.* = metaOf(t);
     }
 };
 
@@ -68,73 +69,17 @@ const Collect = struct {
     out: *std.ArrayList(Residual),
     gpa: std.mem.Allocator,
 
-    const Error = std.mem.Allocator.Error;
+    pub const Error = std.mem.Allocator.Error;
 
-    fn residual(self: Collect, r: Residual) Error!void {
-        try self.out.append(self.gpa, r);
+    pub fn leaf(self: Collect, class: classes.ClassId, t: types.Type) Error!void {
+        try self.out.append(self.gpa, .{ .class = class, .meta = metaOf(t) });
     }
 };
 
-/// Reduces `class t`, handing each residual to `sink` in the order it is
-/// reached.
-///
-/// Returns the first refuted part of `t`, if any, written as `t` writes it,
-/// alias included.
-fn walk(
-    comptime Sink: type,
-    sink: Sink,
-    subst: *Substitution,
-    class: types.TypeClassConstraint.Class,
-    t: types.Type,
-) Sink.Error!?types.Type {
-    const written = subst.resolve(t);
-    switch (subst.expand(written)) {
-        .meta => |id| try sink.residual(.{ .class = class, .meta = id }),
-        .variable => @panic("a bound type variable reached constraint solving"),
-        .alias => unreachable,
-        .primitive => |p| if (!holdsForPrimitive(class, p)) return written,
-        .constructor => |c| switch (subst.datatypes.get(c.name).classes.forClass(class)) {
-            .never => return written,
-            // `Sized [a]` is the one that does not descend: a list has a
-            // length whatever its elements are.
-            .always => {},
-            .fields => for (c.arguments) |argument| {
-                if (try walk(Sink, sink, subst, class, argument)) |culprit| return culprit;
-            },
-        },
-        .record => |r| switch (class) {
-            .Sized, .Ord => return written,
-            // A row holds when every field it comes to have does.
-            .Eq, .Serial => {
-                for (r.fields) |f| {
-                    if (try walk(Sink, sink, subst, class, f.type.*)) |culprit| return culprit;
-                }
-                if (r.rest) |rest| return try walk(Sink, sink, subst, class, rest.*);
-            },
-        },
-        .function => return written,
-    }
-    return null;
-}
-
-fn holdsForPrimitive(class: types.TypeClassConstraint.Class, p: types.Primitive) bool {
-    return switch (class) {
-        .Eq => switch (p) {
-            .Int, .String, .Node, .Kind => true,
-            .Regex => false,
-        },
-        .Ord => switch (p) {
-            .Int, .String => true,
-            .Regex, .Node, .Kind => false,
-        },
-        .Sized => switch (p) {
-            .String => true,
-            .Int, .Regex, .Node, .Kind => false,
-        },
-        .Serial => switch (p) {
-            .Int, .String, .Node, .Kind => true,
-            .Regex => false,
-        },
+fn metaOf(t: types.Type) types.Meta {
+    return switch (t) {
+        .meta => |id| id,
+        else => @panic("a bound type variable reached constraint solving"),
     };
 }
 
@@ -160,7 +105,7 @@ pub const Set = struct {
     pub fn require(
         self: *Set,
         subst: *Substitution,
-        class: types.TypeClassConstraint.Class,
+        class: classes.ClassId,
         t: types.Type,
         origin: diagnostic.Span,
     ) !?Violation {
@@ -234,13 +179,26 @@ pub const Set = struct {
 
 /// A constraint the table refutes, with the term that introduced it.
 pub const Violation = struct {
-    class: types.TypeClassConstraint.Class,
+    class: classes.ClassId,
     type: types.Type,
     origin: diagnostic.Span,
 
-    pub fn format(self: Violation, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("`{s} {f}` is not satisfied.", .{ self.class.spelling(), self.type.operand() });
+    /// Format with the class spelled as `registry` declares it.
+    pub fn named(self: Violation, registry: *const classes.Registry) Named {
+        return .{ .violation = self, .registry = registry };
     }
+
+    pub const Named = struct {
+        violation: Violation,
+        registry: *const classes.Registry,
+
+        pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            try w.print("`{s} {f}` is not satisfied.", .{
+                self.registry.spelling(self.violation.class),
+                self.violation.type.operand(),
+            });
+        }
+    };
 };
 
 /// Whether `t`, under the current substitution, has any of `metas` free.

@@ -1,0 +1,23 @@
+title: a constraint on main's input is resolved at Node
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe Node where {
+  describe n = kind_name n;
+};
+
+main x = [describe x];
+
+--- source ---
+class A {}
+
+--- values ---
+["program"]
+
+--- types ---
+main :: Node -> [String]

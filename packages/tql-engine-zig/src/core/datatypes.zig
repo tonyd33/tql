@@ -1,6 +1,7 @@
 //! Declared algebraic data types and their constructors.
 
 const std = @import("std");
+const ClassId = @import("classes.zig").ClassId;
 const symbols = @import("symbols.zig");
 const types = @import("types.zig");
 
@@ -25,12 +26,15 @@ pub const ClassRow = struct {
     Sized: Entailment = .never,
     Serial: Entailment = .never,
 
-    pub fn forClass(self: ClassRow, class: types.TypeClassConstraint.Class) Entailment {
+    /// Preconditions:
+    /// - `class` has built-in evidence.
+    pub fn forClass(self: ClassRow, class: ClassId) Entailment {
         return switch (class) {
-            .Eq => self.Eq,
-            .Ord => self.Ord,
-            .Sized => self.Sized,
-            .Serial => self.Serial,
+            .eq => self.Eq,
+            .ord => self.Ord,
+            .sized => self.Sized,
+            .serial => self.Serial,
+            _ => unreachable,
         };
     }
 };
@@ -46,6 +50,8 @@ pub const Constructor = struct {
 
 pub const Datatype = struct {
     name: []const u8,
+    /// The module that declares it.
+    module: symbols.ModuleId,
     /// Count of bound type parameters, numbered from zero.
     parameters: u8,
     constructors: []const Constructor,
@@ -216,6 +222,7 @@ pub const Registry = struct {
         const id: TypeId = @enumFromInt(self.datatypes.items.len);
         try self.datatypes.append(self.allocator, .{
             .name = name,
+            .module = module,
             .parameters = parameters,
             .constructors = constructors,
             .classes = classes,
@@ -339,7 +346,7 @@ test "the structural accessors follow the declared tag order" {
 
 test "a list is Sized whatever its elements are, but Ord never" {
     const row: ClassRow = .{ .Eq = .fields, .Sized = .always, .Serial = .fields };
-    try std.testing.expectEqual(Entailment.always, row.forClass(.Sized));
-    try std.testing.expectEqual(Entailment.fields, row.forClass(.Eq));
-    try std.testing.expectEqual(Entailment.never, row.forClass(.Ord));
+    try std.testing.expectEqual(Entailment.always, row.forClass(.sized));
+    try std.testing.expectEqual(Entailment.fields, row.forClass(.eq));
+    try std.testing.expectEqual(Entailment.never, row.forClass(.ord));
 }

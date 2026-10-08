@@ -185,6 +185,7 @@ pub const ProgramBuilder = struct {
             .components = components,
             .entry = entry,
             .entry_offset = 0,
+            .entry_end = @intCast(self.definitions.items.len),
         };
     }
 };

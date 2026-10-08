@@ -1,0 +1,15 @@
+title: a class may not share a name with a datatype
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Shape a where { area :: a -> Int; };
+data Shape = Circle Int;
+main = const [];
+
+--- error ---
+error[duplicate-definition]: `Shape` is declared more than once
+ --> 2:1
+  |
+2 | data Shape = Circle Int;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^

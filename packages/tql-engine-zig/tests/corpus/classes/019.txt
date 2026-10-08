@@ -1,0 +1,23 @@
+title: a recursive main with a constraint on its input
+grammar: typescript
+asserts: values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe Node where {
+  describe n = kind_name n;
+};
+
+main x = case children x of {
+  [] -> [describe x];
+  c : _ -> main c;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["class"]

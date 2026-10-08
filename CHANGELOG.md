@@ -42,6 +42,8 @@
 - Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
 - Added guards to `case` alternatives: in `[a, b] if a = b -> 1`, a false guard tries the alternatives after it.
 - Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants root;` binds each method call.
+- Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };` declares a class whose methods are values, and `instance Describe a => Describe [a] where { describe xs = ...; };` gives one at a type. A function using a method is inferred with the constraint, as `twice x = [describe x, describe x]` is `Describe a => a -> [String]`, and an inferred context is reduced through instances: `f x = describe [x]` is `Describe a => a -> String`. `Eq`, `Ord`, `Sized` and `Serial` stay built in and take no instances; a class may name one as a superclass.
+- Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value. An instance is global to the link whatever an import list names. It must be declared in its class's module or its type's module, and one class has at most one instance at a type.
 
 ### Improvements
 
@@ -56,6 +58,7 @@
 - A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
+- `main`'s constraints are checked at the type it runs at: `main x = [x < x];` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
 
 ## 0.3.1 (2026-10-03)
 

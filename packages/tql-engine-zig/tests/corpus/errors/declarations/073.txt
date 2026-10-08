@@ -1,0 +1,17 @@
+title: a built-in class takes no instances
+grammar: typescript
+asserts: error
+
+`=` is value-dispatched and would never call an instance of `Eq`.
+
+--- tql ---
+data Shape = Circle Int;
+instance Eq Shape where { eq a b = true; };
+main = const [];
+
+--- error ---
+error[invalid-instance]: `Eq` is built in and takes no instances
+ --> 2:1
+  |
+2 | instance Eq Shape where { eq a b = true; };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

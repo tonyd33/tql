@@ -226,6 +226,14 @@ const Walker = struct {
                     if (try self.patternSignature(child)) |p| {
                         try declarations.append(self.allocator, .{ .pattern_signature = p });
                     }
+                } else if (std.mem.eql(u8, kind, "class_declaration")) {
+                    if (try self.classDeclaration(child)) |c| {
+                        try declarations.append(self.allocator, .{ .class_declaration = c });
+                    }
+                } else if (std.mem.eql(u8, kind, "instance_declaration")) {
+                    if (try self.instanceDeclaration(child)) |i| {
+                        try declarations.append(self.allocator, .{ .instance_declaration = i });
+                    }
                 }
                 if (!cursor.gotoNextSibling()) break;
             }
@@ -344,6 +352,69 @@ const Walker = struct {
         }
 
         return try collected.toOwnedSlice(self.allocator);
+    }
+
+    fn classDeclaration(self: *Walker, node: ts.Node) !?cst.ClassDeclaration {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const parameter_node = try self.requiredField(node, "parameter") orelse return null;
+        const superclasses = if (node.childByFieldName("context")) |c|
+            try self.context(c) orelse return null
+        else
+            &.{};
+
+        var methods: std.ArrayList(cst.Signature) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "method")) {
+                        try methods.append(self.allocator, try self.signature(cursor.node()) orelse return null);
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .name = try self.dupe(name_node),
+            .parameter = try self.dupe(parameter_node),
+            .superclasses = superclasses,
+            .methods = try methods.toOwnedSlice(self.allocator),
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn instanceDeclaration(self: *Walker, node: ts.Node) !?cst.InstanceDeclaration {
+        const class_node = try self.requiredField(node, "class") orelse return null;
+        const type_node = try self.requiredField(node, "type") orelse return null;
+        const constraints = if (node.childByFieldName("context")) |c|
+            try self.context(c) orelse return null
+        else
+            &.{};
+        const head = try self.typeExpr(type_node) orelse return null;
+
+        var methods: std.ArrayList(cst.Definition) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "method")) {
+                        try methods.append(self.allocator, try self.definition(cursor.node()) orelse return null);
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+
+        return .{
+            .class = try self.dupe(class_node),
+            .head = head,
+            .context = constraints,
+            .methods = try methods.toOwnedSlice(self.allocator),
+            .span = spanOf(node, self.source_id),
+        };
     }
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
@@ -1184,7 +1255,7 @@ const Walker = struct {
 
     fn typeExpr(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Type {
         const span = spanOf(node, self.source_id);
-        const kind = node.grammarKind();
+        const kind = node.kind();
 
         if (isConstructor(kind)) {
             return cst.Type{
@@ -1613,6 +1684,35 @@ test "of_shape takes an atomic pattern and applies as a function" {
         "main = descendants | of_shape (Call (Text \"f\") _); keep = of_shape Arrow root;",
         "(source_file (define main (params) (| descendants (of_shape (Call (Text (string \"f\")) _)))) " ++
             "(define keep (params) (apply (of_shape Arrow) root)))",
+    );
+}
+
+test "a class declaration keeps its superclasses and methods" {
+    try expectSexpr(
+        "class Eq a => Describe a where { describe :: a -> String; tags :: a -> [String]; };",
+        "(source_file (class Describe a (=> (Eq a)) (signature describe (-> a String)) " ++
+            "(signature tags (-> a (list_type String)))))",
+    );
+}
+
+test "an instance declaration keeps its head, context and methods" {
+    try expectSexpr(
+        "instance Describe a => Describe [a] where { describe xs = \"list\"; };",
+        "(source_file (instance Describe (list_type a) (=> (Describe a)) (define describe (params xs) (string \"list\"))))",
+    );
+}
+
+test "an instance at an applied head" {
+    try expectSexpr(
+        "instance Describe (Box a) where {};",
+        "(source_file (instance Describe (paren_type (Box a))))",
+    );
+}
+
+test "a type variable may be spelled like a keyword or start with an underscore" {
+    try expectSexpr(
+        "f :: where_ -> _a;",
+        "(source_file (signature f (-> where_ _a)))",
     );
 }
 

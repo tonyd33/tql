@@ -1,0 +1,20 @@
+title: a class with no methods constrains like any other
+grammar: typescript
+asserts: types
+
+--- tql ---
+class Marker a where {};
+
+instance Marker Int where {};
+
+marked :: Marker a => a -> [a];
+marked x = [x];
+
+main root = marked 1;
+
+--- source ---
+class A {}
+
+--- types ---
+marked :: Marker a => a -> [a]
+main :: Node -> [Int]

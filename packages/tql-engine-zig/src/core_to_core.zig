@@ -292,3 +292,124 @@ test "a case of a kind test on a compound subject is left alone" {
         \\    Cons _ _ -> g
     );
 }
+
+/// A program builder holding class `Describe` of one method, with instances
+/// at `Int` and, under `Describe a`, at `[a]`, whose dictionaries and
+/// implementations are named but not defined.
+const ClassFixture = struct {
+    pb: core.test_support.ProgramBuilder,
+    describe: core.SymbolId,
+    at_int: core.SymbolId,
+    at_list: core.SymbolId,
+
+    fn init() !ClassFixture {
+        var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
+        errdefer pb.deinit();
+        const e = &pb.env;
+        const class = try e.classes.declare(.{ .name = .{ .module = .prelude, .name = "Describe" } });
+        const describe = try e.interner.intern(.prelude, "describe", .{ .method = .{ .class = class, .index = 0 } });
+        e.classes.getMut(class).methods = try e.allocator().dupe(core.SymbolId, &.{describe});
+
+        const at_int = try instance(e, class, .{ .primitive = .Int }, core.types.int_type, &.{}, "Int");
+        const on_element = try e.allocator().dupe(core.types.TypeClassConstraint, &.{
+            .{ .class = class, .type = core.types.variable_type(0) },
+            .{ .class = .eq, .type = core.types.variable_type(0) },
+        });
+        const list = try e.datatypes.list(e.allocator(), core.types.variable_type(0));
+        const at_list = try instance(e, class, .{ .datatype = e.datatypes.listId() }, list, on_element, "List");
+        return .{ .pb = pb, .describe = describe, .at_int = at_int, .at_list = at_list };
+    }
+
+    fn instance(
+        e: *core.env.Env,
+        class: core.classes.ClassId,
+        head: core.classes.Head,
+        head_type: core.types.Type,
+        context: []const core.types.TypeClassConstraint,
+        spelling: []const u8,
+    ) !core.SymbolId {
+        const dictionary = try e.interner.generate(.prelude, try std.fmt.allocPrint(e.allocator(), "instance[Describe,{s}]", .{spelling}), .vanilla);
+        var dictionary_context: std.ArrayList(core.types.TypeClassConstraint) = .empty;
+        for (context) |c| {
+            if (e.classes.evidenceOf(c.class) == .dictionary) try dictionary_context.append(e.allocator(), c);
+        }
+        const id = (try e.classes.addInstance(.{
+            .class = class,
+            .head = head,
+            .type = head_type,
+            .context = context,
+            .dictionary_context = dictionary_context.items,
+            .methods = &.{},
+            .dictionary = dictionary,
+            .module = .prelude,
+        })).added;
+        e.interner.setDetails(dictionary, .{ .instance = id });
+        const implementation = try e.interner.generate(
+            .prelude,
+            try std.fmt.allocPrint(e.allocator(), "describe[{s}]", .{spelling}),
+            .instance_method,
+        );
+        e.classes.instanceMut(id).methods = try e.allocator().dupe(core.SymbolId, &.{implementation});
+        return dictionary;
+    }
+
+    fn deinit(self: *ClassFixture) void {
+        self.pb.deinit();
+    }
+
+    /// Defines `main` as `body`, simplifies, and expects it to print as
+    /// `expected`.
+    fn expectMainSimplifies(self: *ClassFixture, body: core.Term, expected: []const u8) !void {
+        const main = try self.pb.global("main");
+        try self.pb.define(main, body);
+        var program = try self.pb.program(main);
+        try run(&program, .{});
+        try expectMain(&program, expected);
+    }
+};
+
+test "a method of a known instance becomes the instance's implementation" {
+    var fix = try ClassFixture.init();
+    defer fix.deinit();
+    const pb = &fix.pb;
+    try fix.expectMainSimplifies(
+        try pb.apply(pb.symbol(fix.describe), &.{ pb.symbol(fix.at_int), pb.number(1) }),
+        "describe[Int] 1",
+    );
+}
+
+test "a method of an instance with a context passes the context's evidence on" {
+    var fix = try ClassFixture.init();
+    defer fix.deinit();
+    const pb = &fix.pb;
+    const xs = try pb.global("xs");
+    const dictionary = try pb.apply(pb.symbol(fix.at_list), &.{pb.symbol(fix.at_int)});
+    try fix.expectMainSimplifies(
+        try pb.apply(pb.symbol(fix.describe), &.{ dictionary, pb.symbol(xs) }),
+        "describe[List] instance[Describe,Int] xs",
+    );
+}
+
+test "a method of an instance short of its context's evidence is left alone" {
+    var fix = try ClassFixture.init();
+    defer fix.deinit();
+    const pb = &fix.pb;
+    try fix.expectMainSimplifies(
+        try pb.apply(pb.symbol(fix.describe), &.{pb.symbol(fix.at_list)}),
+        "describe instance[Describe,List]",
+    );
+}
+
+test "a method of another class's instance is left alone" {
+    var fix = try ClassFixture.init();
+    defer fix.deinit();
+    const pb = &fix.pb;
+    const e = &pb.env;
+    const other = try e.classes.declare(.{ .name = .{ .module = .prelude, .name = "Other" } });
+    const method = try e.interner.intern(.prelude, "other", .{ .method = .{ .class = other, .index = 0 } });
+    e.classes.getMut(other).methods = try e.allocator().dupe(core.SymbolId, &.{method});
+    try fix.expectMainSimplifies(
+        try pb.apply(pb.symbol(method), &.{pb.symbol(fix.at_int)}),
+        "other instance[Describe,Int]",
+    );
+}

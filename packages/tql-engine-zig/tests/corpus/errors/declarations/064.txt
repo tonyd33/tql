@@ -1,0 +1,14 @@
+title: a method that constrains the class parameter
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: Eq a => a -> String; };
+main = const [];
+
+--- error ---
+error[invalid-class]: `describe` constrains `a`, the parameter of `Describe`
+ --> 1:38
+  |
+1 | class Describe a where { describe :: Eq a => a -> String; };
+  |                                      ^^^^

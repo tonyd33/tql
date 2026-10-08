@@ -152,7 +152,7 @@ pub const Translator = struct {
             .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
             // A synthesized symbol lowers like a primitive.
             .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
-            .vanilla => {},
+            .vanilla, .method, .instance_method, .instance, .selector => {},
             .synonym => unreachable,
         }
         if (self.global(name)) |g| return .{ .global = g };

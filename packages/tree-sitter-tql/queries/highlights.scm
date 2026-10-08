@@ -17,6 +17,9 @@
   "as"
   "pattern"
   "of_shape"
+  "class"
+  "instance"
+  "where"
 ] @keyword
 
 (module_name) @module

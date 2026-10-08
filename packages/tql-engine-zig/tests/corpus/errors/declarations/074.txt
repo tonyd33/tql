@@ -1,0 +1,15 @@
+title: an instance method of the wrong type
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: a -> String; };
+instance Describe Int where { describe n = n + 1; };
+main = const [];
+
+--- error ---
+error[signature-mismatch]: Expected `String`, found `Int`.
+ --> 2:31
+  |
+2 | instance Describe Int where { describe n = n + 1; };
+  |                               ^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,28 @@
+title: a second instance in another module is an orphan before it is a duplicate
+grammar: typescript
+asserts: error
+
+An instance lives in its class's module or its type's, and the type's module
+imports the class's, so two modules can never both declare one instance. The
+second one is refused as an orphan.
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+instance Describe Int where { describe n = "int"; };
+
+--- tql ---
+import Classes;
+
+instance Describe Int where { describe n = "again"; };
+
+main root = [1];
+
+--- error ---
+error[orphan-instance]: `Describe Int` must be declared in `Classes`, which declares `Describe`, or in `Prelude`, which declares `Int`
+ --> 3:1
+  |
+3 | instance Describe Int where { describe n = "again"; };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

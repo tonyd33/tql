@@ -1,0 +1,19 @@
+title: an instance whose head has a field without a built-in superclass
+grammar: typescript
+asserts: error
+
+`Op` holds a function, which has no `Eq`, so `Same Op` cannot have the
+superclass its class asks for.
+
+--- tql ---
+class Eq a => Same a where { same :: a -> a -> Bool; };
+data Op = Op (Int -> Int);
+instance Same Op where { same a b = true; };
+main root = [1];
+
+--- error ---
+error[invalid-instance]: `Same Op` needs `Eq (Int -> Int)`
+ --> 3:1
+  |
+3 | instance Same Op where { same a b = true; };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

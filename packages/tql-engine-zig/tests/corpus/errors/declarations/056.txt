@@ -1,0 +1,15 @@
+title: an unknown class in a signature's context
+grammar: typescript
+asserts: error
+
+--- tql ---
+f :: Nope a => a -> a;
+f x = x;
+main = const [];
+
+--- error ---
+error[unresolved-name]: `Nope` is not a class
+ --> 1:6
+  |
+1 | f :: Nope a => a -> a;
+  |      ^^^^^^

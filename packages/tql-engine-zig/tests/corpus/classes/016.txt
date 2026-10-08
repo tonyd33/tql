@@ -1,0 +1,33 @@
+title: a method of a known instance calls the instance's implementation
+grammar: typescript
+asserts: simplified, values
+
+`describe` at `Shape` selects from the dictionary `instance[Describe,Shape]`,
+which is known, so the call goes to `describe[Shape]` and no dictionary is
+built.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> [String];
+};
+
+data Shape = Circle Int | Square Int | Group [Shape];
+
+instance Describe Shape where {
+  describe s = case s of {
+    Circle _ -> ["circle"];
+    Square _ -> ["square"];
+    Group shapes -> concat_map describe shapes;
+  };
+};
+
+main root = describe (Group [Circle 1, Square 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+["circle", "square"]
+
+--- simplified ---
+main = \root -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))

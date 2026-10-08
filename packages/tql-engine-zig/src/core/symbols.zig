@@ -155,6 +155,21 @@ pub const Interner = struct {
         return try self.internUnchecked(module, spelling_text, what);
     }
 
+    /// A global of `module` that no lookup finds. Its spelling may repeat
+    /// another symbol's.
+    pub fn generate(
+        self: *Interner,
+        module: ModuleId,
+        spelling_text: []const u8,
+        what: Details,
+    ) Allocator.Error!SymbolId {
+        return try self.append(.{
+            .spelling = try self.allocator.dupe(u8, spelling_text),
+            .details = what,
+            .module = module,
+        });
+    }
+
     /// Returns the existing synthesized symbol for a spelling, or interns it.
     /// Identical synthesis requests must yield one symbol. (e.g. `{a=1,b=2}`
     /// and `{b=2,a=1}` share a `record[a,b]`)

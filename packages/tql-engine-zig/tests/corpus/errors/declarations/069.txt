@@ -1,0 +1,16 @@
+title: an instance head repeats a variable
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: a -> String; };
+data Pair a b = Pair a b;
+instance Describe (Pair a a) where { describe p = "pair"; };
+main = const [];
+
+--- error ---
+error[invalid-instance]: `a` appears more than once in an instance head
+ --> 3:27
+  |
+3 | instance Describe (Pair a a) where { describe p = "pair"; };
+  |                           ^

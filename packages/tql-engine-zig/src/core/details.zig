@@ -1,5 +1,6 @@
 //! What a symbol is, beyond its spelling.
 
+const classes = @import("classes.zig");
 const symbols = @import("symbols.zig");
 
 /// A scalar operator, which desugaring synthesizes an `op[...]` symbol for.
@@ -109,4 +110,13 @@ pub const Details = union(enum) {
     constructor: struct { owner: symbols.TypeId, tag: u32 },
     /// A pattern synonym of `arity` parameters, matched by calling `matcher`.
     synonym: struct { arity: u32, matcher: symbols.SymbolId },
+    /// Method `index` of `class`.
+    method: struct { class: classes.ClassId, index: u32 },
+    /// An instance's implementation of a method of its class. Defined like
+    /// any global.
+    instance_method,
+    /// The global holding an instance's dictionary.
+    instance: classes.InstanceId,
+    /// `super[C,S]`, which takes a dictionary of `C` to one of `S`.
+    selector,
 };
