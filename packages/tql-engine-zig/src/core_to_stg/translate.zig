@@ -547,10 +547,9 @@ pub const Translator = struct {
         parameters: []const core.SymbolId,
         body: core.Term,
     ) Error!*const stg.Closure {
-        var collector: core.free.Collector = .{ .gpa = self.gpa, .locals = self.scope.items };
+        var collector: core.free.Collector = .{ .gpa = self.gpa, .locals = .{ .list = self.scope.items } };
         defer collector.deinit();
 
-        for (parameters) |parameter| try collector.bound.append(self.gpa, parameter);
         try collector.walk(body);
 
         const free_names = collector.out.items;

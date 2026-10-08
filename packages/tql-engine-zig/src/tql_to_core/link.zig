@@ -34,7 +34,12 @@ pub const Desugarer = struct {
     allocator: std.mem.Allocator,
     /// Null once `finish` has handed it to the `Program`.
     env: ?core.env.Env,
-    modules: std.ArrayList(desugar.Module) = .empty,
+    /// Every definition added so far, in link order.
+    definitions: std.ArrayList(core.Definition) = .empty,
+    /// `edges[i]` holds the linked indices `definitions[i]` references.
+    edges: std.ArrayList([]const u32) = .empty,
+    /// Where the last source added begins in `definitions`.
+    entry_offset: u32 = 0,
     /// The linked index of every definition added so far.
     linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
     /// What each module exports, by `ModuleId`.
@@ -51,7 +56,8 @@ pub const Desugarer = struct {
     }
 
     pub fn deinit(self: *Desugarer) void {
-        self.modules.deinit(self.allocator);
+        self.definitions.deinit(self.allocator);
+        self.edges.deinit(self.allocator);
         self.linked.deinit(self.allocator);
         self.exports.deinit(self.allocator);
         if (self.env) |*target| target.deinit();
@@ -320,11 +326,8 @@ pub const Desugarer = struct {
         @memset(edges, &.{});
 
         const language = if (g) |known| known.language else null;
-        // IMPROVE: desugar the entire module at once with a single desugar pass?
+        var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, language, sink);
         for (declarations.items.items, 0..) |d, i| {
-            var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, &self.linked, language, sink);
-            defer lowerer.deinit();
-
             const lowered = switch (d.kind) {
                 .value => |v| lowerer.parameterized(v.definition.parameters, v.definition.body, null, v.definition.span),
                 .synonym => |s| match.matcherOf(&lowerer, s.declaration),
@@ -338,7 +341,7 @@ pub const Desugarer = struct {
             };
 
             definitions[i] = .{ .symbol = d.symbol, .body = body, .span = d.span() };
-            edges[i] = try builder.dupeSlice(u32, lowerer.references.items);
+            edges[i] = try self.references(builder, body);
             if (d.kind == .synonym) try self.env.?.markAlwaysInline(d.symbol);
         }
         if (!try checkSynonymCycles(self.allocator, declarations.items.items, edges, first, sink)) {
@@ -369,10 +372,21 @@ pub const Desugarer = struct {
 
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 
-        try self.modules.append(self.allocator, .{
-            .definitions = definitions,
-            .edges = edges,
-        });
+        self.entry_offset = first;
+        try self.definitions.appendSlice(self.allocator, definitions);
+        try self.edges.appendSlice(self.allocator, edges);
+    }
+
+    /// The linked indices of the definitions `body` mentions, in first-mention
+    /// order.
+    fn references(self: *const Desugarer, builder: core.Builder, body: core.Term) ![]const u32 {
+        var collector: core.free.Collector = .{ .gpa = self.allocator, .locals = .{ .keys = &self.linked } };
+        defer collector.deinit();
+        try collector.walk(body);
+
+        const targets = try builder.slice(u32, collector.out.items.len);
+        for (collector.out.items, targets) |symbol, *target| target.* = self.linked.get(symbol).?;
+        return targets;
     }
 
     /// Assembles the added sources into a program. The last one added is the
@@ -384,20 +398,9 @@ pub const Desugarer = struct {
     ) Error!Program {
         const scratch = self.env.?.allocator();
 
-        var total: usize = 0;
-        for (self.modules.items) |m| total += m.definitions.len;
-
-        const definitions = try scratch.alloc(core.Definition, total);
-        const edges = try scratch.alloc([]const u32, total);
-
-        var offset: u32 = 0;
-        var entry_offset: u32 = 0;
-        for (self.modules.items, 0..) |m, i| {
-            if (i + 1 == self.modules.items.len) entry_offset = offset;
-            @memcpy(definitions[offset..][0..m.definitions.len], m.definitions);
-            @memcpy(edges[offset..][0..m.edges.len], m.edges);
-            offset += @intCast(m.definitions.len);
-        }
+        const definitions = try scratch.dupe(core.Definition, self.definitions.items);
+        const edges = self.edges.items;
+        const entry_offset = self.entry_offset;
 
         const main = try entrySymbol(
             definitions[entry_offset..],

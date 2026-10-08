@@ -1297,7 +1297,6 @@ const Emitter = struct {
                 return try self.lowerer.choose(condition, try self.emit(l.failed), matched, l.span);
             },
             .synonym => |s| {
-                try self.lowerer.recordReference(s.matcher);
                 var continuation = try self.emit(s.matched);
                 var i = s.holes.len;
                 while (i > 0) {

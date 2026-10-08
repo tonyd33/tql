@@ -140,7 +140,7 @@ pub const Laws = struct {
         const s = lambda.parameter;
         const tested = self.kindTest(.is_kind, matched.scrutinee) orelse return null;
         if (!isSymbol(tested.subject, s)) return null;
-        if (occurs(tested.kind, s)) return null;
+        if (core.free.occurs(tested.kind, s)) return null;
         const fused = self.fusedAxis(axis, tested.kind) orelse return null;
 
         const failed = alternativeFor(matched.alternatives, self.false_) orelse return null;
@@ -216,28 +216,4 @@ fn alternativeFor(alternatives: []const core.Case.Alternative, constructor: core
         if (alternative.constructor == constructor) return alternative;
     }
     return null;
-}
-
-/// Whether `t` reads `symbol`.
-fn occurs(t: core.Term, symbol: core.SymbolId) bool {
-    return switch (t.kind) {
-        .symbol => |id| id == symbol,
-        .literal => false,
-        .lambda => |l| occurs(l.body, symbol),
-        .apply => |a| occurs(a.function, symbol) or occurs(a.argument, symbol),
-        .case => |c| {
-            if (occurs(c.scrutinee, symbol)) return true;
-            for (c.alternatives) |alternative| {
-                if (occurs(alternative.body, symbol)) return true;
-            }
-            return false;
-        },
-        .let => |l| occurs(l.value, symbol) or occurs(l.body, symbol),
-        .letrec => |l| {
-            for (l.bindings) |b| {
-                if (occurs(b.value, symbol)) return true;
-            }
-            return occurs(l.body, symbol);
-        },
-    };
 }

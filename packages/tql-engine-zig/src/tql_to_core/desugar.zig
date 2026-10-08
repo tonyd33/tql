@@ -21,37 +21,25 @@ pub const Lowerer = struct {
     /// Where symbols are interned and synthesized ones get their schemes.
     env: *core.env.Env,
     scope: *const ModuleScope,
-    /// The linked index of every definition in this module and those before.
-    linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
     /// Null in a grammar-generic module, which may not use kinds or fields.
     language: ?*const ts.Language,
     sink: *diagnostic.Sink,
     builder: core.Builder,
 
-    /// Global references made by the body currently being desugared, as
-    /// linked indices. Feeds the reference graph.
-    references: std.ArrayList(u32) = .empty,
-
     pub fn init(
         builder: core.Builder,
         env: *core.env.Env,
         scope: *const ModuleScope,
-        linked: *const std.AutoHashMapUnmanaged(core.SymbolId, u32),
         language: ?*const ts.Language,
         sink: *diagnostic.Sink,
     ) Lowerer {
         return .{
             .env = env,
             .scope = scope,
-            .linked = linked,
             .language = language,
             .sink = sink,
             .builder = builder,
         };
-    }
-
-    pub fn deinit(self: *Lowerer) void {
-        self.references.deinit(self.builder.allocator);
     }
 
     /// A primitive or prelude name that sugar desugars to, resolved in the
@@ -96,14 +84,6 @@ pub const Lowerer = struct {
             return error.DesugarFailed;
         }
         return self.builder.symbol(id, span);
-    }
-
-    pub fn recordReference(self: *Lowerer, symbol: core.SymbolId) !void {
-        const index = self.linked.get(symbol) orelse return;
-        for (self.references.items) |existing| {
-            if (existing == index) return;
-        }
-        try self.references.append(self.builder.allocator, index);
     }
 
     /// The grammar a kind or field `name` resolves against. A grammar-generic
@@ -267,10 +247,7 @@ pub const Lowerer = struct {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (try self.resolveGlobal(name, e.span)) |global| {
-                    try self.recordReference(global);
-                    return self.builder.symbol(global, e.span);
-                }
+                if (try self.resolveGlobal(name, e.span)) |global| return self.builder.symbol(global, e.span);
                 try self.sink.report(
                     .unresolved_name,
                     e.span,
@@ -604,7 +581,7 @@ pub const Lowerer = struct {
 
         const edges = try self.builder.slice([]const u32, bindings.len);
         for (resolved, edges) |binding, *edge| {
-            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = symbols };
+            var collector: core.free.Collector = .{ .gpa = self.builder.allocator, .locals = .{ .list = symbols } };
             defer collector.deinit();
             try collector.walk(binding.value);
 
@@ -679,12 +656,4 @@ pub const Lowerer = struct {
             },
         }
     }
-};
-
-/// One desugared source file: definitions and the references between them.
-///
-/// `edges` are module-local indices into `definitions`.
-pub const Module = struct {
-    definitions: []const core.Definition,
-    edges: []const []const u32,
 };
