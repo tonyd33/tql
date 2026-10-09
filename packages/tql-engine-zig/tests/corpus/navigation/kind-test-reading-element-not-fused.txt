@@ -1,0 +1,25 @@
+title: a kind test that reads the element it tests is not fused into the axis
+grammar: typescript
+asserts: simplified, values
+
+The kind tested comes from `n` itself, so it is not known before `n` is
+bound and the axis stays a plain walk.
+
+--- tql ---
+main root = do {
+  n <- descendants root;
+  if is_kind (kind n) n then return (text n) else [];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["class A {}", "class", "A", "{}", "{", "}"]
+
+--- simplified ---
+main = \root -> concat_map (
+  \n -> case %is_kind (%kind n) n of
+    False -> Nil
+    True -> Cons (%text n) Nil
+) (%descendants root)

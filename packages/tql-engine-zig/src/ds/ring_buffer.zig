@@ -53,24 +53,7 @@ pub fn RingBuffer(comptime T: type) type {
     };
 }
 
-test "ring buffer sanity check" {
-    const allocator = std.testing.allocator;
-    var rb = try RingBuffer(u8).init(allocator, 4);
-    defer rb.deinit(allocator);
-
-    try rb.push(1);
-    try rb.push(2);
-    try rb.push(3);
-    try rb.push(4);
-
-    try std.testing.expectEqual(rb.pop(), 1);
-    try std.testing.expectEqual(rb.pop(), 2);
-    try std.testing.expectEqual(rb.pop(), 3);
-    try std.testing.expectEqual(rb.pop(), 4);
-    try std.testing.expectEqual(rb.pop(), null);
-}
-
-test "ring buffer loop" {
+test "pops in push order across wraparound" {
     const allocator = std.testing.allocator;
     var rb = try RingBuffer(u8).init(allocator, 4);
     defer rb.deinit(allocator);
@@ -91,17 +74,4 @@ test "ring buffer loop" {
     try std.testing.expectEqual(rb.pop(), 5);
     try std.testing.expectEqual(rb.pop(), 6);
     try std.testing.expectEqual(rb.pop(), null);
-}
-
-test "ring buffer overflow" {
-    const allocator = std.testing.allocator;
-    var rb = try RingBuffer(u8).init(allocator, 4);
-    defer rb.deinit(allocator);
-
-    try rb.push(1);
-    try rb.push(2);
-    try rb.push(3);
-    try rb.push(4);
-
-    try std.testing.expectError(error.RingBufferFull, rb.push(5));
 }

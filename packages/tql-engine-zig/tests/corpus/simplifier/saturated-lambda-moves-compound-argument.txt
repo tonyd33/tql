@@ -1,0 +1,18 @@
+title: a saturated lambda moves a compound argument into its single use
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = pure ((\x y -> x + y) (2 * 3) 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- simplified ---
+main = pure (op[+] (op[*] 2 3) 1)
+
+--- core ---
+main = pure ((\x -> \y -> op[+] x y) (op[*] 2 3) 1)

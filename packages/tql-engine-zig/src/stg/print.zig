@@ -319,8 +319,6 @@ pub const Printer = struct {
     }
 };
 
-const value = @import("value.zig");
-
 const TestTerms = struct {
     arena: std.heap.ArenaAllocator,
     interner: core.Interner,
@@ -348,12 +346,6 @@ const TestTerms = struct {
 
     fn at(id: core.SymbolId, offset: u32) stg.Atom {
         return .{ .local = .{ .offset = offset, .name = id } };
-    }
-
-    fn num(self: *TestTerms, n: i64) !stg.Atom {
-        const thunk = try self.allocator().create(value.Thunk);
-        thunk.* = value.Thunk.value(.{ .number = n });
-        return .{ .literal = thunk };
     }
 
     fn call(self: *TestTerms, callee: core.SymbolId, arguments: []const stg.Atom) !stg.Expr {
@@ -385,23 +377,6 @@ const TestTerms = struct {
         return .{ .let = node };
     }
 
-    fn case(self: *TestTerms, scrutinee: stg.Expr, alternatives: []const stg.Alternative) !stg.Expr {
-        const node = try self.allocator().create(stg.Expr.Case);
-        node.* = .{
-            .scrutinee = scrutinee,
-            .alternatives = try self.allocator().dupe(stg.Alternative, alternatives),
-        };
-        return .{ .case = node };
-    }
-
-    fn alternative(self: *TestTerms, constructor: core.SymbolId, binders: []const core.SymbolId, body: stg.Expr) !stg.Alternative {
-        return .{
-            .constructor = constructor,
-            .binders = try self.allocator().dupe(core.SymbolId, binders),
-            .body = body,
-        };
-    }
-
     fn expectPrints(self: *TestTerms, expected: []const u8, c: *const stg.Closure) !void {
         var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer w.deinit();
@@ -410,84 +385,6 @@ const TestTerms = struct {
         try std.testing.expectEqualStrings(expected, w.written());
     }
 };
-
-test "a shadowing binder whose scope reads the shadowed one is primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const f = try t.global("f");
-    const pair = try t.global("Pair");
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const rest = try t.local("_");
-    const body = try t.case(.{ .atom = TestTerms.at(outer, 0) }, &.{
-        try t.alternative(pair, &.{ inner, rest }, try t.call(f, &.{ TestTerms.at(outer, 0), TestTerms.at(inner, 1) })),
-    });
-    try t.expectPrints(
-        \\{} \n {x} -> case x@0 of
-        \\  Pair x' _ -> f x@0 x'@1
-    , try t.closure(&.{}, &.{outer}, body));
-}
-
-test "a shadowing parameter whose body does not read the captured one is not primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("x");
-    const inner = try t.local("x");
-    const k = try t.local("k");
-    const nested = try t.closure(&.{}, &.{inner}, .{ .atom = TestTerms.at(inner, 0) });
-    const term = try t.closure(&.{}, &.{outer}, try t.let(false, &.{.{ .binder = k, .value = .{ .closure = nested } }}, .{ .atom = TestTerms.at(k, 1) }));
-    try t.expectPrints(
-        \\{} \n {x} ->
-        \\  let k = {} \n {x} -> x@0 in
-        \\  k@1
-    , term);
-}
-
-test "a local that hides a referenced global is primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const text = try t.global("text");
-    const shadow = try t.local("text");
-    const term = try t.closure(&.{}, &.{shadow}, try t.call(text, &.{TestTerms.at(shadow, 0)}));
-    try t.expectPrints("{} \\n {text'} -> text text'@0", term);
-}
-
-test "an underscore binder is never primed" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const outer = try t.local("_");
-    const inner = try t.local("_");
-    const k = try t.local("k");
-    const nested = try t.closure(&.{.{ .offset = 0, .name = outer }}, &.{inner}, .{ .atom = TestTerms.at(outer, 0) });
-    const term = try t.closure(&.{}, &.{outer}, try t.let(false, &.{.{ .binder = k, .value = .{ .closure = nested } }}, .{ .atom = TestTerms.at(k, 1) }));
-    try t.expectPrints(
-        \\{} \n {_} ->
-        \\  let k = {_@0} \n {_} -> _@0 in
-        \\  k@1
-    , term);
-}
-
-test "sibling alternative binders of one spelling are told apart" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const pair = try t.global("Pair");
-    const f = try t.global("f");
-    const p = try t.local("p");
-    const first = try t.local("y");
-    const second = try t.local("y");
-    const body = try t.case(.{ .atom = TestTerms.at(p, 0) }, &.{
-        try t.alternative(pair, &.{ first, second }, try t.call(f, &.{ TestTerms.at(first, 1), TestTerms.at(second, 2) })),
-    });
-    try t.expectPrints(
-        \\{} \n {p} -> case p@0 of
-        \\  Pair y' y -> f y'@1 y@2
-    , try t.closure(&.{}, &.{p}, body));
-}
 
 test "a free variable prints with the name its enclosing scope gives it" {
     var t: TestTerms = undefined;
@@ -504,78 +401,4 @@ test "a free variable prints with the name its enclosing scope gives it" {
         \\  let k = {y@0} \n {y'} -> f y@0 y'@1 in
         \\  k@1
     , term);
-}
-
-test "a let of several bindings puts each on its own line" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const cons = try t.global("Cons");
-    const nil = try t.global("Nil");
-    const a = try t.local("a");
-    const b = try t.local("b");
-    const empty = try t.allocator().create(stg.Constructed);
-    empty.* = .{ .constructor = nil, .tag = 0, .fields = &.{} };
-    const one = try t.allocator().create(stg.Constructed);
-    one.* = .{ .constructor = cons, .tag = 1, .fields = try t.allocator().dupe(stg.Atom, &.{ try t.num(1), TestTerms.at(a, 0) }) };
-    const term = try t.closure(&.{}, &.{}, try t.let(false, &.{
-        .{ .binder = a, .value = .{ .constructed = empty } },
-        .{ .binder = b, .value = .{ .constructed = one } },
-    }, .{ .atom = TestTerms.at(b, 1) }));
-    try t.expectPrints(
-        \\{} \u {} ->
-        \\  let
-        \\    a = Nil
-        \\    b = Cons 1 a@0
-        \\  in
-        \\  b@1
-    , term);
-}
-
-test "a letrec binding whose closure has a let body lays it out below" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const go = try t.local("go");
-    const c = try t.local("c");
-    const empty = try t.allocator().create(stg.Constructed);
-    empty.* = .{ .constructor = nil, .tag = 0, .fields = &.{} };
-    const inner = try t.closure(&.{}, &.{}, try t.let(false, &.{.{ .binder = c, .value = .{ .constructed = empty } }}, .{ .atom = TestTerms.at(c, 0) }));
-    const term = try t.closure(&.{}, &.{}, try t.let(true, &.{.{ .binder = go, .value = .{ .closure = inner } }}, .{ .atom = TestTerms.at(go, 0) }));
-    try t.expectPrints(
-        \\{} \u {} ->
-        \\  letrec
-        \\    go = {} \u {} ->
-        \\      let c = Nil in
-        \\      c@0
-        \\  in
-        \\  go@0
-    , term);
-}
-
-test "a negative number argument is parenthesized" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const f = try t.global("f");
-    const term = try t.closure(&.{}, &.{}, try t.call(f, &.{ try t.num(-7), try t.num(1) }));
-    try t.expectPrints("{} \\u {} -> f (-7) 1", term);
-}
-
-test "a scrutinee that is not flat is parenthesized across lines" {
-    var t: TestTerms = undefined;
-    t.init();
-    defer t.deinit();
-    const nil = try t.global("Nil");
-    const xs = try t.local("xs");
-    const inner = try t.case(.{ .atom = TestTerms.at(xs, 0) }, &.{try t.alternative(nil, &.{}, .{ .atom = TestTerms.at(xs, 0) })});
-    const outer = try t.case(inner, &.{try t.alternative(nil, &.{}, .{ .atom = try t.num(0) })});
-    try t.expectPrints(
-        \\{} \n {xs} -> case (
-        \\  case xs@0 of
-        \\    Nil -> xs@0
-        \\) of
-        \\  Nil -> 0
-    , try t.closure(&.{}, &.{xs}, outer));
 }

@@ -1,0 +1,26 @@
+title: each out-of-range integer literal is reported where it appears
+grammar: typescript
+asserts: error
+
+--- tql ---
+main p = \x y -> case x of { C a b -> 99999999999999999999999 };
+other = let { f q = 99999999999999999999999 } in \z -> 99999999999999999999999;
+
+--- error ---
+error[parse]: integer literal out of range
+ --> 1:39
+  |
+1 | main p = \x y -> case x of { C a b -> 99999999999999999999999 };
+  |                                       ^^^^^^^^^^^^^^^^^^^^^^^
+
+error[parse]: integer literal out of range
+ --> 2:21
+  |
+2 | other = let { f q = 99999999999999999999999 } in \z -> 99999999999999999999999;
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error[parse]: integer literal out of range
+ --> 2:56
+  |
+2 | other = let { f q = 99999999999999999999999 } in \z -> 99999999999999999999999;
+  |                                                        ^^^^^^^^^^^^^^^^^^^^^^^

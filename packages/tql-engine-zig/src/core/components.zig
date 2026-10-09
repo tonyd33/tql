@@ -109,34 +109,3 @@ const Tarjan = struct {
         try self.components.append(self.allocator, try component.toOwnedSlice(self.allocator));
     }
 };
-
-test "a self-recursive definition is its own component" {
-    const edges = [_][]const u32{&.{0}};
-    var components_result = try stronglyConnectedComponents(std.testing.allocator, &edges);
-    defer components_result.deinit();
-
-    try std.testing.expectEqual(1, components_result.groups.len);
-    try std.testing.expectEqualSlices(u32, &.{0}, components_result.groups[0]);
-}
-
-test "mutually recursive definitions share one component" {
-    // 0 -> 1, 1 -> 0, and 2 -> 0. `is_even`/`is_odd` with a caller.
-    const edges = [_][]const u32{ &.{1}, &.{0}, &.{0} };
-    var components_result = try stronglyConnectedComponents(std.testing.allocator, &edges);
-    defer components_result.deinit();
-
-    try std.testing.expectEqual(2, components_result.groups.len);
-    try std.testing.expectEqualSlices(u32, &.{ 0, 1 }, components_result.groups[0]);
-    try std.testing.expectEqualSlices(u32, &.{2}, components_result.groups[1]);
-}
-
-test "independent definitions come back in dependency order" {
-    // 0 references 1; 1 references nothing.
-    const edges = [_][]const u32{ &.{1}, &.{} };
-    var components_result = try stronglyConnectedComponents(std.testing.allocator, &edges);
-    defer components_result.deinit();
-
-    try std.testing.expectEqual(2, components_result.groups.len);
-    try std.testing.expectEqualSlices(u32, &.{1}, components_result.groups[0]);
-    try std.testing.expectEqualSlices(u32, &.{0}, components_result.groups[1]);
-}

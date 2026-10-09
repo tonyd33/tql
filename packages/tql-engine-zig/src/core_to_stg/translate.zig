@@ -465,14 +465,13 @@ pub const Translator = struct {
     }
 
     /// Wrap a primitive in a closure that applies it, so it can be passed as a
-    /// value.
+    /// value. A primitive of no arguments becomes a thunk.
     fn primitiveWrapper(
         self: *Translator,
         name: core.SymbolId,
         operation: core.Operation,
     ) Error!*const stg.Closure {
         const arity = try self.primitiveArity(name);
-        if (arity == 0) return error.Unsupported;
 
         const parameters = try self.arena.alloc(core.SymbolId, arity);
         const arguments = try self.arena.alloc(stg.Atom, arity);

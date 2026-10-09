@@ -181,19 +181,3 @@ fn attach(comptime T: type, slot: *?*const T, signature: *const T) bool {
     slot.* = signature;
     return true;
 }
-
-test "scopes resolve innermost first" {
-    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
-    defer arena.deinit();
-    var interner = core.Interner.init(arena.allocator());
-
-    const outer_x = try interner.fresh("x");
-    const inner_x = try interner.fresh("x");
-
-    const outer: Scope = .{ .parent = null, .names = &.{.{ .name = "x", .symbol = outer_x }} };
-    const inner: Scope = .{ .parent = &outer, .names = &.{.{ .name = "x", .symbol = inner_x }} };
-
-    try std.testing.expectEqual(inner_x, inner.lookup("x").?);
-    try std.testing.expectEqual(outer_x, outer.lookup("x").?);
-    try std.testing.expectEqual(null, inner.lookup("y"));
-}

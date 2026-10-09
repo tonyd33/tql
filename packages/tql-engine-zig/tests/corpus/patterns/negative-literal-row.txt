@@ -1,0 +1,20 @@
+title: a negative literal pattern matches only its value
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+sign x = case x of { -3 -> "minus three"; _ -> "other" };
+
+main = const [sign (-3), sign 3];
+
+--- source ---
+class A {}
+
+--- values ---
+["minus three", "other"]
+
+--- core ---
+sign = \x -> case eq x (-3) of
+  False -> "other"
+  True -> "minus three"
+main = const (Cons (sign (-3)) (Cons (sign 3) Nil))

@@ -1,0 +1,18 @@
+title: length needs no constraint on the element type
+grammar: typescript
+asserts: types, values
+
+The second list holds functions, which have no class instances. The empty list
+leaves its element type unsolved, and that is not ambiguous.
+
+--- tql ---
+main = const [length [], length [kind_name, text]];
+
+--- source ---
+class A {}
+
+--- values ---
+[0, 2]
+
+--- types ---
+main :: Node -> [Int]

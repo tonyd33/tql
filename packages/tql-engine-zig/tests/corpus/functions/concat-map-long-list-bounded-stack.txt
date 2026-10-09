@@ -1,0 +1,18 @@
+title: a filter chain over a long list runs in bounded stack
+grammar: typescript
+asserts: values
+
+`concat_map` runs a filter that keeps nothing over 3000 elements, so reaching
+the end walks a chain of appends to an empty list. Each step is a tail call.
+
+--- tql ---
+count n = if n <= 0 then Nil else Cons n (count (n - 1));
+keep_none :: Int -> [Int];
+keep_none x = Nil;
+main root = concat_map keep_none (count 3000);
+
+--- source ---
+class A {}
+
+--- values ---
+[]

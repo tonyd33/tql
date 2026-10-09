@@ -194,44 +194,27 @@ pub const Thunk = struct {
     }
 };
 
-test "a fresh thunk is unevaluated and enters once" {
-    var t: Thunk = .{ .state = .{ .unevaluated = .{ .code = undefined, .captured = &.{} } } };
-    try std.testing.expect(t.enter());
-    try std.testing.expectEqual(State.evaluating, t.state);
-}
+test "a thunk is run once and read thereafter" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
 
-test "re-entering an evaluating thunk is refused" {
-    var t: Thunk = .{ .state = .evaluating };
-    try std.testing.expect(!t.enter());
-}
+    var literal = Thunk.value(.{ .number = 7 });
+    const code: stg.Closure = .{ .free = &.{}, .parameters = &.{}, .body = .{ .atom = .{ .literal = &literal } } };
+    const program: stg.Program = .{
+        .definitions = &.{},
+        .entry = undefined,
+        .structural = undefined,
+        .spellings = .empty,
+        .nil = undefined,
+        .arena = &arena,
+    };
+    var machine = try @import("eval.zig").Machine.init(arena.allocator(), std.testing.allocator, &program);
+    defer machine.deinit();
 
-test "filling memoizes the result" {
-    var t: Thunk = .{ .state = .{ .unevaluated = .{ .code = undefined, .captured = &.{} } } };
-    _ = t.enter();
-    t.fill(.{ .number = 7 });
-    try std.testing.expectEqual(@as(i64, 7), t.state.evaluated.number);
-    try std.testing.expect(t.enter());
-}
-
-test "a thunk is entered once and read thereafter" {
-    // An evaluator that re-evaluates returns the same answers, so counting
-    // entries is the only thing that catches a missing memoization.
-    var t: Thunk = .{ .state = .{ .unevaluated = .{ .code = undefined, .captured = &.{} } } };
-
-    var entries: u32 = 0;
-    if (t.enter()) {
-        entries += 1;
-        t.fill(.{ .number = 1 });
-    }
-    // A forced thunk is `evaluated`, so a second force reads it rather than
-    // entering. `enter` would succeed here, which is why `force` checks the
-    // state before calling it.
+    var t: Thunk = .{ .state = .{ .unevaluated = .{ .code = &code, .captured = &.{} } } };
+    try std.testing.expectEqual(7, (try machine.force(&t)).number);
     try std.testing.expect(t.state == .evaluated);
-    try std.testing.expectEqual(1, entries);
-    try std.testing.expectEqual(@as(i64, 1), t.state.evaluated.number);
-}
 
-test "an evaluated thunk holds its value" {
-    const t = Thunk.value(.{ .string = "ab" });
-    try std.testing.expectEqualStrings("ab", t.state.evaluated.string);
+    literal = Thunk.value(.{ .number = 8 });
+    try std.testing.expectEqual(7, (try machine.force(&t)).number);
 }

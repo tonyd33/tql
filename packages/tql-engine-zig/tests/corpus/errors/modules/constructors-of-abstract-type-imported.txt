@@ -1,0 +1,19 @@
+title: importing the constructors of an abstract type is rejected
+grammar: typescript
+asserts: error
+
+--- module Shape ---
+module Shape (Shape, square);
+data Shape = Square Int;
+square n = Square n;
+
+--- tql ---
+import Shape (Shape(..));
+main root = [square 1];
+
+--- error ---
+error[unresolved-name]: `Shape` does not export the constructors of `Shape`
+ --> 1:15
+  |
+1 | import Shape (Shape(..));
+  |               ^^^^^^^^^

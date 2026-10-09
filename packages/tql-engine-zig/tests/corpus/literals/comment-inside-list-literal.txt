@@ -1,0 +1,13 @@
+title: a comment inside a list literal is skipped
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = const [1, -- two
+  2,];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2]

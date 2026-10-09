@@ -68,6 +68,7 @@
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 - `main`'s constraints are checked at the type it runs at: `main x = [x < x];` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
 - `=` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
+- The empty record `{}` can be used as a value: `main = const [{}];` gives `[{}]`. It failed with `Unsupported`.
 
 ## 0.3.1 (2026-10-03)
 

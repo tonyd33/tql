@@ -1,0 +1,20 @@
+title: a constraint a let binding puts on a captured variable stays with the enclosing function
+grammar: typescript
+asserts: types, values
+
+`is_x` compares its argument with the captured `x`. The `Eq` constraint is on
+`x`'s type, which `is_x` does not generalize, so `same_as` carries it.
+
+--- tql ---
+same_as x = let { is_x y = x = y; } in is_x;
+main = const [same_as 1 1, same_as 1 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- types ---
+same_as :: Eq a => a -> a -> Bool
+main :: Node -> [Bool]

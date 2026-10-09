@@ -1,0 +1,38 @@
+title: a class entails a superclass two links up
+grammar: typescript
+asserts: types, values
+
+`Twin a` gives `Same a`, which gives `Eq a`, so `f` compares with `=` under
+`Twin a` alone.
+
+--- tql ---
+class Eq a => Same a where {
+  same :: a -> a -> Bool;
+};
+
+class Same a => Twin a where {
+  twin :: a -> a;
+};
+
+instance Same Int where {
+  same x y = x = y;
+};
+
+instance Twin Int where {
+  twin x = x;
+};
+
+f :: Twin a => a -> Bool;
+f x = x = x;
+
+main root = [f 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+f :: Twin a => a -> Bool
+main :: Node -> [Bool]

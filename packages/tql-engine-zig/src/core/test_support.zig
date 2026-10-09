@@ -4,7 +4,6 @@ const std = @import("std");
 const core = @import("../core.zig");
 const datatypes = @import("datatypes.zig");
 const diagnostic = @import("../diagnostic.zig");
-const primitives = @import("../primitives.zig");
 const symbols = @import("symbols.zig");
 const types = @import("types.zig");
 
@@ -97,12 +96,6 @@ pub const ProgramBuilder = struct {
     pub fn global(self: *ProgramBuilder, spelling: []const u8) !core.SymbolId {
         return self.env.interner.lookup(.prelude, spelling) orelse
             try self.env.interner.intern(.prelude, spelling, .vanilla);
-    }
-
-    /// The `op[...]` symbol desugaring synthesizes for `scalar`, with its
-    /// scheme.
-    pub fn operator(self: *ProgramBuilder, scalar: core.Scalar) !core.SymbolId {
-        return try primitives.operatorSymbol(&self.env, scalar);
     }
 
     /// A fresh local binder.

@@ -1,0 +1,13 @@
+title: equality and ordering on long lists run in bounded stack
+grammar: typescript
+asserts: values
+
+--- tql ---
+count n = if n <= 0 then Nil else Cons n (count (n - 1));
+main = const [count 20000 = count 20000, count 20000 < count 20000];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]

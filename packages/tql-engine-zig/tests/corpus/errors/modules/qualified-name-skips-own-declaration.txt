@@ -1,0 +1,21 @@
+title: a qualified name does not fall back to the query's own declarations
+grammar: typescript
+asserts: error
+
+--- module Numbers ---
+module Numbers;
+
+double x = x * 2;
+
+--- tql ---
+import Numbers as N;
+
+f x = x;
+main root = [N.f 4];
+
+--- error ---
+error[unresolved-name]: `N.f` is not defined
+ --> 4:14
+  |
+4 | main root = [N.f 4];
+  |              ^^^

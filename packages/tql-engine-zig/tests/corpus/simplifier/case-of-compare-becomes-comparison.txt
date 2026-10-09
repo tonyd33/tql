@@ -1,0 +1,19 @@
+title: a case mapping a comparison's orderings to booleans becomes the comparison
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+at_most :: Int -> Int -> Bool;
+at_most x y = case compare x y of { LT -> true; EQ -> true; GT -> false };
+
+main = const [at_most 1 2, at_most 2 2, at_most 3 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, true, false]
+
+--- simplified ---
+at_most = \x -> \y -> op[<=] x y
+main = const (Cons (op[<=] 1 2) (Cons (op[<=] 2 2) (Cons (op[<=] 3 2) Nil)))

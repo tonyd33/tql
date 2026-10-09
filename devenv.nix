@@ -206,6 +206,7 @@ let
       wasmtime
       python3
       yq-go
+      bun
     ];
     query_languages = with pkgs; [
       semgrep

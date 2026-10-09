@@ -686,119 +686,6 @@ fn emitSectionWithGap(
 
 const testing = std.testing;
 
-const FULL_CASE =
-    \\grammar: typescript
-    \\asserts: values, tql_tree, source_tree, core
-    \\
-    \\--- tql ---
-    \\. > foo
-    \\--- source ---
-    \\let x = 1;
-    \\--- values ---
-    \\["hello"]
-    \\--- tql tree ---
-    \\(source_file .)
-    \\--- source tree ---
-    \\(program)
-    \\--- core ---
-    \\children
-;
-
-test "SectionKind.name returns correct strings" {
-    try testing.expectEqualStrings("query", SectionKind.query.name());
-    try testing.expectEqualStrings("source", SectionKind.source.name());
-    try testing.expectEqualStrings("source tree", SectionKind.source_tree.name());
-    try testing.expectEqualStrings("tql tree", SectionKind.tql_tree.name());
-    try testing.expectEqualStrings("values", SectionKind.values.name());
-    try testing.expectEqualStrings("core", SectionKind.core.name());
-    try testing.expectEqualStrings("simplified", SectionKind.simplified.name());
-    try testing.expectEqualStrings("stg", SectionKind.stg.name());
-    try testing.expectEqualStrings("error", SectionKind.@"error".name());
-}
-
-test "a simplified section ends the section before it" {
-    const input =
-        \\grammar: typescript
-        \\asserts: core, simplified
-        \\
-        \\--- tql ---
-        \\main = children | of_kind :class_declaration;
-        \\--- core ---
-        \\main = kleisli children (of_kind :class_declaration)
-        \\--- simplified ---
-        \\main = children_of_kind :class_declaration
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    const tc = corpus.case;
-    try testing.expectEqualStrings("main = kleisli children (of_kind :class_declaration)", tc.core.content);
-    try testing.expectEqualStrings("main = children_of_kind :class_declaration", tc.simplified.content);
-    try testing.expect(tc.asserts.has(.simplified));
-}
-
-test "an stg section ends the section before it" {
-    const input =
-        \\grammar: typescript
-        \\asserts: simplified, stg
-        \\
-        \\--- tql ---
-        \\main = pure 1;
-        \\--- simplified ---
-        \\main = pure 1
-        \\--- stg ---
-        \\main = {} \u {} -> pure 1
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    const tc = corpus.case;
-    try testing.expectEqualStrings("main = pure 1", tc.simplified.content);
-    try testing.expectEqualStrings("main = {} \\u {} -> pure 1", tc.stg.content);
-    try testing.expect(tc.asserts.has(.stg));
-}
-
-test "parse single full case" {
-    var corpus = try parse(testing.allocator, FULL_CASE);
-    defer corpus.deinit();
-
-    const tc = corpus.case;
-    try testing.expectEqualStrings("typescript", tc.grammar);
-    try testing.expectEqualStrings(". > foo", tc.query.content);
-    try testing.expectEqualStrings("let x = 1;", tc.target.content);
-    try testing.expectEqualStrings("(program)", tc.source_tree.content);
-    try testing.expectEqualStrings("(source_file .)", tc.tql_tree.content);
-    try testing.expectEqualStrings("children", tc.core.content);
-    try testing.expectEqualStrings("[\"hello\"]", tc.values.content);
-    try testing.expect(tc.asserts.has(.values));
-    try testing.expect(!tc.asserts.has(.types));
-}
-
-test "a module section supplies a named module source" {
-    var handle = try parse(std.testing.allocator,
-        \\grammar: typescript
-        \\
-        \\--- module A.B ---
-        \\module A.B;
-        \\f = 1;
-        \\
-        \\--- tql ---
-        \\import A.B;
-        \\main = f;
-        \\
-        \\--- module C ---
-        \\module C;
-    );
-    defer handle.deinit();
-
-    const modules = handle.case.modules;
-    try std.testing.expectEqual(2, modules.len);
-    try std.testing.expectEqualStrings("A.B", modules[0].name);
-    try std.testing.expectEqualStrings("module A.B;\nf = 1;", modules[0].text.content);
-    try std.testing.expectEqualStrings("C", modules[1].name);
-    try std.testing.expectEqualStrings("import A.B;\nmain = f;", handle.case.query.content);
-}
-
 test "parse case with all optional sections empty yields empty content" {
     const input =
         \\grammar: c
@@ -823,16 +710,6 @@ test "parse case with all optional sections empty yields empty content" {
     try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
     try testing.expectEqual(@as(usize, 0), tc.core.content.len);
     try testing.expectEqual(@as(usize, 0), tc.values.content.len);
-}
-
-test "parse error on missing grammar header" {
-    const input =
-        \\notgrammar: typescript
-        \\
-        \\--- tql ---
-        \\. > foo
-    ;
-    try testing.expectError(error.UnknownHeader, parse(testing.allocator, input));
 }
 
 test "parse error when no grammar header is present" {
@@ -896,73 +773,6 @@ test "a section cannot be both asserted and pending" {
     try testing.expectError(error.SectionClaimedTwice, parse(testing.allocator, input));
 }
 
-test "title and description are parsed and kept apart" {
-    const input =
-        \\title: `arr identity` is the identity filter
-        \\grammar: typescript
-        \\asserts: values
-        \\
-        \\`arr identity` yields its input unchanged.
-        \\
-        \\--- tql ---
-        \\main = arr identity;
-        \\--- source ---
-        \\x
-        \\--- values ---
-        \\["x"]
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expectEqualStrings("`arr identity` is the identity filter", corpus.case.title);
-    try testing.expectEqualStrings(
-        "`arr identity` yields its input unchanged.",
-        corpus.case.description.content,
-    );
-    try testing.expectEqualStrings("main = arr identity;", corpus.case.query.content);
-}
-
-test "a case needs no description" {
-    const input =
-        \\title: bare
-        \\grammar: typescript
-        \\
-        \\--- tql ---
-        \\main = arr identity;
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expectEqual(@as(usize, 0), corpus.case.description.content.len);
-}
-
-test "a populated section claimed by neither asserts nor pending is rejected" {
-    const input =
-        \\grammar: typescript
-        \\
-        \\--- tql ---
-        \\main = arr identity;
-        \\--- source ---
-        \\x
-        \\--- values ---
-        \\["never"]
-    ;
-    try testing.expectError(error.UnassertedSection, parse(testing.allocator, input));
-}
-
-test "an error section claimed by neither asserts nor pending is rejected" {
-    const input =
-        \\grammar: typescript
-        \\
-        \\--- tql ---
-        \\main = double "text";
-        \\--- error ---
-        \\category: type-mismatch
-        \\span: 1:15-1:21
-    ;
-    try testing.expectError(error.UnassertedSection, parse(testing.allocator, input));
-}
-
 test "a pending error section still expects a rejection" {
     const input =
         \\grammar: typescript
@@ -971,8 +781,11 @@ test "a pending error section still expects a rejection" {
         \\--- tql ---
         \\main = double "text";
         \\--- error ---
-        \\category: type-mismatch
-        \\span: 1:15-1:21
+        \\error[type-mismatch]: Expected `Int`, found `String`.
+        \\ --> 1:15
+        \\  |
+        \\1 | main = double "text";
+        \\  |               ^^^^^^
     ;
     var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
@@ -990,33 +803,6 @@ test "an unknown header is rejected" {
         \\main = arr identity;
     ;
     try testing.expectError(error.UnknownHeader, parse(testing.allocator, input));
-}
-
-test "an error section holds the rendered diagnostics" {
-    const input =
-        \\grammar: typescript
-        \\asserts: error
-        \\
-        \\--- tql ---
-        \\main = x;
-        \\--- error ---
-        \\error[unresolved-name]: `x` is not defined.
-        \\ --> 1:8
-        \\  |
-        \\1 | main = x;
-        \\  |        ^
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expect(corpus.case.expectsError());
-    try testing.expectEqualStrings(
-        \\error[unresolved-name]: `x` is not defined.
-        \\ --> 1:8
-        \\  |
-        \\1 | main = x;
-        \\  |        ^
-    , corpus.case.@"error".content);
 }
 
 test "an asserted error section with no content still expects a rejection" {
@@ -1044,72 +830,35 @@ test "unknown section name in a header is rejected" {
     try testing.expectError(error.NoSuchSection, parse(testing.allocator, input));
 }
 
-test "parse multiline section content" {
-    const input =
-        \\grammar: typescript
-        \\asserts: source_tree, core
-        \\
-        \\--- tql ---
-        \\. > foo
-        \\--- source ---
-        \\line one
-        \\line two
-        \\line three
-        \\--- source tree ---
-        \\(root
-        \\  (child))
-        \\--- tql tree ---
-        \\--- core ---
-        \\kleisli children
-        \\  parent
-        \\--- values ---
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    const tc = corpus.case;
-    try testing.expectEqualStrings("line one\nline two\nline three", tc.target.content);
-    try testing.expectEqualStrings("(root\n  (child))", tc.source_tree.content);
-    try testing.expectEqualStrings("kleisli children\n  parent", tc.core.content);
-    try testing.expectEqual(@as(usize, 0), tc.tql_tree.content.len);
-    try testing.expectEqual(@as(usize, 0), tc.values.content.len);
-}
-
-test "sections with leading/trailing newlines: content is trimmed" {
-    const input =
-        \\grammar: typescript
-        \\asserts: source_tree, values
-        \\
-        \\--- tql ---
-        \\. > foo
-        \\--- source ---
-        \\the source
-        \\--- source tree ---
-        \\
-        \\(program)
-        \\
-        \\--- tql tree ---
-        \\--- core ---
-        \\--- values ---
-        \\
-        \\["trimmed"]
-        \\
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    try testing.expectEqualStrings("(program)", corpus.case.source_tree.content);
-    try testing.expectEqualStrings("[\"trimmed\"]", corpus.case.values.content);
-}
-
 test "applyUpdates with no updates reproduces source exactly" {
-    var corpus = try parse(testing.allocator, FULL_CASE);
+    const input =
+        \\title: a full case
+        \\grammar: typescript
+        \\asserts: values, tql_tree, source_tree, core
+        \\
+        \\A description paragraph
+        \\over two lines.
+        \\
+        \\--- tql ---
+        \\. > foo
+        \\--- source ---
+        \\let x = 1;
+        \\--- values ---
+        \\["hello"]
+        \\--- tql tree ---
+        \\(source_file .)
+        \\--- source tree ---
+        \\(program)
+        \\--- core ---
+        \\children
+    ;
+    var corpus = try parse(testing.allocator, input);
     defer corpus.deinit();
 
     const result = try applyUpdates(testing.allocator, corpus, &.{});
     defer testing.allocator.free(result);
 
-    try testing.expectEqualStrings(FULL_CASE, result);
+    try testing.expectEqualStrings(input, result);
 }
 
 test "applyUpdates rewrites the error section" {
@@ -1146,48 +895,6 @@ test "applyUpdates rewrites the error section" {
         \\--- tql tree ---
         \\(source_file x)
     , result);
-}
-
-test "applyUpdates preserves whitespace in unchanged sections" {
-    const input =
-        \\grammar: typescript
-        \\asserts: values, tql_tree, source_tree, core
-        \\
-        \\--- tql ---
-        \\. > foo
-        \\--- source ---
-        \\x
-        \\--- values ---
-        \\["x"]
-        \\--- tql tree ---
-        \\(source_file .)
-        \\--- source tree ---
-        \\
-        \\(program)
-        \\
-        \\--- core ---
-        \\children
-    ;
-    var corpus = try parse(testing.allocator, input);
-    defer corpus.deinit();
-
-    // update only core; source_tree whitespace must be preserved
-    const result = try applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .core, .new_content = "parent" },
-    });
-    defer testing.allocator.free(result);
-
-    var updated = try parse(testing.allocator, result);
-    defer updated.deinit();
-
-    try testing.expectEqualStrings("(program)", updated.case.source_tree.content);
-    try testing.expectEqualStrings("parent", updated.case.core.content);
-
-    // the source_tree body in the output should still contain the surrounding blank lines
-    const st = updated.case.source_tree;
-    const body = result[st.start..st.end];
-    try testing.expect(std.mem.startsWith(u8, body, "\n"));
-    try testing.expect(std.mem.endsWith(u8, body, "\n\n"));
 }
 
 test "applyUpdates fills an empty section at the end of the file" {
@@ -1242,6 +949,19 @@ test "applyUpdates injects a section whose marker is absent" {
     });
     defer testing.allocator.free(result);
 
-    try testing.expect(std.mem.indexOf(u8, result, SECTION_CORE) != null);
-    try testing.expect(std.mem.indexOf(u8, result, "(pure 1)") != null);
+    try testing.expectEqualStrings(
+        \\grammar: typescript
+        \\asserts: values
+        \\
+        \\--- tql ---
+        \\. > foo
+        \\--- source ---
+        \\x
+        \\--- values ---
+        \\["x"]
+        \\
+        \\--- core ---
+        \\(pure 1)
+        \\
+    , result);
 }

@@ -1,0 +1,17 @@
+title: a recursive local binding is used at two types
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main =
+  let { len xs = case xs of { [] -> 0; h : t -> 1 + len t; }; }
+  in const [len [1], len ["a", "b"]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2]
+
+--- types ---
+main :: Node -> [Int]
