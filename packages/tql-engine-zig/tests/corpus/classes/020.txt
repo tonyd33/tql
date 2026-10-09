@@ -1,0 +1,15 @@
+title: a written `Eq` and `Ord` are what the operators call
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Name = Name String;
+instance Eq Name where { eq a b = true; };
+instance Ord Name where { compare a b = GT; };
+main = const [Name "a" = Name "b", Name "a" != Name "b", Name "a" < Name "b", Name "a" > Name "b"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,false,true]

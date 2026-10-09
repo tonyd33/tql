@@ -28,7 +28,7 @@ f = \xs ->
     Cons a cons1 -> case cons1 of
       Nil -> alternative
       Cons b cons1 -> case cons1 of
-        Nil -> case op[=] a b of
+        Nil -> case eq a b of
           False -> "two"
           True -> "pair"
         Cons _ _ -> alternative

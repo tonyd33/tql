@@ -1,0 +1,18 @@
+title: `Serial` takes no written instances
+grammar: typescript
+asserts: error
+
+The machine writes JSON itself, so an instance of `Serial` would have nothing
+to define.
+
+--- tql ---
+data Shape = Circle Int;
+instance Serial Shape where {};
+main = const [];
+
+--- error ---
+error[invalid-instance]: `Serial` is built in and takes no instances
+ --> 2:1
+  |
+2 | instance Serial Shape where {};
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

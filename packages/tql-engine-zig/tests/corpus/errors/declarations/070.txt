@@ -1,0 +1,16 @@
+title: an instance head may not be an alias
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: a -> String; };
+type Count = Int;
+instance Describe Count where { describe n = "count"; };
+main = const [];
+
+--- error ---
+error[invalid-instance]: an instance head must be a primitive or a declared type, not an alias
+ --> 3:19
+  |
+3 | instance Describe Count where { describe n = "count"; };
+  |                   ^^^^^

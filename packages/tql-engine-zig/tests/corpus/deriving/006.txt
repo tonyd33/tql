@@ -1,0 +1,14 @@
+title: mutually recursive types derive together
+grammar: typescript
+asserts: values
+
+--- tql ---
+data A = A B | Stop deriving (Eq);
+data B = B A deriving (Eq);
+main = const [A (B Stop) = A (B Stop), A (B Stop) = Stop];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]

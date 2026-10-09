@@ -17,5 +17,5 @@ is_one :: Int -> Bool
 main :: Node -> [Bool]
 
 --- core ---
-is_one = \x -> op[=] x 1
+is_one = \x -> eq x 1
 main = const (map is_one (Cons 1 (Cons 2 Nil)))

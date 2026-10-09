@@ -19,13 +19,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .kind => .{ .type = try B.func(types.node_type, types.kind_type) },
         .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
-        .length => .{
-            .quantified = 1,
-            .constraints = try B.arena.dupe(types.TypeClassConstraint, &.{
-                .{ .class = .Sized, .type = a },
-            }),
-            .type = try B.func(a, types.int_type),
-        },
+        .length => .{ .quantified = 1, .type = try B.func(a, types.int_type) },
         .toint => .{ .type = try B.filter(types.string_type, types.int_type) },
         .filename => .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
         .parent,
@@ -59,6 +53,12 @@ const Builder = struct {
     fn boolType(self: Builder) !types.Type {
         return try self.declared.boolType(self.arena);
     }
+
+    /// `a -> a -> result`.
+    fn comparison(self: Builder, result: types.Type) !types.Scheme {
+        const a = types.variable_type(0);
+        return .{ .quantified = 1, .type = try self.func(a, try self.func(a, result)) };
+    }
 };
 
 /// The scheme of a scalar operator, built against `arena` and `declared`.
@@ -66,12 +66,12 @@ pub fn operatorScheme(
     arena: Allocator,
     declared: *const datatypes.Registry,
     operator: Scalar,
-) !types.Scheme {
+) Allocator.Error!types.Scheme {
     const B = Builder{ .arena = arena, .declared = declared };
 
     return switch (operator) {
-        .eq, .ne => try comparisonScheme(B, .Eq),
-        .lt, .lte, .gt, .gte => try comparisonScheme(B, .Ord),
+        .eq, .ne, .lt, .lte, .gt, .gte => try B.comparison(try B.boolType()),
+        .compare => try B.comparison(try B.declared.orderingType(B.arena)),
         .match, .not_match => .{ .type = try B.func(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
@@ -145,18 +145,6 @@ fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Schem
     return .{ .quantified = 2, .type = try types.func(arena, subject, field) };
 }
 
-/// `class a => a -> a -> Bool`.
-fn comparisonScheme(B: Builder, class: types.TypeClassConstraint.Class) !types.Scheme {
-    const a = types.variable_type(0);
-    return .{
-        .quantified = 1,
-        .constraints = try B.arena.dupe(types.TypeClassConstraint, &.{
-            .{ .class = class, .type = a },
-        }),
-        .type = try B.func(a, try B.func(a, try B.boolType())),
-    };
-}
-
 /// Declares the built-in types, then interns the primitives with their
 /// schemes. Called once on a fresh environment, before any body is resolved,
 /// so a declaration colliding with a primitive's name fails on intern.
@@ -166,10 +154,89 @@ pub fn populate(target: *core.env.Env) !void {
     const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
     for (std.enums.values(PrimOp)) |primop| {
         const scheme = try schemeOf(B, primop);
-        const id = try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop });
+        const id = if (primop.named())
+            try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop })
+        else
+            try target.interner.generate(.prelude, @tagName(primop), .{ .primop = primop });
         try target.setScheme(id, scheme);
         target.primitives.set(primop, id);
     }
+}
+
+/// The synthesized symbol spelled `spelling`, interned as `what` with its
+/// scheme on first use.
+///
+/// Preconditions:
+/// - What `what` points to outlives `target`.
+pub fn synthesizedSymbol(target: *core.env.Env, spelling: []const u8, what: core.Synthesized) SchemeError!core.SymbolId {
+    const id = try target.interner.internOrGet(spelling, .{ .synthesized = what });
+    if (target.schemeOf(id) == null) {
+        try target.setScheme(id, try synthesizedScheme(target.allocator(), &target.datatypes, what));
+    }
+    return id;
+}
+
+/// The `op[...]` symbol of `scalar`, with its scheme.
+pub fn operatorSymbol(target: *core.env.Env, scalar: Scalar) Allocator.Error!core.SymbolId {
+    var buffer: [16]u8 = undefined;
+    const spelling = std.fmt.bufPrint(&buffer, "op[{s}]", .{scalar.spelling()}) catch unreachable;
+    return synthesizedSymbol(target, spelling, .{ .operator = scalar }) catch |err| switch (err) {
+        error.TooManyRecordFields => unreachable,
+        error.OutOfMemory => |e| return e,
+    };
+}
+
+/// `select[label]`, reading the record field `label`, with its scheme.
+pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
+    const spelling = try std.fmt.allocPrint(target.gpa, "select[{s}]", .{label});
+    defer target.gpa.free(spelling);
+    if (target.interner.lookup(null, spelling)) |id| return id;
+    const what: core.Synthesized = .{ .select = try target.allocator().dupe(u8, label) };
+    return synthesizedSymbol(target, spelling, what) catch |err| switch (err) {
+        error.TooManyRecordFields => unreachable,
+        error.OutOfMemory => |e| return e,
+    };
+}
+
+/// Declares the instances the machine implements at the primitive types, and
+/// `Sized` at lists.
+///
+/// Preconditions:
+/// - `populate` has run on `target`.
+pub fn declareInstances(target: *core.env.Env) !void {
+    const equal = try operatorSymbol(target, .eq);
+    const compare = try operatorSymbol(target, .compare);
+    const length = target.primitives.get(.length).?;
+
+    for ([_]types.Primitive{ .Int, .String, .Node, .Kind }) |p| {
+        try declareInstance(target, .eq, .{ .primitive = p }, &.{equal});
+        try declareInstance(target, .serial, .{ .primitive = p }, &.{});
+    }
+    for ([_]types.Primitive{ .Int, .String }) |p| try declareInstance(target, .ord, .{ .primitive = p }, &.{compare});
+    try declareInstance(target, .sized, .{ .primitive = .String }, &.{length});
+    try declareInstance(target, .sized, .{ .datatype = target.datatypes.listId() }, &.{length});
+}
+
+/// An instance at `head` with no context, `methods` in class order.
+fn declareInstance(
+    target: *core.env.Env,
+    class: core.classes.ClassId,
+    head: core.classes.Head,
+    methods: []const core.SymbolId,
+) !void {
+    const arena = target.allocator();
+    _ = (try target.declareInstance(.{
+        .class = class,
+        .head = head,
+        .type = switch (head) {
+            .primitive => |p| .{ .primitive = p },
+            .datatype => |id| try target.datatypes.applied(arena, id),
+        },
+        .context = &.{},
+        .methods = try arena.dupe(core.SymbolId, methods),
+        .dictionary = undefined,
+        .module = .prelude,
+    })).added;
 }
 
 /// An environment with the primitives already in it.
@@ -184,11 +251,11 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",             "kind",                "kind_name",         "is_named",
-        "is_extra",         "range",               "length",            "toint",
-        "filename",         "parent",              "ancestors",         "children",
-        "named_children",   "descendants",         "named_descendants", "of_kind",
-        "children_of_kind", "descendants_of_kind", "is_kind",
+        "text",                "kind",              "kind_name", "is_named",
+        "is_extra",            "range",             "toint",     "filename",
+        "parent",              "ancestors",         "children",  "named_children",
+        "descendants",         "named_descendants", "of_kind",   "children_of_kind",
+        "descendants_of_kind", "is_kind",
     };
 
     var target = try fixture(std.testing.allocator);
@@ -231,9 +298,9 @@ test "operator schemes take scalars, not filters" {
     defer target.deinit();
     const arena = target.allocator();
 
-    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{try operatorScheme(arena, &target.datatypes, .eq)});
+    try std.testing.expectFmt("a -> a -> Bool", "{f}", .{(try operatorScheme(arena, &target.datatypes, .eq)).named(&target.classes)});
 
-    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{try operatorScheme(arena, &target.datatypes, .add)});
+    try std.testing.expectFmt("Int -> Int -> Int", "{f}", .{(try operatorScheme(arena, &target.datatypes, .add)).named(&target.classes)});
 
     // Every operator has one, so a new member fails here rather than at
     // evaluation.

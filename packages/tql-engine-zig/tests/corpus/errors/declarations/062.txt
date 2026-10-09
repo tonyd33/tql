@@ -1,0 +1,14 @@
+title: a class that is its own superclass
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a => Describe a where { describe :: a -> String; };
+main = const [];
+
+--- error ---
+error[invalid-class]: `Describe` is its own superclass
+ --> 1:1
+  |
+1 | class Describe a => Describe a where { describe :: a -> String; };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

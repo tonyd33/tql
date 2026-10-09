@@ -1,0 +1,25 @@
+title: a method constrains a variable of its own
+grammar: typescript
+asserts: types
+
+--- tql ---
+class Container a where {
+  holds :: Eq b => a -> b -> Bool;
+};
+
+data Pair = Pair Int Int;
+
+instance Container Pair where {
+  holds p x = false;
+};
+
+check p = holds p "x";
+
+main root = [check (Pair 1 2)];
+
+--- source ---
+class A {}
+
+--- types ---
+check :: Container a => a -> Bool
+main :: Node -> [Bool]

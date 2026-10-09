@@ -10,8 +10,8 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-/// An environment holding `List` and `Bool` with their constructors, and
-/// nothing else. The caller owns it.
+/// An environment holding `List`, `Bool` and `Ordering` with their
+/// constructors, and nothing else. The caller owns it.
 pub fn env(gpa: Allocator) !core.env.Env {
     var e = try core.env.Env.init(gpa);
     errdefer e.deinit();
@@ -19,8 +19,8 @@ pub fn env(gpa: Allocator) !core.env.Env {
     return e;
 }
 
-/// Reserves the built-in types and fills in the constructors of `List` and
-/// `Bool` in the shape `prelude.tql` declares them.
+/// Reserves the built-in types and fills in the constructors of `List`,
+/// `Bool` and `Ordering` in the shape `prelude.tql` declares them.
 pub fn declareStructural(e: *core.env.Env) !void {
     const registry = &e.datatypes;
     const interner = &e.interner;
@@ -44,6 +44,12 @@ pub fn declareStructural(e: *core.env.Env) !void {
         .{ .symbol = try interner.intern(.prelude, "False", .vanilla), .tag = 0, .fields = &.{} },
         .{ .symbol = try interner.intern(.prelude, "True", .vanilla), .tag = 1, .fields = &.{} },
     }));
+
+    try e.setConstructors(registry.orderingId(), try arena.dupe(datatypes.Constructor, &.{
+        .{ .symbol = try interner.intern(.prelude, "LT", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prelude, "EQ", .vanilla), .tag = 1, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prelude, "GT", .vanilla), .tag = 2, .fields = &.{} },
+    }));
 }
 
 /// A constructor's spelling and its field types.
@@ -65,7 +71,7 @@ pub fn declareDatatype(
             .fields = try arena.dupe(types.Type, c[1]),
         };
     }
-    const id = try e.datatypes.declare(&e.interner, module, try arena.dupe(u8, name), 0, &.{}, .{});
+    const id = try e.datatypes.declare(&e.interner, module, try arena.dupe(u8, name), 0, &.{});
     try e.setConstructors(id, declared);
 }
 
@@ -96,11 +102,7 @@ pub const ProgramBuilder = struct {
     /// The `op[...]` symbol desugaring synthesizes for `scalar`, with its
     /// scheme.
     pub fn operator(self: *ProgramBuilder, scalar: core.Scalar) !core.SymbolId {
-        var buf: [8]u8 = undefined;
-        const spelling = try std.fmt.bufPrint(&buf, "op[{s}]", .{scalar.spelling()});
-        const id = try self.env.interner.internOrGet(spelling, .{ .synthesized = .{ .operator = scalar } });
-        try self.env.setScheme(id, try primitives.operatorScheme(self.env.allocator(), &self.env.datatypes, scalar));
-        return id;
+        return try primitives.operatorSymbol(&self.env, scalar);
     }
 
     /// A fresh local binder.
@@ -185,6 +187,7 @@ pub const ProgramBuilder = struct {
             .components = components,
             .entry = entry,
             .entry_offset = 0,
+            .entry_end = @intCast(self.definitions.items.len),
         };
     }
 };

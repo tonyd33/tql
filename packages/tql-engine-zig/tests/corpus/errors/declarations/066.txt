@@ -1,0 +1,18 @@
+title: an instance defining something the class does not declare
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: a -> String; };
+instance Describe Int where {
+  describe n = "int";
+  label n = "label";
+};
+main = const [];
+
+--- error ---
+error[invalid-instance]: `label` is not a method of `Describe`
+ --> 4:3
+  |
+4 |   label n = "label";
+  |   ^^^^^^^^^^^^^^^^^^

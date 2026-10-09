@@ -17,6 +17,10 @@
   "as"
   "pattern"
   "of_shape"
+  "class"
+  "instance"
+  "where"
+  "deriving"
 ] @keyword
 
 (module_name) @module

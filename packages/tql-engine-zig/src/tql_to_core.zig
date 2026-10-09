@@ -16,6 +16,7 @@ test {
     std.testing.refAllDecls(@import("tql_to_core/resolve.zig"));
     std.testing.refAllDecls(@import("tql_to_core/scope.zig"));
     std.testing.refAllDecls(annotation);
+    std.testing.refAllDecls(@import("tql_to_core/classes.zig"));
 }
 
 const std = @import("std");
@@ -61,6 +62,7 @@ const Fixture = struct {
             .exports = &.{.all},
             .interner = &self.env.interner,
             .datatypes = &self.env.datatypes,
+            .classes = &self.env.classes,
         };
     }
 
@@ -94,7 +96,7 @@ const Fixture = struct {
             &self.sink,
         );
 
-        try testing.expectFmt(expected, "{f}", .{scheme});
+        try testing.expectFmt(expected, "{f}", .{scheme.named(&self.env.classes)});
     }
 };
 

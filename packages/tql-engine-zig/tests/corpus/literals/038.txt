@@ -14,4 +14,4 @@ const x = { "compilerOptions": 1, "other": 2 };
 ["\"compilerOptions\""]
 
 --- core ---
-main = kleisli (kleisli (descendants_of_kind :string) (keep (\s -> op[=] (text s) "\"compilerOptions\""))) (arr text)
+main = kleisli (kleisli (descendants_of_kind :string) (keep (\s -> eq (text s) "\"compilerOptions\""))) (arr text)

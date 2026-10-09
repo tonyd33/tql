@@ -1,0 +1,22 @@
+title: a class imported without its methods
+grammar: typescript
+asserts: error
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+instance Describe Int where { describe n = "int"; };
+
+--- tql ---
+import Classes (Describe);
+
+main root = [describe 1];
+
+--- error ---
+error[unresolved-name]: `describe` is not defined
+ --> 3:14
+  |
+3 | main root = [describe 1];
+  |              ^^^^^^^^

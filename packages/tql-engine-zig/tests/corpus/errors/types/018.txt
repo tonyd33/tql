@@ -1,15 +1,16 @@
-title: `Ord` on a bool
+title: `Ord` on a type that derives only `Eq`
 grammar: typescript
 asserts: error
 
-Only `int` and `string` have `Ord`.
+`T` derives `Eq`, so `=` on it type-checks, but nothing gives it `Ord`.
 
 --- tql ---
-main = true < false;
+data T = T deriving (Eq);
+main = const [T = T, T < T];
 
 --- error ---
-error[unsatisfied-constraint]: `Ord Bool` is not satisfied.
- --> 1:8
+error[unsatisfied-constraint]: `Ord T` is not satisfied.
+ --> 2:22
   |
-1 | main = true < false;
-  |        ^^^^^^^^^^^^
+2 | main = const [T = T, T < T];
+  |                      ^^^^^

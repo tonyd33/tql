@@ -1743,6 +1743,52 @@
     }
   },
   {
+    "type": "class_declaration",
+    "named": true,
+    "fields": {
+      "context": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "context",
+            "named": true
+          }
+        ]
+      },
+      "method": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "signature",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "parameter": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_variable",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "comparison",
     "named": true,
     "fields": {
@@ -3119,6 +3165,16 @@
           }
         ]
       },
+      "deriving": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "deriving",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -3315,6 +3371,22 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "deriving",
+    "named": true,
+    "fields": {
+      "class": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -5046,6 +5118,72 @@
           },
           {
             "type": "union",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "instance_declaration",
+    "named": true,
+    "fields": {
+      "class": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "context": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "context",
+            "named": true
+          }
+        ]
+      },
+      "method": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "definition",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "list_type",
+            "named": true
+          },
+          {
+            "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "record_type",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_variable",
             "named": true
           }
         ]
@@ -8717,11 +8855,19 @@
       "required": false,
       "types": [
         {
+          "type": "class_declaration",
+          "named": true
+        },
+        {
           "type": "data_declaration",
           "named": true
         },
         {
           "type": "definition",
+          "named": true
+        },
+        {
+          "type": "instance_declaration",
           "named": true
         },
         {
@@ -9860,12 +10006,20 @@
     "named": false
   },
   {
+    "type": "class",
+    "named": false
+  },
+  {
     "type": "comment",
     "named": true,
     "extra": true
   },
   {
     "type": "data",
+    "named": false
+  },
+  {
+    "type": "deriving",
     "named": false
   },
   {
@@ -9906,6 +10060,10 @@
   },
   {
     "type": "in",
+    "named": false
+  },
+  {
+    "type": "instance",
     "named": false
   },
   {
@@ -9979,6 +10137,10 @@
   {
     "type": "type_variable",
     "named": true
+  },
+  {
+    "type": "where",
+    "named": false
   },
   {
     "type": "{",

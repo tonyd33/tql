@@ -1,0 +1,42 @@
+title: an instance's superclass dictionary is built from its context
+grammar: typescript
+asserts: values
+
+`Describe [a]` needs `Labelled [a]`, whose context `Labelled a` the
+superclass of `Describe a` provides.
+
+--- tql ---
+class Labelled a where {
+  label :: a -> String;
+};
+
+class Labelled a => Describe a where {
+  describe :: a -> [String];
+};
+
+instance Labelled Int where {
+  label n = "int";
+};
+
+instance Describe Int where {
+  describe n = [label n];
+};
+
+instance Labelled a => Labelled [a] where {
+  label xs = "list";
+};
+
+instance Describe a => Describe [a] where {
+  describe xs = case xs of { [] -> [label xs]; x : rest -> append (describe x) (describe rest) };
+};
+
+labels :: Describe a => a -> [String];
+labels x = append [label x] (describe x);
+
+main root = labels [1, 2];
+
+--- source ---
+class A {}
+
+--- values ---
+["list", "int", "int", "list"]

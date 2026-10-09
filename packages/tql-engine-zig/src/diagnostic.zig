@@ -137,6 +137,12 @@ pub const Category = enum {
     signature_mismatch,
     cyclic_alias,
     cyclic_synonym,
+    invalid_class,
+    invalid_instance,
+    orphan_instance,
+    duplicate_instance,
+    invalid_deriving,
+    ambiguous_constraint,
     limit,
 
     pub fn name(self: Category) []const u8 {
@@ -169,6 +175,12 @@ pub const Category = enum {
             .signature_mismatch => "signature-mismatch",
             .cyclic_alias => "cyclic-alias",
             .cyclic_synonym => "cyclic-synonym",
+            .invalid_class => "invalid-class",
+            .invalid_instance => "invalid-instance",
+            .orphan_instance => "orphan-instance",
+            .duplicate_instance => "duplicate-instance",
+            .invalid_deriving => "invalid-deriving",
+            .ambiguous_constraint => "ambiguous-constraint",
             .limit => "limit",
         };
     }

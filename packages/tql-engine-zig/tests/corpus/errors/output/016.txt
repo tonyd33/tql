@@ -1,0 +1,16 @@
+title: a derived `Serial` needs its parameter's
+grammar: typescript
+asserts: error
+
+`Box a` encodes when `a` does, and a function does not.
+
+--- tql ---
+data Box a = Box a deriving (Serial);
+main = const [Box (\x -> x + 1)];
+
+--- error ---
+error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
+ --> 2:1
+  |
+2 | main = const [Box (\x -> x + 1)];
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

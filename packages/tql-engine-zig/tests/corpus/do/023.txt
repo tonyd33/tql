@@ -22,4 +22,4 @@ class A {
 main :: Node -> [String]
 
 --- core ---
-main = \root -> concat_map (\f -> concat_map (\t -> concat_map (\_ -> return (text f)) (guard (op[=] (text t) ": string"))) (field[type] f)) (descendants_of_kind :public_field_definition root)
+main = \root -> concat_map (\f -> concat_map (\t -> concat_map (\_ -> return (text f)) (guard (eq (text t) ": string"))) (field[type] f)) (descendants_of_kind :public_field_definition root)

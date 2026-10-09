@@ -1,0 +1,18 @@
+title: a derived instance compares a field through its type's written instance
+grammar: typescript
+asserts: values
+
+Every `Name` equals every other, so two people with different names and the
+same number are equal.
+
+--- tql ---
+data Name = Name String;
+instance Eq Name where { eq a b = true; };
+data Person = Person Name Int deriving (Eq);
+main = const [Person (Name "a") 1 = Person (Name "b") 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[true]

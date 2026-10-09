@@ -1,0 +1,32 @@
+title: an inferred function is polymorphic in a class
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+data Shape = Circle Int;
+
+instance Describe Int where {
+  describe n = "int";
+};
+
+instance Describe Shape where {
+  describe s = "shape";
+};
+
+both x y = [describe x, describe y];
+
+main root = both 1 (Circle 1);
+
+--- source ---
+class A {}
+
+--- values ---
+["int", "shape"]
+
+--- types ---
+both :: (Describe a, Describe b) => a -> b -> [String]
+main :: Node -> [String]

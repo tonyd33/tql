@@ -35,11 +35,12 @@ pub fn formatStg(
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
     const printer: tql.stg.Printer = .{ .interner = &program.env.interner };
-    try printer.definitions(translated.definitions[program.entry_offset..], &w.writer);
+    try printer.definitions(translated.definitions[program.entry_offset..program.entry_end], &w.writer);
     return w.toOwnedSlice();
 }
 
-/// `name :: scheme` per entry-module definition, in declaration order.
+/// `name :: scheme` per entry-module definition, in declaration order, less
+/// those generated for instances.
 ///
 /// Entry definitions only, like `formatCore`: the prelude's schemes are
 /// asserted in a `root.zig` test instead, so a prelude edit does not rewrite
@@ -51,14 +52,17 @@ pub fn formatTypes(
     var w: std.Io.Writer.Allocating = .init(allocator);
     errdefer w.deinit();
 
-    for (program.entryDefinitions(), 0..) |definition, i| {
-        if (i > 0) try w.writer.writeByte('\n');
+    var first = true;
+    var named = program.namedDefinitions();
+    while (named.next()) |definition| {
+        if (!first) try w.writer.writeByte('\n');
+        first = false;
         try w.writer.print("{s} :: ", .{program.env.interner.spelling(definition.symbol)});
         const scheme = program.env.schemeOf(definition.symbol) orelse {
             try w.writer.writeAll("<unchecked>");
             continue;
         };
-        try scheme.format(&w.writer);
+        try scheme.named(&program.env.classes).format(&w.writer);
     }
     return w.toOwnedSlice();
 }

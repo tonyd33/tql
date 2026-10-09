@@ -1,0 +1,16 @@
+title: `=` on a declared type that derives nothing
+grammar: typescript
+asserts: error
+
+A declared type has no `Eq` unless it derives or writes one.
+
+--- tql ---
+data Shape = Circle Int;
+main = const [Circle 1 = Circle 1];
+
+--- error ---
+error[unsatisfied-constraint]: `Eq Shape` is not satisfied.
+ --> 2:15
+  |
+2 | main = const [Circle 1 = Circle 1];
+  |               ^^^^^^^^^^^^^^^^^^^

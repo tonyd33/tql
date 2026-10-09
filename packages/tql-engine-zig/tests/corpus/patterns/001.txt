@@ -41,7 +41,7 @@ main = \root -> concat_map (
                   Nil -> Nil
                   Cons cons0' cons1''' ->
                     let view = text cons0' in
-                    case op[=] view "console" of
+                    case eq view "console" of
                       False -> Nil
                       True -> case cons1''' of
                         Nil ->
@@ -50,7 +50,7 @@ main = \root -> concat_map (
                             Nil -> Nil
                             Cons cons0 cons1''' ->
                               let view = text cons0 in
-                              case op[=] view "error" of
+                              case eq view "error" of
                                 False -> Nil
                                 True -> case cons1''' of
                                   Nil -> case cons1'' of

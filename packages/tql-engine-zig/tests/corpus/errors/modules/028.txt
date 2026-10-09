@@ -1,0 +1,28 @@
+title: an instance declared in neither its class's module nor its type's
+grammar: typescript
+asserts: error
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+--- module Shapes ---
+module Shapes (Shape(..));
+
+data Shape = Circle Int;
+
+--- tql ---
+import Classes;
+import Shapes;
+
+instance Describe Shape where { describe s = "shape"; };
+
+main = const [];
+
+--- error ---
+error[orphan-instance]: `Describe Shape` must be declared in `Classes`, which declares `Describe`, or in `Shapes`, which declares `Shape`
+ --> 4:1
+  |
+4 | instance Describe Shape where { describe s = "shape"; };
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

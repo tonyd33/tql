@@ -13,5 +13,5 @@ class A {}
 [true, false]
 
 --- core ---
-same = \x -> map (\x' -> op[=] x' x) (Cons 1 (Cons 2 Nil))
+same = \x -> map (\x' -> eq x' x) (Cons 1 (Cons 2 Nil))
 main = const (same 1)

@@ -1,0 +1,21 @@
+title: an instance's context is unsatisfied at a use
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe a => Describe [a] where {
+  describe xs = "list";
+};
+
+main root = [describe [1]];
+
+--- error ---
+error[unsatisfied-constraint]: `Describe Int` is not satisfied.
+ --> 9:14
+  |
+9 | main root = [describe [1]];
+  |              ^^^^^^^^

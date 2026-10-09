@@ -152,16 +152,27 @@ pub const Builtin = struct {
     tag: u32,
 };
 
-/// The constructors of `List` and `Bool`, which primitives build directly and
-/// serialization encodes specially.
+/// The constructors of `List`, `Bool` and `Ordering`, which primitives build
+/// directly and serialization encodes specially.
 pub const Structural = struct {
     nil: Builtin,
     cons: Builtin,
     false_: Builtin,
     true_: Builtin,
+    lt: Builtin,
+    eq: Builtin,
+    gt: Builtin,
 
     pub fn boolean(self: Structural, b: bool) Builtin {
         return if (b) self.true_ else self.false_;
+    }
+
+    pub fn ordering(self: Structural, order: std.math.Order) Builtin {
+        return switch (order) {
+            .lt => self.lt,
+            .eq => self.eq,
+            .gt => self.gt,
+        };
     }
 };
 
@@ -170,6 +181,9 @@ pub const Program = struct {
     definitions: []const Definition,
     entry: core.SymbolId,
     structural: Structural,
+    /// Each constructor's spelling, which a value of a declared type encodes
+    /// as its `tag`.
+    spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8),
     /// An evaluated `Nil`, shared the way a literal atom's thunk is.
     nil: *value.Thunk,
     arena: *std.heap.ArenaAllocator,

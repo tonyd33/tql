@@ -2,6 +2,7 @@
 //! been learned about it.
 
 const std = @import("std");
+const classes = @import("classes.zig");
 const datatypes = @import("datatypes.zig");
 const details = @import("details.zig");
 const diagnostic = @import("../diagnostic.zig");
@@ -20,6 +21,7 @@ pub const Env = struct {
     arena: *std.heap.ArenaAllocator,
     interner: symbols.Interner,
     datatypes: datatypes.Registry,
+    classes: classes.Registry,
     /// The scheme of every symbol that has one: a primitive's declared scheme,
     /// or a definition's inferred one.
     schemes: symbols.SymbolTable(types.Scheme),
@@ -40,7 +42,8 @@ pub const Env = struct {
         span: diagnostic.Span,
     };
 
-    /// Declares `Prelude` as `ModuleId.prelude`.
+    /// Declares `Prelude` as `ModuleId.prelude`, and reserves the classes the
+    /// engine names in it.
     pub fn init(gpa: Allocator) !Env {
         const arena = try gpa.create(std.heap.ArenaAllocator);
         errdefer gpa.destroy(arena);
@@ -50,11 +53,14 @@ pub const Env = struct {
         const scratch = arena.allocator();
         var interner = symbols.Interner.init(scratch);
         _ = try interner.declareModule(symbols.ModuleId.prelude_name);
+        var class_registry = classes.Registry.init(scratch);
+        try class_registry.reserveBuiltins();
         return .{
             .gpa = gpa,
             .arena = arena,
             .interner = interner,
             .datatypes = datatypes.Registry.init(scratch),
+            .classes = class_registry,
             .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
             .annotations = symbols.SymbolTable(Annotation).init(scratch),
             .always_inline = symbols.SymbolTable(void).init(scratch),
@@ -90,6 +96,35 @@ pub const Env = struct {
         for (constructors) |c| {
             try self.setScheme(c.symbol, try self.datatypes.constructorScheme(self.allocator(), id, c));
         }
+    }
+
+    /// How an instance head is spelled in the symbols generated for it.
+    pub fn headSpelling(self: *const Env, head: classes.Head) []const u8 {
+        return switch (head) {
+            .primitive => |p| p.spelling(),
+            .datatype => |id| self.datatypes.get(id).name,
+        };
+    }
+
+    /// Adds `declared`, with a generated `instance[C,T]` dictionary when its
+    /// class takes one. Returns the instance already declared for its class
+    /// and head instead, adding nothing, when there is one.
+    pub fn declareInstance(self: *Env, declared: classes.Instance) Allocator.Error!classes.Registry.Addition {
+        var instance = declared;
+        instance.dictionary = switch (self.classes.evidenceOf(declared.class)) {
+            .builtin => null,
+            .dictionary => try self.interner.generate(
+                declared.module,
+                try std.fmt.allocPrint(self.allocator(), "instance[{s},{s}]", .{ self.classes.spelling(declared.class), self.headSpelling(declared.head) }),
+                .vanilla,
+            ),
+        };
+        const addition = try self.classes.addInstance(instance);
+        switch (addition) {
+            .added => |id| if (instance.dictionary) |dictionary| self.interner.setDetails(dictionary, .{ .instance = id }),
+            .existing => {},
+        }
+        return addition;
     }
 
     pub fn annotationOf(self: *const Env, id: symbols.SymbolId) ?Annotation {

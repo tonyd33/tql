@@ -17,6 +17,6 @@ inc = \x -> op[+] x 1
 main = const (
   map (
     let e = inc 1 in
-    \x -> op[=] x e
+    \x -> eq x e
   ) (Cons 2 (Cons 3 Nil))
 )

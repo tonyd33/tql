@@ -1,0 +1,24 @@
+title: a let-bound function using a method is used at two types
+grammar: typescript
+asserts: values
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe Int where {
+  describe n = "int";
+};
+
+instance Describe String where {
+  describe s = "string";
+};
+
+main root = let { show x = [describe x, describe x] } in append (show 1) (show "a");
+
+--- source ---
+class A {}
+
+--- values ---
+["int", "int", "string", "string"]

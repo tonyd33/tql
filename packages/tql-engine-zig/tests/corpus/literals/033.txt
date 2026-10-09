@@ -25,4 +25,4 @@ class B {}
 main :: Node -> [Bool]
 
 --- core ---
-main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (alt (arr (\n -> op[=] (text n) "A")) (pure False))
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (alt (arr (\n -> eq (text n) "A")) (pure False))

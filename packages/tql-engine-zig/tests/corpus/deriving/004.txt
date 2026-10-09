@@ -1,0 +1,18 @@
+title: a phantom parameter needs no instance
+grammar: typescript
+asserts: values
+
+`Tagged`'s parameter appears in no field, so `Eq (Tagged t)` holds for every
+`t`, even a function type.
+
+--- tql ---
+data Tagged t = Tagged Int deriving (Eq);
+same :: Tagged (Int -> Int) -> Tagged (Int -> Int) -> Bool;
+same a b = a = b;
+main = const [same (Tagged 1) (Tagged 1), same (Tagged 1) (Tagged 2)];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]

@@ -1,0 +1,18 @@
+title: derived equality stops at the first field that differs
+grammar: typescript
+asserts: values
+
+`boom` never terminates. The first fields already differ, so it is never
+forced.
+
+--- tql ---
+data P = P Int Int deriving (Eq);
+boom :: Int;
+boom = boom;
+main = const [P 1 boom = P 2 boom];
+
+--- source ---
+class A {}
+
+--- values ---
+[false]

@@ -1,0 +1,25 @@
+title: a method imported alone does not bring its class
+grammar: typescript
+asserts: error
+
+--- module Classes ---
+module Classes (Describe(..));
+
+class Describe a where { describe :: a -> String; };
+
+instance Describe Int where { describe n = "int"; };
+
+--- tql ---
+import Classes (describe);
+
+pretty :: Describe a => a -> [String];
+pretty x = [describe x];
+
+main root = pretty 1;
+
+--- error ---
+error[unresolved-name]: `Describe` is not a class
+ --> 3:11
+  |
+3 | pretty :: Describe a => a -> [String];
+  |           ^^^^^^^^^^

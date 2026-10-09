@@ -1,0 +1,15 @@
+title: a constraint on main's input is checked at Node
+grammar: typescript
+asserts: error
+
+`main` is run at `Node`, so its `Ord a` is `Ord Node`, which does not hold.
+
+--- tql ---
+main x = [x < x];
+
+--- error ---
+error[unsatisfied-constraint]: `Ord Node` is not satisfied.
+ --> 1:1
+  |
+1 | main x = [x < x];
+  | ^^^^^^^^^^^^^^^^^

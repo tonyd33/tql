@@ -1,0 +1,23 @@
+title: a constraint whose type nothing determines is ambiguous
+grammar: typescript
+asserts: error
+
+Nothing fixes the element type of `[]`, so no instance can be chosen for it.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe a => Describe [a] where {
+  describe xs = "list";
+};
+
+main root = [describe []];
+
+--- error ---
+error[ambiguous-constraint]: `Describe [a]` is ambiguous: nothing determines its type.
+ --> 9:14
+  |
+9 | main root = [describe []];
+  |              ^^^^^^^^

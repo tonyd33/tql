@@ -26,4 +26,4 @@ main :: Node -> [Bool]
 main =
   let x = record[a,b] 1 2 in
   let y = record[a,b] 1 2 in
-  pure (op[=] x y)
+  pure (eq x y)

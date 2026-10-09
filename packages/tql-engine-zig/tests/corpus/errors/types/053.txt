@@ -1,0 +1,17 @@
+title: `=` on a declared type holding a function
+grammar: typescript
+asserts: error
+
+`F` has no `Eq`, so comparing two `F`s is a compile error rather than a
+failure when the comparison runs.
+
+--- tql ---
+data F = F (Int -> Int);
+main = const [F (\x -> x) = F (\x -> x)];
+
+--- error ---
+error[unsatisfied-constraint]: `Eq F` is not satisfied.
+ --> 2:15
+  |
+2 | main = const [F (\x -> x) = F (\x -> x)];
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^

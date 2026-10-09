@@ -152,7 +152,7 @@ pub const Translator = struct {
             .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
             // A synthesized symbol lowers like a primitive.
             .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
-            .vanilla => {},
+            .vanilla, .method, .instance_method, .instance, .selector => {},
             .synonym => unreachable,
         }
         if (self.global(name)) |g| return .{ .global = g };
@@ -611,6 +611,12 @@ pub fn translate(
     }
 
     const registry = &program.env.datatypes;
+    var spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8) = .empty;
+    for (registry.datatypes.items) |datatype| {
+        for (datatype.constructors) |c| {
+            try spellings.put(arena.allocator(), c.symbol, try arena.allocator().dupe(u8, program.env.interner.spelling(c.symbol)));
+        }
+    }
     const nil = builtin(registry.nilConstructor());
     const nil_thunk = try arena.allocator().create(stg.Thunk);
     nil_thunk.* = stg.Thunk.value(.{ .constructed = .{
@@ -627,7 +633,11 @@ pub fn translate(
             .cons = builtin(registry.consConstructor()),
             .false_ = builtin(registry.boolConstructor(false)),
             .true_ = builtin(registry.boolConstructor(true)),
+            .lt = builtin(registry.orderingConstructor(.lt)),
+            .eq = builtin(registry.orderingConstructor(.eq)),
+            .gt = builtin(registry.orderingConstructor(.gt)),
         },
+        .spellings = spellings,
         .nil = nil_thunk,
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),

@@ -1,6 +1,7 @@
 //! Type and scheme representation.
 
 const std = @import("std");
+const classes = @import("classes.zig");
 const datatypes = @import("datatypes.zig");
 
 /// A type variable, identified by its binding position in the enclosing
@@ -110,11 +111,17 @@ pub const Type = union(enum) {
     pub const Named = struct {
         type: Type,
         names: *MetaNames,
+        position: Position = .top,
 
         pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            try self.type.write(w, .top, self.names);
+            try self.type.write(w, self.position, self.names);
         }
     };
+
+    /// `named`, parenthesized as `operand` is.
+    pub fn namedOperand(self: Type, names: *MetaNames) Named {
+        return .{ .type = self, .names = names, .position = .argument };
+    }
 
     /// Copy every node of `self` into `allocator`. Labels and spellings are
     /// shared, not copied.
@@ -236,21 +243,9 @@ fn isListSugar(c: *const Type.Constructed) bool {
     return c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling);
 }
 
-// For now, a closed constraint set is fine.
 pub const TypeClassConstraint = struct {
-    class: Class,
+    class: classes.ClassId,
     type: Type,
-
-    pub const Class = enum {
-        Eq,
-        Ord,
-        Sized,
-        Serial,
-
-        pub fn spelling(self: Class) []const u8 {
-            return @tagName(self);
-        }
-    };
 };
 
 /// `forall alpha_bar. constraints => tau`. `quantified` is the count of bound
@@ -260,18 +255,29 @@ pub const Scheme = struct {
     constraints: []const TypeClassConstraint = &.{},
     type: Type,
 
-    pub fn format(self: Scheme, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        if (self.constraints.len > 0) {
-            if (self.constraints.len > 1) try w.writeByte('(');
-            for (self.constraints, 0..) |c, i| {
-                if (i > 0) try w.writeAll(", ");
-                try w.print("{s} {f}", .{ c.class.spelling(), c.type.operand() });
-            }
-            if (self.constraints.len > 1) try w.writeByte(')');
-            try w.writeAll(" => ");
-        }
-        try self.type.format(w);
+    /// Format with each class spelled as `registry` declares it.
+    pub fn named(self: Scheme, registry: *const classes.Registry) Named {
+        return .{ .scheme = self, .registry = registry };
     }
+
+    pub const Named = struct {
+        scheme: Scheme,
+        registry: *const classes.Registry,
+
+        pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            const constraints = self.scheme.constraints;
+            if (constraints.len > 0) {
+                if (constraints.len > 1) try w.writeByte('(');
+                for (constraints, 0..) |c, i| {
+                    if (i > 0) try w.writeAll(", ");
+                    try w.print("{s} {f}", .{ self.registry.spelling(c.class), c.type.operand() });
+                }
+                if (constraints.len > 1) try w.writeByte(')');
+                try w.writeAll(" => ");
+            }
+            try self.scheme.type.format(w);
+        }
+    };
 
     /// Copy the type and every constraint into `allocator`.
     pub fn clone(self: Scheme, allocator: std.mem.Allocator) std.mem.Allocator.Error!Scheme {
@@ -326,10 +332,11 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
     return slot;
 }
 
-/// The two names the compiler knows structurally. A type built before the
+/// The names the compiler knows structurally. A type built before the
 /// registry exists refers to them by spelling.
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
+pub const ordering_spelling = "Ordering";
 
 /// A declared type at its arguments, copied into `allocator`.
 pub fn constructed(
@@ -522,13 +529,15 @@ test "constrained scheme renders its context" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
+    var registry = classes.Registry.init(t);
+    try registry.reserveBuiltins();
     const boolean = try constructed(t, @enumFromInt(1), bool_spelling, &.{});
     const eq: Scheme = .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .Eq, .type = variable_type(0) }},
+        .constraints = &.{.{ .class = .eq, .type = variable_type(0) }},
         .type = try func(t, variable_type(0), try func(t, variable_type(0), boolean)),
     };
-    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{eq});
+    try std.testing.expectFmt("Eq a => a -> a -> Bool", "{f}", .{eq.named(&registry)});
 }
 
 test "an applied constructor is parenthesized as an argument" {
@@ -545,13 +554,15 @@ test "a constraint parenthesizes an applied constructor" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const t = arena.allocator();
+    var registry = classes.Registry.init(t);
+    try registry.reserveBuiltins();
     const maybe = try constructed(t, @enumFromInt(2), "Maybe", &.{variable_type(0)});
     const scheme: Scheme = .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .Serial, .type = maybe }},
+        .constraints = &.{.{ .class = .serial, .type = maybe }},
         .type = maybe,
     };
-    try std.testing.expectFmt("Serial (Maybe a) => Maybe a", "{f}", .{scheme});
+    try std.testing.expectFmt("Serial (Maybe a) => Maybe a", "{f}", .{scheme.named(&registry)});
 }
 
 test "an open record prints its row after a bar" {

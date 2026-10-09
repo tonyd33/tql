@@ -1,0 +1,15 @@
+title: equality on two empty lists is ambiguous
+grammar: typescript
+asserts: error
+
+Nothing fixes the element type, so no instance of `Eq` can be chosen.
+
+--- tql ---
+main = const [[] = []];
+
+--- error ---
+error[ambiguous-constraint]: `Eq [a]` is ambiguous: nothing determines its type.
+ --> 1:15
+  |
+1 | main = const [[] = []];
+  |               ^^^^^^^

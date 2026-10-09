@@ -1,0 +1,33 @@
+title: an inferred context is reduced through instances
+grammar: typescript
+asserts: types, values
+
+`describe [x]` raises `Describe [a]`, which the instance for lists reduces to
+`Describe a`.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> [String];
+};
+
+instance Describe Int where {
+  describe n = ["int"];
+};
+
+instance Describe a => Describe [a] where {
+  describe xs = case xs of { [] -> ["empty"]; x : _ -> append ["list"] (describe x) };
+};
+
+f x = describe [x];
+
+main root = f 1;
+
+--- source ---
+class A {}
+
+--- values ---
+["list", "int"]
+
+--- types ---
+f :: Describe a => a -> [String]
+main :: Node -> [String]

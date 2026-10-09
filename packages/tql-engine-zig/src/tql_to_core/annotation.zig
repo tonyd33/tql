@@ -13,9 +13,11 @@ const std = @import("std");
 const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const core = @import("../core.zig");
+const classes = core.classes;
 const datatypes = core.datatypes;
 const types = core.types;
-const ModuleScope = @import("scope.zig").ModuleScope;
+const scope_mod = @import("scope.zig");
+const ModuleScope = scope_mod.ModuleScope;
 
 const Allocator = std.mem.Allocator;
 
@@ -32,6 +34,60 @@ pub fn translate(
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
+    return translateSignature(arena, gpa, signature, null, scope, sink);
+}
+
+/// The class `written` names in `scope`. Reports a name that is not one.
+pub fn resolveClass(
+    scope: *const ModuleScope,
+    written: []const u8,
+    span: diagnostic.Span,
+    sink: *diagnostic.Sink,
+) Error!classes.ClassId {
+    switch (scope.typeNamed(written)) {
+        .found => |found| switch (found) {
+            .class => |id| return id,
+            else => {},
+        },
+        .failed => |failure| {
+            try scope.reportFailure(sink, span, written, failure);
+            return error.BadAnnotation;
+        },
+        .missing => {},
+    }
+    try sink.report(.unresolved_name, span, "`{s}` is not a class", .{written});
+    return error.BadAnnotation;
+}
+
+/// The class a method signature belongs to.
+pub const MethodOf = struct {
+    class: classes.ClassId,
+    name: []const u8,
+    /// The class parameter as written.
+    parameter: []const u8,
+};
+
+/// Translates the signature of a method of `class` into the method's scheme:
+/// the class parameter is variable 0, and `class a` heads the context.
+pub fn translateMethod(
+    arena: Allocator,
+    gpa: Allocator,
+    signature: *const cst.Signature,
+    class: MethodOf,
+    scope: *const ModuleScope,
+    sink: *diagnostic.Sink,
+) Error!types.Scheme {
+    return translateSignature(arena, gpa, signature, class, scope, sink);
+}
+
+fn translateSignature(
+    arena: Allocator,
+    gpa: Allocator,
+    signature: *const cst.Signature,
+    method_of: ?MethodOf,
+    scope: *const ModuleScope,
+    sink: *diagnostic.Sink,
+) Error!types.Scheme {
     var vars: std.ArrayList(Translator.Variable) = .empty;
     defer vars.deinit(gpa);
 
@@ -43,15 +99,152 @@ pub fn translate(
         .sink = sink,
         .variables = .free,
     };
+    if (method_of) |m| _ = try t.binder(m.parameter, .type, signature.span);
     const translated = try t.type(signature.type);
-    const context = try arena.alloc(types.TypeClassConstraint, signature.context.len);
-    for (signature.context, context) |c, *slot| slot.* = try t.constraint(c);
+
+    const leading: usize = if (method_of != null) 1 else 0;
+    const context = try arena.alloc(types.TypeClassConstraint, leading + signature.context.len);
+    if (method_of) |m| {
+        if (!mentions(translated, 0)) {
+            try sink.report(
+                .invalid_class,
+                signature.span,
+                "`{s}` does not mention `{s}`, the parameter of `{s}`",
+                .{ signature.name, m.parameter, m.name },
+            );
+            return error.BadAnnotation;
+        }
+        context[0] = .{ .class = m.class, .type = types.variable_type(0) };
+    }
+    for (signature.context, context[leading..]) |c, *slot| {
+        if (method_of) |m| if (std.mem.eql(u8, c.variable, m.parameter)) {
+            try sink.report(
+                .invalid_class,
+                c.span,
+                "`{s}` constrains `{s}`, the parameter of `{s}`",
+                .{ signature.name, m.parameter, m.name },
+            );
+            return error.BadAnnotation;
+        };
+        slot.* = try t.constraint(c);
+    }
 
     return .{
         .quantified = @intCast(vars.items.len),
         .constraints = context,
         .type = translated,
     };
+}
+
+/// Whether bound variable `index` appears in `t`.
+fn mentions(t: types.Type, index: types.TypeVar) bool {
+    return switch (t) {
+        .variable => |v| v == index,
+        .meta, .primitive => false,
+        .constructor => |c| for (c.arguments) |argument| {
+            if (mentions(argument, index)) break true;
+        } else false,
+        .record => |r| for (r.fields) |f| {
+            if (mentions(f.type.*, index)) break true;
+        } else if (r.rest) |rest| mentions(rest.*, index) else false,
+        .function => |arrow| mentions(arrow.from, index) or mentions(arrow.to, index),
+        .alias => |a| mentions(a.expansion, index),
+    };
+}
+
+/// An instance's head and context, translated.
+pub const InstanceHead = struct {
+    head: classes.Head,
+    /// The head over its variables, bound in order from 0.
+    type: types.Type,
+    context: []const types.TypeClassConstraint,
+};
+
+/// Translates an instance's head and context. The head is a primitive, or a
+/// declared type applied to distinct variables.
+pub fn translateInstance(
+    arena: Allocator,
+    gpa: Allocator,
+    declared: *const cst.InstanceDeclaration,
+    scope: *const ModuleScope,
+    sink: *diagnostic.Sink,
+) Error!InstanceHead {
+    var vars: std.ArrayList(Translator.Variable) = .empty;
+    defer vars.deinit(gpa);
+
+    var t = Translator{
+        .arena = arena,
+        .gpa = gpa,
+        .vars = &vars,
+        .scope = scope,
+        .sink = sink,
+        .variables = .free,
+    };
+    const head_type = try t.type(declared.head);
+    const written = unparenthesized(declared.head);
+    const head: classes.Head = switch (head_type) {
+        .primitive => |p| .{ .primitive = p },
+        .constructor => |c| blk: {
+            for (c.arguments, headArguments(written), 0..) |argument, w, i| {
+                if (argument != .variable) {
+                    try sink.report(
+                        .invalid_instance,
+                        w.span,
+                        "each argument of an instance head must be a type variable",
+                        .{},
+                    );
+                    return error.BadAnnotation;
+                }
+                // Variables are numbered by first appearance, so a lower
+                // number is a repeat.
+                if (argument.variable != i) {
+                    try sink.report(
+                        .invalid_instance,
+                        w.span,
+                        "`{s}` appears more than once in an instance head",
+                        .{vars.items[argument.variable].name},
+                    );
+                    return error.BadAnnotation;
+                }
+            }
+            break :blk .{ .datatype = c.name };
+        },
+        .variable => return badHead(sink, written.span, "a type variable"),
+        .function => return badHead(sink, written.span, "a function type"),
+        .record => return badHead(sink, written.span, "a record type"),
+        .alias => return badHead(sink, written.span, "an alias"),
+        .meta => unreachable,
+    };
+
+    const context = try arena.alloc(types.TypeClassConstraint, declared.context.len);
+    for (declared.context, context) |c, *slot| slot.* = try t.constraint(c);
+    return .{ .head = head, .type = head_type, .context = context };
+}
+
+fn unparenthesized(written: cst.Type) cst.Type {
+    var inner = written;
+    while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
+    return inner;
+}
+
+/// The written arguments of an unparenthesized head the translator took for
+/// a declared type.
+fn headArguments(written: cst.Type) []const cst.Type {
+    return switch (written.kind) {
+        .application => |a| a.arguments,
+        .list => |element| element[0..1],
+        else => &.{},
+    };
+}
+
+fn badHead(sink: *diagnostic.Sink, span: diagnostic.Span, what: []const u8) Error!InstanceHead {
+    try sink.report(
+        .invalid_instance,
+        span,
+        "an instance head must be a primitive or a declared type, not {s}",
+        .{what},
+    );
+    return error.BadAnnotation;
 }
 
 /// Translates a pattern synonym's signature `P :: T_1 -> .. -> T_n -> T` into
@@ -259,6 +452,7 @@ const Translator = struct {
                 },
                 .alias => |alias| return try self.aliasAt(alias, &.{}, span),
                 .primitive => |p| return .{ .primitive = p },
+                .class => return try self.notAType(name, span),
             },
             .failed => |failure| {
                 try self.scope.reportFailure(self.sink, span, name, failure);
@@ -288,6 +482,7 @@ const Translator = struct {
                     );
                     return error.BadAnnotation;
                 },
+                .class => return try self.notAType(node.constructor, span),
             },
             .failed => |failure| {
                 try self.scope.reportFailure(self.sink, span, node.constructor, failure);
@@ -313,14 +508,16 @@ const Translator = struct {
         return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, arguments);
     }
 
+    fn notAType(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.Type {
+        try self.sink.report(.unresolved_name, span, "`{s}` is a class, not a type", .{name});
+        return error.BadAnnotation;
+    }
+
     /// Preconditions:
     /// - The signature's type is already translated, so every variable it
     ///   binds has its `forall` position.
     fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
-        const class = std.meta.stringToEnum(types.TypeClassConstraint.Class, c.class) orelse {
-            try self.sink.report(.unresolved_name, c.span, "`{s}` is not a class", .{c.class});
-            return error.BadAnnotation;
-        };
+        const class = try resolveClass(self.scope, c.class, c.span, self.sink);
         for (self.vars.items, 0..) |seen, i| {
             if (std.mem.eql(u8, seen.name, c.variable)) {
                 return .{ .class = class, .type = .{ .variable = @intCast(i) } };

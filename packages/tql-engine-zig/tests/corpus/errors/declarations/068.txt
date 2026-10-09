@@ -1,0 +1,16 @@
+title: an instance head applies a type to a type that is not a variable
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Describe a where { describe :: a -> String; };
+data Box a = Box a;
+instance Describe (Box Int) where { describe b = "box"; };
+main = const [];
+
+--- error ---
+error[invalid-instance]: each argument of an instance head must be a type variable
+ --> 3:24
+  |
+3 | instance Describe (Box Int) where { describe b = "box"; };
+  |                        ^^^

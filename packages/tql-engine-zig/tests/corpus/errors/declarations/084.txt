@@ -1,0 +1,15 @@
+title: a written instance beside a derived one
+grammar: typescript
+asserts: error
+
+--- tql ---
+data T = T Int deriving (Eq);
+instance Eq T where { eq a b = true; };
+main = const [];
+
+--- error ---
+error[duplicate-instance]: `Eq T` is already declared in `Main`
+ --> 1:26
+  |
+1 | data T = T Int deriving (Eq);
+  |                          ^^

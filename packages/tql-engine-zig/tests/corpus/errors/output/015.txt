@@ -1,8 +1,8 @@
-title: a declared datatype output is not serializable
+title: a declared datatype that does not derive `Serial` is not output
 grammar: typescript
 asserts: error
 
-A declared type has no JSON encoding.
+`Maybe` does not derive `Serial`, so it has no JSON encoding.
 
 --- tql ---
 data Maybe a = Just a | Nothing;

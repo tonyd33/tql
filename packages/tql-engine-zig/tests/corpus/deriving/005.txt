@@ -1,0 +1,16 @@
+title: a recursive type derives
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Tree = Leaf | Node Tree Int Tree deriving (Eq, Ord);
+main = const [
+  Node Leaf 1 Leaf = Node Leaf 1 Leaf,
+  Node Leaf 1 Leaf < Node (Node Leaf 0 Leaf) 0 Leaf
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true]

@@ -1,0 +1,24 @@
+title: a class may be named before it is declared
+grammar: typescript
+asserts: types
+
+--- tql ---
+instance Describe Int where {
+  describe n = "int";
+};
+
+pretty :: Describe a => a -> [String];
+pretty x = [describe x];
+
+class Describe a where {
+  describe :: a -> String;
+};
+
+main root = pretty 1;
+
+--- source ---
+class A {}
+
+--- types ---
+pretty :: Describe a => a -> [String]
+main :: Node -> [String]

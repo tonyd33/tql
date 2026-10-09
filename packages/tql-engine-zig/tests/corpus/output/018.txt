@@ -1,0 +1,15 @@
+title: a derived `Serial` encodes a constructor as its tag and fields
+grammar: typescript
+asserts: values
+
+Every constructor encodes as one shape, a nullary one with no fields.
+
+--- tql ---
+data Maybe a = Nothing | Just a deriving (Serial);
+main = const [Just [1], Nothing, Just []];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[[1]]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[[]]}]

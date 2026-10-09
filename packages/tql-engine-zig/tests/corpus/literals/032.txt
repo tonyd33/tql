@@ -15,4 +15,4 @@ class A {}
 main :: Node -> [Bool]
 
 --- core ---
-main = pure (op[=] (op[+] 1 1) 2)
+main = pure (eq (op[+] 1 1) 2)

@@ -1,0 +1,16 @@
+title: a field without the derived class
+grammar: typescript
+asserts: error
+
+A function has no `Eq`, so `F` cannot derive it.
+
+--- tql ---
+data F = F (Int -> Int) deriving (Eq);
+main = const [];
+
+--- error ---
+error[unsatisfied-constraint]: `Eq F` needs `Eq (Int -> Int)`
+ --> 1:12
+  |
+1 | data F = F (Int -> Int) deriving (Eq);
+  |            ^^^^^^^^^^^^

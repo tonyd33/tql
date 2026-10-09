@@ -1,0 +1,31 @@
+title: an instance for a type from another module, used from a third
+grammar: typescript
+asserts: values
+
+--- module Shapes ---
+module Shapes (Shape(..));
+
+data Shape = Circle Int | Square Int;
+
+--- module Classes ---
+module Classes (Describe(..));
+
+import Shapes;
+
+class Describe a where { describe :: a -> String; };
+
+instance Describe Shape where {
+  describe s = case s of { Circle _ -> "circle"; Square _ -> "square" };
+};
+
+--- tql ---
+import Classes;
+import Shapes;
+
+main root = [describe (Circle 1), describe (Square 2)];
+
+--- source ---
+class A {}
+
+--- values ---
+["circle", "square"]

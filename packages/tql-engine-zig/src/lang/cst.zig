@@ -103,6 +103,8 @@ pub const Declaration = union(enum) {
     type_alias: TypeAlias,
     pattern_synonym: PatternSynonym,
     pattern_signature: PatternSignature,
+    class_declaration: ClassDeclaration,
+    instance_declaration: InstanceDeclaration,
 
     pub fn span(self: Declaration) diagnostic.Span {
         return switch (self) {
@@ -136,6 +138,52 @@ pub const Signature = struct {
     }
 };
 
+/// `class Eq a => Describe a where { describe :: a -> String; };`
+pub const ClassDeclaration = struct {
+    name: Identifier,
+    parameter: Identifier,
+    superclasses: []const ClassConstraint = &.{},
+    methods: []const Signature,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: ClassDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(class {s} {s}", .{ self.name, self.parameter });
+        try sexprContext(w, self.superclasses);
+        for (self.methods) |m| {
+            try w.writeByte(' ');
+            try m.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+};
+
+/// `instance Describe a => Describe [a] where { describe xs = ...; };`
+pub const InstanceDeclaration = struct {
+    class: Identifier,
+    head: Type,
+    context: []const ClassConstraint = &.{},
+    methods: []const Definition,
+    span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: InstanceDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("(instance {s} ", .{self.class});
+        try self.head.sexpr(w);
+        try sexprContext(w, self.context);
+        for (self.methods) |m| {
+            try w.writeByte(' ');
+            try m.sexpr(w);
+        }
+        try w.writeByte(')');
+    }
+};
+
+fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writer.Error!void {
+    if (context.len == 0) return;
+    try w.writeAll(" (=>");
+    for (context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+    try w.writeByte(')');
+}
+
 /// `Sized a` in a signature's context.
 pub const ClassConstraint = struct {
     class: Identifier,
@@ -161,12 +209,19 @@ pub const Definition = struct {
     }
 };
 
-/// `data T a = C1 f1 f2 | C2;`
+/// `data T a = C1 f1 f2 | C2 deriving (Eq);`
 pub const DataDeclaration = struct {
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
+    deriving: []const Derived = &.{},
     span: diagnostic.Span = .unknown,
+
+    /// One class of a `deriving` clause.
+    pub const Derived = struct {
+        class: Identifier,
+        span: diagnostic.Span = .unknown,
+    };
 
     pub fn sexpr(self: DataDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(data {s} (params", .{self.name});
@@ -175,6 +230,11 @@ pub const DataDeclaration = struct {
         for (self.constructors) |c| {
             try w.writeByte(' ');
             try c.sexpr(w);
+        }
+        if (self.deriving.len > 0) {
+            try w.writeAll(" (deriving");
+            for (self.deriving) |d| try w.print(" {s}", .{d.class});
+            try w.writeByte(')');
         }
         try w.writeByte(')');
     }

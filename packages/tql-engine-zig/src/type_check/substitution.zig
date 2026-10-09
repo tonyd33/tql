@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
+const classes = core.classes;
 const datatypes = core.datatypes;
 const types = core.types;
 
@@ -49,6 +50,8 @@ pub const Substitution = struct {
     arena: Allocator,
     /// The declared types, for deciding a constraint on a constructed type.
     datatypes: *const datatypes.Registry,
+    /// The declared classes and instances, for deciding a constraint.
+    classes: *const classes.Registry,
     /// Indexed by `Meta`. `null` means unsolved.
     solutions: std.ArrayList(?types.Type),
     gpa: Allocator,
@@ -57,8 +60,9 @@ pub const Substitution = struct {
         gpa: Allocator,
         arena: Allocator,
         declared: *const datatypes.Registry,
+        registry: *const classes.Registry,
     ) Substitution {
-        return .{ .arena = arena, .datatypes = declared, .solutions = .empty, .gpa = gpa };
+        return .{ .arena = arena, .datatypes = declared, .classes = registry, .solutions = .empty, .gpa = gpa };
     }
 
     pub fn deinit(self: *Substitution) void {

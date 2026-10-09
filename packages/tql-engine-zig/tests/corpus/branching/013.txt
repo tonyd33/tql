@@ -25,5 +25,5 @@ is_a :: String -> Node -> Bool
 main :: Node -> [Bool]
 
 --- core ---
-is_a = \expected -> \n -> op[=] (text n) expected
+is_a = \expected -> \n -> eq (text n) expected
 main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> not (is_a "A" n)))

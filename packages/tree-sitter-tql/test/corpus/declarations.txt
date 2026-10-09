@@ -316,6 +316,60 @@ data Pair = MkPair Int [String];
         (type_identifier)))))
 
 ========================================
+a data type deriving one class
+========================================
+
+data Unit = Unit deriving (Eq);
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    deriving: (deriving
+      class: (type_identifier))))
+
+========================================
+a parameterized data type deriving several classes
+========================================
+
+data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))
+    deriving: (deriving
+      class: (type_identifier)
+      class: (type_identifier)
+      class: (type_identifier))))
+
+========================================
+a field named like deriving is a type variable
+========================================
+
+data Box deriving_x = Box deriving_x;
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))))
+
+========================================
 a type alias with a row parameter
 ========================================
 
@@ -373,3 +427,158 @@ f :: List Int -> Bool;
         constructor: (type_identifier)
         argument: (type_identifier))
       to: (type_identifier))))
+
+========================================
+a class with a superclass and two methods
+========================================
+
+class Eq a => Describe a where {
+  describe :: a -> String;
+  tags :: a -> [String];
+};
+
+---
+
+(source_file
+  (class_declaration
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    name: (type_identifier)
+    parameter: (type_variable)
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (type_identifier)))
+    method: (signature
+      name: (identifier)
+      type: (function_type
+        from: (type_variable)
+        to: (list_type
+          (type_identifier))))))
+
+========================================
+a class with no methods
+========================================
+
+class Marker a where {};
+
+---
+
+(source_file
+  (class_declaration
+    name: (type_identifier)
+    parameter: (type_variable)))
+
+========================================
+an instance with a context over a list
+========================================
+
+instance Describe a => Describe [a] where {
+  describe xs = "list";
+};
+
+---
+
+(source_file
+  (instance_declaration
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    class: (type_identifier)
+    type: (list_type
+      (type_variable))
+    method: (definition
+      name: (identifier)
+      parameter: (identifier)
+      body: (string))))
+
+========================================
+an instance at an applied type
+========================================
+
+instance (Describe a, Describe b) => Describe (Either a b) where {
+  describe e = "either";
+};
+
+---
+
+(source_file
+  (instance_declaration
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable))
+      (class_constraint
+        class: (type_identifier)
+        variable: (type_variable)))
+    class: (type_identifier)
+    type: (parenthesized_type
+      (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable)))
+    method: (definition
+      name: (identifier)
+      parameter: (identifier)
+      body: (string))))
+
+========================================
+class and instance are record labels where no declaration can start
+========================================
+
+main = { class = 1, instance = 2 };
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (record
+      (record_field
+        name: (identifier)
+        value: (number))
+      (record_field
+        name: (identifier)
+        value: (number)))))
+
+========================================
+class and instance are variables where no declaration can start
+========================================
+
+f class instance = \where -> class instance where;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    parameter: (identifier)
+    parameter: (identifier)
+    body: (lambda
+      parameter: (identifier)
+      body: (application
+        function: (application
+          function: (identifier)
+          argument: (identifier))
+        argument: (identifier)))))
+
+========================================
+a type variable may start with an underscore or a keyword
+========================================
+
+f :: where_ -> _a -> where_;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (type_variable)
+      to: (function_type
+        from: (type_variable)
+        to: (type_variable)))))
