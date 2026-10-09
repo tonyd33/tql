@@ -1,0 +1,15 @@
+title: a parenthesized comma pair does not parse
+grammar: typescript
+asserts: error
+
+There is no tuple type or tuple literal. `,` is only a separator.
+
+--- tql ---
+main = (1, "a");
+
+--- error ---
+error[parse]: syntax error
+ --> 1:10
+  |
+1 | main = (1, "a");
+  |          ^

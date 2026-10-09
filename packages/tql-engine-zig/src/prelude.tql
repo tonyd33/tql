@@ -24,16 +24,20 @@ instance Sized String where {
   length = %string_length;
 };
 
--- TODO: strict left fold once we have one. This overflows at about 800
--- elements.
 instance Sized [a] where {
-  length xs = case xs of {
-    Nil -> 0;
-    Cons h t -> 1 + length t;
-  };
+  length xs = let {
+    foldl_strict f z ys = case ys of {
+      Nil -> z;
+      Cons h t -> let { z2 = f z h; } in seq z2 $ foldl_strict f z2 t;
+    };
+    acc n _ = n + 1;
+  } in foldl_strict acc 0 xs;
 };
 
 -- Primitives
+
+seq :: a -> b -> b;
+seq = %seq;
 
 text :: Node -> String;
 text = %text;
@@ -124,19 +128,19 @@ append xs ys = case xs of {
 concat :: [[a]] -> [a];
 concat xss = case xss of {
   Nil -> Nil;
-  Cons h t -> append h (concat t);
+  Cons h t -> append h $ concat t;
 };
 
 map :: (a -> b) -> [a] -> [b];
 map f xs = case xs of {
   Nil -> Nil;
-  Cons h t -> Cons (f h) (map f t);
+  Cons h t -> Cons (f h) $ map f t;
 };
 
 concat_map :: (a -> [b]) -> [a] -> [b];
 concat_map f xs = case xs of {
   Nil -> Nil;
-  Cons h t -> append (f h) (concat_map f t);
+  Cons h t -> append (f h) $ concat_map f t;
 };
 
 filter :: (a -> Bool) -> [a] -> [a];
@@ -144,14 +148,14 @@ filter p xs = case xs of {
   Nil -> Nil;
   Cons h t -> case p h of {
     False -> filter p t;
-    True -> Cons h (filter p t);
+    True -> Cons h $ filter p t;
   };
 };
 
 foldr :: (a -> b -> b) -> b -> [a] -> b;
 foldr f z xs = case xs of {
   Nil -> z;
-  Cons h t -> f h (foldr f z t);
+  Cons h t -> f h $ foldr f z t;
 };
 
 not :: Bool -> Bool;
@@ -175,13 +179,13 @@ or a b = case a of {
 any :: (a -> Bool) -> [a] -> Bool;
 any p xs = case xs of {
   Nil -> False;
-  Cons h t -> or (p h) (any p t);
+  Cons h t -> or (p h) $ any p t;
 };
 
 all :: (a -> Bool) -> [a] -> Bool;
 all p xs = case xs of {
   Nil -> True;
-  Cons h t -> and (p h) (all p t);
+  Cons h t -> and (p h) $ all p t;
 };
 
 guard :: Bool -> [Unit];
@@ -198,7 +202,7 @@ return a = [a];
 take :: Int -> [a] -> [a];
 take n xs = if n <= 0 then Nil else case xs of {
   Nil -> Nil;
-  Cons h t -> Cons h (take (n - 1) t);
+  Cons h t -> Cons h $ take (n - 1) t;
 };
 
 drop :: Int -> [a] -> [a];
@@ -244,7 +248,7 @@ keep p x = case p x of {
 };
 
 has :: Filter a b -> a -> Bool;
-has p x = not (null (p x));
+has p x = not $ null $ p x;
 
 first :: Filter a b -> Filter a b;
 first p x = head (p x);

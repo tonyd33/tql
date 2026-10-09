@@ -1,0 +1,14 @@
+title: an open record has no order either
+grammar: typescript
+asserts: error
+
+--- tql ---
+bigger r = r < r and r.x = 1;
+main = const [bigger {x = 1}];
+
+--- error ---
+error[unsatisfied-constraint]: `Ord {x: ?454 | ?455}` is not satisfied.
+ --> 1:12
+  |
+1 | bigger r = r < r and r.x = 1;
+  |            ^^^^^

@@ -126,8 +126,20 @@ pub const Expr = union(enum) {
     pub const Case = struct {
         scrutinee: Expr,
         /// In the datatype's tag order, covering every constructor exactly
-        /// once, so the tag indexes this directly.
+        /// once, so the tag indexes this directly. Empty when there is a
+        /// default.
         alternatives: []const Alternative,
+        /// Taken for any value, constructed or not.
+        default: ?Expr = null,
+
+        /// Returns the alternative for `v`, if there is one.
+        pub fn alternativeFor(self: *const Case, v: value.Value) ?*const Alternative {
+            const tag = switch (v) {
+                .constructed => |c| c.tag,
+                else => return null,
+            };
+            return if (tag < self.alternatives.len) &self.alternatives[tag] else null;
+        }
     };
 
     pub const Let = struct {

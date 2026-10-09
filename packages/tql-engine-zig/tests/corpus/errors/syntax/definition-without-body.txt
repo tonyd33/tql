@@ -1,0 +1,13 @@
+title: a definition without a body is reported over the whole declaration
+grammar: typescript
+asserts: error
+
+--- tql ---
+main =
+
+--- error ---
+error[parse]: syntax error
+ --> 1:1
+  |
+1 | main =
+  | ^^^^^^

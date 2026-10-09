@@ -1,0 +1,47 @@
+title: a case of of_kind on a call's result is not rewritten to a kind test
+grammar: typescript
+asserts: simplified, values
+
+On a variable, a case of `of_kind` becomes a kind test on that variable. On
+`top c`, it stays a case of `of_kind`, which a kind test would have to repeat
+to bind `n`.
+
+--- tql ---
+top n = case parent n of { [p] -> top p; _ -> n };
+
+main root = do {
+  c <- children root;
+  [
+    case of_kind :class_declaration (top c) of { [n] -> text n; _ -> "other" },
+    case of_kind :class_declaration c of { [n] -> text n; _ -> "other" },
+  ];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["other", "class A {}"]
+
+--- simplified ---
+top = \n -> case %parent n of
+  Nil -> n
+  Cons p cons1 -> case cons1 of
+    Nil -> top p
+    Cons _ _ -> n
+main = \root -> concat_map (
+  \c -> Cons (
+    let alternative = "other" in
+    case %of_kind :class_declaration (top c) of
+      Nil -> alternative
+      Cons n cons1 -> case cons1 of
+        Nil -> %text n
+        Cons _ _ -> alternative
+  ) (
+    Cons (
+      case %is_kind :class_declaration c of
+        False -> "other"
+        True -> %text c
+    ) Nil
+  )
+) (%children root)

@@ -1,0 +1,19 @@
+title: negating an equality becomes an inequality
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+differ :: Int -> Int -> Bool;
+differ x y = not $ x = y;
+
+main = const [differ 1 2, differ 2 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false]
+
+--- simplified ---
+differ = \x -> \y -> op[!=] x y
+main = const (Cons (op[!=] 1 2) (Cons (op[!=] 2 2) Nil))

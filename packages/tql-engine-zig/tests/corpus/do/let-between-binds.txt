@@ -1,0 +1,33 @@
+title: a `do`-local `let` sees bindings from earlier statements
+grammar: typescript
+asserts: core, types, values
+
+`prefix` is computed from `n`, bound by the preceding statement, and is then
+used by the final expression after a further bind.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c#name;
+  let prefix = text n;
+  m <- (#body | children | of_kind :method_definition) c;
+  return prefix;
+};
+
+--- source ---
+class A { m() {} n() {} }
+
+--- values ---
+["A", "A"]
+
+--- core ---
+main = \root -> concat_map (
+  \c -> concat_map (
+    \n ->
+      let prefix = text n in
+      concat_map (\m -> return prefix) (kleisli (kleisli field[body] children) (of_kind :method_definition) c)
+  ) (field[name] c)
+) (children_of_kind :class_declaration root)
+
+--- types ---
+main :: Node -> [String]

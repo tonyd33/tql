@@ -1,0 +1,15 @@
+title: an empty record is a value of the empty record type
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = [{}];
+
+--- source ---
+class A {}
+
+--- values ---
+[{}]
+
+--- types ---
+main :: Node -> [{}]

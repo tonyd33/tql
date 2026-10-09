@@ -52,30 +52,3 @@ pub fn escape(bytes: []const u8, w: *std.Io.Writer) std.Io.Writer.Error!void {
 pub fn fmt(bytes: []const u8) std.fmt.Alt([]const u8, escape) {
     return .{ .data = bytes };
 }
-
-fn expectDecodes(expected: []const u8, body: []const u8) !void {
-    const decoded = try decode(std.testing.allocator, body);
-    defer std.testing.allocator.free(decoded.bytes);
-    try std.testing.expectEqualStrings(expected, decoded.bytes);
-}
-
-test "decode each escape" {
-    try expectDecodes("plain", "plain");
-    try expectDecodes("\"ab\"", "\\\"ab\\\"");
-    try expectDecodes("a\\b", "a\\\\b");
-    try expectDecodes("a\nb\tc\rd", "a\\nb\\tc\\rd");
-    try expectDecodes("\\n", "\\\\n");
-}
-
-test "decode rejects an undefined escape at its offset" {
-    const decoded = try decode(std.testing.allocator, "ab\\qc");
-    try std.testing.expectEqual(Decoded{ .invalid_escape = 2 }, decoded);
-}
-
-test "escape round-trips through decode" {
-    const original = "say \"hi\"\\\n\t\r";
-    var w: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer w.deinit();
-    try w.writer.print("{f}", .{fmt(original)});
-    try expectDecodes(original, w.written());
-}

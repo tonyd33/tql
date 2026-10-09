@@ -1,0 +1,23 @@
+title: a constructor with fields is a function value
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Pair = Pair Int Int;
+
+second :: Pair -> Int;
+second p = case p of { Pair _ b -> b; };
+
+main = const $ append
+  [second (flip Pair 1 2), length (map (Cons 1) [[2], [3]])]
+  (map second (map (Pair 1) [2, 3]));
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2, 2, 3]
+
+--- types ---
+second :: Pair -> Int
+main :: Node -> [Int]

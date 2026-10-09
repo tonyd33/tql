@@ -1,0 +1,14 @@
+title: `Ord` orders ints and strings, equal operands included
+grammar: typescript
+asserts: values
+
+`<=` and `>=` hold on equal operands, for `Int` and `String` alike.
+
+--- tql ---
+main = const [1 < 2, 2 <= 2, 2 >= 2, 2 > 1, 1 >= 2, "a" < "b", "a" <= "a", "a" >= "a", "b" <= "a"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, true, true, true, false, true, true, true, false]

@@ -1,0 +1,34 @@
+title: a local binding is not visible after its construct closes
+grammar: typescript
+asserts: error
+
+Each declaration binds a name locally, then references it after the binding
+construct ends. Every reference is unresolved and reported separately.
+
+--- tql ---
+let_out = (let { inner = 1; } in inner) + inner;
+do_out root = (do {
+  c <- children root;
+  return c;
+}) | const c;
+lambda_out = (\x -> x + 1) x;
+main = const [1];
+
+--- error ---
+error[unresolved-name]: `inner` is not defined
+ --> 1:43
+  |
+1 | let_out = (let { inner = 1; } in inner) + inner;
+  |                                           ^^^^^
+
+error[unresolved-name]: `c` is not defined
+ --> 5:12
+  |
+5 | }) | const c;
+  |            ^
+
+error[unresolved-name]: `x` is not defined
+ --> 6:28
+  |
+6 | lambda_out = (\x -> x + 1) x;
+  |                            ^

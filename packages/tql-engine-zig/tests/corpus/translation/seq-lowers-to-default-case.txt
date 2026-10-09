@@ -1,0 +1,23 @@
+title: seq lowers to a case with a default alternative
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+f :: Int -> Int -> Int;
+f x y = seq x y;
+main = pure (f 1 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- stg ---
+f = {} \u {} ->
+  let
+    t0 = {} \n {x,y} -> case x@0 of
+      _ -> y@1
+  in
+  t0@0
+main = {} \u {} -> pure 2

@@ -1,0 +1,25 @@
+title: an of_kind view bound over a list parameter is not fused
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+names xs = do {
+  (of_kind :class_declaration -> [n]) <- xs;
+  return $ text n;
+};
+
+main root = names (descendants root);
+
+--- source ---
+class A {}
+
+--- values ---
+["class A {}"]
+
+--- simplified ---
+names = \xs -> concat_map (
+  \scrutinee -> case %is_kind :class_declaration scrutinee of
+    False -> Nil
+    True -> Cons (%text scrutinee) Nil
+) xs
+main = \root -> names (%descendants root)

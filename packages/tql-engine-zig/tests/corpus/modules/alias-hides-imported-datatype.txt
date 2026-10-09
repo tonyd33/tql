@@ -1,0 +1,28 @@
+title: an alias may be named like an imported datatype
+grammar: typescript
+asserts: types, values
+
+--- module Names ---
+module Names;
+
+data X = X Int;
+
+--- tql ---
+import Names;
+
+type X = Int;
+
+double :: X -> X;
+double n = n * 2;
+
+main root = [double 1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2]
+
+--- types ---
+double :: X -> X
+main :: Node -> [X]

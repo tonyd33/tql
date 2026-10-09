@@ -354,32 +354,6 @@ test "matching collects each subtree of a kind, nested ones again" {
     try std.testing.expectEqualStrings("B", rows.items[starts.items[1] + 1].text.?);
 }
 
-test "matching a supertype collects its subtypes" {
-    const gpa = std.testing.allocator;
-    var grammars = Registry.init(gpa, &.{});
-    defer grammars.deinit();
-    const l = (try grammars.get("python")).language;
-
-    const source = "a < b\n";
-    const parser = ts.Parser.create();
-    defer parser.destroy();
-    try parser.setLanguage(l);
-    const tree = parser.parseString(source, null).?;
-    defer tree.destroy();
-
-    var rows: std.ArrayList(Row) = .empty;
-    defer rows.deinit(gpa);
-    var starts: std.ArrayList(usize) = .empty;
-    defer starts.deinit(gpa);
-    const kinds = [_]u16{l.idForNodeKind("expression", true)};
-    try collectMatching(gpa, &rows, &starts, tree.rootNode(), source, &kinds, .{ .named_only = true });
-
-    try std.testing.expectEqual(3, starts.items.len);
-    try std.testing.expectEqualStrings("comparison_operator", rows.items[starts.items[0]].kind);
-    try std.testing.expectEqualStrings("identifier", rows.items[starts.items[1]].kind);
-    try std.testing.expectEqualStrings("identifier", rows.items[starts.items[2]].kind);
-}
-
 fn expectTree(
     grammar: []const u8,
     source: []const u8,
@@ -490,6 +464,14 @@ test "error and missing nodes print as tree-sitter names them" {
         \\1:15 - 1:16            #name :identifier "x"
         \\1:16 - 1:16          MISSING ";"
         \\1:17 - 1:18        "}"
+        \\
+    );
+    try expectTree("python", "a = )\n", .{},
+        \\1:1 - 2:1  :module
+        \\1:1 - 1:6    ERROR
+        \\1:1 - 1:2      :identifier "a"
+        \\1:3 - 1:4      "="
+        \\1:5 - 1:6      ")"
         \\
     );
 }

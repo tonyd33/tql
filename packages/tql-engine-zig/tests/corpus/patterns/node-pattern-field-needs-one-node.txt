@@ -1,0 +1,17 @@
+title: a node pattern on a field matches only when the field holds exactly one node
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = do {
+  c@:class_declaration { #decorator = d } <- descendants root;
+  return $ text c;
+};
+
+--- source ---
+@d1 class A {}
+@d1 @d2 class B {}
+class C {}
+
+--- values ---
+["@d1 class A {}"]

@@ -1,0 +1,20 @@
+title: a tail call through an over-applied callee runs in bounded stack
+grammar: typescript
+asserts: values
+
+`compose loop identity` takes three arguments and is given four, so every
+iteration's tail call is over-applied. `acc < 0` forces the accumulator, so no
+thunk chain builds up behind it.
+
+--- tql ---
+loop n acc =
+  if n <= 0 then acc
+  else if acc < 0 then 0
+  else compose loop identity (n - 1) (acc + 1);
+main root = pure (loop 20000 0) root;
+
+--- source ---
+class A {}
+
+--- values ---
+[20000]

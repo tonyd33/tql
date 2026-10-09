@@ -1,0 +1,22 @@
+title: a mismatch on line 10 widens the gutter to two columns
+grammar: typescript
+asserts: error
+
+--- tql ---
+double n = n * 2;
+one = 1;
+two = 2;
+three = 3;
+four = 4;
+five = 5;
+six = 6;
+seven = 7;
+eight = 8;
+main = double "text";
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+  --> 10:15
+   |
+10 | main = double "text";
+   |               ^^^^^^

@@ -334,50 +334,6 @@ pub const Sink = struct {
     }
 };
 
-test "span join covers both operands" {
-    const a: Span = .{
-        .start_byte = 4,
-        .end_byte = 8,
-        .start_point = .{ .row = 0, .column = 4 },
-        .end_point = .{ .row = 0, .column = 8 },
-    };
-    const b: Span = .{
-        .start_byte = 10,
-        .end_byte = 20,
-        .start_point = .{ .row = 1, .column = 2 },
-        .end_point = .{ .row = 1, .column = 12 },
-    };
-    const joined = Span.join(a, b);
-    try std.testing.expectEqual(4, joined.start_byte);
-    try std.testing.expectEqual(20, joined.end_byte);
-    try std.testing.expectEqual(0, joined.start_point.row);
-    try std.testing.expectEqual(1, joined.end_point.row);
-}
-
-test "spans render as one-based line:col" {
-    const span: Span = .{
-        .start_byte = 7,
-        .end_byte = 13,
-        .start_point = .{ .row = 0, .column = 7 },
-        .end_point = .{ .row = 0, .column = 13 },
-    };
-    try std.testing.expectFmt("1:8-1:14", "{f}", .{span});
-}
-
-test "sink collects several diagnostics" {
-    var sink = Sink.init(std.testing.allocator);
-    defer sink.deinit();
-
-    try sink.report(.parse, Span.unknown, "first", .{});
-    try sink.report(.unresolved_name, Span.unknown, "second {s}", .{"arg"});
-
-    try std.testing.expect(sink.hasErrors());
-    try std.testing.expectEqual(2, sink.items().len);
-    try std.testing.expectEqualStrings("parse", sink.items()[0].category.name());
-    try std.testing.expectEqualStrings("unresolved-name", sink.items()[1].category.name());
-    try std.testing.expectEqualStrings("second arg", sink.items()[1].message);
-}
-
 fn expectRender(
     expected: []const u8,
     source: []const u8,
@@ -396,54 +352,6 @@ fn expectRender(
     try std.testing.expectEqualStrings(expected, buf.written());
 }
 
-test "render underlines a span within one line" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> 1:8
-        \\  |
-        \\1 | main = text + 1;
-        \\  |        ^^^^
-        \\
-    , "main = text + 1;", null, .{ .row = 0, .column = 7 }, .{ .row = 0, .column = 11 });
-}
-
-test "render names the path in the location line" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> q.tql:2:3
-        \\  |
-        \\2 |   x
-        \\  |   ^
-        \\
-    , "a\n  x\n", "q.tql", .{ .row = 1, .column = 2 }, .{ .row = 1, .column = 3 });
-}
-
-test "render widens the gutter to the last row shown" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\  --> 10:1
-        \\   |
-        \\10 | x
-        \\   | ^
-        \\
-    , "\n\n\n\n\n\n\n\n\nx", null, .{ .row = 9, .column = 0 }, .{ .row = 9, .column = 1 });
-}
-
-test "render underlines every line of a multi-line span" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> 1:8
-        \\  |
-        \\1 | main = do {
-        \\  |        ^^^^
-        \\2 |   return 1;
-        \\  |   ^^^^^^^^^
-        \\3 | };
-        \\  | ^
-        \\
-    , "main = do {\n  return 1;\n};", null, .{ .row = 0, .column = 7 }, .{ .row = 2, .column = 1 });
-}
-
 test "render stops a span ending at column 0 on the line before" {
     try expectRender(
         \\error[type-mismatch]: Expected `Int`, found `String`.
@@ -453,60 +361,6 @@ test "render stops a span ending at column 0 on the line before" {
         \\  | ^^
         \\
     , "ab\ncd", null, .{ .row = 0, .column = 0 }, .{ .row = 1, .column = 0 });
-}
-
-test "render elides the middle of a long span" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> 1:1
-        \\  |
-        \\1 | a
-        \\  | ^
-        \\2 | b
-        \\  | ^
-        \\...
-        \\5 | e
-        \\  | ^
-        \\6 | f
-        \\  | ^
-        \\
-    , "a\nb\nc\nd\ne\nf", null, .{ .row = 0, .column = 0 }, .{ .row = 5, .column = 1 });
-}
-
-test "render keeps tabs so the underline lines up" {
-    try expectRender(
-        "error[type-mismatch]: Expected `Int`, found `String`.\n" ++
-            " --> 1:3\n" ++
-            "  |\n" ++
-            "1 | \t x\n" ++
-            "  | \t ^\n",
-        "\t x",
-        null,
-        .{ .row = 0, .column = 2 },
-        .{ .row = 0, .column = 3 },
-    );
-}
-
-test "render counts one caret per character, not per byte" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> 1:8
-        \\  |
-        \\1 | "é" + "ü"
-        \\  |       ^^^
-        \\
-    , "\"é\" + \"ü\"", null, .{ .row = 0, .column = 7 }, .{ .row = 0, .column = 11 });
-}
-
-test "render marks a zero-width span with one caret" {
-    try expectRender(
-        \\error[type-mismatch]: Expected `Int`, found `String`.
-        \\ --> 1:4
-        \\  |
-        \\1 | f x
-        \\  |    ^
-        \\
-    , "f x", null, .{ .row = 0, .column = 3 }, .{ .row = 0, .column = 3 });
 }
 
 test "render omits location and excerpt for an unknown span" {

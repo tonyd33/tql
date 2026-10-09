@@ -1,0 +1,17 @@
+title: a let binding of a parameter is not generalized
+grammar: typescript
+asserts: error
+
+`y` has the parameter's type, which the enclosing scope still holds, so it
+cannot be used at two different types.
+
+--- tql ---
+f x = let { y = x; } in { a = y + 1, b = y ~ r"s" };
+main = const [1];
+
+--- error ---
+error[type-mismatch]: Expected `String`, found `Int`.
+ --> 1:42
+  |
+1 | f x = let { y = x; } in { a = y + 1, b = y ~ r"s" };
+  |                                          ^

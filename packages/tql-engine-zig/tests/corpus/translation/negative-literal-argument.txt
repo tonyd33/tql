@@ -1,0 +1,28 @@
+title: a negative literal argument is parenthesized
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+main = const [-7, 0 - 7];
+
+--- source ---
+class A {}
+
+--- values ---
+[-7, -7]
+
+--- stg ---
+main = {} \u {} ->
+  let
+    t3 = {} \u {} ->
+      let
+        t2 = {} \u {} ->
+          let
+            t0 = {} \u {} -> op[-]# 0 7
+            c1 = Nil
+          in
+          Cons t0@0 c1@1
+      in
+      Cons (-7) t2@0
+  in
+  const t3@0

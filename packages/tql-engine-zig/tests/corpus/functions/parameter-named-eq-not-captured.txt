@@ -1,0 +1,23 @@
+title: a parameter spelled like a prelude function does not capture the call `=` desugars to
+grammar: typescript
+asserts: core, values
+
+`x = y` desugars to a call of the prelude's `eq`. The parameter `eq` is a
+different binder, so the desugared call still reaches the prelude function and
+the parameter prints primed.
+
+--- tql ---
+f eq = if eq = 1 then 10 else 20;
+main = const [f 1, f 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[10, 20]
+
+--- core ---
+f = \eq' -> case eq eq' 1 of
+  False -> 20
+  True -> 10
+main = const (Cons (f 1) (Cons (f 2) Nil))

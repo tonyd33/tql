@@ -1,0 +1,18 @@
+title: a record type in a signature sorts its labels
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+f :: {n: Int, k: String} -> Int;
+f r = r.n;
+main = const [f {k = "a", n = 1}];
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+f :: {k: String, n: Int} -> Int
+main :: Node -> [Int]

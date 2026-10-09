@@ -51,6 +51,7 @@
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
 - Every primitive is a prelude definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in the prelude.
+- Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
 
 ### Improvements
 
@@ -67,6 +68,7 @@
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 - `main`'s constraints are checked at the type it runs at: `main x = [x < x];` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
 - `=` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
+- The empty record `{}` can be used as a value: `main = const [{}];` gives `[{}]`. It failed with `Unsupported`.
 
 ## 0.3.1 (2026-10-03)
 

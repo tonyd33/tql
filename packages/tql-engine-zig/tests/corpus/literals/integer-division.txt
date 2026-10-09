@@ -1,0 +1,15 @@
+title: integer division truncates, associates left and binds like multiplication
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [7 / 2, -7 / 2, 8 / 2 / 2, 1 + 6 / 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[3, -3, 2, 4]
+
+--- types ---
+main :: Node -> [Int]

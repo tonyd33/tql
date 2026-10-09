@@ -1,0 +1,18 @@
+title: seq evaluates its first argument only to weak head normal form
+grammar: typescript
+asserts: types, values
+
+A list cell and a lambda are already values, so `seq` does not look inside
+either, and the division by zero in each is never evaluated.
+
+--- tql ---
+main = const [seq [1 / 0] 1, seq (\x -> x / 0) 2, seq 3 4, foldr seq 5 [6, 7]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2,4,5]
+
+--- types ---
+main :: Node -> [Int]

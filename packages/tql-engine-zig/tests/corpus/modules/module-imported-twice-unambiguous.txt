@@ -1,0 +1,20 @@
+title: a module imported twice is not ambiguous with itself
+grammar: typescript
+asserts: values
+
+--- module Numbers ---
+module Numbers;
+
+double x = x * 2;
+
+--- tql ---
+import Numbers;
+import Numbers (double);
+
+main root = [double 1];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2]

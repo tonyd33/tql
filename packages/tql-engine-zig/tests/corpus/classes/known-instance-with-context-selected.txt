@@ -1,0 +1,33 @@
+title: a method of a known instance with a context passes the context's evidence
+grammar: typescript
+asserts: simplified, values
+
+`describe` at `[Shape]` selects from `Describe [a]` applied to the known
+`Describe Shape` dictionary, so the call goes to the list instance's
+implementation with that dictionary and no list dictionary is built.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> [String];
+};
+
+data Shape = Circle Int | Square Int;
+
+instance Describe Shape where {
+  describe s = case s of { Circle _ -> ["circle"]; Square _ -> ["square"] };
+};
+
+instance Describe a => Describe [a] where {
+  describe xs = case xs of { [] -> []; x : rest -> append (describe x) (describe rest) };
+};
+
+main root = describe [Circle 1];
+
+--- source ---
+class A {}
+
+--- values ---
+["circle"]
+
+--- simplified ---
+main = \root -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)

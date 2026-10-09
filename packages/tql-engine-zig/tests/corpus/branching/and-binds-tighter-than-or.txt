@@ -1,0 +1,21 @@
+title: `and` binds tighter than `or`
+grammar: typescript
+asserts: core, types, values
+
+`true or true and false` groups as `true or (true and false)`. Grouping left
+to right would yield `false`.
+
+--- tql ---
+main = pure $ true or true and false;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+main :: Node -> [Bool]
+
+--- core ---
+main = pure (or True (and True False))

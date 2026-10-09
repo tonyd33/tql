@@ -1,0 +1,24 @@
+title: `or_else` yields every primary result, or the fallback when the primary is empty
+grammar: typescript
+asserts: types, values
+
+Checking whether the primary yields anything forces only its first result, but
+when it does yield, every result is returned.
+
+--- tql ---
+method_names = #body | children | of_kind :method_definition | #name | arr text;
+
+main =
+  children | of_kind :class_declaration
+  | or_else method_names (pure "none");
+
+--- source ---
+class A { m() {} n() {} }
+class B {}
+
+--- values ---
+["m", "n", "none"]
+
+--- types ---
+method_names :: Node -> [String]
+main :: Node -> [String]

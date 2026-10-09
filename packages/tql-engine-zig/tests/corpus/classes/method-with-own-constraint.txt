@@ -1,0 +1,46 @@
+title: a method constrains a variable of its own and is called
+grammar: typescript
+asserts: types, values
+
+`check` calls `holds` at `String`; the method's own `Eq b` is discharged there
+and does not appear in the type of `check`.
+
+--- tql ---
+class Container a where {
+  holds :: Eq b => a -> b -> b -> Bool;
+};
+
+class Labelled a where {
+  label_with :: Labelled b => a -> b -> [String];
+  label :: a -> String;
+};
+
+data Pair = Pair Int Int;
+
+instance Container Pair where {
+  holds p x y = x = y;
+};
+
+instance Labelled Int where {
+  label_with n other = ["int", label other];
+  label n = "int";
+};
+
+instance Labelled String where {
+  label_with s other = [s, label other];
+  label s = s;
+};
+
+check p = holds p "a" "a";
+
+main root = [label_with 1 "s", label_with "s" 1, [if check (Pair 1 2) then "yes" else "no"]];
+
+--- source ---
+class A {}
+
+--- values ---
+[["int", "s"], ["s", "int"], ["yes"]]
+
+--- types ---
+check :: Container a => a -> Bool
+main :: Node -> [[String]]

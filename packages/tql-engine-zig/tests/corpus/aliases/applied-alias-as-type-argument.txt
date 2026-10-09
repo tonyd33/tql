@@ -1,0 +1,22 @@
+title: an applied alias as a type argument is parenthesized
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+type Named r = {name: String | r};
+data Box a = Box a;
+
+unbox :: Box (Named r) -> String;
+unbox b = case b of { Box x -> x.name };
+
+main root = [unbox (Box {name = "a", age = 1})];
+
+--- source ---
+class A {}
+
+--- values ---
+["a"]
+
+--- types ---
+unbox :: Box (Named a) -> String
+main :: Node -> [String]

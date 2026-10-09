@@ -29,8 +29,9 @@ pub const Measure = struct {
 };
 
 /// The node count of `t`, and the nodes of it that the call's known
-/// arguments remove: each `case p of` on a known constructor, less the
-/// alternative it takes, and each application node headed by a known lambda.
+/// arguments remove: each `case p of` on a known constructor or lambda, less
+/// the alternative it takes, and each application node headed by a known
+/// lambda.
 ///
 /// `known[i]` is what the argument for `parameters[i]` is known to be.
 pub fn measure(t: core.Term, parameters: []const core.SymbolId, known: []const ?Known) Measure {
@@ -47,7 +48,8 @@ pub fn measure(t: core.Term, parameters: []const core.SymbolId, known: []const ?
         },
         .case => |case_term| {
             result.add(measure(case_term.scrutinee, parameters, known));
-            const constructor = if (knownAs(case_term.scrutinee, parameters, known)) |k| switch (k) {
+            const scrutinee = knownAs(case_term.scrutinee, parameters, known);
+            const constructor = if (scrutinee) |k| switch (k) {
                 .constructor => |id| id,
                 .lambda => null,
             } else null;
@@ -58,6 +60,12 @@ pub fn measure(t: core.Term, parameters: []const core.SymbolId, known: []const ?
                 result.size += body.size;
                 discount += body.discount;
                 if (constructor == alternative.constructor) taken = body;
+            }
+            if (case_term.default) |default| {
+                const body = measure(default, parameters, known);
+                result.size += body.size;
+                discount += body.discount;
+                if (scrutinee != null and taken == null) taken = body;
             }
             result.discount += if (taken) |body| result.size - body.size + body.discount else discount;
         },

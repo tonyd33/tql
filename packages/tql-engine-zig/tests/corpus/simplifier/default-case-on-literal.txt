@@ -1,0 +1,18 @@
+title: a case with only a default on a literal takes the default
+grammar: typescript
+asserts: core, simplified, values
+
+--- tql ---
+main = pure (seq 1 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- core ---
+main = pure (seq 1 2)
+
+--- simplified ---
+main = pure 2

@@ -1,0 +1,16 @@
+title: recursion deeper than the stack budget stops with StackOverflow
+grammar: typescript
+asserts: runtime_error
+
+`n + sum (n - 1)` forces the recursive call before adding, so each level holds
+a native frame.
+
+--- tql ---
+sum n = if n <= 0 then 0 else n + sum (n - 1);
+main root = pure (sum 1000000) root;
+
+--- source ---
+class A {}
+
+--- runtime error ---
+StackOverflow

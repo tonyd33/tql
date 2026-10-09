@@ -1,0 +1,17 @@
+title: a node nested inside a record encodes as a node
+grammar: typescript
+asserts: types, values
+
+`Node` is `Serial`, so a record field may hold one.
+
+--- tql ---
+main = children | of_kind :class_declaration | arr (\c -> { n = c, k = kind c });
+
+--- source ---
+class A {}
+
+--- values ---
+[{"k":"class_declaration","n":{"kind":"class_declaration","text":"class A {}","start_byte":0,"end_byte":10,"start_point":{"row":0,"column":0},"end_point":{"row":0,"column":10}}}]
+
+--- types ---
+main :: Node -> [{k: Kind, n: Node}]
