@@ -864,7 +864,8 @@ test "the prelude's bodies compile to Core" {
         \\        let z2 = f z h in
         \\        seq z2 (foldl_strict f z2 t)
         \\  in
-        \\  foldl_strict (\n -> \x -> op[+] n 1) 0 xs
+        \\  let acc = \n -> \_ -> op[+] n 1 in
+        \\  foldl_strict acc 0 xs
         \\eq[List] = \x -> \y -> case x of
         \\  Nil -> case y of
         \\    Nil -> True
