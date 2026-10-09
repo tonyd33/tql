@@ -102,8 +102,7 @@ const Fixture = struct {
 
 /// Parses, desugars and links `sources` against the typescript grammar, each
 /// as a module importing every one before it, the last as the entry module.
-/// No prelude source is linked, but each imports the primitives. The caller
-/// owns the result.
+/// No prelude source is linked. The caller owns the result.
 fn link(sources: []const []const u8) !core.Program {
     const gpa = testing.allocator;
 
@@ -343,7 +342,7 @@ test "a context constrains a variable of the type" {
         .from = fix.node(.{ .variable = "a" }),
         .to = fix.node(.{ .constructor = "Int" }),
     };
-    try fix.expectConstrained(&.{.{ .class = "Sized", .variable = "a" }}, written, "Sized a => a -> Int");
+    try fix.expectConstrained(&.{.{ .class = "Eq", .variable = "a" }}, written, "Eq a => a -> Int");
 }
 
 test "a context follows the type's variable order" {
@@ -465,23 +464,20 @@ test "a field symbol carries the grammar id it resolved" {
     try testing.expectEqual(g.language.fieldIdForName("name"), field_what.field.id);
 
     // A primitive is not synthesized, and a synthesized symbol is not a primitive.
-    const text = program.env.interner.lookup(.prelude, "text").?;
+    const text = program.env.interner.lookup(.prelude, "%text").?;
     try testing.expectEqual(core.PrimOp.text, program.env.interner.details(text).primop);
     try testing.expect(program.env.interner.details(field) == .synthesized);
 }
 
 test "a kind literal carries the grammar id it resolved" {
-    var program = try link(&.{"main = of_kind :class_declaration;"});
+    var program = try link(&.{"main = :class_declaration;"});
     defer program.deinit();
 
     var grammars = grammar.Registry.init(testing.allocator, &.{});
     defer grammars.deinit();
     const g = try grammars.get("typescript");
 
-    const body = program.entryDefinitions()[0].body;
-    const function = body.kind.apply.function.kind.symbol;
-    try testing.expectEqual(core.PrimOp.of_kind, program.env.interner.details(function).primop);
-    const kind = body.kind.apply.argument.kind.literal.kind;
+    const kind = program.entryDefinitions()[0].body.kind.literal.kind;
     try testing.expectEqualStrings("class_declaration", kind.name);
     try testing.expectEqual(g.language.idForNodeKind("class_declaration", true), kind.id);
 }

@@ -33,6 +33,8 @@
 
 (kind) @type
 
+(primitive) @function.builtin
+
 (navigation field: (_) @attribute)
 (leading_navigation field: (_) @attribute)
 (field_pattern name: (_) @attribute)

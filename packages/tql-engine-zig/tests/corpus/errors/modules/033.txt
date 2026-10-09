@@ -1,0 +1,13 @@
+title: a primitive is not visible outside the prelude
+grammar: typescript
+asserts: error
+
+--- tql ---
+main root = [%text root];
+
+--- error ---
+error[unresolved-name]: `%text` is not defined
+ --> 1:14
+  |
+1 | main root = [%text root];
+  |              ^^^^^

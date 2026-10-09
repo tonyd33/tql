@@ -24,7 +24,6 @@ pub const Scalar = enum {
     subtract,
     multiply,
     divide,
-    modulo,
 
     /// How the operator is written, and how its symbol is named.
     pub fn spelling(self: Scalar) []const u8 {
@@ -42,7 +41,6 @@ pub const Scalar = enum {
             .subtract => "-",
             .multiply => "*",
             .divide => "/",
-            .modulo => "%",
         };
     }
 
@@ -92,7 +90,8 @@ pub const PrimOp = enum {
     is_named,
     is_extra,
     range,
-    length,
+    string_length,
+    mod,
     toint,
     filename,
     parent,
@@ -106,10 +105,11 @@ pub const PrimOp = enum {
     of_kind,
     is_kind,
 
-    /// Whether a source may name it. The others are reached only through
-    /// instances.
-    pub fn named(self: PrimOp) bool {
-        return self != .length;
+    /// Returns the name the prelude writes it by.
+    pub fn spelling(self: PrimOp) []const u8 {
+        return switch (self) {
+            inline else => |primop| "%" ++ @tagName(primop),
+        };
     }
 
     /// The single axis this one becomes when composed with a kind test, if

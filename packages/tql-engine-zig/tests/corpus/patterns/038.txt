@@ -19,9 +19,9 @@ c();
 main = \root -> concat_map (
   \scrutinee -> case field[function] scrutinee of
     Nil -> Nil
-    Cons cons0 cons1 -> case is_kind :member_expression cons0 of
+    Cons cons0 cons1 -> case %is_kind :member_expression cons0 of
       False -> Nil
       True -> case cons1 of
-        Nil -> Cons (text cons0) Nil
+        Nil -> Cons (%text cons0) Nil
         Cons _ _ -> Nil
-) (descendants_of_kind :call_expression root)
+) (%descendants_of_kind :call_expression root)

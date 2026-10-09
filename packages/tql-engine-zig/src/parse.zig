@@ -501,6 +501,7 @@ const Walker = struct {
     const ExpressionKind = enum {
         identifier,
         qualified_identifier,
+        primitive,
         kind,
         number,
         boolean,
@@ -535,7 +536,7 @@ const Walker = struct {
         const kind = node.grammarKind();
 
         if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
-            .identifier, .qualified_identifier => {
+            .identifier, .qualified_identifier, .primitive => {
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
             .kind => return .{ .kind = .{ .kind_test = try self.kindName(node) }, .span = span },

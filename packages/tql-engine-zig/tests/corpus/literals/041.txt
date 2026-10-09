@@ -1,0 +1,12 @@
+title: mod takes the divisor's sign
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = const [mod 7 3, mod (-7) 3, mod 7 (-3), mod (-7) (-3)];
+
+--- source ---
+class A {}
+
+--- values ---
+[1, 2, -2, -1]

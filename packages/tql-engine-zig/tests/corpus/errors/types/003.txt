@@ -2,7 +2,7 @@ title: arithmetic on a string
 grammar: typescript
 asserts: error
 
-`+`, `-`, `*`, `/`, `%` require `int`.
+`+`, `-`, `*` and `/` require `int`.
 
 --- tql ---
 main = "a" + 1;

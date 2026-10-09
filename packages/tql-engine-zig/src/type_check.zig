@@ -46,6 +46,7 @@ const Fixture = struct {
     subst: Substitution,
     undecided: constraints.Set,
     inference: infer.Inference,
+    sized: core.classes.ClassId,
 
     fn init(gpa: Allocator) !*Fixture {
         const self = try gpa.create(Fixture);
@@ -54,9 +55,11 @@ const Fixture = struct {
             .subst = undefined,
             .undecided = constraints.Set.init(gpa),
             .inference = undefined,
+            .sized = undefined,
         };
         self.subst = Substitution.init(gpa, self.pb.env.allocator(), &self.pb.env.datatypes, &self.pb.env.classes);
         try self.pb.datatype("Flag", &.{ .{ "Off", &.{} }, .{ "On", &.{} } });
+        self.sized = try self.pb.env.classes.declare(.{ .name = .{ .module = .prelude, .name = "Sized" } });
         try self.declarePreludeInstances();
         self.inference = infer.Inference.init(gpa, &self.subst, &self.undecided, &self.pb.env);
         return self;
@@ -76,8 +79,8 @@ const Fixture = struct {
         try self.instance(.serial, boolean, &.{});
         try self.instance(.serial, list, &.{.{ .class = .serial, .type = a }});
         for ([_]types.Type{ types.int_type, types.string_type }) |t| try self.instance(.ord, t, &.{});
-        try self.instance(.sized, types.string_type, &.{});
-        try self.instance(.sized, list, &.{});
+        try self.instance(self.sized, types.string_type, &.{});
+        try self.instance(self.sized, list, &.{});
         for ([_]core.classes.ClassId{ .eq, .ord }) |class| {
             try self.instance(class, boolean, &.{});
             try self.instance(class, list, &.{.{ .class = class, .type = a }});
@@ -440,7 +443,7 @@ test "quantify rewrites constraints onto the bound variables" {
     const scheme = try t.subst.quantify(
         shape,
         &.{a.meta},
-        &.{.{ .class = .sized, .type = a }},
+        &.{.{ .class = t.sized, .type = a }},
     );
 
     try std.testing.expectFmt("Sized a => a -> Int", "{f}", .{scheme.named(&t.pb.env.classes)});
@@ -799,9 +802,9 @@ test "Sized holds for string and lists, not for int" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectHolds(.sized, types.string_type);
-    try fix.expectHolds(.sized, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
-    try fix.expectRefuted(.sized, types.int_type);
+    try fix.expectHolds(fix.sized, types.string_type);
+    try fix.expectHolds(fix.sized, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
+    try fix.expectRefuted(fix.sized, types.int_type);
 }
 
 test "Sized on a list does not descend" {
@@ -815,7 +818,7 @@ test "Sized on a list does not descend" {
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
     );
-    try fix.expectHolds(.sized, of_functions);
+    try fix.expectHolds(fix.sized, of_functions);
     try fix.expectRefuted(.serial, of_functions);
 }
 
@@ -825,7 +828,7 @@ test "Sized on a list of an unsolved metavariable holds without deferring" {
     defer fix.deinit(gpa);
 
     const a = try fix.subst.fresh();
-    try fix.expectHolds(.sized, try fix.subst.datatypes.list(fix.subst.arena, a));
+    try fix.expectHolds(fix.sized, try fix.subst.datatypes.list(fix.subst.arena, a));
 }
 
 test "Serial holds for the six scalars and not regex" {
@@ -877,7 +880,7 @@ test "Ord and Sized do not hold for records" {
 
     const r = try fix.record(&.{"n"}, &.{types.int_type});
     try fix.expectRefuted(.ord, r);
-    try fix.expectRefuted(.sized, r);
+    try fix.expectRefuted(fix.sized, r);
 }
 
 test "Ord holds for a list of ordered elements only" {
@@ -897,7 +900,7 @@ test "a function fails every class, and a filter is a function" {
     const projection = try types.func(fix.subst.arena, types.node_type, types.string_type);
     const filter = try fix.subst.datatypes.filter(fix.subst.arena, types.node_type, types.string_type);
 
-    for ([_]core.classes.ClassId{ .eq, .ord, .serial, .sized }) |class| {
+    for ([_]core.classes.ClassId{ .eq, .ord, .serial, fix.sized }) |class| {
         try fix.expectRefuted(class, projection);
         try fix.expectRefuted(class, filter);
     }
@@ -1065,7 +1068,7 @@ test "generalization takes the constraints on the quantified metavariables" {
 
     const a = try fix.subst.fresh();
     const b = try fix.subst.fresh();
-    _ = try fix.undecided.require(&fix.subst, .sized, a, some_span);
+    _ = try fix.undecided.require(&fix.subst, fix.sized, a, some_span);
     _ = try fix.undecided.require(&fix.subst, .serial, b, some_span);
 
     var taken: std.ArrayList(constraints.Constraint) = .empty;
@@ -1075,7 +1078,7 @@ test "generalization takes the constraints on the quantified metavariables" {
     // `a`'s constraint goes into the scheme; `b`'s is still owed by the
     // enclosing scope.
     try testing.expectEqual(1, taken.items.len);
-    try testing.expectEqual(core.classes.ClassId.sized, taken.items[0].class);
+    try testing.expectEqual(fix.sized, taken.items[0].class);
     try testing.expectEqual(1, fix.undecided.all().len);
     try testing.expectEqual(core.classes.ClassId.serial, fix.undecided.all()[0].class);
 }
@@ -1104,7 +1107,7 @@ test "the length primitive's Sized constraint defers on an open input" {
     const a = try fix.subst.fresh();
     try testing.expectEqual(
         null,
-        try fix.undecided.require(&fix.subst, .sized, a, some_span),
+        try fix.undecided.require(&fix.subst, fix.sized, a, some_span),
     );
 
     fix.subst.bind(a.meta, types.string_type);
@@ -1456,7 +1459,7 @@ test "instantiating a constrained scheme raises the constraint at the use" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = fix.sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
@@ -1472,7 +1475,7 @@ test "a constraint on an open type defers rather than rejecting" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = fix.sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 
@@ -1518,7 +1521,7 @@ test "generalization carries the residual constraint into the scheme" {
 
     const length_of = try fix.define("length_of", .{
         .quantified = 1,
-        .constraints = &.{.{ .class = .sized, .type = types.variable_type(0) }},
+        .constraints = &.{.{ .class = fix.sized, .type = types.variable_type(0) }},
         .type = comptime types.func_type(types.variable_type(0), types.int_type),
     });
 

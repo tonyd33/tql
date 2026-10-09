@@ -120,6 +120,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -288,6 +292,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -453,6 +461,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -604,6 +616,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -931,6 +947,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -1108,6 +1128,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -1291,6 +1315,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -1442,6 +1470,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -1664,6 +1696,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -1909,6 +1945,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -2101,6 +2141,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -2261,6 +2305,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -2412,6 +2460,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -2701,6 +2753,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -2852,6 +2908,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -3318,6 +3378,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -3522,6 +3586,10 @@
           "named": true
         },
         {
+          "type": "primitive",
+          "named": true
+        },
+        {
           "type": "qualified_identifier",
           "named": true
         },
@@ -3681,6 +3749,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -3832,6 +3904,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -4002,6 +4078,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -4395,6 +4475,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -4549,6 +4633,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -4700,6 +4788,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -4931,6 +5023,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -5082,6 +5178,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -5366,6 +5466,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -5552,6 +5656,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -5603,10 +5711,6 @@
           },
           {
             "type": "$",
-            "named": false
-          },
-          {
-            "type": "%",
             "named": false
           },
           {
@@ -5816,6 +5920,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -5993,6 +6101,10 @@
         },
         {
           "type": "pipe",
+          "named": true
+        },
+        {
+          "type": "primitive",
           "named": true
         },
         {
@@ -6269,6 +6381,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -6420,6 +6536,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -6583,6 +6703,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -6734,6 +6858,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -6933,6 +7061,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -6974,10 +7106,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "%",
-            "named": false
-          },
           {
             "type": "*",
             "named": false
@@ -7102,6 +7230,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -7275,6 +7407,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -7422,10 +7558,6 @@
           },
           {
             "type": "$",
-            "named": false
-          },
-          {
-            "type": "%",
             "named": false
           },
           {
@@ -7622,6 +7754,10 @@
         },
         {
           "type": "pipe",
+          "named": true
+        },
+        {
+          "type": "primitive",
           "named": true
         },
         {
@@ -8044,6 +8180,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -8195,6 +8335,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -8383,6 +8527,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -8524,10 +8672,6 @@
           },
           {
             "type": "$",
-            "named": false
-          },
-          {
-            "type": "%",
             "named": false
           },
           {
@@ -8714,6 +8858,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -9010,6 +9158,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -9161,6 +9313,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -9442,6 +9598,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -9593,6 +9753,10 @@
           },
           {
             "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
             "named": true
           },
           {
@@ -9818,6 +9982,10 @@
             "named": true
           },
           {
+            "type": "primitive",
+            "named": true
+          },
+          {
             "type": "qualified_identifier",
             "named": true
           },
@@ -9871,10 +10039,6 @@
   },
   {
     "type": "$",
-    "named": false
-  },
-  {
-    "type": "%",
     "named": false
   },
   {
@@ -10101,6 +10265,10 @@
   {
     "type": "pattern",
     "named": false
+  },
+  {
+    "type": "primitive",
+    "named": true
   },
   {
     "type": "qualified_identifier",

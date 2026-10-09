@@ -13,15 +13,15 @@ const PrimOp = core.PrimOp;
 /// `[a]` and `Bool` are declared types, so a scheme mentioning either needs
 /// the registry that declared them. Hence runtime rather than comptime.
 fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
-    const a = types.variable_type(0);
     return switch (primop) {
         .text, .kind_name => .{ .type = try B.func(types.node_type, types.string_type) },
         .kind => .{ .type = try B.func(types.node_type, types.kind_type) },
         .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
-        .length => .{ .quantified = 1, .type = try B.func(a, types.int_type) },
+        .string_length => .{ .type = try B.func(types.string_type, types.int_type) },
+        .mod => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
         .toint => .{ .type = try B.filter(types.string_type, types.int_type) },
-        .filename => .{ .quantified = 1, .type = try B.filter(a, types.string_type) },
+        .filename => .{ .type = try B.filter(types.node_type, types.string_type) },
         .parent,
         .ancestors,
         .children,
@@ -76,7 +76,7 @@ pub fn operatorScheme(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
         ) },
-        .add, .subtract, .multiply, .divide, .modulo => .{ .type = try B.func(
+        .add, .subtract, .multiply, .divide => .{ .type = try B.func(
             types.int_type,
             try B.func(types.int_type, types.int_type),
         ) },
@@ -154,10 +154,7 @@ pub fn populate(target: *core.env.Env) !void {
     const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
     for (std.enums.values(PrimOp)) |primop| {
         const scheme = try schemeOf(B, primop);
-        const id = if (primop.named())
-            try target.interner.intern(.prelude, @tagName(primop), .{ .primop = primop })
-        else
-            try target.interner.generate(.prelude, @tagName(primop), .{ .primop = primop });
+        const id = try target.interner.intern(.prelude, primop.spelling(), .{ .primop = primop });
         try target.setScheme(id, scheme);
         target.primitives.set(primop, id);
     }
@@ -198,40 +195,33 @@ pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!co
     };
 }
 
-/// Declares the instances the machine implements at the primitive types, and
-/// `Sized` at lists.
+/// Declares the instances the machine implements at the primitive types.
 ///
 /// Preconditions:
 /// - `populate` has run on `target`.
 pub fn declareInstances(target: *core.env.Env) !void {
     const equal = try operatorSymbol(target, .eq);
     const compare = try operatorSymbol(target, .compare);
-    const length = target.primitives.get(.length).?;
 
     for ([_]types.Primitive{ .Int, .String, .Node, .Kind }) |p| {
-        try declareInstance(target, .eq, .{ .primitive = p }, &.{equal});
-        try declareInstance(target, .serial, .{ .primitive = p }, &.{});
+        try declareInstance(target, .eq, p, &.{equal});
+        try declareInstance(target, .serial, p, &.{});
     }
-    for ([_]types.Primitive{ .Int, .String }) |p| try declareInstance(target, .ord, .{ .primitive = p }, &.{compare});
-    try declareInstance(target, .sized, .{ .primitive = .String }, &.{length});
-    try declareInstance(target, .sized, .{ .datatype = target.datatypes.listId() }, &.{length});
+    for ([_]types.Primitive{ .Int, .String }) |p| try declareInstance(target, .ord, p, &.{compare});
 }
 
 /// An instance at `head` with no context, `methods` in class order.
 fn declareInstance(
     target: *core.env.Env,
     class: core.classes.ClassId,
-    head: core.classes.Head,
+    head: types.Primitive,
     methods: []const core.SymbolId,
 ) !void {
     const arena = target.allocator();
     _ = (try target.declareInstance(.{
         .class = class,
-        .head = head,
-        .type = switch (head) {
-            .primitive => |p| .{ .primitive = p },
-            .datatype => |id| try target.datatypes.applied(arena, id),
-        },
+        .head = .{ .primitive = head },
+        .type = .{ .primitive = head },
         .context = &.{},
         .methods = try arena.dupe(core.SymbolId, methods),
         .dictionary = undefined,
@@ -251,11 +241,11 @@ test "primitives are the documented set" {
     // Held by hand against the language definition. A row added to one side and
     // not the other fails here rather than drifting silently.
     const expected = [_][]const u8{
-        "text",                "kind",              "kind_name", "is_named",
-        "is_extra",            "range",             "toint",     "filename",
-        "parent",              "ancestors",         "children",  "named_children",
-        "descendants",         "named_descendants", "of_kind",   "children_of_kind",
-        "descendants_of_kind", "is_kind",
+        "%text",     "%kind",             "%kind_name",           "%is_named",
+        "%is_extra", "%range",            "%string_length",       "%mod",
+        "%toint",    "%filename",         "%parent",              "%ancestors",
+        "%children", "%named_children",   "%descendants",         "%named_descendants",
+        "%of_kind",  "%children_of_kind", "%descendants_of_kind", "%is_kind",
     };
 
     var target = try fixture(std.testing.allocator);
@@ -263,12 +253,12 @@ test "primitives are the documented set" {
 
     var interned: usize = 0;
     for (std.enums.values(PrimOp)) |primop| {
-        if (target.interner.lookup(.prelude, @tagName(primop)) != null) interned += 1;
+        if (target.interner.lookup(.prelude, primop.spelling()) != null) interned += 1;
     }
     try std.testing.expectEqual(expected.len, interned);
     for (expected) |name| {
         const id = target.interner.lookup(.prelude, name) orelse return error.Missing;
-        try std.testing.expectEqualStrings(name, @tagName(target.interner.details(id).primop));
+        try std.testing.expectEqualStrings(name, target.interner.details(id).primop.spelling());
     }
 }
 
@@ -276,8 +266,8 @@ test "every primitive is interned, and its scheme and primop are recorded" {
     var target = try fixture(std.testing.allocator);
     defer target.deinit();
 
-    const text = target.interner.lookup(.prelude, "text") orelse return error.Missing;
-    try std.testing.expectEqualStrings("text", target.interner.spelling(text));
+    const text = target.interner.lookup(.prelude, "%text") orelse return error.Missing;
+    try std.testing.expectEqualStrings("%text", target.interner.spelling(text));
     try std.testing.expectEqual(PrimOp.text, target.interner.details(text).primop);
     try std.testing.expect(target.schemeOf(text) != null);
 }
@@ -288,7 +278,7 @@ test "a declaration colliding with a primitive's name is rejected" {
 
     try std.testing.expectError(
         error.Collision,
-        target.interner.intern(.prelude, "children", .vanilla),
+        target.interner.intern(.prelude, "%children", .vanilla),
     );
 }
 

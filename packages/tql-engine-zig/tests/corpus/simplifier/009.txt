@@ -14,7 +14,7 @@ class A {}
 --- simplified ---
 main =
   let s = "ab" in
-  pure (op[+] (length s) (length s))
+  pure (op[+] (%string_length s) (%string_length s))
 
 --- core ---
 main =

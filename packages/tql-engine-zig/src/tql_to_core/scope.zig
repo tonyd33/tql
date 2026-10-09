@@ -47,6 +47,8 @@ const Subject = union(enum) {
     /// A method, admitted by its own name or through `C(..)` for its class.
     method: struct { name: []const u8, class: []const u8 },
     synonym: []const u8,
+    /// A primitive, which no module exports.
+    primitive,
 
     fn of(item: cst.Item) Subject {
         return switch (item.kind) {
@@ -58,6 +60,7 @@ const Subject = union(enum) {
 };
 
 fn admits(filter: Filter, subject: Subject) bool {
+    if (subject == .primitive) return false;
     return switch (filter) {
         .all => true,
         .only => |items| listed(items, subject),
@@ -74,6 +77,7 @@ fn listed(items: []const cst.Item, subject: Subject) bool {
             .method => |m| (item.kind == .value and std.mem.eql(u8, item.name, m.name)) or
                 (item.kind == .type_and_constructors and std.mem.eql(u8, item.name, m.class)),
             .synonym => |name| item.kind == .synonym and std.mem.eql(u8, item.name, name),
+            .primitive => false,
         };
         if (matches) return true;
     }
@@ -168,6 +172,7 @@ pub const ModuleScope = struct {
     fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
         switch (self.interner.details(symbol)) {
             .synonym => return .{ .synonym = name },
+            .primop => return .primitive,
             .method => |m| return .{ .method = .{ .name = name, .class = self.classes.spelling(m.class) } },
             else => {},
         }
