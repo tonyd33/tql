@@ -1,43 +1,12 @@
 //! Declared algebraic data types and their constructors.
 
 const std = @import("std");
-const ClassId = @import("classes.zig").ClassId;
 const symbols = @import("symbols.zig");
 const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
 pub const TypeId = symbols.TypeId;
-
-/// Which classes a declared type admits, and whether its parameters must
-/// admit them too.
-pub const Entailment = enum {
-    /// Never holds.
-    never,
-    /// Holds unconditionally.
-    always,
-    /// Holds when every field type holds.
-    fields,
-};
-
-pub const ClassRow = struct {
-    Eq: Entailment = .never,
-    Ord: Entailment = .never,
-    Sized: Entailment = .never,
-    Serial: Entailment = .never,
-
-    /// Preconditions:
-    /// - `class` has built-in evidence.
-    pub fn forClass(self: ClassRow, class: ClassId) Entailment {
-        return switch (class) {
-            .eq => self.Eq,
-            .ord => self.Ord,
-            .sized => self.Sized,
-            .serial => self.Serial,
-            _ => unreachable,
-        };
-    }
-};
 
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
@@ -55,7 +24,6 @@ pub const Datatype = struct {
     /// Count of bound type parameters, numbered from zero.
     parameters: u8,
     constructors: []const Constructor,
-    classes: ClassRow,
 };
 
 /// `type Named r = {name: String | r};`
@@ -94,36 +62,39 @@ pub const Registry = struct {
 
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// The prelude declares `List` and `Bool`; these rows reserve their ids
-    /// and class entailments so a primitive scheme can name either before the
-    /// prelude is parsed.
+    /// The prelude declares `List`, `Bool` and `Ordering`; these rows reserve
+    /// their ids so a primitive scheme can name any of them before the prelude
+    /// is parsed.
     pub const Structural = struct {
         name: []const u8,
         parameters: u8,
-        classes: ClassRow,
         /// Constructor spellings in tag order.
         constructors: []const []const u8,
 
         pub const list: Structural = .{
             .name = types.list_spelling,
             .parameters = 1,
-            .classes = .{ .Eq = .fields, .Sized = .always, .Serial = .fields },
             .constructors = &.{ "Nil", "Cons" },
         };
 
         pub const boolean: Structural = .{
             .name = types.bool_spelling,
             .parameters = 0,
-            .classes = .{ .Eq = .always, .Serial = .always },
             .constructors = &.{ "False", "True" },
         };
 
-        pub const all: []const Structural = &.{ Structural.list, Structural.boolean };
+        pub const ordering: Structural = .{
+            .name = types.ordering_spelling,
+            .parameters = 0,
+            .constructors = &.{ "LT", "EQ", "GT" },
+        };
+
+        pub const all: []const Structural = &.{ Structural.list, Structural.boolean, Structural.ordering };
     };
 
     /// Declares the prelude's built-in types: the primitives, the aliases
-    /// `Range` and `Point`, and `List` and `Bool` with no constructors yet.
-    /// The primitive schemes mention `List` and `Bool`, so their ids must
+    /// `Range` and `Point`, and `List`, `Bool` and `Ordering` with no
+    /// constructors yet. The primitive schemes mention them, so their ids must
     /// exist before `prelude.tql` is parsed; the prelude's own declarations
     /// fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
@@ -134,7 +105,7 @@ pub const Registry = struct {
             try self.defineAlias(.prelude, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
         }
         for (Structural.all) |s| {
-            _ = try self.declare(interner, .prelude, s.name, s.parameters, &.{}, s.classes);
+            _ = try self.declare(interner, .prelude, s.name, s.parameters, &.{});
         }
     }
 
@@ -161,6 +132,22 @@ pub const Registry = struct {
         return self.get(self.boolId()).constructors[if (b) 1 else 0];
     }
 
+    pub fn orderingId(self: *const Registry) TypeId {
+        return self.lookup(.prelude, types.ordering_spelling).?;
+    }
+
+    /// The constructor `order` denotes: `LT`, `EQ` or `GT`, tags 0 to 2 of
+    /// `Ordering`.
+    pub fn orderingConstructor(self: *const Registry, order: std.math.Order) Constructor {
+        return self.get(self.orderingId()).constructors[
+            switch (order) {
+                .lt => 0,
+                .eq => 1,
+                .gt => 2,
+            }
+        ];
+    }
+
     /// `Nil`, tag 0 of `List`.
     pub fn nilConstructor(self: *const Registry) Constructor {
         return self.get(self.listId()).constructors[0];
@@ -179,12 +166,16 @@ pub const Registry = struct {
         id: TypeId,
         constructor: Constructor,
     ) Allocator.Error!types.Scheme {
+        const result = try self.applied(arena, id);
+        return .{ .quantified = self.get(id).parameters, .type = try types.arrows(arena, constructor.fields, result) };
+    }
+
+    /// `id` applied to its own parameters, in order.
+    pub fn applied(self: *const Registry, arena: Allocator, id: TypeId) Allocator.Error!types.Type {
         const declared = self.get(id);
         const arguments = try arena.alloc(types.Type, declared.parameters);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
-
-        const result = try types.constructed(arena, id, declared.name, arguments);
-        return .{ .quantified = declared.parameters, .type = try types.arrows(arena, constructor.fields, result) };
+        return try types.constructed(arena, id, declared.name, arguments);
     }
 
     /// `[t]`, for a caller that has the registry.
@@ -195,6 +186,11 @@ pub const Registry = struct {
     /// `Bool`.
     pub fn boolType(self: *const Registry, arena: Allocator) !types.Type {
         return try types.constructed(arena, self.boolId(), types.bool_spelling, &.{});
+    }
+
+    /// `Ordering`.
+    pub fn orderingType(self: *const Registry, arena: Allocator) !types.Type {
+        return try types.constructed(arena, self.orderingId(), types.ordering_spelling, &.{});
     }
 
     /// `Filter a b` = `a -> [b]`.
@@ -217,7 +213,6 @@ pub const Registry = struct {
         name: []const u8,
         parameters: u8,
         constructors: []const Constructor,
-        classes: ClassRow,
     ) Allocator.Error!TypeId {
         const id: TypeId = @enumFromInt(self.datatypes.items.len);
         try self.datatypes.append(self.allocator, .{
@@ -225,7 +220,6 @@ pub const Registry = struct {
             .module = module,
             .parameters = parameters,
             .constructors = constructors,
-            .classes = classes,
         });
         try self.by_name.put(self.allocator, .{ .module = module, .name = name }, id);
         own(interner, id, constructors);
@@ -310,11 +304,7 @@ test "a declared type is reachable by name, id, and constructor" {
         .{ .symbol = cons, .tag = 1, .fields = &.{} },
     };
 
-    const id = try registry.declare(&interner, .prelude, "List", 1, &constructors, .{
-        .Eq = .fields,
-        .Sized = .always,
-        .Serial = .fields,
-    });
+    const id = try registry.declare(&interner, .prelude, "List", 1, &constructors);
 
     try std.testing.expectEqual(id, registry.lookup(.prelude, "List").?);
     try std.testing.expectEqual(1, registry.get(id).parameters);
@@ -342,11 +332,11 @@ test "the structural accessors follow the declared tag order" {
     try std.testing.expectEqualStrings("Cons", interner.spelling(c.symbol));
     try std.testing.expectEqual(0, n.tag);
     try std.testing.expectEqual(1, c.tag);
-}
 
-test "a list is Sized whatever its elements are, but Ord never" {
-    const row: ClassRow = .{ .Eq = .fields, .Sized = .always, .Serial = .fields };
-    try std.testing.expectEqual(Entailment.always, row.forClass(.sized));
-    try std.testing.expectEqual(Entailment.fields, row.forClass(.eq));
-    try std.testing.expectEqual(Entailment.never, row.forClass(.ord));
+    const lt = registry.orderingConstructor(.lt);
+    const gt = registry.orderingConstructor(.gt);
+    try std.testing.expectEqualStrings("LT", interner.spelling(lt.symbol));
+    try std.testing.expectEqualStrings("GT", interner.spelling(gt.symbol));
+    try std.testing.expectEqual(0, lt.tag);
+    try std.testing.expectEqual(2, gt.tag);
 }

@@ -19,7 +19,7 @@ function f() {}
 --- core ---
 main = \root -> concat_map (
   \n -> concat_map (
-    \scrutinee -> case op[=] scrutinee :class_declaration of
+    \scrutinee -> case eq scrutinee :class_declaration of
       False -> Nil
       True -> return (text n)
   ) (Cons (kind n) Nil)

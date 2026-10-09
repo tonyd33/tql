@@ -22,7 +22,12 @@ main :: Node -> [Int]
 --- core ---
 main =
   letrec
-    countdown = \n -> case op[<=] n 0 of
+    countdown = \n -> case (
+      case compare n 0 of
+        LT -> True
+        EQ -> True
+        GT -> False
+    ) of
       False -> countdown (op[-] n 1)
       True -> 0
   in

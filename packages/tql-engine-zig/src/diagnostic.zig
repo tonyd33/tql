@@ -141,6 +141,7 @@ pub const Category = enum {
     invalid_instance,
     orphan_instance,
     duplicate_instance,
+    invalid_deriving,
     ambiguous_constraint,
     limit,
 
@@ -178,6 +179,7 @@ pub const Category = enum {
             .invalid_instance => "invalid-instance",
             .orphan_instance => "orphan-instance",
             .duplicate_instance => "duplicate-instance",
+            .invalid_deriving => "invalid-deriving",
             .ambiguous_constraint => "ambiguous-constraint",
             .limit => "limit",
         };

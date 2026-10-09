@@ -9,7 +9,7 @@ class Eq a => Describe a where {
   describe :: a -> String;
 };
 
-data Shape = Circle Int | Square Int;
+data Shape = Circle Int | Square Int deriving (Eq);
 
 instance Describe Shape where {
   describe s = case s of { Circle _ -> "circle"; Square _ -> "square" };

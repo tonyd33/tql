@@ -3,19 +3,19 @@ grammar: typescript
 asserts: error
 
 `a < b < c` must be grouped. The chain is well-formed syntax: it parses as
-`(1 < 2) < 3`, and the rejection is a typing one — the outer `<` requires
-`Ord` and its left operand is a `bool`, which has no instance.
+`(1 < 2) < 3`, and the rejection is a typing one. The outer `<` compares a
+`Bool` with an `Int`.
 
-A better diagnostic than the bare `Ord bool` constraint is owed here: the
-checker can see that the operand of a comparison is itself a comparison, and
-saying the operators do not chain is more useful than naming the instance.
+A better diagnostic than the bare mismatch is owed here: the checker can see
+that the operand of a comparison is itself a comparison, and saying the
+operators do not chain is more useful than naming the types.
 
 --- tql ---
 main = 1 < 2 < 3;
 
 --- error ---
-error[unsatisfied-constraint]: `Ord Bool` is not satisfied.
- --> 1:8
+error[type-mismatch]: Expected `Bool`, found `Int`.
+ --> 1:16
   |
 1 | main = 1 < 2 < 3;
-  |        ^^^^^^^^^
+  |                ^

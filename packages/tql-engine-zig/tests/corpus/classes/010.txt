@@ -10,7 +10,7 @@ class Eq a => Same a where {
   same :: a -> a -> Bool;
 };
 
-data Shape = Circle Int | Square Int;
+data Shape = Circle Int | Square Int deriving (Eq);
 
 instance Same Shape where {
   same a b = a = b;

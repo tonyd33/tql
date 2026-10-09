@@ -24,8 +24,8 @@ x;
 --- core ---
 describe = \n ->
   let scrutinee = kind n in
-  case op[=] scrutinee :class_declaration of
-    False -> case op[=] scrutinee :function_declaration of
+  case eq scrutinee :class_declaration of
+    False -> case eq scrutinee :function_declaration of
       False -> "other"
       True -> "function"
     True -> "class"

@@ -402,7 +402,7 @@ fn runQuery(
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
-    var program = try engine.desugarQuery(source, g, &sink);
+    var program = try engine.checkQuery(source, g, &sink);
     defer program.deinit();
 
     var translated = try core_to_stg.translate(allocator, &program);
@@ -445,6 +445,7 @@ test "a filter chain over a long list runs in bounded stack" {
     // a 16 MiB stack unless the evaluator loops rather than recurses.
     try runQuery(allocator,
         \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\keep_none :: Int -> [Int];
         \\keep_none x = Nil;
         \\main root = concat_map keep_none (count 3000);
     , &arena, &out);
@@ -495,6 +496,25 @@ test "equality on long lists runs in bounded stack" {
     try std.testing.expectEqual(1, out.items[0].state.evaluated.constructed.tag);
 }
 
+test "ordering long lists runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try runQuery(allocator,
+        \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\main root = pure (count 20000 < count 20000) root;
+    , &arena, &out);
+
+    try std.testing.expectEqual(1, out.items.len);
+    // `False` is tag 0.
+    try std.testing.expectEqual(0, out.items[0].state.evaluated.constructed.tag);
+}
+
 test "recursion deeper than the stack budget stops with an error" {
     const allocator = std.testing.allocator;
 
@@ -528,8 +548,10 @@ test "forcing a global cycle reports it rather than hanging" {
     // `laziness/011`: `a` and `b` both resolve, and forcing either re-enters
     // an `evaluating` thunk with no lambda between. The black hole is what
     // turns that from a hang into an answer.
-    var program = try engine.desugarQuery(
+    var program = try engine.checkQuery(
+        \\a :: [Int];
         \\a = b;
+        \\b :: [Int];
         \\b = a;
         \\main root = a;
     , g, &sink);
@@ -713,12 +735,22 @@ test "the prelude's bodies compile to Core" {
         \\  False -> Nil
         \\  True -> Cons Unit Nil
         \\return = \a -> Cons a Nil
-        \\take = \n -> \xs -> case op[<=] n 0 of
+        \\take = \n -> \xs -> case (
+        \\  case compare n 0 of
+        \\    LT -> True
+        \\    EQ -> True
+        \\    GT -> False
+        \\) of
         \\  False -> case xs of
         \\    Nil -> Nil
         \\    Cons h t -> Cons h (take (op[-] n 1) t)
         \\  True -> Nil
-        \\drop = \n -> \xs -> case op[<=] n 0 of
+        \\drop = \n -> \xs -> case (
+        \\  case compare n 0 of
+        \\    LT -> True
+        \\    EQ -> True
+        \\    GT -> False
+        \\) of
         \\  False -> case xs of
         \\    Nil -> Nil
         \\    Cons h t -> drop (op[-] n 1) t
@@ -739,6 +771,71 @@ test "the prelude's bodies compile to Core" {
         \\or_else = \primary -> \fallback -> \x -> case primary x of
         \\  Nil -> fallback x
         \\  Cons h t -> Cons h t
+        \\eq[List] = \x -> \y -> case x of
+        \\  Nil -> case y of
+        \\    Nil -> True
+        \\    Cons _ _ -> False
+        \\  Cons a' a -> case y of
+        \\    Nil -> False
+        \\    Cons b' b -> case eq a' b' of
+        \\      False -> False
+        \\      True -> eq[List] a b
+        \\compare[List] = \x -> \y -> case x of
+        \\  Nil -> case y of
+        \\    Nil -> EQ
+        \\    Cons _ _ -> LT
+        \\  Cons a' a -> case y of
+        \\    Nil -> GT
+        \\    Cons b' b -> case compare a' b' of
+        \\      LT -> LT
+        \\      EQ -> compare[List] a b
+        \\      GT -> GT
+        \\eq[Bool] = \x -> \y -> case x of
+        \\  False -> case y of
+        \\    False -> True
+        \\    True -> False
+        \\  True -> case y of
+        \\    False -> False
+        \\    True -> True
+        \\compare[Bool] = \x -> \y -> case x of
+        \\  False -> case y of
+        \\    False -> EQ
+        \\    True -> LT
+        \\  True -> case y of
+        \\    False -> GT
+        \\    True -> EQ
+        \\eq[Unit] = \x -> \y -> case x of
+        \\  Unit -> case y of
+        \\    Unit -> True
+        \\compare[Unit] = \x -> \y -> case x of
+        \\  Unit -> case y of
+        \\    Unit -> EQ
+        \\eq[Ordering] = \x -> \y -> case x of
+        \\  LT -> case y of
+        \\    LT -> True
+        \\    EQ -> False
+        \\    GT -> False
+        \\  EQ -> case y of
+        \\    LT -> False
+        \\    EQ -> True
+        \\    GT -> False
+        \\  GT -> case y of
+        \\    LT -> False
+        \\    EQ -> False
+        \\    GT -> True
+        \\compare[Ordering] = \x -> \y -> case x of
+        \\  LT -> case y of
+        \\    LT -> EQ
+        \\    EQ -> LT
+        \\    GT -> LT
+        \\  EQ -> case y of
+        \\    LT -> GT
+        \\    EQ -> EQ
+        \\    GT -> LT
+        \\  GT -> case y of
+        \\    LT -> GT
+        \\    EQ -> GT
+        \\    GT -> EQ
     , w.written());
 }
 
@@ -755,7 +852,7 @@ test "every local in the prelude reads the slot it names" {
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
-    var program = try engine.desugarQuery("main = children;", g, &sink);
+    var program = try engine.checkQuery("main = children;", g, &sink);
     defer program.deinit();
 
     var translated = try core_to_stg.translate(allocator, &program);
@@ -823,6 +920,14 @@ test "the prelude's schemes are inferred" {
         \\has :: (a -> [b]) -> a -> Bool
         \\first :: (a -> [b]) -> a -> [b]
         \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\eq[List] :: Eq a => [a] -> [a] -> Bool
+        \\compare[List] :: Ord a => [a] -> [a] -> Ordering
+        \\eq[Bool] :: Bool -> Bool -> Bool
+        \\compare[Bool] :: Bool -> Bool -> Ordering
+        \\eq[Unit] :: Unit -> Unit -> Bool
+        \\compare[Unit] :: Unit -> Unit -> Ordering
+        \\eq[Ordering] :: Ordering -> Ordering -> Bool
+        \\compare[Ordering] :: Ordering -> Ordering -> Ordering
     , w.written());
 }
 

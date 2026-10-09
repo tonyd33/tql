@@ -159,10 +159,7 @@ pub const Lowerer = struct {
         what: Synthesized,
     ) Error!core.SymbolId {
         const spelling = try self.builder.print(spelling_format, spelling_args);
-        const id = try self.env.interner.internOrGet(spelling, .{ .synthesized = what });
-        if (self.env.schemeOf(id) != null) return id;
-
-        const scheme = primitives.synthesizedScheme(self.env.allocator(), &self.env.datatypes, what) catch |err| switch (err) {
+        return primitives.synthesizedSymbol(self.env, spelling, what) catch |err| switch (err) {
             error.TooManyRecordFields => {
                 try self.sink.report(
                     .type_mismatch,
@@ -174,8 +171,6 @@ pub const Lowerer = struct {
             },
             error.OutOfMemory => |e| return e,
         };
-        try self.env.setScheme(id, scheme);
-        return id;
     }
 
     /// `f x_1 ... x_n = e` is nested unary lambdas. One desugaring, used by
@@ -316,7 +311,7 @@ pub const Lowerer = struct {
             .@"if" => |i| {
                 const otherwise = try self.expression(i.alternative, scope);
                 const matched = try self.expression(i.consequence, scope);
-                return try self.choose(try self.expression(i.condition, scope), otherwise, matched, e.span);
+                return try self.builder.choose(self.scope.datatypes, try self.expression(i.condition, scope), otherwise, matched, e.span);
             },
 
             .constructor => |name| return try self.constructorRef(name, e.span),
@@ -353,10 +348,7 @@ pub const Lowerer = struct {
     }
 
     fn select(self: *Lowerer, label: []const u8, span: diagnostic.Span) Error!core.Term {
-        return self.builder.symbol(
-            try self.synthesize(span, "select[{s}]", .{label}, .{ .select = try self.builder.dupe(label) }),
-            span,
-        );
+        return self.builder.symbol(try primitives.selectSymbol(self.env, label), span);
     }
 
     /// Whether `e` is a projection chain starting at `_`.
@@ -439,9 +431,19 @@ pub const Lowerer = struct {
         right: core.Term,
         span: diagnostic.Span,
     ) Error!core.Term {
-        // Scalar operators are ordinary functions on scalars: `op[=] n 0`,
-        // never lifted over filters.
+        // Comparisons call the class methods. Other scalar operators are
+        // ordinary functions on scalars: `op[+] n 1`, never lifted over
+        // filters.
         const scalar: core.Scalar = switch (op) {
+            .eq => return try self.combinator("eq", left, right, span),
+            .ne => return try self.builder.choose(
+                self.scope.datatypes,
+                try self.combinator("eq", left, right, span),
+                self.builder.symbol(self.scope.datatypes.boolConstructor(true).symbol, span),
+                self.builder.symbol(self.scope.datatypes.boolConstructor(false).symbol, span),
+                span,
+            ),
+            inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Scalar, @tagName(o)), span),
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
@@ -476,23 +478,15 @@ pub const Lowerer = struct {
         );
     }
 
-    /// `case condition of { False -> otherwise; True -> matched }`.
-    ///
-    /// Alternatives go in tag order, so `False` precedes `True` and the
-    /// alternative bodies are the opposite order from how an `if` writes them.
-    pub fn choose(
-        self: *Lowerer,
-        condition: core.Term,
-        otherwise: core.Term,
-        matched: core.Term,
-        span: diagnostic.Span,
-    ) Error!core.Term {
+    /// `case compare left right of { LT -> a; EQ -> b; GT -> c }`, each
+    /// alternative what `comparison` answers.
+    fn ordered(self: *Lowerer, left: core.Term, right: core.Term, comparison: core.Scalar, span: diagnostic.Span) Error!core.Term {
         const registry = self.scope.datatypes;
-        const alternatives = try self.builder.dupeSlice(core.Case.Alternative, &.{
-            .{ .constructor = registry.boolConstructor(false).symbol, .binders = &.{}, .body = otherwise },
-            .{ .constructor = registry.boolConstructor(true).symbol, .binders = &.{}, .body = matched },
-        });
-        return try self.builder.case(condition, alternatives, span);
+        var bodies: [3]core.Term = undefined;
+        for (&bodies, [_]std.math.Order{ .lt, .eq, .gt }) |*body, order| {
+            body.* = self.builder.symbol(registry.boolConstructor(comparison.answer(order)).symbol, span);
+        }
+        return try self.builder.chooseOrder(registry, try self.combinator("compare", left, right, span), bodies, span);
     }
 
     /// `concat_map (\name -> body) value`.

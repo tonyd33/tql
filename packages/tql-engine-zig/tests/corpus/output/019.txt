@@ -1,0 +1,13 @@
+title: a derived `Serial` encodes inside lists and records
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Shape = Circle Int | Rect Int Int deriving (Serial);
+main = const [{ shapes = [Circle 1, Rect 2 3], first = Circle 4 }];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"first":{"tag":"Circle","fields":[4]},"shapes":[{"tag":"Circle","fields":[1]},{"tag":"Rect","fields":[2,3]}]}]

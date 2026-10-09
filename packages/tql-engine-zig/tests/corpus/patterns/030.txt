@@ -19,7 +19,7 @@ main = const (
   concat_map (
     \n ->
       let view = (\x -> op[*] x n) n in
-      case op[=] view 9 of
+      case eq view 9 of
         False -> Nil
         True -> return n
   ) (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil))))

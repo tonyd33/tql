@@ -1259,7 +1259,7 @@ const Emitter = struct {
                 const guard = self.arms[leaf.alternative].guard.?;
                 const condition = try self.lowerer.expression(guard, &inner);
                 const matched = try self.body(leaf, &inner);
-                return try self.lowerer.choose(condition, try self.emit(otherwise), matched, guard.span);
+                return try self.lowerer.builder.choose(self.lowerer.scope.datatypes, condition, try self.emit(otherwise), matched, guard.span);
             },
             .test_ => |t| {
                 const alternatives = try b.slice(core.Case.Alternative, t.branches.len);
@@ -1294,7 +1294,7 @@ const Emitter = struct {
                     l.span,
                 );
                 const matched = try self.emit(l.matched);
-                return try self.lowerer.choose(condition, try self.emit(l.failed), matched, l.span);
+                return try self.lowerer.builder.choose(self.lowerer.scope.datatypes, condition, try self.emit(l.failed), matched, l.span);
             },
             .synonym => |s| {
                 var continuation = try self.emit(s.matched);

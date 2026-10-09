@@ -19,7 +19,7 @@ class A {}
 main = const (
   concat_map (
     \c -> concat_map (
-      \c -> case op[=] c 1 of
+      \c -> case eq c 1 of
         False -> Nil
         True -> return c
     ) (Cons c Nil)

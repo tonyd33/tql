@@ -29,8 +29,8 @@ $mPair = \s -> \k -> \f -> case s of
 describe = \xs ->
   let alternative = 0 in
   $mPair xs (
-    \pair0 -> \b -> case op[=] pair0 1 of
-      False -> case op[=] b 2 of
+    \pair0 -> \b -> case eq pair0 1 of
+      False -> case eq b 2 of
         False -> alternative
         True -> pair0
       True -> b

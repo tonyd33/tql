@@ -5,6 +5,7 @@ const std = @import("std");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
 const Laws = @import("laws.zig").Laws;
+const primitives = @import("../primitives.zig");
 const cost = @import("cost.zig");
 const Options = @import("options.zig").Options;
 const Analyser = @import("occurrence.zig").Analyser;
@@ -101,6 +102,11 @@ pub const Simplifier = struct {
                 .cons = env.datatypes.consConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
                 .true_ = env.datatypes.boolConstructor(true).symbol,
+                .ordering = .{
+                    env.datatypes.orderingConstructor(.lt).symbol,
+                    env.datatypes.orderingConstructor(.eq).symbol,
+                    env.datatypes.orderingConstructor(.gt).symbol,
+                },
             },
             .options = options,
             .phase = phase,
@@ -276,6 +282,12 @@ pub const Simplifier = struct {
         var scrutinee = try self.term(case_term.scrutinee, &.{});
         var case_alternatives = case_term.alternatives;
         if (self.options.laws) {
+            if (self.laws.foldComparison(scrutinee, case_alternatives)) |folded| {
+                self.changed = true;
+                const comparison = try primitives.operatorSymbol(self.env, folded.comparison);
+                const call = try self.builder.applyMany(self.builder.symbol(comparison, scrutinee.span), &.{ folded.left, folded.right }, span);
+                return try self.rebuild(call, arguments);
+            }
             if (try self.laws.rewriteCase(scrutinee, case_alternatives, span)) |rewritten| {
                 self.changed = true;
                 scrutinee = rewritten.scrutinee;

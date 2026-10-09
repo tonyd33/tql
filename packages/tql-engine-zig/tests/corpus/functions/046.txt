@@ -13,4 +13,4 @@ f("y");
 ["import(\"x\")"]
 
 --- core ---
-main = kleisli (kleisli (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> op[=] x "import") text)) field[function]))) (arr text)
+main = kleisli (kleisli (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) field[function]))) (arr text)

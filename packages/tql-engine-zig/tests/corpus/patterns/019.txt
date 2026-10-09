@@ -14,7 +14,7 @@ class A {}
 [1, 0]
 
 --- core ---
-f = \n -> case op[=] n 3 of
+f = \n -> case eq n 3 of
   False -> 0
   True -> 1
 main = const (Cons (f 3) (Cons (f 4) Nil))

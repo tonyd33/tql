@@ -378,7 +378,7 @@ test "a module not imported is not in scope" {
 test "a type a module declares hides an imported one" {
     var fix = try Fixture.init();
     defer fix.deinit();
-    const own = try fix.env.datatypes.declare(&fix.env.interner, fix.main, "Bool", 0, &.{}, .{});
+    const own = try fix.env.datatypes.declare(&fix.env.interner, fix.main, "Bool", 0, &.{});
 
     const s = fix.scope(&.{.{ .module = .prelude }});
     try std.testing.expectEqual(own, s.typeNamed("Bool").found.datatype);

@@ -1,0 +1,14 @@
+title: `Sized` cannot be derived
+grammar: typescript
+asserts: error
+
+--- tql ---
+data S = S Int deriving (Sized);
+main = const [];
+
+--- error ---
+error[invalid-deriving]: `Sized` cannot be derived; only `Eq`, `Ord` and `Serial` can
+ --> 1:26
+  |
+1 | data S = S Int deriving (Sized);
+  |                          ^^^^^

@@ -20,4 +20,4 @@ main :: Node -> [Bool]
 --- core ---
 main =
   let target = "A" in
-  kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> op[=] (text n) target))
+  kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> eq (text n) target))

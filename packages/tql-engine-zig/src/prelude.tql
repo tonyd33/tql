@@ -1,10 +1,24 @@
 -- TQL prelude.
 
-data List a = Nil | Cons a (List a);
+data List a = Nil | Cons a (List a) deriving (Eq, Ord, Serial);
 
-data Bool = False | True;
+data Bool = False | True deriving (Eq, Ord, Serial);
 
-data Unit = Unit;
+data Unit = Unit deriving (Eq, Ord);
+
+data Ordering = LT | EQ | GT deriving (Eq, Ord);
+
+class Eq a where {
+  eq :: a -> a -> Bool;
+};
+
+class Eq a => Ord a where {
+  compare :: a -> a -> Ordering;
+};
+
+class Sized a where {
+  length :: a -> Int;
+};
 
 -- Functional helpers
 

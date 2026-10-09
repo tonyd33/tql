@@ -22,7 +22,7 @@ main = \root -> concat_map (
       Nil -> Nil
       Cons cons0 cons1 ->
         let view = text cons0 in
-        case op[=] view "render" of
+        case eq view "render" of
           False -> Nil
           True -> case cons1 of
             Nil -> return (text m)

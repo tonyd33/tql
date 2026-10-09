@@ -209,12 +209,19 @@ pub const Definition = struct {
     }
 };
 
-/// `data T a = C1 f1 f2 | C2;`
+/// `data T a = C1 f1 f2 | C2 deriving (Eq);`
 pub const DataDeclaration = struct {
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
+    deriving: []const Derived = &.{},
     span: diagnostic.Span = .unknown,
+
+    /// One class of a `deriving` clause.
+    pub const Derived = struct {
+        class: Identifier,
+        span: diagnostic.Span = .unknown,
+    };
 
     pub fn sexpr(self: DataDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(data {s} (params", .{self.name});
@@ -223,6 +230,11 @@ pub const DataDeclaration = struct {
         for (self.constructors) |c| {
             try w.writeByte(' ');
             try c.sexpr(w);
+        }
+        if (self.deriving.len > 0) {
+            try w.writeAll(" (deriving");
+            for (self.deriving) |d| try w.print(" {s}", .{d.class});
+            try w.writeByte(')');
         }
         try w.writeByte(')');
     }

@@ -1,0 +1,14 @@
+title: deriving an unknown class
+grammar: typescript
+asserts: error
+
+--- tql ---
+data S = S Int deriving (Show);
+main = const [];
+
+--- error ---
+error[unresolved-name]: `Show` is not a class
+ --> 1:26
+  |
+1 | data S = S Int deriving (Show);
+  |                          ^^^^

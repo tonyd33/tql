@@ -15,4 +15,12 @@ class A {}
 main :: Node -> [Bool]
 
 --- core ---
-main = const (Cons (op[=] 1 1) (Cons (op[!=] 1 1) (Cons (op[=] "a" "a") (Cons (op[=] "a" "b") Nil))))
+main = const (
+  Cons (eq 1 1) (
+    Cons (
+      case eq 1 1 of
+        False -> True
+        True -> False
+    ) (Cons (eq "a" "a") (Cons (eq "a" "b") Nil))
+  )
+)

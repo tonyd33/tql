@@ -18,4 +18,4 @@ class A {}
 main :: Node -> [Bool]
 
 --- core ---
-main = pure (not (op[=] 1 1))
+main = pure (not (eq 1 1))

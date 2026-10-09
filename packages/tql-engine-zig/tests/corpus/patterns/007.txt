@@ -53,13 +53,13 @@ main = \root -> concat_map (
                               Nil -> Nil
                               Cons cons0 cons1''' ->
                                 let view = text cons0 in
-                                case op[=] view "||" of
+                                case eq view "||" of
                                   False -> Nil
                                   True -> case cons1''' of
                                     Nil -> case cons1'' of
                                       Nil -> case cons1' of
                                         Nil -> case cons1 of
-                                          Nil -> concat_map (\_ -> return (text assignment)) (guard (op[=] (text target) (text operand)))
+                                          Nil -> concat_map (\_ -> return (text assignment)) (guard (eq (text target) (text operand)))
                                           Cons _ _ -> Nil
                                         Cons _ _ -> Nil
                                       Cons _ _ -> Nil

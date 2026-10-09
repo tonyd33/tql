@@ -9,7 +9,7 @@ const unify = @import("type_check/unify.zig");
 /// it; the unifier itself is not.
 pub const Mismatch = unify.Mismatch;
 
-/// A constraint the closed table refutes, with the term that introduced it.
+/// A constraint no instance satisfies, with the term that introduced it.
 /// Public for the same reason: a diagnostic renders it.
 pub const Violation = constraints.Violation;
 
@@ -57,8 +57,46 @@ const Fixture = struct {
         };
         self.subst = Substitution.init(gpa, self.pb.env.allocator(), &self.pb.env.datatypes, &self.pb.env.classes);
         try self.pb.datatype("Flag", &.{ .{ "Off", &.{} }, .{ "On", &.{} } });
+        try self.declarePreludeInstances();
         self.inference = infer.Inference.init(gpa, &self.subst, &self.undecided, &self.pb.env);
         return self;
+    }
+
+    /// The instances the prelude has: the machine's, and those `List` and
+    /// `Bool` derive.
+    fn declarePreludeInstances(self: *Fixture) !void {
+        const e = &self.pb.env;
+        const a = types.variable_type(0);
+        const list = try e.datatypes.list(e.allocator(), a);
+        const boolean = try e.datatypes.boolType(e.allocator());
+        for ([_]types.Type{ types.int_type, types.string_type, types.node_type, types.kind_type }) |t| {
+            try self.instance(.eq, t, &.{});
+            try self.instance(.serial, t, &.{});
+        }
+        try self.instance(.serial, boolean, &.{});
+        try self.instance(.serial, list, &.{.{ .class = .serial, .type = a }});
+        for ([_]types.Type{ types.int_type, types.string_type }) |t| try self.instance(.ord, t, &.{});
+        try self.instance(.sized, types.string_type, &.{});
+        try self.instance(.sized, list, &.{});
+        for ([_]core.classes.ClassId{ .eq, .ord }) |class| {
+            try self.instance(class, boolean, &.{});
+            try self.instance(class, list, &.{.{ .class = class, .type = a }});
+        }
+    }
+
+    /// An instance of `class` at `head`, under `context`, for entailment
+    /// alone: it has no dictionary to build.
+    fn instance(self: *Fixture, class: core.classes.ClassId, head: types.Type, context: []const types.TypeClassConstraint) !void {
+        const e = &self.pb.env;
+        _ = try e.classes.addInstance(.{
+            .class = class,
+            .head = core.classes.Head.of(head).?,
+            .type = head,
+            .context = try e.allocator().dupe(types.TypeClassConstraint, context),
+            .methods = &.{},
+            .dictionary = try e.interner.generate(.prelude, "instance", .vanilla),
+            .module = .prelude,
+        });
     }
 
     fn deinit(self: *Fixture, gpa: Allocator) void {
@@ -125,9 +163,7 @@ const Fixture = struct {
     /// Interns a synthesized symbol under its bracketed spelling with its
     /// scheme, the way the desugarer does.
     fn synthesize(self: *Fixture, spelling: []const u8, what: core.Synthesized) !core.SymbolId {
-        const id = try self.pb.env.interner.internOrGet(spelling, .{ .synthesized = what });
-        try self.pb.env.setScheme(id, try primitives.synthesizedScheme(self.pb.env.allocator(), &self.pb.env.datatypes, what));
-        return id;
+        return try primitives.synthesizedSymbol(&self.pb.env, spelling, what);
     }
 
     fn lit(self: *Fixture, l: core.Literal) core.Term {
@@ -741,19 +777,19 @@ test "Eq holds for the six scalars and not regex" {
     try fix.expectRefuted(.eq, types.regex_type);
 }
 
-test "Ord holds only for int and string" {
+test "Ord holds for int, string and bool only" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
     try fix.expectHolds(.ord, types.int_type);
     try fix.expectHolds(.ord, types.string_type);
+    try fix.expectHolds(.ord, try fix.subst.datatypes.boolType(fix.subst.arena));
 
     try fix.expectRefuted(.ord, types.node_type);
     try fix.expectHolds(.eq, types.node_type);
     try fix.expectRefuted(.ord, types.kind_type);
 
-    try fix.expectRefuted(.ord, try fix.subst.datatypes.boolType(fix.subst.arena));
     try fix.expectRefuted(.ord, types.range_type);
     try fix.expectRefuted(.ord, types.regex_type);
 }
@@ -809,7 +845,7 @@ test "Serial holds for the six scalars and not regex" {
     try fix.expectRefuted(.serial, types.regex_type);
 }
 
-test "structural classes descend into lists" {
+test "classes descend into lists" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -819,7 +855,7 @@ test "structural classes descend into lists" {
     try fix.expectHolds(.serial, try fix.subst.datatypes.list(fix.subst.arena, try fix.subst.datatypes.list(fix.subst.arena, types.node_type)));
 }
 
-test "structural classes descend into records" {
+test "classes descend into records" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
@@ -844,13 +880,13 @@ test "Ord and Sized do not hold for records" {
     try fix.expectRefuted(.sized, r);
 }
 
-test "Ord does not hold for a list even of ordered elements" {
+test "Ord holds for a list of ordered elements only" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `Ord` is exactly `Int` and `String`; nothing structural joins it.
-    try fix.expectRefuted(.ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectHolds(.ord, try fix.subst.datatypes.list(fix.subst.arena, types.int_type));
+    try fix.expectRefuted(.ord, try fix.subst.datatypes.list(fix.subst.arena, types.node_type));
 }
 
 test "a function fails every class, and a filter is a function" {
@@ -1103,8 +1139,8 @@ test "an operator's scheme comes from the primitive table" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    try fix.expectSynthesizedScheme(.{ .operator = .eq }, "Eq a => a -> a -> Bool");
-    try fix.expectSynthesizedScheme(.{ .operator = .lt }, "Ord a => a -> a -> Bool");
+    try fix.expectSynthesizedScheme(.{ .operator = .eq }, "a -> a -> Bool");
+    try fix.expectSynthesizedScheme(.{ .operator = .compare }, "a -> a -> Ordering");
     try fix.expectSynthesizedScheme(.{ .operator = .add }, "Int -> Int -> Int");
     try fix.expectSynthesizedScheme(.{ .operator = .match }, "String -> Regex -> Bool");
 }
@@ -1666,7 +1702,7 @@ test "a synthesized operator takes scalars, not filters" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `op[=] : Eq a => a -> a -> Bool`. Applying it to two ints is fine.
+    // `op[=] : a -> a -> Bool`. Applying it to two ints is fine.
     const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
     const applied = try fix.app(
         try fix.app(fix.pb.symbol(eq), fix.lit(.{ .number = 1 })),
@@ -1675,13 +1711,23 @@ test "a synthesized operator takes scalars, not filters" {
     try fix.expectType(applied, "Bool");
 }
 
-test "an operator's constraint is refuted on a regex" {
+/// `name :: class a => a -> a -> result`.
+fn defineComparison(fix: *Fixture, name: []const u8, class: core.classes.ClassId, result: types.Type) !core.SymbolId {
+    const a = types.variable_type(0);
+    return try fix.define(name, .{
+        .quantified = 1,
+        .constraints = try fix.pb.env.allocator().dupe(types.TypeClassConstraint, &.{.{ .class = class, .type = a }}),
+        .type = try types.func(fix.subst.arena, a, try types.func(fix.subst.arena, a, result)),
+    });
+}
+
+test "a method's constraint is refuted on a regex" {
     const gpa = testing.allocator;
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
     // `errors/types/015`: `r"a" = r"a"` fails `Eq regex`.
-    const eq = try fix.synthesize("op[=]", .{ .operator = .eq });
+    const eq = try defineComparison(fix, "eq", .eq, try fix.subst.datatypes.boolType(fix.subst.arena));
     const applied = try fix.app(
         try fix.app(fix.pb.symbol(eq), fix.regexLit("a")),
         fix.regexLit("a"),
@@ -1696,7 +1742,7 @@ test "ordering two nodes is refuted while comparing them is not" {
 
     // `errors/types/019`'s point: `node` has `Eq` but not `Ord`.
     const node_of = try fix.define("node_of", .{ .type = types.node_type });
-    const lt = try fix.synthesize("op[<]", .{ .operator = .lt });
+    const lt = try defineComparison(fix, "compare", .ord, try fix.subst.datatypes.orderingType(fix.subst.arena));
     const ordered = try fix.app(
         try fix.app(fix.pb.symbol(lt), fix.pb.symbol(node_of)),
         fix.pb.symbol(node_of),
@@ -1875,10 +1921,10 @@ test "the members of a recursive group take the group's dictionaries" {
         \\pong n x y = if n = 0 then [label y] else ping (n - 1) x y;
         \\main root = ping 1 1 "s";
     , &.{ "ping", "pong" },
-        \\ping = \d -> \d' -> \n -> \x -> \y -> case op[=] n 0 of
+        \\ping = \d -> \d' -> \n -> \x -> \y -> case eq instance[Eq,Int] n 0 of
         \\  False -> pong d d' (op[-] n 1) x y
         \\  True -> Cons (describe d x) Nil
-        \\pong = \d -> \d' -> \n -> \x -> \y -> case op[=] n 0 of
+        \\pong = \d -> \d' -> \n -> \x -> \y -> case eq instance[Eq,Int] n 0 of
         \\  False -> ping d d' (op[-] n 1) x y
         \\  True -> Cons (label d' y) Nil
     );

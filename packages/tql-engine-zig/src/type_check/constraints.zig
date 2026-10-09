@@ -25,7 +25,7 @@ pub const Outcome = union(enum) {
 /// Decides `class t`.
 pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) Outcome {
     var first: ?types.Meta = null;
-    const culprit = classes.reduce(subst.classes, subst.datatypes, class, t, subst, FirstResidual{ .first = &first }) catch |e| switch (e) {};
+    const culprit = classes.reduce(subst.classes, class, t, subst, FirstResidual{ .first = &first }) catch |e| switch (e) {};
     if (culprit) |c| return .{ .fails = c };
     if (first) |meta| return .{ .deferred = meta };
     return .holds;
@@ -50,7 +50,7 @@ pub fn reduce(
     out: *std.ArrayList(Residual),
     gpa: std.mem.Allocator,
 ) std.mem.Allocator.Error!?types.Type {
-    return classes.reduce(subst.classes, subst.datatypes, class, t, subst, Collect{ .out = out, .gpa = gpa });
+    return classes.reduce(subst.classes, class, t, subst, Collect{ .out = out, .gpa = gpa });
 }
 
 /// Keeps the first residual and drops the rest.

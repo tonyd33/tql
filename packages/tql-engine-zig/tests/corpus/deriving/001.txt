@@ -1,0 +1,26 @@
+title: derived equality and order compare constructors in declaration order
+grammar: typescript
+asserts: types, values
+
+`Circle` is declared before `Square`, so every `Circle` orders before every
+`Square`, whatever their fields.
+
+--- tql ---
+data Shape = Circle Int | Square Int deriving (Eq, Ord);
+main = const [
+  Circle 1 = Circle 1,
+  Circle 1 = Square 1,
+  Circle 9 < Square 1,
+  Square 1 < Circle 9,
+  Circle 1 < Circle 2,
+  compare (Square 2) (Square 2) = EQ
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true,false,true,true]
+
+--- types ---
+main :: Node -> [Bool]

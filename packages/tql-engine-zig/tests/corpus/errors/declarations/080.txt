@@ -1,0 +1,14 @@
+title: a class derived twice
+grammar: typescript
+asserts: error
+
+--- tql ---
+data S = S Int deriving (Eq, Eq);
+main = const [];
+
+--- error ---
+error[invalid-deriving]: `Eq` is derived more than once
+ --> 1:30
+  |
+1 | data S = S Int deriving (Eq, Eq);
+  |                              ^^

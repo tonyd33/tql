@@ -23,7 +23,7 @@ main = const (
         Nil -> Nil
         Cons cons0 cons1 ->
           let view = (\x -> op[+] x n) cons0 in
-          case op[=] view 3 of
+          case eq view 3 of
             False -> Nil
             True -> case cons1 of
               Nil -> return n

@@ -1,0 +1,18 @@
+title: a phantom parameter at a function type still encodes
+grammar: typescript
+asserts: values
+
+`Tagged`'s parameter appears in no field, so `Serial (Tagged t)` holds for
+every `t`.
+
+--- tql ---
+data Tagged t = Tagged Int deriving (Serial);
+tag :: Int -> Tagged (Int -> Int);
+tag n = Tagged n;
+main = const [tag 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Tagged","fields":[1]}]

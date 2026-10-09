@@ -19,7 +19,7 @@ count = \n -> case op[=] n 0 of
 main = pure (count 3)
 
 --- core ---
-count = \n -> case op[=] n 0 of
+count = \n -> case eq n 0 of
   False -> op[+] 1 (count (op[-] n 1))
   True -> 0
 main = pure (count 3)

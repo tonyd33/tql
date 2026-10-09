@@ -15,7 +15,7 @@ function f() {}
 [true, false]
 
 --- core ---
-is_class = \n -> case op[=] (kind n) :class_declaration of
+is_class = \n -> case eq (kind n) :class_declaration of
   False -> False
   True -> True
 main = kleisli named_children (arr is_class)

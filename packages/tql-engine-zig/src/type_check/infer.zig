@@ -627,14 +627,7 @@ pub const Inference = struct {
             }
         }
 
-        var kept: usize = 0;
-        for (context.items, 0..) |c, i| {
-            const registry = &self.env.classes;
-            if (registry.entailedBy(context.items[0..i], c) or registry.entailedBy(context.items[i + 1 ..], c)) continue;
-            context.items[kept] = c;
-            kept += 1;
-        }
-        context.shrinkRetainingCapacity(kept);
+        context.shrinkRetainingCapacity(self.env.classes.pruneEntailed(context.items));
         return try context.toOwnedSlice(self.gpa);
     }
 
@@ -916,6 +909,7 @@ pub const Inference = struct {
             .table = &self.evidence,
             .subst = self.subst,
             .registry = &self.env.classes,
+            .env = self.env,
             .builder = self.builder,
             .gpa = self.gpa,
         };

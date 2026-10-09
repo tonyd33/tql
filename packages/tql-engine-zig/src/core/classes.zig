@@ -1,14 +1,13 @@
 //! Declared classes and their instances.
 
 const std = @import("std");
-const datatypes = @import("datatypes.zig");
 const diagnostic = @import("../diagnostic.zig");
 const symbols = @import("symbols.zig");
 const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-/// A class of one link. The built-in classes hold the first ids.
+/// A class of one link. The classes the engine names hold the first ids.
 pub const ClassId = enum(u16) {
     eq,
     ord,
@@ -22,8 +21,7 @@ pub const InstanceId = enum(u32) { _ };
 
 /// How a class's constraint is discharged at run time.
 pub const Evidence = enum {
-    /// Entailed by `datatypes.ClassRow` and the operations dispatch on the
-    /// value. No dictionary exists.
+    /// Handled by the machine on the value. No dictionary exists.
     builtin,
     /// Entailed by an instance, and passed as a dictionary.
     dictionary,
@@ -35,7 +33,8 @@ pub const Class = struct {
     /// Method symbols, in declaration order.
     methods: []const symbols.SymbolId = &.{},
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
-    /// selector, then one per method. Null for a built-in class.
+    /// selector, then one per method. Null for a class with built-in
+    /// evidence, and for a reservation the prelude has not filled in.
     constructor: ?symbols.SymbolId = null,
     /// One per superclass with dictionary evidence, in `superclasses` order.
     selectors: []const Selector = &.{},
@@ -74,15 +73,14 @@ pub const Instance = struct {
     head: Head,
     /// The head applied to its variables, bound in order from 0.
     type: types.Type,
-    /// Constraints over the head's variables.
+    /// Constraints over the head's variables. Those with dictionary evidence
+    /// are the dictionary's parameters, in order.
     context: []const types.TypeClassConstraint,
-    /// The constraints of `context` with dictionary evidence, in order: the
-    /// dictionary's parameters.
-    dictionary_context: []const types.TypeClassConstraint,
     /// Each method's implementation, in class method order.
     methods: []const symbols.SymbolId,
-    /// `instance[C,T]`, the global holding this instance's dictionary.
-    dictionary: symbols.SymbolId,
+    /// `instance[C,T]`, the global holding this instance's dictionary. Null
+    /// when its class has built-in evidence. Set by `Env.declareInstance`.
+    dictionary: ?symbols.SymbolId,
     module: symbols.ModuleId,
     span: diagnostic.Span = .unknown,
 };
@@ -101,9 +99,10 @@ pub const Registry = struct {
         return .{ .allocator = allocator };
     }
 
-    /// Declares the built-in classes in the prelude, at the ids `ClassId`
-    /// names them by.
-    pub fn declareBuiltins(self: *Registry) Allocator.Error!void {
+    /// Reserves the classes `ClassId` names, in the prelude, at the ids it
+    /// names them by. `Serial` is complete. The prelude's own declarations of
+    /// `Eq`, `Ord` and `Sized` fill in the rest.
+    pub fn reserveBuiltins(self: *Registry) Allocator.Error!void {
         for ([_][]const u8{ "Eq", "Ord", "Sized", "Serial" }, 0..) |name, i| {
             const id = try self.declare(.{ .name = .{ .module = .prelude, .name = name } });
             std.debug.assert(@intFromEnum(id) == i);
@@ -138,14 +137,28 @@ pub const Registry = struct {
 
     pub fn evidenceOf(_: *const Registry, id: ClassId) Evidence {
         return switch (id) {
-            .eq, .ord, .sized, .serial => .builtin,
-            _ => .dictionary,
+            .serial => .builtin,
+            else => .dictionary,
         };
     }
 
+    /// The reservation the prelude's declaration of `name` fills in, if it is
+    /// one and nothing has filled it yet.
+    pub fn reservation(self: *const Registry, name: []const u8) ?ClassId {
+        const id = self.lookup(.prelude, name) orelse return null;
+        switch (id) {
+            .eq, .ord, .sized => {},
+            else => return null,
+        }
+        if (self.get(id).constructor != null) return null;
+        return id;
+    }
+
+    pub const Addition = union(enum) { added: InstanceId, existing: InstanceId };
+
     /// Adds `instance`. Returns the instance already declared for its class
     /// and head instead, adding nothing, when there is one.
-    pub fn addInstance(self: *Registry, declared: Instance) Allocator.Error!union(enum) { added: InstanceId, existing: InstanceId } {
+    pub fn addInstance(self: *Registry, declared: Instance) Allocator.Error!Addition {
         const entry = try self.by_head.getOrPut(self.allocator, .{ .class = declared.class, .head = declared.head });
         if (entry.found_existing) return .{ .existing = entry.value_ptr.* };
         const id: InstanceId = @enumFromInt(self.instances.items.len);
@@ -166,6 +179,15 @@ pub const Registry = struct {
         return self.by_head.get(.{ .class = class, .head = head });
     }
 
+    /// How many constraints of `context` have dictionary evidence.
+    pub fn dictionaryCount(self: *const Registry, context: []const types.TypeClassConstraint) usize {
+        var count: usize = 0;
+        for (context) |c| {
+            if (self.evidenceOf(c.class) == .dictionary) count += 1;
+        }
+        return count;
+    }
+
     /// Whether `from`, or a superclass of it at any depth, is `to`.
     pub fn entails(self: *const Registry, from: ClassId, to: ClassId) bool {
         if (from == to) return true;
@@ -181,6 +203,18 @@ pub const Registry = struct {
             if (std.meta.eql(given.type, wanted.type) and self.entails(given.class, wanted.class)) return true;
         }
         return false;
+    }
+
+    /// Moves to the front of `context`, in order, each constraint no other
+    /// constraint of it entails. Returns how many there are.
+    pub fn pruneEntailed(self: *const Registry, context: []types.TypeClassConstraint) usize {
+        var kept: usize = 0;
+        for (context, 0..) |c, i| {
+            if (self.entailedBy(context[0..i], c) or self.entailedBy(context[i + 1 ..], c)) continue;
+            context[kept] = c;
+            kept += 1;
+        }
+        return kept;
     }
 
     /// Appends to `out` the selectors that take a dictionary of `from` to one
@@ -212,35 +246,8 @@ pub fn parameterCount(t: types.Type) u8 {
     };
 }
 
-/// Whether `p` admits built-in class `class`.
-///
-/// Preconditions:
-/// - `class` has built-in evidence.
-pub fn holdsForPrimitive(class: ClassId, p: types.Primitive) bool {
-    return switch (class) {
-        .eq => switch (p) {
-            .Int, .String, .Node, .Kind => true,
-            .Regex => false,
-        },
-        .ord => switch (p) {
-            .Int, .String => true,
-            .Regex, .Node, .Kind => false,
-        },
-        .sized => switch (p) {
-            .String => true,
-            .Int, .Regex, .Node, .Kind => false,
-        },
-        .serial => switch (p) {
-            .Int, .String, .Node, .Kind => true,
-            .Regex => false,
-        },
-        _ => unreachable,
-    };
-}
-
-/// Reduces `class t` to the constraints on its leaves it holds under, handing
-/// each to `sink.leaf`. A built-in class reduces by `datatypes.ClassRow` and
-/// a dictionary class by its instances.
+/// Reduces `class t` to the constraints on its leaves it holds under, through
+/// instances, handing each to `sink.leaf`.
 ///
 /// `view` supplies:
 /// - `resolve(t) Type`: `t` with every solved metavariable at its head
@@ -253,7 +260,6 @@ pub fn holdsForPrimitive(class: ClassId, p: types.Primitive) bool {
 /// Returns the first refuted part of `t`, if any, written as `t` writes it.
 pub fn reduce(
     registry: *const Registry,
-    declared: *const datatypes.Registry,
     class: ClassId,
     t: types.Type,
     view: anytype,
@@ -265,35 +271,21 @@ pub fn reduce(
         .meta, .variable => try sink.leaf(class, expanded),
         .alias => unreachable,
         .function => return written,
-        .primitive => |p| switch (registry.evidenceOf(class)) {
-            .builtin => if (!holdsForPrimitive(class, p)) return written,
-            .dictionary => _ = registry.instanceFor(class, .{ .primitive = p }) orelse return written,
-        },
-        .constructor => |c| switch (registry.evidenceOf(class)) {
-            .builtin => switch (declared.get(c.name).classes.forClass(class)) {
-                .never => return written,
-                // `Sized [a]` is the one that does not descend: a list has a
-                // length whatever its elements are.
-                .always => {},
-                .fields => for (c.arguments) |argument| {
-                    if (try reduce(registry, declared, class, argument, view, sink)) |culprit| return culprit;
-                },
-            },
-            .dictionary => {
-                const found = registry.instanceFor(class, .{ .datatype = c.name }) orelse return written;
-                for (registry.instance(found).context) |needed| {
-                    const argument = c.arguments[needed.type.variable];
-                    if (try reduce(registry, declared, needed.class, argument, view, sink)) |culprit| return culprit;
-                }
-            },
+        .primitive => |p| _ = registry.instanceFor(class, .{ .primitive = p }) orelse return written,
+        .constructor => |c| {
+            const found = registry.instanceFor(class, .{ .datatype = c.name }) orelse return written;
+            for (registry.instance(found).context) |needed| {
+                const argument = c.arguments[needed.type.variable];
+                if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;
+            }
         },
         .record => |r| switch (class) {
             // A row holds when every field it comes to have does.
             .eq, .serial => {
                 for (r.fields) |f| {
-                    if (try reduce(registry, declared, class, f.type.*, view, sink)) |culprit| return culprit;
+                    if (try reduce(registry, class, f.type.*, view, sink)) |culprit| return culprit;
                 }
-                if (r.rest) |rest| return try reduce(registry, declared, class, rest.*, view, sink);
+                if (r.rest) |rest| return try reduce(registry, class, rest.*, view, sink);
             },
             else => return written,
         },
@@ -301,29 +293,29 @@ pub fn reduce(
     return null;
 }
 
-test "a built-in class's id is its position" {
+test "a reserved class's id is its position" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     var registry = Registry.init(arena.allocator());
-    try registry.declareBuiltins();
+    try registry.reserveBuiltins();
 
     try std.testing.expectEqual(ClassId.ord, registry.lookup(.prelude, "Ord").?);
     try std.testing.expectEqualStrings("Serial", registry.spelling(.serial));
-    try std.testing.expectEqual(Evidence.builtin, registry.evidenceOf(.eq));
+    try std.testing.expectEqual(Evidence.builtin, registry.evidenceOf(.serial));
+    try std.testing.expectEqual(Evidence.dictionary, registry.evidenceOf(.eq));
 }
 
 test "a second instance for one class and head is refused" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     var registry = Registry.init(arena.allocator());
-    try registry.declareBuiltins();
+    try registry.reserveBuiltins();
     const describe = try registry.declare(.{ .name = .{ .module = .prelude, .name = "Describe" } });
     const at_int: Instance = .{
         .class = describe,
         .head = .{ .primitive = .Int },
         .type = types.int_type,
         .context = &.{},
-        .dictionary_context = &.{},
         .methods = &.{},
         .dictionary = @enumFromInt(0),
         .module = .prelude,
@@ -338,7 +330,7 @@ test "a class entails its superclasses at any depth" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     var registry = Registry.init(arena.allocator());
-    try registry.declareBuiltins();
+    try registry.reserveBuiltins();
     const base = try registry.declare(.{ .name = .{ .module = .prelude, .name = "Base" } });
     const middle = try registry.declare(.{
         .name = .{ .module = .prelude, .name = "Middle" },

@@ -1,17 +1,18 @@
-title: a built-in class takes no instances
+title: `Serial` takes no written instances
 grammar: typescript
 asserts: error
 
-`=` is value-dispatched and would never call an instance of `Eq`.
+The machine writes JSON itself, so an instance of `Serial` would have nothing
+to define.
 
 --- tql ---
 data Shape = Circle Int;
-instance Eq Shape where { eq a b = true; };
+instance Serial Shape where {};
 main = const [];
 
 --- error ---
-error[invalid-instance]: `Eq` is built in and takes no instances
+error[invalid-instance]: `Serial` is built in and takes no instances
  --> 2:1
   |
-2 | instance Eq Shape where { eq a b = true; };
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 | instance Serial Shape where {};
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

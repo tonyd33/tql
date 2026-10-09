@@ -1,0 +1,13 @@
+title: derived order compares fields left to right
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Pair = Pair Int String deriving (Eq, Ord);
+main = const [Pair 1 "b" < Pair 2 "a", Pair 1 "b" < Pair 1 "a", Pair 1 "a" = Pair 1 "a"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true]

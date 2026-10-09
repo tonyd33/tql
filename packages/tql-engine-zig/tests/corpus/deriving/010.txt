@@ -1,0 +1,13 @@
+title: comparing an infinite list stops where it differs
+grammar: typescript
+asserts: values
+
+--- tql ---
+ones = 1 : ones;
+main = const [ones < [1, 2], [2] > ones];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true]

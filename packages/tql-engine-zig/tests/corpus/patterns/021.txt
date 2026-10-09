@@ -21,7 +21,7 @@ class A {}
 
 --- core ---
 describe = \m -> case m of
-  Just just0 -> case op[=] just0 0 of
+  Just just0 -> case eq just0 0 of
     False -> "some"
     True -> "zero"
   Nothing -> "none"

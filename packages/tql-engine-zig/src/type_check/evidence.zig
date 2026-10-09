@@ -13,6 +13,8 @@ const diagnostic = @import("../diagnostic.zig");
 const classes = core.classes;
 const types = core.types;
 
+const primitives = @import("../primitives.zig");
+
 const Allocator = std.mem.Allocator;
 const Substitution = @import("substitution.zig").Substitution;
 
@@ -99,6 +101,8 @@ pub const Resolver = struct {
     table: *Table,
     subst: *Substitution,
     registry: *const classes.Registry,
+    /// Where `select[l]` symbols are interned.
+    env: *core.env.Env,
     builder: core.Builder,
     gpa: Allocator,
     /// Set when `resolve` fails.
@@ -121,18 +125,65 @@ pub const Resolver = struct {
                 return self.fail(.ambiguous, class, t, span);
             },
             .primitive, .constructor => {},
+            .record => |r| {
+                if (class != .eq) return self.fail(.unsatisfied, class, t, span);
+                return try self.recordDictionary(r, at, span);
+            },
             else => return self.fail(.unsatisfied, class, t, span),
         }
 
         const id = self.registry.instanceFor(class, classes.Head.of(target).?) orelse
             return self.fail(.unsatisfied, class, t, span);
         const instance = self.registry.instance(id);
-        var result = self.builder.symbol(instance.dictionary, span);
-        for (instance.dictionary_context) |c| {
+        var result = self.builder.symbol(instance.dictionary.?, span);
+        for (instance.context) |c| {
+            if (self.registry.evidenceOf(c.class) != .dictionary) continue;
             const argument = target.constructor.arguments[c.type.variable];
             result = try self.builder.apply(result, try self.resolve(c.class, argument, at, span), span);
         }
         return result;
+    }
+
+    /// `dict[Eq] (\x y -> ...)`, comparing the fields of `r` through their own
+    /// dictionaries, then its rest through the rest's.
+    ///
+    /// A dictionary for a row compares that row's labels only, on any record
+    /// that has them.
+    fn recordDictionary(self: *Resolver, r: types.Type.Record, at: ?u32, span: diagnostic.Span) Error!core.Term {
+        const b = self.builder;
+        const eq = self.registry.get(.eq);
+        const declared = &self.env.datatypes;
+        const x = try self.env.interner.fresh("x");
+        const y = try self.env.interner.fresh("y");
+
+        var result: ?core.Term = if (r.rest) |rest|
+            try self.compared(eq.methods[0], try self.resolve(.eq, rest.*, at, span), b.symbol(x, span), b.symbol(y, span), span)
+        else
+            null;
+        var i = r.fields.len;
+        while (i > 0) {
+            i -= 1;
+            const f = r.fields[i];
+            const select = try primitives.selectSymbol(self.env, f.label);
+            const pair = try self.compared(
+                eq.methods[0],
+                try self.resolve(.eq, f.type.*, at, span),
+                try b.apply(b.symbol(select, span), b.symbol(x, span), span),
+                try b.apply(b.symbol(select, span), b.symbol(y, span), span),
+                span,
+            );
+            result = if (result) |rest|
+                try b.choose(declared, pair, b.symbol(declared.boolConstructor(false).symbol, span), rest, span)
+            else
+                pair;
+        }
+        const method = try b.abstract(&.{ x, y }, result orelse b.symbol(declared.boolConstructor(true).symbol, span));
+        return try b.apply(b.symbol(eq.constructor.?, span), method, span);
+    }
+
+    /// `method dictionary left right`.
+    fn compared(self: *Resolver, method: core.SymbolId, dictionary: core.Term, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
+        return try self.builder.applyMany(self.builder.symbol(method, span), &.{ dictionary, left, right }, span);
     }
 
     /// A dictionary in scope for `class` at `target`, directly or through
@@ -204,15 +255,19 @@ pub const Resolver = struct {
         }
 
         for (registry.instances.items) |instance| {
+            const dictionary = instance.dictionary orelse continue;
             const class = registry.get(instance.class);
             const span = instance.span;
             const at = try self.table.frame(null);
-            const parameters = try builder.slice(core.SymbolId, instance.dictionary_context.len);
+            const parameters = try builder.slice(core.SymbolId, registry.dictionaryCount(instance.context));
             const arguments = try builder.slice(core.Term, parameters.len);
-            for (instance.dictionary_context, parameters, arguments) |c, *parameter, *argument| {
-                parameter.* = try env.interner.fresh("d");
-                argument.* = builder.symbol(parameter.*, span);
-                try self.table.give(at, .{ .class = c.class, .type = c.type, .evidence = parameter.* });
+            var i: usize = 0;
+            for (instance.context) |c| {
+                if (registry.evidenceOf(c.class) != .dictionary) continue;
+                parameters[i] = try env.interner.fresh("d");
+                arguments[i] = builder.symbol(parameters[i], span);
+                try self.table.give(at, .{ .class = c.class, .type = c.type, .evidence = parameters[i] });
+                i += 1;
             }
 
             var body = builder.symbol(class.constructor.?, span);
@@ -223,7 +278,7 @@ pub const Resolver = struct {
                 body = try builder.apply(body, try builder.applyMany(builder.symbol(implementation, span), arguments, span), span);
             }
             try out.append(self.gpa, .{
-                .symbol = instance.dictionary,
+                .symbol = dictionary,
                 .body = try builder.abstract(parameters, body),
                 .span = span,
             });

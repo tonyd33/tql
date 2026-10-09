@@ -3165,6 +3165,16 @@
           }
         ]
       },
+      "deriving": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "deriving",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -3361,6 +3371,22 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "deriving",
+    "named": true,
+    "fields": {
+      "class": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -9990,6 +10016,10 @@
   },
   {
     "type": "data",
+    "named": false
+  },
+  {
+    "type": "deriving",
     "named": false
   },
   {

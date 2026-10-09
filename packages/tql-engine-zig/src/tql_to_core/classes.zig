@@ -49,6 +49,13 @@ pub const Linker = struct {
         for (source.declarations) |*decl| {
             if (decl.* != .class_declaration) continue;
             const declared = &decl.class_declaration;
+            if (self.module() == .prelude) {
+                if (self.env.classes.reservation(declared.name)) |id| {
+                    self.env.classes.getMut(id).span = declared.span;
+                    try ids.append(self.arena(), id);
+                    continue;
+                }
+            }
             if (self.scope.declaredType(self.module(), declared.name) != null) {
                 try self.sink.report(.duplicate_definition, declared.span, "`{s}` is declared more than once", .{declared.name});
                 self.failed = true;
@@ -213,7 +220,7 @@ pub const Linker = struct {
         const constructor = try self.env.interner.generate(self.module(), spelling, .vanilla);
         const fields = try self.arena().alloc(types.Type, count);
         for (fields, 0..) |*field, i| field.* = types.variable_type(@intCast(i));
-        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, @intCast(count), &.{}, .{});
+        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, @intCast(count), &.{});
         self.env.datatypes.setConstructors(&self.env.interner, id, try self.arena().dupe(datatypes.Constructor, &.{
             .{ .symbol = constructor, .tag = 0, .fields = fields },
         }));
@@ -248,9 +255,10 @@ pub const Linker = struct {
         }
 
         const head = try annotation.translateInstance(self.arena(), self.gpa, declared, self.scope, self.sink);
-        const head_name, const head_module: core.ModuleId = switch (head.head) {
-            .primitive => |p| .{ p.spelling(), .prelude },
-            .datatype => |id| .{ self.env.datatypes.get(id).name, self.env.datatypes.get(id).module },
+        const head_name = self.env.headSpelling(head.head);
+        const head_module: core.ModuleId = switch (head.head) {
+            .primitive => .prelude,
+            .datatype => |id| self.env.datatypes.get(id).module,
         };
         if (self.module() != class.name.module.? and self.module() != head_module) {
             try self.sink.report(
@@ -301,46 +309,20 @@ pub const Linker = struct {
             return error.BadAnnotation;
         }
 
-        const dictionary = try self.env.interner.generate(
-            self.module(),
-            try std.fmt.allocPrint(self.arena(), "instance[{s},{s}]", .{ class.name.name, head_name }),
-            .vanilla,
-        );
-        var dictionary_context: std.ArrayList(types.TypeClassConstraint) = .empty;
-        for (head.context) |c| {
-            if (self.env.classes.evidenceOf(c.class) == .dictionary) try dictionary_context.append(self.arena(), c);
-        }
-        const id = switch (try self.env.classes.addInstance(.{
+        const id = try self.addInstance(.{
             .class = class_id,
             .head = head.head,
             .type = head.type,
             .context = head.context,
-            .dictionary_context = dictionary_context.items,
             .methods = &.{},
-            .dictionary = dictionary,
+            .dictionary = undefined,
             .module = self.module(),
             .span = declared.span,
-        })) {
-            .added => |id| id,
-            .existing => |first| {
-                try self.sink.report(
-                    .duplicate_instance,
-                    declared.span,
-                    "`{s} {s}` is already declared in `{s}`",
-                    .{ class.name.name, head_name, self.env.interner.moduleName(self.env.classes.instance(first).module) },
-                );
-                return error.BadAnnotation;
-            },
-        };
-        self.env.interner.setDetails(dictionary, .{ .instance = id });
+        });
 
         const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
         for (class.methods, defined, implementations) |method, definition, *implementation| {
-            implementation.* = try self.env.interner.generate(
-                self.module(),
-                try std.fmt.allocPrint(self.arena(), "{s}[{s}]", .{ definition.?.name, head_name }),
-                .instance_method,
-            );
+            implementation.* = try self.methodSymbol(definition.?.name, head_name);
             try self.env.annotate(implementation.*, .{
                 .scheme = try self.methodScheme(self.env.schemeOf(method).?, head),
                 .span = definition.?.span,
@@ -348,6 +330,200 @@ pub const Linker = struct {
             try out.append(self.gpa, .{ .symbol = implementation.*, .definition = definition.? });
         }
         self.env.classes.instanceMut(id).methods = implementations;
+    }
+
+    /// Adds `declared`. Reports an instance already declared for its class
+    /// and head.
+    fn addInstance(self: *Linker, declared: classes.Instance) annotation.Error!classes.InstanceId {
+        return switch (try self.env.declareInstance(declared)) {
+            .added => |id| id,
+            .existing => |first| {
+                try self.sink.report(
+                    .duplicate_instance,
+                    declared.span,
+                    "`{s} {s}` is already declared in `{s}`",
+                    .{ self.env.classes.spelling(declared.class), self.env.headSpelling(declared.head), self.env.interner.moduleName(self.env.classes.instance(first).module) },
+                );
+                return error.BadAnnotation;
+            },
+        };
+    }
+
+    /// `method[head]`, an instance's implementation of `method`.
+    fn methodSymbol(self: *Linker, method: []const u8, head: []const u8) Error!core.SymbolId {
+        return try self.env.interner.generate(
+            self.module(),
+            try std.fmt.allocPrint(self.arena(), "{s}[{s}]", .{ method, head }),
+            .instance_method,
+        );
+    }
+
+    /// A derived instance whose context is being inferred.
+    const Pending = struct {
+        instance: classes.InstanceId,
+        datatype: datatypes.TypeId,
+        declared: *const cst.DataDeclaration,
+        context: std.ArrayList(types.TypeClassConstraint) = .empty,
+        failed: bool = false,
+    };
+
+    /// Declares the instance each class of each `deriving` clause names,
+    /// infers their contexts together, and appends their methods to `out`.
+    ///
+    /// Preconditions:
+    /// - The module's types, the members of every class in scope, and the
+    ///   module's written instances are declared.
+    pub fn derive(self: *Linker, source: cst.SourceFile, out: *std.ArrayList(core.Definition)) Error!void {
+        var pending: std.ArrayList(Pending) = .empty;
+        defer {
+            for (pending.items) |*p| p.context.deinit(self.gpa);
+            pending.deinit(self.gpa);
+        }
+        for (source.declarations) |*decl| {
+            if (decl.* != .data_declaration) continue;
+            const declared = &decl.data_declaration;
+            if (declared.deriving.len == 0) continue;
+            const id = switch (self.scope.declaredType(self.module(), declared.name) orelse continue) {
+                .datatype => |id| id,
+                else => continue,
+            };
+            // Constructors that failed to translate were never set.
+            if (self.env.datatypes.get(id).constructors.len != declared.constructors.len) continue;
+            for (declared.deriving, 0..) |derived, i| {
+                const instance = self.declareDerived(id, declared.deriving[0..i], derived) catch |err| switch (err) {
+                    error.BadAnnotation => {
+                        self.failed = true;
+                        continue;
+                    },
+                    else => |e| return e,
+                };
+                try pending.append(self.gpa, .{ .instance = instance, .datatype = id, .declared = declared });
+            }
+        }
+
+        try self.inferContexts(pending.items);
+        for (pending.items) |p| {
+            if (p.failed or self.env.classes.instance(p.instance).methods.len == 0) continue;
+            try out.append(self.gpa, try self.generate(p));
+        }
+    }
+
+    fn declareDerived(
+        self: *Linker,
+        id: datatypes.TypeId,
+        earlier: []const cst.DataDeclaration.Derived,
+        derived: cst.DataDeclaration.Derived,
+    ) annotation.Error!classes.InstanceId {
+        const class_id = try annotation.resolveClass(self.scope, derived.class, derived.span, self.sink);
+        for (earlier) |e| {
+            if (!std.mem.eql(u8, e.class, derived.class)) continue;
+            try self.sink.report(.invalid_deriving, derived.span, "`{s}` is derived more than once", .{derived.class});
+            return error.BadAnnotation;
+        }
+        switch (class_id) {
+            .eq, .ord, .serial => {},
+            else => {
+                try self.sink.report(
+                    .invalid_deriving,
+                    derived.span,
+                    "`{s}` cannot be derived; only `Eq`, `Ord` and `Serial` can",
+                    .{derived.class},
+                );
+                return error.BadAnnotation;
+            },
+        }
+
+        const class = self.env.classes.get(class_id);
+        const name = self.env.datatypes.get(id).name;
+        const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
+        for (class.methods, implementations) |method, *implementation| {
+            implementation.* = try self.methodSymbol(self.env.interner.spelling(method), name);
+        }
+        return try self.addInstance(.{
+            .class = class_id,
+            .head = .{ .datatype = id },
+            .type = try self.env.datatypes.applied(self.arena(), id),
+            .context = &.{},
+            .methods = implementations,
+            .dictionary = undefined,
+            .module = self.module(),
+            .span = derived.span,
+        });
+    }
+
+    /// Sets each derived instance's context to what its fields need, reduced
+    /// to constraints on its type's parameters. Starts every context empty
+    /// and grows them together until none grows.
+    fn inferContexts(self: *Linker, pending: []Pending) Error!void {
+        var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
+        defer leaves.deinit(self.gpa);
+        var changed = true;
+        while (changed) {
+            changed = false;
+            for (pending) |*p| {
+                if (p.failed) continue;
+                const instance = self.env.classes.instance(p.instance);
+                const grown = p.context.items.len;
+                fields: for (self.env.datatypes.get(p.datatype).constructors, p.declared.constructors) |constructor, written| {
+                    for (constructor.fields, written.fields) |field, written_field| {
+                        leaves.clearRetainingCapacity();
+                        const view = Bound{};
+                        if (try classes.reduce(&self.env.classes, instance.class, field, view, Leaves{ .gpa = self.gpa, .out = &leaves })) |culprit| {
+                            try self.sink.report(.unsatisfied_constraint, written_field.span, "`{s} {f}` needs `{s} {f}`", .{
+                                self.env.classes.spelling(instance.class),
+                                instance.type.operand(),
+                                self.env.classes.spelling(instance.class),
+                                culprit.operand(),
+                            });
+                            p.failed = true;
+                            self.failed = true;
+                            break :fields;
+                        }
+                        for (leaves.items) |leaf| {
+                            if (self.env.classes.entailedBy(p.context.items, leaf)) continue;
+                            try p.context.append(self.gpa, leaf);
+                        }
+                    }
+                }
+                if (p.context.items.len == grown) continue;
+                changed = true;
+                self.env.classes.instanceMut(p.instance).context = try self.arena().dupe(types.TypeClassConstraint, p.context.items);
+            }
+        }
+
+        for (pending) |*p| {
+            if (p.failed) continue;
+            const kept = self.env.classes.pruneEntailed(p.context.items);
+            self.env.classes.instanceMut(p.instance).context = try self.arena().dupe(types.TypeClassConstraint, p.context.items[0..kept]);
+        }
+    }
+
+    /// The derived instance's method, annotated with the class method's
+    /// scheme at its head.
+    fn generate(self: *Linker, p: Pending) Error!core.Definition {
+        const instance = self.env.classes.instance(p.instance);
+        const class = self.env.classes.get(instance.class);
+        const span = instance.span;
+        const derivation: Derivation = .{
+            .builder = .{ .allocator = self.arena() },
+            .interner = &self.env.interner,
+            .datatypes = &self.env.datatypes,
+            .class = instance.class,
+            .method = class.methods[0],
+            .itself = instance.methods[0],
+            .datatype = p.datatype,
+            .span = span,
+        };
+        const symbol = instance.methods[0];
+        try self.env.annotate(symbol, .{
+            .scheme = try self.methodScheme(self.env.schemeOf(class.methods[0]).?, .{
+                .head = instance.head,
+                .type = instance.type,
+                .context = instance.context,
+            }),
+            .span = span,
+        });
+        return .{ .symbol = symbol, .body = try derivation.body(), .span = span };
     }
 
     /// A class method's scheme at an instance head: the head's variables
@@ -406,7 +582,7 @@ pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagno
 fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, super: classes.ClassId) Error!?types.TypeClassConstraint {
     var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
     defer leaves.deinit(gpa);
-    if (try classes.reduce(&env.classes, &env.datatypes, super, instance.type, Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
+    if (try classes.reduce(&env.classes, super, instance.type, Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
         return .{ .class = super, .type = culprit };
     }
     for (leaves.items) |leaf| {
@@ -414,6 +590,117 @@ fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, s
     }
     return null;
 }
+
+/// Builds a derived `eq` or `compare`, which compares constructor tags, then
+/// fields left to right through each field type's own instance.
+///
+/// Every field but the last is compared as a `case` scrutinee and the last in
+/// tail position. A field of the type itself, at its own parameters, is
+/// compared by the method being derived.
+const Derivation = struct {
+    builder: core.Builder,
+    interner: *core.Interner,
+    datatypes: *const datatypes.Registry,
+    /// `.eq` or `.ord`.
+    class: classes.ClassId,
+    /// The class's method.
+    method: core.SymbolId,
+    /// The method being derived.
+    itself: core.SymbolId,
+    datatype: datatypes.TypeId,
+    span: diagnostic.Span,
+
+    const Alternative = core.Case.Alternative;
+
+    /// `\x y -> case x of { C_i xs -> case y of { C_j ys -> ... } }`.
+    fn body(self: Derivation) Error!core.Term {
+        const b = self.builder;
+        const constructors = self.datatypes.get(self.datatype).constructors;
+        const x = try self.interner.fresh("x");
+        const y = try self.interner.fresh("y");
+        const outer = try b.slice(Alternative, constructors.len);
+        for (constructors, outer, 0..) |left, *alternative, i| {
+            const xs = try self.binders(left.fields.len, "a");
+            const inner = try b.slice(Alternative, constructors.len);
+            for (constructors, inner, 0..) |right, *matched, j| {
+                const ys = try self.binders(right.fields.len, if (i == j) "b" else "_");
+                matched.* = .{
+                    .constructor = right.symbol,
+                    .binders = ys,
+                    .body = if (i == j) try self.fields(left.fields, xs, ys) else self.differ(i < j),
+                };
+            }
+            alternative.* = .{
+                .constructor = left.symbol,
+                .binders = xs,
+                .body = try b.case(b.symbol(y, self.span), inner, self.span),
+            };
+        }
+        const matched = try b.case(b.symbol(x, self.span), outer, self.span);
+        return try b.lambda(x, try b.lambda(y, matched, self.span), self.span);
+    }
+
+    fn binders(self: Derivation, count: usize, spelling: []const u8) Error![]core.SymbolId {
+        const out = try self.builder.slice(core.SymbolId, count);
+        for (out) |*binder| binder.* = try self.interner.fresh(spelling);
+        return out;
+    }
+
+    /// The answer for two values built by different constructors, the first
+    /// declared `earlier` than the second or not.
+    fn differ(self: Derivation, earlier: bool) core.Term {
+        return switch (self.class) {
+            .eq => self.constant(self.datatypes.boolConstructor(false)),
+            else => self.constant(self.datatypes.orderingConstructor(if (earlier) .lt else .gt)),
+        };
+    }
+
+    /// The answer for two values whose fields all compare equal.
+    fn same(self: Derivation) core.Term {
+        return switch (self.class) {
+            .eq => self.constant(self.datatypes.boolConstructor(true)),
+            else => self.constant(self.datatypes.orderingConstructor(.eq)),
+        };
+    }
+
+    fn constant(self: Derivation, c: datatypes.Constructor) core.Term {
+        return self.builder.symbol(c.symbol, self.span);
+    }
+
+    /// Compares `xs` with `ys` pairwise, stopping at the first pair that
+    /// decides.
+    fn fields(self: Derivation, field_types: []const types.Type, xs: []const core.SymbolId, ys: []const core.SymbolId) Error!core.Term {
+        if (field_types.len == 0) return self.same();
+        const b = self.builder;
+        const last = field_types.len - 1;
+        var result = try self.field(field_types[last], xs[last], ys[last]);
+        var i = last;
+        while (i > 0) {
+            i -= 1;
+            const compared = try self.field(field_types[i], xs[i], ys[i]);
+            result = switch (self.class) {
+                .eq => try b.choose(self.datatypes, compared, self.differ(true), result, self.span),
+                else => try b.chooseOrder(self.datatypes, compared, .{ self.differ(true), result, self.differ(false) }, self.span),
+            };
+        }
+        return result;
+    }
+
+    fn field(self: Derivation, t: types.Type, x: core.SymbolId, y: core.SymbolId) Error!core.Term {
+        const b = self.builder;
+        const function = if (self.isItself(t)) self.itself else self.method;
+        return try b.applyMany(b.symbol(function, self.span), &.{ b.symbol(x, self.span), b.symbol(y, self.span) }, self.span);
+    }
+
+    /// Whether `t` is the type being derived at its own parameters, in order.
+    fn isItself(self: Derivation, t: types.Type) bool {
+        if (t != .constructor or t.constructor.name != self.datatype) return false;
+        for (t.constructor.arguments, 0..) |argument, i| {
+            if (argument != .variable or argument.variable != i) return false;
+        }
+        return true;
+    }
+};
 
 /// Types over bound variables, with no metavariables to follow.
 const Bound = struct {

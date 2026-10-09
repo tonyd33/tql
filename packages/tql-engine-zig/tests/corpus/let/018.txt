@@ -25,10 +25,10 @@ class A {}
 --- core ---
 main =
   letrec
-    is_even = \n -> case op[=] n 0 of
+    is_even = \n -> case eq n 0 of
       False -> is_odd (op[-] n 1)
       True -> True
-    is_odd = \n -> case op[=] n 0 of
+    is_odd = \n -> case eq n 0 of
       False -> is_even (op[-] n 1)
       True -> False
   in

@@ -166,8 +166,12 @@ module.exports = grammar({
         repeat(field("parameter", $._type_variable)),
         "=",
         sep1(field("constructor", $.constructor_declaration), "|"),
+        optional(field("deriving", $.deriving)),
         ";",
       ),
+
+    deriving: $ =>
+      seq("deriving", "(", sep1(field("class", $.type_identifier), ","), ")"),
 
     type_alias: $ =>
       seq(

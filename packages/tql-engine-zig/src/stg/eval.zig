@@ -1064,9 +1064,9 @@ pub const Machine = struct {
         return .{ a, b };
     }
 
+    /// The order of two `Int`s or two `String`s, the primitive types with
+    /// `Ord` instances.
     fn ordering(left: value.Value, right: value.Value) Error!std.math.Order {
-        // `Ord` holds for `Int` and `String` only, so these two cases
-        // are the whole of ordering.
         return switch (left) {
             .number => |a| switch (right) {
                 .number => |b| std.math.order(a, b),
@@ -1120,13 +1120,14 @@ pub const Machine = struct {
                 return .{ .number = @rem(a, b) };
             },
 
-            .eq => return try self.boolValue(try self.equal(left, right)),
-            .ne => return try self.boolValue(!try self.equal(left, right)),
+            .eq => return try self.boolValue(try equal(left, right)),
+            .ne => return try self.boolValue(!try equal(left, right)),
 
-            .lt => return try self.boolValue(try ordering(left, right) == .lt),
-            .lte => return try self.boolValue(try ordering(left, right) != .gt),
-            .gt => return try self.boolValue(try ordering(left, right) == .gt),
-            .gte => return try self.boolValue(try ordering(left, right) != .lt),
+            .lt, .lte, .gt, .gte => return try self.boolValue(scalar.answer(try ordering(left, right))),
+            .compare => {
+                const c = self.program.structural.ordering(try ordering(left, right));
+                return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+            },
 
             .match, .not_match => {
                 const haystack = switch (left) {
@@ -1144,66 +1145,27 @@ pub const Machine = struct {
         }
     }
 
-    /// Structural equality. Forces both sides only as far as it must to
-    /// decide.
-    fn equal(self: *Machine, left_value: value.Value, right_value: value.Value) Error!bool {
-        try self.checkStack();
-
-        var left = left_value;
-        var right = right_value;
-        while (true) {
-            switch (left) {
-                .node => |a| switch (right) {
-                    .node => |b| return a.inner.eql(b.inner),
-                    else => return error.TypeError,
-                },
-                .number => |a| switch (right) {
-                    .number => |b| return a == b,
-                    else => return error.TypeError,
-                },
-                .string => |a| switch (right) {
-                    .string => |b| return std.mem.eql(u8, a, b),
-                    else => return error.TypeError,
-                },
-                .kind => |a| switch (right) {
-                    .kind => |b| return a.id == b.id,
-                    else => return error.TypeError,
-                },
-                .constructed => |a| {
-                    const b = switch (right) {
-                        .constructed => |c| c,
-                        else => return error.TypeError,
-                    };
-                    if (a.tag != b.tag or a.len != b.len) return false;
-                    if (a.len == 0) return true;
-
-                    const xs = a.fields();
-                    const ys = b.fields();
-                    for (xs[0 .. xs.len - 1], ys[0 .. ys.len - 1]) |x, y| {
-                        if (!try self.equal(try self.force(x), try self.force(y))) return false;
-                    }
-                    // The last field is compared by the next iteration rather
-                    // than by recursion, so a list's spine costs no stack.
-                    left = try self.force(xs[xs.len - 1]);
-                    right = try self.force(ys[ys.len - 1]);
-                },
-                // Labels are sorted, so the same record type gives the same
-                // order on both sides and the fields pair up positionally.
-                .record => |a| {
-                    const b = switch (right) {
-                        .record => |r| r,
-                        else => return error.TypeError,
-                    };
-                    if (a.len != b.len) return false;
-                    for (a, b) |x, y| {
-                        if (!std.mem.eql(u8, x.label, y.label)) return false;
-                        if (!try self.equal(try self.force(x.thunk), try self.force(y.thunk))) return false;
-                    }
-                    return true;
-                },
-                else => return error.TypeError,
-            }
-        }
+    /// Equality of two values of a primitive type with an `Eq` instance.
+    fn equal(left: value.Value, right: value.Value) Error!bool {
+        return switch (left) {
+            .node => |a| switch (right) {
+                .node => |b| a.inner.eql(b.inner),
+                else => error.TypeError,
+            },
+            .number => |a| switch (right) {
+                .number => |b| a == b,
+                else => error.TypeError,
+            },
+            .string => |a| switch (right) {
+                .string => |b| std.mem.eql(u8, a, b),
+                else => error.TypeError,
+            },
+            .kind => |a| switch (right) {
+                .kind => |b| a.id == b.id,
+                else => error.TypeError,
+            },
+            else => error.TypeError,
+        };
     }
 
     fn boolValue(self: *Machine, b: bool) Error!value.Value {
@@ -1333,9 +1295,14 @@ pub const Machine = struct {
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
                     _ = try self.serializeList(v, jws);
                 } else {
-                    // A user datatype, which has no encoding until 0.4 gives
-                    // it one.
-                    return error.TypeError;
+                    try jws.beginObject();
+                    try jws.objectField("tag");
+                    try jws.write(self.program.spellings.get(c.constructor) orelse return error.TypeError);
+                    try jws.objectField("fields");
+                    try jws.beginArray();
+                    for (c.fields()) |field| try self.serialize(try self.force(field), jws);
+                    try jws.endArray();
+                    try jws.endObject();
                 }
             },
             .node => |n| {

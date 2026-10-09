@@ -332,10 +332,11 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
     return slot;
 }
 
-/// The two names the compiler knows structurally. A type built before the
+/// The names the compiler knows structurally. A type built before the
 /// registry exists refers to them by spelling.
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
+pub const ordering_spelling = "Ordering";
 
 /// A declared type at its arguments, copied into `allocator`.
 pub fn constructed(
@@ -529,7 +530,7 @@ test "constrained scheme renders its context" {
     defer arena.deinit();
     const t = arena.allocator();
     var registry = classes.Registry.init(t);
-    try registry.declareBuiltins();
+    try registry.reserveBuiltins();
     const boolean = try constructed(t, @enumFromInt(1), bool_spelling, &.{});
     const eq: Scheme = .{
         .quantified = 1,
@@ -554,7 +555,7 @@ test "a constraint parenthesizes an applied constructor" {
     defer arena.deinit();
     const t = arena.allocator();
     var registry = classes.Registry.init(t);
-    try registry.declareBuiltins();
+    try registry.reserveBuiltins();
     const maybe = try constructed(t, @enumFromInt(2), "Maybe", &.{variable_type(0)});
     const scheme: Scheme = .{
         .quantified = 1,

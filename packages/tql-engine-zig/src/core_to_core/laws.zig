@@ -19,6 +19,8 @@ pub const Laws = struct {
     cons: core.SymbolId,
     false_: core.SymbolId,
     true_: core.SymbolId,
+    /// `LT`, `EQ` and `GT`.
+    ordering: [3]core.SymbolId,
 
     /// Whether a law matches on `symbol`.
     pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
@@ -51,7 +53,8 @@ pub const Laws = struct {
 
     /// `m (instance[C,T] d_1 .. d_n)` becomes `m[T] d_1 .. d_n`, when `m` is a
     /// method of `C` and `d_1 .. d_n` is the evidence for each constraint of
-    /// the instance's context with a dictionary.
+    /// the instance's context with a dictionary. `m (dict[C] s_1 .. f_1 ..)`,
+    /// a dictionary built in place, becomes the field `m` selects.
     fn selectKnownMethod(
         self: *const Laws,
         function: core.Term,
@@ -65,16 +68,17 @@ pub const Laws = struct {
         };
         const head = argument.head();
         if (head.kind != .symbol) return null;
+        const class = self.classes.get(method.class);
+        if (class.constructor == head.kind.symbol) {
+            return spineArgument(argument, class.selectors.len + class.methods.len, class.selectors.len + method.index);
+        }
         const instance = switch (self.interner.details(head.kind.symbol)) {
             .instance => |id| self.classes.instance(id),
             else => return null,
         };
         if (instance.class != method.class) return null;
 
-        var applied: usize = 0;
-        var t = argument;
-        while (t.kind == .apply) : (t = t.kind.apply.function) applied += 1;
-        if (applied != instance.dictionary_context.len) return null;
+        if (argument.spineLength() != self.classes.dictionaryCount(instance.context)) return null;
         var result = self.builder.symbol(instance.methods[method.index], span);
         try self.spine(argument, &result, span);
         return result;
@@ -108,6 +112,73 @@ pub const Laws = struct {
                 .{ .constructor = self.true_, .binders = &.{}, .body = try b.let(cons.binders[0], tested.subject, tail, span) },
             }),
         };
+    }
+
+    /// A comparison of `left` and `right` that answers what a `case` makes of
+    /// another one.
+    pub const Folded = struct {
+        comparison: core.Scalar,
+        left: core.Term,
+        right: core.Term,
+    };
+
+    /// A `case` that maps a comparison's result to `True` and `False` is the
+    /// comparison that returns that `Bool`:
+    /// `case op[compare] a b of { LT -> True; EQ -> False; GT -> False }` is
+    /// `op[<] a b`, and `case op[=] a b of { False -> True; True -> False }` is
+    /// `op[!=] a b`.
+    ///
+    /// Preconditions: `scrutinee` is simplified.
+    pub fn foldComparison(
+        self: *const Laws,
+        scrutinee: core.Term,
+        alternatives: []const core.Case.Alternative,
+    ) ?Folded {
+        const outer = switch (scrutinee.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        const inner = switch (outer.function.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        const compared = switch (inner.function.kind) {
+            .symbol => |id| switch (self.interner.details(id)) {
+                .synthesized => |s| switch (s) {
+                    .operator => |o| o,
+                    else => return null,
+                },
+                else => return null,
+            },
+            else => return null,
+        };
+
+        var wanted: [3]bool = undefined;
+        if (compared == .compare) {
+            for (&wanted, self.ordering) |*slot, constructor| {
+                slot.* = self.answer(alternatives, constructor) orelse return null;
+            }
+        } else {
+            const answers = compared.answers() orelse return null;
+            const if_false = self.answer(alternatives, self.false_) orelse return null;
+            const if_true = self.answer(alternatives, self.true_) orelse return null;
+            for (&wanted, answers) |*slot, given| slot.* = if (given) if_true else if_false;
+        }
+        return .{
+            .comparison = core.Scalar.answering(wanted) orelse return null,
+            .left = inner.argument,
+            .right = outer.argument,
+        };
+    }
+
+    /// The `Bool` the alternative for `constructor` returns, when it binds
+    /// nothing and returns a constant.
+    fn answer(self: *const Laws, alternatives: []const core.Case.Alternative, constructor: core.SymbolId) ?bool {
+        const alternative = alternativeFor(alternatives, constructor) orelse return null;
+        if (alternative.binders.len > 0) return null;
+        if (isSymbol(alternative.body, self.true_)) return true;
+        if (isSymbol(alternative.body, self.false_)) return false;
+        return null;
     }
 
     /// `kleisli <axis> (of_kind k)` becomes the axis that yields only `k`.
@@ -238,6 +309,14 @@ pub const Laws = struct {
         };
     }
 };
+
+/// Argument `index` of `t`, when `t` is a head applied to `count` arguments.
+fn spineArgument(t: core.Term, count: usize, index: usize) ?core.Term {
+    if (t.spineLength() != count) return null;
+    var current = t;
+    for (0..count - 1 - index) |_| current = current.kind.apply.function;
+    return current.kind.apply.argument;
+}
 
 /// `p`, when `t` is `head p`.
 fn operandOf(head: core.SymbolId, t: core.Term) ?core.Term {

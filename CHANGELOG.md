@@ -14,6 +14,7 @@
 - `kind` returns a `Kind`, not a `String`: write `kind n = :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
 - `_ <- e` no longer puts `_` in scope.
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
+- A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 
 ### New Features
 
@@ -42,8 +43,12 @@
 - Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
 - Added guards to `case` alternatives: in `[a, b] if a = b -> 1`, a false guard tries the alternatives after it.
 - Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants root;` binds each method call.
-- Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };` declares a class whose methods are values, and `instance Describe a => Describe [a] where { describe xs = ...; };` gives one at a type. A function using a method is inferred with the constraint, as `twice x = [describe x, describe x]` is `Describe a => a -> [String]`, and an inferred context is reduced through instances: `f x = describe [x]` is `Describe a => a -> String`. `Eq`, `Ord`, `Sized` and `Serial` stay built in and take no instances; a class may name one as a superclass.
-- Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value. An instance is global to the link whatever an import list names. It must be declared in its class's module or its type's module, and one class has at most one instance at a type.
+- Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };`.
+- Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value.
+- `Eq`, `Ord` and `Sized` are prelude classes: `class Eq a where { eq :: a -> a -> Bool; };`, `class Eq a => Ord a where { compare :: a -> a -> Ordering; };` and `class Sized a where { length :: a -> Int; };`. A written instance is what `=`, `<` and `length` call at its type: `instance Eq Name where { eq a b = ...; };`. `!=` is `not (eq a b)` and `<`, `<=`, `>`, `>=` are read off `compare`. Known types compile to the same comparisons as before.
+- Added `deriving (Eq, Ord, Serial)` on a `data` declaration.
+- A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
+- Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
 
 ### Improvements
 
@@ -59,6 +64,7 @@
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 - `main`'s constraints are checked at the type it runs at: `main x = [x < x];` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
+- `=` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
 
 ## 0.3.1 (2026-10-03)
 

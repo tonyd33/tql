@@ -132,7 +132,6 @@ pub const Desugarer = struct {
                 try arena.dupe(u8, declared.name),
                 @intCast(declared.parameters.len),
                 &.{},
-                .{ .Eq = .fields },
             );
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
@@ -316,6 +315,10 @@ pub const Desugarer = struct {
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.declareInstances(source, &methods);
+        if (module == .prelude) try primitives.declareInstances(&self.env.?);
+        var generated: std.ArrayList(core.Definition) = .empty;
+        defer generated.deinit(self.allocator);
+        try class_linker.derive(source, &generated);
 
         var declarations = try resolve.collect(self.allocator, interner, module, source, sink);
         defer declarations.deinit();
@@ -332,10 +335,16 @@ pub const Desugarer = struct {
         for (declarations.items.items, first..) |d, index| {
             try self.linked.put(self.allocator, d.symbol, @intCast(index));
         }
+        for (generated.items, first + declarations.items.items.len..) |method, index| {
+            try self.linked.put(self.allocator, method.symbol, @intCast(index));
+        }
 
-        const definitions = try builder.slice(core.Definition, declarations.items.items.len);
+        const written = declarations.items.items.len;
+        const definitions = try builder.slice(core.Definition, written + generated.items.len);
         const edges = try builder.slice([]const u32, definitions.len);
         @memset(edges, &.{});
+        @memcpy(definitions[written..], generated.items);
+        for (generated.items, edges[written..]) |method, *edge| edge.* = try self.references(builder, method.body);
 
         const language = if (g) |known| known.language else null;
         var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, language, sink);
@@ -356,7 +365,7 @@ pub const Desugarer = struct {
             edges[i] = try self.references(builder, body);
             if (d.kind == .synonym) try self.env.?.markAlwaysInline(d.symbol);
         }
-        if (!try checkSynonymCycles(self.allocator, declarations.items.items, edges, first, sink)) {
+        if (!try checkSynonymCycles(self.allocator, declarations.items.items, edges[0..written], first, sink)) {
             failed = true;
         }
 

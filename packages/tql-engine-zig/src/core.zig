@@ -77,6 +77,14 @@ pub const Term = struct {
         while (result.kind == .apply) result = result.kind.apply.function;
         return result;
     }
+
+    /// How many arguments the head of an application spine is applied to.
+    pub fn spineLength(t: Term) usize {
+        var count: usize = 0;
+        var current = t;
+        while (current.kind == .apply) : (current = current.kind.apply.function) count += 1;
+        return count;
+    }
 };
 
 pub const Literal = union(enum) {
@@ -207,6 +215,40 @@ pub const Builder = struct {
         const node = try self.allocator.create(Case);
         node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives };
         return .{ .kind = .{ .case = node }, .span = span };
+    }
+
+    /// `case condition of { False -> otherwise; True -> matched }`.
+    ///
+    /// Alternatives go in tag order, so `False` precedes `True` and the
+    /// alternative bodies are the opposite order from how an `if` writes them.
+    pub fn choose(
+        self: Builder,
+        declared: *const datatypes.Registry,
+        condition: Term,
+        otherwise: Term,
+        matched: Term,
+        span: diagnostic.Span,
+    ) !Term {
+        const alternatives = try self.dupeSlice(Case.Alternative, &.{
+            .{ .constructor = declared.boolConstructor(false).symbol, .binders = &.{}, .body = otherwise },
+            .{ .constructor = declared.boolConstructor(true).symbol, .binders = &.{}, .body = matched },
+        });
+        return try self.case(condition, alternatives, span);
+    }
+
+    /// `case order of { LT -> bodies[0]; EQ -> bodies[1]; GT -> bodies[2] }`.
+    pub fn chooseOrder(
+        self: Builder,
+        declared: *const datatypes.Registry,
+        order: Term,
+        bodies: [3]Term,
+        span: diagnostic.Span,
+    ) !Term {
+        const alternatives = try self.slice(Case.Alternative, 3);
+        for (alternatives, [_]std.math.Order{ .lt, .eq, .gt }, bodies) |*alternative, o, body| {
+            alternative.* = .{ .constructor = declared.orderingConstructor(o).symbol, .binders = &.{}, .body = body };
+        }
+        return try self.case(order, alternatives, span);
     }
 
     pub fn let(

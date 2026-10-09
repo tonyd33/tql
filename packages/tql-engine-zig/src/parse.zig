@@ -765,6 +765,7 @@ const Walker = struct {
         const name = try self.dupe(name_node);
         var params: std.ArrayList(cst.Identifier) = .empty;
         var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
+        var deriving: []const cst.DataDeclaration.Derived = &.{};
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -778,6 +779,8 @@ const Walker = struct {
                         if (try self.constructorDeclaration(child)) |c| {
                             try constructors.append(self.allocator, c);
                         } else return null;
+                    } else if (std.mem.eql(u8, field, "deriving")) {
+                        deriving = try self.derivingClause(child);
                     }
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -788,8 +791,30 @@ const Walker = struct {
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),
+            .deriving = deriving,
             .span = spanOf(node, self.source_id),
         };
+    }
+
+    fn derivingClause(self: *Walker, node: ts.Node) ![]const cst.DataDeclaration.Derived {
+        var classes: std.ArrayList(cst.DataDeclaration.Derived) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |field| {
+                    if (std.mem.eql(u8, field, "class")) {
+                        const child = cursor.node();
+                        try classes.append(self.allocator, .{
+                            .class = try self.dupe(child),
+                            .span = spanOf(child, self.source_id),
+                        });
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+        return try classes.toOwnedSlice(self.allocator);
     }
 
     fn typeAlias(self: *Walker, node: ts.Node) !?cst.TypeAlias {
@@ -1643,6 +1668,26 @@ test "a data declaration and a type alias side by side" {
         "data Box a = Box a; type Pred = Node -> Bool;",
         "(source_file (data Box (params a) (con Box a)) (type Pred (params) (-> Node Bool)))",
     );
+}
+
+test "a deriving clause lists its classes after the constructors" {
+    try expectSexpr(
+        "data Maybe a = Nothing | Just a deriving (Eq, Ord);",
+        "(source_file (data Maybe (params a) (con Nothing) (con Just a) (deriving Eq Ord)))",
+    );
+}
+
+test "a derived class spans its name" {
+    var parser = try Parser.init(testing.allocator);
+    defer parser.deinit();
+
+    var result = try parser.parseCollecting("data U = U deriving (Eq, Ord);", .entry);
+    defer result.deinit();
+
+    const deriving = result.source_file.declarations[0].data_declaration.deriving;
+    try testing.expectEqual(2, deriving.len);
+    try testing.expectEqual(25, deriving[1].span.start_byte);
+    try testing.expectEqual(28, deriving[1].span.end_byte);
 }
 
 test "a pattern synonym keeps its parameters and body" {

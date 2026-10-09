@@ -20,6 +20,7 @@
   "class"
   "instance"
   "where"
+  "deriving"
 ] @keyword
 
 (module_name) @module

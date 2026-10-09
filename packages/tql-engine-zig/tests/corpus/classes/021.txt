@@ -1,0 +1,14 @@
+title: a written `Sized` is what `length` calls
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Bag = Bag [Int];
+instance Sized Bag where { length b = case b of { Bag xs -> length xs + 100 }; };
+main = const [length (Bag [1, 2]), length "ab", length [1]];
+
+--- source ---
+class A {}
+
+--- values ---
+[102,2,1]

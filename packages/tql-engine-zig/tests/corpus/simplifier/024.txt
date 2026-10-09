@@ -22,4 +22,4 @@ main = const (Cons (op[+] (op[+] 1 2) 3) (Cons (pick (op[=] 1 1)) Nil))
 pick = \b -> case b of
   False -> op[+] (op[+] 4 5) 6
   True -> op[+] (op[+] 1 2) 3
-main = const (Cons (pick True) (Cons (pick (op[=] 1 1)) Nil))
+main = const (Cons (pick True) (Cons (pick (eq 1 1)) Nil))

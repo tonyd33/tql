@@ -1,0 +1,13 @@
+title: a parameterized type derives under its parameter's instance
+grammar: typescript
+asserts: values
+
+--- tql ---
+data Maybe a = Nothing | Just a deriving (Eq, Ord);
+main = const [Just 1 < Just 2, Nothing < Just 0, Just [1] = Just [1], Just (Just 1) > Just Nothing];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,true,true,true]

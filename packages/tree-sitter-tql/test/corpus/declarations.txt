@@ -316,6 +316,60 @@ data Pair = MkPair Int [String];
         (type_identifier)))))
 
 ========================================
+a data type deriving one class
+========================================
+
+data Unit = Unit deriving (Eq);
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    deriving: (deriving
+      class: (type_identifier))))
+
+========================================
+a parameterized data type deriving several classes
+========================================
+
+data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier))
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))
+    deriving: (deriving
+      class: (type_identifier)
+      class: (type_identifier)
+      class: (type_identifier))))
+
+========================================
+a field named like deriving is a type variable
+========================================
+
+data Box deriving_x = Box deriving_x;
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    parameter: (type_variable)
+    constructor: (constructor_declaration
+      name: (type_identifier)
+      field: (type_variable))))
+
+========================================
 a type alias with a row parameter
 ========================================
 
