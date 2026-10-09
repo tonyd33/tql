@@ -30,7 +30,7 @@ class B {}
 ]
 
 --- simplified ---
-main = children_of_kind :class_declaration
+main = %children_of_kind :class_declaration
 
 --- core ---
 main = kleisli children (of_kind :class_declaration)

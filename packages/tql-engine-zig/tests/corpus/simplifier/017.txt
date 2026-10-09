@@ -21,7 +21,7 @@ class A {}
 ]
 
 --- simplified ---
-main = descendants_of_kind :class_declaration
+main = %descendants_of_kind :class_declaration
 
 --- core ---
 main =

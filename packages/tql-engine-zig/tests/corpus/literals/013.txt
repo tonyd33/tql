@@ -3,12 +3,12 @@ grammar: typescript
 asserts: types
 
 Scalar operators have no way to drop a pair, so the whole query is undefined
-once a zero divisor reaches `%`. It typechecks; it has no value.
+once a zero divisor reaches `mod`. It typechecks; it has no value.
 
 --- tql ---
 main _ = do {
   d <- [5, 0, 7];
-  return $ 12 % d;
+  return $ 12 `mod` d;
 };
 
 --- source ---

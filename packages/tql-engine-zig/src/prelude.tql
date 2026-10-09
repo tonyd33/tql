@@ -20,6 +20,78 @@ class Sized a where {
   length :: a -> Int;
 };
 
+instance Sized String where {
+  length = %string_length;
+};
+
+-- TODO: strict left fold once we have one. This overflows at about 800
+-- elements.
+instance Sized [a] where {
+  length xs = case xs of {
+    Nil -> 0;
+    Cons h t -> 1 + length t;
+  };
+};
+
+-- Primitives
+
+text :: Node -> String;
+text = %text;
+
+kind :: Node -> Kind;
+kind = %kind;
+
+kind_name :: Node -> String;
+kind_name = %kind_name;
+
+is_named :: Node -> Bool;
+is_named = %is_named;
+
+is_extra :: Node -> Bool;
+is_extra = %is_extra;
+
+range :: Node -> Range;
+range = %range;
+
+mod :: Int -> Int -> Int;
+mod = %mod;
+
+toint :: Filter String Int;
+toint = %toint;
+
+filename :: Filter Node String;
+filename = %filename;
+
+parent :: Filter Node Node;
+parent = %parent;
+
+ancestors :: Filter Node Node;
+ancestors = %ancestors;
+
+children :: Filter Node Node;
+children = %children;
+
+named_children :: Filter Node Node;
+named_children = %named_children;
+
+descendants :: Filter Node Node;
+descendants = %descendants;
+
+named_descendants :: Filter Node Node;
+named_descendants = %named_descendants;
+
+children_of_kind :: Kind -> Filter Node Node;
+children_of_kind = %children_of_kind;
+
+descendants_of_kind :: Kind -> Filter Node Node;
+descendants_of_kind = %descendants_of_kind;
+
+of_kind :: Kind -> Filter Node Node;
+of_kind = %of_kind;
+
+is_kind :: Kind -> Node -> Bool;
+is_kind = %is_kind;
+
 -- Functional helpers
 
 identity :: a -> a;

@@ -1,9 +1,9 @@
-title: modulo
+title: mod
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = pure $ 7 % 3;
+main = pure $ 7 `mod` 3;
 
 --- source ---
 class A {}

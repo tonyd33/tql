@@ -20,6 +20,6 @@ main = \root -> concat_map (
   \c -> case field[name] c of
     Nil -> Nil
     Cons n cons1 -> case cons1 of
-      Nil -> Cons (Cons (text c) (Cons (text n) Nil)) Nil
+      Nil -> Cons (Cons (%text c) (Cons (%text n) Nil)) Nil
       Cons _ _ -> Nil
-) (descendants_of_kind :class_declaration root)
+) (%descendants_of_kind :class_declaration root)

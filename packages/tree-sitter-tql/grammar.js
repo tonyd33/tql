@@ -326,7 +326,7 @@ module.exports = grammar({
         PREC.mul,
         seq(
           field("left", $._expression),
-          field("operator", choice("*", "/", "%")),
+          field("operator", choice("*", "/")),
           field("right", $._expression),
         ),
       ),
@@ -539,6 +539,7 @@ module.exports = grammar({
       choice(
         $.leading_navigation,
         $.kind,
+        $.primitive,
         $.identifier,
         $.number,
         $.string,
@@ -561,6 +562,8 @@ module.exports = grammar({
       ),
 
     kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
+
+    primitive: _ => token(seq("%", LOWER_NAME)),
 
     operator_name: $ =>
       seq("(", field("operator", $._bare_section_operator), ")"),
@@ -610,7 +613,6 @@ module.exports = grammar({
         "+",
         "*",
         "/",
-        "%",
         ".",
         $.backtick_operator,
       ),

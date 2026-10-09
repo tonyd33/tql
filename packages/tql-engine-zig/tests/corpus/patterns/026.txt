@@ -6,7 +6,7 @@ asserts: core, values
 main = const $ do {
   n <- [1, 2, 3, 4];
   label <- case n of {
-    m if m % 2 = 0 -> ["even"];
+    m if m `mod` 2 = 0 -> ["even"];
     _ -> [];
   };
   return { n = n, label = label };
@@ -22,7 +22,7 @@ class A {}
 main = const (
   concat_map (
     \n -> concat_map (\label -> return (record[label,n] label n)) (
-      case eq (op[%] n 2) 0 of
+      case eq (mod n 2) 0 of
         False -> Nil
         True -> Cons "even" Nil
     )

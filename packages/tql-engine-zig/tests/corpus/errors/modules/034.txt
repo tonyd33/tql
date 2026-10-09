@@ -1,0 +1,14 @@
+title: importing a primitive's prelude name does not import the primitive
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude (text);
+main root = [%text root];
+
+--- error ---
+error[unresolved-name]: `%text` is not defined
+ --> 2:14
+  |
+2 | main root = [%text root];
+  |              ^^^^^

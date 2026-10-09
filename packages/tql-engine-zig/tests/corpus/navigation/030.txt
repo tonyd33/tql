@@ -13,7 +13,7 @@ class B {}
 []
 
 --- simplified ---
-main = kleisli (kleisli children parent) (of_kind :class_declaration)
+main = kleisli (kleisli %children %parent) (%of_kind :class_declaration)
 
 --- core ---
 main = kleisli (kleisli children parent) (of_kind :class_declaration)

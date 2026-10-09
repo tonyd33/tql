@@ -16,4 +16,4 @@ class A {}
 ["class A {}"]
 
 --- simplified ---
-main = \root -> concat_map (\scrutinee -> Cons (text scrutinee) Nil) (descendants_of_kind :class_declaration root)
+main = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%descendants_of_kind :class_declaration root)

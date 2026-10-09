@@ -21,7 +21,7 @@ class A {}
 ]
 
 --- simplified ---
-main = \root -> concat_map field[name] (descendants_of_kind :class_declaration root)
+main = \root -> concat_map field[name] (%descendants_of_kind :class_declaration root)
 
 --- core ---
 main = \root -> kleisli (kleisli descendants (of_kind :class_declaration)) field[name] root

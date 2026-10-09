@@ -631,6 +631,52 @@ main = x :xs;
       argument: (kind))))
 
 ========================================
+a primitive
+========================================
+
+text = %text;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (primitive)))
+
+========================================
+a primitive is an argument
+========================================
+
+main = a %b;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (primitive))))
+
+========================================
+a primitive in parentheses
+========================================
+
+main = map (%text) xs;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (application
+        function: (identifier)
+        argument: (parenthesized
+          (primitive)))
+      argument: (identifier))))
+
+========================================
 kinds in a list are not cons
 ========================================
 

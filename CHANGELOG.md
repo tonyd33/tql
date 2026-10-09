@@ -15,6 +15,7 @@
 - `_ <- e` no longer puts `_` in scope.
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
+- `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
 
 ### New Features
 
@@ -49,6 +50,7 @@
 - Added `deriving (Eq, Ord, Serial)` on a `data` declaration.
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
+- Every primitive is a prelude definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in the prelude.
 
 ### Improvements
 

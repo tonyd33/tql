@@ -14,19 +14,19 @@ class A {}
 
 --- simplified ---
 size = \xs -> case xs of
-  Nil -> length xs
+  Nil -> length[List] xs
   Cons x cons1 -> case cons1 of
     Nil -> 1
-    Cons _ _ -> length xs
+    Cons _ _ -> length[List] xs
 main = const (
   Cons 1 (
     Cons (
       let xs = Cons 1 (Cons 2 Nil) in
       case xs of
-        Nil -> length xs
+        Nil -> length[List] xs
         Cons x cons1 -> case cons1 of
           Nil -> 1
-          Cons _ _ -> length xs
+          Cons _ _ -> length[List] xs
     ) Nil
   )
 )

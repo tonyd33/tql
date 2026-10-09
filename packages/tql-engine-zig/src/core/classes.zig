@@ -11,7 +11,6 @@ const Allocator = std.mem.Allocator;
 pub const ClassId = enum(u16) {
     eq,
     ord,
-    sized,
     serial,
     _,
 };
@@ -101,9 +100,9 @@ pub const Registry = struct {
 
     /// Reserves the classes `ClassId` names, in the prelude, at the ids it
     /// names them by. `Serial` is complete. The prelude's own declarations of
-    /// `Eq`, `Ord` and `Sized` fill in the rest.
+    /// `Eq` and `Ord` fill in the rest.
     pub fn reserveBuiltins(self: *Registry) Allocator.Error!void {
-        for ([_][]const u8{ "Eq", "Ord", "Sized", "Serial" }, 0..) |name, i| {
+        for ([_][]const u8{ "Eq", "Ord", "Serial" }, 0..) |name, i| {
             const id = try self.declare(.{ .name = .{ .module = .prelude, .name = name } });
             std.debug.assert(@intFromEnum(id) == i);
         }
@@ -147,7 +146,7 @@ pub const Registry = struct {
     pub fn reservation(self: *const Registry, name: []const u8) ?ClassId {
         const id = self.lookup(.prelude, name) orelse return null;
         switch (id) {
-            .eq, .ord, .sized => {},
+            .eq, .ord => {},
             else => return null,
         }
         if (self.get(id).constructor != null) return null;

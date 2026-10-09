@@ -767,20 +767,19 @@ pub const Machine = struct {
                 .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
             .builtin => |primop| switch (primop) {
-                // `length` forces the spine, so it diverges on an infinite list.
-                .length => {
+                // Floored: the result takes the divisor's sign.
+                .mod => {
+                    if (arguments.len != 2) return error.TypeError;
+                    const a, const b = try numbers(try self.force(arguments[0]), try self.force(arguments[1]));
+                    if (b == 0) return error.DivideByZero;
+                    const r = @rem(a, b);
+                    return .{ .number = if (r != 0 and (r < 0) != (b < 0)) r + b else r };
+                },
+
+                .string_length => {
                     if (arguments.len != 1) return error.TypeError;
-                    const subject = try self.force(arguments[0]);
-                    return switch (subject) {
+                    return switch (try self.force(arguments[0])) {
                         .string => |s| .{ .number = @intCast(s.len) },
-                        .constructed => blk: {
-                            var count: i64 = 0;
-                            var current = subject;
-                            while (try self.uncons(current)) |cell| : (count += 1) {
-                                current = try self.force(cell.tail);
-                            }
-                            break :blk .{ .number = count };
-                        },
                         else => error.TypeError,
                     };
                 },
@@ -1105,19 +1104,14 @@ pub const Machine = struct {
                 const a, const b = try numbers(left, right);
                 return .{ .number = a * b };
             },
-            // Division and modulo by zero are undefined until the language
-            // has a Maybe. A scalar operator has no way to yield nothing,
-            // so the old "empty stream" answer stopped being expressible
-            // when these became scalars.
+            // Division by zero is undefined until the language has a Maybe.
+            // A scalar operator has no way to yield nothing, so the old
+            // "empty stream" answer stopped being expressible when division
+            // became a scalar.
             .divide => {
                 const a, const b = try numbers(left, right);
                 if (b == 0) return error.DivideByZero;
                 return .{ .number = @divTrunc(a, b) };
-            },
-            .modulo => {
-                const a, const b = try numbers(left, right);
-                if (b == 0) return error.DivideByZero;
-                return .{ .number = @rem(a, b) };
             },
 
             .eq => return try self.boolValue(try equal(left, right)),

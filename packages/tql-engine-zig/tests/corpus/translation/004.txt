@@ -13,5 +13,5 @@ class A {}
 
 --- stg ---
 main = {} \u {} ->
-  let t0 = {} \u {} -> length# "ab" in
+  let t0 = {} \u {} -> %string_length# "ab" in
   pure t0@0

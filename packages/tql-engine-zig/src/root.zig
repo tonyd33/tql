@@ -688,6 +688,25 @@ test "the prelude's bodies compile to Core" {
     try printer.definitions(program.definitions[0..program.entry_offset], &w.writer);
 
     try std.testing.expectEqualStrings(
+        \\text = %text
+        \\kind = %kind
+        \\kind_name = %kind_name
+        \\is_named = %is_named
+        \\is_extra = %is_extra
+        \\range = %range
+        \\mod = %mod
+        \\toint = %toint
+        \\filename = %filename
+        \\parent = %parent
+        \\ancestors = %ancestors
+        \\children = %children
+        \\named_children = %named_children
+        \\descendants = %descendants
+        \\named_descendants = %named_descendants
+        \\children_of_kind = %children_of_kind
+        \\descendants_of_kind = %descendants_of_kind
+        \\of_kind = %of_kind
+        \\is_kind = %is_kind
         \\identity = \x -> x
         \\const = \x -> \y -> x
         \\compose = \f -> \g -> \x -> f (g x)
@@ -771,6 +790,10 @@ test "the prelude's bodies compile to Core" {
         \\or_else = \primary -> \fallback -> \x -> case primary x of
         \\  Nil -> fallback x
         \\  Cons h t -> Cons h t
+        \\length[String] = %string_length
+        \\length[List] = \xs -> case xs of
+        \\  Nil -> 0
+        \\  Cons h t -> op[+] 1 (length t)
         \\eq[List] = \x -> \y -> case x of
         \\  Nil -> case y of
         \\    Nil -> True
@@ -887,6 +910,25 @@ test "the prelude's schemes are inferred" {
     }
 
     try std.testing.expectEqualStrings(
+        \\text :: Node -> String
+        \\kind :: Node -> Kind
+        \\kind_name :: Node -> String
+        \\is_named :: Node -> Bool
+        \\is_extra :: Node -> Bool
+        \\range :: Node -> Range
+        \\mod :: Int -> Int -> Int
+        \\toint :: String -> [Int]
+        \\filename :: Node -> [String]
+        \\parent :: Node -> [Node]
+        \\ancestors :: Node -> [Node]
+        \\children :: Node -> [Node]
+        \\named_children :: Node -> [Node]
+        \\descendants :: Node -> [Node]
+        \\named_descendants :: Node -> [Node]
+        \\children_of_kind :: Kind -> Node -> [Node]
+        \\descendants_of_kind :: Kind -> Node -> [Node]
+        \\of_kind :: Kind -> Node -> [Node]
+        \\is_kind :: Kind -> Node -> Bool
         \\identity :: a -> a
         \\const :: a -> b -> a
         \\compose :: (a -> b) -> (c -> a) -> c -> b
@@ -920,6 +962,8 @@ test "the prelude's schemes are inferred" {
         \\has :: (a -> [b]) -> a -> Bool
         \\first :: (a -> [b]) -> a -> [b]
         \\or_else :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+        \\length[String] :: String -> Int
+        \\length[List] :: [a] -> Int
         \\eq[List] :: Eq a => [a] -> [a] -> Bool
         \\compare[List] :: Ord a => [a] -> [a] -> Ordering
         \\eq[Bool] :: Bool -> Bool -> Bool
