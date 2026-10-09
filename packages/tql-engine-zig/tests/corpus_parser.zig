@@ -5,6 +5,7 @@ const SECTION_SOURCE = "--- source ---";
 const SECTION_SOURCE_TREE = "--- source tree ---";
 const SECTION_TQL_TREE = "--- tql tree ---";
 const SECTION_VALUES = "--- values ---";
+const SECTION_RUNTIME_ERROR = "--- runtime error ---";
 const SECTION_CORE = "--- core ---";
 const SECTION_SIMPLIFIED = "--- simplified ---";
 const SECTION_STG = "--- stg ---";
@@ -17,6 +18,7 @@ pub const SectionKind = enum {
     source_tree,
     tql_tree,
     values,
+    runtime_error,
     core,
     simplified,
     stg,
@@ -30,6 +32,7 @@ pub const SectionKind = enum {
             .source_tree => "source tree",
             .tql_tree => "tql tree",
             .values => "values",
+            .runtime_error => "runtime error",
             .core => "core",
             .simplified => "simplified",
             .stg => "stg",
@@ -45,6 +48,7 @@ pub const SectionKind = enum {
             .source_tree => SECTION_SOURCE_TREE,
             .tql_tree => SECTION_TQL_TREE,
             .values => SECTION_VALUES,
+            .runtime_error => SECTION_RUNTIME_ERROR,
             .core => SECTION_CORE,
             .simplified => SECTION_SIMPLIFIED,
             .stg => SECTION_STG,
@@ -144,6 +148,9 @@ pub const TestCase = struct {
     source_tree: Section,
     tql_tree: Section,
     values: Section,
+    /// The name of the error evaluation stops with. A case asserting one
+    /// expects the query to compile and then fail at runtime.
+    runtime_error: Section,
     core: Section,
     /// The entry module's Core after checking and `core_to_core`.
     simplified: Section,
@@ -167,6 +174,7 @@ pub const TestCase = struct {
             .source_tree => self.source_tree,
             .tql_tree => self.tql_tree,
             .values => self.values,
+            .runtime_error => self.runtime_error,
             .core => self.core,
             .simplified => self.simplified,
             .stg => self.stg,
@@ -197,6 +205,7 @@ pub const TestCase = struct {
         self.source_tree.deinit(allocator);
         self.tql_tree.deinit(allocator);
         self.values.deinit(allocator);
+        self.runtime_error.deinit(allocator);
         self.core.deinit(allocator);
         self.simplified.deinit(allocator);
         self.stg.deinit(allocator);
@@ -397,6 +406,8 @@ fn parseSections(
     errdefer if (tql_tree) |s| s.deinit(allocator);
     var values: ?Section = null;
     errdefer if (values) |s| s.deinit(allocator);
+    var runtime_error: ?Section = null;
+    errdefer if (runtime_error) |s| s.deinit(allocator);
     var core: ?Section = null;
     errdefer if (core) |s| s.deinit(allocator);
     var simplified: ?Section = null;
@@ -426,6 +437,8 @@ fn parseSections(
             tql_tree = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_VALUES)) {
             values = try extractSection(allocator, p);
+        } else if (std.mem.eql(u8, line, SECTION_RUNTIME_ERROR)) {
+            runtime_error = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_CORE)) {
             core = try extractSection(allocator, p);
         } else if (std.mem.eql(u8, line, SECTION_SIMPLIFIED)) {
@@ -469,6 +482,7 @@ fn parseSections(
         .source_tree = source_tree orelse try dupeSection(allocator, here),
         .tql_tree = tql_tree orelse try dupeSection(allocator, here),
         .values = values orelse try dupeSection(allocator, here),
+        .runtime_error = runtime_error orelse try dupeSection(allocator, here),
         .core = core orelse try dupeSection(allocator, here),
         .simplified = simplified orelse try dupeSection(allocator, here),
         .stg = stg orelse try dupeSection(allocator, here),
@@ -483,6 +497,7 @@ const ALL_SECTION_MARKERS = [_][]const u8{
     SECTION_SOURCE_TREE,
     SECTION_TQL_TREE,
     SECTION_VALUES,
+    SECTION_RUNTIME_ERROR,
     SECTION_CORE,
     SECTION_SIMPLIFIED,
     SECTION_STG,
@@ -571,6 +586,7 @@ pub fn applyUpdates(
         .query,
         .source,
         .values,
+        .runtime_error,
         .tql_tree,
         .source_tree,
         .core,

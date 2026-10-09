@@ -1,0 +1,23 @@
+title: an anonymous token is a leaf whose kind is its spelling
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = do {
+  op <- (descendants_of_kind :binary_expression | #operator) root;
+  return {
+    kind = kind op,
+    children = length (children op),
+    parent = (parent | arr kind) op,
+  };
+};
+
+--- source ---
+x = a && b;
+y = a === b;
+
+--- values ---
+[{"children":0,"kind":"&&","parent":["binary_expression"]},{"children":0,"kind":"===","parent":["binary_expression"]}]
+
+--- types ---
+main :: Node -> [{children: Int, kind: Kind, parent: [Kind]}]

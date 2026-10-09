@@ -1,0 +1,25 @@
+title: `any` over a field's outputs works as a `keep` predicate
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+starts_with_s n = text n ~ r"^S";
+named_s c = any starts_with_s (#name c);
+
+main =
+  children | of_kind :class_declaration
+  | keep named_s
+  | #name | arr text;
+
+--- source ---
+class Service {}
+class Other {}
+class Store {}
+
+--- values ---
+["Service", "Store"]
+
+--- types ---
+starts_with_s :: Node -> Bool
+named_s :: Node -> Bool
+main :: Node -> [String]

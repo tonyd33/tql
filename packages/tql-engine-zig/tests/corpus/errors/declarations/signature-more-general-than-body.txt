@@ -1,0 +1,18 @@
+title: a signature more general than its body is rejected
+grammar: typescript
+asserts: error
+
+The body infers `Node -> Kind`, which is less general than the signature
+`a -> a`.
+
+--- tql ---
+f :: a -> a;
+f = kind;
+main = arr f;
+
+--- error ---
+error[signature-mismatch]: Expected `Node`, found `Kind`.
+ --> 1:1
+  |
+1 | f :: a -> a;
+  | ^^^^^^^^^^^^

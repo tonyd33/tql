@@ -1,0 +1,29 @@
+title: an outer bind stays correlated with each inner bind
+grammar: typescript
+asserts: types, values
+
+Each method is paired with the class it came from: the outer binding stays in
+scope inside the inner branch.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  m <- (#body | children | of_kind :method_definition) c;
+  cn <- c#name;
+  mn <- m#name;
+  return { class = text cn, method = text mn };
+};
+
+--- source ---
+class A { m() {} n() {} }
+class B { p() {} }
+
+--- values ---
+[
+  { "class": "A", "method": "m" },
+  { "class": "A", "method": "n" },
+  { "class": "B", "method": "p" }
+]
+
+--- types ---
+main :: Node -> [{class: String, method: String}]

@@ -1,0 +1,27 @@
+title: forcing a mutual global cycle raises `Cycle`
+grammar: typescript
+asserts: types, runtime_error
+
+`a` and `b` both resolve. Forcing either re-enters a thunk under evaluation
+with no lambda between them, so no closure defers the reference. The engine
+reports the re-entry as a cycle.
+
+Mutual recursion through function parameters terminates instead, because
+each body forces to a closure immediately.
+
+--- tql ---
+a :: Node -> [String];
+a = b;
+b = a;
+main = a;
+
+--- source ---
+class A {}
+
+--- types ---
+a :: Node -> [String]
+b :: Node -> [String]
+main :: Node -> [String]
+
+--- runtime error ---
+Cycle

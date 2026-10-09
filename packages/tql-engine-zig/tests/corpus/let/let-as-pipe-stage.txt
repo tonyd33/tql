@@ -1,0 +1,27 @@
+title: `let` inside a pipe stage
+grammar: typescript
+asserts: core, types, values
+
+The group is evaluated once, outside the stage function. The bound filter runs
+on each input from the left stage.
+
+--- tql ---
+main =
+  children | of_kind :class_declaration
+  | let { n = #name | arr text } in n;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A", "B"]
+
+--- types ---
+main :: Node -> [String]
+
+--- core ---
+main = kleisli (kleisli children (of_kind :class_declaration)) (
+  let n = kleisli field[name] (arr text) in
+  n
+)

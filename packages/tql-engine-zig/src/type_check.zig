@@ -911,8 +911,7 @@ test "a container holding a function is outside Eq and Serial" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // What `errors/types/017` and `errors/output/006` assert: the element
-    // type is `Node -> String`.
+    // The element type is `Node -> String`.
     const of_projections = try fix.subst.datatypes.list(
         fix.subst.arena,
         try types.func(fix.subst.arena, types.node_type, types.string_type),
@@ -1014,7 +1013,6 @@ test "a violation renders as the fixture writes it" {
 
     const v = (try fix.undecided.require(&fix.subst, .eq, types.regex_type, some_span)).?;
 
-    // `errors/types/015` asserts exactly this sentence.
     try testing.expectFmt("`Eq Regex` is not satisfied.", "{f}", .{v.named(&fix.pb.env.classes)});
 }
 
@@ -1318,7 +1316,7 @@ test "an argument of the wrong type is a type mismatch" {
     const inc = try fix.define("inc", .{
         .type = comptime types.func_type(types.int_type, types.int_type),
     });
-    // `errors/types/001`: `double "text"`.
+    // `inc "text"`.
     try fix.expectFails(try fix.app(fix.pb.symbol(inc), fix.lit(.{ .string = "text" })), .type_mismatch);
 }
 
@@ -1327,7 +1325,7 @@ test "applying a saturated function is over-application, not a mismatch" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/011`: `inc 1 2` where `inc :: Int -> Int`. The callee
+    // `inc 1 2` where `inc :: Int -> Int`. The callee
     // resolved to a non-arrow, so there is nothing left to apply.
     const inc = try fix.define("inc", .{
         .type = comptime types.func_type(types.int_type, types.int_type),
@@ -1344,7 +1342,7 @@ test "applying a non-function is over-application" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/012`: `n 1` where `n :: int`.
+    // `n 1` where `n :: int`.
     const n = try fix.define("n", .{ .type = types.int_type });
     try fix.expectFails(try fix.app(fix.pb.symbol(n), fix.lit(.{ .number = 1 })), .over_application);
 }
@@ -1729,7 +1727,7 @@ test "a method's constraint is refuted on a regex" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/015`: `r"a" = r"a"` fails `Eq regex`.
+    // `r"a" = r"a"` fails `Eq regex`.
     const eq = try defineComparison(fix, "eq", .eq, try fix.subst.datatypes.boolType(fix.subst.arena));
     const applied = try fix.app(
         try fix.app(fix.pb.symbol(eq), fix.regexLit("a")),
@@ -1743,7 +1741,7 @@ test "ordering two nodes is refuted while comparing them is not" {
     const fix = try Fixture.init(gpa);
     defer fix.deinit(gpa);
 
-    // `errors/types/019`'s point: `node` has `Eq` but not `Ord`.
+    // `node` has `Eq` but not `Ord`.
     const node_of = try fix.define("node_of", .{ .type = types.node_type });
     const lt = try defineComparison(fix, "compare", .ord, try fix.subst.datatypes.orderingType(fix.subst.arena));
     const ordered = try fix.app(

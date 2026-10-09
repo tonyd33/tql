@@ -1,0 +1,19 @@
+title: `and`, `or` and `not` truth tables
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const [
+  and true true, and true false, and false true, and false false,
+  or true true, or true false, or false true, or false false,
+  not true, not false,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[true, false, false, false, true, true, true, false, false, true]
+
+--- types ---
+main :: Node -> [Bool]

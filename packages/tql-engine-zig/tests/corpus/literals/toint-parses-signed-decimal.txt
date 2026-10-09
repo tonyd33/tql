@@ -1,0 +1,15 @@
+title: `toint` parses a decimal string, leading minus included
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = const ["42", "-7"] | toint;
+
+--- source ---
+class A {}
+
+--- values ---
+[42, -7]
+
+--- types ---
+main :: Node -> [Int]

@@ -1,0 +1,31 @@
+title: a record holding a collected list
+grammar: typescript
+asserts: core, types, values
+
+Collection inside a field keeps the record single-valued: the list is one
+value, so no product fan-out occurs. A class with no methods still yields a
+record, with an empty list.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  n <- c#name;
+  methods <- collect (#body | children | of_kind :method_definition | #name | arr text) c;
+  return { name = text n, methods = methods };
+};
+
+--- source ---
+class A { m() {} n() {} }
+class B {}
+
+--- values ---
+[
+  { "methods": ["m", "n"], "name": "A" },
+  { "methods": [], "name": "B" }
+]
+
+--- types ---
+main :: Node -> [{methods: [String], name: String}]
+
+--- core ---
+main = \root -> concat_map (\c -> concat_map (\n -> concat_map (\methods -> return (record[methods,name] methods (text n))) (collect (kleisli (kleisli (kleisli (kleisli field[body] children) (of_kind :method_definition)) field[name]) (arr text)) c)) (field[name] c)) (children_of_kind :class_declaration root)

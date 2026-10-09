@@ -1,0 +1,16 @@
+title: an unknown static field is a compile error
+grammar: typescript
+asserts: error
+
+A field unknown to the grammar is rejected. A field the grammar knows but a
+particular node lacks yields nothing instead.
+
+--- tql ---
+main = children | of_kind :class_declaration | #nonexistent_field;
+
+--- error ---
+error[unknown-field]: `nonexistent_field` is not a field in this grammar
+ --> 1:48
+  |
+1 | main = children | of_kind :class_declaration | #nonexistent_field;
+  |                                                ^^^^^^^^^^^^^^^^^^

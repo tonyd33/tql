@@ -1,0 +1,35 @@
+title: a `do`-local `let` group binds several names
+grammar: typescript
+asserts: core, types, values
+
+Two bindings in one group, both used in the result record.
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  cn <- c#name;
+  let {
+    name = text cn;
+    k = kind c
+  };
+  return { n = name, k = k };
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[{ "k": "class_declaration", "n": "A" }]
+
+--- types ---
+main :: Node -> [{k: Kind, n: String}]
+
+--- core ---
+main = \root -> concat_map (
+  \c -> concat_map (
+    \cn ->
+      let name = text cn in
+      let k = kind c in
+      return (record[k,n] k name)
+  ) (field[name] c)
+) (children_of_kind :class_declaration root)

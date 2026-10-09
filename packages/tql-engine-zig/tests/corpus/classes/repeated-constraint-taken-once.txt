@@ -1,0 +1,29 @@
+title: a constraint raised twice is taken once
+grammar: typescript
+asserts: types, values
+
+`twice` raises `Describe a` at each call to `describe`; its type carries the
+constraint once.
+
+--- tql ---
+class Describe a where {
+  describe :: a -> String;
+};
+
+instance Describe Int where {
+  describe n = "int";
+};
+
+twice x = [describe x, describe x];
+
+main root = twice 1;
+
+--- source ---
+class A {}
+
+--- values ---
+["int", "int"]
+
+--- types ---
+twice :: Describe a => a -> [String]
+main :: Node -> [String]

@@ -1,0 +1,21 @@
+title: mod by zero fails the query
+grammar: typescript
+asserts: types, runtime_error
+
+A zero divisor anywhere in the stream fails the whole query, including the
+pairs whose divisor is nonzero.
+
+--- tql ---
+main _ = do {
+  d <- [5, 0, 7];
+  return $ 12 `mod` d;
+};
+
+--- source ---
+class A {}
+
+--- types ---
+main :: Node -> [Int]
+
+--- runtime error ---
+DivideByZero

@@ -608,7 +608,7 @@ test "forcing a global cycle reports it rather than hanging" {
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
-    // `laziness/011`: `a` and `b` both resolve, and forcing either re-enters
+    // `a` and `b` both resolve, and forcing either re-enters
     // an `evaluating` thunk with no lambda between. The black hole is what
     // turns that from a hang into an answer.
     var program = try engine.checkQuery(

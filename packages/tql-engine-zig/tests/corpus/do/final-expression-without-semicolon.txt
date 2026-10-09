@@ -1,0 +1,23 @@
+title: the final expression of a do block needs no trailing `;`
+grammar: typescript
+asserts: core, types, values
+
+--- tql ---
+main root = do {
+  c <- children_of_kind :class_declaration root;
+  m <- (#body | children | of_kind :method_definition) c;
+  n <- m#name;
+  return $ text n
+};
+
+--- source ---
+class A { m() {} }
+
+--- values ---
+["m"]
+
+--- types ---
+main :: Node -> [String]
+
+--- core ---
+main = \root -> concat_map (\c -> concat_map (\m -> concat_map (\n -> return (text n)) (field[name] m)) (kleisli (kleisli field[body] children) (of_kind :method_definition) c)) (children_of_kind :class_declaration root)

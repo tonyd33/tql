@@ -16,6 +16,7 @@ const ansi = fmt.ansi;
 
 const COMPARABLE_SECTIONS = [_]SectionKind{
     .values,
+    .runtime_error,
     .tql_tree,
     .source_tree,
     .core,
@@ -474,6 +475,11 @@ fn printSlowest(gpa: std.mem.Allocator, stdout: *std.Io.Writer, runs: []const Ca
 /// Collects case files recursively. Each file is one case; its path relative to
 /// the corpus root is its identity, so `navigation/child.txt` is the case
 /// `navigation/child`.
+///
+/// Name a case in kebab-case, 2 to 6 words, after what it tests, without
+/// repeating its directory. Name an error case for its triggering condition
+/// (`errors/syntax/alias-without-constructors`) and a lowering pin for the
+/// lowering (`translation/lambda-chain-one-closure`). No numeric prefix.
 fn collectCorpusFiles(gpa: std.mem.Allocator, io: std.Io, corpus_dir: []const u8) ![][]const u8 {
     const cwd = std.Io.Dir.cwd();
     var dir = try cwd.openDir(io, corpus_dir, .{ .iterate = true });
@@ -799,8 +805,36 @@ fn describeDiagnostics(
     return w.toOwnedSlice();
 }
 
-/// The values of the query compiled again with `core_to_core` skipped.
-fn unsimplifiedValues(
+/// What running a compiled query over the case's target produced.
+const Run = union(enum) {
+    json: []const u8,
+    /// Evaluation stopped with a runtime error.
+    failed: anyerror,
+
+    fn deinit(self: Run, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .json => |j| allocator.free(j),
+            .failed => {},
+        }
+    }
+
+    fn eql(a: Run, b: Run) bool {
+        return switch (a) {
+            .json => |j| b == .json and std.mem.eql(u8, j, b.json),
+            .failed => |e| b == .failed and b.failed == e,
+        };
+    }
+
+    pub fn format(self: Run, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .json => |j| try w.writeAll(j),
+            .failed => |e| try w.print("runtime error {t}", .{e}),
+        }
+    }
+};
+
+/// The run of the query compiled again with `core_to_core` skipped.
+fn unsimplifiedEvaluate(
     allocator: std.mem.Allocator,
     io: std.Io,
     engine: *Engine,
@@ -808,7 +842,7 @@ fn unsimplifiedValues(
     grammar: *const tql.Grammar,
     tree: *const ts.Tree,
     tc: corpus_parser.TestCase,
-) ![]const u8 {
+) !Run {
     var sink = tql.diagnostic.Sink.init(allocator);
     defer sink.deinit();
     var program = try engine.desugarParsed(query, grammar, &sink);
@@ -818,26 +852,30 @@ fn unsimplifiedValues(
     };
     var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{ .simplify = null });
     defer compiled.deinit();
-    return try values(allocator, &compiled, tree, tc);
+    return try evaluate(allocator, &compiled, tree, tc);
 }
 
-/// The JSON of `compiled` run over the case's target.
-fn values(
+/// Run `compiled` over the case's target, keeping a runtime error as an
+/// outcome.
+fn evaluate(
     allocator: std.mem.Allocator,
     compiled: *tql.CompiledQuery,
     tree: *const ts.Tree,
     tc: corpus_parser.TestCase,
-) ![]const u8 {
+) !Run {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
-    const outcome = try compiled.runTree(
+    const outcome = compiled.runTree(
         tree,
         tc.target.content,
         if (tc.file.len == 0) null else tc.file,
         allocator,
         arena.allocator(),
-    );
-    return outcome.json;
+    ) catch |err| switch (err) {
+        error.Cycle, error.DivideByZero, error.StackOverflow => return .{ .failed = err },
+        else => |e| return e,
+    };
+    return .{ .json = outcome.json };
 }
 
 /// Postconditions:
@@ -894,6 +932,7 @@ fn runTestCase(
             .source_tree = source_tree,
             .tql_tree = tql_tree,
             .values = try allocator.dupe(u8, ""),
+            .runtime_error = try allocator.dupe(u8, ""),
             .core = try allocator.dupe(u8, ""),
             .simplified = try allocator.dupe(u8, ""),
             .stg = try allocator.dupe(u8, ""),
@@ -919,8 +958,10 @@ fn runTestCase(
     errdefer allocator.free(type_diagnostics);
     var values_text: []const u8 = try allocator.dupe(u8, "");
     errdefer allocator.free(values_text);
+    var runtime_error_text: []const u8 = try allocator.dupe(u8, "");
+    errdefer allocator.free(runtime_error_text);
 
-    const evaluates = tc.isAsserted(.values) and !expects_error;
+    const evaluates = (tc.isAsserted(.values) or tc.isAsserted(.runtime_error)) and !expects_error;
 
     {
         var sink = tql.diagnostic.Sink.init(allocator);
@@ -959,17 +1000,26 @@ fn runTestCase(
                         }
 
                         if (evaluates) {
-                            const evaluated = try values(allocator, &compiled, tree, tc);
-                            allocator.free(values_text);
-                            values_text = evaluated;
+                            const evaluated = try evaluate(allocator, &compiled, tree, tc);
+                            switch (evaluated) {
+                                .json => |j| {
+                                    allocator.free(values_text);
+                                    values_text = j;
+                                },
+                                .failed => |e| {
+                                    if (!tc.isAsserted(.runtime_error)) return e;
+                                    allocator.free(runtime_error_text);
+                                    runtime_error_text = try allocator.dupe(u8, @errorName(e));
+                                },
+                            }
 
-                            const unsimplified = try unsimplifiedValues(allocator, io, &engine, query_cst, grammar, tree, tc);
-                            defer allocator.free(unsimplified);
-                            if (!std.mem.eql(u8, values_text, unsimplified)) {
+                            const unsimplified = try unsimplifiedEvaluate(allocator, io, &engine, query_cst, grammar, tree, tc);
+                            defer unsimplified.deinit(allocator);
+                            if (!evaluated.eql(unsimplified)) {
                                 unexpected.* = try std.fmt.allocPrint(
                                     allocator,
-                                    "with core_to_core: {s}\nwithout core_to_core: {s}",
-                                    .{ values_text, unsimplified },
+                                    "with core_to_core: {f}\nwithout core_to_core: {f}",
+                                    .{ evaluated, unsimplified },
                                 );
                                 return error.SimplifyChangedValues;
                             }
@@ -1007,6 +1057,7 @@ fn runTestCase(
             .source_tree = source_tree,
             .tql_tree = tql_tree,
             .values = values_text,
+            .runtime_error = runtime_error_text,
             .core = core_text,
             .simplified = simplified_text,
             .stg = stg_text,
@@ -1024,6 +1075,7 @@ fn runTestCase(
             .source_tree = source_tree,
             .tql_tree = tql_tree,
             .values = values_text,
+            .runtime_error = runtime_error_text,
             .core = try allocator.dupe(u8, ""),
             .simplified = simplified_text,
             .stg = stg_text,
@@ -1041,6 +1093,7 @@ fn runTestCase(
         .source_tree = source_tree,
         .tql_tree = tql_tree,
         .values = values_text,
+        .runtime_error = runtime_error_text,
         .core = core_text,
         .simplified = simplified_text,
         .stg = stg_text,
@@ -1161,7 +1214,7 @@ const cli_opts = .{
         .names = .{ .long = "update", .short = 'u' },
         .has_arg = .optional_argument,
         .meta = "SECTIONS",
-        .description = "Update snapshots: all, source_tree, tql_tree, values, core, simplified, stg, types, error (comma-separated); bare --update updates all but error",
+        .description = "Update snapshots: all, source_tree, tql_tree, values, runtime_error, core, simplified, stg, types, error (comma-separated); bare --update updates all but error",
     },
     .file_name = goz.Opt{
         .names = .{ .long = "file-name" },

@@ -1,0 +1,21 @@
+title: forcing a self-referential thunk raises `Cycle`
+grammar: typescript
+asserts: types, runtime_error
+
+`loop` is defined as itself with no intervening constructor, so forcing it
+re-enters a thunk under evaluation. The engine reports the re-entry as a cycle.
+
+--- tql ---
+loop :: Node -> [String];
+loop = loop;
+main = loop;
+
+--- source ---
+class A {}
+
+--- types ---
+loop :: Node -> [String]
+main :: Node -> [String]
+
+--- runtime error ---
+Cycle

@@ -1,0 +1,16 @@
+title: `main` whose output is not a list is rejected
+grammar: typescript
+asserts: error
+
+`main` is applied to the parsed root, so `identity` returns a `Node`. The
+output of `main` must be a list.
+
+--- tql ---
+main = identity;
+
+--- error ---
+error[main-type]: Expected `[a]`, found `Node`.
+ --> 1:1
+  |
+1 | main = identity;
+  | ^^^^^^^^^^^^^^^^
