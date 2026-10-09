@@ -515,6 +515,69 @@ test "ordering long lists runs in bounded stack" {
     try std.testing.expectEqual(0, out.items[0].state.evaluated.constructed.tag);
 }
 
+test "seq forces its first argument" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try std.testing.expectError(error.DivideByZero, runQuery(allocator,
+        \\main root = if seq (1 / 0) 1 = 1 then [1] else [2];
+    , &arena, &out));
+}
+
+test "foldr seq forces every element" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try std.testing.expectError(error.DivideByZero, runQuery(allocator,
+        \\main root = if foldr seq 0 [1, 1 / 0] = 0 then [1] else [2];
+    , &arena, &out));
+}
+
+test "a left fold forcing its accumulator with seq runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try runQuery(allocator,
+        \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\fold f z xs = case xs of { [] -> z; h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t); };
+        \\main root = if fold (\n x -> n + 1) 0 (count 100000) = 100000 then [1] else Nil;
+    , &arena, &out);
+
+    try std.testing.expectEqual(1, out.items.len);
+}
+
+test "length of a long list runs in bounded stack" {
+    const allocator = std.testing.allocator;
+
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+
+    var out: std.ArrayList(*stg.Thunk) = .empty;
+    defer out.deinit(arena.allocator());
+
+    try runQuery(allocator,
+        \\count n = if n <= 0 then Nil else Cons n (count (n - 1));
+        \\main root = if length (count 100000) = 100000 then [1] else Nil;
+    , &arena, &out);
+
+    try std.testing.expectEqual(1, out.items.len);
+}
+
 test "recursion deeper than the stack budget stops with an error" {
     const allocator = std.testing.allocator;
 
@@ -688,6 +751,8 @@ test "the prelude's bodies compile to Core" {
     try printer.definitions(program.definitions[0..program.entry_offset], &w.writer);
 
     try std.testing.expectEqualStrings(
+        \\seq = \a -> \b -> case a of
+        \\  _ -> b
         \\text = %text
         \\kind = %kind
         \\kind_name = %kind_name
@@ -791,9 +856,15 @@ test "the prelude's bodies compile to Core" {
         \\  Nil -> fallback x
         \\  Cons h t -> Cons h t
         \\length[String] = %string_length
-        \\length[List] = \xs -> case xs of
-        \\  Nil -> 0
-        \\  Cons h t -> op[+] 1 (length t)
+        \\length[List] = \xs ->
+        \\  letrec
+        \\    foldl_strict = \f -> \z -> \ys -> case ys of
+        \\      Nil -> z
+        \\      Cons h t ->
+        \\        let z2 = f z h in
+        \\        seq z2 (foldl_strict f z2 t)
+        \\  in
+        \\  foldl_strict (\n -> \x -> op[+] n 1) 0 xs
         \\eq[List] = \x -> \y -> case x of
         \\  Nil -> case y of
         \\    Nil -> True
@@ -910,6 +981,7 @@ test "the prelude's schemes are inferred" {
     }
 
     try std.testing.expectEqualStrings(
+        \\seq :: a -> b -> b
         \\text :: Node -> String
         \\kind :: Node -> Kind
         \\kind_name :: Node -> String

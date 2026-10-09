@@ -281,7 +281,8 @@ pub const Simplifier = struct {
     ) Error!core.Term {
         var scrutinee = try self.term(case_term.scrutinee, &.{});
         var case_alternatives = case_term.alternatives;
-        if (self.options.laws) {
+        const default = case_term.default;
+        if (self.options.laws and default == null) {
             if (self.laws.foldComparison(scrutinee, case_alternatives)) |folded| {
                 self.changed = true;
                 const comparison = try primitives.operatorSymbol(self.env, folded.comparison);
@@ -302,6 +303,13 @@ pub const Simplifier = struct {
                 return try self.select(alternative, known_constructor.fields, arguments, span);
             }
         }
+        const evaluated = known != null or (self.options.case_of_known_constructor and whnf(scrutinee));
+        if (default) |body| {
+            if (evaluated) {
+                self.changed = true;
+                return try self.rebuild(try self.term(body, &.{}), arguments);
+            }
+        }
 
         const alternatives = try self.builder.slice(core.Case.Alternative, case_alternatives.len);
         for (case_alternatives, alternatives) |old, *new| {
@@ -311,7 +319,8 @@ pub const Simplifier = struct {
                 .body = try self.term(old.body, &.{}),
             };
         }
-        return try self.rebuild(try self.builder.case(scrutinee, alternatives, span), arguments);
+        const simplified_default = if (default) |body| try self.term(body, &.{}) else null;
+        return try self.rebuild(try self.builder.caseWithDefault(scrutinee, alternatives, simplified_default, span), arguments);
     }
 
     /// Take `alternative` with its binders bound to `fields`.
@@ -440,7 +449,8 @@ pub const Simplifier = struct {
                         .body = try self.copy(old.body, renamed),
                     };
                 }
-                return try self.builder.case(scrutinee, alternatives, t.span);
+                const default = if (case_term.default) |body| try self.copy(body, renamed) else null;
+                return try self.builder.caseWithDefault(scrutinee, alternatives, default, t.span);
             },
             .let => |let| {
                 const value = try self.copy(let.value, renamed);
@@ -466,6 +476,11 @@ pub const Simplifier = struct {
         return id;
     }
 };
+
+/// Whether `t` is a value without being evaluated.
+fn whnf(t: core.Term) bool {
+    return t.kind == .literal or t.kind == .lambda;
+}
 
 /// Whether a binding used once may move to its occurrence.
 fn movable(once: Occurrence.Once, value: core.Term) bool {
@@ -928,6 +943,7 @@ fn collectBinders(t: core.Term, out: *std.ArrayList(core.SymbolId)) !void {
                 try out.appendSlice(testing.allocator, alternative.binders);
                 try collectBinders(alternative.body, out);
             }
+            if (case_term.default) |body| try collectBinders(body, out);
         },
         .let => |let| {
             try out.append(testing.allocator, let.name);

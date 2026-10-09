@@ -316,21 +316,25 @@ pub const Inference = struct {
         // The alternatives name their constructors statically, so the datatype
         // is known without resolving the scrutinee. Unifying against it at
         // fresh arguments is what lets `case xs of ...` fix `xs`'s type rather
-        // than requiring it to be fixed already.
-        const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
-        const declared = self.env.datatypes.get(owner);
+        // than requiring it to be fixed already. A `case` with only a default
+        // leaves the scrutinee's type free.
+        var arguments: []types.Type = &.{};
+        if (c.alternatives.len > 0) {
+            const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
+            const declared = self.env.datatypes.get(owner);
+            arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
+            for (arguments) |*argument| argument.* = try self.subst.fresh();
+            const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
+            try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
+        }
 
-        const arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
-        for (arguments) |*argument| argument.* = try self.subst.fresh();
-        const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
-        try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
-
-        var first: ?struct { type: types.Type, span: diagnostic.Span } = null;
+        var first: ?Branch = null;
         var alternatives: evidence.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
-        for (c.alternatives, declared.constructors, 0..) |alternative, constructor, i| {
+        for (c.alternatives, 0..) |alternative, i| {
             const mark = self.scope.mark();
             defer self.scope.truncate(mark);
 
+            const constructor = self.env.datatypes.constructorOf(&self.env.interner, alternative.constructor).?;
             for (alternative.binders, constructor.fields) |binder, field| {
                 const at = try self.subst.instantiateWith(field, arguments);
                 try self.scope.push(binder, .{ .monomorphic = at });
@@ -342,25 +346,46 @@ pub const Inference = struct {
                 .binders = alternative.binders,
                 .body = elaborated_body.term,
             }, !evidence.same(elaborated_body.term, alternative.body));
-            const body = elaborated_body.type;
-            if (first) |f| {
-                // Alternatives are checked in constructor order. Of two that
-                // disagree, blame the one later in the source.
-                if (alternative.body.span.start_byte >= f.span.start_byte) {
-                    try self.expect(body, f.type, alternative.body.span);
-                } else {
-                    try self.expect(f.type, body, f.span);
-                }
-            } else {
-                first = .{ .type = body, .span = alternative.body.span };
-            }
+            try self.joinBranch(&first, elaborated_body.type, alternative.body.span);
         }
 
-        const unchanged = alternatives.copy == null and evidence.same(elaborated_scrutinee.term, c.scrutinee);
+        var default = c.default;
+        if (c.default) |body| {
+            const elaborated_default = try self.elaborate(body);
+            default = elaborated_default.term;
+            try self.joinBranch(&first, elaborated_default.type, body.span);
+        }
+
+        const unchanged = alternatives.copy == null and
+            evidence.same(elaborated_scrutinee.term, c.scrutinee) and
+            evidence.sameOptional(default, c.default);
         return .{
             .type = first.?.type,
-            .term = if (unchanged) t else try self.builder.case(elaborated_scrutinee.term, alternatives.copy orelse c.alternatives, t.span),
+            .term = if (unchanged) t else try self.builder.caseWithDefault(
+                elaborated_scrutinee.term,
+                alternatives.copy orelse c.alternatives,
+                default,
+                t.span,
+            ),
         };
+    }
+
+    const Branch = struct { type: types.Type, span: diagnostic.Span };
+
+    /// Unify a `case` branch's type with the first branch's, or record it as
+    /// the first.
+    fn joinBranch(self: *Inference, first: *?Branch, body: types.Type, span: diagnostic.Span) Error!void {
+        if (first.*) |f| {
+            // Alternatives are checked in constructor order. Of two that
+            // disagree, blame the one later in the source.
+            if (span.start_byte >= f.span.start_byte) {
+                try self.expect(body, f.type, span);
+            } else {
+                try self.expect(f.type, body, f.span);
+            }
+        } else {
+            first.* = .{ .type = body, .span = span };
+        }
     }
 
     /// (T-Let)       Gamma |- e_1 : tau_1      sigma = Gen(Gamma, tau_1)

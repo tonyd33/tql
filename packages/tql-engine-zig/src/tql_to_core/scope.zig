@@ -172,7 +172,7 @@ pub const ModuleScope = struct {
     fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
         switch (self.interner.details(symbol)) {
             .synonym => return .{ .synonym = name },
-            .primop => return .primitive,
+            .primop, .pseudo => return .primitive,
             .method => |m| return .{ .method = .{ .name = name, .class = self.classes.spelling(m.class) } },
             else => {},
         }

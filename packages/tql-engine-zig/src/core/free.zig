@@ -38,6 +38,7 @@ pub fn anyMention(term: core.Term, context: anytype, comptime visit: anytype) Vi
                 }
                 if (try anyMention(alternative.body, context, visit)) return true;
             }
+            if (case_term.default) |default| return try anyMention(default, context, visit);
             return false;
         },
         .let => |let| {

@@ -7,6 +7,7 @@ const Allocator = std.mem.Allocator;
 
 const Scalar = core.Scalar;
 const PrimOp = core.PrimOp;
+const Pseudo = core.Pseudo;
 
 /// The scheme of `primop`.
 ///
@@ -157,6 +158,9 @@ pub fn populate(target: *core.env.Env) !void {
         const id = try target.interner.intern(.prelude, primop.spelling(), .{ .primop = primop });
         try target.setScheme(id, scheme);
         target.primitives.set(primop, id);
+    }
+    for (std.enums.values(Pseudo)) |pseudo| {
+        _ = try target.interner.intern(.prelude, pseudo.spelling(), .{ .pseudo = pseudo });
     }
 }
 

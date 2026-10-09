@@ -125,6 +125,19 @@ pub const PrimOp = enum {
     }
 };
 
+/// A built-in that denotes a Core term rather than a machine operation.
+pub const Pseudo = enum {
+    /// `\a b -> case a of { _ -> b }`.
+    seq,
+
+    /// Returns the name the prelude writes it by.
+    pub fn spelling(self: Pseudo) []const u8 {
+        return switch (self) {
+            inline else => |pseudo| "%" ++ @tagName(pseudo),
+        };
+    }
+};
+
 /// What a synthesized symbol denotes. The payload is resolved during
 /// desugaring and is unrecoverable from the spelling afterwards.
 pub const Synthesized = union(enum) {
@@ -152,6 +165,8 @@ pub const Details = union(enum) {
     vanilla,
     /// A built-in, denoting a machine operation.
     primop: PrimOp,
+    /// A built-in replaced by the Core term it denotes wherever it is named.
+    pseudo: Pseudo,
     /// Generated during compilation, denoting one the surface cannot name.
     synthesized: Synthesized,
     /// A data constructor, at its position in the datatype that declares it.

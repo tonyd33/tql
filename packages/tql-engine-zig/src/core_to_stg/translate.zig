@@ -153,7 +153,7 @@ pub const Translator = struct {
             // A synthesized symbol lowers like a primitive.
             .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
             .vanilla, .method, .instance_method, .instance, .selector => {},
-            .synonym => unreachable,
+            .synonym, .pseudo => unreachable,
         }
         if (self.global(name)) |g| return .{ .global = g };
         return .{ .local = name };
@@ -306,6 +306,7 @@ pub const Translator = struct {
             .lambda => return .{ .atom = try self.bindClosure(try self.closureOf(term), hoisted) },
 
             .case => |case_term| {
+                if (case_term.default != null and case_term.alternatives.len > 0) return error.Unsupported;
                 const scrutinee = try self.open(case_term.scrutinee, hoisted);
 
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
@@ -329,8 +330,9 @@ pub const Translator = struct {
                     };
                 }
 
+                const default = if (case_term.default) |body| try self.expression(body) else null;
                 const node = try self.arena.create(stg.Expr.Case);
-                node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives };
+                node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives, .default = default };
                 return .{ .case = node };
             },
 

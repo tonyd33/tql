@@ -1,0 +1,26 @@
+title: a case with only a default on an unknown variable is kept
+grammar: typescript
+asserts: core, simplified, values
+
+The `case` is what forces `x`; dropping it would change which programs
+diverge.
+
+--- tql ---
+f :: Int -> Int;
+f x = seq x 1;
+main = pure (f 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- core ---
+f = \x -> seq x 1
+main = pure (f 2)
+
+--- simplified ---
+f = \x -> case x of
+  _ -> 1
+main = pure 1

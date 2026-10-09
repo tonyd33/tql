@@ -151,8 +151,14 @@ pub const Analyser = struct {
                     branches = try self.alternative(branches, body.usage);
                     new.* = .{ .constructor = old.constructor, .binders = old.binders, .body = body.term };
                 }
+                var default: ?core.Term = null;
+                if (case_term.default) |old| {
+                    const body = try self.walk(old);
+                    branches = try self.alternative(branches, body.usage);
+                    default = body.term;
+                }
                 return .{
-                    .term = try self.builder.case(scrutinee.term, alternatives, term.span),
+                    .term = try self.builder.caseWithDefault(scrutinee.term, alternatives, default, term.span),
                     .usage = try self.sequence(scrutinee.usage, branches),
                 };
             },

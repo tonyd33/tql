@@ -1,0 +1,26 @@
+title: an accumulator forced by seq and passed on stays bound
+grammar: typescript
+asserts: simplified, values
+
+`z2` is used twice. Inlining it would leave the second use an unforced copy,
+and the chain of thunks a strict fold exists to avoid would return.
+
+--- tql ---
+fold :: (b -> a -> b) -> b -> [a] -> b;
+fold f z xs = case xs of { [] -> z; h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t); };
+main = pure (fold (\n x -> n + x) 0 [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[6]
+
+--- simplified ---
+fold = \f -> \z -> \xs -> case xs of
+  Nil -> z
+  Cons h t ->
+    let z2 = f z h in
+    case z2 of
+      _ -> fold f z2 t
+main = pure (fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))))

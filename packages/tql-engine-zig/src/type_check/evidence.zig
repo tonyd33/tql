@@ -337,8 +337,9 @@ pub fn substitute(
                     .body = body,
                 }, !same(body, alternative.body));
             }
-            if (alternatives.copy == null and same(scrutinee, c.scrutinee)) return t;
-            return try builder.case(scrutinee, alternatives.copy orelse c.alternatives, t.span);
+            const default = if (c.default) |d| try substitute(builder, d, replacements) else null;
+            if (alternatives.copy == null and same(scrutinee, c.scrutinee) and sameOptional(default, c.default)) return t;
+            return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
         },
         .let => |l| {
             const value = try substitute(builder, l.value, replacements);
@@ -362,6 +363,12 @@ pub fn substitute(
 /// Whether `a` and `b` are one node, or one symbol or literal.
 pub fn same(a: core.Term, b: core.Term) bool {
     return std.meta.eql(a.kind, b.kind);
+}
+
+/// Whether `a` and `b` are both absent, or `same`.
+pub fn sameOptional(a: ?core.Term, b: ?core.Term) bool {
+    if (a == null or b == null) return a == null and b == null;
+    return same(a.?, b.?);
 }
 
 /// `symbol = \d -> case d of { constructor f_0 .. f_n -> f_index }`.

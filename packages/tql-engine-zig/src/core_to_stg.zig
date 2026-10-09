@@ -62,6 +62,7 @@ const Placement = struct {
                     try self.expr(alternative.body, scope);
                     scope.shrinkRetainingCapacity(mark);
                 }
+                if (c.default) |default| try self.expr(default, scope);
             },
             .let => |let| {
                 const base = scope.items.len;

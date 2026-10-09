@@ -5,7 +5,7 @@
 //!        | literal
 //!        | \x -> expr
 //!        | expr_1 expr_2
-//!        | case expr of { C x_1 .. x_n -> expr; ... }
+//!        | case expr of { C x_1 .. x_n -> expr; ...; _ -> expr }
 //!        | let x = expr_1 in expr_2
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //! ```
@@ -32,6 +32,7 @@ pub const printProgram = program.printProgram;
 
 pub const Synthesized = details.Synthesized;
 pub const PrimOp = details.PrimOp;
+pub const Pseudo = details.Pseudo;
 pub const Operation = details.Operation;
 pub const Scalar = details.Scalar;
 
@@ -108,9 +109,12 @@ pub const Apply = struct {
     argument: Term,
 };
 
+/// Evaluates the scrutinee to WHNF, then takes the alternative naming its
+/// constructor, or `default` when none does.
 pub const Case = struct {
     scrutinee: Term,
     alternatives: []const Alternative,
+    default: ?Term = null,
 
     pub const Alternative = struct {
         constructor: SymbolId,
@@ -212,9 +216,24 @@ pub const Builder = struct {
         alternatives: []const Case.Alternative,
         span: diagnostic.Span,
     ) !Term {
+        return try self.caseWithDefault(scrutinee, alternatives, null, span);
+    }
+
+    pub fn caseWithDefault(
+        self: Builder,
+        scrutinee: Term,
+        alternatives: []const Case.Alternative,
+        default: ?Term,
+        span: diagnostic.Span,
+    ) !Term {
         const node = try self.allocator.create(Case);
-        node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives };
+        node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives, .default = default };
         return .{ .kind = .{ .case = node }, .span = span };
+    }
+
+    /// `case scrutinee of { _ -> body }`: evaluate `scrutinee`, then `body`.
+    pub fn force(self: Builder, scrutinee: Term, body: Term, span: diagnostic.Span) !Term {
+        return try self.caseWithDefault(scrutinee, &.{}, body, span);
     }
 
     /// `case condition of { False -> otherwise; True -> matched }`.
@@ -408,6 +427,11 @@ pub const Printer = struct {
                     try w.writeAll(self.interner.spelling(alternative.constructor));
                     try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
                 }
+                if (c.default) |default| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll("_ ->");
+                    try self.writeAfterArrow(default, w, indent + 2, scope);
+                }
             },
             .let => |l| try self.enter(.{ .let = l }, w, indent, scope),
             .letrec => |l| try self.enter(.{ .letrec = l }, w, indent, scope),
@@ -449,6 +473,7 @@ pub const Printer = struct {
                 for (c.alternatives) |alternative| {
                     if (self.captures(alternative.body, binder, spelling, primes, scope)) return true;
                 }
+                if (c.default) |default| return self.captures(default, binder, spelling, primes, scope);
                 return false;
             },
             .let => |l| self.captures(l.value, binder, spelling, primes, scope) or

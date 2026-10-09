@@ -87,6 +87,11 @@ pub const Printer = struct {
                     try w.writeAll(self.interner.spelling(alternative.constructor));
                     try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
                 }
+                if (c.default) |default| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll("_ ->");
+                    try self.writeAfterArrow(default, w, indent + 2, scope);
+                }
             },
             .let => |let| try self.enter(.{ .let = let }, w, indent, scope),
         }
@@ -219,6 +224,7 @@ pub const Printer = struct {
                 for (c.alternatives) |alternative| {
                     if (self.captures(alternative.body, target)) return true;
                 }
+                if (c.default) |default| return self.captures(default, target);
                 return false;
             },
             .let => |let| {

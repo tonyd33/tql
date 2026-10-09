@@ -53,6 +53,18 @@ pub const Lowerer = struct {
         return self.builder.symbol(id, span);
     }
 
+    /// The Core term `pseudo` denotes.
+    fn pseudoTerm(self: *Lowerer, pseudo: core.Pseudo, span: diagnostic.Span) Error!core.Term {
+        switch (pseudo) {
+            .seq => {
+                const a = try self.env.interner.fresh("a");
+                const b = try self.env.interner.fresh("b");
+                const body = try self.builder.force(self.builder.symbol(a, span), self.builder.symbol(b, span), span);
+                return try self.builder.abstract(&.{ a, b }, body);
+            },
+        }
+    }
+
     /// The global `name` names in this module's scope, or null. Reports an
     /// ambiguous name.
     pub fn resolveGlobal(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!?core.SymbolId {
@@ -242,7 +254,10 @@ pub const Lowerer = struct {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (try self.resolveGlobal(name, e.span)) |global| return self.builder.symbol(global, e.span);
+                if (try self.resolveGlobal(name, e.span)) |global| return switch (self.env.interner.details(global)) {
+                    .pseudo => |pseudo| try self.pseudoTerm(pseudo, e.span),
+                    else => self.builder.symbol(global, e.span),
+                };
                 try self.sink.report(
                     .unresolved_name,
                     e.span,

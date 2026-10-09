@@ -521,15 +521,11 @@ pub const Machine = struct {
                     const mark = scope.len();
                     const scrutinee = try self.expression(case_expr.scrutinee, scope);
                     scope.shrink(mark);
-                    const constructed = switch (scrutinee) {
-                        .constructed => |c| c,
-                        else => return error.TypeError,
+                    const alternative = case_expr.alternativeFor(scrutinee) orelse {
+                        current = case_expr.default orelse return error.TypeError;
+                        continue;
                     };
-
-                    // Alternatives are in tag order and cover every
-                    // constructor, so the tag is the index.
-                    if (constructed.tag >= case_expr.alternatives.len) return error.TypeError;
-                    const alternative = case_expr.alternatives[constructed.tag];
+                    const constructed = scrutinee.constructed;
                     if (alternative.binders.len != constructed.len) return error.TypeError;
 
                     // The binders stay in scope for the body, which this loop

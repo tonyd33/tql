@@ -51,6 +51,7 @@
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
 - Every primitive is a prelude definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in the prelude.
+- Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
 
 ### Improvements
 
