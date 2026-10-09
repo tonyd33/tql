@@ -182,23 +182,6 @@ pub const Violation = struct {
     class: classes.ClassId,
     type: types.Type,
     origin: diagnostic.Span,
-
-    /// Format with the class spelled as `registry` declares it.
-    pub fn named(self: Violation, registry: *const classes.Registry) Named {
-        return .{ .violation = self, .registry = registry };
-    }
-
-    pub const Named = struct {
-        violation: Violation,
-        registry: *const classes.Registry,
-
-        pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            try w.print("`{s} {f}` is not satisfied.", .{
-                self.registry.spelling(self.violation.class),
-                self.violation.type.operand(),
-            });
-        }
-    };
 };
 
 /// Whether `t`, under the current substitution, has any of `metas` free.

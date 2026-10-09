@@ -1076,7 +1076,10 @@ pub fn check(
                         found.named(&names),
                     });
                 },
-                .violation => |v| try v.named(&program.env.classes).format(&buf.writer),
+                .violation => |v| try buf.writer.print(
+                    "`{s} {f}` is not satisfied.",
+                    .{ program.env.classes.spelling(v.class), (try subst.resolveDeep(v.type)).namedOperand(&names) },
+                ),
                 .over_application => |t| try buf.writer.print(
                     "`{f}` has no argument left to take.",
                     .{(try subst.resolveDeep(t)).named(&names)},
