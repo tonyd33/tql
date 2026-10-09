@@ -833,25 +833,25 @@ const Run = union(enum) {
     }
 };
 
-/// The run of the query compiled again with `core_to_core` skipped.
+/// Translate `program` without simplifying it and run it over the case's
+/// target. The symbols translation mints stay in `program`'s environment.
 fn unsimplifiedEvaluate(
     allocator: std.mem.Allocator,
     io: std.Io,
-    engine: *Engine,
-    query: tql.cst.SourceFile,
+    program: *tql.core.Program,
     grammar: *const tql.Grammar,
     tree: *const ts.Tree,
     tc: corpus_parser.TestCase,
 ) !Run {
-    var sink = tql.diagnostic.Sink.init(allocator);
-    defer sink.deinit();
-    var program = try engine.desugarParsed(query, grammar, &sink);
-    tql.type_check.check(allocator, &program, &sink) catch |err| {
-        program.deinit();
-        return err;
+    const translated = try tql.core_to_stg.translate(allocator, program);
+    var compiled: tql.CompiledQuery = .{
+        .checked = program.*,
+        .translated = translated,
+        .grammar = grammar,
+        .allocator = allocator,
+        .io = io,
     };
-    var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{ .simplify = null });
-    defer compiled.deinit();
+    defer compiled.translated.deinit();
     return try evaluate(allocator, &compiled, tree, tc);
 }
 
@@ -986,6 +986,12 @@ fn runTestCase(
                     types_text = try fmt.formatTypes(allocator, &program);
 
                     if (tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates) {
+                        const unsimplified: ?Run = if (evaluates)
+                            try unsimplifiedEvaluate(allocator, io, &program, grammar, tree, tc)
+                        else
+                            null;
+                        defer if (unsimplified) |run| run.deinit(allocator);
+
                         owns_program = false;
                         var compiled = try tql.CompiledQuery.init(allocator, io, program, grammar, .{});
                         defer compiled.deinit();
@@ -1013,13 +1019,11 @@ fn runTestCase(
                                 },
                             }
 
-                            const unsimplified = try unsimplifiedEvaluate(allocator, io, &engine, query_cst, grammar, tree, tc);
-                            defer unsimplified.deinit(allocator);
-                            if (!evaluated.eql(unsimplified)) {
+                            if (!evaluated.eql(unsimplified.?)) {
                                 unexpected.* = try std.fmt.allocPrint(
                                     allocator,
                                     "with core_to_core: {f}\nwithout core_to_core: {f}",
-                                    .{ evaluated, unsimplified },
+                                    .{ evaluated, unsimplified.? },
                                 );
                                 return error.SimplifyChangedValues;
                             }
