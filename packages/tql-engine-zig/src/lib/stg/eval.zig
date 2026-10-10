@@ -513,6 +513,24 @@ pub const Machine = struct {
                     continue;
                 },
 
+                .let_no_escape => |let| {
+                    current = let.body;
+                    continue;
+                },
+
+                .jump => |jump| {
+                    // An argument may read a slot above the join point's
+                    // depth, so resolve before shrinking.
+                    const target = jump.target;
+                    const mark = self.args.items.len;
+                    defer self.args.shrinkRetainingCapacity(mark);
+                    const arguments = try self.pushArgs(jump.arguments, scope.slots());
+                    scope.shrink(target.depth);
+                    try scope.appendSlice(self.gpa, arguments, target.parameters);
+                    current = target.body;
+                    continue;
+                },
+
                 .case => |case_expr| {
                     // The scrutinee runs in this environment and may push its
                     // own binders onto it. The alternative's binders are

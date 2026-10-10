@@ -1,6 +1,6 @@
 title: an attached cons pattern nests
 grammar: typescript
-asserts: core, values
+asserts: core, values, simplified, stg
 
 --- tql ---
 second xs = case xs of {
@@ -18,10 +18,41 @@ class A {}
 
 --- core ---
 second = \xs ->
-  let alternative = Nil in
+  join alternative = Nil in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons _ cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons b _ -> Cons b Nil
 main = pure (second (Cons 1 (Cons 2 (Cons 3 Nil))))
+
+--- simplified ---
+second = \xs -> case xs of
+  Nil -> Nil
+  Cons _ cons1 -> case cons1 of
+    Nil -> Nil
+    Cons b _ -> Cons b Nil
+main = pure (Cons 2 Nil)
+--- stg ---
+second = {} \u {} ->
+  let
+    t3 = {} \n {xs} -> case xs@0 of
+      Nil ->
+        let c0 = Nil in
+        c0@1
+      Cons _ cons1 -> case cons1@2 of
+        Nil ->
+          let c1 = Nil in
+          c1@3
+        Cons b _ ->
+          let c2 = Nil in
+          Cons b@3 c2@5
+  in
+  t3@0
+main = {} \u {} ->
+  let
+    t1 = {} \u {} ->
+      let c0 = Nil in
+      Cons 2 c0@0
+  in
+  pure t1@0

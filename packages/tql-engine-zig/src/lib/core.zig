@@ -22,6 +22,7 @@ pub const datatypes = @import("core/datatypes.zig");
 pub const classes = @import("core/classes.zig");
 pub const print_scope = @import("core/print_scope.zig");
 pub const free = @import("core/free.zig");
+pub const lint = @import("core/lint.zig");
 pub const components = @import("core/components.zig");
 pub const test_support = @import("core/test_support.zig");
 const program = @import("core/program.zig");
@@ -72,6 +73,28 @@ pub const Term = struct {
         var body = t;
         while (body.kind == .lambda) : (body = body.kind.lambda.body) count += 1;
         return count;
+    }
+
+    /// The body under the first `n` lambdas.
+    ///
+    /// Preconditions: `t` starts with at least `n` lambdas.
+    pub fn underLambdas(t: Term, n: usize) Term {
+        var body = t;
+        for (0..n) |_| body = body.kind.lambda.body;
+        return body;
+    }
+
+    /// Write the parameters of the first `parameters.len` lambdas into
+    /// `parameters`, and return the body under them.
+    ///
+    /// Preconditions: `t` starts with at least `parameters.len` lambdas.
+    pub fn peel(t: Term, parameters: []SymbolId) Term {
+        var body = t;
+        for (parameters) |*parameter| {
+            parameter.* = body.kind.lambda.parameter;
+            body = body.kind.lambda.body;
+        }
+        return body;
     }
 
     /// The function at the head of an application spine, or the term itself.
@@ -339,12 +362,14 @@ pub const Printer = struct {
         alternative: *const Case.Alternative,
         let: *const Let,
         letrec: *const Letrec,
+        parameters: Parameters,
 
         pub fn len(g: Group) usize {
             return switch (g) {
                 .lambda, .let => 1,
                 .alternative => |a| a.binders.len,
                 .letrec => |l| l.bindings.len,
+                .parameters => |p| p.count,
             };
         }
 
@@ -354,9 +379,37 @@ pub const Printer = struct {
                 .alternative => |a| a.binders[i],
                 .let => |l| l.name,
                 .letrec => |l| l.bindings[i].name,
+                .parameters => |p| p.lambda(i).parameter,
             };
         }
     };
+
+    /// A join point's first `count` lambdas, written as parameters before
+    /// `=`.
+    const Parameters = struct {
+        value: Term,
+        count: usize,
+
+        fn lambda(p: Parameters, i: usize) *const Lambda {
+            return p.value.underLambdas(i).kind.lambda;
+        }
+
+        fn body(p: Parameters) Term {
+            return p.value.underLambdas(p.count);
+        }
+    };
+
+    fn joinArity(self: Printer, id: SymbolId) ?u32 {
+        return self.interner.details(id).joinArity();
+    }
+
+    /// Whether `t` is a call of a join point with all its arguments.
+    fn isJump(self: Printer, t: Term) bool {
+        const head = t.head();
+        if (head.kind != .symbol) return false;
+        const arity = self.joinArity(head.kind.symbol) orelse return false;
+        return arity == t.spineLength();
+    }
 
     fn write(
         self: Printer,
@@ -408,10 +461,14 @@ pub const Printer = struct {
 
     fn writeBare(self: Printer, t: Term, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (t.kind) {
-            .symbol => |id| try self.writeName(id, w, scope),
+            .symbol => |id| {
+                if (self.isJump(t)) try w.writeAll("jump ");
+                try self.writeName(id, w, scope);
+            },
             .literal => |value| try writeLiteral(value, w),
             .lambda => |l| try self.enter(.{ .lambda = l }, w, indent, scope),
             .apply => |a| {
+                if (self.isJump(t)) try w.writeAll("jump ");
                 try self.write(a.function, w, .callee, indent, scope);
                 try w.writeByte(' ');
                 try self.write(a.argument, w, .operand, indent, scope);
@@ -456,6 +513,7 @@ pub const Printer = struct {
                 }
                 return self.captures(l.body, binder, spelling, primes, scope);
             },
+            .parameters => |p| self.captures(p.body(), binder, spelling, primes, scope),
         };
     }
 
@@ -508,7 +566,7 @@ pub const Printer = struct {
             // `scope`'s innermost node is the binder, so its parent is where
             // the value is written.
             .let => |l| try self.writeBindings(
-                "let",
+                false,
                 &.{.{ .name = l.name, .value = l.value }},
                 l.body,
                 w,
@@ -516,15 +574,32 @@ pub const Printer = struct {
                 scope,
                 scope.?.parent,
             ),
-            .letrec => |l| try self.writeBindings("letrec", l.bindings, l.body, w, indent, scope, scope),
+            .letrec => |l| try self.writeBindings(true, l.bindings, l.body, w, indent, scope, scope),
+            .parameters => |p| {
+                for (0..p.count) |i| {
+                    try w.writeByte(' ');
+                    try self.writeName(p.lambda(i).parameter, w, scope);
+                }
+                try w.writeAll(" =");
+                try self.writeAfterArrow(p.body(), w, indent, scope);
+            },
         }
     }
 
-    /// Write `keyword`, each binding with its value in `value_scope`, `in`,
+    /// Write `name`, a join point's parameters, `=`, and its value.
+    fn writeBinding(self: Printer, b: Letrec.Binding, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope, value_scope: ?*print_scope.Scope) Error!void {
+        try self.writeName(b.name, w, scope);
+        const arity = self.joinArity(b.name) orelse 0;
+        if (arity > 0) return try self.enter(.{ .parameters = .{ .value = b.value, .count = arity } }, w, indent, value_scope);
+        try w.writeAll(" =");
+        try self.writeAfterArrow(b.value, w, indent, value_scope);
+    }
+
+    /// Write the keyword, each binding with its value in `value_scope`, `in`,
     /// and `body` on the next line.
     fn writeBindings(
         self: Printer,
-        keyword: []const u8,
+        recursive: bool,
         bindings: []const Letrec.Binding,
         body: Term,
         w: *std.Io.Writer,
@@ -532,19 +607,19 @@ pub const Printer = struct {
         scope: ?*print_scope.Scope,
         value_scope: ?*print_scope.Scope,
     ) Error!void {
+        const keyword = if (self.joinArity(bindings[0].name) != null)
+            (if (recursive) "joinrec" else "join")
+        else
+            (if (recursive) "letrec" else "let");
         if (bindings.len == 1 and isFlat(bindings[0].value)) {
             try w.print("{s} ", .{keyword});
-            try self.writeName(bindings[0].name, w, scope);
-            try w.writeAll(" = ");
-            try self.write(bindings[0].value, w, .top, indent, value_scope);
+            try self.writeBinding(bindings[0], w, indent, scope, value_scope);
             try w.writeAll(" in");
         } else {
             try w.writeAll(keyword);
             for (bindings) |b| {
                 try print_scope.newline(w, indent + 2);
-                try self.writeName(b.name, w, scope);
-                try w.writeAll(" =");
-                try self.writeAfterArrow(b.value, w, indent + 2, value_scope);
+                try self.writeBinding(b, w, indent + 2, scope, value_scope);
             }
             try print_scope.newline(w, indent);
             try w.writeAll("in");

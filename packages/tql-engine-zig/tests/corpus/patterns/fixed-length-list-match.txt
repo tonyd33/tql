@@ -1,6 +1,6 @@
 title: a list pattern matches a fixed length
 grammar: typescript
-asserts: core, types, values
+asserts: core, types, values, simplified, stg
 
 --- tql ---
 pair xs = case xs of {
@@ -21,12 +21,84 @@ main :: Node -> [[Int]]
 
 --- core ---
 pair = \xs ->
-  let alternative = Nil in
+  join alternative = Nil in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons a cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons b cons1 -> case cons1 of
         Nil -> Cons a (Cons b Nil)
-        Cons _ _ -> alternative
+        Cons _ _ -> jump alternative
 main = alt (pure (pair (Cons 1 (Cons 2 Nil)))) (pure (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))
+
+--- simplified ---
+pair = \xs -> case xs of
+  Nil -> Nil
+  Cons a cons1 -> case cons1 of
+    Nil -> Nil
+    Cons b cons1 -> case cons1 of
+      Nil -> Cons a (Cons b Nil)
+      Cons _ _ -> Nil
+main = alt (pure (pair (Cons 1 (Cons 2 Nil)))) (pure (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))
+--- stg ---
+pair = {} \u {} ->
+  let
+    t5 = {} \n {xs} -> case xs@0 of
+      Nil ->
+        let c0 = Nil in
+        c0@1
+      Cons a cons1 -> case cons1@2 of
+        Nil ->
+          let c1 = Nil in
+          c1@3
+        Cons b cons1 -> case cons1@4 of
+          Nil ->
+            let
+              t3 = {b@3} \u {} ->
+                let c2 = Nil in
+                Cons b@0 c2@1
+            in
+            Cons a@1 t3@5
+          Cons _ _ ->
+            let c4 = Nil in
+            c4@7
+  in
+  t5@0
+main = {} \u {} ->
+  let
+    t4 = {} \u {} ->
+      let
+        t3 = {} \u {} ->
+          let
+            t2 = {} \u {} ->
+              let
+                t1 = {} \u {} ->
+                  let c0 = Nil in
+                  Cons 2 c0@0
+              in
+              Cons 1 t1@0
+          in
+          pair t2@0
+      in
+      pure t3@0
+    t10 = {} \u {} ->
+      let
+        t9 = {} \u {} ->
+          let
+            t8 = {} \u {} ->
+              let
+                t7 = {} \u {} ->
+                  let
+                    t6 = {} \u {} ->
+                      let c5 = Nil in
+                      Cons 3 c5@0
+                  in
+                  Cons 2 t6@0
+              in
+              Cons 1 t7@0
+          in
+          pair t8@0
+      in
+      pure t9@0
+  in
+  alt t4@0 t10@1

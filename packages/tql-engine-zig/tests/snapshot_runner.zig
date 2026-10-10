@@ -889,6 +889,22 @@ fn evaluate(
     return .{ .json = outcome.json };
 }
 
+/// Fail with a message when the desugared `program` breaks an invariant on
+/// join points.
+fn expectJoinPointsHold(
+    allocator: std.mem.Allocator,
+    program: *const tql.core.Program,
+    unexpected: *?[]const u8,
+) !void {
+    const violation = try tql.core.lint.program(allocator, program) orelse return;
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    try w.writer.writeAll("after desugaring: ");
+    try violation.write(&program.env.interner, &w.writer);
+    unexpected.* = try w.toOwnedSlice();
+    return error.JoinPointInvariant;
+}
+
 /// Postconditions:
 /// - On an unexpected parse, desugar, type or evaluation error, `unexpected`
 ///   holds the diagnostics, owned by `allocator`.
@@ -989,6 +1005,7 @@ fn runTestCase(
             defer if (owns_program) program.deinit();
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
+            try expectJoinPointsHold(allocator, &program, unexpected);
 
             if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates or expects_error) {
                 var type_sink = tql.diagnostic.Sink.init(allocator);

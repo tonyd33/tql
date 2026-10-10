@@ -1,0 +1,145 @@
+title: a join point bound inside a case scrutinee jumps within it
+grammar: typescript
+asserts: core, simplified, stg, values
+
+The scrutinee runs in a nested evaluation, and the jump stays inside it.
+
+--- tql ---
+import Data.Function (const);
+
+total xs = case xs of { [] -> 0; h : t -> h + total t };
+label xs = case (case xs of { [x] -> x > 10; ys -> total ys + total ys * 2 + total ys * 3 > 10 }) of {
+  True -> "big";
+  False -> "small";
+};
+main = const [label [1], label [1, 2], label [20]];
+
+--- source ---
+class A {}
+
+--- values ---
+["small","big","big"]
+--- simplified ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+label = \xs -> case (
+  join alternative ys = %gt_int (op[+] (op[+] (total ys) (op[*] (total ys) 2)) (op[*] (total ys) 3)) 10 in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> %gt_int x 10
+      Cons _ _ -> jump alternative xs
+) of
+  False -> "small"
+  True -> "big"
+main = const (Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)))
+--- stg ---
+total = {} \u {} ->
+  let
+    t1 = {} \n {xs} -> case xs@0 of
+      Nil -> 0
+      Cons h t ->
+        let t0 = {t@2} \u {} -> total t@0 in
+        op[+]# h@1 t0@3
+  in
+  t1@0
+label = {} \u {} ->
+  let
+    t7 = {} \n {xs} -> case (
+      let-no-escape
+        alternative {ys} ->
+          let
+            t6 = {ys@1} \u {} ->
+              let
+                t3 = {ys@0} \u {} ->
+                  let
+                    t0 = {ys@0} \u {} -> total ys@0
+                    t2 = {ys@0} \u {} ->
+                      let t1 = {ys@0} \u {} -> total ys@0 in
+                      op[*]# t1@1 2
+                  in
+                  op[+]# t0@1 t2@2
+                t5 = {ys@0} \u {} ->
+                  let t4 = {ys@0} \u {} -> total ys@0 in
+                  op[*]# t4@1 3
+              in
+              op[+]# t3@1 t5@2
+          in
+          %gt_int# t6@2 10
+      in
+      case xs@0 of
+        Nil -> jump alternative xs@0
+        Cons x cons1 -> case cons1@2 of
+          Nil -> %gt_int# x@1 10
+          Cons _ _ -> jump alternative xs@0
+    ) of
+      False -> "small"
+      True -> "big"
+  in
+  t7@0
+main = {} \u {} ->
+  let
+    t13 = {} \u {} ->
+      let
+        t2 = {} \u {} ->
+          let
+            t1 = {} \u {} ->
+              let c0 = Nil in
+              Cons 1 c0@0
+          in
+          label t1@0
+        t12 = {} \u {} ->
+          let
+            t6 = {} \u {} ->
+              let
+                t5 = {} \u {} ->
+                  let
+                    t4 = {} \u {} ->
+                      let c3 = Nil in
+                      Cons 2 c3@0
+                  in
+                  Cons 1 t4@0
+              in
+              label t5@0
+            t11 = {} \u {} ->
+              let
+                t9 = {} \u {} ->
+                  let
+                    t8 = {} \u {} ->
+                      let c7 = Nil in
+                      Cons 20 c7@0
+                  in
+                  label t8@0
+                c10 = Nil
+              in
+              Cons t9@0 c10@1
+          in
+          Cons t6@0 t11@1
+      in
+      Cons t2@0 t12@1
+  in
+  const t13@0
+--- core ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+label = \xs -> case (
+  join
+    alternative ys = case compare (op[+] (op[+] (total ys) (op[*] (total ys) 2)) (op[*] (total ys) 3)) 10 of
+      LT -> False
+      EQ -> False
+      GT -> True
+  in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> case compare x 10 of
+        LT -> False
+        EQ -> False
+        GT -> True
+      Cons _ _ -> jump alternative xs
+) of
+  False -> "small"
+  True -> "big"
+main = const (Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)))

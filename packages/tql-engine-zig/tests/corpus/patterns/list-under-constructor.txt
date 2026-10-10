@@ -1,6 +1,6 @@
 title: a list pattern is a constructor argument
 grammar: typescript
-asserts: core, values
+asserts: core, values, simplified, stg
 
 --- tql ---
 data Maybe a = Just a | Nothing;
@@ -20,12 +20,40 @@ class A {}
 
 --- core ---
 only = \m ->
-  let alternative = 0 in
+  join alternative = 0 in
   case m of
     Just just0 -> case just0 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons x cons1 -> case cons1 of
         Nil -> x
-        Cons _ _ -> alternative
-    Nothing -> alternative
+        Cons _ _ -> jump alternative
+    Nothing -> jump alternative
 main = alt (pure (only (Just (Cons 7 Nil)))) (pure (only (Just (Cons 7 (Cons 8 Nil)))))
+
+--- simplified ---
+only = \m -> case m of
+  Just just0 -> case just0 of
+    Nil -> 0
+    Cons x cons1 -> case cons1 of
+      Nil -> x
+      Cons _ _ -> 0
+  Nothing -> 0
+main = alt (pure 7) (pure 0)
+--- stg ---
+only = {} \u {} ->
+  let
+    t0 = {} \n {m} -> case m@0 of
+      Just just0 -> case just0@1 of
+        Nil -> 0
+        Cons x cons1 -> case cons1@3 of
+          Nil -> x@2
+          Cons _ _ -> 0
+      Nothing -> 0
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    t0 = {} \u {} -> pure 7
+    t1 = {} \u {} -> pure 0
+  in
+  alt t0@0 t1@1

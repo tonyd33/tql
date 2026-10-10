@@ -1,0 +1,46 @@
+title: a match applied to an argument makes its shared alternative a function
+grammar: typescript
+asserts: core, simplified, values
+
+Moving the argument into the match puts each jump under an application, so
+`alternative` stops being a join point.
+
+--- tql ---
+import Data.Function (const);
+
+total xs = case xs of { [] -> 0; h : t -> h + total t };
+pick xs = (case xs of { [x] -> \y -> y + x; ys -> \y -> y * total ys + total ys * 2 + total ys * 3 }) 10;
+main = const [pick [1], pick [1, 2], pick []];
+
+--- source ---
+class A {}
+
+--- values ---
+[11,45,0]
+--- simplified ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+pick = \xs ->
+  let alternative = \ys -> \y -> op[+] (op[+] (op[*] y (total ys)) (op[*] (total ys) 2)) (op[*] (total ys) 3) in
+  (
+    case xs of
+      Nil -> alternative xs
+      Cons x cons1 -> case cons1 of
+        Nil -> \y -> op[+] y x
+        Cons _ _ -> alternative xs
+  ) 10
+main = const (Cons (pick (Cons 1 Nil)) (Cons (pick (Cons 1 (Cons 2 Nil))) (Cons (pick Nil) Nil)))
+--- core ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+pick = \xs -> (
+  join alternative ys = \y -> op[+] (op[+] (op[*] y (total ys)) (op[*] (total ys) 2)) (op[*] (total ys) 3) in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> \y -> op[+] y x
+      Cons _ _ -> jump alternative xs
+) 10
+main = const (Cons (pick (Cons 1 Nil)) (Cons (pick (Cons 1 (Cons 2 Nil))) (Cons (pick Nil) Nil)))

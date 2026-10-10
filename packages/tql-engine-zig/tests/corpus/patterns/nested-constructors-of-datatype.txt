@@ -1,6 +1,6 @@
 title: nested patterns match a declared datatype
 grammar: typescript
-asserts: core, types, values
+asserts: core, types, values, simplified, stg
 
 A nullary constructor in argument position needs no parentheses.
 
@@ -30,16 +30,51 @@ main :: Node -> [Int]
 
 --- core ---
 both = \m -> \n ->
-  let alternative = 0 in
+  join alternative = 0 in
   case Cons m (Cons n Nil) of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons cons0 cons1 -> case cons0 of
       Just a -> case cons1 of
-        Nil -> alternative
+        Nil -> jump alternative
         Cons cons0 cons1 -> case cons0 of
           Just b -> case cons1 of
             Nil -> op[+] a b
-            Cons _ _ -> alternative
-          Nothing -> alternative
+            Cons _ _ -> jump alternative
+          Nothing -> jump alternative
       Nothing -> op[-] 0 1
 main = const (Cons (both (Just 1) (Just 2)) (Cons (both Nothing (Just 2)) (Cons (both (Just 1) Nothing) Nil)))
+
+--- simplified ---
+both = \m -> \n -> case m of
+  Just a -> case n of
+    Just b -> op[+] a b
+    Nothing -> 0
+  Nothing -> op[-] 0 1
+main = const (Cons (op[+] 1 2) (Cons (op[-] 0 1) (Cons 0 Nil)))
+--- stg ---
+both = {} \u {} ->
+  let
+    t0 = {} \n {m,n} -> case m@0 of
+      Just a -> case n@1 of
+        Just b -> op[+]# a@2 b@3
+        Nothing -> 0
+      Nothing -> op[-]# 0 1
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    t5 = {} \u {} ->
+      let
+        t0 = {} \u {} -> op[+]# 1 2
+        t4 = {} \u {} ->
+          let
+            t1 = {} \u {} -> op[-]# 0 1
+            t3 = {} \u {} ->
+              let c2 = Nil in
+              Cons 0 c2@0
+          in
+          Cons t1@0 t3@1
+      in
+      Cons t0@0 t4@1
+  in
+  const t5@0

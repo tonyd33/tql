@@ -1,6 +1,6 @@
 title: two alternatives reached from several paths are each bound once
 grammar: typescript
-asserts: core, values
+asserts: core, values, simplified, stg
 
 --- tql ---
 import Data.Function (const);
@@ -21,19 +21,159 @@ class A {}
 
 --- core ---
 f = \xs ->
-  let alternative = Cons 2 Nil in
-  let alternative' = Cons 3 Nil in
+  join alternative = Cons 2 Nil in
+  join alternative' = Cons 3 Nil in
   case xs of
-    Nil -> alternative'
+    Nil -> jump alternative'
     Cons cons0 cons1 -> case cons0 of
       Nil -> case cons1 of
-        Nil -> alternative'
-        Cons _ _ -> alternative
+        Nil -> jump alternative'
+        Cons _ _ -> jump alternative
       Cons a cons1' -> case cons1' of
         Nil -> case cons1 of
           Nil -> Cons a Nil
-          Cons _ _ -> alternative
+          Cons _ _ -> jump alternative
         Cons _ _ -> case cons1 of
-          Nil -> alternative'
-          Cons _ _ -> alternative
+          Nil -> jump alternative'
+          Cons _ _ -> jump alternative
 main = const (Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))
+
+--- simplified ---
+f = \xs ->
+  join alternative = Cons 2 Nil in
+  join alternative' = Cons 3 Nil in
+  case xs of
+    Nil -> jump alternative'
+    Cons cons0 cons1 -> case cons0 of
+      Nil -> case cons1 of
+        Nil -> jump alternative'
+        Cons _ _ -> jump alternative
+      Cons a cons1' -> case cons1' of
+        Nil -> case cons1 of
+          Nil -> Cons a Nil
+          Cons _ _ -> jump alternative
+        Cons _ _ -> case cons1 of
+          Nil -> jump alternative'
+          Cons _ _ -> jump alternative
+main = const (Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))
+--- stg ---
+f = {} \u {} ->
+  let
+    t3 = {} \n {xs} ->
+      let-no-escape
+        alternative {} ->
+          let c0 = Nil in
+          Cons 2 c0@1
+      in
+      let-no-escape
+        alternative' {} ->
+          let c1 = Nil in
+          Cons 3 c1@1
+      in
+      case xs@0 of
+        Nil -> jump alternative'
+        Cons cons0 cons1 -> case cons0@1 of
+          Nil -> case cons1@2 of
+            Nil -> jump alternative'
+            Cons _ _ -> jump alternative
+          Cons a cons1' -> case cons1'@4 of
+            Nil -> case cons1@2 of
+              Nil ->
+                let c2 = Nil in
+                Cons a@3 c2@5
+              Cons _ _ -> jump alternative
+            Cons _ _ -> case cons1@2 of
+              Nil -> jump alternative'
+              Cons _ _ -> jump alternative
+  in
+  t3@0
+main = {} \u {} ->
+  let
+    t32 = {} \u {} ->
+      let
+        t4 = {} \u {} ->
+          let
+            t3 = {} \u {} ->
+              let
+                t1 = {} \u {} ->
+                  let c0 = Nil in
+                  Cons 1 c0@0
+                c2 = Nil
+              in
+              Cons t1@0 c2@1
+          in
+          f t3@0
+        t31 = {} \u {} ->
+          let
+            t12 = {} \u {} ->
+              let
+                t11 = {} \u {} ->
+                  let
+                    t6 = {} \u {} ->
+                      let c5 = Nil in
+                      Cons 2 c5@0
+                    t10 = {} \u {} ->
+                      let
+                        t8 = {} \u {} ->
+                          let c7 = Nil in
+                          Cons 3 c7@0
+                        c9 = Nil
+                      in
+                      Cons t8@0 c9@1
+                  in
+                  Cons t6@0 t10@1
+              in
+              f t11@0
+            t30 = {} \u {} ->
+              let
+                t18 = {} \u {} ->
+                  let
+                    t17 = {} \u {} ->
+                      let
+                        t15 = {} \u {} ->
+                          let
+                            t14 = {} \u {} ->
+                              let c13 = Nil in
+                              Cons 5 c13@0
+                          in
+                          Cons 4 t14@0
+                        c16 = Nil
+                      in
+                      Cons t15@0 c16@1
+                  in
+                  f t17@0
+                t29 = {} \u {} ->
+                  let
+                    t20 = {} \u {} ->
+                      let c19 = Nil in
+                      f c19@0
+                    t28 = {} \u {} ->
+                      let
+                        t26 = {} \u {} ->
+                          let
+                            t25 = {} \u {} ->
+                              let
+                                c21 = Nil
+                                t24 = {} \u {} ->
+                                  let
+                                    c22 = Nil
+                                    c23 = Nil
+                                  in
+                                  Cons c22@0 c23@1
+                              in
+                              Cons c21@0 t24@1
+                          in
+                          f t25@0
+                        c27 = Nil
+                      in
+                      Cons t26@0 c27@1
+                  in
+                  Cons t20@0 t28@1
+              in
+              Cons t18@0 t29@1
+          in
+          Cons t12@0 t30@1
+      in
+      Cons t4@0 t31@1
+  in
+  const t32@0

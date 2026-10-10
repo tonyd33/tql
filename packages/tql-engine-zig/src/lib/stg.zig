@@ -16,6 +16,7 @@ pub const Constructed = terms.Constructed;
 pub const Alternative = terms.Alternative;
 pub const Allocation = terms.Allocation;
 pub const Binding = terms.Binding;
+pub const Join = terms.Join;
 pub const Definition = terms.Definition;
 pub const Builtin = terms.Builtin;
 pub const Structural = terms.Structural;

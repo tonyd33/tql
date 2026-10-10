@@ -179,14 +179,20 @@ pub const Simplifier = struct {
                 if (arguments.len > 0 and !self.options.let_from_head) {
                     return try self.rebuild(try self.term(t, &.{}), arguments);
                 }
-                if (arguments.len > 0) self.changed = true;
+                if (arguments.len > 0) {
+                    self.changed = true;
+                    self.zapJoin(let.name);
+                }
                 return try self.bind(let.name, self.recorded(let.name), let.value, let.body, arguments, t.span);
             },
             .letrec => |letrec| {
                 if (arguments.len > 0 and !self.options.let_from_head) {
                     return try self.rebuild(try self.term(t, &.{}), arguments);
                 }
-                if (arguments.len > 0) self.changed = true;
+                if (arguments.len > 0) {
+                    self.changed = true;
+                    for (letrec.bindings) |binding| self.zapJoin(binding.name);
+                }
                 const bindings = try self.builder.slice(core.Letrec.Binding, letrec.bindings.len);
                 for (letrec.bindings, bindings) |old, *new| {
                     new.* = .{ .name = old.name, .value = try self.term(old.value, &.{}) };
@@ -464,12 +470,19 @@ pub const Simplifier = struct {
         }
     }
 
+    /// Make `binder` an ordinary binder if it is a join point. Call before
+    /// moving arguments into its scope.
+    fn zapJoin(self: *Simplifier, binder: core.SymbolId) void {
+        if (self.env.interner.details(binder) == .join) self.env.interner.setDetails(binder, .vanilla);
+    }
+
     fn fresh(
         self: *Simplifier,
         binder: core.SymbolId,
         renamed: *std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId),
     ) Error!core.SymbolId {
         const id = try self.env.interner.fresh(self.env.interner.spelling(binder));
+        self.env.interner.setDetails(id, self.env.interner.details(binder));
         try renamed.put(self.scratch, binder, id);
         return id;
     }

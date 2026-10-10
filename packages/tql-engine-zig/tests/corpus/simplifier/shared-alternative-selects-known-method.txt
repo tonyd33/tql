@@ -1,0 +1,27 @@
+title: a shared alternative selects a method at the enclosing function's instance
+grammar: typescript
+asserts: simplified, values
+
+A join point is not generalized, so `length` in it takes `size`'s evidence:
+the `List` instance, selected at compile time.
+
+--- tql ---
+import Data.Function (const);
+
+size xs = case xs of { [x] -> 1; ys -> length ys + length ys * 2 + length ys * 3 };
+main = const [size [1], size [1, 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,12]
+--- simplified ---
+size = \xs ->
+  join alternative ys = op[+] (op[+] (length[List] ys) (op[*] (length[List] ys) 2)) (op[*] (length[List] ys) 3) in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> 1
+      Cons _ _ -> jump alternative xs
+main = const (Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil))

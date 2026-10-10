@@ -1,6 +1,6 @@
 title: a fallthrough reached from several tests is bound once
 grammar: typescript
-asserts: simplified, values
+asserts: simplified, values, stg
 
 --- tql ---
 pattern Both a b <- [(text -> a), (text -> b)];
@@ -44,3 +44,63 @@ describe = \xs ->
             True -> "xy"
         Cons _ _ -> alternative
 main = \root -> concat_map (\a -> Cons (describe (%children_of_kind :identifier a)) Nil) (%descendants_of_kind :arguments root)
+
+--- stg ---
+$mBoth = {} \u {} ->
+  let
+    t2 = {} \n {s,k,f} -> case s@0 of
+      Nil -> f@2
+      Cons cons0 cons1 -> case cons1@4 of
+        Nil -> f@2
+        Cons cons0' cons1 -> case cons1@6 of
+          Nil ->
+            let
+              t0 = {cons0@3} \u {} -> %text# cons0@0
+              t1 = {cons0'@5} \u {} -> %text# cons0'@0
+            in
+            k@1 t0@7 t1@8
+          Cons _ _ -> f@2
+  in
+  t2@0
+describe = {} \u {} ->
+  let
+    t2 = {} \n {xs} ->
+      let alternative = {} \u {} -> "neither" in
+      case xs@0 of
+        Nil -> alternative@1
+        Cons cons0 cons1 -> case cons1@3 of
+          Nil -> alternative@1
+          Cons cons0' cons1 -> case cons1@5 of
+            Nil ->
+              let t0 = {cons0@2} \u {} -> %text# cons0@0 in
+              case %eq_string# t0@6 "x" of
+                False -> alternative@1
+                True ->
+                  let t1 = {cons0'@4} \u {} -> %text# cons0'@0 in
+                  case %eq_string# t1@7 "y" of
+                    False -> alternative@1
+                    True -> "xy"
+            Cons _ _ -> alternative@1
+  in
+  t2@0
+main = {} \u {} ->
+  let
+    t6 = {} \n {root} ->
+      let
+        t4 = {} \u {} ->
+          let
+            t3 = {} \n {a} ->
+              let
+                t1 = {a@0} \u {} ->
+                  let t0 = {a@0} \u {} -> %children_of_kind# :identifier a@0 in
+                  describe t0@1
+                c2 = Nil
+              in
+              Cons t1@1 c2@2
+          in
+          t3@0
+        t5 = {root@0} \u {} -> %descendants_of_kind# :arguments root@0
+      in
+      concat_map t4@1 t5@2
+  in
+  t6@0

@@ -393,6 +393,7 @@ pub const Inference = struct {
     ///               ------------------------------------------------
     ///               Gamma |- let x = e_1 in e_2 : tau_2
     fn let(self: *Inference, l: core.Let, t: core.Term) Error!Elaborated {
+        if (self.env.interner.details(l.name).joinArity()) |arity| return try self.joinPoint(l, t, arity);
         const frame = try self.evidence.frame(self.frame);
         const elaborated_value = blk: {
             const enclosing = self.frame;
@@ -418,6 +419,30 @@ pub const Inference = struct {
         };
     }
 
+    /// (T-LetJoin)   Gamma |- \x_1 .. x_n -> u : tau_1 -> .. -> tau_n -> tau
+    ///               Gamma, j : tau_1 -> .. -> tau_n -> tau |- e : tau
+    ///               ------------------------------------------------
+    ///               Gamma |- let j = \x_1 .. x_n -> u in e : tau      (j is join(n))
+    ///
+    /// `j` is monomorphic. Its value is elaborated in the enclosing frame.
+    fn joinPoint(self: *Inference, l: core.Let, t: core.Term, arity: u32) Error!Elaborated {
+        const value = try self.elaborate(l.value);
+        var result = value.type;
+        for (0..arity) |_| result = self.subst.expand(result).function.to;
+
+        const mark = self.scope.mark();
+        defer self.scope.truncate(mark);
+        try self.scope.push(l.name, .{ .monomorphic = value.type });
+        const body = try self.elaborate(l.body);
+        try self.expect(body.type, result, l.body.span);
+
+        const unchanged = evidence.same(value.term, l.value) and evidence.same(body.term, l.body);
+        return .{
+            .type = body.type,
+            .term = if (unchanged) t else try self.builder.let(l.name, value.term, body.term, t.span),
+        };
+    }
+
     /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)
     ///               alpha_i unifies with tau_i
     ///               sigma_i = Gen(Gamma, tau_i)                (each i)
@@ -425,6 +450,8 @@ pub const Inference = struct {
     ///               ------------------------------------------------------
     ///               Gamma |- letrec {x_i = e_i} in body : result
     fn letrec(self: *Inference, l: core.Letrec, t: core.Term) Error!Elaborated {
+        // Only the simplifier makes a recursive join point.
+        std.debug.assert(self.env.interner.details(l.bindings[0].name) != .join);
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
 

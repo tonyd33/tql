@@ -36,8 +36,18 @@ pub fn run(program: *core.Program, options: Options) Error!void {
     for ([_]simplify.Phase{ .laws, .final }) |phase| {
         for (0..options.max_iterations) |_| {
             if (!try iterate(program, options, phase)) break;
+            if (std.debug.runtime_safety) try expectJoinPointsHold(program);
         }
     }
+}
+
+/// Panic if `program` breaks an invariant on join points.
+fn expectJoinPointsHold(program: *const core.Program) Error!void {
+    const violation = try core.lint.program(program.env.gpa, program) orelse return;
+    var buffer: [256]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buffer);
+    violation.write(&program.env.interner, &w) catch {};
+    std.debug.panic("core_to_core: {s}", .{w.buffered()});
 }
 
 /// Analyse and simplify every definition once, each after the definitions

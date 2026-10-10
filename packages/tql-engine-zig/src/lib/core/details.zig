@@ -222,6 +222,9 @@ pub const Operation = union(enum) {
 pub const Details = union(enum) {
     /// A binder or a written definition.
     vanilla,
+    /// A `let` or `letrec` binder only ever called, with `arity` arguments,
+    /// in tail position of its scope. Entered by a jump, never allocated.
+    join: struct { arity: u32 },
     /// A built-in, denoting a machine operation.
     primop: PrimOp,
     /// A built-in replaced by the Core term it denotes wherever it is named.
@@ -241,4 +244,12 @@ pub const Details = union(enum) {
     instance: classes.InstanceId,
     /// `super[C,S]`, which takes a dictionary of `C` to one of `S`.
     selector,
+
+    /// The arity of a join point, or null for any other symbol.
+    pub fn joinArity(self: Details) ?u32 {
+        return switch (self) {
+            .join => |j| j.arity,
+            else => null,
+        };
+    }
 };

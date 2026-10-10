@@ -290,11 +290,13 @@ fn lower(
         .root = root,
         .no_match = no_match,
         .uses = try b.slice(u32, arms.len),
+        .under_synonym = try b.slice(bool, arms.len),
     };
     defer matcher.path.deinit(b.allocator);
     defer matcher.facts.deinit(b.allocator);
     defer matcher.calls.deinit(b.allocator);
     @memset(matcher.uses, 0);
+    @memset(matcher.under_synonym, false);
 
     const tree = try matcher.compile(rows);
 
@@ -312,12 +314,15 @@ fn lower(
     const shared = try b.slice(?Shared, arms.len);
     var bindings: std.ArrayList(core.Letrec.Binding) = .empty;
     defer bindings.deinit(b.allocator);
-    for (arms, matcher.uses, shared) |arm, uses, *slot| {
+    for (arms, matcher.uses, shared, 0..) |arm, uses, *slot, i| {
         slot.* = null;
         if (uses < 2) continue;
         var variables: std.ArrayList(Variable) = .empty;
         try boundVariables(b.allocator, arm.written, &variables);
         const symbol = try lowerer.env.interner.fresh("alternative");
+        if (!matcher.under_synonym[i]) {
+            lowerer.env.interner.setDetails(symbol, .{ .join = .{ .arity = @intCast(variables.items.len) } });
+        }
         slot.* = .{ .symbol = symbol, .variables = variables.items };
         try bindings.append(b.allocator, .{
             .name = symbol,
@@ -893,6 +898,8 @@ const Matcher = struct {
     no_match: NoMatch,
     /// Leaves reaching each alternative.
     uses: []u32,
+    /// Whether a leaf reaching each alternative is under a synonym test.
+    under_synonym: []bool,
     path: std.ArrayList(Step) = .empty,
     facts: std.ArrayList(Fact) = .empty,
     calls: std.ArrayList(Call) = .empty,
@@ -952,6 +959,7 @@ const Matcher = struct {
         }
 
         self.uses[first.alternative] += 1;
+        if (self.calls.items.len > 0) self.under_synonym[first.alternative] = true;
         const otherwise = if (self.arms[first.alternative].guard != null)
             try self.compile(rows[1..])
         else

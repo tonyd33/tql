@@ -103,6 +103,13 @@ pub const ProgramBuilder = struct {
         return try self.env.interner.fresh(spelling);
     }
 
+    /// A fresh join point binder of `arity` parameters.
+    pub fn join(self: *ProgramBuilder, spelling: []const u8, arity: u32) !core.SymbolId {
+        const id = try self.local(spelling);
+        self.env.interner.setDetails(id, .{ .join = .{ .arity = arity } });
+        return id;
+    }
+
     /// Declares `name` in `Prim` with `constructors`, tagged in order.
     pub fn datatype(
         self: *ProgramBuilder,

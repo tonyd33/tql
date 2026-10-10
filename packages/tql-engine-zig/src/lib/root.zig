@@ -367,6 +367,7 @@ test {
     refAllDecls(core);
     refAllDecls(core.symbols);
     refAllDecls(core.datatypes);
+    refAllDecls(core.lint);
     refAllDecls(tql_to_core);
     refAllDecls(primitives);
     refAllDecls(types);

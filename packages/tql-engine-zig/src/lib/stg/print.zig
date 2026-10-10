@@ -37,12 +37,16 @@ pub const Printer = struct {
         closure: *const stg.Closure,
         alternative: *const stg.Alternative,
         let: *const stg.Expr.Let,
+        let_no_escape: *const stg.Expr.LetNoEscape,
+        join: *const stg.Join,
 
         pub fn len(g: Group) usize {
             return switch (g) {
                 .closure => |c| c.parameters.len,
                 .alternative => |a| a.binders.len,
                 .let => |l| l.bindings.len,
+                .let_no_escape => |l| l.joins.len,
+                .join => |j| j.parameters.len,
             };
         }
 
@@ -51,6 +55,8 @@ pub const Printer = struct {
                 .closure => |c| c.parameters[i],
                 .alternative => |a| a.binders[i],
                 .let => |l| l.bindings[i].binder,
+                .let_no_escape => |l| l.joins[i].binder,
+                .join => |j| j.parameters[i],
             };
         }
     };
@@ -94,13 +100,19 @@ pub const Printer = struct {
                 }
             },
             .let => |let| try self.enter(.{ .let = let }, w, indent, scope),
+            .let_no_escape => |let| try self.enter(.{ .let_no_escape = let }, w, indent, scope),
+            .jump => |jump| {
+                try w.writeAll("jump ");
+                try self.writeName(jump.target.binder, w, scope);
+                try self.writeArguments(jump.arguments, w, scope);
+            },
         }
     }
 
     /// Write ` e`, or `e` on its own line at `indent + 2` when it is a `let`.
     fn writeAfterArrow(self: Printer, e: stg.Expr, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (e) {
-            .let => {
+            .let, .let_no_escape => {
                 try print_scope.newline(w, indent + 2);
                 try self.writeExpr(e, w, indent + 2, scope);
             },
@@ -140,13 +152,9 @@ pub const Printer = struct {
                     try self.writeLocal(capture, w, enclosing);
                 }
                 try w.writeAll("} ");
-                try w.writeAll(if (c.parameters.len == 0) "\\u" else "\\n");
-                try w.writeAll(" {");
-                for (c.parameters, 0..) |p, i| {
-                    if (i > 0) try w.writeByte(',');
-                    try self.writeName(p, w, scope);
-                }
-                try w.writeAll("} ->");
+                try w.writeAll(if (c.parameters.len == 0) "\\u " else "\\n ");
+                try self.writeParameters(c.parameters, w, scope);
+                try w.writeAll(" ->");
                 try self.writeAfterArrow(c.body, w, indent, scope);
             },
             .alternative => |a| {
@@ -179,7 +187,45 @@ pub const Printer = struct {
                 try print_scope.newline(w, indent);
                 try self.writeExpr(let.body, w, indent, scope);
             },
+            .let_no_escape => |let| {
+                const keyword = if (let.recursive) "letrec-no-escape" else "let-no-escape";
+                // A join point's body sees the group only when it is recursive.
+                const body_scope = if (let.recursive) scope else outside(scope, let.joins.len);
+                if (let.joins.len == 1 and isFlat(let.joins[0].body)) {
+                    try w.print("{s} ", .{keyword});
+                    try self.writeName(let.joins[0].binder, w, scope);
+                    try self.enter(.{ .join = &let.joins[0] }, w, indent, body_scope);
+                    try w.writeAll(" in");
+                } else {
+                    try w.writeAll(keyword);
+                    for (let.joins) |*join| {
+                        try print_scope.newline(w, indent + 2);
+                        try self.writeName(join.binder, w, scope);
+                        try self.enter(.{ .join = join }, w, indent + 2, body_scope);
+                    }
+                    try print_scope.newline(w, indent);
+                    try w.writeAll("in");
+                }
+                try print_scope.newline(w, indent);
+                try self.writeExpr(let.body, w, indent, scope);
+            },
+            .join => |join| {
+                try w.writeByte(' ');
+                try self.writeParameters(join.parameters, w, scope);
+                try w.writeAll(" ->");
+                try self.writeAfterArrow(join.body, w, indent, scope);
+            },
         }
+    }
+
+    /// Write `{p_1,...,p_n}`.
+    fn writeParameters(self: Printer, parameters: []const core.SymbolId, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {
+        try w.writeByte('{');
+        for (parameters, 0..) |p, i| {
+            if (i > 0) try w.writeByte(',');
+            try self.writeName(p, w, scope);
+        }
+        try w.writeByte('}');
     }
 
     /// The scope outside the innermost `n` nodes.
@@ -200,7 +246,16 @@ pub const Printer = struct {
                 }
                 return self.captures(let.body, target);
             },
+            .let_no_escape => |let| self.joinsCapture(let, target),
+            .join => |join| self.captures(join.body, target),
         };
+    }
+
+    fn joinsCapture(self: Printer, let: *const stg.Expr.LetNoEscape, target: Target) bool {
+        for (let.joins) |join| {
+            if (self.captures(join.body, target)) return true;
+        }
+        return self.captures(let.body, target);
     }
 
     /// A printed name a reference must not resolve to: `spelling` with
@@ -233,6 +288,9 @@ pub const Printer = struct {
                 }
                 return self.captures(let.body, target);
             },
+            .let_no_escape => |let| self.joinsCapture(let, target),
+            .jump => |jump| self.symbolCaptures(jump.target.binder, target) or
+                self.atomsCapture(jump.arguments, target),
         };
     }
 
@@ -306,8 +364,8 @@ pub const Printer = struct {
 
     fn isFlat(e: stg.Expr) bool {
         return switch (e) {
-            .atom, .apply, .constructed, .primitive => true,
-            .case, .let => false,
+            .atom, .apply, .constructed, .primitive, .jump => true,
+            .case, .let, .let_no_escape => false,
         };
     }
 

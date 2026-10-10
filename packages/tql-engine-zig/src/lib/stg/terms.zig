@@ -10,6 +10,8 @@
 //!        | case expr of { C x_1 .. x_n -> expr; ... }
 //!        | let x = closure in expr
 //!        | letrec { x = closure; ... } in expr
+//!        | let-no-escape { j {x_1 .. x_n} -> expr; ... } in expr
+//!        | jump j a_1 .. a_n
 //!
 //! closure ::= {v_1 .. v_k} \pi {x_1 .. x_n} -> expr
 //!           | CON(C, a_1 .. a_n)
@@ -102,6 +104,18 @@ pub const Alternative = struct {
     body: Expr,
 };
 
+/// A block of the enclosing closure's code, entered by a jump. Nothing is
+/// allocated for it.
+pub const Join = struct {
+    binder: core.SymbolId,
+    /// How many slots the environment holds where the join point is bound. A
+    /// jump drops the environment back to this many, then appends its
+    /// arguments.
+    depth: u32,
+    parameters: []const core.SymbolId,
+    body: Expr,
+};
+
 pub const Expr = union(enum) {
     atom: Atom,
     apply: *const Apply,
@@ -109,6 +123,8 @@ pub const Expr = union(enum) {
     primitive: *const Primitive,
     case: *const Case,
     let: *const Let,
+    let_no_escape: *const LetNoEscape,
+    jump: *const Jump,
 
     pub const Apply = struct {
         callee: Atom,
@@ -148,6 +164,20 @@ pub const Expr = union(enum) {
         /// binding may reference a later one.
         recursive: bool,
         body: Expr,
+    };
+
+    /// Join points in scope for `body`, and for each other's bodies when
+    /// `recursive`.
+    pub const LetNoEscape = struct {
+        joins: []const Join,
+        recursive: bool,
+        body: Expr,
+    };
+
+    /// A tail call of `target`, with one argument per parameter.
+    pub const Jump = struct {
+        target: *const Join,
+        arguments: []const Atom,
     };
 };
 

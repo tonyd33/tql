@@ -63,6 +63,9 @@ pub const Translator = struct {
     /// Each top-level definition's position in `program.definitions`.
     indices: core.SymbolTable(u32),
 
+    /// Every join point translated so far.
+    joins: std.AutoHashMapUnmanaged(core.SymbolId, *const stg.Join) = .empty,
+
     pub fn init(arena: Allocator, gpa: Allocator, program: *core.Program) Allocator.Error!Translator {
         var indices = core.SymbolTable(u32).init(gpa);
         errdefer indices.deinit();
@@ -81,6 +84,7 @@ pub const Translator = struct {
     pub fn deinit(self: *Translator) void {
         self.indices.deinit();
         self.regexes.deinit(self.gpa);
+        self.joins.deinit(self.gpa);
     }
 
     /// What `name` denotes if it is synthesized, copied into the program.
@@ -152,7 +156,7 @@ pub const Translator = struct {
             .primop => |primop| return .{ .primitive = .{ .builtin = primop } },
             // A synthesized symbol lowers like a primitive.
             .synthesized => |s| return .{ .primitive = .{ .synthesized = s } },
-            .vanilla, .method, .instance_method, .instance, .selector => {},
+            .vanilla, .join, .method, .instance_method, .instance, .selector => {},
             .synonym, .pseudo => unreachable,
         }
         if (self.global(name)) |g| return .{ .global = g };
@@ -285,6 +289,7 @@ pub const Translator = struct {
     /// Translate a term into the caller's hoist list, so an atomized argument
     /// binds outside the expression that uses it.
     fn open(self: *Translator, term: core.Term, hoisted: *Hoisted) Error!stg.Expr {
+        if (try self.jump(term, hoisted)) |jumped| return jumped;
         switch (term.kind) {
             .literal => |source| return .{ .atom = .{ .literal = try self.literal(source) } },
 
@@ -337,6 +342,9 @@ pub const Translator = struct {
             },
 
             .let => |let| {
+                if (self.program.env.interner.details(let.name) == .join) {
+                    return try self.letNoEscape(&.{.{ .name = let.name, .value = let.value }}, false, let.body);
+                }
                 // The evaluator fills a non-recursive group against the
                 // environment without its binders, so the value is translated
                 // before `let.name` is pushed.
@@ -360,6 +368,9 @@ pub const Translator = struct {
             },
 
             .letrec => |letrec| {
+                if (self.program.env.interner.details(letrec.bindings[0].name) == .join) {
+                    return try self.letNoEscape(letrec.bindings, true, letrec.body);
+                }
                 const bindings = try self.arena.alloc(stg.Binding, letrec.bindings.len);
 
                 // Recursive: every binder is in scope for every right-hand
@@ -387,6 +398,58 @@ pub const Translator = struct {
                 return .{ .let = node };
             },
         }
+    }
+
+    /// `term` as a jump, when its head is a join point. Atomized arguments
+    /// go to `hoisted`.
+    fn jump(self: *Translator, term: core.Term, hoisted: *Hoisted) Error!?stg.Expr {
+        const head = term.head();
+        if (head.kind != .symbol or self.program.env.interner.details(head.kind.symbol) != .join) return null;
+
+        var arguments: std.ArrayList(core.Term) = .empty;
+        defer arguments.deinit(self.gpa);
+        _ = try self.spine(term, &arguments);
+        const atoms = try self.arena.alloc(stg.Atom, arguments.items.len);
+        for (arguments.items, atoms) |argument, *atom| atom.* = try self.atomize(argument, hoisted);
+
+        const node = try self.arena.create(stg.Expr.Jump);
+        node.* = .{ .target = self.joins.get(head.kind.symbol).?, .arguments = atoms };
+        return .{ .jump = node };
+    }
+
+    /// Bind `bindings`, join points, around `body`. Each value is translated
+    /// in the enclosing scope with its join parameters pushed after it.
+    fn letNoEscape(
+        self: *Translator,
+        bindings: []const core.Letrec.Binding,
+        recursive: bool,
+        body: core.Term,
+    ) Error!stg.Expr {
+        const depth: u32 = @intCast(self.scope.items.len);
+        const joins = try self.arena.alloc(stg.Join, bindings.len);
+        for (bindings, joins) |binding, *join| {
+            join.* = .{ .binder = binding.name, .depth = depth, .parameters = &.{}, .body = undefined };
+        }
+        if (recursive) try self.bindJoins(joins);
+
+        for (bindings, joins) |binding, *join| {
+            const parameters = try self.arena.alloc(core.SymbolId, self.program.env.interner.details(binding.name).join.arity);
+            const value = binding.value.peel(parameters);
+
+            try self.scope.appendSlice(self.gpa, parameters);
+            defer self.scope.shrinkRetainingCapacity(depth);
+            join.parameters = parameters;
+            join.body = try self.expression(value);
+        }
+        if (!recursive) try self.bindJoins(joins);
+
+        const node = try self.arena.create(stg.Expr.LetNoEscape);
+        node.* = .{ .joins = joins, .recursive = recursive, .body = try self.expression(body) };
+        return .{ .let_no_escape = node };
+    }
+
+    fn bindJoins(self: *Translator, joins: []const stg.Join) Error!void {
+        for (joins) |*join| try self.joins.put(self.gpa, join.binder, join);
     }
 
     /// Emit a call, dispatching on what the head resolved to.
