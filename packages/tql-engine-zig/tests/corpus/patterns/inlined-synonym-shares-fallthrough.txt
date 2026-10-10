@@ -31,18 +31,18 @@ $mBoth = \s -> \k -> \f -> case s of
       Nil -> k (%text cons0) (%text cons0')
       Cons _ _ -> f
 describe = \xs ->
-  let alternative = "neither" in
+  join alternative = "neither" in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons cons0 cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons cons0' cons1 -> case cons1 of
         Nil -> case %eq_string (%text cons0) "x" of
-          False -> alternative
+          False -> jump alternative
           True -> case %eq_string (%text cons0') "y" of
-            False -> alternative
+            False -> jump alternative
             True -> "xy"
-        Cons _ _ -> alternative
+        Cons _ _ -> jump alternative
 main = \root -> concat_map (\a -> Cons (describe (%children_of_kind :identifier a)) Nil) (%descendants_of_kind :arguments root)
 
 --- stg ---
@@ -65,22 +65,22 @@ $mBoth = {} \u {} ->
 describe = {} \u {} ->
   let
     t2 = {} \n {xs} ->
-      let alternative = {} \u {} -> "neither" in
+      let-no-escape alternative {} -> "neither" in
       case xs@0 of
-        Nil -> alternative@1
-        Cons cons0 cons1 -> case cons1@3 of
-          Nil -> alternative@1
-          Cons cons0' cons1 -> case cons1@5 of
+        Nil -> jump alternative
+        Cons cons0 cons1 -> case cons1@2 of
+          Nil -> jump alternative
+          Cons cons0' cons1 -> case cons1@4 of
             Nil ->
-              let t0 = {cons0@2} \u {} -> %text# cons0@0 in
-              case %eq_string# t0@6 "x" of
-                False -> alternative@1
+              let t0 = {cons0@1} \u {} -> %text# cons0@0 in
+              case %eq_string# t0@5 "x" of
+                False -> jump alternative
                 True ->
-                  let t1 = {cons0'@4} \u {} -> %text# cons0'@0 in
-                  case %eq_string# t1@7 "y" of
-                    False -> alternative@1
+                  let t1 = {cons0'@3} \u {} -> %text# cons0'@0 in
+                  case %eq_string# t1@6 "y" of
+                    False -> jump alternative
                     True -> "xy"
-            Cons _ _ -> alternative@1
+            Cons _ _ -> jump alternative
   in
   t2@0
 main = {} \u {} ->

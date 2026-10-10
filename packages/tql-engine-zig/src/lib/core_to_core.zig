@@ -64,6 +64,7 @@ fn iterate(program: *core.Program, options: Options, phase: simplify.Phase) Erro
         .env = &program.env,
         .table = &occurrences,
         .drop_dead = options.dead_bindings,
+        .contify = options.contification,
     };
     const analysis = try analyser.program(program.definitions);
     var simplifier: Simplifier = .init(&analyser, &program.env, options, phase);

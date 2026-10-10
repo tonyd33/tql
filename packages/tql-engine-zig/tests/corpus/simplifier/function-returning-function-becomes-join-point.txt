@@ -1,0 +1,76 @@
+title: a local function tail-called with fewer arguments than it takes becomes a join point of that many
+grammar: typescript
+asserts: simplified, stg, values
+
+Each branch applies `g` to one argument, and the result is the function
+`f` returns.
+
+--- tql ---
+import Data.Function (const);
+
+f b = let { g x y = x * 2 + x * 3 + x * 4 + y } in if b then g 1 else g 2;
+main = const [f True 3, f False 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[12,21]
+
+--- simplified ---
+f = \b ->
+  join g x = \y -> op[+] (op[+] (op[+] (op[*] x 2) (op[*] x 3)) (op[*] x 4)) y in
+  case b of
+    False -> jump g 2
+    True -> jump g 1
+main = const (Cons (f True 3) (Cons (f False 3) Nil))
+
+--- stg ---
+f = {} \u {} ->
+  let
+    t6 = {} \n {b} ->
+      let-no-escape
+        g {x} ->
+          let
+            t5 = {x@1} \n {y} ->
+              let
+                t4 = {x@0} \u {} ->
+                  let
+                    t2 = {x@0} \u {} ->
+                      let
+                        t0 = {x@0} \u {} -> op[*]# x@0 2
+                        t1 = {x@0} \u {} -> op[*]# x@0 3
+                      in
+                      op[+]# t0@1 t1@2
+                    t3 = {x@0} \u {} -> op[*]# x@0 4
+                  in
+                  op[+]# t2@1 t3@2
+              in
+              op[+]# t4@2 y@1
+          in
+          t5@2
+      in
+      case b@0 of
+        False -> jump g 2
+        True -> jump g 1
+  in
+  t6@0
+main = {} \u {} ->
+  let
+    t6 = {} \u {} ->
+      let
+        t1 = {} \u {} ->
+          let c0 = True in
+          f c0@0 3
+        t5 = {} \u {} ->
+          let
+            t3 = {} \u {} ->
+              let c2 = False in
+              f c2@0 3
+            c4 = Nil
+          in
+          Cons t3@0 c4@1
+      in
+      Cons t1@0 t5@1
+  in
+  const t6@0

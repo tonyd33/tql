@@ -15,6 +15,9 @@ pub const Options = struct {
     /// A binding to a trivial value, local or global, is substituted at every
     /// occurrence.
     post_inline: bool = true,
+    /// A `let` or `letrec` binder only ever called, with one number of
+    /// arguments, in tail position becomes a join point.
+    contification: bool = true,
     /// A `case` of a known constructor takes its alternative.
     case_of_known_constructor: bool = true,
     /// A saturated call to a function small enough, or marked to always

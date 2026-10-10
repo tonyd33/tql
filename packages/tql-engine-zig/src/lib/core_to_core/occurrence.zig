@@ -20,7 +20,8 @@ pub const Occurrence = union(enum) {
 
     pub const Once = struct {
         /// Under a lambda, not counting the chain of lambdas that binds the
-        /// binder.
+        /// binder or the parameters of a join point that is not recursive.
+        /// Never set for a join point.
         inside_lambda: bool,
         /// How many alternatives of one `case` hold an occurrence.
         branches: u32,
@@ -37,9 +38,22 @@ pub const Occurrence = union(enum) {
 
 pub const Table = core.SymbolTable(Occurrence);
 
+/// How a term uses one binder.
+const Use = struct {
+    /// `once` or `many`.
+    occurrence: Occurrence,
+    /// The number of arguments every occurrence is applied to, when every
+    /// one heads a call in tail position. Null otherwise.
+    tail_calls: ?u32,
+
+    fn insideLambda(self: Use) Use {
+        return .{ .occurrence = self.occurrence.insideLambda(), .tail_calls = null };
+    }
+};
+
 /// Each free local, and each definition while a program is analysed, that a
-/// term mentions, as `once` or `many`.
-const Usage = std.AutoArrayHashMapUnmanaged(core.SymbolId, Occurrence);
+/// term mentions.
+const Usage = std.AutoArrayHashMapUnmanaged(core.SymbolId, Use);
 
 const Analysed = struct {
     term: core.Term,
@@ -57,6 +71,9 @@ pub const Analysis = struct {
 /// Record an occurrence for every binder in the terms it walks, and rebuild
 /// them:
 ///
+/// - a `let` or `letrec` binder whose every occurrence is a call of one
+///   arity in tail position, and whose value opens with that many lambdas,
+///   becomes a join point. A recursive group's binders all do, or none;
 /// - a `let` whose binder is dead is dropped, its value unwalked;
 /// - a `letrec` is split into strongly connected components, a component
 ///   nothing live mentions is dropped, and one binding that does not mention
@@ -67,10 +84,13 @@ pub const Analyser = struct {
     /// Usage maps and edge lists.
     scratch: Allocator,
     builder: core.Builder,
-    env: *const core.env.Env,
+    /// Its interner receives each binder's join point flag.
+    env: *core.env.Env,
     table: *Table,
     /// Drop a dead `let` and a recursive group nothing live mentions.
     drop_dead: bool = true,
+    /// Make join points of binders that are not yet.
+    contify: bool = true,
     /// The program's definitions, while a program is analysed.
     definitions: ?*const core.SymbolTable(void) = null,
 
@@ -107,42 +127,15 @@ pub const Analyser = struct {
     fn walk(self: *Analyser, term: core.Term) Allocator.Error!Analysed {
         switch (term.kind) {
             .literal => return .{ .term = term, .usage = .empty },
-            .symbol => |id| {
-                var usage: Usage = .empty;
-                const definition = if (self.definitions) |definitions| definitions.get(id) != null else false;
-                if (definition or !self.env.interner.isGlobal(id)) {
-                    try usage.put(self.scratch, id, .{ .once = .{ .inside_lambda = false, .branches = 1 } });
-                }
-                return .{ .term = term, .usage = usage };
-            },
+            .symbol, .apply => return try self.spine(term, 0),
             .lambda => {
-                var chain: std.ArrayList(core.Term) = .empty;
-                var inner = term;
-                while (inner.kind == .lambda) : (inner = inner.kind.lambda.body) {
-                    try chain.append(self.scratch, inner);
-                }
-                var body = try self.walk(inner);
-                for (chain.items) |lambda| try self.bind(&body.usage, lambda.kind.lambda.parameter);
-                for (body.usage.values()) |*occurrence| occurrence.* = occurrence.insideLambda();
-                var result = body.term;
-                var i = chain.items.len;
-                while (i > 0) {
-                    i -= 1;
-                    const lambda = chain.items[i];
-                    result = try self.builder.lambda(lambda.kind.lambda.parameter, result, lambda.span);
-                }
-                return .{ .term = result, .usage = body.usage };
-            },
-            .apply => |apply| {
-                const function = try self.walk(apply.function);
-                const argument = try self.walk(apply.argument);
-                return .{
-                    .term = try self.builder.apply(function.term, argument.term, term.span),
-                    .usage = try self.sequence(function.usage, argument.usage),
-                };
+                var analysed = try self.walkLambdas(term, term.arity());
+                for (analysed.usage.values()) |*use| use.* = use.insideLambda();
+                return analysed;
             },
             .case => |case_term| {
-                const scrutinee = try self.walk(case_term.scrutinee);
+                var scrutinee = try self.walk(case_term.scrutinee);
+                notTail(&scrutinee.usage);
                 var branches: Usage = .empty;
                 const alternatives = try self.builder.slice(core.Case.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |old, *new| {
@@ -165,8 +158,11 @@ pub const Analyser = struct {
             .let => |let| {
                 var body = try self.walk(let.body);
                 if (self.drop_dead and !body.usage.contains(let.name)) return body;
+                const arity = self.letArity(let.name, let.value, body.usage);
+                self.flag(let.name, arity);
+                var value = try self.walkLambdas(let.value, arity orelse 0);
+                if (arity == null) notTail(&value.usage);
                 try self.bind(&body.usage, let.name);
-                const value = try self.walk(let.value);
                 return .{
                     .term = try self.builder.let(let.name, value.term, body.term, term.span),
                     .usage = try self.sequence(body.usage, value.usage),
@@ -179,10 +175,14 @@ pub const Analyser = struct {
     fn group(self: *Analyser, letrec: *const core.Letrec, span: diagnostic.Span) Allocator.Error!Analysed {
         const body = try self.walk(letrec.body);
 
+        // Each value is walked under the lambdas it would take as a join
+        // point, until its binding is decided.
         const values = try self.scratch.alloc(Analysed, letrec.bindings.len);
         const names = try self.scratch.alloc(core.SymbolId, letrec.bindings.len);
-        for (letrec.bindings, values, names) |binding, *value, *name| {
-            value.* = try self.walk(binding.value);
+        const arities = try self.scratch.alloc(?u32, letrec.bindings.len);
+        for (letrec.bindings, values, names, arities) |binding, *value, *name, *arity| {
+            arity.* = self.candidate(binding.name, binding.value);
+            value.* = try self.walkLambdas(binding.value, arity.* orelse 0);
             name.* = binding.name;
         }
 
@@ -201,12 +201,22 @@ pub const Analyser = struct {
             } else false;
             if (!live) continue;
 
+            const joins = self.decide(members, names, arities, usage, values);
             if (!core.components.cyclic(members, edges)) {
-                const binding = letrec.bindings[members[0]];
-                try self.bind(&usage, binding.name);
-                usage = try self.sequence(usage, values[members[0]].usage);
-                result = try self.builder.let(binding.name, values[members[0]].term, result, span);
+                const member = members[0];
+                if (!joins) escape(&values[member].usage, arities[member] orelse 0);
+                try self.bind(&usage, names[member]);
+                usage = try self.sequence(usage, values[member].usage);
+                result = try self.builder.let(names[member], values[member].term, result, span);
                 continue;
+            }
+
+            for (members) |member| {
+                // Count a recursive join point's value as under a lambda,
+                // keeping its tail calls.
+                if (joins) {
+                    for (values[member].usage.values()) |*use| use.occurrence = use.occurrence.insideLambda();
+                } else escape(&values[member].usage, arities[member] orelse 0);
             }
 
             const cut = try self.breakCycles(members, edges, names, values);
@@ -220,6 +230,109 @@ pub const Analyser = struct {
             result = try self.builder.letrec(bindings, result, span);
         }
         return .{ .term = result, .usage = usage };
+    }
+
+    /// Walk `term`, the function of an application spine with `arguments`
+    /// arguments after it.
+    fn spine(self: *Analyser, term: core.Term, arguments: u32) Allocator.Error!Analysed {
+        switch (term.kind) {
+            .apply => |apply| {
+                const function = try self.spine(apply.function, arguments + 1);
+                var argument = try self.walk(apply.argument);
+                notTail(&argument.usage);
+                return .{
+                    .term = try self.builder.apply(function.term, argument.term, term.span),
+                    .usage = try self.sequence(function.usage, argument.usage),
+                };
+            },
+            .symbol => |id| {
+                var usage: Usage = .empty;
+                const definition = if (self.definitions) |definitions| definitions.get(id) != null else false;
+                if (definition or !self.env.interner.isGlobal(id)) {
+                    try usage.put(self.scratch, id, .{
+                        .occurrence = .{ .once = .{ .inside_lambda = false, .branches = 1 } },
+                        .tail_calls = arguments,
+                    });
+                }
+                return .{ .term = term, .usage = usage };
+            },
+            else => {
+                var head = try self.walk(term);
+                notTail(&head.usage);
+                return head;
+            },
+        }
+    }
+
+    /// Walk `term` under its first `count` lambdas, binding their parameters.
+    /// Occurrences under them are not marked inside a lambda.
+    fn walkLambdas(self: *Analyser, term: core.Term, count: usize) Allocator.Error!Analysed {
+        if (count == 0) return try self.walk(term);
+        const lambda = term.kind.lambda;
+        var body = try self.walkLambdas(lambda.body, count - 1);
+        try self.bind(&body.usage, lambda.parameter);
+        return .{ .term = try self.builder.lambda(lambda.parameter, body.term, term.span), .usage = body.usage };
+    }
+
+    /// The join arity of `name`, bound by a `let` to `value` over a body used
+    /// as `usage` says, or null when it is not a join point: the number of
+    /// arguments every occurrence is tail-called with, when that is its
+    /// arity already, or it may become one and `value` has as many lambdas.
+    /// A binder with no occurrence keeps its arity.
+    fn letArity(self: *const Analyser, name: core.SymbolId, value: core.Term, usage: Usage) ?u32 {
+        const details = self.env.interner.details(name);
+        const use = usage.get(name) orelse return details.joinArity();
+        const arity = use.tail_calls orelse return null;
+        return switch (details) {
+            .join => |join| if (join.arity == arity) arity else null,
+            .vanilla => if (self.contify and arity <= value.arity()) arity else null,
+            else => null,
+        };
+    }
+
+    /// The arity `name`, bound by a `letrec` to `value`, has as a join point:
+    /// its own if it is one, otherwise `value`'s lambdas. Null when it may not
+    /// become one.
+    fn candidate(self: *const Analyser, name: core.SymbolId, value: core.Term) ?u32 {
+        return switch (self.env.interner.details(name)) {
+            .join => |join| join.arity,
+            .vanilla => if (self.contify) @intCast(value.arity()) else null,
+            else => null,
+        };
+    }
+
+    /// Make every member of a recursive group a join point of its arity, or
+    /// none of them, and return which. `members` index `names`, `arities` and
+    /// `values`. All do when each has an arity and its every occurrence in
+    /// `usage` and the members' values heads a tail call of that arity. A
+    /// binder with no occurrence keeps its flag.
+    fn decide(
+        self: *Analyser,
+        members: []const u32,
+        names: []const core.SymbolId,
+        arities: []const ?u32,
+        usage: Usage,
+        values: []const Analysed,
+    ) bool {
+        const joins = for (members) |member| {
+            const arity = arities[member] orelse break false;
+            var called: ?bool = tailCalled(names[member], arity, usage);
+            for (members) |other| {
+                const in_value = tailCalled(names[member], arity, values[other].usage) orelse continue;
+                called = in_value and (called orelse true);
+            }
+            if (!(called orelse (self.env.interner.details(names[member]) == .join))) break false;
+        } else true;
+        for (members) |member| self.flag(names[member], if (joins) arities[member] else null);
+        return joins;
+    }
+
+    /// Make `name` a join point of `arity`, or not one when `arity` is null.
+    fn flag(self: *Analyser, name: core.SymbolId, arity: ?u32) void {
+        switch (self.env.interner.details(name)) {
+            .vanilla, .join => self.env.interner.setDetails(name, if (arity) |n| .{ .join = .{ .arity = n } } else .vanilla),
+            else => {},
+        }
     }
 
     /// For each binding, by index into `names`, the indices of the bindings
@@ -354,7 +467,11 @@ pub const Analyser = struct {
 
     /// Record `binder`'s occurrence and remove it from `usage`.
     fn bind(self: *Analyser, usage: *Usage, binder: core.SymbolId) Allocator.Error!void {
-        const occurrence = if (usage.fetchSwapRemove(binder)) |entry| entry.value else .dead;
+        var occurrence: Occurrence = if (usage.fetchSwapRemove(binder)) |entry| entry.value.occurrence else .dead;
+        if (self.env.interner.details(binder) == .join) switch (occurrence) {
+            .once => |*once| once.inside_lambda = false,
+            else => {},
+        };
         try self.table.put(binder, occurrence);
     }
 
@@ -364,7 +481,10 @@ pub const Analyser = struct {
         var it = from.iterator();
         while (it.next()) |entry| {
             const slot = try into.getOrPut(self.scratch, entry.key_ptr.*);
-            slot.value_ptr.* = if (slot.found_existing) .many else entry.value_ptr.*;
+            slot.value_ptr.* = if (slot.found_existing) .{
+                .occurrence = .many,
+                .tail_calls = agree(slot.value_ptr.tail_calls, entry.value_ptr.tail_calls),
+            } else entry.value_ptr.*;
         }
         return into;
     }
@@ -379,20 +499,52 @@ pub const Analyser = struct {
                 slot.value_ptr.* = entry.value_ptr.*;
                 continue;
             }
-            slot.value_ptr.* = switch (slot.value_ptr.*) {
-                .once => |left| switch (entry.value_ptr.*) {
-                    .once => |right| .{ .once = .{
-                        .inside_lambda = left.inside_lambda or right.inside_lambda,
-                        .branches = left.branches + right.branches,
-                    } },
+            const left = slot.value_ptr.*;
+            const right = entry.value_ptr.*;
+            slot.value_ptr.* = .{
+                .occurrence = switch (left.occurrence) {
+                    .once => |left_once| switch (right.occurrence) {
+                        .once => |right_once| .{ .once = .{
+                            .inside_lambda = left_once.inside_lambda or right_once.inside_lambda,
+                            .branches = left_once.branches + right_once.branches,
+                        } },
+                        else => .many,
+                    },
                     else => .many,
                 },
-                else => .many,
+                .tail_calls = agree(left.tail_calls, right.tail_calls),
             };
         }
         return into;
     }
 };
+
+/// The arity of tail calls two usages make of one binder, when both make
+/// them of the same arity.
+fn agree(a: ?u32, b: ?u32) ?u32 {
+    const left = a orelse return null;
+    const right = b orelse return null;
+    return if (left == right) left else null;
+}
+
+/// Whether every occurrence of `name` in `usage` heads a tail call of
+/// `arity` arguments. Null when there is none.
+fn tailCalled(name: core.SymbolId, arity: u32, usage: Usage) ?bool {
+    const use = usage.get(name) orelse return null;
+    return use.tail_calls == arity;
+}
+
+/// Mark every occurrence in `usage` out of tail position.
+fn notTail(usage: *Usage) void {
+    for (usage.values()) |*use| use.tail_calls = null;
+}
+
+/// Turn the usage of a value under its first `lambdas` lambdas into the usage
+/// of the value bound by a binder that is not a join point.
+fn escape(usage: *Usage, lambdas: u32) void {
+    if (lambdas == 0) return notTail(usage);
+    for (usage.values()) |*use| use.* = use.insideLambda();
+}
 
 const testing = std.testing;
 const test_support = core.test_support;
@@ -450,4 +602,214 @@ test "every cycle of a group passes through a loop breaker" {
         if (binding.name == b) b_at = i;
     }
     try testing.expect(c_at < b_at);
+}
+
+/// `case b of { F -> left; T -> right }`, declaring `B`.
+fn branch(pb: *test_support.ProgramBuilder, b: core.SymbolId, left: core.Term, right: core.Term) !core.Term {
+    try pb.datatype("B", &.{ .{ "F", &.{} }, .{ "T", &.{} } });
+    return try pb.case(pb.symbol(b), &.{
+        .{ .constructor = try pb.global("F"), .binders = &.{}, .body = left },
+        .{ .constructor = try pb.global("T"), .binders = &.{}, .body = right },
+    });
+}
+
+fn expectJoin(pb: *test_support.ProgramBuilder, expected: ?u32, binder: core.SymbolId) !void {
+    try testing.expectEqual(expected, pb.env.interner.details(binder).joinArity());
+}
+
+test "a function called in tail position of every branch becomes a join point" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const g = try pb.local("g");
+
+    const body = try branch(&pb, b, try pb.apply(pb.symbol(g), &.{pb.number(1)}), try pb.apply(pb.symbol(g), &.{pb.number(2)}));
+    _ = try analyseTerm(&pb, &table, try pb.let(g, try caller(&pb, try pb.global("h")), body));
+    try expectJoin(&pb, 1, g);
+}
+
+test "a function also called in an argument stays a function" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const g = try pb.local("g");
+    const h = try pb.global("h");
+
+    const argument = try pb.apply(pb.symbol(h), &.{try pb.apply(pb.symbol(g), &.{pb.number(2)})});
+    const body = try branch(&pb, b, try pb.apply(pb.symbol(g), &.{pb.number(1)}), argument);
+    _ = try analyseTerm(&pb, &table, try pb.let(g, try caller(&pb, h), body));
+    try expectJoin(&pb, null, g);
+}
+
+test "a function called with two numbers of arguments stays a function" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const g = try pb.local("g");
+
+    const body = try branch(&pb, b, try pb.apply(pb.symbol(g), &.{pb.number(1)}), try pb.apply(pb.symbol(g), &.{ pb.number(1), pb.number(2) }));
+    _ = try analyseTerm(&pb, &table, try pb.let(g, try caller(&pb, try pb.global("h")), body));
+    try expectJoin(&pb, null, g);
+}
+
+test "a function returned unapplied becomes a join point of no parameters" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const g = try pb.local("g");
+
+    _ = try analyseTerm(&pb, &table, try pb.let(g, try caller(&pb, try pb.global("h")), pb.symbol(g)));
+    try expectJoin(&pb, 0, g);
+}
+
+test "a thunk returned from every branch becomes a join point of no parameters" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const x = try pb.local("x");
+
+    const value = try pb.apply(pb.symbol(try pb.global("h")), &.{pb.number(1)});
+    _ = try analyseTerm(&pb, &table, try pb.let(x, value, try branch(&pb, b, pb.symbol(x), pb.symbol(x))));
+    try expectJoin(&pb, 0, x);
+}
+
+test "a loop called only in tail position becomes a recursive join point" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const go = try pb.local("go");
+    const n = try pb.local("n");
+
+    const value = try pb.lambda(&.{n}, try branch(&pb, n, pb.number(0), try pb.apply(pb.symbol(go), &.{pb.symbol(n)})));
+    _ = try analyseTerm(&pb, &table, try pb.letrec(&.{.{ .name = go, .value = value }}, try pb.apply(pb.symbol(go), &.{pb.number(1)})));
+    try expectJoin(&pb, 1, go);
+}
+
+test "a loop that calls itself in an argument stays a function" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const go = try pb.local("go");
+    const n = try pb.local("n");
+    const h = try pb.global("h");
+
+    const recursive = try pb.apply(pb.symbol(h), &.{try pb.apply(pb.symbol(go), &.{pb.symbol(n)})});
+    const value = try pb.lambda(&.{n}, try branch(&pb, n, pb.number(0), recursive));
+    _ = try analyseTerm(&pb, &table, try pb.letrec(&.{.{ .name = go, .value = value }}, try pb.apply(pb.symbol(go), &.{pb.number(1)})));
+    try expectJoin(&pb, null, go);
+}
+
+test "mutually recursive functions become join points together or not at all" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const even = try pb.local("even");
+    const odd = try pb.local("odd");
+    const n = try pb.local("n");
+    const m = try pb.local("m");
+    const h = try pb.global("h");
+
+    // `odd` calls `even` in tail position, `even` calls `odd` in an argument.
+    const even_value = try pb.lambda(&.{n}, try pb.apply(pb.symbol(h), &.{try pb.apply(pb.symbol(odd), &.{pb.symbol(n)})}));
+    const odd_value = try pb.lambda(&.{m}, try pb.apply(pb.symbol(even), &.{pb.symbol(m)}));
+    _ = try analyseTerm(&pb, &table, try pb.letrec(&.{
+        .{ .name = even, .value = even_value },
+        .{ .name = odd, .value = odd_value },
+    }, try pb.apply(pb.symbol(even), &.{pb.number(1)})));
+    try expectJoin(&pb, null, even);
+    try expectJoin(&pb, null, odd);
+}
+
+test "a join point no longer called in tail position becomes a function again" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const j = try pb.join("j", 1);
+    const h = try pb.global("h");
+
+    const body = try pb.apply(pb.symbol(h), &.{try pb.apply(pb.symbol(j), &.{pb.number(1)})});
+    _ = try analyseTerm(&pb, &table, try pb.let(j, try caller(&pb, h), body));
+    try expectJoin(&pb, null, j);
+}
+
+test "a binding used in a join point's value is not under a lambda" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const s = try pb.local("s");
+    const g = try pb.local("g");
+    const y = try pb.local("y");
+    const h = try pb.global("h");
+
+    const value = try pb.lambda(&.{y}, try pb.apply(pb.symbol(h), &.{ pb.symbol(s), pb.symbol(y) }));
+    const body = try branch(&pb, b, try pb.apply(pb.symbol(g), &.{pb.number(1)}), try pb.apply(pb.symbol(g), &.{pb.number(2)}));
+    const term = try pb.let(s, try pb.apply(pb.symbol(h), &.{pb.number(0)}), try pb.let(g, value, body));
+    _ = try analyseTerm(&pb, &table, term);
+    try expectJoin(&pb, 1, g);
+    try testing.expectEqual(Occurrence{ .once = .{ .inside_lambda = false, .branches = 1 } }, table.get(s).?);
+}
+
+test "a binding used in a recursive join point's value is under a lambda" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const s = try pb.local("s");
+    const go = try pb.local("go");
+    const n = try pb.local("n");
+    const h = try pb.global("h");
+
+    const value = try pb.lambda(&.{n}, try branch(&pb, n, try pb.apply(pb.symbol(h), &.{pb.symbol(s)}), try pb.apply(pb.symbol(go), &.{pb.symbol(n)})));
+    const loop = try pb.letrec(&.{.{ .name = go, .value = value }}, try pb.apply(pb.symbol(go), &.{pb.number(1)}));
+    const term = try pb.let(s, try pb.apply(pb.symbol(h), &.{pb.number(0)}), loop);
+    _ = try analyseTerm(&pb, &table, term);
+    try expectJoin(&pb, 1, go);
+    try testing.expectEqual(Occurrence{ .once = .{ .inside_lambda = true, .branches = 1 } }, table.get(s).?);
+}
+
+test "a function tail-called with fewer arguments than its lambdas becomes a join point of that many" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const b = try pb.local("b");
+    const g = try pb.local("g");
+    const x = try pb.local("x");
+    const y = try pb.local("y");
+
+    const value = try pb.lambda(&.{ x, y }, try pb.apply(pb.symbol(try pb.global("h")), &.{ pb.symbol(x), pb.symbol(y) }));
+    const body = try branch(&pb, b, try pb.apply(pb.symbol(g), &.{pb.number(1)}), try pb.apply(pb.symbol(g), &.{pb.number(2)}));
+    _ = try analyseTerm(&pb, &table, try pb.let(g, value, body));
+    try expectJoin(&pb, 1, g);
+}
+
+test "a join point jumped to from a recursive join point's value is not under a lambda" {
+    var pb = try test_support.ProgramBuilder.init(testing.allocator);
+    defer pb.deinit();
+    var table: Table = .init(testing.allocator);
+    defer table.deinit();
+    const exit = try pb.local("exit");
+    const go = try pb.local("go");
+    const n = try pb.local("n");
+
+    const value = try pb.lambda(&.{n}, try branch(&pb, n, pb.symbol(exit), try pb.apply(pb.symbol(go), &.{pb.symbol(n)})));
+    const loop = try pb.letrec(&.{.{ .name = go, .value = value }}, try pb.apply(pb.symbol(go), &.{pb.number(1)}));
+    _ = try analyseTerm(&pb, &table, try pb.let(exit, try pb.apply(pb.symbol(try pb.global("h")), &.{pb.number(0)}), loop));
+    try expectJoin(&pb, 0, exit);
+    try testing.expectEqual(Occurrence{ .once = .{ .inside_lambda = false, .branches = 1 } }, table.get(exit).?);
 }

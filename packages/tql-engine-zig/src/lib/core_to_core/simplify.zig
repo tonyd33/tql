@@ -714,6 +714,7 @@ fn simplifyOnce(pb: *test_support.ProgramBuilder, scratch: Allocator, options: O
         .env = &pb.env,
         .table = occurrences,
         .drop_dead = options.dead_bindings,
+        .contify = options.contification,
     };
     const analysed = try analyser.analyse(t);
     var simplifier: Simplifier = .init(analyser, &pb.env, options, .final);
