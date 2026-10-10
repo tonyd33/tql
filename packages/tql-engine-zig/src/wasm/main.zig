@@ -57,6 +57,8 @@ fn runImpl(
     try jws.beginWriteRaw();
     try jws.writer.writeAll(run_result.json);
     jws.endWriteRaw();
+    try jws.objectField("syntax_errors");
+    try jws.write(run_result.syntax_errors);
     try jws.objectField("stats");
     try jws.beginObject();
     try jws.objectField("compile");

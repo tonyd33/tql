@@ -886,6 +886,7 @@ fn evaluate(
         error.Cycle, error.StackOverflow => return .{ .failed = err },
         else => |e| return e,
     };
+    allocator.free(outcome.syntax_errors);
     return .{ .json = outcome.json };
 }
 

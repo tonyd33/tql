@@ -29,6 +29,7 @@
 - `main` is a `Filter Node t`. `main root = do { x <- descendants root; ... };` becomes `main = do { x <- descendants; ... };`: a `do` over `Filter Node` gives every statement the root, `root <- identity;` names it, and `y <- pure x | p;` binds `p`'s results at `x`. `main root = [v];` becomes `main = pure v;`, and a signature `main :: Node -> [Int]` becomes `main :: Filter Node Int`.
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
+- `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
 ### New Features
 

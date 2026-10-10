@@ -341,16 +341,68 @@ pub const CompiledQuery = struct {
         return .{
             .json = try w.toOwnedSlice(),
             .count = count,
+            .syntax_errors = try syntaxErrors(result_allocator, tree.rootNode()),
             .parse_time = .zero,
             .query_time = query_time,
         };
     }
 };
 
+/// Where tree-sitter recovered from a target that does not parse: an `ERROR`
+/// node, or a token it inserted. The location fields are a node's.
+pub const SyntaxError = struct {
+    /// `ERROR`, or the kind of the inserted token.
+    kind: []const u8,
+    missing: bool,
+    start_byte: u32,
+    end_byte: u32,
+    start_point: Point,
+    end_point: Point,
+
+    pub const Point = struct {
+        row: u32,
+        column: u32,
+    };
+};
+
+/// Returns the outermost `ERROR` and missing nodes under `root`, in source
+/// order. The fragments inside an `ERROR` node are not reported again.
+fn syntaxErrors(allocator: Allocator, root: ts.Node) ![]const SyntaxError {
+    if (!root.hasError()) return &.{};
+    var errors: std.ArrayList(SyntaxError) = .empty;
+    errdefer errors.deinit(allocator);
+    var cursor = root.walk();
+    defer cursor.destroy();
+    walk: while (true) {
+        const node = cursor.node();
+        const recovered = node.isError() or node.isMissing();
+        if (recovered) {
+            const start = node.startPoint();
+            const end = node.endPoint();
+            try errors.append(allocator, .{
+                .kind = node.kind(),
+                .missing = node.isMissing(),
+                .start_byte = node.startByte(),
+                .end_byte = node.endByte(),
+                .start_point = .{ .row = start.row, .column = start.column },
+                .end_point = .{ .row = end.row, .column = end.column },
+            });
+        }
+        if (!recovered and node.hasError() and cursor.gotoFirstChild()) continue;
+        while (!cursor.gotoNextSibling()) {
+            if (!cursor.gotoParent()) break :walk;
+        }
+    }
+    return errors.toOwnedSlice(allocator);
+}
+
 /// One target's results: the outputs as a JSON array, and what it cost.
 pub const RunOutcome = struct {
     json: []const u8,
     count: usize,
+    /// Empty when the target parsed. Otherwise the outputs come from the tree
+    /// tree-sitter recovered, and may miss or misread what these cover.
+    syntax_errors: []const SyntaxError,
     parse_time: std.Io.Duration,
     query_time: std.Io.Duration,
 };
@@ -428,4 +480,58 @@ test "compile times serialize as <stage>_ns" {
     try std.testing.expectEqualStrings(
         \\{"parse_ns":1,"load_ns":0,"library_ns":0,"desugar_ns":0,"type_check_ns":0,"simplify_ns":0,"translate_ns":7}
     , w.written());
+}
+
+test "a run reports where the target does not parse" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("javascript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
+    defer engine.deinit();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+    var compiled = try engine.compileQuery("main = descendants_of_kind :debugger_statement;", g, &sink);
+    defer compiled.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const target =
+        \\debugger;
+        \\const x: number = 1;
+        \\let a = (1;
+        \\
+    ;
+    const outcome = try compiled.run(target, null, arena.allocator(), arena.allocator());
+    try std.testing.expectEqual(1, outcome.count);
+
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    defer w.deinit();
+    var jws: std.json.Stringify = .{ .writer = &w.writer };
+    try jws.write(outcome.syntax_errors);
+    try std.testing.expectEqualStrings(
+        \\[{"kind":"ERROR","missing":false,"start_byte":16,"end_byte":18,"start_point":{"row":1,"column":6},"end_point":{"row":1,"column":8}},{"kind":")","missing":true,"start_byte":41,"end_byte":41,"start_point":{"row":2,"column":10},"end_point":{"row":2,"column":10}}]
+    , w.written());
+}
+
+test "a run over a target that parses reports no syntax errors" {
+    const allocator = std.testing.allocator;
+
+    var grammars = grammar.Registry.init(allocator, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("javascript");
+
+    var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
+    defer engine.deinit();
+    var sink = diagnostic.Sink.init(allocator);
+    defer sink.deinit();
+    var compiled = try engine.compileQuery("main = children;", g, &sink);
+    defer compiled.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const outcome = try compiled.run("f(1);\n", null, arena.allocator(), arena.allocator());
+    try std.testing.expectEqual(0, outcome.syntax_errors.len);
 }
