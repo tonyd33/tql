@@ -1156,20 +1156,79 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
 
 /// How much of one file's scratch a worker keeps for the next. A file that
 /// needed more has the excess released instead of held for the rest of the run.
-const worker_scratch_retained = 64 * 1024 * 1024;
+const worker_scratch_retained = 1024 * 1024;
+
+/// The most scratch one file may hold. A file that needs more fails with
+/// `OutOfMemory` and the run continues with the next.
+const worker_scratch_limit = 4 * 1024 * 1024 * 1024;
+
+/// Refuse allocations once `limit` bytes have gone through it since the last
+/// `reset`. Freed bytes are not refunded. Not thread-safe.
+const ScratchBudget = struct {
+    child: std.mem.Allocator,
+    limit: usize,
+    spent: usize = 0,
+
+    fn allocator(self: *ScratchBudget) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &.{
+            .alloc = alloc,
+            .resize = resize,
+            .remap = remap,
+            .free = free,
+        } };
+    }
+
+    fn reset(self: *ScratchBudget) void {
+        self.spent = 0;
+    }
+
+    /// Charge the growth from `old_len` to `new_len`, or return false if it
+    /// would pass the limit.
+    fn charge(self: *ScratchBudget, old_len: usize, new_len: usize) bool {
+        if (new_len <= old_len) return true;
+        if (new_len - old_len > self.limit - self.spent) return false;
+        self.spent += new_len - old_len;
+        return true;
+    }
+
+    fn alloc(ptr: *anyopaque, len: usize, alignment: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
+        const self: *ScratchBudget = @ptrCast(@alignCast(ptr));
+        if (!self.charge(0, len)) return null;
+        return self.child.rawAlloc(len, alignment, ret_addr);
+    }
+
+    fn resize(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
+        const self: *ScratchBudget = @ptrCast(@alignCast(ptr));
+        if (!self.charge(memory.len, new_len)) return false;
+        return self.child.rawResize(memory, alignment, new_len, ret_addr);
+    }
+
+    fn remap(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
+        const self: *ScratchBudget = @ptrCast(@alignCast(ptr));
+        if (!self.charge(memory.len, new_len)) return null;
+        return self.child.rawRemap(memory, alignment, new_len, ret_addr);
+    }
+
+    fn free(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
+        const self: *ScratchBudget = @ptrCast(@alignCast(ptr));
+        self.child.rawFree(memory, alignment, ret_addr);
+    }
+};
 
 fn workerThread(ctx: *SharedContext) !void {
     var arena = std.heap.ArenaAllocator.init(ctx.*.allocator);
     defer arena.deinit();
+    var budget: ScratchBudget = .{ .child = arena.allocator(), .limit = worker_scratch_limit };
 
     while (try ctx.path_queue.pop()) |entry| {
         defer {
             _ = arena.reset(.{ .retain_with_limit = worker_scratch_retained });
+            budget.reset();
             _ = ctx.progress.done.fetchAdd(1, .monotonic);
         }
 
         // A file that cannot be read or run is reported and skipped.
-        const result = queryFile(ctx, entry, arena.allocator()) catch |err|
+        const result = queryFile(ctx, entry, budget.allocator()) catch |err|
             failedResult(ctx, entry, err);
         if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
 
@@ -1323,6 +1382,52 @@ test "imports search the query's directory, then -I, then TQL_PATH" {
     for ([_][]const u8{ "rules", "lib", "vendor", "/env/a", "/env/b" }, roots) |expected, root| {
         try std.testing.expectEqualStrings(expected, root);
     }
+}
+
+test "a scratch budget refuses what would pass its limit" {
+    var budget: ScratchBudget = .{ .child = std.testing.allocator, .limit = 100 };
+    const gpa = budget.allocator();
+
+    const a = try gpa.alloc(u8, 60);
+    defer gpa.free(a);
+    try std.testing.expectError(error.OutOfMemory, gpa.alloc(u8, 41));
+    const b = try gpa.alloc(u8, 40);
+    defer gpa.free(b);
+    try std.testing.expectEqual(100, budget.spent);
+}
+
+test "a scratch budget does not refund freed bytes" {
+    var budget: ScratchBudget = .{ .child = std.testing.allocator, .limit = 100 };
+    const gpa = budget.allocator();
+
+    gpa.free(try gpa.alloc(u8, 60));
+    try std.testing.expectEqual(60, budget.spent);
+    try std.testing.expectError(error.OutOfMemory, gpa.alloc(u8, 41));
+}
+
+test "a scratch budget charges growth and not shrinking" {
+    var budget: ScratchBudget = .{ .child = std.testing.allocator, .limit = 100 };
+    const gpa = budget.allocator();
+
+    var memory = try gpa.alloc(u8, 50);
+    defer gpa.free(memory);
+    try std.testing.expect(!gpa.resize(memory, 101));
+    try std.testing.expectEqual(50, budget.spent);
+    if (gpa.resize(memory, 10)) memory = memory[0..10];
+    try std.testing.expectEqual(50, budget.spent);
+}
+
+test "a scratch budget admits its limit again after a reset" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var budget: ScratchBudget = .{ .child = arena.allocator(), .limit = 64 * 1024 };
+    const gpa = budget.allocator();
+
+    _ = try gpa.alloc(u8, 48 * 1024);
+    try std.testing.expectError(error.OutOfMemory, gpa.alloc(u8, 48 * 1024));
+    _ = arena.reset(.free_all);
+    budget.reset();
+    _ = try gpa.alloc(u8, 48 * 1024);
 }
 
 test "an inline query searches only -I and TQL_PATH" {
