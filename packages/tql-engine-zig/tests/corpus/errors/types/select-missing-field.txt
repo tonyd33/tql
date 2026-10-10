@@ -3,11 +3,13 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 main = const [{a = 1}.b];
 
 --- error ---
 error[type-mismatch]: Expected `{b: a | b}`, found `{a: Int}`.
- --> 1:15
+ --> 3:15
   |
-1 | main = const [{a = 1}.b];
+3 | main = const [{a = 1}.b];
   |               ^^^^^^^

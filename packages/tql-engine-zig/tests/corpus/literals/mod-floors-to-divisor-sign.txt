@@ -3,6 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.Function (const);
+import Data.Int (mod);
+
 main = const [mod 7 3, mod (-7) 3, mod 7 (-3), mod (-7) (-3)];
 
 --- source ---

@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.List (any);
+
 main = descendants_of_kind :call_expression | keep (any ((= "import") . text) . #function) | arr text;
 
 --- source ---

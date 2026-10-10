@@ -1,5 +1,7 @@
 module Compile.Unreachable (unreachable) for javascript;
 
+import Data.List (all, any, append, null);
+
 statements = named_children | keep (not . is_extra);
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration, :class_static_block];

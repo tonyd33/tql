@@ -6,6 +6,8 @@ asserts: types, values
 `Describe a`.
 
 --- tql ---
+import Data.List (append);
+
 class Describe a where {
   describe :: a -> [String];
 };
@@ -15,7 +17,10 @@ instance Describe Int where {
 };
 
 instance Describe a => Describe [a] where {
-  describe xs = case xs of { [] -> ["empty"]; x : _ -> append ["list"] (describe x) };
+  describe xs = case xs of {
+    [] -> ["empty"];
+    x : _ -> append ["list"] (describe x);
+  };
 };
 
 f x = describe [x];

@@ -53,7 +53,7 @@ export interface QueryArgs {
 export interface CompileStats {
   parse_ns: number;
   load_ns: number;
-  prelude_ns: number;
+  library_ns: number;
   desugar_ns: number;
   type_check_ns: number;
   simplify_ns: number;

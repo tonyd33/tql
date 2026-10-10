@@ -31,16 +31,16 @@ $mBoth = \s -> \k -> \f -> case s of
       Nil -> k (%text cons0) (%text cons0')
       Cons _ _ -> f
 describe = \xs ->
-  let alternative = "neither" in
+  join alternative = "neither" in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons cons0 cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons cons0' cons1 -> case cons1 of
-        Nil -> case op[=] (%text cons0) "x" of
-          False -> alternative
-          True -> case op[=] (%text cons0') "y" of
-            False -> alternative
+        Nil -> case %eq_string (%text cons0) "x" of
+          False -> jump alternative
+          True -> case %eq_string (%text cons0') "y" of
+            False -> jump alternative
             True -> "xy"
-        Cons _ _ -> alternative
+        Cons _ _ -> jump alternative
 main = \root -> concat_map (\a -> Cons (describe (%children_of_kind :identifier a)) Nil) (%descendants_of_kind :arguments root)

@@ -15,6 +15,7 @@ data Shape = Circle Int;
 --- tql ---
 import Classes;
 import Shapes;
+import Data.Function (const);
 
 instance Describe Shape where { describe s = "shape"; };
 
@@ -22,7 +23,7 @@ main = const [];
 
 --- error ---
 error[orphan-instance]: `Describe Shape` must be declared in `Classes`, which declares `Describe`, or in `Shapes`, which declares `Shape`
- --> 4:1
+ --> 5:1
   |
-4 | instance Describe Shape where { describe s = "shape"; };
+5 | instance Describe Shape where { describe s = "shape"; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

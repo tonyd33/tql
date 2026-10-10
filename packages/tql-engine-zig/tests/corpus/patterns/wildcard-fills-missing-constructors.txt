@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
+import Data.Function (const);
+
 first_or_zero xs = case xs of {
   Cons a _ -> a;
   _ -> 0;

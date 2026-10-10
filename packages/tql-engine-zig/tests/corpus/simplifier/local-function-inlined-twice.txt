@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 main = let { inc x = x + 1 } in const [inc 1, inc 2];
 
 --- source ---

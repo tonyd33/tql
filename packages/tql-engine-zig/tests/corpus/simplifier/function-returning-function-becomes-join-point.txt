@@ -1,0 +1,26 @@
+title: a local function tail-called with fewer arguments than it takes becomes a join point of that many
+grammar: typescript
+asserts: simplified, values
+
+Each branch applies `g` to one argument, and the result is the function
+`f` returns.
+
+--- tql ---
+import Data.Function (const);
+
+f b = let { g x y = x * 2 + x * 3 + x * 4 + y } in if b then g 1 else g 2;
+main = const [f True 3, f False 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[12,21]
+
+--- simplified ---
+f = \b ->
+  join g x = \y -> op[+] (op[+] (op[+] (op[*] x 2) (op[*] x 3)) (op[*] x 4)) y in
+  case b of
+    False -> jump g 2
+    True -> jump g 1
+main = const (Cons (f True 3) (Cons (f False 3) Nil))

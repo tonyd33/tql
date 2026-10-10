@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 f xs = case xs of {
   [n, ((+ n) -> 3)] -> n;
   _ -> 0;
@@ -18,16 +20,16 @@ class A {}
 
 --- core ---
 f = \xs ->
-  let alternative = 0 in
+  join alternative = 0 in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons n cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons cons0 cons1 ->
         let view = (\x -> op[+] x n) cons0 in
         case eq view 3 of
-          False -> alternative
+          False -> jump alternative
           True -> case cons1 of
             Nil -> n
-            Cons _ _ -> alternative
+            Cons _ _ -> jump alternative
 main = const (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))

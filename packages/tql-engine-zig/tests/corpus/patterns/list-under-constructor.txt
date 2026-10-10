@@ -20,12 +20,12 @@ class A {}
 
 --- core ---
 only = \m ->
-  let alternative = 0 in
+  join alternative = 0 in
   case m of
     Just just0 -> case just0 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons x cons1 -> case cons1 of
         Nil -> x
-        Cons _ _ -> alternative
-    Nothing -> alternative
+        Cons _ _ -> jump alternative
+    Nothing -> jump alternative
 main = alt (pure (only (Just (Cons 7 Nil)))) (pure (only (Just (Cons 7 (Cons 8 Nil)))))

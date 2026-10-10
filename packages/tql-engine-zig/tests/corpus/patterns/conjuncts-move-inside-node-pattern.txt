@@ -17,7 +17,7 @@ class A {}
 --- core ---
 main = \root -> concat_map (
   \x ->
-    let view = %of_kind :class_declaration x in
+    let view = of_kind :class_declaration x in
     case view of
       Nil -> Nil
       Cons x cons1 ->

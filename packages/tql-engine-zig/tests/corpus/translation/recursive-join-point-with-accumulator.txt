@@ -1,0 +1,48 @@
+title: a recursive join point jumps to itself with a computed argument
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+import Data.Function (const);
+
+rev xs = let {
+  go ys acc = case ys of { [] -> acc; h : t -> go t (h : acc) };
+} in go xs [];
+main = const (rev [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[2,1]
+
+--- stg ---
+rev = {} \u {} ->
+  let
+    t2 = {} \n {xs} ->
+      letrec-no-escape
+        go {ys,acc} -> case ys@1 of
+          Nil -> acc@2
+          Cons h t ->
+            let t0 = {h@3,acc@2} \u {} -> Cons h@0 acc@1 in
+            jump go t@4 t0@5
+      in
+      let c1 = Nil in
+      jump go xs@0 c1@1
+  in
+  t2@0
+main = {} \u {} ->
+  let
+    t3 = {} \u {} ->
+      let
+        t2 = {} \u {} ->
+          let
+            t1 = {} \u {} ->
+              let c0 = Nil in
+              Cons 2 c0@0
+          in
+          Cons 1 t1@0
+      in
+      rev t2@0
+  in
+  const t3@0

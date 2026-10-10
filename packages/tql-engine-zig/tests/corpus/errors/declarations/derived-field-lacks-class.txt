@@ -5,12 +5,14 @@ asserts: error
 A function has no `Eq`, so `F` cannot derive it.
 
 --- tql ---
+import Data.Function (const);
+
 data F = F (Int -> Int) deriving (Eq);
 main = const [];
 
 --- error ---
 error[unsatisfied-constraint]: `Eq F` needs `Eq (Int -> Int)`
- --> 1:12
+ --> 3:12
   |
-1 | data F = F (Int -> Int) deriving (Eq);
+3 | data F = F (Int -> Int) deriving (Eq);
   |            ^^^^^^^^^^^^

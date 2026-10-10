@@ -3,6 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+import Data.List (append, map);
+
 main = const (append (map (: []) [1, 2]) (append (map (0 :) [[1]]) [(:) 1 []]));
 
 --- source ---

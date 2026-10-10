@@ -1,0 +1,13 @@
+module Data.Function;
+
+identity :: a -> a;
+identity x = x;
+
+const :: a -> b -> a;
+const x y = x;
+
+compose :: (b -> c) -> (a -> b) -> a -> c;
+compose f g x = f (g x);
+
+flip :: (a -> b -> c) -> b -> a -> c;
+flip f x y = f y x;

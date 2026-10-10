@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 main = (| arr text) (descendants_of_kind :identifier) <|> (const ["c"] <|>) (const ["d"]);
 
 --- source ---

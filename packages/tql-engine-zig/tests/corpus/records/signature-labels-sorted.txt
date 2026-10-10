@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+
 f :: {n: Int, k: String} -> Int;
 f r = r.n;
 main = const [f {k = "a", n = 1}];

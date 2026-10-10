@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.List (append, tail);
+
 class Describe a where {
   describe :: a -> [String];
 };
@@ -14,7 +16,10 @@ instance Describe Shape where {
 };
 
 instance Describe a => Describe [a] where {
-  describe xs = case xs of { [] -> ["empty"]; x : _ -> append ["list"] (describe x) };
+  describe xs = case xs of {
+    [] -> ["empty"];
+    x : _ -> append ["list"] (describe x);
+  };
 };
 
 main root = [describe [[Circle 1]], describe [tail [Square 1]]];

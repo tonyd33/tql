@@ -18,8 +18,8 @@ f(a);
 
 --- simplified ---
 main = \root -> concat_map (
-  \open -> concat_map (\_ -> concat_map (\token -> Cons (%text token) Nil) (concat_map (%of_kind (%kind open)) (%named_descendants root))) (
-    case op[=] (%text open) "(" of
+  \open -> concat_map (\_ -> concat_map (\token -> Cons (%text token) Nil) (concat_map (of_kind (%kind open)) (%named_descendants root))) (
+    case %eq_string (%text open) "(" of
       False -> Nil
       True -> Cons Unit Nil
   )

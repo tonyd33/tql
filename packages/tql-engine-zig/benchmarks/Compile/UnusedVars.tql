@@ -1,5 +1,8 @@
 module Compile.UnusedVars (unused_vars) for javascript;
 
+import Data.List (any, append, concat_map, filter, null);
+import Data.Function (identity);
+
 is_one_of ks n = any (= kind n) ks;
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration];

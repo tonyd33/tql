@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 f b = let { a = 2 * 3 } in if b then a else a + 1;
 main = const [f true, f false];
 

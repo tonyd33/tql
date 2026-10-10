@@ -19,6 +19,25 @@ module JavaScript.Scope (resolve, Scope(..), Named);
         name: (type_identifier)))))
 
 ========================================
+a module header re-exporting modules
+========================================
+
+module Prelude (module Data.Bool, not, module Prelude);
+
+---
+
+(source_file
+  header: (module_header
+    name: (module_name)
+    exports: (item_list
+      (item
+        module: (module_name))
+      (item
+        name: (identifier))
+      (item
+        module: (module_name)))))
+
+========================================
 a module header without an export list
 ========================================
 

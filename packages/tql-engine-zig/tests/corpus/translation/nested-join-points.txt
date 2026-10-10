@@ -1,0 +1,87 @@
+title: a join point nested in a shared alternative is bound above that alternative's parameter
+grammar: typescript
+asserts: stg, values
+
+--- tql ---
+import Data.Function (const);
+
+k xs ys = case xs of {
+  [x] -> x;
+  zs -> case ys of {
+    [y] -> y;
+    ws -> length zs * 2 + length zs * 3 + length ws * 4 + length ws * 5;
+  };
+};
+main = const [k [] [2, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[18]
+--- stg ---
+k = {} \u {} ->
+  let
+    t10 = {} \n {xs,ys} ->
+      let-no-escape
+        alternative {zs} ->
+          let-no-escape
+            alternative {ws} ->
+              let
+                t7 = {zs@2,ws@3} \u {} ->
+                  let
+                    t4 = {zs@0} \u {} ->
+                      let
+                        t1 = {zs@0} \u {} ->
+                          let t0 = {zs@0} \u {} -> length[List] zs@0 in
+                          op[*]# t0@1 2
+                        t3 = {zs@0} \u {} ->
+                          let t2 = {zs@0} \u {} -> length[List] zs@0 in
+                          op[*]# t2@1 3
+                      in
+                      op[+]# t1@1 t3@2
+                    t6 = {ws@1} \u {} ->
+                      let t5 = {ws@0} \u {} -> length[List] ws@0 in
+                      op[*]# t5@1 4
+                  in
+                  op[+]# t4@2 t6@3
+                t9 = {ws@3} \u {} ->
+                  let t8 = {ws@0} \u {} -> length[List] ws@0 in
+                  op[*]# t8@1 5
+              in
+              op[+]# t7@4 t9@5
+          in
+          case ys@1 of
+            Nil -> jump alternative ys@1
+            Cons y cons1 -> case cons1@4 of
+              Nil -> y@3
+              Cons _ _ -> jump alternative ys@1
+      in
+      case xs@0 of
+        Nil -> jump alternative xs@0
+        Cons x cons1 -> case cons1@3 of
+          Nil -> x@2
+          Cons _ _ -> jump alternative xs@0
+  in
+  t10@0
+main = {} \u {} ->
+  let
+    t6 = {} \u {} ->
+      let
+        t4 = {} \u {} ->
+          let
+            c0 = Nil
+            t3 = {} \u {} ->
+              let
+                t2 = {} \u {} ->
+                  let c1 = Nil in
+                  Cons 3 c1@0
+              in
+              Cons 2 t2@0
+          in
+          k c0@0 t3@1
+        c5 = Nil
+      in
+      Cons t4@0 c5@1
+  in
+  const t6@0

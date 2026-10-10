@@ -6,6 +6,8 @@ asserts: types, values
 length, not character count, is the rule.
 
 --- tql ---
+import Data.Function (const);
+
 main = const ["hello", "héllo"] | arr length;
 
 --- source ---

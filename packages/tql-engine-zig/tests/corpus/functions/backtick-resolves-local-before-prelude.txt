@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.Function (const);
+
 main = let { append a b = a + b; } in const [1 `append` 2];
 
 --- source ---

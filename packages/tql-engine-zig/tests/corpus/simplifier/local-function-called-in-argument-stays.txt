@@ -1,0 +1,25 @@
+title: a local function also called in an argument stays a function
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+import Data.Function (const);
+
+f b x =
+  let { g y = y * 2 + y * 3 + y * 4 + y * 5 }
+  in if b then g x else 1 + g x;
+main = const [f True 1, f False 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[14,15]
+
+--- simplified ---
+f = \b -> \x ->
+  let g = \y -> op[+] (op[+] (op[+] (op[*] y 2) (op[*] y 3)) (op[*] y 4)) (op[*] y 5) in
+  case b of
+    False -> op[+] 1 (g x)
+    True -> g x
+main = const (Cons (f True 1) (Cons (f False 1) Nil))

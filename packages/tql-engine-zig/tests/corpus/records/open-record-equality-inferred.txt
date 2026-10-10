@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+
 same_name a b = a.name = b.name;
 main = const [same_name {name = 1, k = 2} {name = 1, j = "x"}];
 

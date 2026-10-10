@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: a -> String; };
 data Box a = Box a;
 instance Describe (Box Int) where { describe b = "box"; };
@@ -10,7 +12,7 @@ main = const [];
 
 --- error ---
 error[invalid-instance]: each argument of an instance head must be a type variable
- --> 3:24
+ --> 5:24
   |
-3 | instance Describe (Box Int) where { describe b = "box"; };
+5 | instance Describe (Box Int) where { describe b = "box"; };
   |                        ^^^

@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 sign x = case x of { -3 -> "minus three"; _ -> "other" };
 
 main = const [sign (-3), sign 3];

@@ -7,6 +7,8 @@ different binder, so the desugared call still reaches the prelude function and
 the parameter prints primed.
 
 --- tql ---
+import Data.Function (const);
+
 f eq = if eq = 1 then 10 else 20;
 main = const [f 1, f 2];
 

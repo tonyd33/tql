@@ -1,0 +1,15 @@
+title: `module M` is not an import item
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Prelude (module Prim);
+
+main root = [1];
+
+--- error ---
+error[unresolved-name]: `module Prim` belongs in an export list
+ --> 1:17
+  |
+1 | import Prelude (module Prim);
+  |                 ^^^^^^^^^^^

@@ -1,0 +1,86 @@
+title: a local loop called only in tail position becomes a recursive join point
+grammar: typescript
+asserts: simplified, stg, values
+
+The `case` around the loop moves into its body, so the loop answers `"yes"`
+or `"no"` directly.
+
+--- tql ---
+import Data.Function (const);
+
+f xs = case (
+  let {
+    go ys = case ys of {
+      [] -> False;
+      h : t -> if h = 3 then True else go t;
+    };
+  } in go xs
+) of {
+  True -> "yes";
+  False -> "no";
+};
+main = const [f [1, 3], f [4]];
+
+--- source ---
+class A {}
+
+--- values ---
+["yes","no"]
+
+--- simplified ---
+f = \xs ->
+  joinrec
+    go ys = case ys of
+      Nil -> "no"
+      Cons h t -> case %eq_int h 3 of
+        False -> jump go t
+        True -> "yes"
+  in
+  jump go xs
+main = const (Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil))
+
+--- stg ---
+f = {} \u {} ->
+  let
+    t0 = {} \n {xs} ->
+      letrec-no-escape
+        go {ys} -> case ys@1 of
+          Nil -> "no"
+          Cons h t -> case %eq_int# h@2 3 of
+            False -> jump go t@3
+            True -> "yes"
+      in
+      jump go xs@0
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    t9 = {} \u {} ->
+      let
+        t3 = {} \u {} ->
+          let
+            t2 = {} \u {} ->
+              let
+                t1 = {} \u {} ->
+                  let c0 = Nil in
+                  Cons 3 c0@0
+              in
+              Cons 1 t1@0
+          in
+          f t2@0
+        t8 = {} \u {} ->
+          let
+            t6 = {} \u {} ->
+              let
+                t5 = {} \u {} ->
+                  let c4 = Nil in
+                  Cons 4 c4@0
+              in
+              f t5@0
+            c7 = Nil
+          in
+          Cons t6@0 c7@1
+      in
+      Cons t3@0 t8@1
+  in
+  const t9@0

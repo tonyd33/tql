@@ -5,6 +5,8 @@ asserts: core, types, values
 It evaluates to its final expression.
 
 --- tql ---
+import Data.List (map);
+
 main root = do {
   map text $ children_of_kind :class_declaration root;
 };

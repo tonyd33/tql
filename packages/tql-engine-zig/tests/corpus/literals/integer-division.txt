@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const [7 / 2, -7 / 2, 8 / 2 / 2, 1 + 6 / 2];
 
 --- source ---

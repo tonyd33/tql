@@ -3,13 +3,15 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 f :: {a: Int} -> Int;
 f r = r.a;
 main = const [f {a = 1, z = 2}];
 
 --- error ---
 error[type-mismatch]: Expected `{a: Int}`, found `{a: Int, z: Int}`.
- --> 3:17
+ --> 5:17
   |
-3 | main = const [f {a = 1, z = 2}];
+5 | main = const [f {a = 1, z = 2}];
   |                 ^^^^^^^^^^^^^^

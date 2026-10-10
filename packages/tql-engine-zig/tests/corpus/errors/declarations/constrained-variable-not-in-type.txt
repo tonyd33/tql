@@ -5,13 +5,15 @@ asserts: error
 No use of `f` could fix `b`, so the constraint could never be decided.
 
 --- tql ---
+import Data.Function (const);
+
 f :: Eq b => a -> a;
 f x = x;
 main = const [f 1];
 
 --- error ---
 error[unresolved-name]: `b` is constrained but does not appear in the type
- --> 1:6
+ --> 3:6
   |
-1 | f :: Eq b => a -> a;
+3 | f :: Eq b => a -> a;
   |      ^^^^

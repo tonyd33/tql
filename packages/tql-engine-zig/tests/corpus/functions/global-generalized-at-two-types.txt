@@ -6,6 +6,8 @@ asserts: types, values
 `int` and at `string` in the same program.
 
 --- tql ---
+import Data.Function (const);
+
 pick x y = x;
 main = const [pick 1 2, length (pick "ab" "cd")];
 

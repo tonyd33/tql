@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 main = let {
   is_even n = if n = 0 then true else is_odd (n - 1);
   is_odd n = not (is_even n);
@@ -17,7 +19,7 @@ class A {}
 --- simplified ---
 main =
   letrec
-    is_even = \n -> case op[=] n 0 of
+    is_even = \n -> case %eq_int n 0 of
       False -> case is_even (op[-] n 1) of
         False -> True
         True -> False

@@ -6,6 +6,8 @@ asserts: types, values
 other, so both take both dictionaries.
 
 --- tql ---
+import Data.List (append);
+
 class Describe a where {
   describe :: a -> String;
 };

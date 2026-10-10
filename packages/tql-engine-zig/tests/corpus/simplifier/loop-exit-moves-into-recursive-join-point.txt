@@ -1,0 +1,26 @@
+title: a join point jumped to only from a loop's exit moves into the loop
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+f x xs = let {
+  e = x * 2 + x * 3 + x * 4;
+  go ys = case ys of { [] -> e; h : t -> go t };
+} in go xs;
+main = pure (f 3 [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[27]
+
+--- simplified ---
+f = \x -> \xs ->
+  joinrec
+    go ys = case ys of
+      Nil -> op[+] (op[+] (op[*] x 2) (op[*] x 3)) (op[*] x 4)
+      Cons h t -> jump go t
+  in
+  jump go xs
+main = pure (f 3 (Cons 1 (Cons 2 Nil)))

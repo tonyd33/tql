@@ -1,0 +1,43 @@
+title: a join point bound inside a case scrutinee floats out and takes the case
+grammar: typescript
+asserts: simplified, values
+
+As written, the join point is bound inside the scrutinee, and the evaluation
+without `core_to_core` runs it there, in a nested evaluation.
+
+--- tql ---
+import Data.Function (const);
+
+label xs = case (
+  case xs of {
+    [x] -> x > 10;
+    ys -> length ys * 2 + length ys * 3 + length ys * 4 > 10;
+  }
+) of {
+  True -> "big";
+  False -> "small";
+};
+main = const [label [1], label [1, 2], label [20]];
+
+--- source ---
+class A {}
+
+--- values ---
+["small","big","big"]
+--- simplified ---
+label = \xs ->
+  join j = "small" in
+  join j' = "big" in
+  join
+    alternative ys = case %gt_int (op[+] (op[+] (op[*] (length[List] ys) 2) (op[*] (length[List] ys) 3)) (op[*] (length[List] ys) 4)) 10 of
+      False -> jump j
+      True -> jump j'
+  in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> case %gt_int x 10 of
+        False -> jump j
+        True -> jump j'
+      Cons _ _ -> jump alternative xs
+main = const (Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)))

@@ -5,13 +5,15 @@ asserts: error
 A signature resolves type names as a type declaration does.
 
 --- tql ---
+import Data.Function (const);
+
 f :: Foo -> Int;
 f x = 1;
 main = const [1];
 
 --- error ---
 error[unresolved-name]: `Foo` is not a type
- --> 1:6
+ --> 3:6
   |
-1 | f :: Foo -> Int;
+3 | f :: Foo -> Int;
   |      ^^^

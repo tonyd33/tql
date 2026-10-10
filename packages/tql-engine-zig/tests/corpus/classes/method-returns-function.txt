@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.List (map);
+
 class Scale a where {
   scale :: a -> Int -> Int;
 };

@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 data S = S Int deriving (Show);
 main = const [];
 
 --- error ---
 error[unresolved-name]: `Show` is not a class
- --> 1:26
+ --> 3:26
   |
-1 | data S = S Int deriving (Show);
+3 | data S = S Int deriving (Show);
   |                          ^^^^

@@ -7,7 +7,10 @@ and the chain of thunks a strict fold exists to avoid would return.
 
 --- tql ---
 fold :: (b -> a -> b) -> b -> [a] -> b;
-fold f z xs = case xs of { [] -> z; h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t); };
+fold f z xs = case xs of {
+  [] -> z;
+  h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t);
+};
 main = pure (fold (\n x -> n + x) 0 [1, 2, 3]);
 
 --- source ---

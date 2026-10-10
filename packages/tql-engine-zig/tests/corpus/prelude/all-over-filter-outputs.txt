@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.List (all);
+
 method_names = #body | children | of_kind :method_definition | #name;
 is_getter n = text n ~ r"^get";
 

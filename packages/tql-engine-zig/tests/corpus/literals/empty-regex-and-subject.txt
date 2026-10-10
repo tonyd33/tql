@@ -6,6 +6,8 @@ The empty pattern matches everything, the empty string included. A non-empty
 pattern does not match the empty string.
 
 --- tql ---
+import Data.Function (const);
+
 main = const ["" ~ r"", "abc" ~ r"", "" ~ r"a"];
 
 --- source ---

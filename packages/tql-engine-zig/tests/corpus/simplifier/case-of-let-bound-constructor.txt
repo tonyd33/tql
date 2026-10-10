@@ -3,8 +3,13 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 data P = Mk Int Int;
-f x = let { p = Mk x 3 } in const [case p of { Mk a b -> a + b }, case p of { Mk a b -> a * b }];
+f x = let { p = Mk x 3 } in const [
+  case p of { Mk a b -> a + b },
+  case p of { Mk a b -> a * b },
+];
 main = f 2;
 
 --- source ---

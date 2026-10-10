@@ -3217,7 +3217,7 @@
     "fields": {
       "constructor": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "constructor_declaration",
@@ -3251,6 +3251,16 @@
         "types": [
           {
             "type": "type_variable",
+            "named": true
+          }
+        ]
+      },
+      "representation": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "primitive_type",
             "named": true
           }
         ]
@@ -5300,6 +5310,16 @@
         "types": [
           {
             "type": "all_constructors",
+            "named": true
+          }
+        ]
+      },
+      "module": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "module_name",
             "named": true
           }
         ]
@@ -10268,6 +10288,10 @@
   },
   {
     "type": "primitive",
+    "named": true
+  },
+  {
+    "type": "primitive_type",
     "named": true
   },
   {

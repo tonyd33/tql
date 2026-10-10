@@ -6,13 +6,15 @@ asserts: error
 never the reverse.
 
 --- tql ---
+import Data.Function (const);
+
 less :: Eq a => a -> a -> Bool;
 less x y = x < y;
 main = const [less 1 2];
 
 --- error ---
 error[signature-mismatch]: `Ord a` is not satisfied.
- --> 1:1
+ --> 3:1
   |
-1 | less :: Eq a => a -> a -> Bool;
+3 | less :: Eq a => a -> a -> Bool;
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

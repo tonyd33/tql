@@ -126,6 +126,8 @@ const TestRunContext = struct {
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
     opts: Options,
+    /// Shared by every case.
+    library: *const tql.Library,
     diffs: std.ArrayList(DiffEntry),
     /// Why the case failed, one entry per distinct cause. Entries are static
     /// strings and are never freed.
@@ -133,11 +135,12 @@ const TestRunContext = struct {
     /// Diagnostics from a stage the case did not expect to fail.
     unexpected: ?[]const u8,
 
-    fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options) TestRunContext {
+    fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options, library: *const tql.Library) TestRunContext {
         return .{
             .gpa = gpa,
             .stdout = stdout,
             .opts = opts,
+            .library = library,
             .diffs = .empty,
             .reasons = .empty,
             .unexpected = null,
@@ -191,13 +194,13 @@ const CaseRun = struct {
 
     /// Preconditions:
     /// - `self` does not move after this call; `ctx` points into `log`.
-    fn init(self: *CaseRun, gpa: std.mem.Allocator, opts: Options, filename: []const u8) void {
+    fn init(self: *CaseRun, gpa: std.mem.Allocator, opts: Options, library: *const tql.Library, filename: []const u8) void {
         self.* = .{
             .filename = filename,
             .log = .init(gpa),
             .ctx = undefined,
         };
-        self.ctx = .init(gpa, &self.log.writer, opts);
+        self.ctx = .init(gpa, &self.log.writer, opts, library);
     }
 
     fn deinit(self: *CaseRun) void {
@@ -335,9 +338,17 @@ pub fn main(init: std.process.Init) !u8 {
         try selected.append(gpa, filename);
     }
 
+    var library_sink = tql.diagnostic.Sink.init(gpa);
+    defer library_sink.deinit();
+    var library = tql.Library.init(gpa, &library_sink) catch |err| {
+        for (library_sink.items()) |d| try stdout.print("library: {s}\n", .{d.message});
+        return err;
+    };
+    defer library.deinit();
+
     const runs = try gpa.alloc(CaseRun, selected.items.len);
     defer gpa.free(runs);
-    for (runs, selected.items) |*run, filename| run.init(gpa, opts, filename);
+    for (runs, selected.items) |*run, filename| run.init(gpa, opts, &library, filename);
     defer for (runs) |*run| run.deinit();
 
     var shared: SharedOutput = .{ .writer = stdout };
@@ -598,7 +609,7 @@ fn testCase(
     var test_gpa: std.heap.DebugAllocator(.{}) = .init;
     const test_alloc = test_gpa.allocator();
     var unexpected: ?[]const u8 = null;
-    const actual = runTestCase(test_alloc, io, tc, &unexpected) catch |err| {
+    const actual = runTestCase(test_alloc, io, ctx.library, tc, &unexpected) catch |err| {
         defer _ = test_gpa.deinit();
         defer if (unexpected) |text| test_alloc.free(text);
         try ctx.addReason(@errorName(err));
@@ -878,12 +889,29 @@ fn evaluate(
     return .{ .json = outcome.json };
 }
 
+/// Fail with a message when the desugared `program` breaks an invariant on
+/// join points.
+fn expectJoinPointsHold(
+    allocator: std.mem.Allocator,
+    program: *const tql.core.Program,
+    unexpected: *?[]const u8,
+) !void {
+    const violation = try tql.core.lint.program(allocator, program) orelse return;
+    var w: std.Io.Writer.Allocating = .init(allocator);
+    errdefer w.deinit();
+    try w.writer.writeAll("after desugaring: ");
+    try violation.write(&program.env.interner, &w.writer);
+    unexpected.* = try w.toOwnedSlice();
+    return error.JoinPointInvariant;
+}
+
 /// Postconditions:
 /// - On an unexpected parse, desugar, type or evaluation error, `unexpected`
 ///   holds the diagnostics, owned by `allocator`.
 fn runTestCase(
     allocator: std.mem.Allocator,
     io: std.Io,
+    library: *const tql.Library,
     tc: corpus_parser.TestCase,
     unexpected: *?[]const u8,
 ) !TestOutputs {
@@ -893,6 +921,7 @@ fn runTestCase(
 
     var engine = try Engine.init(.{ .allocator = allocator, .io = io });
     defer engine.deinit();
+    engine.library = library;
     var case_modules: CaseModules = .{ .modules = tc.modules };
     engine.loader = case_modules.loader();
 
@@ -968,7 +997,7 @@ fn runTestCase(
         defer sink.deinit();
 
         // Through the Engine rather than `desugar.module` directly, so the
-        // corpus exercises the same link the compiler performs: the prelude
+        // corpus exercises the same link the compiler performs: the library
         // beneath the query, with `main` resolved by the linker.
         if (engine.desugarParsed(query_cst, grammar, &sink)) |desugared| {
             var program = desugared;
@@ -976,6 +1005,7 @@ fn runTestCase(
             defer if (owns_program) program.deinit();
             allocator.free(core_text);
             core_text = try fmt.formatCore(allocator, &program);
+            try expectJoinPointsHold(allocator, &program, unexpected);
 
             if (tc.isAsserted(.types) or tc.isAsserted(.simplified) or tc.isAsserted(.stg) or evaluates or expects_error) {
                 var type_sink = tql.diagnostic.Sink.init(allocator);

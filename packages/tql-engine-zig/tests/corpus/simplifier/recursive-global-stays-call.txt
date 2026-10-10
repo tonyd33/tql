@@ -13,7 +13,7 @@ class A {}
 [3]
 
 --- simplified ---
-count = \n -> case op[=] n 0 of
+count = \n -> case %eq_int n 0 of
   False -> op[+] 1 (count (op[-] n 1))
   True -> 0
 main = pure (count 3)

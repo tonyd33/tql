@@ -3,6 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const, flip);
+import Data.List (append, map);
+
 data Pair = Pair Int Int;
 
 second :: Pair -> Int;

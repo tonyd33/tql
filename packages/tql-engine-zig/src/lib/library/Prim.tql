@@ -1,0 +1,112 @@
+module Prim;
+
+data Int = %Int deriving (Serial);
+
+data String = %String deriving (Serial);
+
+data Regex = %Regex;
+
+data Node = %Node deriving (Serial);
+
+data Kind = %Kind deriving (Serial);
+
+data List a = Nil | Cons a (List a) deriving (Eq, Ord, Serial);
+
+data Bool = False | True deriving (Eq, Ord, Serial);
+
+data Ordering = LT | EQ | GT deriving (Eq, Ord);
+
+class Eq a where {
+  eq :: a -> a -> Bool;
+};
+
+class Eq a => Ord a where {
+  compare :: a -> a -> Ordering;
+};
+
+instance Eq Int where {
+  eq = %eq_int;
+};
+
+instance Ord Int where {
+  compare = %compare_int;
+};
+
+instance Eq String where {
+  eq = %eq_string;
+};
+
+instance Ord String where {
+  compare = %compare_string;
+};
+
+instance Eq Node where {
+  eq = %eq_node;
+};
+
+instance Eq Kind where {
+  eq = %eq_kind;
+};
+
+seq :: a -> b -> b;
+seq = %seq;
+
+text :: Node -> String;
+text = %text;
+
+kind :: Node -> Kind;
+kind = %kind;
+
+kind_name :: Node -> String;
+kind_name = %kind_name;
+
+is_named :: Node -> Bool;
+is_named = %is_named;
+
+is_extra :: Node -> Bool;
+is_extra = %is_extra;
+
+range :: Node -> Range;
+range = %range;
+
+mod :: Int -> Int -> Int;
+mod = %mod;
+
+toint :: Filter String Int;
+toint = %toint;
+
+filename :: Filter Node String;
+filename = %filename;
+
+parent :: Filter Node Node;
+parent = %parent;
+
+ancestors :: Filter Node Node;
+ancestors = %ancestors;
+
+children :: Filter Node Node;
+children = %children;
+
+named_children :: Filter Node Node;
+named_children = %named_children;
+
+descendants :: Filter Node Node;
+descendants = %descendants;
+
+named_descendants :: Filter Node Node;
+named_descendants = %named_descendants;
+
+children_of_kind :: Kind -> Filter Node Node;
+children_of_kind = %children_of_kind;
+
+descendants_of_kind :: Kind -> Filter Node Node;
+descendants_of_kind = %descendants_of_kind;
+
+of_kind :: Kind -> Filter Node Node;
+of_kind k x = case is_kind k x of {
+  False -> Nil;
+  True -> Cons x Nil;
+};
+
+is_kind :: Kind -> Node -> Bool;
+is_kind = %is_kind;

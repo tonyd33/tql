@@ -1,0 +1,77 @@
+title: a local function called only in tail position becomes a join point
+grammar: typescript
+asserts: simplified, stg, values
+
+`g` is too large to copy into both branches, and each branch ends in a call
+to it.
+
+--- tql ---
+import Data.Function (const);
+
+f b x =
+  let { g y = y * 2 + y * 3 + y * 4 + y * 5 }
+  in if b then g x else g (x + 1);
+main = const [f True 1, f False 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[14,28]
+
+--- simplified ---
+f = \b -> \x ->
+  join g y = op[+] (op[+] (op[+] (op[*] y 2) (op[*] y 3)) (op[*] y 4)) (op[*] y 5) in
+  case b of
+    False -> jump g (op[+] x 1)
+    True -> jump g x
+main = const (Cons (f True 1) (Cons (f False 1) Nil))
+
+--- stg ---
+f = {} \u {} ->
+  let
+    t7 = {} \n {b,x} ->
+      let-no-escape
+        g {y} ->
+          let
+            t4 = {y@2} \u {} ->
+              let
+                t2 = {y@0} \u {} ->
+                  let
+                    t0 = {y@0} \u {} -> op[*]# y@0 2
+                    t1 = {y@0} \u {} -> op[*]# y@0 3
+                  in
+                  op[+]# t0@1 t1@2
+                t3 = {y@0} \u {} -> op[*]# y@0 4
+              in
+              op[+]# t2@1 t3@2
+            t5 = {y@2} \u {} -> op[*]# y@0 5
+          in
+          op[+]# t4@3 t5@4
+      in
+      case b@0 of
+        False ->
+          let t6 = {x@1} \u {} -> op[+]# x@0 1 in
+          jump g t6@2
+        True -> jump g x@1
+  in
+  t7@0
+main = {} \u {} ->
+  let
+    t6 = {} \u {} ->
+      let
+        t1 = {} \u {} ->
+          let c0 = True in
+          f c0@0 1
+        t5 = {} \u {} ->
+          let
+            t3 = {} \u {} ->
+              let c2 = False in
+              f c2@0 1
+            c4 = Nil
+          in
+          Cons t3@0 c4@1
+      in
+      Cons t1@0 t5@1
+  in
+  const t6@0

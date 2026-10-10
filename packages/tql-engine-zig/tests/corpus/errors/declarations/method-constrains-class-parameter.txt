@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: Eq a => a -> String; };
 main = const [];
 
 --- error ---
 error[invalid-class]: `describe` constrains `a`, the parameter of `Describe`
- --> 1:38
+ --> 3:38
   |
-1 | class Describe a where { describe :: Eq a => a -> String; };
+3 | class Describe a where { describe :: Eq a => a -> String; };
   |                                      ^^^^

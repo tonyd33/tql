@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const [{a = 1, b = "x"}.a];
 
 --- source ---

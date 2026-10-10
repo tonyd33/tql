@@ -1,5 +1,7 @@
 module Compile.DupeKeys (dupe_keys) for javascript;
 
+import Data.List (any, append, concat_map);
+
 data Member = Member String String Node;
 
 is_accessor t = not (is_named t) and (kind_name t = "get" or kind_name t = "set");

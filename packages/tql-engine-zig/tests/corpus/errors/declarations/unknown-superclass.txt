@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Nope a => Describe a where {
   describe :: a -> String;
 };
@@ -10,7 +12,7 @@ main = const [];
 
 --- error ---
 error[unresolved-name]: `Nope` is not a class
- --> 1:7
+ --> 3:7
   |
-1 | class Nope a => Describe a where {
+3 | class Nope a => Describe a where {
   |       ^^^^^^

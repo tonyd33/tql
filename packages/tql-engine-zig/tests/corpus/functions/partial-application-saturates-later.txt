@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values, stg
 
 --- tql ---
+import Data.Function (const);
+
 add3 a b c = a + b + c;
 main = let { f = add3 1 } in let { g = f 2 } in const [g 3, g 4];
 

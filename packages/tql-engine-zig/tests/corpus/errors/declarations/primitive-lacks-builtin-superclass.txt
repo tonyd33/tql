@@ -3,13 +3,15 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Eq a => Same a where { same :: a -> a -> Bool; };
 instance Same Regex where { same a b = true; };
 main = const [];
 
 --- error ---
 error[invalid-instance]: `Same Regex` needs `Eq Regex`
- --> 2:1
+ --> 4:1
   |
-2 | instance Same Regex where { same a b = true; };
+4 | instance Same Regex where { same a b = true; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

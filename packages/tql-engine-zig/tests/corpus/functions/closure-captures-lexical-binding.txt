@@ -5,6 +5,9 @@ asserts: types, values, stg
 `bump` captures `step` from the enclosing group, not from its call site.
 
 --- tql ---
+import Data.Function (const);
+import Data.List (map);
+
 main =
   let {
     step = 5 + 5;

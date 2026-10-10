@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
+import Data.Function (const);
+
 n = 100;
 shadowed n = n + 1;
 main = const [shadowed 1, n];

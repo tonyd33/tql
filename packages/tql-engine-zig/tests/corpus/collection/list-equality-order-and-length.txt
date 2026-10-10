@@ -6,6 +6,8 @@ Lists are ordered, so a different order is a different value. Lists of
 different length are never equal.
 
 --- tql ---
+import Data.Function (const);
+
 main =
   let {
     ab = ["a", "b"];

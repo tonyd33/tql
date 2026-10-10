@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 main = const $ do {
   _ <- [1];
   return _;
@@ -10,7 +12,7 @@ main = const $ do {
 
 --- error ---
 error[unresolved-name]: `_` is not defined
- --> 3:10
+ --> 5:10
   |
-3 |   return _;
+5 |   return _;
   |          ^

@@ -1,0 +1,6 @@
+module Data.Int (Int, mod, subtract, toint);
+
+import Prim (Int, mod, toint);
+
+subtract :: Int -> Int -> Int;
+subtract x y = y - x;

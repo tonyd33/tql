@@ -7,6 +7,8 @@ function of arity one with two arguments. It is recursive, so the call is
 not inlined.
 
 --- tql ---
+import Data.Function (compose, identity);
+
 add a b = a + b;
 adder n = if n = 0 then identity else compose (add 1) (adder (n - 1));
 main = pure $ adder 1 10;
@@ -23,7 +25,7 @@ add = {} \u {} ->
   t0@0
 adder = {} \u {} ->
   let
-    t3 = {} \n {n} -> case op[=]# n@0 0 of
+    t3 = {} \n {n} -> case %eq_int# n@0 0 of
       False ->
         let
           t0 = {} \u {} -> add 1

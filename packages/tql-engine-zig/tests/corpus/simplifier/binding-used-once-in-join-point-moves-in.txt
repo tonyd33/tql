@@ -1,0 +1,29 @@
+title: a binding used once in a join point's value moves into it
+grammar: typescript
+asserts: simplified, values
+
+A join point's parameters are not a lambda: its value runs at most once, so
+`s` moves into it without repeating work.
+
+--- tql ---
+import Data.Function (const);
+
+f b x = let {
+  s = x * x;
+  g y = s + y * 2 + y * 3 + y * 4 + y * 5;
+} in if b then g 1 else g 2;
+main = const [f True 3, f False 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[23,37]
+
+--- simplified ---
+f = \b -> \x ->
+  join g y = op[+] (op[+] (op[+] (op[+] (op[*] x x) (op[*] y 2)) (op[*] y 3)) (op[*] y 4)) (op[*] y 5) in
+  case b of
+    False -> jump g 2
+    True -> jump g 1
+main = const (Cons (f True 3) (Cons (f False 3) Nil))

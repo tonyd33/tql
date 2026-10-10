@@ -3,6 +3,8 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const [true];
 
 --- source ---

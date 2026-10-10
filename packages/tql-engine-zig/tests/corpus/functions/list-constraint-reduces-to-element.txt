@@ -5,6 +5,8 @@ asserts: types, values
 Comparing two lists raises `Eq [a]`, which holds when `Eq a` does.
 
 --- tql ---
+import Data.Function (const);
+
 same :: Eq a => [a] -> [a] -> Int;
 same x y = if x = y then 1 else 0;
 main = const [same [1] [1], same [1] [2]];

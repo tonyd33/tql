@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+
 size :: {name: String | r} -> Int;
 size r = length r.name;
 main = const [size {name = "abc", n = 1}];

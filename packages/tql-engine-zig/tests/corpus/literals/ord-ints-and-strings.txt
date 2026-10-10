@@ -5,6 +5,8 @@ asserts: values
 `<=` and `>=` hold on equal operands, for `Int` and `String` alike.
 
 --- tql ---
+import Data.Function (const);
+
 main = const [1 < 2, 2 <= 2, 2 >= 2, 2 > 1, 1 >= 2, "a" < "b", "a" <= "a", "a" >= "a", "b" <= "a"];
 
 --- source ---

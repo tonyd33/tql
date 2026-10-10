@@ -6,6 +6,8 @@ asserts: types, values, core
 `"\"ab\""` has length 4. Core prints the literal re-escaped.
 
 --- tql ---
+import Data.Function (const);
+
 main = const [length "\"ab\"", length "a\\b", length "\n\t\r"];
 
 --- source ---

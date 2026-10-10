@@ -18,10 +18,10 @@ class A {}
 
 --- core ---
 second = \xs ->
-  let alternative = Nil in
+  join alternative = Nil in
   case xs of
-    Nil -> alternative
+    Nil -> jump alternative
     Cons _ cons1 -> case cons1 of
-      Nil -> alternative
+      Nil -> jump alternative
       Cons b _ -> Cons b Nil
 main = pure (second (Cons 1 (Cons 2 (Cons 3 Nil))))

@@ -1,0 +1,25 @@
+title: a local loop that calls itself in an argument stays a function
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+f xs = let {
+  go ys = case ys of { [] -> 0; h : t -> h + go t };
+} in go xs;
+main = pure (f [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[6]
+
+--- simplified ---
+f = \xs ->
+  letrec
+    go = \ys -> case ys of
+      Nil -> 0
+      Cons h t -> op[+] h (go t)
+  in
+  go xs
+main = pure (f (Cons 1 (Cons 2 (Cons 3 Nil))))

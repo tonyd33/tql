@@ -155,7 +155,7 @@ FIELDS = [
     "compile_ns",
     "compile_parse_ns",
     "compile_load_ns",
-    "compile_prelude_ns",
+    "compile_library_ns",
     "compile_desugar_ns",
     "compile_type_check_ns",
     "compile_simplify_ns",

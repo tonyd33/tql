@@ -1,0 +1,117 @@
+title: a shared alternative binding two variables is a join point of two parameters
+grammar: typescript
+asserts: core, stg, values
+
+--- tql ---
+import Data.Function (const);
+
+g xs = case xs of {
+  [0, 0] -> 0;
+  [a, b] -> a * 2 + a * 3 + b * 4 + b * 5;
+  _ -> 1;
+};
+main = const [g [1, 2], g [0, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[23,27]
+--- stg ---
+g = {} \u {} ->
+  let
+    t6 = {} \n {xs} ->
+      let-no-escape
+        alternative {a,b} ->
+          let
+            t4 = {a@1,b@2} \u {} ->
+              let
+                t2 = {a@0} \u {} ->
+                  let
+                    t0 = {a@0} \u {} -> op[*]# a@0 2
+                    t1 = {a@0} \u {} -> op[*]# a@0 3
+                  in
+                  op[+]# t0@1 t1@2
+                t3 = {b@1} \u {} -> op[*]# b@0 4
+              in
+              op[+]# t2@2 t3@3
+            t5 = {b@2} \u {} -> op[*]# b@0 5
+          in
+          op[+]# t4@3 t5@4
+      in
+      case xs@0 of
+        Nil -> 1
+        Cons a cons1 -> case %eq_int# a@1 0 of
+          False -> case cons1@2 of
+            Nil -> 1
+            Cons b cons1 -> case cons1@4 of
+              Nil -> jump alternative a@1 b@3
+              Cons _ _ -> 1
+          True -> case cons1@2 of
+            Nil -> 1
+            Cons b cons1 -> case %eq_int# b@3 0 of
+              False -> case cons1@4 of
+                Nil -> jump alternative a@1 b@3
+                Cons _ _ -> 1
+              True -> case cons1@4 of
+                Nil -> 0
+                Cons _ _ -> 1
+  in
+  t6@0
+main = {} \u {} ->
+  let
+    t10 = {} \u {} ->
+      let
+        t3 = {} \u {} ->
+          let
+            t2 = {} \u {} ->
+              let
+                t1 = {} \u {} ->
+                  let c0 = Nil in
+                  Cons 2 c0@0
+              in
+              Cons 1 t1@0
+          in
+          g t2@0
+        t9 = {} \u {} ->
+          let
+            t7 = {} \u {} ->
+              let
+                t6 = {} \u {} ->
+                  let
+                    t5 = {} \u {} ->
+                      let c4 = Nil in
+                      Cons 3 c4@0
+                  in
+                  Cons 0 t5@0
+              in
+              g t6@0
+            c8 = Nil
+          in
+          Cons t7@0 c8@1
+      in
+      Cons t3@0 t9@1
+  in
+  const t10@0
+--- core ---
+g = \xs ->
+  join alternative a b = op[+] (op[+] (op[+] (op[*] a 2) (op[*] a 3)) (op[*] b 4)) (op[*] b 5) in
+  join alternative' = 1 in
+  case xs of
+    Nil -> jump alternative'
+    Cons a cons1 -> case eq a 0 of
+      False -> case cons1 of
+        Nil -> jump alternative'
+        Cons b cons1 -> case cons1 of
+          Nil -> jump alternative a b
+          Cons _ _ -> jump alternative'
+      True -> case cons1 of
+        Nil -> jump alternative'
+        Cons b cons1 -> case eq b 0 of
+          False -> case cons1 of
+            Nil -> jump alternative a b
+            Cons _ _ -> jump alternative'
+          True -> case cons1 of
+            Nil -> 0
+            Cons _ _ -> jump alternative'
+main = const (Cons (g (Cons 1 (Cons 2 Nil))) (Cons (g (Cons 0 (Cons 3 Nil))) Nil))

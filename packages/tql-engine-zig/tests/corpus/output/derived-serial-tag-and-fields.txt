@@ -5,6 +5,8 @@ asserts: values
 Every constructor encodes as one shape, a nullary one with no fields.
 
 --- tql ---
+import Data.Function (const);
+
 data Maybe a = Nothing | Just a deriving (Serial);
 main = const [Just [1], Nothing, Just []];
 

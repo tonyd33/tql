@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 type Box = {item: a};
 main = const [];
 
 --- error ---
 error[unresolved-name]: `a` is not a parameter of `Box`
- --> 1:19
+ --> 3:19
   |
-1 | type Box = {item: a};
+3 | type Box = {item: a};
   |                   ^

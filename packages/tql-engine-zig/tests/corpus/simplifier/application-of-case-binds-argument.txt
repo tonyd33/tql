@@ -1,0 +1,22 @@
+title: an application of a case binds a computed argument once and moves it into each alternative
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+import Data.Function (const);
+
+f b x = (if b then \y -> y + 1 else \y -> y * 2) (x * x);
+main = const [f True 3, f False 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[10,18]
+--- simplified ---
+f = \b -> \x ->
+  let a = op[*] x x in
+  case b of
+    False -> op[*] a 2
+    True -> op[+] a 1
+main = const (Cons (op[+] (op[*] 3 3) 1) (Cons (op[*] (op[*] 3 3) 2) Nil))

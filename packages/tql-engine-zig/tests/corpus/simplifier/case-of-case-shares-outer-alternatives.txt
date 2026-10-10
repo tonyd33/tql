@@ -1,0 +1,29 @@
+title: case of case copies trivial outer alternatives and binds the rest as join points of their fields
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+import Data.Function (const);
+
+f b xs ys = case (if b then xs else ys) of {
+  [] -> 0;
+  h : t -> h * 2 + h * 3 + h * 4 + h * 5;
+};
+main = const [f True [1] [], f False [] [2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[14,28]
+--- simplified ---
+f = \b -> \xs -> \ys ->
+  join j h t = op[+] (op[+] (op[+] (op[*] h 2) (op[*] h 3)) (op[*] h 4)) (op[*] h 5) in
+  case b of
+    False -> case ys of
+      Nil -> 0
+      Cons h t -> jump j h t
+    True -> case xs of
+      Nil -> 0
+      Cons h t -> jump j h t
+main = const (Cons (f True (Cons 1 Nil) Nil) (Cons (f False Nil (Cons 2 Nil)) Nil))
