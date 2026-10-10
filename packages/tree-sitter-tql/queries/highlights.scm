@@ -34,6 +34,7 @@
 (unit) @constant.builtin
 
 (tuple_constructor) @type
+(function_constructor) @type
 
 (kind) @type
 

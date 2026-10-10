@@ -1,0 +1,23 @@
+title: an instance head may be `(->)` short of arguments
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+instance Mappable ((->) r) where {
+  mapf f g x = f (g x);
+};
+
+main root = [mapf (+ 1) (\x -> x * 2) 3];
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- types ---
+main :: Node -> [Int]

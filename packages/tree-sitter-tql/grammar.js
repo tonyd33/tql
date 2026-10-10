@@ -655,6 +655,12 @@ module.exports = grammar({
 
     list: $ => seq("[", optional(sep_trailing($._expression, ",")), "]"),
 
+    // `(->)` is the function type's constructor.
+    function_constructor: _ => seq("(", "->", ")"),
+
+    _builtin_constructor: $ =>
+      choice($.tuple_constructor, $.function_constructor),
+
     record: $ => seq("{", optional(sep_trailing($.record_field, ",")), "}"),
 
     record_field: $ =>
@@ -673,7 +679,7 @@ module.exports = grammar({
         $.record_type,
         $.unit,
         $.tuple_type,
-        $.tuple_constructor,
+        $._builtin_constructor,
         $._constructor,
         $._type_variable,
         $.parenthesized_type,
@@ -682,7 +688,7 @@ module.exports = grammar({
     type_application: $ =>
       seq(
         choice(
-          field("constructor", choice($._constructor, $.tuple_constructor)),
+          field("constructor", choice($._constructor, $._builtin_constructor)),
           field("variable", $._type_variable),
         ),
         repeat1(field("argument", $._type_operand)),
@@ -701,7 +707,7 @@ module.exports = grammar({
         $.record_type,
         $.unit,
         $.tuple_type,
-        $.tuple_constructor,
+        $._builtin_constructor,
         $._constructor,
         $._type_variable,
         $.parenthesized_type,

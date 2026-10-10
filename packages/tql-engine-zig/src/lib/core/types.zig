@@ -523,6 +523,45 @@ fn constructedOwning(
     return .{ .constructor = node };
 }
 
+/// A declared type at its arguments, reading `a -> b` as `(->)` at `a` and
+/// `b`.
+pub const Applied = union(enum) {
+    declared: *const Type.Constructed,
+    function: *const Type.Arrow,
+
+    pub fn name(self: Applied) datatypes.TypeId {
+        return switch (self) {
+            .declared => |c| c.name,
+            .function => datatypes.function_id,
+        };
+    }
+
+    pub fn arity(self: Applied) usize {
+        return switch (self) {
+            .declared => |c| c.arguments.len,
+            .function => 2,
+        };
+    }
+
+    /// Preconditions:
+    /// - `i` is less than `arity()`.
+    pub fn argument(self: Applied, i: usize) Type {
+        return switch (self) {
+            .declared => |c| c.arguments[i],
+            .function => |f| if (i == 0) f.from else f.to,
+        };
+    }
+};
+
+/// `t` as a declared type at its arguments, if it is one.
+pub fn asApplied(t: Type) ?Applied {
+    return switch (t) {
+        .constructor => |c| .{ .declared = c },
+        .function => |f| .{ .function = f },
+        else => null,
+    };
+}
+
 /// The arrow `t` is, looking through aliases.
 pub fn arrowOf(t: Type) ?*const Type.Arrow {
     return switch (t) {

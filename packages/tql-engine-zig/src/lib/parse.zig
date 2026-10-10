@@ -1270,12 +1270,23 @@ const Walker = struct {
         };
     }
 
+    fn isBuiltinConstructor(node: ts.Node) bool {
+        return std.mem.eql(u8, node.kind(), "tuple_constructor") or std.mem.eql(u8, node.kind(), "function_constructor");
+    }
+
+    /// Preconditions:
+    /// - `isBuiltinConstructor(node)`.
+    fn builtinConstructor(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.BuiltinConstructor {
+        if (std.mem.eql(u8, node.kind(), "function_constructor")) return .function;
+        return .{ .tuple = try self.tupleArity(node) orelse return null };
+    }
+
     fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
         const head: cst.TypeApplication.Head = if (node.childByFieldName("variable")) |variable|
             .{ .variable = try self.dupe(variable) }
         else head: {
             const constructor = try self.requiredField(node, "constructor") orelse return null;
-            if (std.mem.eql(u8, constructor.kind(), "tuple_constructor")) break :head .{ .tuple = try self.tupleArity(constructor) orelse return null };
+            if (isBuiltinConstructor(constructor)) break :head .{ .builtin = try self.builtinConstructor(constructor) orelse return null };
             break :head .{ .constructor = try self.dupe(constructor) };
         };
         const arguments = try self.fieldChildren(cst.Type, node, "argument", typeExpr) orelse return null;
@@ -1351,8 +1362,8 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "unit")) {
             return cst.Type{ .kind = .{ .tuple = &.{} }, .span = span };
         }
-        if (std.mem.eql(u8, kind, "tuple_constructor")) {
-            return cst.Type{ .kind = .{ .tuple_constructor = try self.tupleArity(node) orelse return null }, .span = span };
+        if (isBuiltinConstructor(node)) {
+            return cst.Type{ .kind = .{ .builtin_constructor = try self.builtinConstructor(node) orelse return null }, .span = span };
         }
         if (std.mem.eql(u8, kind, "parenthesized_type")) {
             const inner_node = node.namedChild(0) orelse {

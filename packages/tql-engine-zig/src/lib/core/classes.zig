@@ -77,7 +77,7 @@ pub const Instance = struct {
 
     /// Returns the datatype the instance is declared at.
     pub fn head(self: Instance) symbols.TypeId {
-        return self.type.constructor.name;
+        return types.asApplied(self.type).?.name();
     }
 };
 
@@ -257,10 +257,8 @@ pub const Registry = struct {
 
 /// How many variables an instance head of type `t` is over.
 pub fn parameterCount(t: types.Type) u8 {
-    return switch (t) {
-        .constructor => |c| @intCast(c.arguments.len),
-        else => 0,
-    };
+    const c = types.asApplied(t) orelse return 0;
+    return @intCast(c.arity());
 }
 
 /// Reduces `class t` to the constraints on its leaves it holds under, through
@@ -289,11 +287,11 @@ pub fn reduce(
         // An application here has an unsolved head.
         .meta, .variable, .application => try sink.leaf(class, expanded),
         .alias => unreachable,
-        .function => return written,
-        .constructor => |c| {
-            const found = registry.instanceFor(class, c.name) orelse return written;
+        .constructor, .function => {
+            const c = types.asApplied(expanded).?;
+            const found = registry.instanceFor(class, c.name()) orelse return written;
             for (registry.instance(found).context) |needed| {
-                const argument = c.arguments[needed.variable];
+                const argument = c.argument(needed.variable);
                 if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;
             }
         },

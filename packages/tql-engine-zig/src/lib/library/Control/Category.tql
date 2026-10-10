@@ -1,0 +1,11 @@
+module Control.Category (Category(..));
+
+class Category k where {
+  identity :: k a a;
+  compose :: k b c -> k a b -> k a c;
+};
+
+instance Category (->) where {
+  identity x = x;
+  compose f g x = f (g x);
+};

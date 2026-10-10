@@ -33,8 +33,8 @@ adder = {} \u {} ->
             let t1 = {n@0} \u {} -> op[-]# n@0 1 in
             adder t1@1
         in
-        compose t0@1 t2@2
-      True -> identity
+        compose[(->)] t0@1 t2@2
+      True -> identity[(->)]
   in
   t3@0
 main = {} \u {} ->

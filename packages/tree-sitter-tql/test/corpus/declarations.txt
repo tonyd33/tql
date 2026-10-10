@@ -701,3 +701,45 @@ newtype Wrap f a = Wrap (f a);
         (type_application
           (type_variable)
           (type_variable))))))
+
+========================================
+an instance at the function type constructor
+========================================
+
+instance Category (->) where {
+  identity x = x;
+};
+
+---
+
+(source_file
+  (instance_declaration
+    (type_identifier)
+    (function_constructor)
+    (definition
+      (identifier)
+      (identifier)
+      (identifier))))
+
+========================================
+the function type constructor partly applied
+========================================
+
+f :: (->) Int Bool -> Maybe ((->) Int);
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (function_type
+      (type_application
+        (function_constructor)
+        (type_identifier)
+        (type_identifier))
+      (type_application
+        (type_identifier)
+        (parenthesized_type
+          (type_application
+            (function_constructor)
+            (type_identifier)))))))

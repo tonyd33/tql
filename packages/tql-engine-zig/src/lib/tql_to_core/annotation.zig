@@ -172,7 +172,7 @@ pub const InstanceHead = struct {
 
     /// Returns the datatype the instance is declared at.
     pub fn head(self: InstanceHead) core.datatypes.TypeId {
-        return self.type.constructor.name;
+        return types.asApplied(self.type).?.name();
     }
 };
 
@@ -203,8 +203,11 @@ pub fn translateInstance(
     const head_type = try t.type(declared.head, parameter);
     const written = declared.head.unparenthesized();
     switch (head_type) {
-        .constructor => |c| {
-            for (c.arguments, headArguments(written), 0..) |argument, w, i| {
+        .constructor, .function => {
+            const c = types.asApplied(head_type).?;
+            for (0..c.arity()) |i| {
+                const argument = c.argument(i);
+                const w = headArgument(written, i);
                 if (argument != .variable) {
                     try sink.report(
                         .invalid_instance,
@@ -228,7 +231,6 @@ pub fn translateInstance(
             }
         },
         .variable, .application => return badHead(sink, written.span, "a type variable"),
-        .function => return badHead(sink, written.span, "a function type"),
         .record => return badHead(sink, written.span, "a record type"),
         .alias => return badHead(sink, written.span, "an alias"),
         .meta => unreachable,
@@ -246,14 +248,16 @@ pub fn translateInstance(
     return .{ .type = head_type, .context = context };
 }
 
-/// The written arguments of an unparenthesized head the translator took for
-/// a declared type.
-fn headArguments(written: cst.Type) []const cst.Type {
+/// The written argument `i` of an unparenthesized head the translator took
+/// for a declared type at more than `i` arguments.
+fn headArgument(written: cst.Type, i: usize) cst.Type {
     return switch (written.kind) {
-        .application => |a| a.arguments,
-        .list => |element| element[0..1],
-        .tuple => |components| components,
-        else => &.{},
+        .application => |a| a.arguments[i],
+        .list => |element| element.*,
+        .tuple => |components| components[i],
+        .function => |f| if (i == 0) f.from else f.to,
+        .filter => |f| if (i == 0) f.input else f.output,
+        .constructor, .variable, .builtin_constructor, .record, .parenthesized => unreachable,
     };
 }
 
@@ -462,12 +466,12 @@ const Translator = struct {
             .application => |a| switch (a.head) {
                 .constructor => |name| return try self.named(name, a.arguments, node.span, expected),
                 .variable => |name| return try self.variable(name, a.arguments, node.span, expected),
-                .tuple => |arity| return try self.tuple(arity, a.arguments, node.span, expected),
+                .builtin => |b| return try self.builtin(b, a.arguments, node.span, expected),
             },
             .variable => |name| return try self.variable(name, &.{}, node.span, expected),
             .parenthesized => |inner| return try self.type(inner.*, expected),
-            .tuple => |components| return try self.tuple(@intCast(components.len), components, node.span, expected),
-            .tuple_constructor => |arity| return try self.tuple(arity, &.{}, node.span, expected),
+            .tuple => |components| return try self.builtin(.{ .tuple = @intCast(components.len) }, components, node.span, expected),
+            .builtin_constructor => |b| return try self.builtin(b, &.{}, node.span, expected),
             .list, .function, .filter, .record => {},
         }
         if (!self.group.inference.unify(expected, .type)) {
@@ -476,7 +480,7 @@ const Translator = struct {
                 .function => "a function type",
                 .filter => "a `Filter` type",
                 .record => "a record type",
-                .constructor, .application, .variable, .parenthesized, .tuple, .tuple_constructor => unreachable,
+                .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
             };
             return self.kindMismatch(node.span, what, .type, expected);
         }
@@ -491,20 +495,23 @@ const Translator = struct {
                 try self.scope.env.datatypes.list(self.arena, try self.type(f.output, .type)),
             ),
             .record => |r| try self.record(r, node.span),
-            .constructor, .application, .variable, .parenthesized, .tuple, .tuple_constructor => unreachable,
+            .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
         };
     }
 
-    /// The type of tuples with `arity` components applied to `written`, which
-    /// must have kind `expected`.
-    fn tuple(
+    /// The type `constructor` builds, applied to `written`, which must have
+    /// kind `expected`.
+    fn builtin(
         self: *Translator,
-        arity: types.TypeVar,
+        constructor: cst.BuiltinConstructor,
         written: []const cst.Type,
         span: diagnostic.Span,
         expected: types.Kind,
     ) Error!types.Type {
-        const id = try self.scope.env.tuple(arity);
+        const id = switch (constructor) {
+            .tuple => |arity| try self.scope.env.tuple(arity),
+            .function => datatypes.function_id,
+        };
         return try self.spine(self.scope.env.datatypes.get(id).name, .{ .datatype = id }, written, span, expected);
     }
 

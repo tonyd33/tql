@@ -1,4 +1,4 @@
-title: an instance head may not be a function
+title: an instance head at the function type takes type variables, as any other
 grammar: typescript
 asserts: error
 
@@ -10,8 +10,8 @@ instance Describe (Int -> Int) where { describe f = "function"; };
 main = const [];
 
 --- error ---
-error[invalid-instance]: an instance head must be a declared type, not a function type
+error[invalid-instance]: each argument of an instance head must be a type variable
  --> 4:20
   |
 4 | instance Describe (Int -> Int) where { describe f = "function"; };
-  |                    ^^^^^^^^^^
+  |                    ^^^

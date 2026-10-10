@@ -3,11 +3,13 @@ module Prelude (
   module Data.Tuple,
   module Data.Bool,
   module Data.Monoid,
+  module Control.Category,
   module Data.Functor,
   module Control.Applicative,
   module Data.Foldable,
   module Data.Traversable,
   module Control.Monad,
+  module Data.Maybe,
   module Data.List,
   module Data.Node,
   module Data.Filter,
@@ -27,12 +29,14 @@ import Prim (
 );
 import Data.Tuple (fst, snd, swap);
 import Data.Bool (not, and, or);
+import Control.Category (Category(..));
 import Data.Monoid (Semigroup(..), Monoid(..));
 import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..), return, guard);
 import Data.Foldable (Foldable(..));
 import Data.Traversable (Traversable(..), sequence);
 import Control.Monad (Monad(..));
-import Data.List (Sized(..));
+import Data.Maybe (Maybe(..));
+import Data.List (Sized(..), head, last);
 import Data.Node;
-import Data.Filter (always, none, arr, collect, keep, has, first, or_else);
+import Data.Filter (always, none, arr, collect, keep, has, or_else);

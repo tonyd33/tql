@@ -1,0 +1,29 @@
+title: `identity` and `compose` are `Category`'s methods at `(->)`
+grammar: typescript
+asserts: types, values, simplified
+
+`Data.Function` and `Control.Category` export the same `identity`, so
+importing both is not ambiguous. `.` is `compose`.
+
+--- tql ---
+import Data.Function (identity);
+import Control.Category (Category(..));
+
+double x = x * 2;
+next x = x + 1;
+
+main root = [identity 1, compose double next 1, (double . next) 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,4,4]
+
+--- simplified ---
+main = \root -> Cons 1 (Cons (op[*] (op[+] 1 1) 2) (Cons (op[*] (op[+] 1 1) 2) Nil))
+
+--- types ---
+double :: Int -> Int
+next :: Int -> Int
+main :: Node -> [Int]

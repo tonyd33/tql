@@ -34,7 +34,7 @@ numbers = descendants_of_kind :number_literal | arr text | toint;
 
 main root = do {
   f <- descendants_of_kind :function_definition root;
-  name <- first (#declarator | descendants_of_kind :identifier) f;
+  name <- take 1 $ (#declarator | descendants_of_kind :identifier) f;
   body <- #body f;
   let callees = sort_into [] (called body);
   let larges = concat_map large (map classify (numbers body));

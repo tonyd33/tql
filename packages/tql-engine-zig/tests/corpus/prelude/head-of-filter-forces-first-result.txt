@@ -1,0 +1,28 @@
+title: `head . p` is a filter's first result, and forces no other
+grammar: typescript
+asserts: types, values
+
+`p` yields `1` and then a division by zero, which `head` never forces.
+`head . p` is a filter into `Maybe`, which `has` and `or_else` take.
+
+--- tql ---
+import Data.Foldable (to_list);
+
+p :: Node -> [Int];
+p _ = [1, 1 / 0];
+
+main root = [(
+  has (head . p) root,
+  has (head . none) root,
+  to_list $ or_else (head . none) (head . p) root
+)];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false,[1]]]
+
+--- types ---
+p :: Node -> [Int]
+main :: Node -> [(Bool, Bool, [Int])]

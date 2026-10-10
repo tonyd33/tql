@@ -7,7 +7,6 @@ module Data.Filter (
   collect,
   keep,
   has,
-  first,
   or_else,
 );
 
@@ -40,9 +39,6 @@ keep p x = case p x of {
 
 has :: Foldable f => (a -> f b) -> a -> Bool;
 has p x = not $ null $ p x;
-
-first :: Foldable f => (a -> f b) -> a -> [b];
-first p x = foldr (\y _ -> [y]) [] $ p x;
 
 or_else :: Foldable f => (a -> f b) -> (a -> f b) -> a -> f b;
 or_else primary fallback x = let {

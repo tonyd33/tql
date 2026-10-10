@@ -16,13 +16,15 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
-- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `head` and `tail`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `tail` and `init`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `const` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
 - The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
 - The filter `alt` is renamed `union`: `import Data.Filter (union);`. `alt` is the `Alternative` method. `<|>` is unchanged.
 - `append` is the `Semigroup` method, exported by the prelude. Drop it from `import Data.List (...)`.
 - `Unit` is replaced by `()`, the empty tuple: write `()` for the value, the pattern and the type. `guard` returns `f ()`, and the `Data.Unit` module is gone.
+- The filter `first` is removed, so `Arrow` can take the name. A step after `|` runs once per result, so a filter's first result is a list function composed after it: write `take 1 . p` for `first p`, and `take 1 $ p x` for `first p x`, with `import Data.List (take);`. `head . p` gives the first result as a `Maybe`.
+- `head`, `tail` and the new `last` and `init` return a `Maybe`: `head [] = Nothing`, `tail [1, 2] = Just [2]`. Write `take 1 xs` and `drop 1 xs` for the old list results.
 
 ### New Features
 
@@ -77,6 +79,11 @@
 - `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
 - Added tuples: `(1, "a")` is a value, `(n, s)` a pattern and `(Int, String)` a type, with up to 255 components. `(,)` and `(,,)` are their constructors as functions.
 - Added `newtype`: `newtype Name = Name String;` declares a type distinct from `String` to the type checker.
+- Added `Control.Category`, with the `Category` class (`identity`, `compose`), and `Control.Arrow`, with `newtype Kleisli m a b = Kleisli (a -> m b)` and `run_kleisli`. `Kleisli m a` is a `Functor`, `Applicative`, `Alternative` and `Monad` that gives every step the same input, and `Kleisli m` a `Category` whose `compose` is `|`.
+- `identity` and `compose` are `Category`'s methods, with an instance at functions, and the prelude exports them. `.` is `compose`, so it composes `Kleisli` arrows as well as functions.
+- Added `Arrow` (`arr`, `first`, `second`, `split`, `fanout`), `ArrowZero` (`zero_arrow`) and `ArrowPlus` (`plus`) to `Control.Arrow`, with instances at functions and at `Kleisli m`. The prelude does not export them yet.
+- `(->)` is the function type's constructor in types: `instance Mappable ((->) r)` is an instance at functions from `r`. An instance head may also be a function type over two variables: `instance Combine b => Combine (a -> b)`.
+- The prelude exports `Maybe(..)`, `head` and `last`.
 
 ### Improvements
 

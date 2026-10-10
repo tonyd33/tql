@@ -1,0 +1,83 @@
+module Control.Arrow (
+  Arrow(..),
+  ArrowZero(..),
+  ArrowPlus(..),
+  Kleisli(..),
+  run_kleisli,
+);
+
+import Data.Tuple (fst, snd);
+import Data.Functor (Functor(..));
+import Control.Applicative (Applicative(..), Alternative(..));
+import Control.Monad (Monad(..));
+import Control.Category (Category(..));
+
+class Category k => Arrow k where {
+  arr :: (a -> b) -> k a b;
+  first :: k a b -> k (a, c) (b, c);
+  second :: k a b -> k (c, a) (c, b);
+  split :: k a b -> k c d -> k (a, c) (b, d);
+  fanout :: k a b -> k a c -> k a (b, c);
+};
+
+class Arrow k => ArrowZero k where {
+  zero_arrow :: k a b;
+};
+
+class ArrowZero k => ArrowPlus k where {
+  plus :: k a b -> k a b -> k a b;
+};
+
+instance Arrow (->) where {
+  arr f = f;
+  first f p = (f (fst p), snd p);
+  second f p = (fst p, f (snd p));
+  split f g p = (f (fst p), g (snd p));
+  fanout f g x = (f x, g x);
+};
+
+newtype Kleisli m a b = Kleisli (a -> m b);
+
+run_kleisli :: Kleisli m a b -> a -> m b;
+run_kleisli k = case k of {
+  Kleisli f -> f;
+};
+
+instance Functor m => Functor (Kleisli m a) where {
+  map f k = Kleisli (\x -> map f (run_kleisli k x));
+};
+
+instance Applicative m => Applicative (Kleisli m a) where {
+  pure y = Kleisli (\_ -> pure y);
+  ap kf ky = Kleisli (\x -> ap (run_kleisli kf x) (run_kleisli ky x));
+};
+
+instance Alternative m => Alternative (Kleisli m a) where {
+  empty = Kleisli (\_ -> empty);
+  alt p q = Kleisli (\x -> alt (run_kleisli p x) (run_kleisli q x));
+};
+
+instance Monad m => Monad (Kleisli m a) where {
+  bind k f = Kleisli (\x -> bind (run_kleisli k x) (\y -> run_kleisli (f y) x));
+};
+
+instance Monad m => Category (Kleisli m) where {
+  identity = Kleisli pure;
+  compose g f = Kleisli (run_kleisli f | run_kleisli g);
+};
+
+instance Monad m => Arrow (Kleisli m) where {
+  arr f = Kleisli (pure . f);
+  first k = Kleisli (\p -> map (\b -> (b, snd p)) (run_kleisli k (fst p)));
+  second k = Kleisli (\p -> map (\b -> (fst p, b)) (run_kleisli k (snd p)));
+  split f g = Kleisli (\p -> ap (map (,) (run_kleisli f (fst p))) (run_kleisli g (snd p)));
+  fanout f g = ap (map (,) f) g;
+};
+
+instance (Monad m, Alternative m) => ArrowZero (Kleisli m) where {
+  zero_arrow = empty;
+};
+
+instance (Monad m, Alternative m) => ArrowPlus (Kleisli m) where {
+  plus = alt;
+};

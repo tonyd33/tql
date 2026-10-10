@@ -1,0 +1,46 @@
+title: each `Kleisli` instance at `Kleisli List Node` reads one input
+grammar: typescript
+asserts: types, values
+
+`map`, `ap` and `alt` run both sides on the same node, and `ap` pairs
+every result of one side with every result of the other.
+
+--- tql ---
+import Control.Arrow (Kleisli(..), run_kleisli);
+
+names :: Kleisli List Node String;
+names = Kleisli (named_children | arr kind_name);
+
+lengths :: Kleisli List Node Int;
+lengths = map length names;
+
+paired :: Kleisli List Node (String, Int);
+paired = ap (map (\s n -> (s, n)) names) lengths;
+
+both :: Kleisli List Node String;
+both = alt names (pure "end");
+
+nothing :: Kleisli List Node String;
+nothing = empty;
+
+main root = [(
+  run_kleisli lengths root,
+  run_kleisli paired root,
+  run_kleisli both root,
+  run_kleisli nothing root
+)];
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[[[17,17],[["class_declaration",17],["class_declaration",17],["class_declaration",17],["class_declaration",17]],["class_declaration","class_declaration","end"],[]]]
+
+--- types ---
+names :: Kleisli List Node String
+lengths :: Kleisli List Node Int
+paired :: Kleisli List Node (String, Int)
+both :: Kleisli List Node String
+nothing :: Kleisli List Node String
+main :: Node -> [([Int], [(String, Int)], [String], [String])]

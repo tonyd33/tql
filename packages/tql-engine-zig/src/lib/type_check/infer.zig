@@ -270,20 +270,18 @@ pub const Inference = struct {
         const argument = operand.type;
 
         // This isn't and can never be a function. Therefore we're over applying.
-        const head = self.subst.resolve(callee);
-        const expanded = self.subst.expand(head);
-        if (expanded != .function and expanded != .meta) {
-            return self.fail(
+        const parameter = try self.subst.fresh(.type);
+        const result = try self.subst.fresh(.type);
+        switch (try unify.unify(self.subst, callee, try types.func(self.subst.arena, parameter, result))) {
+            .unified => {},
+            .mismatch => return self.fail(
                 .over_application,
                 app.argument.span,
-                .{ .over_application = head },
-            );
+                .{ .over_application = self.subst.resolve(callee) },
+            ),
         }
 
-        const result = try self.subst.fresh(.type);
-        const arrow = try types.func(self.subst.arena, argument, result);
-
-        switch (try unify.unify(self.subst, callee, arrow)) {
+        switch (try unify.unify(self.subst, parameter, argument)) {
             .unified => {},
             .mismatch => |m| return self.fail(
                 .type_mismatch,

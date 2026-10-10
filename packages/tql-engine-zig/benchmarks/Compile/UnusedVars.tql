@@ -1,8 +1,7 @@
 module Compile.UnusedVars (unused_vars) for javascript;
 
 import Data.Foldable (any, null, concat_map);
-import Data.List (filter);
-import Data.Function (identity);
+import Data.List (filter, take);
 
 is_one_of ks n = any (= kind n) ks;
 
@@ -23,7 +22,7 @@ declaration_kind decl = case #kind decl of { [k] -> text k; _ -> "var"; };
 
 is_var_scope n = is_function n or is_kind :program n;
 
-var_scope_of = first (ancestors | keep is_var_scope);
+var_scope_of = take 1 . (ancestors | keep is_var_scope);
 
 lexical_names stmt =
   if is_kind :lexical_declaration stmt then concat_map declarator_names (children_of_kind :variable_declarator stmt)
@@ -46,7 +45,7 @@ var_names scope = do {
   name <- (of_kind :variable_declaration | children_of_kind :variable_declarator | declarator_names)
     <|> (of_kind :for_in_statement | keep ((= "var") . declaration_kind) | #left | pattern_names)
     $ v;
-  first (var_scope_of | keep (= scope)) v;
+  (var_scope_of | keep (= scope)) v;
   return name;
 };
 
@@ -63,7 +62,7 @@ declared scope =
 
 declared_as ref scope = filter ((= text ref) . text) (declared scope);
 
-resolve ref = first (ancestors | declared_as ref) ref;
+resolve ref = take 1 $ (ancestors | declared_as ref) ref;
 
 resolves_to binding ref = any (= binding) (resolve ref);
 
@@ -88,7 +87,7 @@ write_site id = do {
 reference_kinds = [:identifier, :shorthand_property_identifier_pattern, :shorthand_property_identifier];
 
 references binding = do {
-  scope <- first (ancestors | keep (declares binding)) binding;
+  scope <- take 1 $ (ancestors | keep (declares binding)) binding;
   r <- descendants scope;
   guard $ is_one_of reference_kinds r and text r = text binding and not (r = binding);
   guard $ resolves_to binding r;

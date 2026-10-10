@@ -7,11 +7,14 @@ module Data.List (
   take,
   drop,
   head,
+  last,
   tail,
+  init,
 );
 
 import Prim (Int, String, List(..), Bool(..), seq);
 import Data.Tuple (fst, snd);
+import Data.Maybe (Maybe(..));
 
 class Sized a where {
   length :: a -> Int;
@@ -69,8 +72,30 @@ drop n xs = if n <= 0 then xs else case xs of {
   Cons h t -> drop (n - 1) t;
 };
 
-head :: [a] -> [a];
-head xs = take 1 xs;
+head :: [a] -> Maybe a;
+head xs = case xs of {
+  [] -> Nothing;
+  x : _ -> Just x;
+};
 
-tail :: [a] -> [a];
-tail xs = drop 1 xs;
+last :: [a] -> Maybe a;
+last xs = case xs of {
+  [] -> Nothing;
+  [x] -> Just x;
+  _ : rest -> last rest;
+};
+
+tail :: [a] -> Maybe [a];
+tail xs = case xs of {
+  [] -> Nothing;
+  _ : rest -> Just rest;
+};
+
+init :: [a] -> Maybe [a];
+init xs = case xs of {
+  [] -> Nothing;
+  x : rest -> Just $ case init rest of {
+    Nothing -> [];
+    Just front -> x : front;
+  };
+};

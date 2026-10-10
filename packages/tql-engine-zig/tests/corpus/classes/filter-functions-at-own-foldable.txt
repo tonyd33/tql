@@ -1,4 +1,4 @@
-title: `has`, `first`, `or_else` and `collect` take a filter into any `Foldable`
+title: `has`, `or_else` and `collect` take a filter into any `Foldable`
 grammar: typescript
 asserts: types, values
 
@@ -20,7 +20,6 @@ flag b = if b then 1 else 0;
 
 main root = concat [
   [flag $ has positive 1, flag $ has positive 0],
-  first positive 2,
   to_list $ or_else positive (\_ -> Some 9) 0,
   concat $ collect positive 3,
 ];
@@ -29,7 +28,7 @@ main root = concat [
 class A {}
 
 --- values ---
-[1,0,2,9,3]
+[1,0,9,3]
 
 --- types ---
 positive :: Int -> Opt Int

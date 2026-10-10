@@ -3,7 +3,7 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.List (tail);
+import Data.List (drop);
 
 class Describe a where {
   describe :: a -> [String];
@@ -22,7 +22,7 @@ instance Describe a => Describe [a] where {
   };
 };
 
-main root = [describe [[Circle 1]], describe [tail [Square 1]]];
+main root = [describe [[Circle 1]], describe [drop 1 [Square 1]]];
 
 --- source ---
 class A {}

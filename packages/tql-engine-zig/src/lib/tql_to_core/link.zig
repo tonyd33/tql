@@ -593,7 +593,7 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         .application => |a| {
             switch (a.head) {
                 .constructor => |name| try out.append(gpa, name),
-                .variable, .tuple => {},
+                .variable, .builtin => {},
             }
             for (a.arguments) |argument| try typeNames(gpa, argument, out);
         },
@@ -608,7 +608,7 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         },
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
         .tuple => |components| for (components) |component| try typeNames(gpa, component, out),
-        .tuple_constructor => {},
+        .builtin_constructor => {},
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
 }

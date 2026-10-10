@@ -1,9 +1,10 @@
 import Data.Foldable (any, null);
+import Data.List (take);
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration];
 
 is_function n = any (= kind n) function_kinds;
 
-enclosing_function = first (ancestors | keep is_function);
+enclosing_function = take 1 . (ancestors | keep is_function);
 
 main = descendants_of_kind :identifier | keep (null . enclosing_function) | arr text;

@@ -1,0 +1,18 @@
+title: `take 1` after a filter keeps only its first output
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.List (take);
+
+main = take 1 . (children | of_kind :class_declaration | #name) | arr text;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+["A"]
+
+--- types ---
+main :: Node -> [String]

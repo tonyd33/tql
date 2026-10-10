@@ -3347,6 +3347,36 @@
         }
       ]
     },
+    "function_constructor": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "STRING",
+          "value": "->"
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
+    },
+    "_builtin_constructor": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "tuple_constructor"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "function_constructor"
+        }
+      ]
+    },
     "record": {
       "type": "SEQ",
       "members": [
@@ -3501,7 +3531,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "tuple_constructor"
+          "name": "_builtin_constructor"
         },
         {
           "type": "SYMBOL",
@@ -3535,7 +3565,7 @@
                   },
                   {
                     "type": "SYMBOL",
-                    "name": "tuple_constructor"
+                    "name": "_builtin_constructor"
                   }
                 ]
               }
@@ -3609,7 +3639,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "tuple_constructor"
+          "name": "_builtin_constructor"
         },
         {
           "type": "SYMBOL",

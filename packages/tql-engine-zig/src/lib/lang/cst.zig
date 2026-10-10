@@ -706,6 +706,21 @@ pub const FilterType = struct {
     output: Type,
 };
 
+/// A bracketed type constructor.
+pub const BuiltinConstructor = union(enum) {
+    /// `(,)`, the constructor of tuple types with `arity` components.
+    tuple: u8,
+    /// `(->)`.
+    function,
+
+    pub fn sexpr(self: BuiltinConstructor, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .tuple => |arity| try w.print("(tuple_constructor {d})", .{arity}),
+            .function => try w.writeAll("(->)"),
+        }
+    }
+};
+
 pub const TypeApplication = struct {
     head: Head,
     arguments: []const Type,
@@ -713,8 +728,7 @@ pub const TypeApplication = struct {
     pub const Head = union(enum) {
         constructor: Identifier,
         variable: Identifier,
-        /// `(,)`, the constructor of tuple types with `arity` components.
-        tuple: u8,
+        builtin: BuiltinConstructor,
     };
 };
 
@@ -906,8 +920,7 @@ pub const Type = struct {
         list: *Type,
         /// `(a, b, ..)`, or `()` with no components.
         tuple: []const Type,
-        /// `(,)`, the constructor of tuple types with `arity` components.
-        tuple_constructor: u8,
+        builtin_constructor: BuiltinConstructor,
         record: RecordType,
         parenthesized: *Type,
     };
@@ -925,7 +938,10 @@ pub const Type = struct {
             .application => |a| {
                 switch (a.head) {
                     .constructor, .variable => |name| try w.print("({s}", .{name}),
-                    .tuple => |arity| try w.print("((tuple_constructor {d})", .{arity}),
+                    .builtin => |b| {
+                        try w.writeByte('(');
+                        try b.sexpr(w);
+                    },
                 }
                 for (a.arguments) |arg| {
                     try w.writeByte(' ');
@@ -961,7 +977,7 @@ pub const Type = struct {
                 }
                 try w.writeByte(')');
             },
-            .tuple_constructor => |arity| try w.print("(tuple_constructor {d})", .{arity}),
+            .builtin_constructor => |b| try b.sexpr(w),
             .record => |r| {
                 try w.writeAll("(record_type");
                 for (r.fields) |f| {
