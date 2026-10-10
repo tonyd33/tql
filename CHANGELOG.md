@@ -30,6 +30,8 @@
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
 - A `String` is always UTF-8 text. `text` and `filename` replace each ill-formed byte sequence with U+FFFD, so a Latin-1 file's text outputs as a JSON string, not an array of bytes; `range` still gives the source bytes. `length` of a string counts code points: `length "héllo"` is 5, not 6. A string literal that is not UTF-8 is a parse error.
+- `_` is a wildcard in every binding position and never a value: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression is a parse error. `\_ -> _` returned its argument.
+- A name bound twice in one `let` group, one lambda or one definition's parameters is a `duplicate-definition` error: `\x x -> x` and `let { y = 5; y = 6; }` took the last binder. A nested lambda or a later `do` bind may still shadow.
 - A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run with `RegexFailed`.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 

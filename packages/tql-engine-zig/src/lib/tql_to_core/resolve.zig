@@ -16,19 +16,16 @@ pub const Scope = struct {
     names: []const Entry,
 
     pub const Entry = struct {
-        name: []const u8,
+        /// Null for `_`, which no lookup finds.
+        name: ?[]const u8,
         symbol: core.SymbolId,
     };
 
     pub fn lookup(self: *const Scope, name: []const u8) ?core.SymbolId {
         var frame: ?*const Scope = self;
         while (frame) |f| : (frame = f.parent) {
-            // Later entries in a frame shadow earlier ones, which matters for
-            // `\x x -> e`.
-            var i = f.names.len;
-            while (i > 0) {
-                i -= 1;
-                if (std.mem.eql(u8, f.names[i].name, name)) return f.names[i].symbol;
+            for (f.names) |entry| {
+                if (std.mem.eql(u8, entry.name orelse continue, name)) return entry.symbol;
             }
         }
         return null;
@@ -38,7 +35,8 @@ pub const Scope = struct {
 /// A collected top-level declaration: its name, the symbol of the definition
 /// it binds, and what it is.
 pub const Declaration = struct {
-    name: []const u8,
+    /// Null for a definition of `_`, which no name reaches.
+    name: ?[]const u8,
     /// A value's own symbol, or a pattern synonym's matcher.
     symbol: core.SymbolId,
     kind: Kind,
@@ -74,7 +72,7 @@ pub const Declarations = struct {
 
     fn find(self: *Declarations, name: []const u8) ?*Declaration {
         for (self.items.items) |*d| {
-            if (std.mem.eql(u8, d.name, name)) return d;
+            if (std.mem.eql(u8, d.name orelse continue, name)) return d;
         }
         return null;
     }
@@ -102,14 +100,14 @@ pub fn collect(
             else => continue,
         };
 
-        if (declarations.find(name)) |_| {
-            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{name});
+        if (name) |n| if (declarations.find(n)) |_| {
+            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{n});
             continue;
-        }
+        };
 
         const declaration = intern(interner, module, decl) catch |err| switch (err) {
             error.Collision => {
-                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
+                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name orelse "_"});
                 continue;
             },
             else => |e| return e,
@@ -153,7 +151,7 @@ fn intern(interner: *core.Interner, module: core.ModuleId, decl: *const cst.Decl
     switch (decl.*) {
         .definition => |*d| return .{
             .name = d.name,
-            .symbol = try interner.intern(module, d.name, .vanilla),
+            .symbol = if (d.name) |name| try interner.intern(module, name, .vanilla) else try interner.fresh("_"),
             .kind = .{ .value = .{ .definition = d } },
         },
         .pattern_synonym => |*s| {

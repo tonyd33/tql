@@ -1,0 +1,17 @@
+title: a `let` group binding one name twice is an error
+grammar: typescript
+asserts: error
+
+--- tql ---
+g = let {
+  y = 5;
+  y = 6;
+} in y;
+main = pure g;
+
+--- error ---
+error[duplicate-definition]: `y` is defined more than once
+ --> 3:3
+  |
+3 |   y = 6;
+  |   ^^^^^

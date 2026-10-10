@@ -17,6 +17,15 @@ pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
 const Synthesized = core.Synthesized;
 
+/// Whether `name` is already bound by one of `earlier`. `_` never repeats.
+fn repeats(earlier: []const resolve.Scope.Entry, name: ?[]const u8) bool {
+    const n = name orelse return false;
+    for (earlier) |entry| {
+        if (std.mem.eql(u8, entry.name orelse continue, n)) return true;
+    }
+    return false;
+}
+
 pub const Lowerer = struct {
     /// Where symbols are interned and synthesized ones get their schemes.
     env: *core.env.Env,
@@ -201,9 +210,13 @@ pub const Lowerer = struct {
 
         const entries = try self.builder.slice(resolve.Scope.Entry, parameters.len);
         for (parameters, 0..) |p, i| {
+            if (repeats(entries[0..i], p.name)) {
+                try self.sink.report(.duplicate_definition, p.span, "`{s}` names two parameters", .{p.name.?});
+                return error.DesugarFailed;
+            }
             entries[i] = .{
                 .name = p.name,
-                .symbol = try self.env.interner.fresh(p.name),
+                .symbol = try self.env.interner.fresh(p.name orelse "_"),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
@@ -604,9 +617,13 @@ pub const Lowerer = struct {
     ) Error!Group {
         const entries = try self.builder.slice(resolve.Scope.Entry, bindings.len);
         for (bindings, 0..) |b, i| {
+            if (repeats(entries[0..i], b.name)) {
+                try self.sink.report(.duplicate_definition, b.span, "`{s}` is defined more than once", .{b.name.?});
+                return error.DesugarFailed;
+            }
             entries[i] = .{
                 .name = b.name,
-                .symbol = try self.env.interner.fresh(b.name),
+                .symbol = try self.env.interner.fresh(b.name orelse "_"),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
