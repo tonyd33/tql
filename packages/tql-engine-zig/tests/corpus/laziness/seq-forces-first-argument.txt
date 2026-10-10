@@ -3,10 +3,13 @@ grammar: typescript
 asserts: runtime_error
 
 --- tql ---
-main = Filter (\_ -> if seq (1 / 0) 1 = 1 then [1] else [2]);
+bottom :: Int;
+bottom = bottom;
+
+main = Filter (\_ -> if seq bottom 1 = 1 then [1] else [2]);
 
 --- source ---
 class A {}
 
 --- runtime error ---
-DivideByZero
+Cycle

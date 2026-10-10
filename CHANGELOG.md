@@ -16,6 +16,8 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
+- `/` is no longer an operator. Write ``a `div` b``, which floors, or ``a `quot` b``, which truncates as `/` did, with `import Data.Int (div, quot);`.
+- Division never fails: `div a 0` and `quot a 0` are `0`, and `mod a 0` and `rem a 0` are `a`, so a query no longer stops with `DivideByZero`.
 - The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `tail` and `init`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `const` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Control.Monad (kleisli);` for `kleisli`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
@@ -39,6 +41,7 @@
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
 - Added operator sections: `(= 1)` is `\x -> x = 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
 - Added `subtract`.
+- Added `div`, `quot` and `rem` to `Data.Int`. `div` and `mod` floor, `quot` and `rem` truncate, and each pair satisfies `q * b + r = a` for every `a` and `b`.
 - A query may define a name or declare a type the prelude has.
 - Added modules: `module A.B (x, T(..));` names a module and its exports, and `import A.B;`, `import A.B (x);`, `import A.B hiding (x);` and `import A.B as Q;` bring them into scope. `Q.x` names an export of the import qualified as `Q`. `import Prelude hiding (x);` replaces the implicit prelude import.
 - `tql query` finds `import A.B` as `A/B.tql` in the query file's directory, then each `-I dir`, then each directory in `TQL_PATH`.
@@ -106,6 +109,7 @@
 
 ### Bug Fixes
 
+- `Int` arithmetic wraps in every build mode: `9223372036854775807 + 1` is `-9223372036854775808`. It panicked in a debug build, and the least `Int` divided by `-1` killed the process.
 - A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.

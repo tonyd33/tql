@@ -69,8 +69,17 @@ is_extra = %is_extra;
 range :: Node -> Range;
 range = %range;
 
+div :: Int -> Int -> Int;
+div = %div;
+
 mod :: Int -> Int -> Int;
 mod = %mod;
+
+quot :: Int -> Int -> Int;
+quot = %quot;
+
+rem :: Int -> Int -> Int;
+rem = %rem;
 
 is_kind :: Kind -> Node -> Bool;
 is_kind = %is_kind;

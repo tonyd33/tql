@@ -6,7 +6,7 @@ asserts: types, values
 import Control.Arrow (Kleisli(..), run_kleisli);
 import Control.Category (Category(..));
 import Data.Maybe (Maybe(..));
-import Data.Int (mod);
+import Data.Int (div, mod);
 
 positive :: Kleisli Maybe Int Int;
 positive = Kleisli (\x -> if x > 0 then Just x else Nothing);
@@ -24,7 +24,7 @@ chained :: Kleisli Maybe Int Int;
 chained = bind positive (\a -> Kleisli (\x -> Just (a + x)));
 
 halve :: Kleisli Maybe Int Int;
-halve = Kleisli (\x -> if x `mod` 2 = 0 then Just (x / 2) else Nothing);
+halve = Kleisli (\x -> if x `mod` 2 = 0 then Just (x `div` 2) else Nothing);
 
 main = Filter (\_ -> [
   run_kleisli doubled 3,

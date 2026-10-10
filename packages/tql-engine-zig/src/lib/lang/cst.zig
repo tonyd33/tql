@@ -352,7 +352,6 @@ pub const Binding = struct {
 };
 
 pub const BinaryOperator = enum {
-    divide,
     multiply,
     add,
     subtract,
@@ -374,7 +373,6 @@ pub const BinaryOperator = enum {
 
     pub fn spelling(self: BinaryOperator) []const u8 {
         return switch (self) {
-            .divide => "/",
             .multiply => "*",
             .add => "+",
             .subtract => "-",

@@ -8,6 +8,9 @@ asserts: types, values
 import Prelude hiding (arr);
 import Control.Arrow (Arrow(..));
 
+bottom :: Int;
+bottom = bottom;
+
 double x = x * 2;
 next x = x + 1;
 
@@ -17,7 +20,7 @@ main = pure (
   second double ("a", 3),
   split double next (3, 3),
   fanout double next 3,
-  fst (first next (1, 1 / 0))
+  fst (first next (1, bottom))
 );
 
 --- source ---
@@ -27,6 +30,7 @@ class A {}
 [[6,[6,"a"],["a",6],[6,4],[6,4],2]]
 
 --- types ---
+bottom :: Int
 double :: Int -> Int
 next :: Int -> Int
 main :: Filter Node (Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)
