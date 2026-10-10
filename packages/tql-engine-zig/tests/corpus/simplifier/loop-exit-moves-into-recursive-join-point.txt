@@ -23,4 +23,6 @@ f = \x -> \xs ->
       Cons h t -> jump go t
   in
   jump go xs
-main = always instance[Applicative,List] (f 3 (Cons 1 (Cons 2 Nil)))
+main =
+  let v = f 3 (Cons 1 (Cons 2 Nil)) in
+  \x -> Cons v Nil

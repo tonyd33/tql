@@ -13,5 +13,10 @@ class A {}
 
 --- stg ---
 main = {} \u {} ->
-  let t0 = {} \u {} -> %string_length# "ab" in
-  always instance[Applicative,List] t0@0
+  let v = {} \u {} -> %string_length# "ab" in
+  let
+    t1 = {v@0} \n {x} ->
+      let c0 = Nil in
+      Cons v@0 c0@2
+  in
+  t1@1

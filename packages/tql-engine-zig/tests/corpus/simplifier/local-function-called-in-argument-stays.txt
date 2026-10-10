@@ -22,4 +22,6 @@ f = \b -> \x ->
   case b of
     False -> op[+] 1 (g x)
     True -> g x
-main = const (Cons (f True 1) (Cons (f False 1) Nil))
+main =
+  let x = Cons (f True 1) (Cons (f False 1) Nil) in
+  \y -> x

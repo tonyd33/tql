@@ -19,7 +19,9 @@ class A {}
 [5,6]
 
 --- simplified ---
-f = \x -> const (Cons (op[+] x 3) (Cons (op[*] x 3) Nil))
+f = \x ->
+  let x = Cons (op[+] x 3) (Cons (op[*] x 3) Nil) in
+  \y -> x
 main = f 2
 
 --- core ---

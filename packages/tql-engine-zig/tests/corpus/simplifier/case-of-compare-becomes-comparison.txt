@@ -22,4 +22,6 @@ class A {}
 
 --- simplified ---
 at_most = \x -> \y -> %lte_int x y
-main = const (Cons (%lte_int 1 2) (Cons (%lte_int 2 2) (Cons (%lte_int 3 2) Nil)))
+main =
+  let x = Cons (%lte_int 1 2) (Cons (%lte_int 2 2) (Cons (%lte_int 3 2) Nil)) in
+  \y -> x

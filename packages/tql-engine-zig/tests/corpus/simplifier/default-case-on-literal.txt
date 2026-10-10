@@ -15,4 +15,4 @@ class A {}
 main = always (seq 1 2)
 
 --- simplified ---
-main = always instance[Applicative,List] 2
+main = \x -> Cons 2 Nil

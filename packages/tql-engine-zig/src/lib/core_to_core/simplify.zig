@@ -83,7 +83,8 @@ const Constructed = struct {
 ///   `E[let j = \x -> u in b]` is `let j = \x -> E[u] in E[b]`, and a jump
 ///   drops it, `E[j a]` is `j a`;
 /// - a saturated call to a function with an unfolding small enough, or
-///   marked to always inline, is replaced by a copy of the unfolding;
+///   marked to always inline, is replaced by a copy of the unfolding, and so
+///   is a call short of its arity passed a known value or a dictionary;
 /// - the laws.
 ///
 /// Before a continuation is copied into several places it is made dupable:
@@ -104,7 +105,7 @@ pub const Simplifier = struct {
     options: Options,
     phase: Phase,
     substitution: core.SymbolTable(Substitution),
-    /// Locals bound to a constructor of trivial arguments.
+    /// Bindings, local or global, to a constructor of trivial arguments.
     known: core.SymbolTable(Constructed),
     /// Each binding that may be inlined, by its simplified value.
     unfoldings: core.SymbolTable(core.Term),
@@ -373,11 +374,16 @@ pub const Simplifier = struct {
             try self.substitution.put(name, .{ .done = value });
             return false;
         }
-        if (try self.constructed(value)) |c| {
-            for (c.fields) |field| if (!cost.trivial(field)) return true;
-            try self.known.put(name, c);
-        }
+        try self.know(name, value);
         return true;
+    }
+
+    /// Record `name` as bound to `value`, simplified, when `value` is a
+    /// constructor of trivial fields.
+    pub fn know(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        const c = try self.constructed(value) orelse return;
+        for (c.fields) |field| if (!cost.trivial(field)) return;
+        try self.known.put(name, c);
     }
 
     /// Hand `scrutinee`, simplified, to the `case` frame `frame`, followed by
@@ -535,7 +541,7 @@ pub const Simplifier = struct {
     }
 
     /// The constructor and fields `t` is known to be, when it is a saturated
-    /// constructor application or a local recorded in `known`.
+    /// constructor application or a binding recorded in `known`.
     fn knownConstructor(self: *Simplifier, t: core.Term) Error!?Constructed {
         if (try self.constructed(t)) |c| return c;
         return switch (t.kind) {
@@ -566,27 +572,42 @@ pub const Simplifier = struct {
     }
 
     /// A copy of `name`'s unfolding, analysed, when a call to it under
-    /// `continuation` inlines it.
+    /// `continuation` inlines it. A call short of the unfolding's arity
+    /// inlines only when an argument it has is known or a dictionary.
     fn inlined(self: *Simplifier, name: core.SymbolId, continuation: []const Frame) Error!?core.Term {
         if (!self.options.call_site_inline) return null;
         const unfolding = self.unfoldings.get(name) orelse return null;
         if (self.phase == .laws and self.laws.names(name)) return null;
         const arity = unfolding.arity();
-        if (appliedTo(continuation) < arity) return null;
+        const applied = @min(appliedTo(continuation), arity);
 
-        if (!self.env.alwaysInlines(name)) {
+        if (self.env.alwaysInlines(name)) {
+            if (applied < arity) return null;
+        } else {
             const parameters = try self.scratch.alloc(core.SymbolId, arity);
             const known = try self.scratch.alloc(?cost.Known, arity);
+            @memset(known, null);
             const body = unfolding.peel(parameters);
-            for (known, continuation[0..arity]) |*argument_known, frame| {
-                argument_known.* = try self.argumentKnown(frame.apply.operand.value());
+            var interesting = false;
+            for (known[0..applied], continuation[0..applied]) |*argument_known, frame| {
+                const argument = frame.apply.operand.value();
+                argument_known.* = try self.argumentKnown(argument);
+                if (argument_known.* != null or self.dictionary(argument)) interesting = true;
             }
+            if (applied < arity and !interesting) return null;
             const measured = cost.measure(body, parameters, known);
             if (measured.size > self.options.inline_threshold + measured.discount) return null;
         }
 
         var renamed: std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId) = .empty;
         return try self.analyser.analyse(try self.copy(unfolding, &renamed));
+    }
+
+    /// Whether `argument` is an instance's dictionary, applied to the
+    /// dictionaries of its context or not.
+    fn dictionary(self: *const Simplifier, argument: core.Term) bool {
+        const head = argument.head();
+        return head.kind == .symbol and self.env.interner.details(head.kind.symbol) == .instance;
     }
 
     /// What an argument, not yet simplified, is known to be, looking through

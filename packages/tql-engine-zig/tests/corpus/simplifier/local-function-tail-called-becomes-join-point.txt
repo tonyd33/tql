@@ -25,7 +25,9 @@ f = \b -> \x ->
   case b of
     False -> jump g (op[+] x 1)
     True -> jump g x
-main = const (Cons (f True 1) (Cons (f False 1) Nil))
+main =
+  let x = Cons (f True 1) (Cons (f False 1) Nil) in
+  \y -> x
 
 --- stg ---
 f = {} \u {} ->
@@ -58,7 +60,7 @@ f = {} \u {} ->
   t7@0
 main = {} \u {} ->
   let
-    t6 = {} \u {} ->
+    x = {} \u {} ->
       let
         t1 = {} \u {} ->
           let c0 = True in
@@ -74,4 +76,5 @@ main = {} \u {} ->
       in
       Cons t1@0 t5@1
   in
-  const t6@0
+  let t6 = {x@0} \n {y} -> x@0 in
+  t6@1

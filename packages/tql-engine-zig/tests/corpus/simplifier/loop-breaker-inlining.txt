@@ -25,15 +25,16 @@ main =
         True -> False
       True -> True
   in
-  const (
-    Cons (is_even 4) (
+  let
+    x = Cons (is_even 4) (
       Cons (
         case is_even 7 of
           False -> True
           True -> False
       ) Nil
     )
-  )
+  in
+  \y -> x
 
 --- core ---
 main =

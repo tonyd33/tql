@@ -36,7 +36,7 @@ add = {} \u {} ->
 main = {} \u {} ->
   let add10 = {} \u {} -> add 10 in
   let
-    t4 = {add10@0} \u {} ->
+    x = {add10@0} \u {} ->
       let
         t0 = {add10@0} \u {} -> add10@0 1
         t3 = {add10@0} \u {} ->
@@ -48,4 +48,5 @@ main = {} \u {} ->
       in
       Cons t0@1 t3@2
   in
-  const t4@1
+  let t4 = {x@1} \n {y} -> x@0 in
+  t4@2

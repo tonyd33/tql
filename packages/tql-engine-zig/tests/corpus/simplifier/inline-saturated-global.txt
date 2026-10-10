@@ -14,7 +14,9 @@ class A {}
 
 --- simplified ---
 double = \x -> op[*] x 2
-main = always instance[Applicative,List] (op[*] 21 2)
+main =
+  let v = op[*] 21 2 in
+  \x -> Cons v Nil
 
 --- core ---
 double = \x -> op[*] x 2

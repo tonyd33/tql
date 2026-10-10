@@ -13,7 +13,9 @@ class A {}
 [7]
 
 --- simplified ---
-main = always instance[Applicative,List] (op[-] 10 3)
+main =
+  let v = op[-] 10 3 in
+  \x -> Cons v Nil
 
 --- core ---
 main = always (

@@ -15,7 +15,7 @@ b;
 ["a", "b", "c", "d"]
 
 --- core ---
-main = alt (
+main = union (
   (
     let e = arr text in
     \x -> kleisli x e
@@ -23,6 +23,6 @@ main = alt (
 ) (
   (
     let e = const (Cons "c" Nil) in
-    \y -> alt e y
+    \y -> union e y
   ) (const (Cons "d" Nil))
 )

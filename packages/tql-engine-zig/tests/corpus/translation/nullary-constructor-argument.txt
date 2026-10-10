@@ -16,11 +16,12 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t2 = {} \u {} ->
+    x = {} \u {} ->
       let
         c0 = True
         c1 = Nil
       in
       Cons c0@0 c1@1
   in
-  const t2@0
+  let t2 = {x@0} \n {y} -> x@0 in
+  t2@1

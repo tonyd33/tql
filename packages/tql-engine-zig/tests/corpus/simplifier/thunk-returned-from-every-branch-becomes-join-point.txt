@@ -20,4 +20,6 @@ f = \b -> \x ->
   case b of
     False -> jump t
     True -> jump t
-main = const (Cons (f True 1) (Cons (f False 2) Nil))
+main =
+  let x = Cons (f True 1) (Cons (f False 2) Nil) in
+  \y -> x

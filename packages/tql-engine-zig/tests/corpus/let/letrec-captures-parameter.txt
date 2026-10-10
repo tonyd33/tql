@@ -32,5 +32,10 @@ count_to = {} \u {} ->
   in
   t3@0
 main = {} \u {} ->
-  let t0 = {} \u {} -> count_to 10 in
-  always instance[Applicative,List] t0@0
+  let v = {} \u {} -> count_to 10 in
+  let
+    t1 = {v@0} \n {x} ->
+      let c0 = Nil in
+      Cons v@0 c0@2
+  in
+  t1@1

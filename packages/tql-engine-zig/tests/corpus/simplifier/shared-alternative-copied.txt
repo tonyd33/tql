@@ -20,18 +20,20 @@ size = \xs -> case xs of
   Cons x cons1 -> case cons1 of
     Nil -> 1
     Cons _ _ -> length[List] xs
-main = const (
-  Cons 1 (
-    Cons (
-      let xs = Cons 1 (Cons 2 Nil) in
-      case xs of
-        Nil -> length[List] xs
-        Cons x cons1 -> case cons1 of
-          Nil -> 1
-          Cons _ _ -> length[List] xs
-    ) Nil
-  )
-)
+main =
+  let
+    x = Cons 1 (
+      Cons (
+        let xs = Cons 1 (Cons 2 Nil) in
+        case xs of
+          Nil -> length[List] xs
+          Cons x cons1 -> case cons1 of
+            Nil -> 1
+            Cons _ _ -> length[List] xs
+      ) Nil
+    )
+  in
+  \y -> x
 
 --- core ---
 size = \xs ->

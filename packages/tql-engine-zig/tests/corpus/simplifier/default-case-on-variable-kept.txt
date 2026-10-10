@@ -23,4 +23,4 @@ main = always (f 2)
 --- simplified ---
 f = \x -> case x of
   _ -> 1
-main = always instance[Applicative,List] 1
+main = \x -> Cons 1 Nil

@@ -54,4 +54,4 @@ decorated = \c -> concat_map (
       Nil -> Nil
       Cons _ _ -> return "some"
 ) (Cons c Nil)
-main = kleisli (descendants_of_kind :class_declaration) (alt (alt undecorated one_decorator) decorated)
+main = kleisli (descendants_of_kind :class_declaration) (union (union undecorated one_decorator) decorated)

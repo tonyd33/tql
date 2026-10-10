@@ -69,12 +69,14 @@ fn iterate(program: *core.Program, options: Options, phase: simplify.Phase) Erro
     const analysis = try analyser.program(program.definitions);
     var simplifier: Simplifier = .init(&analyser, &program.env, options, phase);
 
+    for (analysis.definitions) |d| try simplifier.know(d.symbol, d.body);
     const simplified = try builder.slice(core.Definition, program.definitions.len);
     for (analysis.order) |i| {
         const old = analysis.definitions[i];
         const body = try simplifier.simplify(old.body);
         simplified[i] = .{ .symbol = old.symbol, .body = body, .span = old.span };
         try simplifier.unfold(old.symbol, body);
+        try simplifier.know(old.symbol, body);
     }
     program.definitions = simplified;
     return simplifier.changed;

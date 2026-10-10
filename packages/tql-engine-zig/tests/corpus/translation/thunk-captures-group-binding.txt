@@ -15,5 +15,10 @@ class A {}
 main = {} \u {} ->
   let a = {} \u {} -> op[+]# 1 2 in
   let b = {a@0} \u {} -> op[*]# a@0 a@0 in
-  let t0 = {b@1} \u {} -> op[+]# b@0 b@0 in
-  always instance[Applicative,List] t0@2
+  let v = {b@1} \u {} -> op[+]# b@0 b@0 in
+  let
+    t1 = {v@2} \n {x} ->
+      let c0 = Nil in
+      Cons v@0 c0@2
+  in
+  t1@3

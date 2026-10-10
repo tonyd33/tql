@@ -57,7 +57,7 @@ one = {} \u {} ->
   t5@0
 main = {} \u {} ->
   let
-    t22 = {} \u {} ->
+    x = {} \u {} ->
       let
         t4 = {} \u {} ->
           let
@@ -118,4 +118,5 @@ main = {} \u {} ->
       in
       Cons t4@0 t21@1
   in
-  const t22@0
+  let t22 = {x@0} \n {y} -> x@0 in
+  t22@1

@@ -52,11 +52,16 @@ pick = {} \u {} ->
   t4@0
 main = {} \u {} ->
   let
-    t2 = {} \u {} ->
+    v = {} \u {} ->
       let
         t0 = {} \u {} -> Mk 1 2
         t1 = {} \u {} -> Mk 7 8
       in
       pick t0@0 t1@1
   in
-  always instance[Applicative,List] t2@0
+  let
+    t3 = {v@0} \n {x} ->
+      let c2 = Nil in
+      Cons v@0 c2@2
+  in
+  t3@1

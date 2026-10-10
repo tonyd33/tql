@@ -43,7 +43,7 @@ choose = {} \u {} ->
   t3@0
 main = {} \u {} ->
   let
-    t6 = {} \u {} ->
+    x = {} \u {} ->
       let
         t0 = {} \u {} -> choose 5
         t5 = {} \u {} ->
@@ -60,4 +60,5 @@ main = {} \u {} ->
       in
       Cons t0@0 t5@1
   in
-  const t6@0
+  let t6 = {x@0} \n {y} -> x@0 in
+  t6@1

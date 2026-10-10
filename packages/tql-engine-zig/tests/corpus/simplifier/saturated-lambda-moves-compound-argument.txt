@@ -12,7 +12,9 @@ class A {}
 [7]
 
 --- simplified ---
-main = always instance[Applicative,List] (op[+] (op[*] 2 3) 1)
+main =
+  let v = op[+] (op[*] 2 3) 1 in
+  \x -> Cons v Nil
 
 --- core ---
 main = always ((\x -> \y -> op[+] x y) (op[*] 2 3) 1)

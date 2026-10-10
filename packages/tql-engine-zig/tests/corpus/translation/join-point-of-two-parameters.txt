@@ -60,7 +60,7 @@ g = {} \u {} ->
   t6@0
 main = {} \u {} ->
   let
-    t10 = {} \u {} ->
+    x = {} \u {} ->
       let
         t3 = {} \u {} ->
           let
@@ -92,7 +92,8 @@ main = {} \u {} ->
       in
       Cons t3@0 t9@1
   in
-  const t10@0
+  let t10 = {x@0} \n {y} -> x@0 in
+  t10@1
 --- core ---
 g = \xs ->
   join alternative a b = op[+] (op[+] (op[+] (op[*] a 2) (op[*] a 3)) (op[*] b 4)) (op[*] b 5) in

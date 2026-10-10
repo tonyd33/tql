@@ -25,7 +25,7 @@ add3 = {} \u {} ->
 main = {} \u {} ->
   let g = {} \u {} -> add3 1 2 in
   let
-    t4 = {g@0} \u {} ->
+    x = {g@0} \u {} ->
       let
         t0 = {g@0} \u {} -> g@0 3
         t3 = {g@0} \u {} ->
@@ -37,4 +37,5 @@ main = {} \u {} ->
       in
       Cons t0@1 t3@2
   in
-  const t4@1
+  let t4 = {x@1} \n {y} -> x@0 in
+  t4@2

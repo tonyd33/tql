@@ -26,4 +26,6 @@ f = \b -> \xs -> \ys ->
     True -> case xs of
       Nil -> 0
       Cons h t -> jump j h t
-main = const (Cons (f True (Cons 1 Nil) Nil) (Cons (f False Nil (Cons 2 Nil)) Nil))
+main =
+  let x = Cons (f True (Cons 1 Nil) Nil) (Cons (f False Nil (Cons 2 Nil)) Nil) in
+  \y -> x

@@ -2,36 +2,33 @@ module Data.Filter (
   always,
   none,
   kleisli,
-  alt,
+  union,
   arr,
   collect,
   keep,
   has,
   first,
   or_else,
-  guard,
 );
 
 import Prim (List(..), Bool(..));
-import Data.Unit (Unit(..));
 import Data.Bool (not);
-import Data.List (null, append, concat_map, head);
-import Control.Applicative (Applicative(..));
+import Data.List (null, concat_map, head);
+import Control.Applicative (Applicative(..), Alternative(..));
 
--- `Filter a b` is `a -> [b]`, the Kleisli category of the list monad. Every
--- name below is that monad's, or a list function lifted into it.
+-- `Filter a b` is `a -> [b]`.
 
 always :: Applicative f => b -> a -> f b;
 always v x = pure v;
 
-none :: Filter a b;
-none x = [];
+none :: Alternative f => a -> f b;
+none x = empty;
 
 kleisli :: Filter a b -> Filter b c -> Filter a c;
 kleisli p q x = concat_map q (p x);
 
-alt :: Filter a b -> Filter a b -> Filter a b;
-alt p q x = append (p x) (q x);
+union :: Alternative f => (a -> f b) -> (a -> f b) -> a -> f b;
+union p q x = alt (p x) (q x);
 
 arr :: Applicative f => (a -> b) -> a -> f b;
 arr f x = pure (f x);
@@ -39,10 +36,10 @@ arr f x = pure (f x);
 collect :: Filter a b -> Filter a [b];
 collect p x = [p x];
 
-keep :: (a -> Bool) -> Filter a a;
+keep :: Alternative f => (a -> Bool) -> a -> f a;
 keep p x = case p x of {
-  False -> Nil;
-  True -> Cons x Nil;
+  False -> empty;
+  True -> pure x;
 };
 
 has :: Filter a b -> a -> Bool;
@@ -54,11 +51,5 @@ first p x = head (p x);
 or_else :: Filter a b -> Filter a b -> Filter a b;
 or_else primary fallback x = case primary x of {
   Nil -> fallback x;
-  Cons h t -> Cons h t;
-};
-
-guard :: Bool -> [Unit];
-guard b = case b of {
-  False -> Nil;
-  True -> Cons Unit Nil;
+  results -> results;
 };

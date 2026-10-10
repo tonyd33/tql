@@ -24,7 +24,7 @@ import Prim (
 import Data.Unit (Unit(..));
 import Data.Bool (not, and, or);
 import Data.Functor (Functor(..));
-import Control.Applicative (Applicative(..), return);
+import Control.Applicative (Applicative(..), Alternative(..), return, guard);
 import Data.List (Sized(..));
 import Data.Node;
-import Data.Filter (always, none, arr, collect, keep, has, first, or_else, guard);
+import Data.Filter (always, none, arr, collect, keep, has, first, or_else);

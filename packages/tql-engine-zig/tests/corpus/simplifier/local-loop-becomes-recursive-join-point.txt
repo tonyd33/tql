@@ -37,7 +37,9 @@ f = \xs ->
         True -> "yes"
   in
   jump go xs
-main = const (Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil))
+main =
+  let x = Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil) in
+  \y -> x
 
 --- stg ---
 f = {} \u {} ->
@@ -55,7 +57,7 @@ f = {} \u {} ->
   t0@0
 main = {} \u {} ->
   let
-    t9 = {} \u {} ->
+    x = {} \u {} ->
       let
         t3 = {} \u {} ->
           let
@@ -83,4 +85,5 @@ main = {} \u {} ->
       in
       Cons t3@0 t8@1
   in
-  const t9@0
+  let t9 = {x@0} \n {y} -> x@0 in
+  t9@1

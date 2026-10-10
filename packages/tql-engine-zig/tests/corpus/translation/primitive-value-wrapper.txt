@@ -14,9 +14,30 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t0 = {} \u {} -> always instance[Applicative,List] "ab"
-    t3 = {} \u {} ->
-      let t2 = {} \n {p1} -> %string_length# p1@0 in
-      arr instance[Applicative,List] t2@0
+    p = {} \u {} ->
+      let v = {} \u {} -> "ab" in
+      let
+        t1 = {v@0} \n {x} ->
+          let c0 = Nil in
+          Cons v@0 c0@2
+      in
+      t1@1
   in
-  kleisli t0@0 t3@1
+  let
+    t7 = {p@0} \n {x} ->
+      let
+        t5 = {} \u {} ->
+          let
+            t4 = {} \n {x} ->
+              let
+                t2 = {x@0} \u {} -> %string_length# x@0
+                c3 = Nil
+              in
+              Cons t2@1 c3@2
+          in
+          t4@0
+        t6 = {p@0,x@1} \u {} -> p@0 x@1
+      in
+      concat_map t5@2 t6@3
+  in
+  t7@1

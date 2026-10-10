@@ -12,7 +12,9 @@ class A {}
 [10]
 
 --- simplified ---
-main = always instance[Applicative,List] (op[+] 5 5)
+main =
+  let v = op[+] 5 5 in
+  \x -> Cons v Nil
 
 --- core ---
 main =

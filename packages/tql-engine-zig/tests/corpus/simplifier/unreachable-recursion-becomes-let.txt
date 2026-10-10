@@ -12,7 +12,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = always instance[Applicative,List] 1
+main = \x -> Cons 1 Nil
 
 --- core ---
 main =

@@ -17,6 +17,6 @@ class A {}
 [true]
 
 --- types ---
-from :: Int -> a -> [Int]
+from :: Alternative b => Int -> a -> b Int
 non_negative :: Int -> Bool
 main :: Node -> [Bool]

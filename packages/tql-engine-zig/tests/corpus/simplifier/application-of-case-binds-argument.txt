@@ -19,4 +19,6 @@ f = \b -> \x ->
   case b of
     False -> op[*] a 2
     True -> op[+] a 1
-main = const (Cons (op[+] (op[*] 3 3) 1) (Cons (op[*] (op[*] 3 3) 2) Nil))
+main =
+  let x = Cons (op[+] (op[*] 3 3) 1) (Cons (op[*] (op[*] 3 3) 2) Nil) in
+  \y -> x

@@ -18,4 +18,6 @@ class A {}
 
 --- simplified ---
 differ = \x -> \y -> %ne_int x y
-main = const (Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil))
+main =
+  let x = Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil) in
+  \y -> x

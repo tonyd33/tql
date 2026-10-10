@@ -16,7 +16,7 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t3 = {} \u {} ->
+    x = {} \u {} ->
       let
         t2 = {} \u {} ->
           let
@@ -27,4 +27,5 @@ main = {} \u {} ->
       in
       Cons (-7) t2@0
   in
-  const t3@0
+  let t3 = {x@0} \n {y} -> x@0 in
+  t3@1

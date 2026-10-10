@@ -14,7 +14,9 @@ class A {}
 [2,3]
 
 --- simplified ---
-main = const (Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil))
+main =
+  let x = Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil) in
+  \y -> x
 
 --- core ---
 main =

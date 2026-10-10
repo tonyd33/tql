@@ -23,4 +23,6 @@ f = \b ->
   case b of
     False -> jump g 2
     True -> jump g 1
-main = const (Cons (f True 3) (Cons (f False 3) Nil))
+main =
+  let x = Cons (f True 3) (Cons (f False 3) Nil) in
+  \y -> x

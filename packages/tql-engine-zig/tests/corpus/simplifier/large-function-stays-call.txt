@@ -16,7 +16,9 @@ class A {}
 
 --- simplified ---
 score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1
-main = const (Cons (score 1) (Cons (score 2) Nil))
+main =
+  let x = Cons (score 1) (Cons (score 2) Nil) in
+  \y -> x
 
 --- core ---
 score = \n -> op[+] (op[+] (op[+] (op[*] n n) (op[*] n 2)) (op[*] n 3)) 1

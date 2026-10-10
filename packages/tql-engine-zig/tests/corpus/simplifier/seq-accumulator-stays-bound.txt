@@ -26,4 +26,6 @@ fold = \f -> \z -> \xs -> case xs of
     let z2 = f z h in
     case z2 of
       _ -> fold f z2 t
-main = always instance[Applicative,List] (fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))))
+main =
+  let v = fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))) in
+  \x -> Cons v Nil

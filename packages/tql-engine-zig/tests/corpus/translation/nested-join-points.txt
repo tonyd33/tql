@@ -66,7 +66,7 @@ k = {} \u {} ->
   t10@0
 main = {} \u {} ->
   let
-    t6 = {} \u {} ->
+    x = {} \u {} ->
       let
         t4 = {} \u {} ->
           let
@@ -84,4 +84,5 @@ main = {} \u {} ->
       in
       Cons t4@0 c5@1
   in
-  const t6@0
+  let t6 = {x@0} \n {y} -> x@0 in
+  t6@1

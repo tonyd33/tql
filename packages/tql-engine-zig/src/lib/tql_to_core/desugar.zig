@@ -471,7 +471,7 @@ pub const Lowerer = struct {
             ),
             inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Comparison, @tagName(o)), span),
             .pipe => return try self.combinator(.kleisli, left, right, span),
-            .stream_union => return try self.combinator(.alt, left, right, span),
+            .stream_union => return try self.combinator(.@"union", left, right, span),
             .compose => return try self.combinator(.compose, left, right, span),
             .then => return try self.bind(try self.env.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(

@@ -55,7 +55,7 @@ main = {} \u {} ->
         c3@2
   in
   let
-    t8 = {is_even@0} \u {} ->
+    x = {is_even@0} \u {} ->
       let
         t4 = {is_even@0} \u {} -> is_even@0 4
         t7 = {is_even@0} \u {} ->
@@ -67,4 +67,5 @@ main = {} \u {} ->
       in
       Cons t4@1 t7@2
   in
-  const t8@2
+  let t8 = {x@2} \n {y} -> x@0 in
+  t8@3

@@ -29,4 +29,4 @@ pair = \xs ->
       Cons b cons1 -> case cons1 of
         Nil -> Cons a (Cons b Nil)
         Cons _ _ -> jump alternative
-main = alt (always (pair (Cons 1 (Cons 2 Nil)))) (always (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))
+main = union (always (pair (Cons 1 (Cons 2 Nil)))) (always (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))

@@ -4,7 +4,7 @@ asserts: values
 
 --- tql ---
 kleisli f g x = [];
-alt f g x = [];
+union f g x = [];
 main root = ((\x -> [1, 2]) | (\n -> [n * 10]) <|> (\x -> [3])) root;
 
 --- source ---

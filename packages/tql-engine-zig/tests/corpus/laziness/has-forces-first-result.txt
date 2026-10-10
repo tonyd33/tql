@@ -18,6 +18,6 @@ class A {}
 [true]
 
 --- types ---
-from :: Int -> a -> [Int]
-nats :: a -> [Int]
+from :: Alternative b => Int -> a -> b Int
+nats :: Alternative b => a -> b Int
 main :: Node -> [Bool]

@@ -40,4 +40,6 @@ label = \xs ->
         False -> jump j
         True -> jump j'
       Cons _ _ -> jump alternative xs
-main = const (Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)))
+main =
+  let x = Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)) in
+  \y -> x

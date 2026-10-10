@@ -20,4 +20,10 @@ f = {} \u {} ->
       _ -> y@1
   in
   t0@0
-main = {} \u {} -> always instance[Applicative,List] 2
+main = {} \u {} ->
+  let
+    t1 = {} \n {x} ->
+      let c0 = Nil in
+      Cons 2 c0@1
+  in
+  t1@0

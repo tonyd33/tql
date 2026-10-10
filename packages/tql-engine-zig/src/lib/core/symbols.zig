@@ -32,7 +32,7 @@ pub const Known = enum {
     concat_map,
     compose,
     kleisli,
-    alt,
+    @"union",
     of_kind,
 };
 

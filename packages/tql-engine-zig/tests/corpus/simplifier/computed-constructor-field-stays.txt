@@ -21,8 +21,8 @@ class A {}
 --- simplified ---
 f = \x ->
   let p = Mk (op[*] x 2) 3 in
-  const (
-    Cons (
+  let
+    x = Cons (
       case p of
         Mk a b -> op[+] a b
     ) (
@@ -31,7 +31,8 @@ f = \x ->
           Mk a b -> op[*] a b
       ) Nil
     )
-  )
+  in
+  \y -> x
 main = f 2
 
 --- core ---

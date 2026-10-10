@@ -14,7 +14,8 @@ class A {}
 --- simplified ---
 main =
   let s = "ab" in
-  always instance[Applicative,List] (op[+] (%string_length s) (%string_length s))
+  let v = op[+] (%string_length s) (%string_length s) in
+  \x -> Cons v Nil
 
 --- core ---
 main =

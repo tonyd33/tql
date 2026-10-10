@@ -21,4 +21,10 @@ let x = 1;
 f = \x -> case %is_kind :class_declaration x of
   False -> "other"
   True -> %text x
-main = kleisli %children (arr instance[Applicative,List] f)
+main = \x -> concat_map (
+  \x -> Cons (
+    case %is_kind :class_declaration x of
+      False -> "other"
+      True -> %text x
+  ) Nil
+) (%children x)

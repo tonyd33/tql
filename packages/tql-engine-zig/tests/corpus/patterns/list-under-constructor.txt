@@ -28,4 +28,4 @@ only = \m ->
         Nil -> x
         Cons _ _ -> jump alternative
     Nothing -> jump alternative
-main = alt (always (only (Just (Cons 7 Nil)))) (always (only (Just (Cons 7 (Cons 8 Nil)))))
+main = union (always (only (Just (Cons 7 Nil)))) (always (only (Just (Cons 7 (Cons 8 Nil)))))

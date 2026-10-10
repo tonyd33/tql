@@ -79,4 +79,4 @@ unfiltered = \root -> concat_map (
                       Cons _ _ -> Nil
                     Cons _ _ -> Nil
 ) (descendants root)
-main = alt filtered unfiltered
+main = union filtered unfiltered

@@ -18,7 +18,7 @@ class B {}
 
 --- core ---
 names_of = \k -> kleisli (kleisli (descendants_of_kind k) field[name]) (arr text)
-main = alt (names_of :class_declaration) (names_of :interface_declaration)
+main = union (names_of :class_declaration) (names_of :interface_declaration)
 
 --- types ---
 names_of :: Kind -> Node -> [String]

@@ -16,5 +16,5 @@ class A {}
 ["A", "class_declaration"]
 
 --- types ---
-both :: (a -> [b]) -> (a -> [b]) -> a -> [b]
+both :: Alternative b => (a -> b c) -> (a -> b c) -> a -> b c
 main :: Node -> [String]
