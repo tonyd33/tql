@@ -1,0 +1,20 @@
+title: a mismatch prints the `newtype`, not its field type
+grammar: typescript
+asserts: error
+
+--- tql ---
+newtype Name = Name String;
+
+unname :: Name -> String;
+unname n = case n of {
+  Name s -> s;
+};
+
+main root = [unname "a"];
+
+--- error ---
+error[type-mismatch]: Expected `Name`, found `String`.
+ --> 8:21
+  |
+8 | main root = [unname "a"];
+  |                     ^^^

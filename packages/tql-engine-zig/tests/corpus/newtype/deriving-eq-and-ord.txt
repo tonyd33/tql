@@ -1,0 +1,17 @@
+title: `Eq` and `Ord` derive on a `newtype` as on `data`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+newtype Name = Name String deriving (Eq, Ord);
+
+main root = [Name "a" = Name "a", Name "a" = Name "b", Name "a" < Name "b"];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true]
+
+--- types ---
+main :: Node -> [Bool]

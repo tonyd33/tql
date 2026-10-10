@@ -147,7 +147,7 @@ pub const Desugarer = struct {
 
             const id = existing orelse blk: {
                 // Kinded once the module's declarations are solved.
-                const id = try registry.declare(interner, scope.module, try arena.dupe(u8, declared.name), &.{}, &.{});
+                const id = try registry.declare(interner, scope.module, try arena.dupe(u8, declared.name), &.{}, &.{}, if (declared.newtype) .newtype else .data);
                 try group.declare(id, declared.parameters.len);
                 break :blk id;
             };

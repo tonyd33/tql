@@ -226,8 +226,10 @@ pub const Definition = struct {
     }
 };
 
-/// `data T a = C1 f1 f2 | C2 deriving (Eq);`
+/// `data T a = C1 f1 f2 | C2 deriving (Eq);`, or `newtype T a = C f;`.
 pub const DataDeclaration = struct {
+    /// Declared with `newtype`. `constructors` has one constructor of one field.
+    newtype: bool = false,
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
@@ -248,7 +250,7 @@ pub const DataDeclaration = struct {
     };
 
     pub fn sexpr(self: DataDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(data {s} (params", .{self.name});
+        try w.print("({s} {s} (params", .{ if (self.newtype) "newtype" else "data", self.name });
         for (self.parameters) |p| try w.print(" {s}", .{p});
         try w.writeAll(")");
         for (self.constructors) |c| {

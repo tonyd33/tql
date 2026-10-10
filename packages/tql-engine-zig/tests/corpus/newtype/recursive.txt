@@ -1,0 +1,23 @@
+title: a recursive `newtype` erases to self-application
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+newtype Self = Self (Self -> Int);
+
+apply_self :: Self -> Int;
+apply_self s = case s of {
+  Self f -> f s;
+};
+
+main root = [apply_self (Self (\_ -> 7))];
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- types ---
+apply_self :: Self -> Int
+main :: Node -> [Int]

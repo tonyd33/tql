@@ -1,6 +1,7 @@
 //! Type checking: Hindley-Milner inference over linked Core.
 
 const constraints = @import("type_check/constraints.zig");
+const erase = @import("type_check/erase.zig");
 const infer = @import("type_check/infer.zig");
 const substitution = @import("type_check/substitution.zig");
 const unify = @import("type_check/unify.zig");
@@ -14,14 +15,19 @@ pub const Mismatch = unify.Mismatch;
 pub const Violation = constraints.Violation;
 
 /// Type-checks a linked program, writing each definition's scheme into its
-/// environment and reporting through a `diagnostic.Sink`.
-pub const check = infer.check;
+/// environment and reporting through a `diagnostic.Sink`, then erases every
+/// `newtype`.
+pub fn check(gpa: std.mem.Allocator, program: *core.Program, sink: *diagnostic.Sink) !void {
+    try infer.check(gpa, program, sink);
+    try erase.program(program);
+}
 
 pub const Error = infer.Error;
 
 test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(constraints);
+    refAllDecls(erase);
     refAllDecls(infer);
     refAllDecls(substitution);
     refAllDecls(unify);
@@ -29,6 +35,7 @@ test {
 
 const std = @import("std");
 const core = @import("core.zig");
+const diagnostic = @import("diagnostic.zig");
 const primitives = @import("primitives.zig");
 const test_support = core.test_support;
 

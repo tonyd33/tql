@@ -10,6 +10,7 @@
   "of"
   "type"
   "data"
+  "newtype"
   "module"
   "import"
   "hiding"

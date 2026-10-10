@@ -266,7 +266,7 @@ pub const Linker = struct {
         const constructor = try self.env.interner.generate(self.module(), spelling, .vanilla);
         const fields = try self.arena().alloc(types.Type, count);
         for (fields, 0..) |*field, i| field.* = types.variable_type(@intCast(i));
-        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, types.typeKinds(count), &.{});
+        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, types.typeKinds(count), &.{}, .data);
         self.env.datatypes.setConstructors(&self.env.interner, id, try self.arena().dupe(datatypes.Constructor, &.{
             .{ .symbol = constructor, .tag = 0, .fields = fields },
         }));
@@ -469,6 +469,15 @@ pub const Linker = struct {
                 .invalid_deriving,
                 derived.span,
                 "`{s}` cannot be derived for `{s}`, which the machine represents",
+                .{ derived.class, declared.name },
+            );
+            return error.BadAnnotation;
+        }
+        if (declared.newtype and self.env.classes.evidenceOf(class_id) == .builtin) {
+            try self.sink.report(
+                .invalid_deriving,
+                derived.span,
+                "`{s}` cannot be derived for `{s}`, a `newtype`",
                 .{ derived.class, declared.name },
             );
             return error.BadAnnotation;

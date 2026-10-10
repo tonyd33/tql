@@ -30,8 +30,15 @@ pub const Datatype = struct {
     constructors: []const Constructor,
     /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
-    /// Set for a tuple type, which `Env.tuple` declares.
-    tuple: bool = false,
+    form: Form = .data,
+
+    pub const Form = enum {
+        data,
+        /// Declared by `Env.tuple`.
+        tuple,
+        /// One constructor of one field.
+        newtype,
+    };
 };
 
 /// `type Named r = {name: String | r};`
@@ -158,15 +165,10 @@ pub const Registry = struct {
             try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
         }
         for (Structural.all) |s| {
-            const id = try self.declare(interner, .prim, s.name, s.parameters, &.{});
+            const id = try self.declare(interner, .prim, s.name, s.parameters, &.{}, .data);
             if (s.representation) |p| std.debug.assert(id == p.id());
             self.datatypes.items[@intFromEnum(id)].reserved = s.declared;
         }
-    }
-
-    /// Marks `id` as a tuple type.
-    pub fn markTuple(self: *Registry, id: TypeId) void {
-        self.datatypes.items[@intFromEnum(id)].tuple = true;
     }
 
     /// Marks reserved `id` as declared by `Prim`.
@@ -278,6 +280,7 @@ pub const Registry = struct {
         name: []const u8,
         parameters: []const types.Kind,
         constructors: []const Constructor,
+        form: Datatype.Form,
     ) Allocator.Error!TypeId {
         const id: TypeId = @enumFromInt(self.datatypes.items.len);
         try self.datatypes.append(self.allocator, .{
@@ -285,6 +288,7 @@ pub const Registry = struct {
             .module = module,
             .parameters = parameters,
             .constructors = constructors,
+            .form = form,
         });
         try self.by_name.put(self.allocator, .{ .module = module, .name = name }, id);
         own(interner, id, constructors);
@@ -349,6 +353,12 @@ pub const Registry = struct {
 };
 
 /// The datatype declaring `constructor`, when the symbol is one.
+/// The form of the datatype `constructor` builds, or null for a symbol that
+/// is not a constructor.
+pub fn formOf(interner: *const symbols.Interner, registry: *const Registry, constructor: symbols.SymbolId) ?Datatype.Form {
+    return registry.get(ownerOf(interner, constructor) orelse return null).form;
+}
+
 pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId) ?TypeId {
     return switch (interner.details(constructor)) {
         .constructor => |c| c.owner,

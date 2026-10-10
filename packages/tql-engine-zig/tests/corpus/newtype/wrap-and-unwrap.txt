@@ -1,0 +1,35 @@
+title: a `newtype` wraps and unwraps with no trace in the machine
+grammar: typescript
+asserts: types, values, simplified, stg
+
+--- tql ---
+newtype Name = Name String;
+
+unname :: Name -> String;
+unname n = case n of {
+  Name s -> s;
+};
+
+main root = [unname (Name "a")];
+
+--- source ---
+class A {}
+
+--- values ---
+["a"]
+
+--- simplified ---
+main = \root -> Cons "a" Nil
+
+--- stg ---
+main = {} \u {} ->
+  let
+    t1 = {} \n {root} ->
+      let c0 = Nil in
+      Cons "a" c0@1
+  in
+  t1@0
+
+--- types ---
+unname :: Name -> String
+main :: Node -> [String]

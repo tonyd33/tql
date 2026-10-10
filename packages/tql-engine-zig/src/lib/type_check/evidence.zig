@@ -297,53 +297,21 @@ pub fn substitute(
     t: core.Term,
     replacements: *const Replacements,
 ) Allocator.Error!core.Term {
-    switch (t.kind) {
-        .symbol => |id| return replacements.get(id) orelse t,
-        .literal => return t,
-        .lambda => |l| {
-            const body = try substitute(builder, l.body, replacements);
-            if (core.same(body, l.body)) return t;
-            return try builder.lambda(l.parameter, body, t.span);
-        },
-        .apply => |a| {
-            const function = try substitute(builder, a.function, replacements);
-            const argument = try substitute(builder, a.argument, replacements);
-            if (core.same(function, a.function) and core.same(argument, a.argument)) return t;
-            return try builder.apply(function, argument, t.span);
-        },
-        .case => |c| {
-            const scrutinee = try substitute(builder, c.scrutinee, replacements);
-            var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
-            for (c.alternatives, 0..) |alternative, i| {
-                const body = try substitute(builder, alternative.body, replacements);
-                try alternatives.set(builder, i, .{
-                    .constructor = alternative.constructor,
-                    .binders = alternative.binders,
-                    .body = body,
-                }, !core.same(body, alternative.body));
-            }
-            const default = if (c.default) |d| try substitute(builder, d, replacements) else null;
-            if (alternatives.copy == null and core.same(scrutinee, c.scrutinee) and core.sameOptional(default, c.default)) return t;
-            return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
-        },
-        .let => |l| {
-            const value = try substitute(builder, l.value, replacements);
-            const body = try substitute(builder, l.body, replacements);
-            if (core.same(value, l.value) and core.same(body, l.body)) return t;
-            return try builder.let(l.name, value, body, t.span);
-        },
-        .letrec => |l| {
-            var bindings: core.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
-            for (l.bindings, 0..) |binding, i| {
-                const value = try substitute(builder, binding.value, replacements);
-                try bindings.set(builder, i, .{ .name = binding.name, .value = value }, !core.same(value, binding.value));
-            }
-            const body = try substitute(builder, l.body, replacements);
-            if (bindings.copy == null and core.same(body, l.body)) return t;
-            return try builder.letrec(bindings.copy orelse l.bindings, body, t.span);
-        },
-    }
+    const replacer: Replacer = .{ .builder = builder, .replacements = replacements };
+    return try replacer.term(t);
 }
+
+const Replacer = struct {
+    builder: core.Builder,
+    replacements: *const Replacements,
+
+    fn term(self: Replacer, t: core.Term) Allocator.Error!core.Term {
+        return switch (t.kind) {
+            .symbol => |id| self.replacements.get(id) orelse t,
+            else => try core.mapChildren(self.builder, t, self, term),
+        };
+    }
+};
 
 /// `symbol = \d -> case d of { constructor f_0 .. f_n -> f_index }`.
 fn field(

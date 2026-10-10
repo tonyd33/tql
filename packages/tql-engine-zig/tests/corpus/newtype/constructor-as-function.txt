@@ -1,0 +1,27 @@
+title: an unapplied `newtype` constructor is a function
+grammar: typescript
+asserts: types, values, simplified
+
+--- tql ---
+newtype Name = Name String;
+
+unname :: Name -> String;
+unname n = case n of {
+  Name s -> s;
+};
+
+main root = map unname (map Name ["a", "b"]);
+
+--- source ---
+class A {}
+
+--- values ---
+["a","b"]
+
+--- simplified ---
+unname = \n -> n
+main = \root -> map[List] unname (map[List] (\x -> x) (Cons "a" (Cons "b" Nil)))
+
+--- types ---
+unname :: Name -> String
+main :: Node -> [String]

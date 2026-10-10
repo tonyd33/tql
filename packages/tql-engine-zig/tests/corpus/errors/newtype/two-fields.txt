@@ -1,0 +1,15 @@
+title: a `newtype` constructor with two fields is a parse error naming `data`
+grammar: typescript
+asserts: error
+
+--- tql ---
+newtype Pair = Pair Int Int;
+
+main root = [1];
+
+--- error ---
+error[parse]: a `newtype` has one constructor of one field; declare `Pair` with `data`
+ --> 1:1
+  |
+1 | newtype Pair = Pair Int Int;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -76,6 +76,7 @@
 - Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `mfilter` in `Control.Monad`.
 - `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
 - Added tuples: `(1, "a")` is a value, `(n, s)` a pattern and `(Int, String)` a type, with up to 255 components. `(,)` and `(,,)` are their constructors as functions.
+- Added `newtype`: `newtype Name = Name String;` declares a type distinct from `String` to the type checker.
 
 ### Improvements
 

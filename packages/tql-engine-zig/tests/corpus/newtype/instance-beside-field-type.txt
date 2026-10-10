@@ -1,0 +1,31 @@
+title: an instance at a `newtype` is its own, beside its field type's
+grammar: typescript
+asserts: types, values
+
+`Down` orders backwards, while `Int` keeps its own order.
+
+--- tql ---
+newtype Down = Down Int;
+
+instance Eq Down where {
+  eq a b = case (a, b) of {
+    (Down x, Down y) -> x = y;
+  };
+};
+
+instance Ord Down where {
+  compare a b = case (a, b) of {
+    (Down x, Down y) -> compare y x;
+  };
+};
+
+main root = [1 < 2, Down 1 < Down 2, Down 1 = Down 1];
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true]
+
+--- types ---
+main :: Node -> [Bool]

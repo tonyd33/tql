@@ -664,3 +664,40 @@ f :: where_ -> _a -> where_;
       to: (function_type
         from: (type_variable)
         to: (type_variable)))))
+
+========================================
+a newtype declaration
+========================================
+
+newtype Name = Name String deriving (Eq);
+
+---
+
+(source_file
+  (data_declaration
+    (type_identifier)
+    (constructor_declaration
+      (type_identifier)
+      (type_identifier))
+    (deriving
+      (type_identifier))))
+
+========================================
+a newtype with a parameter
+========================================
+
+newtype Wrap f a = Wrap (f a);
+
+---
+
+(source_file
+  (data_declaration
+    (type_identifier)
+    (type_variable)
+    (type_variable)
+    (constructor_declaration
+      (type_identifier)
+      (parenthesized_type
+        (type_application
+          (type_variable)
+          (type_variable))))))

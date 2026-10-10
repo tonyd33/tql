@@ -1,0 +1,23 @@
+title: a `newtype` takes parameters
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+newtype Pair a = Pair (a, a);
+
+first :: Pair a -> a;
+first p = case p of {
+  Pair (x, _) -> x;
+};
+
+main root = [first (Pair (1, 2))];
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+first :: Pair a -> a
+main :: Node -> [Int]

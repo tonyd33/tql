@@ -1386,7 +1386,7 @@ const Witness = struct {
 
     fn isTuple(self: Witness, step: Step) bool {
         const env = self.matcher.lowerer.env;
-        return env.datatypes.get(datatypes.ownerOf(&env.interner, step.constructor).?).tuple;
+        return datatypes.formOf(&env.interner, &env.datatypes, step.constructor) == .tuple;
     }
 
     /// The step fixing the tail of the chain starting at `step`: a `Nil`, or

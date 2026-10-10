@@ -681,7 +681,7 @@ pub fn translate(
         for (datatype.constructors) |c| {
             try spellings.put(arena.allocator(), c.symbol, try arena.allocator().dupe(u8, program.env.interner.spelling(c.symbol)));
         }
-        if (datatype.tuple) {
+        if (datatype.form == .tuple) {
             try tuples.put(arena.allocator(), datatype.constructors[0].symbol, {});
         }
     }

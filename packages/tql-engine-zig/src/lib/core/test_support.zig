@@ -70,7 +70,7 @@ pub fn declareDatatype(
             .fields = try arena.dupe(types.Type, c[1]),
         };
     }
-    const id = try e.datatypes.declare(&e.interner, module, try arena.dupe(u8, name), &.{}, &.{});
+    const id = try e.datatypes.declare(&e.interner, module, try arena.dupe(u8, name), &.{}, &.{}, .data);
     try e.setConstructors(id, declared);
 }
 

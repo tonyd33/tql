@@ -3495,6 +3495,20 @@
           }
         ]
       },
+      "keyword": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "data",
+            "named": false
+          },
+          {
+            "type": "newtype",
+            "named": false
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": true,
@@ -11422,6 +11436,10 @@
   {
     "type": "module_name",
     "named": true
+  },
+  {
+    "type": "newtype",
+    "named": false
   },
   {
     "type": "number",

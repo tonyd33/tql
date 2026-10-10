@@ -1,0 +1,21 @@
+title: matching a `data` constructor forces the scrutinee
+grammar: typescript
+asserts: runtime_error
+
+The `newtype` in the same place does not.
+
+--- tql ---
+data Box = Box Int;
+
+loop :: Box;
+loop = loop;
+
+main root = [case loop of {
+  Box _ -> 1;
+}];
+
+--- source ---
+class A {}
+
+--- runtime error ---
+Cycle

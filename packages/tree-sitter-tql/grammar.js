@@ -164,7 +164,7 @@ module.exports = grammar({
 
     data_declaration: $ =>
       seq(
-        "data",
+        field("keyword", choice("data", "newtype")),
         field("name", $.type_identifier),
         repeat(field("parameter", $._type_variable)),
         "=",

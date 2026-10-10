@@ -780,7 +780,14 @@ const Walker = struct {
             }
         }
 
+        const keyword = try self.requiredField(node, "keyword") orelse return null;
+        const newtype = std.mem.eql(u8, keyword.kind(), "newtype");
+        if (newtype and (constructors.items.len != 1 or constructors.items[0].fields.len != 1)) {
+            try self.sink.report(.parse, spanOf(node, self.source_id), "a `newtype` has one constructor of one field; declare `{s}` with `data`", .{name});
+            return null;
+        }
         return .{
+            .newtype = newtype,
             .name = name,
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),

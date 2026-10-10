@@ -228,26 +228,7 @@ pub const Substituter = struct {
                 if (core.same(function, apply.function) and core.same(argument, apply.argument)) return t;
                 return try self.builder.apply(function, argument, t.span);
             },
-            .lambda => |lambda| {
-                const body = try self.rewrite(lambda.body);
-                if (core.same(body, lambda.body)) return t;
-                return try self.builder.lambda(lambda.parameter, body, t.span);
-            },
-            .case => |case_term| {
-                const scrutinee = try self.rewrite(case_term.scrutinee);
-                var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = case_term.alternatives };
-                for (case_term.alternatives, 0..) |old, i| {
-                    const body = try self.rewrite(old.body);
-                    try alternatives.set(self.builder, i, .{
-                        .constructor = old.constructor,
-                        .binders = old.binders,
-                        .body = body,
-                    }, !core.same(body, old.body));
-                }
-                const default = if (case_term.default) |body| try self.rewrite(body) else null;
-                if (alternatives.copy == null and core.same(scrutinee, case_term.scrutinee) and core.sameOptional(default, case_term.default)) return t;
-                return try self.builder.caseWithDefault(scrutinee, alternatives.copy orelse case_term.alternatives, default, t.span);
-            },
+            .lambda, .case => return try core.mapChildren(self.builder, t, self, rewrite),
             .let => |let| {
                 const value = try self.bound(let.name, let.value);
                 const body = try self.rewrite(let.body);

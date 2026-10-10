@@ -131,8 +131,7 @@ pub const Env = struct {
         name[name.len - 1] = ')';
         const parameters = try scratch.alloc(types.Kind, arity);
         @memset(parameters, .type);
-        const id = try self.datatypes.declare(&self.interner, .prim, name, parameters, &.{});
-        self.datatypes.markTuple(id);
+        const id = try self.datatypes.declare(&self.interner, .prim, name, parameters, &.{}, .tuple);
         self.tuples[arity] = id;
 
         const fields = try scratch.alloc(types.Type, arity);
