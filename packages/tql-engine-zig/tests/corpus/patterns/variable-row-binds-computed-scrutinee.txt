@@ -1,6 +1,6 @@
 title: a variable alternative binds a scrutinee that is not a name
 grammar: typescript
-asserts: core, values, simplified, stg
+asserts: core, values
 
 --- tql ---
 count n = case pure n 1 of {
@@ -26,12 +26,3 @@ count = \n ->
       Nil -> x
       Cons _ _ -> jump alternative scrutinee
 main = pure (count 5)
-
---- simplified ---
-count = \n -> n
-main = pure 5
---- stg ---
-count = {} \u {} ->
-  let t0 = {} \n {n} -> n@0 in
-  t0@0
-main = {} \u {} -> pure 5

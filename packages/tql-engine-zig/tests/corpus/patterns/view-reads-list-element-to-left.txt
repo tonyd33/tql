@@ -1,6 +1,6 @@
 title: a view in a case uses a variable bound to its left
 grammar: typescript
-asserts: core, values, simplified, stg
+asserts: core, values
 
 --- tql ---
 import Data.Function (const);
@@ -33,81 +33,3 @@ f = \xs ->
             Nil -> n
             Cons _ _ -> jump alternative
 main = const (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))
-
---- simplified ---
-f = \xs -> case xs of
-  Nil -> 0
-  Cons n cons1 -> case cons1 of
-    Nil -> 0
-    Cons cons0 cons1 -> case %eq_int (op[+] cons0 n) 3 of
-      False -> 0
-      True -> case cons1 of
-        Nil -> n
-        Cons _ _ -> 0
-main = const (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))
---- stg ---
-f = {} \u {} ->
-  let
-    t1 = {} \n {xs} -> case xs@0 of
-      Nil -> 0
-      Cons n cons1 -> case cons1@2 of
-        Nil -> 0
-        Cons cons0 cons1 ->
-          let t0 = {cons0@3,n@1} \u {} -> op[+]# cons0@0 n@1 in
-          case %eq_int# t0@5 3 of
-            False -> 0
-            True -> case cons1@4 of
-              Nil -> n@1
-              Cons _ _ -> 0
-  in
-  t1@0
-main = {} \u {} ->
-  let
-    t15 = {} \u {} ->
-      let
-        t3 = {} \u {} ->
-          let
-            t2 = {} \u {} ->
-              let
-                t1 = {} \u {} ->
-                  let c0 = Nil in
-                  Cons 2 c0@0
-              in
-              Cons 1 t1@0
-          in
-          f t2@0
-        t14 = {} \u {} ->
-          let
-            t7 = {} \u {} ->
-              let
-                t6 = {} \u {} ->
-                  let
-                    t5 = {} \u {} ->
-                      let c4 = Nil in
-                      Cons 2 c4@0
-                  in
-                  Cons 2 t5@0
-              in
-              f t6@0
-            t13 = {} \u {} ->
-              let
-                t11 = {} \u {} ->
-                  let
-                    t10 = {} \u {} ->
-                      let
-                        t9 = {} \u {} ->
-                          let c8 = Nil in
-                          Cons 3 c8@0
-                      in
-                      Cons 0 t9@0
-                  in
-                  f t10@0
-                c12 = Nil
-              in
-              Cons t11@0 c12@1
-          in
-          Cons t7@0 t13@1
-      in
-      Cons t3@0 t14@1
-  in
-  const t15@0

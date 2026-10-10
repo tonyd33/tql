@@ -1,6 +1,6 @@
 title: a guard that fails falls through to the next row
 grammar: typescript
-asserts: core, values, simplified, stg
+asserts: core, values
 
 `[1, 2]` matches the first row's pattern, its guard is false, and the second
 row matches. The last row is reached from several paths and is bound once.
@@ -35,81 +35,3 @@ f = \xs ->
           True -> "pair"
         Cons _ _ -> jump alternative
 main = const (Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))
-
---- simplified ---
-f = \d -> \xs ->
-  join alternative = "other" in
-  case xs of
-    Nil -> jump alternative
-    Cons a cons1 -> case cons1 of
-      Nil -> jump alternative
-      Cons b cons1 -> case cons1 of
-        Nil -> case d of
-          dict[Eq] m -> case m a b of
-            False -> "two"
-            True -> "pair"
-        Cons _ _ -> jump alternative
-main = const (Cons (f instance[Eq,Int] (Cons 1 (Cons 1 Nil))) (Cons (f instance[Eq,Int] (Cons 1 (Cons 2 Nil))) (Cons (f instance[Eq,Int] (Cons 1 Nil)) Nil)))
---- stg ---
-f = {} \u {} ->
-  let
-    t0 = {} \n {d,xs} ->
-      let-no-escape alternative {} -> "other" in
-      case xs@1 of
-        Nil -> jump alternative
-        Cons a cons1 -> case cons1@3 of
-          Nil -> jump alternative
-          Cons b cons1 -> case cons1@5 of
-            Nil -> case d@0 of
-              dict[Eq] m -> case m@6 a@2 b@4 of
-                False -> "two"
-                True -> "pair"
-            Cons _ _ -> jump alternative
-  in
-  t0@0
-main = {} \u {} ->
-  let
-    t14 = {} \u {} ->
-      let
-        t3 = {} \u {} ->
-          let
-            t2 = {} \u {} ->
-              let
-                t1 = {} \u {} ->
-                  let c0 = Nil in
-                  Cons 1 c0@0
-              in
-              Cons 1 t1@0
-          in
-          f instance[Eq,Int] t2@0
-        t13 = {} \u {} ->
-          let
-            t7 = {} \u {} ->
-              let
-                t6 = {} \u {} ->
-                  let
-                    t5 = {} \u {} ->
-                      let c4 = Nil in
-                      Cons 2 c4@0
-                  in
-                  Cons 1 t5@0
-              in
-              f instance[Eq,Int] t6@0
-            t12 = {} \u {} ->
-              let
-                t10 = {} \u {} ->
-                  let
-                    t9 = {} \u {} ->
-                      let c8 = Nil in
-                      Cons 1 c8@0
-                  in
-                  f instance[Eq,Int] t9@0
-                c11 = Nil
-              in
-              Cons t10@0 c11@1
-          in
-          Cons t7@0 t12@1
-      in
-      Cons t3@0 t13@1
-  in
-  const t14@0

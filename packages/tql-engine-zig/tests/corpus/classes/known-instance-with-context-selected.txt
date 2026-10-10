@@ -20,7 +20,10 @@ instance Describe Shape where {
 };
 
 instance Describe a => Describe [a] where {
-  describe xs = case xs of { [] -> []; x : rest -> append (describe x) (describe rest) };
+  describe xs = case xs of {
+    [] -> [];
+    x : rest -> append (describe x) (describe rest);
+  };
 };
 
 main root = describe [Circle 1];

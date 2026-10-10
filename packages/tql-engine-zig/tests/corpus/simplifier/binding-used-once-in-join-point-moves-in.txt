@@ -8,23 +8,22 @@ A join point's parameters are not a lambda: its value runs at most once, so
 --- tql ---
 import Data.Function (const);
 
-total xs = case xs of { [] -> 0; h : t -> h + total t };
-f b xs = let { s = total xs; g y = s + y * 2 + y * 3 + y * 4 + y * 5 } in if b then g 1 else g 2;
-main = const [f True [1, 2], f False [3]];
+f b x = let {
+  s = x * x;
+  g y = s + y * 2 + y * 3 + y * 4 + y * 5;
+} in if b then g 1 else g 2;
+main = const [f True 3, f False 3];
 
 --- source ---
 class A {}
 
 --- values ---
-[17,31]
+[23,37]
 
 --- simplified ---
-total = \xs -> case xs of
-  Nil -> 0
-  Cons h t -> op[+] h (total t)
-f = \b -> \xs ->
-  join g y = op[+] (op[+] (op[+] (op[+] (total xs) (op[*] y 2)) (op[*] y 3)) (op[*] y 4)) (op[*] y 5) in
+f = \b -> \x ->
+  join g y = op[+] (op[+] (op[+] (op[+] (op[*] x x) (op[*] y 2)) (op[*] y 3)) (op[*] y 4)) (op[*] y 5) in
   case b of
     False -> jump g 2
     True -> jump g 1
-main = const (Cons (f True (Cons 1 (Cons 2 Nil))) (Cons (f False (Cons 3 Nil)) Nil))
+main = const (Cons (f True 3) (Cons (f False 3) Nil))

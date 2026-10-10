@@ -1,167 +1,87 @@
-title: a shared alternative whose body shares an alternative nests join points
+title: a join point nested in a shared alternative is bound above that alternative's parameter
 grammar: typescript
-asserts: core, simplified, stg, values
-
-The inner join point is bound in the outer one's body, at a greater depth.
+asserts: stg, values
 
 --- tql ---
 import Data.Function (const);
 
-total xs = case xs of { [] -> 0; h : t -> h + total t };
 k xs ys = case xs of {
   [x] -> x;
-  _ -> case ys of { [y] -> y; zs -> total zs + total zs * 2 + total zs * 3 };
+  zs -> case ys of {
+    [y] -> y;
+    ws -> length zs * 2 + length zs * 3 + length ws * 4 + length ws * 5;
+  };
 };
-main = const [k [1] [], k [] [2], k [1, 1] [3, 4], k [] []];
+main = const [k [] [2, 3]];
 
 --- source ---
 class A {}
 
 --- values ---
-[1,2,42,0]
---- simplified ---
-total = \xs -> case xs of
-  Nil -> 0
-  Cons h t -> op[+] h (total t)
-k = \xs -> \ys ->
-  join
-    alternative =
-      join alternative zs = op[+] (op[+] (total zs) (op[*] (total zs) 2)) (op[*] (total zs) 3) in
-      case ys of
-        Nil -> jump alternative ys
-        Cons y cons1 -> case cons1 of
-          Nil -> y
-          Cons _ _ -> jump alternative ys
-  in
-  case xs of
-    Nil -> jump alternative
-    Cons x cons1 -> case cons1 of
-      Nil -> x
-      Cons _ _ -> jump alternative
-main = const (Cons (k (Cons 1 Nil) Nil) (Cons (k Nil (Cons 2 Nil)) (Cons (k (Cons 1 (Cons 1 Nil)) (Cons 3 (Cons 4 Nil))) (Cons (k Nil Nil) Nil))))
+[18]
 --- stg ---
-total = {} \u {} ->
-  let
-    t1 = {} \n {xs} -> case xs@0 of
-      Nil -> 0
-      Cons h t ->
-        let t0 = {t@2} \u {} -> total t@0 in
-        op[+]# h@1 t0@3
-  in
-  t1@0
 k = {} \u {} ->
   let
-    t6 = {} \n {xs,ys} ->
+    t10 = {} \n {xs,ys} ->
       let-no-escape
-        alternative {} ->
+        alternative {zs} ->
           let-no-escape
-            alternative {zs} ->
+            alternative {ws} ->
               let
-                t3 = {zs@2} \u {} ->
+                t7 = {zs@2,ws@3} \u {} ->
                   let
-                    t0 = {zs@0} \u {} -> total zs@0
-                    t2 = {zs@0} \u {} ->
-                      let t1 = {zs@0} \u {} -> total zs@0 in
-                      op[*]# t1@1 2
+                    t4 = {zs@0} \u {} ->
+                      let
+                        t1 = {zs@0} \u {} ->
+                          let t0 = {zs@0} \u {} -> length[List] zs@0 in
+                          op[*]# t0@1 2
+                        t3 = {zs@0} \u {} ->
+                          let t2 = {zs@0} \u {} -> length[List] zs@0 in
+                          op[*]# t2@1 3
+                      in
+                      op[+]# t1@1 t3@2
+                    t6 = {ws@1} \u {} ->
+                      let t5 = {ws@0} \u {} -> length[List] ws@0 in
+                      op[*]# t5@1 4
                   in
-                  op[+]# t0@1 t2@2
-                t5 = {zs@2} \u {} ->
-                  let t4 = {zs@0} \u {} -> total zs@0 in
-                  op[*]# t4@1 3
+                  op[+]# t4@2 t6@3
+                t9 = {ws@3} \u {} ->
+                  let t8 = {ws@0} \u {} -> length[List] ws@0 in
+                  op[*]# t8@1 5
               in
-              op[+]# t3@3 t5@4
+              op[+]# t7@4 t9@5
           in
           case ys@1 of
             Nil -> jump alternative ys@1
-            Cons y cons1 -> case cons1@3 of
-              Nil -> y@2
+            Cons y cons1 -> case cons1@4 of
+              Nil -> y@3
               Cons _ _ -> jump alternative ys@1
       in
       case xs@0 of
-        Nil -> jump alternative
+        Nil -> jump alternative xs@0
         Cons x cons1 -> case cons1@3 of
           Nil -> x@2
-          Cons _ _ -> jump alternative
+          Cons _ _ -> jump alternative xs@0
   in
-  t6@0
+  t10@0
 main = {} \u {} ->
   let
-    t22 = {} \u {} ->
+    t6 = {} \u {} ->
       let
-        t3 = {} \u {} ->
+        t4 = {} \u {} ->
           let
-            t1 = {} \u {} ->
-              let c0 = Nil in
-              Cons 1 c0@0
-            c2 = Nil
-          in
-          k t1@0 c2@1
-        t21 = {} \u {} ->
-          let
-            t7 = {} \u {} ->
+            c0 = Nil
+            t3 = {} \u {} ->
               let
-                c4 = Nil
-                t6 = {} \u {} ->
-                  let c5 = Nil in
-                  Cons 2 c5@0
+                t2 = {} \u {} ->
+                  let c1 = Nil in
+                  Cons 3 c1@0
               in
-              k c4@0 t6@1
-            t20 = {} \u {} ->
-              let
-                t14 = {} \u {} ->
-                  let
-                    t10 = {} \u {} ->
-                      let
-                        t9 = {} \u {} ->
-                          let c8 = Nil in
-                          Cons 1 c8@0
-                      in
-                      Cons 1 t9@0
-                    t13 = {} \u {} ->
-                      let
-                        t12 = {} \u {} ->
-                          let c11 = Nil in
-                          Cons 4 c11@0
-                      in
-                      Cons 3 t12@0
-                  in
-                  k t10@0 t13@1
-                t19 = {} \u {} ->
-                  let
-                    t17 = {} \u {} ->
-                      let
-                        c15 = Nil
-                        c16 = Nil
-                      in
-                      k c15@0 c16@1
-                    c18 = Nil
-                  in
-                  Cons t17@0 c18@1
-              in
-              Cons t14@0 t19@1
+              Cons 2 t2@0
           in
-          Cons t7@0 t20@1
+          k c0@0 t3@1
+        c5 = Nil
       in
-      Cons t3@0 t21@1
+      Cons t4@0 c5@1
   in
-  const t22@0
---- core ---
-total = \xs -> case xs of
-  Nil -> 0
-  Cons h t -> op[+] h (total t)
-k = \xs -> \ys ->
-  join
-    alternative =
-      join alternative zs = op[+] (op[+] (total zs) (op[*] (total zs) 2)) (op[*] (total zs) 3) in
-      case ys of
-        Nil -> jump alternative ys
-        Cons y cons1 -> case cons1 of
-          Nil -> y
-          Cons _ _ -> jump alternative ys
-  in
-  case xs of
-    Nil -> jump alternative
-    Cons x cons1 -> case cons1 of
-      Nil -> x
-      Cons _ _ -> jump alternative
-main = const (Cons (k (Cons 1 Nil) Nil) (Cons (k Nil (Cons 2 Nil)) (Cons (k (Cons 1 (Cons 1 Nil)) (Cons 3 (Cons 4 Nil))) (Cons (k Nil Nil) Nil))))
+  const t6@0

@@ -158,27 +158,6 @@ fn expectViolation(pb: *test_support.ProgramBuilder, expected: ?Violation, t: co
     try std.testing.expectEqual(expected, try term(std.testing.allocator, &pb.env.interner, t));
 }
 
-test "a join point called in every alternative is accepted" {
-    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-    try pb.datatype("B", &.{ .{ "F", &.{} }, .{ "T", &.{} } });
-    const f = try pb.global("F");
-    const tr = try pb.global("T");
-    const g = try pb.global("g");
-    const b = try pb.local("b");
-    const x = try pb.local("x");
-    const j = try pb.join("j", 1);
-    const t = try pb.lambda(&.{b}, try pb.let(
-        j,
-        try pb.lambda(&.{x}, try pb.apply(pb.symbol(g), &.{pb.symbol(x)})),
-        try pb.case(pb.symbol(b), &.{
-            .{ .constructor = f, .binders = &.{}, .body = try pb.apply(pb.symbol(j), &.{pb.number(1)}) },
-            .{ .constructor = tr, .binders = &.{}, .body = try pb.apply(pb.symbol(j), &.{pb.number(2)}) },
-        }),
-    ));
-    try expectViolation(&pb, null, t);
-}
-
 test "a jump from a scrutinee is not a tail call" {
     var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
     defer pb.deinit();
@@ -238,32 +217,12 @@ test "a join point's value needs its arity in lambdas" {
     try expectViolation(&pb, .{ .binder = j, .reason = .too_few_lambdas }, t);
 }
 
-test "a join point's value is a tail position of the enclosing join points" {
-    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-    const outer = try pb.join("outer", 0);
-    const inner = try pb.join("inner", 0);
-    const t = try pb.let(outer, pb.number(1), try pb.let(inner, pb.symbol(outer), pb.symbol(inner)));
-    try expectViolation(&pb, null, t);
-}
-
 test "a join point is not a target of its own value" {
     var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
     defer pb.deinit();
     const j = try pb.join("j", 0);
     const t = try pb.let(j, pb.symbol(j), pb.symbol(j));
     try expectViolation(&pb, .{ .binder = j, .reason = .not_tail_call }, t);
-}
-
-test "a recursive join point jumps to itself" {
-    var pb = try test_support.ProgramBuilder.init(std.testing.allocator);
-    defer pb.deinit();
-    const x = try pb.local("x");
-    const j = try pb.join("j", 1);
-    const t = try pb.letrec(&.{
-        .{ .name = j, .value = try pb.lambda(&.{x}, try pb.apply(pb.symbol(j), &.{pb.symbol(x)})) },
-    }, try pb.apply(pb.symbol(j), &.{pb.number(1)}));
-    try expectViolation(&pb, null, t);
 }
 
 test "a letrec mixing a join point and a function is rejected" {

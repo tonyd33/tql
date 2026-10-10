@@ -4,7 +4,10 @@ asserts: values
 
 --- tql ---
 count n = if n <= 0 then Nil else Cons n (count (n - 1));
-fold f z xs = case xs of { [] -> z; h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t); };
+fold f z xs = case xs of {
+  [] -> z;
+  h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t);
+};
 main root = if fold (\n x -> n + 1) 0 (count 100000) = 100000 then [1] else Nil;
 
 --- source ---

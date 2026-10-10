@@ -8,7 +8,9 @@ to it.
 --- tql ---
 import Data.Function (const);
 
-f b x = let { g y = y * 2 + y * 3 + y * 4 + y * 5 } in if b then g x else g (x + 1);
+f b x =
+  let { g y = y * 2 + y * 3 + y * 4 + y * 5 }
+  in if b then g x else g (x + 1);
 main = const [f True 1, f False 1];
 
 --- source ---

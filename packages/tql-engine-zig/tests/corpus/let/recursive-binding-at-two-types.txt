@@ -6,8 +6,9 @@ asserts: types, values
 import Data.Function (const);
 
 main =
-  let { len xs = case xs of { [] -> 0; h : t -> 1 + len t; }; }
-  in const [len [1], len ["a", "b"]];
+  let {
+    len xs = case xs of { [] -> 0; h : t -> 1 + len t; };
+  } in const [len [1], len ["a", "b"]];
 
 --- source ---
 class A {}

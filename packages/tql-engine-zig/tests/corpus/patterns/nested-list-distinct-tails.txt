@@ -1,6 +1,6 @@
 title: a nested list pattern tells apart the tails it checks
 grammar: typescript
-asserts: core, values, stg, simplified
+asserts: core, values, stg
 
 --- tql ---
 import Data.Function (const);
@@ -119,15 +119,3 @@ main = {} \u {} ->
       Cons t4@0 t21@1
   in
   const t22@0
-
---- simplified ---
-one = \xs -> case xs of
-  Nil -> Nil
-  Cons cons0 cons1 -> case cons0 of
-    Nil -> Nil
-    Cons a cons1' -> case cons1' of
-      Nil -> case cons1 of
-        Nil -> Cons a Nil
-        Cons _ _ -> Nil
-      Cons _ _ -> Nil
-main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))

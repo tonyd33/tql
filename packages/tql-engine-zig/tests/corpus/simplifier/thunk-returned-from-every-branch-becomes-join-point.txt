@@ -1,0 +1,23 @@
+title: a thunk returned from every branch becomes a join point of no parameters
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+import Data.Function (const);
+
+f b x = let { t = x * 2 + x * 3 + x * 4 + x * 5 } in if b then t else t;
+main = const [f True 1, f False 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[14,28]
+
+--- simplified ---
+f = \b -> \x ->
+  join t = op[+] (op[+] (op[+] (op[*] x 2) (op[*] x 3)) (op[*] x 4)) (op[*] x 5) in
+  case b of
+    False -> jump t
+    True -> jump t
+main = const (Cons (f True 1) (Cons (f False 2) Nil))

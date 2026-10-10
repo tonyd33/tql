@@ -5,8 +5,6 @@ asserts: error
 --- module Base ---
 module Base;
 
-two = 2;
-
 --- module Front ---
 module Front (module Base);
 
@@ -16,9 +14,6 @@ import Base as B;
 import Front;
 
 main root = [1];
-
---- source ---
-let x = 1;
 
 --- error ---
 error[unresolved-name]: `Base` is not imported unqualified

@@ -18,9 +18,6 @@ import Front;
 
 main root = [three];
 
---- source ---
-let x = 1;
-
 --- error ---
 error[unresolved-name]: `three` is not defined
  --> 3:14

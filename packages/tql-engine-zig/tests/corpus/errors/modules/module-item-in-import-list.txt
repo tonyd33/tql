@@ -7,9 +7,6 @@ import Prelude (module Prim);
 
 main root = [1];
 
---- source ---
-let x = 1;
-
 --- error ---
 error[unresolved-name]: `module Prim` belongs in an export list
  --> 1:17

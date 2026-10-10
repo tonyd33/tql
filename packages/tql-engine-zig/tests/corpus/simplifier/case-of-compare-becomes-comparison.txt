@@ -6,7 +6,11 @@ asserts: simplified, values
 import Data.Function (const);
 
 at_most :: Int -> Int -> Bool;
-at_most x y = case compare x y of { LT -> true; EQ -> true; GT -> false };
+at_most x y = case compare x y of {
+  LT -> true;
+  EQ -> true;
+  GT -> false;
+};
 
 main = const [at_most 1 2, at_most 2 2, at_most 3 2];
 

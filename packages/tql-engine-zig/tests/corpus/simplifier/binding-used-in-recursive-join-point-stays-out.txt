@@ -1,0 +1,27 @@
+title: a binding used in a recursive join point's value stays outside the loop
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+f x xs = let {
+  s = x * x;
+  go ys = case ys of { [] -> s + 1; h : t -> go t };
+} in go xs;
+main = pure (f 3 [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[10]
+
+--- simplified ---
+f = \x -> \xs ->
+  let s = op[*] x x in
+  joinrec
+    go ys = case ys of
+      Nil -> op[+] s 1
+      Cons h t -> jump go t
+  in
+  jump go xs
+main = pure (f 3 (Cons 1 (Cons 2 Nil)))

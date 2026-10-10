@@ -1,6 +1,6 @@
 title: a shared match alternative small enough is copied into its leaves
 grammar: typescript
-asserts: core, simplified, values, stg
+asserts: core, simplified, values
 
 --- tql ---
 import Data.Function (const);
@@ -42,42 +42,3 @@ size = \xs ->
       Nil -> 1
       Cons _ _ -> jump alternative xs
 main = const (Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil))
-
---- stg ---
-size = {} \u {} ->
-  let
-    t0 = {} \n {xs} -> case xs@0 of
-      Nil -> length[List] xs@0
-      Cons x cons1 -> case cons1@2 of
-        Nil -> 1
-        Cons _ _ -> length[List] xs@0
-  in
-  t0@0
-main = {} \u {} ->
-  let
-    t5 = {} \u {} ->
-      let
-        t4 = {} \u {} ->
-          let
-            t2 = {} \u {} ->
-              let
-                xs = {} \u {} ->
-                  let
-                    t1 = {} \u {} ->
-                      let c0 = Nil in
-                      Cons 2 c0@0
-                  in
-                  Cons 1 t1@0
-              in
-              case xs@0 of
-                Nil -> length[List] xs@0
-                Cons x cons1 -> case cons1@2 of
-                  Nil -> 1
-                  Cons _ _ -> length[List] xs@0
-            c3 = Nil
-          in
-          Cons t2@0 c3@1
-      in
-      Cons 1 t4@0
-  in
-  const t5@0

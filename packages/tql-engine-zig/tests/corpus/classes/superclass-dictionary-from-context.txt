@@ -29,7 +29,10 @@ instance Labelled a => Labelled [a] where {
 };
 
 instance Describe a => Describe [a] where {
-  describe xs = case xs of { [] -> [label xs]; x : rest -> append (describe x) (describe rest) };
+  describe xs = case xs of {
+    [] -> [label xs];
+    x : rest -> append (describe x) (describe rest);
+  };
 };
 
 labels :: Describe a => a -> [String];
