@@ -144,8 +144,8 @@ pub fn caseOf(
     return try lower(lowerer, arms, scope, span, root, scrutinee, .report);
 }
 
-/// Lower `pattern <- value; rest`. Each result of `value` the pattern does not
-/// match contributes nothing.
+/// Lower `pattern <- value; rest`. A result of `value` the pattern does not
+/// match yields `empty`.
 pub fn bind(
     lowerer: *Lowerer,
     statement: cst.BindStatement,
@@ -165,8 +165,7 @@ pub fn bind(
         .guard = null,
         .body = .{ .rest = rest },
     }});
-    const nil = b.symbol(lowerer.scope.datatypes.nilConstructor().symbol, span);
-    const term = try lower(lowerer, arms, scope, span, root, b.symbol(root, span), .{ .fallthrough = nil });
+    const term = try lower(lowerer, arms, scope, span, root, b.symbol(root, span), .{ .fallthrough = try lowerer.known(.empty, span) });
     return try lowerer.bind(root, value, term, statement.span);
 }
 

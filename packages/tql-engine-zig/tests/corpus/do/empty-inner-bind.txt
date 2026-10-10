@@ -19,4 +19,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \root -> bind[List] (Cons 1 (Cons 2 Nil)) (\l -> bind[List] (kleisli (kleisli children (of_kind :interface_declaration)) (always 0) root) (\r -> return (op[+] l r)))
+main = \root -> bind (Cons 1 (Cons 2 Nil)) (\l -> bind (kleisli (kleisli children (of_kind :interface_declaration)) (always 0) root) (\r -> return (op[+] l r)))

@@ -73,6 +73,7 @@
 - Added the `Traversable` class, whose method is `traverse`, and `sequence`: `sequence [[1, 2], [3, 4]]` is `[[1, 3], [1, 4], [2, 3], [2, 4]]`.
 - Added `Data.Maybe`: `import Data.Maybe (Maybe(..));` brings `Maybe`, `Nothing` and `Just`, a `Functor`, `Applicative`, `Alternative`, `Foldable`, `Traversable` and `Monad`.
 - Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `filter` in `Control.Monad`.
+- `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
 
 ### Improvements
 

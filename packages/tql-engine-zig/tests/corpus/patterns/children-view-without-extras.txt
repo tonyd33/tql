@@ -29,54 +29,54 @@ g(b);
 ["a","b","b"]
 
 --- core ---
-filtered = \root -> bind[List] (descendants root) (
+filtered = \root -> bind (descendants root) (
   \scrutinee ->
     let view = of_kind :call_expression scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons cons0 cons1 ->
         let view = field[arguments] cons0 in
         case view of
-          Nil -> Nil
+          Nil -> empty
           Cons cons0 cons1' ->
             let view = kleisli children (keep (compose not is_extra)) cons0 in
             case view of
-              Nil -> Nil
+              Nil -> empty
               Cons _ cons1'' -> case cons1'' of
-                Nil -> Nil
+                Nil -> empty
                 Cons argument cons1'' -> case cons1'' of
-                  Nil -> Nil
+                  Nil -> empty
                   Cons _ cons1'' -> case cons1'' of
                     Nil -> case cons1' of
                       Nil -> case cons1 of
                         Nil -> return (text argument)
-                        Cons _ _ -> Nil
-                      Cons _ _ -> Nil
-                    Cons _ _ -> Nil
+                        Cons _ _ -> empty
+                      Cons _ _ -> empty
+                    Cons _ _ -> empty
 )
-unfiltered = \root -> bind[List] (descendants root) (
+unfiltered = \root -> bind (descendants root) (
   \scrutinee ->
     let view = of_kind :call_expression scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons cons0 cons1 ->
         let view = field[arguments] cons0 in
         case view of
-          Nil -> Nil
+          Nil -> empty
           Cons cons0 cons1' ->
             let view = children cons0 in
             case view of
-              Nil -> Nil
+              Nil -> empty
               Cons _ cons1'' -> case cons1'' of
-                Nil -> Nil
+                Nil -> empty
                 Cons argument cons1'' -> case cons1'' of
-                  Nil -> Nil
+                  Nil -> empty
                   Cons _ cons1'' -> case cons1'' of
                     Nil -> case cons1' of
                       Nil -> case cons1 of
                         Nil -> return (text argument)
-                        Cons _ _ -> Nil
-                      Cons _ _ -> Nil
-                    Cons _ _ -> Nil
+                        Cons _ _ -> empty
+                      Cons _ _ -> empty
+                    Cons _ _ -> empty
 )
 main = union filtered unfiltered

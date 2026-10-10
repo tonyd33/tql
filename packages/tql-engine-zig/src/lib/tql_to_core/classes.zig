@@ -364,8 +364,8 @@ pub const Linker = struct {
         });
 
         const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
-        for (class.methods, defined, implementations) |method, definition, *implementation| {
-            implementation.* = try self.methodSymbol(definition.?.name, head_name);
+        for (class.methods, defined, implementations, 0..) |method, definition, *implementation, i| {
+            implementation.* = try self.methodSymbol(id, i, definition.?.name, head_name);
             try self.env.annotate(implementation.*, .{
                 .scheme = try self.methodScheme(self.env.schemeOf(method).?, head),
                 .span = definition.?.span,
@@ -392,12 +392,13 @@ pub const Linker = struct {
         };
     }
 
-    /// `method[head]`, an instance's implementation of `method`.
-    fn methodSymbol(self: *Linker, method: []const u8, head: []const u8) Error!core.SymbolId {
+    /// `method[head]`, `instance`'s implementation of method `index` of its
+    /// class.
+    fn methodSymbol(self: *Linker, instance: classes.InstanceId, index: usize, method: []const u8, head: []const u8) Error!core.SymbolId {
         return try self.env.interner.generate(
             self.module(),
             try std.fmt.allocPrint(self.arena(), "{s}[{s}]", .{ method, head }),
-            .instance_method,
+            .{ .instance_method = .{ .instance = instance, .index = @intCast(index) } },
         );
     }
 
@@ -486,21 +487,23 @@ pub const Linker = struct {
             return error.BadAnnotation;
         }
 
-        const class = self.env.classes.get(class_id);
-        const name = self.env.datatypes.get(id).name;
-        const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
-        for (class.methods, implementations) |method, *implementation| {
-            implementation.* = try self.methodSymbol(self.env.interner.spelling(method), name);
-        }
-        return try self.addInstance(.{
+        const instance = try self.addInstance(.{
             .class = class_id,
             .type = try self.env.datatypes.applied(self.arena(), id),
             .context = &.{},
-            .methods = implementations,
+            .methods = &.{},
             .dictionary = undefined,
             .module = self.module(),
             .span = derived.span,
         });
+        const class = self.env.classes.get(class_id);
+        const name = self.env.datatypes.get(id).name;
+        const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
+        for (class.methods, implementations, 0..) |method, *implementation, i| {
+            implementation.* = try self.methodSymbol(instance, i, self.env.interner.spelling(method), name);
+        }
+        self.env.classes.instanceMut(instance).methods = implementations;
+        return instance;
     }
 
     /// Sets each derived instance's context to what its fields need, reduced

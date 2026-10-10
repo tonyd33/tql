@@ -90,4 +90,4 @@ $mConsoleCall = \s -> \k -> \f -> $mMethod s (
             Nil -> k p
             Cons _ _ -> f
 ) f
-main = \root -> bind[List] (descendants root) (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil)
+main = \root -> bind (descendants root) (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) empty)

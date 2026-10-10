@@ -1,0 +1,43 @@
+title: a failed bind at `Maybe` skips the statements after it
+grammar: typescript
+asserts: simplified, values
+
+At `List` a failed match drops one element and the block goes on with the
+next. At `Maybe` there is one value, so the whole block is `Nothing`.
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+checked m = do {
+  x <- m;
+  1 <- Just x;
+  return (x + 10);
+};
+
+over_list xs = do {
+  x <- xs;
+  1 <- [x];
+  return (x + 10);
+};
+
+main root = [{at_maybe = [checked (Just 1), checked (Just 2)], at_list = over_list [1, 2, 1]}];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"at_list":[11,11],"at_maybe":[{"tag":"Just","fields":[11]},{"tag":"Nothing","fields":[]}]}]
+--- simplified ---
+checked = \m -> case m of
+  Nothing -> Nothing
+  Just x -> case %eq_int x 1 of
+    False -> Nothing
+    True -> Just (op[+] x 10)
+over_list = \xs -> bind[List] xs (
+  \x -> bind[List] (Cons x Nil) (
+    \scrutinee -> case %eq_int scrutinee 1 of
+      False -> Nil
+      True -> Cons (op[+] x 10) Nil
+  )
+)
+main = \root -> Cons (record[at_list,at_maybe] (over_list (Cons 1 (Cons 2 (Cons 1 Nil)))) (Cons (checked (Just 1)) (Cons (checked (Just 2)) Nil))) Nil

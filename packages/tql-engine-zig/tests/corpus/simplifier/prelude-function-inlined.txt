@@ -18,4 +18,4 @@ class A {}
 main = \root -> bind[List] (Cons Unit Nil) (\_ -> Cons 1 Nil)
 
 --- core ---
-main = \root -> bind[List] (guard True) (\_ -> return 1)
+main = \root -> bind (guard True) (\_ -> return 1)

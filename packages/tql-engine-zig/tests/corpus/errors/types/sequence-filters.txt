@@ -2,13 +2,14 @@ title: `>>` does not sequence filters
 grammar: typescript
 asserts: error
 
-`>>` sequences lists, as a `do` block does. A filter is a function.
+`>>` sequences a monad's values, as a `do` block does. A filter is a
+function, and functions are not a monad.
 
 --- tql ---
 main = children >> descendants;
 
 --- error ---
-error[type-mismatch]: Expected `[a]`, found `Node -> [Node]`.
+error[unsatisfied-constraint]: `Monad ((->) Node)` is not satisfied.
  --> 1:8
   |
 1 | main = children >> descendants;

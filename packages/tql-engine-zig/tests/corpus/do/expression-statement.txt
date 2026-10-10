@@ -26,4 +26,4 @@ class Store {}
 main :: Node -> [String]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (\class_decl -> bind[List] (field[name] class_decl) (\name -> bind[List] (guard (op[~] (text name) r"^S")) (\_ -> bind[List] (guard (op[~] (text name) r"e$")) (\_ -> return (text name)))))
+main = \root -> bind (children_of_kind :class_declaration root) (\class_decl -> bind (field[name] class_decl) (\name -> bind (guard (op[~] (text name) r"^S")) (\_ -> bind (guard (op[~] (text name) r"e$")) (\_ -> return (text name)))))

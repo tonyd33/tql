@@ -28,4 +28,4 @@ class B {}
 main :: Node -> [{methods: [String], name: String}]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (\c -> bind[List] (field[name] c) (\n -> bind[List] (collect (kleisli (kleisli (kleisli (kleisli field[body] children) (of_kind :method_definition)) field[name]) (arr text)) c) (\methods -> return (record[methods,name] methods (text n)))))
+main = \root -> bind (children_of_kind :class_declaration root) (\c -> bind (field[name] c) (\n -> bind (collect (kleisli (kleisli (kleisli (kleisli field[body] children) (of_kind :method_definition)) field[name]) (arr text)) c) (\methods -> return (record[methods,name] methods (text n)))))

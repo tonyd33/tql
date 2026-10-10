@@ -31,27 +31,27 @@ class A {}
 ["none", "@a", "some", "some"]
 
 --- core ---
-undecorated = \c -> bind[List] (Cons c Nil) (
+undecorated = \c -> bind (Cons c Nil) (
   \scrutinee ->
     let view = field[decorator] scrutinee in
     case view of
       Nil -> return "none"
-      Cons _ _ -> Nil
+      Cons _ _ -> empty
 )
-one_decorator = \c -> bind[List] (Cons c Nil) (
+one_decorator = \c -> bind (Cons c Nil) (
   \scrutinee ->
     let view = field[decorator] scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons d cons1 -> case cons1 of
         Nil -> return (text d)
-        Cons _ _ -> Nil
+        Cons _ _ -> empty
 )
-decorated = \c -> bind[List] (Cons c Nil) (
+decorated = \c -> bind (Cons c Nil) (
   \scrutinee ->
     let view = field[decorator] scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons _ _ -> return "some"
 )
 main = kleisli (descendants_of_kind :class_declaration) (union (union undecorated one_decorator) decorated)

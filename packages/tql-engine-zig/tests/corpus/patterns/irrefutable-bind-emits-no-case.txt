@@ -21,4 +21,4 @@ class A {}
 [1, 2]
 
 --- core ---
-main = const (bind[List] (Cons 1 (Cons 2 Nil)) (\x -> bind[List] (Cons x Nil) (\y -> bind[List] (Cons y Nil) (\_ -> return y))))
+main = const (bind (Cons 1 (Cons 2 Nil)) (\x -> bind (Cons x Nil) (\y -> bind (Cons y Nil) (\_ -> return y))))

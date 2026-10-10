@@ -1,6 +1,6 @@
 title: an of_kind view bound over a list parameter is not fused
 grammar: typescript
-asserts: simplified, values
+asserts: types, simplified, values
 
 --- tql ---
 names xs = do {
@@ -16,6 +16,9 @@ class A {}
 --- values ---
 ["class A {}"]
 
+--- types ---
+names :: (Monad a, Alternative a) => a Node -> a String
+main :: Node -> [String]
 --- simplified ---
 names = \xs -> bind[List] xs (
   \scrutinee -> case %is_kind :class_declaration scrutinee of

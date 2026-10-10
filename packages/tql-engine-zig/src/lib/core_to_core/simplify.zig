@@ -131,6 +131,7 @@ pub const Simplifier = struct {
                 .classes = &env.classes,
                 .primitives = &env.primitives,
                 .known = &env.known,
+                .list = env.datatypes.listId(),
                 .nil = env.datatypes.nilConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
                 .true_ = env.datatypes.boolConstructor(true).symbol,
@@ -583,7 +584,7 @@ pub const Simplifier = struct {
     fn inlined(self: *Simplifier, name: core.SymbolId, continuation: []const Frame) Error!?core.Term {
         if (!self.options.call_site_inline) return null;
         const unfolding = self.unfoldings.get(name) orelse return null;
-        if (self.phase == .laws and laws.named(&self.env.interner, &self.env.known, name)) return null;
+        if (self.phase == .laws and laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return null;
         const arity = unfolding.arity();
         const applied = @min(appliedTo(continuation), arity);
 

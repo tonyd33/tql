@@ -15,20 +15,20 @@ class A {}
 [["class A {}", "A", "class A {}"]]
 
 --- core ---
-main = \root -> bind[List] (children root) (
+main = \root -> bind (children root) (
   \x ->
     let view = of_kind :class_declaration x in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons x cons1 ->
         let view = field[name] x in
         case view of
-          Nil -> Nil
+          Nil -> empty
           Cons n cons1' -> case cons1' of
             Nil ->
               let t = text x in
               case cons1 of
                 Nil -> return (Cons (text x) (Cons (text n) (Cons t Nil)))
-                Cons _ _ -> Nil
-            Cons _ _ -> Nil
+                Cons _ _ -> empty
+            Cons _ _ -> empty
 )

@@ -18,4 +18,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \root -> bind[List] (Cons 1 (Cons 2 Nil)) (\_ -> return 3)
+main = \root -> bind (Cons 1 (Cons 2 Nil)) (\_ -> return 3)

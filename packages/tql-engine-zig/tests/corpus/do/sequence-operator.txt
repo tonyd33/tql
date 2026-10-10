@@ -17,4 +17,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = const (bind[List] (Cons 1 (Cons 2 Nil)) (\_ -> Cons 3 Nil))
+main = const (bind (Cons 1 (Cons 2 Nil)) (\_ -> Cons 3 Nil))

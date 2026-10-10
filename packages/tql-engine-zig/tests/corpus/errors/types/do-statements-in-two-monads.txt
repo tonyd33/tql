@@ -1,0 +1,21 @@
+title: two statements of one `do` block in different monads
+grammar: typescript
+asserts: error
+
+Every statement of a block runs in the block's monad.
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+main root = do {
+  x <- [1];
+  y <- Just 2;
+  return (x + y);
+};
+
+--- error ---
+error[type-mismatch]: Expected `List`, found `Maybe`.
+ --> 5:3
+  |
+5 |   y <- Just 2;
+  |   ^^^^^^^^^^^

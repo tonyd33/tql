@@ -19,12 +19,12 @@ class A {}
 
 --- core ---
 main = const (
-  bind[List] (Cons "a" (Cons "b" (Cons "a" Nil))) (
+  bind (Cons "a" (Cons "b" (Cons "a" Nil))) (
     \scrutinee -> case eq scrutinee "a" of
-      False -> Nil
-      True -> bind[List] (Cons True (Cons False Nil)) (
+      False -> empty
+      True -> bind (Cons True (Cons False Nil)) (
         \scrutinee -> case scrutinee of
-          False -> Nil
+          False -> empty
           True -> return 1
       )
   )

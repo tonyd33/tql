@@ -20,4 +20,4 @@ class A { m() {} }
 main :: Node -> [String]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (\c -> bind[List] (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> bind[List] (field[name] m) (\n -> return (text n))))
+main = \root -> bind (children_of_kind :class_declaration root) (\c -> bind (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> bind (field[name] m) (\n -> return (text n))))

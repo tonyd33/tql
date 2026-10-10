@@ -18,11 +18,11 @@ class A {}
 
 --- core ---
 main = const (
-  bind[List] (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) (
+  bind (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) (
     \n ->
       let view = (\x -> op[*] x n) n in
       case eq view 9 of
-        False -> Nil
+        False -> empty
         True -> return n
   )
 )

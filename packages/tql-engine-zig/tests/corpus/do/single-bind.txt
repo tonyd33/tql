@@ -19,4 +19,4 @@ class B {}
 main :: Node -> [String]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (\c -> return (text c))
+main = \root -> bind (children_of_kind :class_declaration root) (\c -> return (text c))

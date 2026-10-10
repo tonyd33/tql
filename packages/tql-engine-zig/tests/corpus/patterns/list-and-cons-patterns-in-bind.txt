@@ -19,17 +19,17 @@ class A {}
 
 --- core ---
 main = const (
-  bind[List] (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil)))) (
+  bind (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil)))) (
     \scrutinee -> case scrutinee of
-      Nil -> Nil
+      Nil -> empty
       Cons a cons1 -> case cons1 of
-        Nil -> Nil
+        Nil -> empty
         Cons b cons1 -> case cons1 of
-          Nil -> bind[List] (Cons (Cons (op[+] a b) Nil) (Cons Nil Nil)) (
+          Nil -> bind (Cons (Cons (op[+] a b) Nil) (Cons Nil Nil)) (
             \scrutinee -> case scrutinee of
-              Nil -> Nil
+              Nil -> empty
               Cons h _ -> return h
           )
-          Cons _ _ -> Nil
+          Cons _ _ -> empty
   )
 )

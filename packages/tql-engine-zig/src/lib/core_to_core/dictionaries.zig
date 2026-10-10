@@ -76,7 +76,7 @@ pub const Substituter = struct {
     fn declare(self: *Substituter, name: core.SymbolId, value: core.Term) Error!void {
         if (value.kind != .lambda) return;
         if (self.env.interner.details(name) == .join) return;
-        if (laws.named(&self.env.interner, &self.env.known, name)) return;
+        if (laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return;
         const parameters = try self.scratch.alloc(core.SymbolId, value.arity());
         _ = value.peel(parameters);
         for (parameters) |parameter| try self.passed.put(parameter, .nothing);

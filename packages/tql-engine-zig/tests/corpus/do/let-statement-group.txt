@@ -25,8 +25,8 @@ class A {}
 main :: Node -> [{k: Kind, n: String}]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (
-  \c -> bind[List] (field[name] c) (
+main = \root -> bind (children_of_kind :class_declaration root) (
+  \c -> bind (field[name] c) (
     \cn ->
       let name = text cn in
       let k = kind c in

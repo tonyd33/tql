@@ -473,7 +473,7 @@ pub const Lowerer = struct {
             .pipe => return try self.combinator(.kleisli, left, right, span),
             .stream_union => return try self.combinator(.@"union", left, right, span),
             .compose => return try self.combinator(.compose, left, right, span),
-            .then => return try self.bind(try self.env.interner.fresh("_"), left, right, span),
+            .then => return try self.then(left, right),
             .cons => return try self.builder.applyMany(
                 self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
@@ -515,13 +515,19 @@ pub const Lowerer = struct {
         return try self.builder.chooseOrder(registry, try self.combinator(.compare, left, right, span), bodies, span);
     }
 
-    /// `bind value (\name -> body)`, at the `List` instance.
-    pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
+    /// `bind value (\name -> body)`, at `statement`. A type error in the call
+    /// is reported there.
+    pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, statement: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
-            try self.known(.list_bind, span),
+            try self.known(.bind, statement),
             &.{ value, try self.builder.lambda(name, body, body.span) },
-            span,
+            statement,
         );
+    }
+
+    /// `bind first (\_ -> rest)`, at `first`.
+    fn then(self: *Lowerer, first: core.Term, rest: core.Term) Error!core.Term {
+        return try self.bind(try self.env.interner.fresh("_"), first, rest, first.span);
     }
 
     /// `{l = e, ...}` is the synthesized `record[l,...]` applied to each
@@ -658,14 +664,10 @@ pub const Lowerer = struct {
                 .result = result,
                 .span = span,
             }, scope),
-            .expression => |e| {
-                return try self.bind(
-                    try self.env.interner.fresh("_"),
-                    try self.expression(e, scope),
-                    try self.doBlock(statements[1..], result, scope, span),
-                    e.span,
-                );
-            },
+            .expression => |e| return try self.then(
+                try self.expression(e, scope),
+                try self.doBlock(statements[1..], result, scope, span),
+            ),
             .let => |l| {
                 const group = try self.bindingGroup(l.bindings, scope, l.span);
                 return try self.nest(

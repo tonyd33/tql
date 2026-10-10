@@ -7,20 +7,28 @@ const diagnostic = @import("../diagnostic.zig");
 const Allocator = std.mem.Allocator;
 
 /// The library definitions a law matches on, besides methods and instances.
-const anchors = [_]core.Known{ .kleisli, .list_bind, .of_kind };
+const anchors = [_]core.Known{ .kleisli, .bind, .of_kind };
 
-/// Whether a law matches on `symbol`.
+/// Whether a law matches on `symbol`: a method, an instance, an anchor, or
+/// an instance's implementation of an anchor.
 pub fn named(
     interner: *const core.Interner,
+    classes: *const core.classes.Registry,
     known: *const std.EnumArray(core.Known, ?core.SymbolId),
     symbol: core.SymbolId,
 ) bool {
-    return switch (interner.details(symbol)) {
-        .method, .instance => true,
-        else => for (anchors) |key| {
-            if (known.get(key) == symbol) break true;
-        } else false,
+    const anchor = switch (interner.details(symbol)) {
+        .method, .instance => return true,
+        .instance_method => |m| implemented(classes, m.instance, m.index),
+        else => symbol,
     };
+    for (anchors) |key| if (known.get(key) == anchor) return true;
+    return false;
+}
+
+/// The class method that method `index` of `instance` implements.
+fn implemented(classes: *const core.classes.Registry, instance: core.classes.InstanceId, index: u32) core.SymbolId {
+    return classes.get(classes.instance(instance).class).methods[index];
 }
 
 /// The instance `t` is the dictionary of, when `t` is an instance applied to
@@ -75,6 +83,7 @@ pub const Laws = struct {
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
     /// A key is null when the library has none.
     known: *const std.EnumArray(core.Known, ?core.SymbolId),
+    list: core.datatypes.TypeId,
     nil: core.SymbolId,
     false_: core.SymbolId,
     true_: core.SymbolId,
@@ -239,12 +248,27 @@ pub const Laws = struct {
             else => return null,
         };
         const dictionary = operandOf(self.known.get(.kleisli) orelse return null, a.function) orelse return null;
-        if (!isSymbol(dictionary, self.known.get(.list_monad) orelse return null)) return null;
+        const instance = appliedInstance(self.interner, self.classes, dictionary) orelse return null;
+        const bind = self.known.get(.bind) orelse return null;
+        if (instance.head() != self.list or instance.class != self.interner.details(bind).method.class) return null;
         return a.argument;
+    }
+
+    /// Whether `t` is the `List` instance's implementation of the method
+    /// `key` names.
+    fn isListMethod(self: *const Laws, t: core.Term, key: core.Known) bool {
+        if (t.kind != .symbol) return false;
+        const m = switch (self.interner.details(t.kind.symbol)) {
+            .instance_method => |m| m,
+            else => return false,
+        };
+        return self.classes.instance(m.instance).head() == self.list and
+            implemented(self.classes, m.instance, m.index) == self.known.get(key);
     }
 
     /// `bind (axis r) (\s -> case is_kind k s of { False -> Nil; True -> body })`
     /// becomes `bind (axis_of_kind k r) (\s -> body)`, at the `List` instance.
+    /// `empty` at the `List` instance may stand for `Nil`.
     /// Returns null unless `k` does not read `s` and `fusedAxis` fuses `k`
     /// onto `axis`.
     fn fuseKindBind(
@@ -253,8 +277,12 @@ pub const Laws = struct {
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const bind = self.known.get(.list_bind) orelse return null;
-        const walked = operandOf(bind, function) orelse return null;
+        const call = switch (function.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        if (!self.isListMethod(call.function, .bind)) return null;
+        const walked = call.argument;
         const lambda = switch (argument.kind) {
             .lambda => |l| l,
             else => return null,
@@ -279,11 +307,11 @@ pub const Laws = struct {
         const fused = self.fusedAxis(axis, tested.kind) orelse return null;
 
         const failed = alternativeFor(matched.alternatives, self.false_) orelse return null;
-        if (!isSymbol(failed.body, self.nil)) return null;
+        if (!isSymbol(failed.body, self.nil) and !self.isListMethod(failed.body, .empty)) return null;
         const passed = alternativeFor(matched.alternatives, self.true_) orelse return null;
 
         return try self.builder.applyMany(
-            self.builder.symbol(bind, span),
+            self.builder.symbol(call.function.kind.symbol, span),
             &.{
                 try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, walked.span),
                 try self.builder.lambda(s, passed.body, argument.span),

@@ -29,32 +29,12 @@ pub const Known = enum {
     compare,
     @"and",
     @"or",
-    list_bind,
-    list_monad,
+    bind,
+    empty,
     compose,
     kleisli,
     @"union",
     of_kind,
-
-    pub const Source = union(enum) {
-        /// The value a library module exports under this name.
-        exported: []const u8,
-        /// The `List` instance's implementation of the method exported under
-        /// this name.
-        list_method: []const u8,
-        /// The dictionary of the `List` instance of the class declared under
-        /// this name.
-        list_dictionary: []const u8,
-    };
-
-    /// Returns where the library defines the key.
-    pub fn source(self: Known) Source {
-        return switch (self) {
-            .list_bind => .{ .list_method = "bind" },
-            .list_monad => .{ .list_dictionary = "Monad" },
-            else => .{ .exported = @tagName(self) },
-        };
-    }
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;

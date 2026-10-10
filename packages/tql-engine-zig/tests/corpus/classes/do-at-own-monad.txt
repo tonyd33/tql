@@ -1,0 +1,52 @@
+title: a `do` block runs in a query's own monad, which has no `Alternative`
+grammar: typescript
+asserts: types, values
+
+A variable pattern cannot fail, so the block needs only `Monad`.
+
+--- tql ---
+data Counted a = Counted Int a deriving (Serial);
+
+instance Functor Counted where {
+  map f c = case c of {
+    Counted n x -> Counted n (f x);
+  };
+};
+
+instance Applicative Counted where {
+  pure = Counted 0;
+  ap cf cx = case cf of {
+    Counted n f -> case cx of {
+      Counted m x -> Counted (n + m) (f x);
+    };
+  };
+};
+
+instance Monad Counted where {
+  bind c f = case c of {
+    Counted n x -> case f x of {
+      Counted m y -> Counted (n + m) y;
+    };
+  };
+};
+
+tick x = Counted 1 x;
+
+twice = do {
+  a <- tick 1;
+  _ <- tick 2;
+  b <- tick a;
+  return (a + b);
+};
+
+main root = [twice];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Counted","fields":[3,2]}]
+--- types ---
+tick :: a -> Counted a
+twice :: Counted Int
+main :: Node -> [Counted Int]

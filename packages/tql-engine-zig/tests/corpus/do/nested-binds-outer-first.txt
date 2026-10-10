@@ -23,4 +23,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \_ -> bind[List] (Cons 10 (Cons 20 Nil)) (\l -> bind[List] (Cons 1 (Cons 2 Nil)) (\r -> return (op[+] l r)))
+main = \_ -> bind (Cons 10 (Cons 20 Nil)) (\l -> bind (Cons 1 (Cons 2 Nil)) (\r -> return (op[+] l r)))

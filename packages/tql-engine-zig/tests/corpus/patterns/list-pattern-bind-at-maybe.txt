@@ -1,0 +1,37 @@
+title: a list pattern bound at `Maybe` matches the list inside the `Just`
+grammar: typescript
+asserts: types, simplified, values
+
+The bound value is a `Maybe [Int]`, so the pattern matches the list the
+`Just` holds, once. A list of another length is `Nothing`, not a filtered
+list.
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+sum_of_two m = do {
+  [a, b] <- m;
+  return (a + b);
+};
+
+main root = [sum_of_two (Just [1, 2]), sum_of_two (Just [1]), sum_of_two Nothing];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[3]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
+--- types ---
+sum_of_two :: (Monad a, Alternative a) => a [Int] -> a Int
+main :: Node -> [Maybe Int]
+--- simplified ---
+sum_of_two = \m -> case m of
+  Nothing -> Nothing
+  Just x -> case x of
+    Nil -> Nothing
+    Cons a cons1 -> case cons1 of
+      Nil -> Nothing
+      Cons b cons1 -> case cons1 of
+        Nil -> Just (op[+] a b)
+        Cons _ _ -> Nothing
+main = \root -> Cons (sum_of_two (Just (Cons 1 (Cons 2 Nil)))) (Cons (sum_of_two (Just (Cons 1 Nil))) (Cons Nothing Nil))

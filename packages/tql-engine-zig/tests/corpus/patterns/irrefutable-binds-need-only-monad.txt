@@ -1,0 +1,61 @@
+title: patterns that cannot fail bind in a monad with no `Alternative`
+grammar: typescript
+asserts: types, core, values
+
+A variable, `_`, `x@_` and a constructor of a one-constructor type match
+every value, so no `empty` is emitted and the block needs only `Monad`.
+
+--- tql ---
+data Done a = Done a deriving (Serial);
+
+instance Functor Done where {
+  map f d = case d of {
+    Done x -> Done (f x);
+  };
+};
+
+instance Applicative Done where {
+  pure = Done;
+  ap df dx = case df of {
+    Done f -> map f dx;
+  };
+};
+
+instance Monad Done where {
+  bind d f = case d of {
+    Done x -> f x;
+  };
+};
+
+data Pair = Pair Int Int;
+
+total = do {
+  x <- Done 1;
+  _ <- Done 2;
+  y@_ <- Done x;
+  Pair a b <- Done (Pair y 3);
+  return (a + b);
+};
+
+main root = [total];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Done","fields":[4]}]
+--- types ---
+total :: Done Int
+main :: Node -> [Done Int]
+--- core ---
+total = bind (Done 1) (
+  \x -> bind (Done 2) (
+    \_ -> bind (Done x) (
+      \y -> bind (Done (Pair y 3)) (
+        \scrutinee -> case scrutinee of
+          Pair a b -> return (op[+] a b)
+      )
+    )
+  )
+)
+main = \root -> Cons total Nil

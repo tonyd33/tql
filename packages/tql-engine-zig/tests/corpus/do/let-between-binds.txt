@@ -21,11 +21,11 @@ class A { m() {} n() {} }
 ["A", "A"]
 
 --- core ---
-main = \root -> bind[List] (children_of_kind :class_declaration root) (
-  \c -> bind[List] (field[name] c) (
+main = \root -> bind (children_of_kind :class_declaration root) (
+  \c -> bind (field[name] c) (
     \n ->
       let prefix = text n in
-      bind[List] (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> return prefix)
+      bind (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> return prefix)
   )
 )
 

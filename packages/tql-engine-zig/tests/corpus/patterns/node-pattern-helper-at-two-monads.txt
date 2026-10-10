@@ -1,0 +1,37 @@
+title: one helper binding a node pattern, used at `List` and at `Maybe`
+grammar: typescript
+asserts: types, simplified, values
+
+The helper is generic over its monad, and its two calls pass different
+dictionaries, so it keeps them. Its bind is the method, so the kind test does
+not fuse into an axis, not even for the call over `children`.
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+class_name m = do {
+  c@:class_declaration {} <- m;
+  return $ text c;
+};
+
+main root = [{in_list = class_name (children root), in_maybe = class_name (Just root)}];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"in_list":["class A {}"],"in_maybe":{"tag":"Nothing","fields":[]}}]
+--- types ---
+class_name :: (Monad a, Alternative a) => a Node -> a String
+main :: Node -> [{in_list: [String], in_maybe: Maybe String}]
+--- simplified ---
+class_name = \d -> \d' -> \m -> case d of
+  dict[Monad] _ m' -> m' m (
+    \c -> case %is_kind :class_declaration c of
+      False -> case d' of
+        dict[Alternative] _ m _ -> m
+      True -> case d of
+        dict[Monad] m _ -> case m of
+          dict[Applicative] _ m _ -> m (%text c)
+  )
+main = \root -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children root)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just root))) Nil

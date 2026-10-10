@@ -63,28 +63,6 @@ pub fn addSources(sources: *diagnostic.Sources) !void {
     }
 }
 
-/// The symbol `source` names in `module`, which exports `exports`. Null
-/// when `module` does not define it.
-fn resolve(env: *const core.env.Env, module: core.ModuleId, exports: *const tql_to_core.Exports, source: core.Known.Source) !?core.SymbolId {
-    switch (source) {
-        .exported => |name| return exports.values.get(name),
-        .list_method => |name| {
-            const method = exports.values.get(name) orelse return null;
-            const m = switch (env.interner.details(method)) {
-                .method => |m| m,
-                else => return error.PreludeInvalid,
-            };
-            const instance = env.classes.instanceFor(m.class, env.datatypes.listId()) orelse return error.PreludeInvalid;
-            return env.classes.instance(instance).methods[m.index];
-        },
-        .list_dictionary => |name| {
-            const class = env.classes.lookup(module, name) orelse return null;
-            const instance = env.classes.instanceFor(class, env.datatypes.listId()) orelse return error.PreludeInvalid;
-            return env.classes.instance(instance).dictionary orelse error.PreludeInvalid;
-        },
-    }
-}
-
 /// The library desugared and linked. Nothing changes it once built, so links
 /// on several threads may extend one.
 pub const Library = struct {
@@ -126,7 +104,7 @@ pub const Library = struct {
             };
             for (std.enums.values(core.Known)) |k| {
                 if (env.known.get(k) != null) continue;
-                env.known.set(k, try resolve(env, id, &desugarer.exports.items[i], k.source()));
+                env.known.set(k, desugarer.exports.items[i].values.get(@tagName(k)));
             }
         }
         for (env.known.values) |symbol| if (symbol == null) return error.PreludeInvalid;
