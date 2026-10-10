@@ -1156,7 +1156,7 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
 
 /// How much of one file's scratch a worker keeps for the next. A file that
 /// needed more has the excess released instead of held for the rest of the run.
-const worker_scratch_retained = 1024 * 1024;
+const worker_scratch_retained = 64 * 1024 * 1024;
 
 /// The most scratch one file may hold. A file that needs more fails with
 /// `OutOfMemory` and the run continues with the next.
