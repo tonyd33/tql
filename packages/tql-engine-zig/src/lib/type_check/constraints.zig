@@ -19,26 +19,26 @@ pub const Outcome = union(enum) {
     /// Refutation.
     fails: types.Type,
     /// Undecidable.
-    deferred: types.Meta,
+    deferred,
 };
 
 /// Decides `class t`.
 pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) std.mem.Allocator.Error!Outcome {
-    var first: ?types.Meta = null;
-    const culprit = try classes.reduce(subst.classes, class, t, subst, FirstResidual{ .first = &first });
+    var undecided = false;
+    const culprit = try classes.reduce(subst.classes, class, t, subst, AnyResidual{ .found = &undecided });
     if (culprit) |c| return .{ .fails = c };
-    if (first) |meta| return .{ .deferred = meta };
-    return .holds;
+    return if (undecided) .deferred else .holds;
 }
 
-/// A constraint on a bare metavariable. On a row's metavariable, it holds
-/// when it holds of every field the row comes to have.
+/// A constraint in head-normal form: on a metavariable, or on one applied to
+/// types. On a row's metavariable, it holds when it holds of every field the
+/// row comes to have.
 pub const Residual = struct {
     class: classes.ClassId,
-    meta: types.Meta,
+    type: types.Type,
 };
 
-/// Reduces `class t` to the constraints on bare metavariables it holds under,
+/// Reduces `class t` to the constraints in head-normal form it holds under,
 /// appending them to `out`. A dictionary class reduces through its instances'
 /// contexts, so each residual is in head-normal form.
 ///
@@ -53,14 +53,14 @@ pub fn reduce(
     return classes.reduce(subst.classes, class, t, subst, Collect{ .out = out, .gpa = gpa });
 }
 
-/// Keeps the first residual and drops the rest.
-const FirstResidual = struct {
-    first: *?types.Meta,
+/// Notes whether there is any residual.
+const AnyResidual = struct {
+    found: *bool,
 
     pub const Error = std.mem.Allocator.Error;
 
-    pub fn leaf(self: FirstResidual, _: classes.ClassId, t: types.Type) Error!void {
-        if (self.first.* == null) self.first.* = metaOf(t);
+    pub fn leaf(self: AnyResidual, _: classes.ClassId, _: types.Type) Error!void {
+        self.found.* = true;
     }
 };
 
@@ -72,16 +72,9 @@ const Collect = struct {
     pub const Error = std.mem.Allocator.Error;
 
     pub fn leaf(self: Collect, class: classes.ClassId, t: types.Type) Error!void {
-        try self.out.append(self.gpa, .{ .class = class, .meta = metaOf(t) });
+        try self.out.append(self.gpa, .{ .class = class, .type = t });
     }
 };
-
-fn metaOf(t: types.Type) types.Meta {
-    return switch (t) {
-        .meta => |id| id,
-        else => @panic("a bound type variable reached constraint solving"),
-    };
-}
 
 /// Constraints raised but not yet decided.
 pub const Set = struct {
@@ -165,7 +158,7 @@ pub const Set = struct {
         errdefer kept.deinit(self.gpa);
 
         for (self.items.items) |c| {
-            if (try mentionsAny(subst, c.type, metas, self.gpa)) {
+            if (try subst.mentionsAny(c.type, metas)) {
                 try out.append(out_gpa, c);
             } else {
                 try kept.append(self.gpa, c);
@@ -183,19 +176,3 @@ pub const Violation = struct {
     type: types.Type,
     origin: diagnostic.Span,
 };
-
-/// Whether `t`, under the current substitution, has any of `metas` free.
-pub fn mentionsAny(
-    subst: *Substitution,
-    t: types.Type,
-    metas: []const types.Meta,
-    gpa: std.mem.Allocator,
-) !bool {
-    var free: std.ArrayList(types.Meta) = .empty;
-    defer free.deinit(gpa);
-    try subst.freeMetas(t, &free);
-    for (free.items) |id| {
-        for (metas) |m| if (id == m) return true;
-    }
-    return false;
-}

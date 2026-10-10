@@ -18,6 +18,7 @@ pub const symbols = @import("core/symbols.zig");
 pub const details = @import("core/details.zig");
 pub const env = @import("core/env.zig");
 pub const types = @import("core/types.zig");
+pub const kinds = @import("core/kinds.zig");
 pub const datatypes = @import("core/datatypes.zig");
 pub const classes = @import("core/classes.zig");
 pub const print_scope = @import("core/print_scope.zig");

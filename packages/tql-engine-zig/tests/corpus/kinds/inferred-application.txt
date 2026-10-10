@@ -8,7 +8,9 @@ Nothing fixes the constructors, so the inferred type quantifies both at kind
 --- tql ---
 data Wrap f a = Wrap (f a);
 
-rewrap g w = case w of { Wrap x -> Wrap (g x) };
+rewrap g w = case w of {
+  Wrap x -> Wrap (g x);
+};
 
 main root = [1];
 

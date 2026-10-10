@@ -89,22 +89,20 @@ pub const Desugarer = struct {
     /// desugared, so a constructor reference resolves like any other global.
     ///
     /// An alias body or constructor field may name a type declared below it.
-    /// The module's datatypes and aliases are kinded together: each
-    /// parameter's kind is what their bodies and fields need of it, or
-    /// `Type` where they leave it open.
-    fn declareTypes(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    /// Their kinds, and the constructors that depend on them, are left in
+    /// `group` to solve.
+    fn declareTypes(
+        self: *Desugarer,
+        scope: *const ModuleScope,
+        source: cst.SourceFile,
+        group: *kinds.Group,
+        sink: *diagnostic.Sink,
+    ) !void {
         const arena = self.env.?.allocator();
         const interner = &self.env.?.interner;
         const registry = &self.env.?.datatypes;
-        var group = kinds.Group.init(arena, self.allocator);
-        defer group.deinit();
 
-        const Pending = struct {
-            declared: *const cst.DataDeclaration,
-            id: datatypes.TypeId,
-            /// Null when a constructor failed to translate.
-            constructors: ?[]const datatypes.Constructor = null,
-        };
+        const Pending = struct { declared: *const cst.DataDeclaration, id: datatypes.TypeId };
         var pending: std.ArrayList(Pending) = .empty;
         defer pending.deinit(self.allocator);
 
@@ -156,9 +154,9 @@ pub const Desugarer = struct {
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
 
-        try self.declareAliases(scope, source, &group, sink);
+        try self.declareAliases(scope, source, group, sink);
 
-        for (pending.items) |*p| {
+        for (pending.items) |p| {
             const declared = p.declared;
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
             var failed = false;
@@ -179,7 +177,7 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = annotation.translateField(arena, self.allocator, field, declared, p.id, &group, scope, sink) catch |err| switch (err) {
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, p.id, group, scope, sink) catch |err| switch (err) {
                         error.BadAnnotation => {
                             failed = true;
                             break;
@@ -190,16 +188,8 @@ pub const Desugarer = struct {
 
                 out.* = .{ .symbol = symbol, .tag = @intCast(tag), .fields = fields };
             }
-            if (!failed) p.constructors = constructors;
+            if (!failed) try group.setConstructors(p.id, constructors);
         }
-
-        // Solve the kinds before any constructor's scheme reads them.
-        var kinded = group.datatypes.iterator();
-        while (kinded.next()) |entry| registry.setParameters(entry.key_ptr.*, try group.inference.zonkAll(entry.value_ptr.*));
-        for (pending.items) |p| {
-            if (p.constructors) |constructors| try self.env.?.setConstructors(p.id, constructors);
-        }
-        for (group.aliases.values()) |alias| try registry.defineAlias(scope.module, try group.solved(alias));
     }
 
     /// Translates a module's aliases into `group`, each after the aliases
@@ -370,10 +360,16 @@ pub const Desugarer = struct {
             .classes = &self.env.?.classes,
         };
 
+        // The module's datatypes, aliases and classes are kinded together:
+        // each parameter's kind is what their bodies, fields and methods need
+        // of it, or `Type` where they leave it open.
+        var group = kinds.Group.init(self.env.?.allocator(), self.allocator);
+        defer group.deinit();
         var class_linker: classes_mod.Linker = .{ .gpa = self.allocator, .env = &self.env.?, .scope = &scope, .sink = sink };
         try class_linker.declareClasses(source);
-        try self.declareTypes(&scope, source, sink);
-        try class_linker.declareMembers(source);
+        try self.declareTypes(&scope, source, &group, sink);
+        try class_linker.declareMembers(source, &group);
+        try group.commit(&self.env.?, module);
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.declareInstances(source, &methods);

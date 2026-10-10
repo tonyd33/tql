@@ -234,11 +234,12 @@ pub const Substitution = struct {
     /// Replaces each of `scheme`'s quantified variables with a fresh
     /// metavariable, copying the type.
     ///
+    /// Postconditions:
+    /// - The type has no bound variable.
+    ///
     /// Returns the instantiated type together with the metavariables the bound
     /// variables became.
     pub fn instantiate(self: *Substitution, scheme: types.Scheme) !Instantiated {
-        // A monomorphic scheme's type has no bound variable to replace.
-        if (scheme.variables.len == 0) return .{ .type = scheme.type, .metas = &.{} };
         const metas = try self.arena.alloc(types.Type, scheme.variables.len);
         for (metas, scheme.variables) |*m, kind| m.* = try self.fresh(kind);
         return .{
@@ -256,8 +257,32 @@ pub const Substitution = struct {
     /// `t` with each `.variable` replaced by `metas[index]`, for a type whose
     /// bound variables index the same `forall` a scheme was instantiated with.
     pub fn instantiateWith(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
-        if (metas.len == 0) return t;
         return types.substitute(self.arena, t, metas);
+    }
+
+    /// `t` with each of `metas` replaced by the bound variable at its index,
+    /// or null when `t` has a free metavariable `metas` lacks.
+    pub fn abstractOver(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!?types.Type {
+        if (!try self.within(t, metas)) return null;
+        return try self.rewrite(t, .{ .bound = metas });
+    }
+
+    /// Whether `t` has any of `metas` free.
+    pub fn mentionsAny(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!bool {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        try self.freeMetas(t, &free);
+        for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) != null) return true;
+        return false;
+    }
+
+    /// Whether every free metavariable of `t` is one of `metas`.
+    pub fn within(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!bool {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        try self.freeMetas(t, &free);
+        for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) == null) return false;
+        return true;
     }
 
     /// The inverse of `instantiate`: turns the given free metavariables into

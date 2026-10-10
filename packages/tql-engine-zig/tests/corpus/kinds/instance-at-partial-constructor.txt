@@ -1,0 +1,46 @@
+title: an instance head may be a constructor short of its last argument
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Maybe a = Nothing | Just a;
+data Either e a = Left e | Right a;
+
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+instance Mappable Maybe where {
+  mapf g m = case m of {
+    Nothing -> Nothing;
+    Just x -> Just (g x);
+  };
+};
+
+instance Mappable (Either e) where {
+  mapf g m = case m of {
+    Left e -> Left e;
+    Right x -> Right (g x);
+  };
+};
+
+from_maybe d m = case m of {
+  Nothing -> d;
+  Just x -> x;
+};
+from_right d m = case m of {
+  Left _ -> d;
+  Right x -> x;
+};
+
+main root = [from_maybe 0 (mapf (+ 1) (Just 1)), from_right 0 (mapf (+ 1) (Right 2)), from_right 0 (mapf (+ 1) (Left "e"))];
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3,0]
+--- types ---
+from_maybe :: a -> Maybe a -> a
+from_right :: a -> Either b a -> a
+main :: Node -> [Int]

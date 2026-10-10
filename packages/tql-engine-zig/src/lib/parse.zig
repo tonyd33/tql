@@ -346,10 +346,10 @@ const Walker = struct {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "class_constraint")) {
                     const class_node = try self.requiredField(child, "class") orelse return null;
-                    const variable_node = try self.requiredField(child, "variable") orelse return null;
+                    const type_node = try self.requiredField(child, "type") orelse return null;
                     try collected.append(self.allocator, .{
                         .class = try self.dupe(class_node),
-                        .variable = try self.dupe(variable_node),
+                        .type = try self.typeExpr(type_node) orelse return null,
                         .span = spanOf(child, self.source_id),
                     });
                 }

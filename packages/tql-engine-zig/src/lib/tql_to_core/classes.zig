@@ -8,6 +8,7 @@ const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const annotation = @import("annotation.zig");
+const kinds = @import("kinds.zig");
 const ModuleScope = @import("scope.zig").ModuleScope;
 const classes = core.classes;
 const datatypes = core.datatypes;
@@ -81,22 +82,32 @@ pub const Linker = struct {
         }
     }
 
-    const Registered = struct { id: classes.ClassId, declared: *const cst.ClassDeclaration };
+    const Registered = struct {
+        id: classes.ClassId,
+        declared: *const cst.ClassDeclaration,
+        /// Cleared when a superclass failed to resolve or formed a cycle.
+        superclasses_resolved: bool = true,
+    };
 
     /// Resolves each class's superclasses, then interns its methods with
-    /// their schemes and its dictionary's constructor and selectors.
+    /// their schemes and its dictionary's constructor and selectors. Each
+    /// class's parameter kind and the method schemes that depend on it are
+    /// left in `group` to solve.
     ///
     /// Preconditions:
-    /// - The module's types are declared.
-    pub fn declareMembers(self: *Linker, source: cst.SourceFile) Error!void {
+    /// - The module's types are declared in `group`.
+    pub fn declareMembers(self: *Linker, source: cst.SourceFile, group: *kinds.Group) Error!void {
         var registered: std.ArrayList(Registered) = .empty;
         defer registered.deinit(self.gpa);
         try self.collectRegistered(source, &registered);
 
-        for (registered.items) |r| {
+        for (registered.items) |r| try group.declareClass(r.id);
+
+        for (registered.items) |*r| {
             self.env.classes.getMut(r.id).superclasses = self.superclasses(r.declared) catch |err| switch (err) {
                 error.BadAnnotation => blk: {
                     self.failed = true;
+                    r.superclasses_resolved = false;
                     break :blk &.{};
                 },
                 else => |e| return e,
@@ -107,23 +118,25 @@ pub const Linker = struct {
         defer self.gpa.free(cyclic);
         for (registered.items, cyclic) |r, skip| {
             if (skip) continue;
-            self.methods(r.id, r.declared) catch |err| switch (err) {
+            self.methods(r.id, r.declared, group) catch |err| switch (err) {
                 error.BadAnnotation => self.failed = true,
                 else => |e| return e,
             };
         }
+        // Once the methods have kinded every class.
+        for (registered.items) |r| try self.superclassKinds(r, group);
     }
 
     fn superclasses(self: *Linker, declared: *const cst.ClassDeclaration) annotation.Error![]const classes.ClassId {
         const out = try self.arena().alloc(classes.ClassId, declared.superclasses.len);
         for (declared.superclasses, out) |written, *slot| {
             slot.* = try annotation.resolveClass(self.scope, written.class, written.span, self.sink);
-            if (!std.mem.eql(u8, written.variable, declared.parameter)) {
+            if (!std.mem.eql(u8, written.variableName() orelse "", declared.parameter)) {
                 try self.sink.report(
                     .invalid_class,
                     written.span,
-                    "`{s}` is not `{s}`, the parameter of `{s}`",
-                    .{ written.variable, declared.parameter, declared.name },
+                    "`{s}` constrains something other than `{s}`, the parameter of `{s}`",
+                    .{ written.class, declared.parameter, declared.name },
                 );
                 return error.BadAnnotation;
             }
@@ -131,13 +144,37 @@ pub const Linker = struct {
         return out;
     }
 
+    /// Reports each superclass of `r` whose parameter's kind is not `r`'s.
+    fn superclassKinds(self: *Linker, r: Registered, group: *kinds.Group) Error!void {
+        if (!r.superclasses_resolved) return;
+        const own = group.classes.get(r.id).?;
+        for (self.env.classes.get(r.id).superclasses, r.declared.superclasses) |super, written| {
+            const kind = group.classKind(super, &self.env.classes);
+            if (group.inference.unify(own, kind)) continue;
+            var names: types.KindNames = .{};
+            try self.sink.report(
+                .kind_mismatch,
+                written.span,
+                "`{s}` ranges over kind `{f}`, but `{s}` over kind `{f}`",
+                .{
+                    written.class,
+                    (try group.inference.zonk(kind, null)).named(&names),
+                    r.declared.name,
+                    (try group.inference.zonk(own, null)).named(&names),
+                },
+            );
+            self.failed = true;
+        }
+    }
+
     /// Reports the first-declared class of each superclass cycle and clears
-    /// the superclasses of every class in it, so entailment terminates.
+    /// the superclasses of every class in it, so entailment terminates. Marks
+    /// each one's superclasses unresolved.
     /// Returns which classes were reported. The caller owns the result.
     ///
     /// Preconditions:
     /// - `members` holds consecutive ids, in declaration order.
-    fn rejectCycles(self: *Linker, members: []const Registered) Error![]bool {
+    fn rejectCycles(self: *Linker, members: []Registered) Error![]bool {
         const reported = try self.gpa.alloc(bool, members.len);
         errdefer self.gpa.free(reported);
         @memset(reported, false);
@@ -163,14 +200,22 @@ pub const Linker = struct {
             const reported_index = std.mem.min(u32, group);
             const r = members[reported_index];
             try self.sink.report(.invalid_class, r.declared.span, "`{s}` is its own superclass", .{r.declared.name});
-            for (group) |m| self.env.classes.getMut(members[m].id).superclasses = &.{};
+            for (group) |m| {
+                self.env.classes.getMut(members[m].id).superclasses = &.{};
+                members[m].superclasses_resolved = false;
+            }
             reported[reported_index] = true;
             self.failed = true;
         }
         return reported;
     }
 
-    fn methods(self: *Linker, id: classes.ClassId, declared: *const cst.ClassDeclaration) annotation.Error!void {
+    fn methods(
+        self: *Linker,
+        id: classes.ClassId,
+        declared: *const cst.ClassDeclaration,
+        group: *kinds.Group,
+    ) annotation.Error!void {
         const symbols = try self.arena().alloc(core.SymbolId, declared.methods.len);
         for (declared.methods, symbols, 0..) |*signature, *symbol, index| {
             symbol.* = self.env.interner.intern(self.module(), signature.name, .{ .method = .{
@@ -187,11 +232,12 @@ pub const Linker = struct {
                 self.arena(),
                 self.gpa,
                 signature,
-                .{ .class = id, .name = declared.name, .parameter = declared.parameter, .kind = self.env.classes.get(id).parameter },
+                .{ .class = id, .name = declared.name, .parameter = declared.parameter },
+                group,
                 self.scope,
                 self.sink,
             );
-            try self.env.setScheme(symbol.*, scheme);
+            try group.setScheme(symbol.*, scheme);
         }
 
         const class = self.env.classes.getMut(id);
@@ -486,6 +532,22 @@ pub const Linker = struct {
                             break :fields;
                         }
                         for (leaves.items) |leaf| {
+                            if (leaf.type != .variable) {
+                                try self.sink.report(
+                                    .invalid_deriving,
+                                    written_field.span,
+                                    "`{s} {f}` needs `{s} {f}`, but a derived instance can only require a class of a type variable",
+                                    .{
+                                        self.env.classes.spelling(instance.class),
+                                        instance.type.operand(),
+                                        self.env.classes.spelling(leaf.class),
+                                        leaf.type.operand(),
+                                    },
+                                );
+                                p.failed = true;
+                                self.failed = true;
+                                break :fields;
+                            }
                             if (self.env.classes.entailedBy(p.context.items, leaf)) continue;
                             try p.context.append(self.gpa, leaf);
                         }
@@ -493,15 +555,22 @@ pub const Linker = struct {
                 }
                 if (p.context.items.len == grown) continue;
                 changed = true;
-                self.env.classes.instanceMut(p.instance).context = try self.arena().dupe(types.TypeClassConstraint, p.context.items);
+                self.env.classes.instanceMut(p.instance).context = try self.requirements(p.context.items);
             }
         }
 
         for (pending) |*p| {
             if (p.failed) continue;
             const kept = self.env.classes.pruneEntailed(p.context.items);
-            self.env.classes.instanceMut(p.instance).context = try self.arena().dupe(types.TypeClassConstraint, p.context.items[0..kept]);
+            self.env.classes.instanceMut(p.instance).context = try self.requirements(p.context.items[0..kept]);
         }
+    }
+
+    /// `context`, each a constraint on a bound variable, as requirements.
+    fn requirements(self: *Linker, context: []const types.TypeClassConstraint) Error![]const classes.Requirement {
+        const out = try self.arena().alloc(classes.Requirement, context.len);
+        for (context, out) |c, *slot| slot.* = .{ .class = c.class, .variable = c.type.variable };
+        return out;
     }
 
     /// The derived instance's method, annotated with the class method's
@@ -541,7 +610,7 @@ pub const Linker = struct {
         for (arguments[1..], 0..) |*argument, i| argument.* = types.variable_type(@intCast(parameters + i));
 
         const constraints = try self.arena().alloc(types.TypeClassConstraint, head.context.len + method.constraints.len - 1);
-        @memcpy(constraints[0..head.context.len], head.context);
+        for (head.context, constraints[0..head.context.len]) |r, *slot| slot.* = r.constraint();
         for (method.constraints[1..], constraints[head.context.len..]) |c, *slot| {
             slot.* = .{ .class = c.class, .type = try types.substitute(self.arena(), c.type, arguments) };
         }
@@ -594,7 +663,7 @@ fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, s
         return .{ .class = super, .type = culprit };
     }
     for (leaves.items) |leaf| {
-        if (!env.classes.entailedBy(instance.context, leaf)) return leaf;
+        if (!env.classes.requires(instance.context, leaf)) return leaf;
     }
     return null;
 }

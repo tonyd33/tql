@@ -1,99 +1,29 @@
-//! Kind inference over written types: a metavariable for each kind a first
-//! use does not fix, solved by first-order unification, and defaulted to
-//! `Type` where nothing solves it.
+//! A module's type-level declarations while their kinds are inferred.
 
 const std = @import("std");
 const core = @import("../core.zig");
 const types = core.types;
+const Inference = core.kinds.Inference;
 
 const Allocator = std.mem.Allocator;
 
-pub const Inference = struct {
-    /// Where arrows built by `zonk` live.
-    arena: Allocator,
-    gpa: Allocator,
-    /// Indexed by `KindMeta`. `null` means unsolved.
-    solutions: std.ArrayList(?types.Kind) = .empty,
-
-    pub fn init(arena: Allocator, gpa: Allocator) Inference {
-        return .{ .arena = arena, .gpa = gpa };
-    }
-
-    pub fn deinit(self: *Inference) void {
-        self.solutions.deinit(self.gpa);
-    }
-
-    /// A metavariable no kind mentions yet.
-    pub fn fresh(self: *Inference) Allocator.Error!types.Kind {
-        const id: types.KindMeta = @intCast(self.solutions.items.len);
-        try self.solutions.append(self.gpa, null);
-        return .{ .meta = id };
-    }
-
-    /// Follows solutions until reaching an unsolved metavariable or a
-    /// constructor.
-    pub fn resolve(self: *const Inference, k: types.Kind) types.Kind {
-        var current = k;
-        while (current == .meta) current = self.solutions.items[current.meta] orelse return current;
-        return current;
-    }
-
-    /// Makes `a` and `b` equal. Returns false when they cannot be, with any
-    /// solution found on the way kept.
-    pub fn unify(self: *Inference, a: types.Kind, b: types.Kind) bool {
-        const left = self.resolve(a);
-        const right = self.resolve(b);
-        if (left == .meta) return self.bind(left.meta, right);
-        if (right == .meta) return self.bind(right.meta, left);
-        return switch (left) {
-            .type, .row => std.meta.activeTag(left) == std.meta.activeTag(right),
-            .arrow => |x| right == .arrow and self.unify(x.from, right.arrow.from) and self.unify(x.to, right.arrow.to),
-            .meta => unreachable,
-        };
-    }
-
-    fn bind(self: *Inference, id: types.KindMeta, k: types.Kind) bool {
-        if (k == .meta and k.meta == id) return true;
-        if (self.occurs(id, k)) return false;
-        self.solutions.items[id] = k;
-        return true;
-    }
-
-    fn occurs(self: *const Inference, id: types.KindMeta, k: types.Kind) bool {
-        return switch (self.resolve(k)) {
-            .type, .row => false,
-            .arrow => |x| self.occurs(id, x.from) or self.occurs(id, x.to),
-            .meta => |other| other == id,
-        };
-    }
-
-    /// `k` with every solution substituted, and each metavariable left
-    /// unsolved kept when `default` is null or replaced by it otherwise.
-    pub fn zonk(self: *const Inference, k: types.Kind, default: ?types.Kind) Allocator.Error!types.Kind {
-        return switch (self.resolve(k)) {
-            .type => .type,
-            .row => .row,
-            .meta => |id| default orelse .{ .meta = id },
-            .arrow => |x| try types.Kind.arrows(self.arena, &.{try self.zonk(x.from, default)}, try self.zonk(x.to, default)),
-        };
-    }
-
-    /// `zonk` over each of `kinds`, defaulting to `Type`, into a new slice.
-    pub fn zonkAll(self: *const Inference, kinds: []const types.Kind) Allocator.Error![]const types.Kind {
-        const out = try self.arena.alloc(types.Kind, kinds.len);
-        for (kinds, out) |k, *slot| slot.* = try self.zonk(k, .type);
-        return out;
-    }
-};
-
-/// A module's own datatypes and aliases while their kinds are inferred
-/// together. The translator reads a datatype's parameter kinds and an alias
-/// here before the registry, which takes them once they are solved.
+/// A module's own datatypes, aliases and classes while their kinds are
+/// inferred together, with what depends on those kinds held back. The
+/// translator reads a datatype's parameter kinds, an alias or a class's
+/// parameter kind here before the registry. `commit` solves every kind,
+/// defaulting to `Type`, and writes all of it to the environment.
 pub const Group = struct {
     inference: Inference,
-    datatypes: std.AutoHashMapUnmanaged(core.datatypes.TypeId, []const types.Kind) = .empty,
+    datatypes: std.AutoArrayHashMapUnmanaged(core.datatypes.TypeId, []const types.Kind) = .empty,
     /// By name, in the order they are declared.
     aliases: std.StringArrayHashMapUnmanaged(*const core.datatypes.Alias) = .empty,
+    classes: std.AutoArrayHashMapUnmanaged(core.classes.ClassId, types.Kind) = .empty,
+    /// Each datatype's constructors, whose schemes take its parameter kinds.
+    constructors: std.ArrayList(Constructors) = .empty,
+    methods: std.ArrayList(Method) = .empty,
+
+    const Constructors = struct { id: core.datatypes.TypeId, constructors: []const core.datatypes.Constructor };
+    const Method = struct { symbol: core.SymbolId, scheme: types.Scheme };
 
     pub fn init(arena: Allocator, gpa: Allocator) Group {
         return .{ .inference = .init(arena, gpa) };
@@ -103,6 +33,9 @@ pub const Group = struct {
         const gpa = self.inference.gpa;
         self.datatypes.deinit(gpa);
         self.aliases.deinit(gpa);
+        self.classes.deinit(gpa);
+        self.constructors.deinit(gpa);
+        self.methods.deinit(gpa);
         self.inference.deinit();
     }
 
@@ -113,6 +46,26 @@ pub const Group = struct {
         try self.datatypes.put(self.inference.gpa, id, parameters);
     }
 
+    /// Holds `constructors` of datatype `id` until its kinds are solved.
+    pub fn setConstructors(self: *Group, id: core.datatypes.TypeId, constructors: []const core.datatypes.Constructor) Allocator.Error!void {
+        try self.constructors.append(self.inference.gpa, .{ .id = id, .constructors = constructors });
+    }
+
+    /// The kind of class `id`'s parameter, solved or not.
+    pub fn classKind(self: *const Group, id: core.classes.ClassId, registry: *const core.classes.Registry) types.Kind {
+        return self.classes.get(id) orelse registry.get(id).parameter;
+    }
+
+    /// Adds class `id`, its parameter's kind still to infer.
+    pub fn declareClass(self: *Group, id: core.classes.ClassId) Allocator.Error!void {
+        try self.classes.put(self.inference.gpa, id, try self.inference.fresh());
+    }
+
+    /// Holds method `symbol`'s scheme until its kinds are solved.
+    pub fn setScheme(self: *Group, symbol: core.SymbolId, scheme: types.Scheme) Allocator.Error!void {
+        try self.methods.append(self.inference.gpa, .{ .symbol = symbol, .scheme = scheme });
+    }
+
     /// Adds `alias`, its kinds still to infer.
     pub fn define(self: *Group, alias: core.datatypes.Alias) Allocator.Error!void {
         const stored = try self.inference.arena.create(core.datatypes.Alias);
@@ -120,15 +73,31 @@ pub const Group = struct {
         try self.aliases.put(self.inference.gpa, alias.name, stored);
     }
 
-    /// `alias` with every kind solved, defaulting to `Type`.
-    pub fn solved(self: *const Group, alias: *const core.datatypes.Alias) Allocator.Error!core.datatypes.Alias {
-        const parameters = try self.inference.arena.alloc(core.datatypes.Alias.Parameter, alias.parameters.len);
-        for (alias.parameters, parameters) |parameter, *slot| {
-            slot.* = .{ .name = parameter.name, .kind = try self.inference.zonk(parameter.kind, .type) };
+    /// Solves every kind, defaulting to `Type`, and writes the group's
+    /// declarations to `env` as `module`'s.
+    pub fn commit(self: *const Group, env: *core.env.Env, module: core.ModuleId) Allocator.Error!void {
+        const inference = &self.inference;
+        for (self.datatypes.keys(), self.datatypes.values()) |id, parameters| {
+            env.datatypes.setParameters(id, try inference.zonkAll(parameters));
         }
-        var result = alias.*;
-        result.parameters = parameters;
-        result.kind = try self.inference.zonk(alias.kind, .type);
-        return result;
+        for (self.constructors.items) |c| try env.setConstructors(c.id, c.constructors);
+        for (self.aliases.values()) |alias| {
+            const parameters = try inference.arena.alloc(core.datatypes.Alias.Parameter, alias.parameters.len);
+            for (alias.parameters, parameters) |parameter, *slot| {
+                slot.* = .{ .name = parameter.name, .kind = try inference.zonk(parameter.kind, .type) };
+            }
+            var solved = alias.*;
+            solved.parameters = parameters;
+            solved.kind = try inference.zonk(alias.kind, .type);
+            try env.datatypes.defineAlias(module, solved);
+        }
+        for (self.classes.keys(), self.classes.values()) |id, kind| {
+            env.classes.getMut(id).parameter = try inference.zonk(kind, .type);
+        }
+        for (self.methods.items) |m| {
+            var scheme = m.scheme;
+            scheme.variables = try inference.zonkAll(scheme.variables);
+            try env.setScheme(m.symbol, scheme);
+        }
     }
 };

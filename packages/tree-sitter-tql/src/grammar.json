@@ -1093,10 +1093,19 @@
         },
         {
           "type": "FIELD",
-          "name": "variable",
+          "name": "type",
           "content": {
-            "type": "SYMBOL",
-            "name": "_type_variable"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_type_variable"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "parenthesized_type"
+              }
+            ]
           }
         }
       ]

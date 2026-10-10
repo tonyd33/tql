@@ -1766,10 +1766,14 @@
           }
         ]
       },
-      "variable": {
+      "type": {
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "parenthesized_type",
+            "named": true
+          },
           {
             "type": "type_variable",
             "named": true

@@ -619,13 +619,18 @@ pub const Inference = struct {
             try own.appendSlice(self.gpa, mentioned);
             bare.clearRetainingCapacity();
             for (context) |c| {
-                if (std.mem.indexOfScalar(types.Meta, own.items, c.type.meta) == null) try own.append(self.gpa, c.type.meta);
+                free.clearRetainingCapacity();
+                try self.subst.freeMetas(c.type, &free);
+                for (free.items) |id| {
+                    if (std.mem.indexOfScalar(types.Meta, quantified.items, id) == null) continue;
+                    if (std.mem.indexOfScalar(types.Meta, own.items, id) == null) try own.append(self.gpa, id);
+                }
                 try bare.append(self.gpa, c);
             }
             for (taken.items) |c| {
                 if (self.env.classes.evidenceOf(c.class) != .builtin) continue;
-                if (!try constraints.mentionsAny(self.subst, c.type, mentioned, self.gpa)) continue;
-                if (self.implied(c, context)) continue;
+                if (!try self.subst.mentionsAny(c.type, mentioned)) continue;
+                if (try self.implied(c, context)) continue;
                 try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
             }
             member.* = .{
@@ -642,10 +647,10 @@ pub const Inference = struct {
     }
 
     /// The group context `taken` reduces to: each constraint with dictionary
-    /// evidence in head-normal form, on one of `quantified`, without
+    /// evidence in head-normal form, mentioning one of `quantified`, without
     /// duplicates or constraints another's superclasses imply, in order of
-    /// first appearance. Residuals on other metavariables go back to
-    /// `undecided`. The caller owns the result.
+    /// first appearance. Residuals mentioning none go back to `undecided`.
+    /// The caller owns the result.
     fn groupContext(
         self: *Inference,
         taken: []const constraints.Constraint,
@@ -667,13 +672,14 @@ pub const Inference = struct {
                 } });
             }
             for (residuals.items) |r| {
-                if (std.mem.indexOfScalar(types.Meta, quantified, r.meta) == null) {
-                    _ = try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, c.origin);
+                if (!try self.subst.mentionsAny(r.type, quantified)) {
+                    _ = try self.undecided.require(self.subst, r.class, r.type, c.origin);
                     continue;
                 }
+                const settled = try self.subst.resolveDeep(r.type);
                 for (context.items) |earlier| {
-                    if (earlier.class == r.class and earlier.type.meta == r.meta) break;
-                } else try context.append(self.gpa, .{ .class = r.class, .type = .{ .meta = r.meta } });
+                    if (earlier.class == r.class and types.eql(earlier.type, settled)) break;
+                } else try context.append(self.gpa, .{ .class = r.class, .type = settled });
             }
         }
 
@@ -683,8 +689,8 @@ pub const Inference = struct {
 
     /// Whether `c`, a constraint with built-in evidence, is implied by a
     /// superclass of a constraint in `context`.
-    fn implied(self: *Inference, c: constraints.Constraint, context: []const types.TypeClassConstraint) bool {
-        return self.env.classes.entailedBy(context, .{ .class = c.class, .type = self.subst.expand(c.type) });
+    fn implied(self: *Inference, c: constraints.Constraint, context: []const types.TypeClassConstraint) Error!bool {
+        return self.env.classes.entailedBy(context, .{ .class = c.class, .type = try self.subst.resolveDeep(c.type) });
     }
 
     /// Infers one strongly connected component of the definition graph
@@ -738,9 +744,12 @@ pub const Inference = struct {
                 try self.inferred.put(symbol, declared.scheme);
                 var wanted: std.ArrayList(types.TypeClassConstraint) = .empty;
                 defer wanted.deinit(self.gpa);
+                const metas = try self.gpa.alloc(types.Type, representatives.len);
+                defer self.gpa.free(metas);
+                for (representatives, metas) |id, *slot| slot.* = .{ .meta = id };
                 for (declared.scheme.constraints) |c| {
                     if (self.env.classes.evidenceOf(c.class) != .dictionary) continue;
-                    try wanted.append(self.gpa, .{ .class = c.class, .type = .{ .meta = representatives[c.type.variable] } });
+                    try wanted.append(self.gpa, .{ .class = c.class, .type = try self.subst.instantiateWith(c.type, metas) });
                 }
                 break :blk try self.parameters(frame, wanted.items);
             } else blk: {
@@ -848,9 +857,9 @@ pub const Inference = struct {
             slot.* = resolved.meta;
         }
 
-        // Each constraint the body raised, reduced to bare variables. One on a
-        // declared variable must be entailed by the declared context, and one
-        // on any other variable is still owed.
+        // Each constraint the body raised, in head-normal form. One over
+        // declared variables only must be entailed by the declared context,
+        // and any other is still owed.
         var residuals: std.ArrayList(constraints.Residual) = .empty;
         defer residuals.deinit(self.gpa);
         for (inferred.constraints) |c| {
@@ -864,14 +873,13 @@ pub const Inference = struct {
                 } });
             }
             for (residuals.items) |r| {
-                const resolved = self.subst.expand(.{ .meta = r.meta }).meta;
-                const index = std.mem.indexOfScalar(types.Meta, representatives, resolved) orelse {
-                    if (try self.undecided.require(self.subst, r.class, .{ .meta = r.meta }, span)) |v| {
+                const over = try self.subst.abstractOver(r.type, representatives) orelse {
+                    if (try self.undecided.require(self.subst, r.class, r.type, span)) |v| {
                         return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
                     }
                     continue;
                 };
-                const wanted: types.TypeClassConstraint = .{ .class = r.class, .type = types.variable_type(@intCast(index)) };
+                const wanted: types.TypeClassConstraint = .{ .class = r.class, .type = over };
                 if (!self.env.classes.entailedBy(declared.constraints, wanted)) {
                     return self.fail(.signature_mismatch, span, .{ .violation = .{
                         .class = wanted.class,

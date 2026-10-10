@@ -79,11 +79,7 @@ pub fn unify(
     }
 
     switch (left) {
-        .meta => unreachable,
-        // A bound variable reaching unification means a scheme was used
-        // without instantiation, which is a bug in the caller rather than a
-        // type error in the program.
-        .variable => @panic("a bound type variable reached unification"),
+        .meta, .variable => unreachable,
         // Nominal in the head, pointwise in the arguments.
         .constructor => |c| {
             if (right != .constructor or right.constructor.name != c.name or
@@ -265,7 +261,7 @@ fn row(rest: ?*const types.Type) ?types.Meta {
     const t = rest orelse return null;
     return switch (t.*) {
         .meta => |id| id,
-        .variable => @panic("a bound type variable reached unification"),
+        .variable => unreachable,
         else => unreachable,
     };
 }

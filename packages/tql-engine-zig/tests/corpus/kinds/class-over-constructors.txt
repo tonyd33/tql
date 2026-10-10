@@ -1,0 +1,27 @@
+title: a class ranges over constructors when its methods apply its parameter
+grammar: typescript
+asserts: types, values
+
+`mapf` applies `f` to `a`, so `Mappable` ranges over kind `Type -> Type`,
+and `List` is an instance.
+
+--- tql ---
+import Data.List (map);
+
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+instance Mappable List where {
+  mapf = map;
+};
+
+main root = mapf length [[1], [2, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]
+--- types ---
+main :: Node -> [Int]

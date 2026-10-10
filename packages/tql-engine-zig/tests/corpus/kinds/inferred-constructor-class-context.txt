@@ -1,0 +1,28 @@
+title: an inferred context constrains a constructor variable
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+instance Mappable List where {
+  mapf g xs = case xs of {
+    [] -> [];
+    h : t -> g h : mapf g t;
+  };
+};
+
+twice g x = mapf g (mapf g x);
+
+main root = twice (+ 1) [1, 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[3,4]
+--- types ---
+twice :: Mappable b => (a -> a) -> b a -> b a
+main :: Node -> [Int]

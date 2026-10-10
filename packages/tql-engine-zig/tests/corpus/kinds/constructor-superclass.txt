@@ -1,0 +1,35 @@
+title: a superclass over constructors is used through its subclass
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.List (map);
+
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+class Mappable f => Pointed f where {
+  point :: a -> f a;
+};
+
+instance Mappable List where {
+  mapf = map;
+};
+
+instance Pointed List where {
+  point x = [x];
+};
+
+bumped x = mapf (+ 1) (point x);
+
+main root = bumped 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+--- types ---
+bumped :: Pointed a => Int -> a Int
+main :: Node -> [Int]

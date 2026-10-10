@@ -49,13 +49,24 @@ pub const Selector = struct {
     symbol: symbols.SymbolId,
 };
 
+/// `class a` in an instance's context, on the head's variable `a`.
+pub const Requirement = struct {
+    class: ClassId,
+    variable: types.TypeVar,
+
+    /// Returns `self` as a constraint on its bound variable.
+    pub fn constraint(self: Requirement) types.TypeClassConstraint {
+        return .{ .class = self.class, .type = types.variable_type(self.variable) };
+    }
+};
+
 pub const Instance = struct {
     class: ClassId,
     /// A datatype applied to distinct variables, bound in order from 0.
     type: types.Type,
-    /// Constraints over the head's variables. Those with dictionary evidence
-    /// are the dictionary's parameters, in order.
-    context: []const types.TypeClassConstraint,
+    /// Those with dictionary evidence are the dictionary's parameters, in
+    /// order.
+    context: []const Requirement,
     /// Each method's implementation, in class method order.
     methods: []const symbols.SymbolId,
     /// `instance[C,T]`, the global holding this instance's dictionary. Null
@@ -176,7 +187,7 @@ pub const Registry = struct {
     }
 
     /// How many constraints of `context` have dictionary evidence.
-    pub fn dictionaryCount(self: *const Registry, context: []const types.TypeClassConstraint) usize {
+    pub fn dictionaryCount(self: *const Registry, context: []const Requirement) usize {
         var count: usize = 0;
         for (context) |c| {
             if (self.evidenceOf(c.class) == .dictionary) count += 1;
@@ -193,10 +204,20 @@ pub const Registry = struct {
         return false;
     }
 
+    /// Whether a requirement of `context` entails `wanted`, a constraint on a
+    /// bound variable.
+    pub fn requires(self: *const Registry, context: []const Requirement, wanted: types.TypeClassConstraint) bool {
+        if (wanted.type != .variable) return false;
+        for (context) |r| {
+            if (r.variable == wanted.type.variable and self.entails(r.class, wanted.class)) return true;
+        }
+        return false;
+    }
+
     /// Whether a constraint of `givens` on `wanted`'s type entails it.
     pub fn entailedBy(self: *const Registry, givens: []const types.TypeClassConstraint, wanted: types.TypeClassConstraint) bool {
         for (givens) |given| {
-            if (std.meta.eql(given.type, wanted.type) and self.entails(given.class, wanted.class)) return true;
+            if (types.eql(given.type, wanted.type) and self.entails(given.class, wanted.class)) return true;
         }
         return false;
     }
@@ -252,7 +273,7 @@ pub fn parameterCount(t: types.Type) u8 {
 ///   and rebuilding an application whose head is solved
 ///
 /// `sink` supplies `leaf(class, t) !void`, for a constraint on a
-/// metavariable or bound variable.
+/// metavariable or bound variable, or one applied to types.
 ///
 /// Returns the first refuted part of `t`, if any, written as `t` writes it.
 pub fn reduce(
@@ -265,13 +286,14 @@ pub fn reduce(
     const written = view.resolve(t);
     const expanded = try view.normalize(written);
     switch (expanded) {
-        .meta, .variable => try sink.leaf(class, expanded),
+        // An application here has an unsolved head.
+        .meta, .variable, .application => try sink.leaf(class, expanded),
         .alias => unreachable,
-        .function, .application => return written,
+        .function => return written,
         .constructor => |c| {
             const found = registry.instanceFor(class, c.name) orelse return written;
             for (registry.instance(found).context) |needed| {
-                const argument = c.arguments[needed.type.variable];
+                const argument = c.arguments[needed.variable];
                 if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;
             }
         },

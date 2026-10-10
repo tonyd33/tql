@@ -8,7 +8,9 @@ asserts: types, values
 data Wrap f a = Wrap (f a);
 
 unwrap :: Wrap f a -> f a;
-unwrap w = case w of { Wrap x -> x };
+unwrap w = case w of {
+  Wrap x -> x;
+};
 
 main root = unwrap (Wrap [1, 2]);
 

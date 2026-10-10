@@ -120,7 +120,7 @@ pub const Resolver = struct {
     ) Error!core.Term {
         const target = try self.subst.normalize(t);
         switch (target) {
-            .meta, .variable => {
+            .meta, .variable, .application => {
                 if (try self.given(class, target, at, span)) |found| return found;
                 return self.fail(.ambiguous, class, t, span);
             },
@@ -138,7 +138,7 @@ pub const Resolver = struct {
         var result = self.builder.symbol(instance.dictionary.?, span);
         for (instance.context) |c| {
             if (self.registry.evidenceOf(c.class) != .dictionary) continue;
-            const argument = target.constructor.arguments[c.type.variable];
+            const argument = target.constructor.arguments[c.variable];
             result = try self.builder.apply(result, try self.resolve(c.class, argument, at, span), span);
         }
         return result;
@@ -197,10 +197,11 @@ pub const Resolver = struct {
     ) Error!?core.Term {
         var path: std.ArrayList(core.SymbolId) = .empty;
         defer path.deinit(self.gpa);
+        const wanted = try self.subst.resolveDeep(target);
         var current = at;
         while (current) |f| : (current = self.table.frames.items[f].parent) {
             for (self.table.frames.items[f].givens.items) |g| {
-                if (!std.meta.eql(self.subst.expand(g.type), target)) continue;
+                if (!types.eql(try self.subst.resolveDeep(g.type), wanted)) continue;
                 path.clearRetainingCapacity();
                 if (!try self.registry.superclassPath(g.class, class, &path, self.gpa)) continue;
                 var result = self.builder.symbol(g.evidence, span);
@@ -266,7 +267,7 @@ pub const Resolver = struct {
                 if (registry.evidenceOf(c.class) != .dictionary) continue;
                 parameters[i] = try env.interner.fresh("d");
                 arguments[i] = builder.symbol(parameters[i], span);
-                try self.table.give(at, .{ .class = c.class, .type = c.type, .evidence = parameters[i] });
+                try self.table.give(at, .{ .class = c.class, .type = types.variable_type(c.variable), .evidence = parameters[i] });
                 i += 1;
             }
 

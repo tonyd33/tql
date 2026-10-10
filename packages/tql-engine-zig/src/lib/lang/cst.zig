@@ -128,12 +128,9 @@ pub const Signature = struct {
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(signature {s} ", .{self.name});
-        if (self.context.len > 0) {
-            try w.writeAll("(=>");
-            for (self.context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
-            try w.writeAll(") ");
-        }
+        try w.print("(signature {s}", .{self.name});
+        try sexprContext(w, self.context);
+        try w.writeByte(' ');
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
@@ -181,15 +178,31 @@ pub const InstanceDeclaration = struct {
 fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writer.Error!void {
     if (context.len == 0) return;
     try w.writeAll(" (=>");
-    for (context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+    for (context) |c| {
+        try w.writeByte(' ');
+        try c.sexpr(w);
+    }
     try w.writeByte(')');
 }
 
 /// `Sized a` in a signature's context.
 pub const ClassConstraint = struct {
     class: Identifier,
-    variable: Identifier,
+    /// A type variable, or one applied to types.
+    type: Type,
     span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: ClassConstraint, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("({s} ", .{self.class});
+        try self.type.sexpr(w);
+        try w.writeByte(')');
+    }
+
+    /// The variable constrained, when the type is one alone.
+    pub fn variableName(self: ClassConstraint) ?Identifier {
+        const inner = self.type.unparenthesized();
+        return if (inner.kind == .variable) inner.kind.variable else null;
+    }
 };
 
 pub const Definition = struct {
@@ -880,6 +893,13 @@ pub const Type = struct {
         record: RecordType,
         parenthesized: *Type,
     };
+
+    /// `self` with its outer parentheses removed.
+    pub fn unparenthesized(self: Type) Type {
+        var inner = self;
+        while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
+        return inner;
+    }
 
     pub fn sexpr(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {

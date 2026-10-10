@@ -9,7 +9,12 @@ type Result = Either String;
 ok :: Result Int;
 ok = Right 1;
 
-main root = [case ok of { Right n -> n; Left _ -> 0 }];
+main root = [
+  case ok of {
+    Right n -> n;
+    Left _ -> 0;
+  }
+];
 
 --- source ---
 class A {}

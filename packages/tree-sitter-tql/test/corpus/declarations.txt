@@ -146,9 +146,36 @@ size :: Sized a => a -> Int;
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     type: (function_type
       from: (type_variable)
+      to: (type_identifier))))
+
+========================================
+a constraint on an applied type variable
+========================================
+
+f :: (Eq (m a), Show a) => m a -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        type: (parenthesized_type
+          (type_application
+            variable: (type_variable)
+            argument: (type_variable))))
+      (class_constraint
+        class: (type_identifier)
+        type: (type_variable)))
+    type: (function_type
+      from: (type_application
+        variable: (type_variable)
+        argument: (type_variable))
       to: (type_identifier))))
 
 ========================================
@@ -165,10 +192,10 @@ f :: (Eq a, Ord b) => a -> b -> Bool;
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable))
+        type: (type_variable))
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     type: (function_type
       from: (type_variable)
       to: (function_type
@@ -499,7 +526,7 @@ class Eq a => Describe a where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     name: (type_identifier)
     parameter: (type_variable)
     method: (signature
@@ -542,7 +569,7 @@ instance Describe a => Describe [a] where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     class: (type_identifier)
     type: (list_type
       (type_variable))
@@ -566,10 +593,10 @@ instance (Describe a, Describe b) => Describe (Either a b) where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable))
+        type: (type_variable))
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     class: (type_identifier)
     type: (parenthesized_type
       (type_application

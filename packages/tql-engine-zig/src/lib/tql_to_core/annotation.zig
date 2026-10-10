@@ -37,7 +37,11 @@ pub fn translate(
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
-    return translateSignature(arena, gpa, signature, null, scope, sink);
+    var group = kinds.Group.init(arena, gpa);
+    defer group.deinit();
+    var scheme = try translateSignature(arena, gpa, signature, null, &group, scope, sink);
+    scheme.variables = try group.inference.zonkAll(scheme.variables);
+    return scheme;
 }
 
 /// The class `written` names in `scope`. Reports a name that is not one.
@@ -68,21 +72,21 @@ pub const MethodOf = struct {
     name: []const u8,
     /// The class parameter as written.
     parameter: []const u8,
-    /// The class parameter's kind.
-    kind: types.Kind,
 };
 
 /// Translates the signature of a method of `class` into the method's scheme:
-/// the class parameter is variable 0, and `class a` heads the context.
+/// the class parameter is variable 0, and `class a` heads the context. The
+/// scheme's kinds are left to `group` to solve.
 pub fn translateMethod(
     arena: Allocator,
     gpa: Allocator,
     signature: *const cst.Signature,
     class: MethodOf,
+    group: *kinds.Group,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
-    return translateSignature(arena, gpa, signature, class, scope, sink);
+    return translateSignature(arena, gpa, signature, class, group, scope, sink);
 }
 
 fn translateSignature(
@@ -90,24 +94,23 @@ fn translateSignature(
     gpa: Allocator,
     signature: *const cst.Signature,
     method_of: ?MethodOf,
+    group: *kinds.Group,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Scheme {
     var vars: std.ArrayList(Translator.Variable) = .empty;
     defer vars.deinit(gpa);
 
-    var inference = kinds.Inference.init(arena, gpa);
-    defer inference.deinit();
     var t = Translator{
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .kinds = &inference,
+        .group = group,
         .scope = scope,
         .sink = sink,
         .variables = .free,
     };
-    if (method_of) |m| _ = try t.binder(m.parameter, m.kind, signature.span);
+    if (method_of) |m| _ = try t.binder(m.parameter, t.classKind(m.class), signature.span);
     const translated = try t.type(signature.type, .type);
 
     const leading: usize = if (method_of != null) 1 else 0;
@@ -125,7 +128,7 @@ fn translateSignature(
         context[0] = .{ .class = m.class, .type = types.variable_type(0) };
     }
     for (signature.context, context[leading..]) |c, *slot| {
-        if (method_of) |m| if (std.mem.eql(u8, c.variable, m.parameter)) {
+        if (method_of) |m| if (std.mem.eql(u8, c.variableName() orelse "", m.parameter)) {
             try sink.report(
                 .invalid_class,
                 c.span,
@@ -165,7 +168,7 @@ fn mentions(t: types.Type, index: types.TypeVar) bool {
 pub const InstanceHead = struct {
     /// A datatype over distinct variables, bound in order from 0.
     type: types.Type,
-    context: []const types.TypeClassConstraint,
+    context: []const classes.Requirement,
 
     /// Returns the datatype the instance is declared at.
     pub fn head(self: InstanceHead) core.datatypes.TypeId {
@@ -186,19 +189,19 @@ pub fn translateInstance(
     var vars: std.ArrayList(Translator.Variable) = .empty;
     defer vars.deinit(gpa);
 
-    var inference = kinds.Inference.init(arena, gpa);
-    defer inference.deinit();
+    var group = kinds.Group.init(arena, gpa);
+    defer group.deinit();
     var t = Translator{
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .kinds = &inference,
+        .group = &group,
         .scope = scope,
         .sink = sink,
         .variables = .free,
     };
     const head_type = try t.type(declared.head, parameter);
-    const written = unparenthesized(declared.head);
+    const written = declared.head.unparenthesized();
     switch (head_type) {
         .constructor => |c| {
             for (c.arguments, headArguments(written), 0..) |argument, w, i| {
@@ -231,15 +234,16 @@ pub fn translateInstance(
         .meta => unreachable,
     }
 
-    const context = try arena.alloc(types.TypeClassConstraint, declared.context.len);
-    for (declared.context, context) |c, *slot| slot.* = try t.constraint(c);
+    const context = try arena.alloc(classes.Requirement, declared.context.len);
+    for (declared.context, context) |c, *slot| {
+        const translated = try t.constraint(c);
+        if (translated.type != .variable) {
+            try sink.report(.invalid_instance, c.span, "an instance context may only constrain type variables", .{});
+            return error.BadAnnotation;
+        }
+        slot.* = .{ .class = translated.class, .variable = translated.type.variable };
+    }
     return .{ .type = head_type, .context = context };
-}
-
-fn unparenthesized(written: cst.Type) cst.Type {
-    var inner = written;
-    while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
-    return inner;
 }
 
 /// The written arguments of an unparenthesized head the translator took for
@@ -330,7 +334,6 @@ pub fn translateAlias(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .kinds = &group.inference,
         .group = group,
         .scope = scope,
         .sink = sink,
@@ -382,7 +385,6 @@ pub fn translateField(
         .arena = arena,
         .gpa = gpa,
         .vars = &vars,
-        .kinds = &group.inference,
         .group = group,
         .scope = scope,
         .sink = sink,
@@ -415,9 +417,9 @@ const Translator = struct {
     arena: Allocator,
     gpa: Allocator,
     vars: *std.ArrayList(Variable),
-    kinds: *kinds.Inference,
-    /// The module's own declarations, while their kinds are inferred.
-    group: ?*const kinds.Group = null,
+    /// The declarations whose kinds are inferred together, and the
+    /// inference solving them.
+    group: *kinds.Group,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
     variables: union(enum) {
@@ -425,6 +427,8 @@ const Translator = struct {
         free,
         /// Only the parameters of the named declaration are in scope.
         parameters_of: []const u8,
+        /// Only the variables already seen are in scope.
+        seen,
     },
 
     /// Bring `parameters` into scope as variables `0..` and admit no others.
@@ -443,11 +447,10 @@ const Translator = struct {
         self.variables = .{ .parameters_of = name };
     }
 
-    /// Each variable's kind, defaulting to `Type` where its uses left it
-    /// open.
+    /// Each variable's kind, as far as the group has solved it.
     fn variableKinds(self: *const Translator) Error![]const types.Kind {
         const out = try self.arena.alloc(types.Kind, self.vars.items.len);
-        for (self.vars.items, out) |v, *slot| slot.* = try self.kinds.zonk(v.kind, .type);
+        for (self.vars.items, out) |v, *slot| slot.* = try self.group.inference.zonk(v.kind, null);
         return out;
     }
 
@@ -463,7 +466,7 @@ const Translator = struct {
             .parenthesized => |inner| return try self.type(inner.*, expected),
             .list, .function, .filter, .record => {},
         }
-        if (!self.kinds.unify(expected, .type)) {
+        if (!self.group.inference.unify(expected, .type)) {
             const what = switch (node.kind) {
                 .list => "a list type",
                 .function => "a function type",
@@ -498,7 +501,7 @@ const Translator = struct {
         expected: types.Kind,
     ) Error!types.Type {
         // The module's own declarations resolve first, as in scope.
-        if (self.group) |g| if (g.aliases.get(name)) |alias| return try self.aliased(alias, written, span, expected);
+        if (self.group.aliases.get(name)) |alias| return try self.aliased(alias, written, span, expected);
         switch (self.scope.typeNamed(name)) {
             .found => |found| switch (found) {
                 .datatype => |id| return try self.spine(name, .{ .datatype = id }, written, span, expected),
@@ -588,7 +591,7 @@ const Translator = struct {
                         .kind_mismatch,
                         span,
                         "`{s}` has kind `{f}`: it takes {d} type argument(s), given {d}",
-                        .{ name, (try self.kinds.zonk(kind, null)).named(&names), taken, written.len },
+                        .{ name, (try self.group.inference.zonk(kind, null)).named(&names), taken, written.len },
                     );
                     return error.BadAnnotation;
                 };
@@ -598,10 +601,10 @@ const Translator = struct {
             slot.* = try self.type(argument, from);
         }
         if (written.len < parameters.len) rest = try types.Kind.arrows(self.arena, parameters[written.len..], rest);
-        if (!self.kinds.unify(rest, expected)) {
+        if (!self.group.inference.unify(rest, expected)) {
             if (written.len == 0) return self.kindMismatch(span, try std.fmt.allocPrint(self.arena, "`{s}`", .{name}), rest, expected);
             var arity: usize = 0;
-            var each = try self.kinds.zonk(try types.Kind.arrows(self.arena, parameters, result), null);
+            var each = try self.group.inference.zonk(try types.Kind.arrows(self.arena, parameters, result), null);
             while (each == .arrow) : (each = each.arrow.to) arity += 1;
             const subject = try std.fmt.allocPrint(self.arena, "`{s}` given {d} of its {d} type arguments", .{ name, written.len, arity });
             return self.kindMismatch(span, subject, rest, expected);
@@ -620,18 +623,17 @@ const Translator = struct {
 
     /// The kinds of datatype `id`'s parameters, solved or not.
     fn parameterKinds(self: *const Translator, id: datatypes.TypeId) []const types.Kind {
-        if (self.group) |g| if (g.datatypes.get(id)) |parameters| return parameters;
-        return self.scope.datatypes.get(id).parameters;
+        return self.group.datatypes.get(id) orelse self.scope.datatypes.get(id).parameters;
     }
 
     /// The arrow `k` is, making it one when it is unsolved. Null when it is
     /// `Type` or `Row`.
     fn arrowOf(self: *Translator, k: types.Kind) Error!?types.Kind.Arrow {
-        switch (self.kinds.resolve(k)) {
+        switch (self.group.inference.resolve(k)) {
             .arrow => |arrow| return arrow.*,
             .meta => {
-                const made = try types.Kind.arrows(self.arena, &.{try self.kinds.fresh()}, try self.kinds.fresh());
-                _ = self.kinds.unify(k, made);
+                const made = try types.Kind.arrows(self.arena, &.{try self.group.inference.fresh()}, try self.group.inference.fresh());
+                _ = self.group.inference.unify(k, made);
                 return made.arrow.*;
             },
             .type, .row => return null,
@@ -643,8 +645,8 @@ const Translator = struct {
         var names: types.KindNames = .{};
         try self.sink.report(.kind_mismatch, span, "{s} has kind `{f}`, but kind `{f}` is expected", .{
             subject,
-            (try self.kinds.zonk(has, null)).named(&names),
-            (try self.kinds.zonk(wanted, null)).named(&names),
+            (try self.group.inference.zonk(has, null)).named(&names),
+            (try self.group.inference.zonk(wanted, null)).named(&names),
         });
         return error.BadAnnotation;
     }
@@ -654,23 +656,44 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
+    /// Translates `c`, whose type must have its class parameter's kind, or be
+    /// a row where the class ranges over `Type`.
+    ///
     /// Preconditions:
     /// - The signature's type is already translated, so every variable it
     ///   binds has its `forall` position.
     fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
         const class = try resolveClass(self.scope, c.class, c.span, self.sink);
-        for (self.vars.items, 0..) |seen, i| {
-            if (std.mem.eql(u8, seen.name, c.variable)) {
-                return .{ .class = class, .type = .{ .variable = @intCast(i) } };
+        const parameter = self.classKind(class);
+        const outer = self.variables;
+        self.variables = .seen;
+        defer self.variables = outer;
+
+        // A row satisfies a class over `Type` when every field does.
+        if (c.variableName()) |name| {
+            const index = try self.binder(name, null, c.type.span);
+            const kind = self.vars.items[index].kind;
+            if (self.group.inference.resolve(kind) == .row and self.group.inference.unify(parameter, .type)) {
+                return .{ .class = class, .type = .{ .variable = index } };
             }
         }
-        try self.sink.report(
-            .unresolved_name,
-            c.span,
-            "`{s}` is constrained but does not appear in the type",
-            .{c.variable},
-        );
-        return error.BadAnnotation;
+        const t = try self.type(c.type, parameter);
+        var head = t;
+        while (head == .application) head = head.application.head;
+        if (head != .variable) {
+            try self.sink.report(
+                .invalid_class,
+                c.type.span,
+                "a constraint must be on a type variable, or one applied to types",
+                .{},
+            );
+            return error.BadAnnotation;
+        }
+        return .{ .class = class, .type = t };
+    }
+
+    fn classKind(self: *const Translator, id: classes.ClassId) types.Kind {
+        return self.group.classKind(id, self.scope.classes);
     }
 
     const Variable = struct {
@@ -684,7 +707,7 @@ const Translator = struct {
         for (self.vars.items, 0..) |seen, i| {
             if (!std.mem.eql(u8, seen.name, name)) continue;
             const wanted = kind orelse return @intCast(i);
-            if (!self.kinds.unify(seen.kind, wanted)) {
+            if (!self.group.inference.unify(seen.kind, wanted)) {
                 return self.kindMismatch(span, try std.fmt.allocPrint(self.arena, "`{s}`", .{name}), seen.kind, wanted);
             }
             return @intCast(i);
@@ -693,6 +716,10 @@ const Translator = struct {
             .free => {},
             .parameters_of => |owner| {
                 try self.sink.report(.unresolved_name, span, "`{s}` is not a parameter of `{s}`", .{ name, owner });
+                return error.BadAnnotation;
+            },
+            .seen => {
+                try self.sink.report(.unresolved_name, span, "`{s}` is constrained but does not appear in the type", .{name});
                 return error.BadAnnotation;
             },
         }
@@ -705,7 +732,7 @@ const Translator = struct {
             );
             return error.BadAnnotation;
         }
-        try self.vars.append(self.gpa, .{ .name = name, .kind = kind orelse try self.kinds.fresh() });
+        try self.vars.append(self.gpa, .{ .name = name, .kind = kind orelse try self.group.inference.fresh() });
         return @intCast(self.vars.items.len - 1);
     }
 

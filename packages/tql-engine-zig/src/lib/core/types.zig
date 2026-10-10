@@ -551,6 +551,37 @@ pub fn aliased(
     return .{ .alias = node };
 }
 
+/// Whether `a` and `b` are the same type, node for node, looking through
+/// aliases. A metavariable is equal only to itself.
+pub fn eql(a: Type, b: Type) bool {
+    if (a == .alias) return eql(a.alias.expansion, b);
+    if (b == .alias) return eql(a, b.alias.expansion);
+    if (std.meta.activeTag(a) != std.meta.activeTag(b)) return false;
+    return switch (a) {
+        .variable => |v| v == b.variable,
+        .meta => |id| id == b.meta,
+        .constructor => |c| c.name == b.constructor.name and allEql(c.arguments, b.constructor.arguments),
+        .function => |arrow| eql(arrow.from, b.function.from) and eql(arrow.to, b.function.to),
+        .application => |x| eql(x.head, b.application.head) and eql(x.argument, b.application.argument),
+        .record => |r| {
+            const other = b.record;
+            if (r.fields.len != other.fields.len) return false;
+            for (r.fields, other.fields) |f, g| {
+                if (!std.mem.eql(u8, f.label, g.label) or !eql(f.type.*, g.type.*)) return false;
+            }
+            const rest = r.rest orelse return other.rest == null;
+            return if (other.rest) |o| eql(rest.*, o.*) else false;
+        },
+        .alias => unreachable,
+    };
+}
+
+fn allEql(as: []const Type, bs: []const Type) bool {
+    if (as.len != bs.len) return false;
+    for (as, bs) |x, y| if (!eql(x, y)) return false;
+    return true;
+}
+
 /// `t` with each bound variable replaced by `arguments` at its index.
 /// Returns `t` itself when it has no variable, and shares every unchanged
 /// subtree otherwise.
@@ -574,7 +605,10 @@ const Arguments = struct {
 
     fn replace(self: Arguments, t: Type) Type {
         return switch (t) {
-            .variable => |index| self.arguments[index],
+            .variable => |index| if (index < self.arguments.len)
+                self.arguments[index]
+            else
+                @panic("a bound type variable outside its scheme"),
             else => t,
         };
     }
