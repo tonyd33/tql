@@ -39,23 +39,23 @@ main :: Node -> [Bool]
 --- stg ---
 main = {} \u {} ->
   letrec
-    is_odd = {is_even@1} \n {n} -> case %eq_int# n@1 0 of
+    is_even = {is_odd@1} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t0 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_even@0 t0@2
+        is_odd@0 t0@2
       True ->
-        let c1 = False in
+        let c1 = True in
         c1@2
-    is_even = {is_odd@0} \n {n} -> case %eq_int# n@1 0 of
+    is_odd = {is_even@0} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t2 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_odd@0 t2@2
+        is_even@0 t2@2
       True ->
-        let c3 = True in
+        let c3 = False in
         c3@2
   in
   let
-    t8 = {is_even@1} \u {} ->
+    t8 = {is_even@0} \u {} ->
       let
         t4 = {is_even@0} \u {} -> is_even@0 4
         t7 = {is_even@0} \u {} ->

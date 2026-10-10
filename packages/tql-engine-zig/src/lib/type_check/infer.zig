@@ -450,8 +450,6 @@ pub const Inference = struct {
     ///               ------------------------------------------------------
     ///               Gamma |- letrec {x_i = e_i} in body : result
     fn letrec(self: *Inference, l: core.Letrec, t: core.Term) Error!Elaborated {
-        // Only the simplifier makes a recursive join point.
-        std.debug.assert(self.env.interner.details(l.bindings[0].name) != .join);
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
 

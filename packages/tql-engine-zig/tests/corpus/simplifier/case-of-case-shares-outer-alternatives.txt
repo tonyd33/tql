@@ -1,0 +1,126 @@
+title: case of case binds large outer alternatives as join points
+grammar: typescript
+asserts: simplified, stg, values
+
+The outer alternatives are copied into both inner ones, so each one too
+large to copy becomes a join point first.
+
+--- tql ---
+import Data.Function (const);
+
+total xs = case xs of { [] -> 0; h : t -> h + total t };
+f b xs = case (if b then xs else []) of {
+  [] -> total xs * 2 + total xs * 3;
+  h : t -> h + total t * 2 + total t * 3;
+};
+main = const [f True [1, 2], f False [1, 2], f True []];
+
+--- source ---
+class A {}
+
+--- values ---
+[11,15,0]
+--- simplified ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+f = \b -> \xs ->
+  join j = op[+] (op[*] (total xs) 2) (op[*] (total xs) 3) in
+  case b of
+    False -> jump j
+    True -> case xs of
+      Nil -> jump j
+      Cons h t -> op[+] (op[+] h (op[*] (total t) 2)) (op[*] (total t) 3)
+main = const (Cons (f True (Cons 1 (Cons 2 Nil))) (Cons (f False (Cons 1 (Cons 2 Nil))) (Cons (f True Nil) Nil)))
+--- stg ---
+total = {} \u {} ->
+  let
+    t1 = {} \n {xs} -> case xs@0 of
+      Nil -> 0
+      Cons h t ->
+        let t0 = {t@2} \u {} -> total t@0 in
+        op[+]# h@1 t0@3
+  in
+  t1@0
+f = {} \u {} ->
+  let
+    t9 = {} \n {b,xs} ->
+      let-no-escape
+        j {} ->
+          let
+            t1 = {xs@1} \u {} ->
+              let t0 = {xs@0} \u {} -> total xs@0 in
+              op[*]# t0@1 2
+            t3 = {xs@1} \u {} ->
+              let t2 = {xs@0} \u {} -> total xs@0 in
+              op[*]# t2@1 3
+          in
+          op[+]# t1@2 t3@3
+      in
+      case b@0 of
+        False -> jump j
+        True -> case xs@1 of
+          Nil -> jump j
+          Cons h t ->
+            let
+              t6 = {h@2,t@3} \u {} ->
+                let
+                  t5 = {t@1} \u {} ->
+                    let t4 = {t@0} \u {} -> total t@0 in
+                    op[*]# t4@1 2
+                in
+                op[+]# h@0 t5@2
+              t8 = {t@3} \u {} ->
+                let t7 = {t@0} \u {} -> total t@0 in
+                op[*]# t7@1 3
+            in
+            op[+]# t6@4 t8@5
+  in
+  t9@0
+main = {} \u {} ->
+  let
+    t16 = {} \u {} ->
+      let
+        t4 = {} \u {} ->
+          let
+            c0 = True
+            t3 = {} \u {} ->
+              let
+                t2 = {} \u {} ->
+                  let c1 = Nil in
+                  Cons 2 c1@0
+              in
+              Cons 1 t2@0
+          in
+          f c0@0 t3@1
+        t15 = {} \u {} ->
+          let
+            t9 = {} \u {} ->
+              let
+                c5 = False
+                t8 = {} \u {} ->
+                  let
+                    t7 = {} \u {} ->
+                      let c6 = Nil in
+                      Cons 2 c6@0
+                  in
+                  Cons 1 t7@0
+              in
+              f c5@0 t8@1
+            t14 = {} \u {} ->
+              let
+                t12 = {} \u {} ->
+                  let
+                    c10 = True
+                    c11 = Nil
+                  in
+                  f c10@0 c11@1
+                c13 = Nil
+              in
+              Cons t12@0 c13@1
+          in
+          Cons t9@0 t14@1
+      in
+      Cons t4@0 t15@1
+  in
+  const t16@0

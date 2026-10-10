@@ -44,37 +44,29 @@ f = \d -> \xs ->
     Cons a cons1 -> case cons1 of
       Nil -> jump alternative
       Cons b cons1 -> case cons1 of
-        Nil -> case (
-          (
-            case d of
-              dict[Eq] m -> m
-          ) a b
-        ) of
-          False -> "two"
-          True -> "pair"
+        Nil -> case d of
+          dict[Eq] m -> case m a b of
+            False -> "two"
+            True -> "pair"
         Cons _ _ -> jump alternative
 main = const (Cons (f instance[Eq,Int] (Cons 1 (Cons 1 Nil))) (Cons (f instance[Eq,Int] (Cons 1 (Cons 2 Nil))) (Cons (f instance[Eq,Int] (Cons 1 Nil)) Nil)))
 --- stg ---
 f = {} \u {} ->
   let
-    t1 = {} \n {d,xs} ->
+    t0 = {} \n {d,xs} ->
       let-no-escape alternative {} -> "other" in
       case xs@1 of
         Nil -> jump alternative
         Cons a cons1 -> case cons1@3 of
           Nil -> jump alternative
           Cons b cons1 -> case cons1@5 of
-            Nil ->
-              let
-                t0 = {d@0} \u {} -> case d@0 of
-                  dict[Eq] m -> m@1
-              in
-              case t0@6 a@2 b@4 of
+            Nil -> case d@0 of
+              dict[Eq] m -> case m@6 a@2 b@4 of
                 False -> "two"
                 True -> "pair"
             Cons _ _ -> jump alternative
   in
-  t1@0
+  t0@0
 main = {} \u {} ->
   let
     t14 = {} \u {} ->

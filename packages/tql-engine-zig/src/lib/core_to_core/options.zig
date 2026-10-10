@@ -4,7 +4,8 @@
 pub const Options = struct {
     /// `(\x -> b) a` binds `x` to `a`.
     beta: bool = true,
-    /// `(let x = e in f) a` is `let x = e in f a`.
+    /// `E[let x = e in f]` is `let x = e in E[f]`, for an application or
+    /// `case` frame `E`.
     let_from_head: bool = true,
     /// A binding nothing uses is dropped, and so is a recursive group nothing
     /// live mentions.

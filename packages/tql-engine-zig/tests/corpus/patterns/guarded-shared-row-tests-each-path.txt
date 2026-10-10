@@ -40,131 +40,128 @@ main = const (Cons (f (Cons 5 Nil)) (Cons (f Nil) (Cons (f (Cons 1 (Cons 2 Nil))
 
 --- simplified ---
 f = \xs -> case xs of
-  Nil -> case (
-    case (
-      case drop 2 xs of
-        Nil -> True
-        Cons h t -> False
-    ) of
-      False -> True
-      True -> False
-  ) of
-    False -> 0
-    True -> 100
+  Nil -> case drop 2 xs of
+    Nil -> 0
+    Cons h t -> 100
   Cons x cons1 -> case cons1 of
     Nil -> x
-    Cons _ _ -> case (
-      case (
-        case drop 2 xs of
-          Nil -> True
-          Cons h t -> False
-      ) of
-        False -> True
-        True -> False
-    ) of
-      False -> 0
-      True -> 100
-main = const (Cons (f (Cons 5 Nil)) (Cons (f Nil) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil))))
+    Cons _ _ -> case drop 2 xs of
+      Nil -> 0
+      Cons h t -> 100
+main = const (
+  Cons 5 (
+    Cons (
+      case drop 2 Nil of
+        Nil -> 0
+        Cons h t -> 100
+    ) (
+      Cons (
+        let xs = Cons 1 (Cons 2 Nil) in
+        case xs of
+          Nil -> case drop 2 xs of
+            Nil -> 0
+            Cons h t -> 100
+          Cons x cons1 -> case cons1 of
+            Nil -> x
+            Cons _ _ -> case drop 2 xs of
+              Nil -> 0
+              Cons h t -> 100
+      ) (
+        Cons (
+          let xs = Cons 1 (Cons 2 (Cons 3 Nil)) in
+          case xs of
+            Nil -> case drop 2 xs of
+              Nil -> 0
+              Cons h t -> 100
+            Cons x cons1 -> case cons1 of
+              Nil -> x
+              Cons _ _ -> case drop 2 xs of
+                Nil -> 0
+                Cons h t -> 100
+        ) Nil
+      )
+    )
+  )
+)
 --- stg ---
 f = {} \u {} ->
   let
-    t8 = {} \n {xs} -> case xs@0 of
-      Nil -> case (
-        case (
-          case drop 2 xs@0 of
-            Nil ->
-              let c0 = True in
-              c0@1
-            Cons h t ->
-              let c1 = False in
-              c1@3
-        ) of
-          False ->
-            let c2 = True in
-            c2@1
-          True ->
-            let c3 = False in
-            c3@1
-      ) of
-        False -> 0
-        True -> 100
+    t0 = {} \n {xs} -> case xs@0 of
+      Nil -> case drop 2 xs@0 of
+        Nil -> 0
+        Cons h t -> 100
       Cons x cons1 -> case cons1@2 of
         Nil -> x@1
-        Cons _ _ -> case (
-          case (
-            case drop 2 xs@0 of
-              Nil ->
-                let c4 = True in
-                c4@5
-              Cons h t ->
-                let c5 = False in
-                c5@7
-          ) of
-            False ->
-              let c6 = True in
-              c6@5
-            True ->
-              let c7 = False in
-              c7@5
-        ) of
-          False -> 0
-          True -> 100
+        Cons _ _ -> case drop 2 xs@0 of
+          Nil -> 0
+          Cons h t -> 100
   in
-  t8@0
+  t0@0
 main = {} \u {} ->
   let
-    t18 = {} \u {} ->
+    t13 = {} \u {} ->
       let
-        t2 = {} \u {} ->
+        t12 = {} \u {} ->
           let
             t1 = {} \u {} ->
               let c0 = Nil in
-              Cons 5 c0@0
-          in
-          f t1@0
-        t17 = {} \u {} ->
-          let
-            t4 = {} \u {} ->
-              let c3 = Nil in
-              f c3@0
-            t16 = {} \u {} ->
+              case drop 2 c0@0 of
+                Nil -> 0
+                Cons h t -> 100
+            t11 = {} \u {} ->
               let
-                t8 = {} \u {} ->
+                t4 = {} \u {} ->
                   let
-                    t7 = {} \u {} ->
+                    xs = {} \u {} ->
                       let
-                        t6 = {} \u {} ->
-                          let c5 = Nil in
-                          Cons 2 c5@0
+                        t3 = {} \u {} ->
+                          let c2 = Nil in
+                          Cons 2 c2@0
                       in
-                      Cons 1 t6@0
+                      Cons 1 t3@0
                   in
-                  f t7@0
-                t15 = {} \u {} ->
+                  case xs@0 of
+                    Nil -> case drop 2 xs@0 of
+                      Nil -> 0
+                      Cons h t -> 100
+                    Cons x cons1 -> case cons1@2 of
+                      Nil -> x@1
+                      Cons _ _ -> case drop 2 xs@0 of
+                        Nil -> 0
+                        Cons h t -> 100
+                t10 = {} \u {} ->
                   let
-                    t13 = {} \u {} ->
+                    t8 = {} \u {} ->
                       let
-                        t12 = {} \u {} ->
+                        xs = {} \u {} ->
                           let
-                            t11 = {} \u {} ->
+                            t7 = {} \u {} ->
                               let
-                                t10 = {} \u {} ->
-                                  let c9 = Nil in
-                                  Cons 3 c9@0
+                                t6 = {} \u {} ->
+                                  let c5 = Nil in
+                                  Cons 3 c5@0
                               in
-                              Cons 2 t10@0
+                              Cons 2 t6@0
                           in
-                          Cons 1 t11@0
+                          Cons 1 t7@0
                       in
-                      f t12@0
-                    c14 = Nil
+                      case xs@0 of
+                        Nil -> case drop 2 xs@0 of
+                          Nil -> 0
+                          Cons h t -> 100
+                        Cons x cons1 -> case cons1@2 of
+                          Nil -> x@1
+                          Cons _ _ -> case drop 2 xs@0 of
+                            Nil -> 0
+                            Cons h t -> 100
+                    c9 = Nil
                   in
-                  Cons t13@0 c14@1
+                  Cons t8@0 c9@1
               in
-              Cons t8@0 t15@1
+              Cons t4@0 t10@1
           in
-          Cons t4@0 t16@1
+          Cons t1@0 t11@1
       in
-      Cons t2@0 t17@1
+      Cons 5 t12@0
   in
-  const t18@0
+  const t13@0

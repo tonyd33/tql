@@ -24,23 +24,23 @@ main :: Node -> [Int]
 --- stg ---
 choose = {} \u {} ->
   let
-    t4 = {} \n {n} -> case (
+    t3 = {} \n {n} ->
+      let-no-escape
+        j {} ->
+          let t0 = {n@0} \u {} -> op[*]# n@0 3 in
+          op[+]# t0@1 1
+      in
       case %gt_int# n@0 0 of
-        False ->
-          let c0 = False in
-          c0@1
+        False -> jump j
         True ->
           let t1 = {n@0} \u {} -> op[-]# n@0 1 in
-          %gt_int# t1@1 0
-    ) of
-      False ->
-        let t2 = {n@0} \u {} -> op[*]# n@0 3 in
-        op[+]# t2@1 1
-      True ->
-        let t3 = {n@0} \u {} -> op[*]# n@0 2 in
-        op[+]# t3@1 1
+          case %gt_int# t1@1 0 of
+            False -> jump j
+            True ->
+              let t2 = {n@0} \u {} -> op[*]# n@0 2 in
+              op[+]# t2@2 1
   in
-  t4@0
+  t3@0
 main = {} \u {} ->
   let
     t6 = {} \u {} ->

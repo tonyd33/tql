@@ -1,0 +1,88 @@
+title: an application of a case binds a computed argument once and moves it into each alternative
+grammar: typescript
+asserts: simplified, stg, values
+
+--- tql ---
+import Data.Function (const);
+
+total xs = case xs of { [] -> 0; h : t -> h + total t };
+f b xs = (if b then \y -> y + 1 else \y -> y * 2) (total xs);
+main = const [f True [1, 2], f False [1, 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[4,6]
+--- simplified ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+f = \b -> \xs ->
+  let a = total xs in
+  case b of
+    False -> op[*] a 2
+    True -> op[+] a 1
+main = const (Cons (op[+] (total (Cons 1 (Cons 2 Nil))) 1) (Cons (op[*] (total (Cons 1 (Cons 2 Nil))) 2) Nil))
+--- stg ---
+total = {} \u {} ->
+  let
+    t1 = {} \n {xs} -> case xs@0 of
+      Nil -> 0
+      Cons h t ->
+        let t0 = {t@2} \u {} -> total t@0 in
+        op[+]# h@1 t0@3
+  in
+  t1@0
+f = {} \u {} ->
+  let
+    t0 = {} \n {b,xs} ->
+      let a = {xs@1} \u {} -> total xs@0 in
+      case b@0 of
+        False -> op[*]# a@2 2
+        True -> op[+]# a@2 1
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    t12 = {} \u {} ->
+      let
+        t4 = {} \u {} ->
+          let
+            t3 = {} \u {} ->
+              let
+                t2 = {} \u {} ->
+                  let
+                    t1 = {} \u {} ->
+                      let c0 = Nil in
+                      Cons 2 c0@0
+                  in
+                  Cons 1 t1@0
+              in
+              total t2@0
+          in
+          op[+]# t3@0 1
+        t11 = {} \u {} ->
+          let
+            t9 = {} \u {} ->
+              let
+                t8 = {} \u {} ->
+                  let
+                    t7 = {} \u {} ->
+                      let
+                        t6 = {} \u {} ->
+                          let c5 = Nil in
+                          Cons 2 c5@0
+                      in
+                      Cons 1 t6@0
+                  in
+                  total t7@0
+              in
+              op[*]# t8@0 2
+            c10 = Nil
+          in
+          Cons t9@0 c10@1
+      in
+      Cons t4@0 t11@1
+  in
+  const t12@0

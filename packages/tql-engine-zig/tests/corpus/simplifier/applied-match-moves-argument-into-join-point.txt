@@ -1,9 +1,9 @@
-title: a match applied to an argument makes its shared alternative a function
+title: a match applied to an argument moves it into the shared alternative
 grammar: typescript
 asserts: core, simplified, values
 
-Moving the argument into the match puts each jump under an application, so
-`alternative` stops being a join point.
+The argument moves into every alternative, and into `alternative`'s value.
+Each jump drops it, since `alternative` already took it.
 
 --- tql ---
 import Data.Function (const);
@@ -22,14 +22,12 @@ total = \xs -> case xs of
   Nil -> 0
   Cons h t -> op[+] h (total t)
 pick = \xs ->
-  let alternative = \ys -> \y -> op[+] (op[+] (op[*] y (total ys)) (op[*] (total ys) 2)) (op[*] (total ys) 3) in
-  (
-    case xs of
-      Nil -> alternative xs
-      Cons x cons1 -> case cons1 of
-        Nil -> \y -> op[+] y x
-        Cons _ _ -> alternative xs
-  ) 10
+  join alternative ys = op[+] (op[+] (op[*] 10 (total ys)) (op[*] (total ys) 2)) (op[*] (total ys) 3) in
+  case xs of
+    Nil -> jump alternative xs
+    Cons x cons1 -> case cons1 of
+      Nil -> op[+] 10 x
+      Cons _ _ -> jump alternative xs
 main = const (Cons (pick (Cons 1 Nil)) (Cons (pick (Cons 1 (Cons 2 Nil))) (Cons (pick Nil) Nil)))
 --- core ---
 total = \xs -> case xs of

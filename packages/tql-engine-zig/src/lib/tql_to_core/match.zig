@@ -348,12 +348,7 @@ fn lower(
     if (scrutinee.kind != .symbol and emitter.root_bound) {
         term = try b.let(root, scrutinee, term, span);
     }
-    var i = bindings.items.len;
-    while (i > 0) {
-        i -= 1;
-        term = try b.let(bindings.items[i].name, bindings.items[i].value, term, span);
-    }
-    return term;
+    return try b.lets(bindings.items, term, span);
 }
 
 /// Resolve the names `pattern` uses, and rewrite list, cons and boolean

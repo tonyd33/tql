@@ -307,6 +307,17 @@ pub const Builder = struct {
         return .{ .kind = .{ .let = node }, .span = span };
     }
 
+    /// `body` inside a `let` for each of `bindings`, the first outermost.
+    pub fn lets(self: Builder, bindings: []const Letrec.Binding, body: Term, span: diagnostic.Span) !Term {
+        var result = body;
+        var i = bindings.len;
+        while (i > 0) {
+            i -= 1;
+            result = try self.let(bindings[i].name, bindings[i].value, result, span);
+        }
+        return result;
+    }
+
     pub fn letrec(
         self: Builder,
         bindings: []const Letrec.Binding,

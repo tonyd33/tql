@@ -1,8 +1,10 @@
-title: a join point bound inside a case scrutinee jumps within it
+title: a join point bound inside a case scrutinee floats out and takes the case
 grammar: typescript
 asserts: core, simplified, stg, values
 
-The scrutinee runs in a nested evaluation, and the jump stays inside it.
+As written, the join point is bound inside the scrutinee, and the evaluation
+without `core_to_core` runs it there, in a nested evaluation. The simplifier
+floats it out and moves the outer `case` into it and into each alternative.
 
 --- tql ---
 import Data.Function (const);
@@ -23,16 +25,21 @@ class A {}
 total = \xs -> case xs of
   Nil -> 0
   Cons h t -> op[+] h (total t)
-label = \xs -> case (
-  join alternative ys = %gt_int (op[+] (op[+] (total ys) (op[*] (total ys) 2)) (op[*] (total ys) 3)) 10 in
+label = \xs ->
+  join j = "small" in
+  join j' = "big" in
+  join
+    alternative ys = case %gt_int (op[+] (op[+] (total ys) (op[*] (total ys) 2)) (op[*] (total ys) 3)) 10 of
+      False -> jump j
+      True -> jump j'
+  in
   case xs of
     Nil -> jump alternative xs
     Cons x cons1 -> case cons1 of
-      Nil -> %gt_int x 10
+      Nil -> case %gt_int x 10 of
+        False -> jump j
+        True -> jump j'
       Cons _ _ -> jump alternative xs
-) of
-  False -> "small"
-  True -> "big"
 main = const (Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)))
 --- stg ---
 total = {} \u {} ->
@@ -46,7 +53,9 @@ total = {} \u {} ->
   t1@0
 label = {} \u {} ->
   let
-    t7 = {} \n {xs} -> case (
+    t7 = {} \n {xs} ->
+      let-no-escape j {} -> "small" in
+      let-no-escape j' {} -> "big" in
       let-no-escape
         alternative {ys} ->
           let
@@ -66,16 +75,17 @@ label = {} \u {} ->
               in
               op[+]# t3@1 t5@2
           in
-          %gt_int# t6@2 10
+          case %gt_int# t6@2 10 of
+            False -> jump j
+            True -> jump j'
       in
       case xs@0 of
         Nil -> jump alternative xs@0
         Cons x cons1 -> case cons1@2 of
-          Nil -> %gt_int# x@1 10
+          Nil -> case %gt_int# x@1 10 of
+            False -> jump j
+            True -> jump j'
           Cons _ _ -> jump alternative xs@0
-    ) of
-      False -> "small"
-      True -> "big"
   in
   t7@0
 main = {} \u {} ->

@@ -32,15 +32,12 @@ fst = {} \u {} ->
   t0@0
 pick = {} \u {} ->
   let
-    t4 = {} \n {p,q} -> case (
-      case p@0 of
-        Mk a b -> Mk b@3 a@2
-    ) of
-      Mk x y ->
+    t4 = {} \n {p,q} -> case p@0 of
+      Mk a b ->
         let
-          t1 = {x@2,y@3} \u {} ->
-            let t0 = {y@1} \u {} -> op[*]# 10 y@0 in
-            op[+]# x@0 t0@2
+          t1 = {b@3,a@2} \u {} ->
+            let t0 = {a@1} \u {} -> op[*]# 10 a@0 in
+            op[+]# b@0 t0@2
           t3 = {q@1} \u {} ->
             let
               t2 = {q@0} \u {} -> case q@0 of
