@@ -37,9 +37,9 @@ describe = \xs ->
     Cons cons0 cons1 -> case cons1 of
       Nil -> alternative
       Cons cons0' cons1 -> case cons1 of
-        Nil -> case op[=] (%text cons0) "x" of
+        Nil -> case %eq_string (%text cons0) "x" of
           False -> alternative
-          True -> case op[=] (%text cons0') "y" of
+          True -> case %eq_string (%text cons0') "y" of
             False -> alternative
             True -> "xy"
         Cons _ _ -> alternative

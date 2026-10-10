@@ -168,7 +168,7 @@ pub const Substitution = struct {
         const head = self.expand(t);
         return switch (head) {
             .meta => |other| other == id,
-            .variable, .primitive => false,
+            .variable => false,
             .alias => unreachable,
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
@@ -189,7 +189,7 @@ pub const Substitution = struct {
                 if (std.mem.indexOfScalar(types.Meta, out.items, id) != null) return;
                 try out.append(self.gpa, id);
             },
-            .variable, .primitive => {},
+            .variable => {},
             .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
             .record => |r| {
                 for (r.fields) |f| try self.freeMetas(f.type.*, out);

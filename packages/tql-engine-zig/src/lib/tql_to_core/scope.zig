@@ -32,7 +32,6 @@ pub const Failure = union(enum) {
 pub const TypeName = union(enum) {
     datatype: datatypes.TypeId,
     alias: *const datatypes.Alias,
-    primitive: core.types.Primitive,
     class: classes.ClassId,
 };
 
@@ -164,7 +163,6 @@ pub const ModuleScope = struct {
     pub fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
         if (self.datatypes.lookup(module, name)) |id| return .{ .datatype = id };
         if (self.datatypes.aliasNamed(module, name)) |alias| return .{ .alias = alias };
-        if (self.datatypes.primitiveNamed(module, name)) |p| return .{ .primitive = p };
         if (self.classes.lookup(module, name)) |id| return .{ .class = id };
         return null;
     }
@@ -267,10 +265,6 @@ pub const ModuleScope = struct {
             .class => "methods",
             .alias => {
                 try sink.report(.unresolved_name, item.span, "`{s}` is an alias and has no constructors", .{item.name});
-                return false;
-            },
-            .primitive => {
-                try sink.report(.unresolved_name, item.span, "`{s}` is a primitive type and has no constructors", .{item.name});
                 return false;
             },
         };

@@ -3,21 +3,11 @@
 const std = @import("std");
 const classes = @import("classes.zig");
 const symbols = @import("symbols.zig");
+const types = @import("types.zig");
 
-/// A scalar operator, named by an `op[...]` symbol.
-///
-/// Desugaring synthesizes the arithmetic and matching operators. The
-/// comparisons are the methods of `Eq` and `Ord` at primitive types, and what
-/// the simplifier rewrites known comparisons to.
+/// A scalar operator, named by an `op[...]` symbol. Desugaring synthesizes
+/// one for each arithmetic and matching operator.
 pub const Scalar = enum {
-    eq,
-    ne,
-    lt,
-    lte,
-    gt,
-    gte,
-    /// Two scalars to an `Ordering`.
-    compare,
     match,
     not_match,
     add,
@@ -28,13 +18,6 @@ pub const Scalar = enum {
     /// How the operator is written, and how its symbol is named.
     pub fn spelling(self: Scalar) []const u8 {
         return switch (self) {
-            .eq => "=",
-            .ne => "!=",
-            .lt => "<",
-            .lte => "<=",
-            .gt => ">",
-            .gte => ">=",
-            .compare => "compare",
             .match => "~",
             .not_match => "!~",
             .add => "+",
@@ -43,10 +26,22 @@ pub const Scalar = enum {
             .divide => "/",
         };
     }
+};
+
+/// What a comparison primitive answers about its two operands.
+pub const Comparison = enum {
+    eq,
+    ne,
+    lt,
+    lte,
+    gt,
+    gte,
+    /// The operands' `Ordering`.
+    compare,
 
     /// What the comparison answers for operands that order `LT`, `EQ` and
-    /// `GT`, in that order. Null for the other operators.
-    pub fn answers(self: Scalar) ?[3]bool {
+    /// `GT`, in that order. Null for `compare`.
+    pub fn answers(self: Comparison) ?[3]bool {
         return switch (self) {
             .eq => .{ false, true, false },
             .ne => .{ true, false, true },
@@ -54,15 +49,15 @@ pub const Scalar = enum {
             .lte => .{ true, true, false },
             .gt => .{ false, false, true },
             .gte => .{ false, true, true },
-            else => null,
+            .compare => null,
         };
     }
 
     /// What the comparison answers for operands that order as `order`.
     ///
     /// Preconditions:
-    /// - `self` is a comparison.
-    pub fn answer(self: Scalar, order: std.math.Order) bool {
+    /// - `self` is not `compare`.
+    pub fn answer(self: Comparison, order: std.math.Order) bool {
         return self.answers().?[
             switch (order) {
                 .lt => 0,
@@ -73,10 +68,10 @@ pub const Scalar = enum {
     }
 
     /// The comparison that answers `wanted`, if there is one.
-    pub fn answering(wanted: [3]bool) ?Scalar {
-        for (std.enums.values(Scalar)) |s| {
-            const given = s.answers() orelse continue;
-            if (std.mem.eql(bool, &given, &wanted)) return s;
+    pub fn answering(wanted: [3]bool) ?Comparison {
+        for (std.enums.values(Comparison)) |c| {
+            const given = c.answers() orelse continue;
+            if (std.mem.eql(bool, &given, &wanted)) return c;
         }
         return null;
     }
@@ -104,12 +99,76 @@ pub const PrimOp = enum {
     descendants_of_kind,
     of_kind,
     is_kind,
+    eq_int,
+    ne_int,
+    lt_int,
+    lte_int,
+    gt_int,
+    gte_int,
+    compare_int,
+    eq_string,
+    ne_string,
+    lt_string,
+    lte_string,
+    gt_string,
+    gte_string,
+    compare_string,
+    eq_node,
+    ne_node,
+    eq_kind,
+    ne_kind,
 
     /// Returns the name the prelude writes it by.
     pub fn spelling(self: PrimOp) []const u8 {
         return switch (self) {
             inline else => |primop| "%" ++ @tagName(primop),
         };
+    }
+
+    pub const Compared = struct {
+        comparison: Comparison,
+        /// The type of both operands.
+        operands: types.Primitive,
+    };
+
+    /// What this primitive compares, if it is a comparison.
+    pub fn compared(self: PrimOp) ?Compared {
+        return switch (self) {
+            .eq_int => .{ .comparison = .eq, .operands = .Int },
+            .ne_int => .{ .comparison = .ne, .operands = .Int },
+            .lt_int => .{ .comparison = .lt, .operands = .Int },
+            .lte_int => .{ .comparison = .lte, .operands = .Int },
+            .gt_int => .{ .comparison = .gt, .operands = .Int },
+            .gte_int => .{ .comparison = .gte, .operands = .Int },
+            .compare_int => .{ .comparison = .compare, .operands = .Int },
+            .eq_string => .{ .comparison = .eq, .operands = .String },
+            .ne_string => .{ .comparison = .ne, .operands = .String },
+            .lt_string => .{ .comparison = .lt, .operands = .String },
+            .lte_string => .{ .comparison = .lte, .operands = .String },
+            .gt_string => .{ .comparison = .gt, .operands = .String },
+            .gte_string => .{ .comparison = .gte, .operands = .String },
+            .compare_string => .{ .comparison = .compare, .operands = .String },
+            .eq_node => .{ .comparison = .eq, .operands = .Node },
+            .ne_node => .{ .comparison = .ne, .operands = .Node },
+            .eq_kind => .{ .comparison = .eq, .operands = .Kind },
+            .ne_kind => .{ .comparison = .ne, .operands = .Kind },
+            else => null,
+        };
+    }
+
+    /// The primitive that makes `comparison` between two `operands`, if
+    /// there is one.
+    pub fn comparing(comparison: Comparison, operands: types.Primitive) ?PrimOp {
+        const table = comptime blk: {
+            var made = std.enums.EnumArray(types.Primitive, std.enums.EnumArray(Comparison, ?PrimOp))
+                .initFill(.initFill(null));
+            for (std.enums.values(PrimOp)) |primop| {
+                const c = primop.compared() orelse continue;
+                made.getPtr(c.operands).set(c.comparison, primop);
+            }
+            break :blk made;
+        };
+        return table.get(operands).get(comparison);
     }
 
     /// The single axis this one becomes when composed with a kind test, if

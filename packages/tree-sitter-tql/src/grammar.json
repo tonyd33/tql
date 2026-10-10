@@ -768,34 +768,47 @@
           "value": "="
         },
         {
-          "type": "SEQ",
+          "type": "CHOICE",
           "members": [
             {
-              "type": "FIELD",
-              "name": "constructor",
-              "content": {
-                "type": "SYMBOL",
-                "name": "constructor_declaration"
-              }
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "FIELD",
+                  "name": "constructor",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "constructor_declaration"
+                  }
+                },
+                {
+                  "type": "REPEAT",
+                  "content": {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": "|"
+                      },
+                      {
+                        "type": "FIELD",
+                        "name": "constructor",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "constructor_declaration"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
             },
             {
-              "type": "REPEAT",
+              "type": "FIELD",
+              "name": "representation",
               "content": {
-                "type": "SEQ",
-                "members": [
-                  {
-                    "type": "STRING",
-                    "value": "|"
-                  },
-                  {
-                    "type": "FIELD",
-                    "name": "constructor",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "constructor_declaration"
-                    }
-                  }
-                ]
+                "type": "SYMBOL",
+                "name": "primitive_type"
               }
             }
           ]
@@ -2840,6 +2853,22 @@
           {
             "type": "PATTERN",
             "value": "[a-z_][a-zA-Z0-9_]*"
+          }
+        ]
+      }
+    },
+    "primitive_type": {
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "%"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[A-Z][a-zA-Z0-9_]*"
           }
         ]
       }

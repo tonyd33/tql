@@ -23,7 +23,7 @@ add = {} \u {} ->
   t0@0
 adder = {} \u {} ->
   let
-    t3 = {} \n {n} -> case op[=]# n@0 0 of
+    t3 = {} \n {n} -> case %eq_int# n@0 0 of
       False ->
         let
           t0 = {} \u {} -> add 1

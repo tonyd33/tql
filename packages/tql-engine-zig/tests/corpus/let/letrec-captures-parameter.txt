@@ -18,7 +18,7 @@ count_to = {} \u {} ->
   let
     t1 = {} \n {limit} ->
       letrec
-        go = {limit@0,go@1} \n {n} -> case op[=]# n@2 limit@0 of
+        go = {limit@0,go@1} \n {n} -> case %eq_int# n@2 limit@0 of
           False ->
             let t0 = {n@2} \u {} -> op[+]# n@0 1 in
             go@1 t0@3

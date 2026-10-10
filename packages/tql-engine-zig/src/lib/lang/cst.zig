@@ -215,7 +215,14 @@ pub const DataDeclaration = struct {
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
     deriving: []const Derived = &.{},
+    /// `%Int` in `data Int = %Int;`. Set only when `constructors` is empty.
+    representation: ?Representation = null,
     span: diagnostic.Span = .unknown,
+
+    pub const Representation = struct {
+        name: Identifier,
+        span: diagnostic.Span = .unknown,
+    };
 
     /// One class of a `deriving` clause.
     pub const Derived = struct {
@@ -231,6 +238,7 @@ pub const DataDeclaration = struct {
             try w.writeByte(' ');
             try c.sexpr(w);
         }
+        if (self.representation) |r| try w.print(" {s}", .{r.name});
         if (self.deriving.len > 0) {
             try w.writeAll(" (deriving");
             for (self.deriving) |d| try w.print(" {s}", .{d.class});

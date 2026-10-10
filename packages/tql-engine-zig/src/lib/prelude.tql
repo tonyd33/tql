@@ -1,5 +1,15 @@
 -- TQL prelude.
 
+data Int = %Int deriving (Serial);
+
+data String = %String deriving (Serial);
+
+data Regex = %Regex;
+
+data Node = %Node deriving (Serial);
+
+data Kind = %Kind deriving (Serial);
+
 data List a = Nil | Cons a (List a) deriving (Eq, Ord, Serial);
 
 data Bool = False | True deriving (Eq, Ord, Serial);
@@ -14,6 +24,30 @@ class Eq a where {
 
 class Eq a => Ord a where {
   compare :: a -> a -> Ordering;
+};
+
+instance Eq Int where {
+  eq = %eq_int;
+};
+
+instance Ord Int where {
+  compare = %compare_int;
+};
+
+instance Eq String where {
+  eq = %eq_string;
+};
+
+instance Ord String where {
+  compare = %compare_string;
+};
+
+instance Eq Node where {
+  eq = %eq_node;
+};
+
+instance Eq Kind where {
+  eq = %eq_kind;
 };
 
 class Sized a where {

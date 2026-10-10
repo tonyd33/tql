@@ -79,21 +79,17 @@ pub const Desugarer = struct {
         for (source.declarations) |*decl| {
             if (decl.* != .data_declaration) continue;
             const declared = &decl.data_declaration;
-
-            // A structural type is reserved before any source is read, so the
-            // prelude's declaration fills in the row already standing rather
-            // than opening a new one.
-            const structural = if (scope.module == .prelude)
-                datatypes.Registry.structuralNamed(declared.name)
-            else
-                null;
             const taken = scope.declaredType(scope.module, declared.name);
             const existing = if (taken) |t| switch (t) {
                 .datatype => |id| id,
                 else => null,
             } else null;
+            // A structural type is reserved before any source is read, so the
+            // prelude's declaration fills in the row already standing rather
+            // than opening a new one.
+            const reserved = if (existing) |id| self.env.?.datatypes.get(id).reserved else false;
 
-            if (taken != null and (existing == null or structural == null)) {
+            if (taken != null and !reserved) {
                 try sink.report(
                     .duplicate_definition,
                     declared.span,
@@ -102,28 +98,16 @@ pub const Desugarer = struct {
                 );
                 continue;
             }
-            if (structural) |s| {
-                if (self.env.?.datatypes.get(existing.?).constructors.len > 0) {
-                    try sink.report(
-                        .duplicate_definition,
-                        declared.span,
-                        "`{s}` is declared more than once",
-                        .{declared.name},
-                    );
-                    continue;
-                }
+            if (reserved) {
+                const s = datatypes.Registry.structuralNamed(declared.name).?;
                 if (!conforms(s, declared.*)) {
-                    const spelled = try std.mem.join(self.allocator, "`, `", s.constructors);
-                    defer self.allocator.free(spelled);
-                    try sink.report(
-                        .type_mismatch,
-                        declared.span,
-                        "`{s}` is built directly by the evaluator and must declare {d} " ++
-                            "parameter(s) and the constructors `{s}` in that order",
-                        .{ declared.name, s.parameters, spelled },
-                    );
+                    try self.reportNonconforming(s, declared.*, sink);
                     continue;
                 }
+                self.env.?.datatypes.claim(existing.?);
+            } else if (declared.representation) |r| {
+                try sink.report(.unresolved_name, r.span, "`{s}` is not defined", .{r.name});
+                continue;
             }
 
             const id = existing orelse try self.env.?.datatypes.declare(
@@ -266,15 +250,41 @@ pub const Desugarer = struct {
     }
 
     /// Whether a written declaration matches what the evaluator expects of a
-    /// structural type: the same arity, and the same constructor spellings in
-    /// the same tag order.
+    /// structural type: the same arity, the same representation, and the
+    /// same constructor spellings in the same tag order.
     fn conforms(s: datatypes.Registry.Structural, declared: cst.DataDeclaration) bool {
         if (declared.parameters.len != s.parameters) return false;
+        const representation: ?types.Primitive = if (declared.representation) |r|
+            std.meta.stringToEnum(types.Primitive, r.name[1..]) orelse return false
+        else
+            null;
+        if (!std.meta.eql(representation, s.representation)) return false;
         if (declared.constructors.len != s.constructors.len) return false;
         for (declared.constructors, s.constructors) |written, expected| {
             if (!std.mem.eql(u8, written.name, expected)) return false;
         }
         return true;
+    }
+
+    fn reportNonconforming(self: *Desugarer, s: datatypes.Registry.Structural, declared: cst.DataDeclaration, sink: *diagnostic.Sink) !void {
+        if (s.representation) |p| {
+            try sink.report(
+                .type_mismatch,
+                declared.span,
+                "`{s}` is represented by the machine and must be declared as `data {s} = %{s};`",
+                .{ declared.name, p.spelling(), p.spelling() },
+            );
+            return;
+        }
+        const spelled = try std.mem.join(self.allocator, "`, `", s.constructors);
+        defer self.allocator.free(spelled);
+        try sink.report(
+            .type_mismatch,
+            declared.span,
+            "`{s}` is built directly by the evaluator and must declare {d} " ++
+                "parameter(s) and the constructors `{s}` in that order",
+            .{ declared.name, s.parameters, spelled },
+        );
     }
 
     /// Declares a module for `add`. `ModuleId.prelude` is declared already.
@@ -315,7 +325,6 @@ pub const Desugarer = struct {
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.declareInstances(source, &methods);
-        if (module == .prelude) try primitives.declareInstances(&self.env.?);
         var generated: std.ArrayList(core.Definition) = .empty;
         defer generated.deinit(self.allocator);
         try class_linker.derive(source, &generated);

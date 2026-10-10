@@ -767,6 +767,7 @@ const Walker = struct {
         var params: std.ArrayList(cst.Identifier) = .empty;
         var constructors: std.ArrayList(cst.ConstructorDeclaration) = .empty;
         var deriving: []const cst.DataDeclaration.Derived = &.{};
+        var representation: ?cst.DataDeclaration.Representation = null;
 
         var cursor = node.walk();
         defer cursor.destroy();
@@ -782,6 +783,8 @@ const Walker = struct {
                         } else return null;
                     } else if (std.mem.eql(u8, field, "deriving")) {
                         deriving = try self.derivingClause(child);
+                    } else if (std.mem.eql(u8, field, "representation")) {
+                        representation = .{ .name = try self.dupe(child), .span = spanOf(child, self.source_id) };
                     }
                 }
                 if (!cursor.gotoNextSibling()) break;
@@ -793,6 +796,7 @@ const Walker = struct {
             .parameters = try params.toOwnedSlice(self.allocator),
             .constructors = try constructors.toOwnedSlice(self.allocator),
             .deriving = deriving,
+            .representation = representation,
             .span = spanOf(node, self.source_id),
         };
     }

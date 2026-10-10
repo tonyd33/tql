@@ -24,6 +24,8 @@ pub const Datatype = struct {
     /// Count of bound type parameters, numbered from zero.
     parameters: u8,
     constructors: []const Constructor,
+    /// Set from `reserveBuiltins` until the prelude's declaration claims it.
+    reserved: bool = false,
 };
 
 /// `type Named r = {name: String | r};`
@@ -54,7 +56,6 @@ pub const Registry = struct {
     datatypes: std.ArrayList(Datatype) = .empty,
     by_name: symbols.QualifiedName.Map(TypeId) = .empty,
     aliases: symbols.QualifiedName.Map(Alias) = .empty,
-    primitives: symbols.QualifiedName.Map(types.Primitive) = .empty,
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
@@ -62,14 +63,20 @@ pub const Registry = struct {
 
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// The prelude declares `List`, `Bool` and `Ordering`; these rows reserve
-    /// their ids so a primitive scheme can name any of them before the prelude
-    /// is parsed.
+    /// The prelude declares the primitives, `List`, `Bool` and `Ordering`;
+    /// these rows reserve their ids so a primitive scheme can name any of them
+    /// before the prelude is parsed.
     pub const Structural = struct {
         name: []const u8,
         parameters: u8,
         /// Constructor spellings in tag order.
-        constructors: []const []const u8,
+        constructors: []const []const u8 = &.{},
+        /// Set for `data Int = %Int;`, which has no constructors.
+        representation: ?types.Primitive = null,
+
+        fn primitive(comptime p: types.Primitive) Structural {
+            return .{ .name = p.spelling(), .parameters = 0, .representation = p };
+        }
 
         pub const list: Structural = .{
             .name = types.list_spelling,
@@ -89,24 +96,38 @@ pub const Registry = struct {
             .constructors = &.{ "LT", "EQ", "GT" },
         };
 
-        pub const all: []const Structural = &.{ Structural.list, Structural.boolean, Structural.ordering };
+        /// The primitives come first, in `Primitive` order, so each takes the id
+        /// `Primitive.id` names.
+        pub const all: []const Structural = &.{
+            primitive(.Int),
+            primitive(.String),
+            primitive(.Regex),
+            primitive(.Node),
+            primitive(.Kind),
+            Structural.list,
+            Structural.boolean,
+            Structural.ordering,
+        };
     };
 
-    /// Declares the prelude's built-in types: the primitives, the aliases
-    /// `Range` and `Point`, and `List`, `Bool` and `Ordering` with no
-    /// constructors yet. The primitive schemes mention them, so their ids must
-    /// exist before `prelude.tql` is parsed; the prelude's own declarations
-    /// fill the constructors in.
+    /// Declares the prelude's built-in types: the aliases `Range` and `Point`,
+    /// and each `Structural` row with no constructors yet. The primitive
+    /// schemes mention them, so their ids must exist before `prelude.tql` is
+    /// parsed; the prelude's own declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
-        for (std.enums.values(types.Primitive)) |p| {
-            try self.primitives.put(self.allocator, .{ .module = .prelude, .name = p.spelling() }, p);
-        }
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
             try self.defineAlias(.prelude, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
         }
         for (Structural.all) |s| {
-            _ = try self.declare(interner, .prelude, s.name, s.parameters, &.{});
+            const id = try self.declare(interner, .prelude, s.name, s.parameters, &.{});
+            if (s.representation) |p| std.debug.assert(id == p.id());
+            self.datatypes.items[@intFromEnum(id)].reserved = true;
         }
+    }
+
+    /// Marks reserved `id` as declared by the prelude.
+    pub fn claim(self: *Registry, id: TypeId) void {
+        self.datatypes.items[@intFromEnum(id)].reserved = false;
     }
 
     /// The reservation `name` names, when it names one.
@@ -256,11 +277,6 @@ pub const Registry = struct {
     /// `alias` and everything it points to must outlive the registry.
     pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
         try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, alias);
-    }
-
-    /// The primitive type `module` declares as `name`.
-    pub fn primitiveNamed(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?types.Primitive {
-        return self.primitives.get(.{ .module = module, .name = name });
     }
 
     /// The alias `module` declares as `name`.

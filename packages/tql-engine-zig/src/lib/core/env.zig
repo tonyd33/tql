@@ -98,14 +98,6 @@ pub const Env = struct {
         }
     }
 
-    /// How an instance head is spelled in the symbols generated for it.
-    pub fn headSpelling(self: *const Env, head: classes.Head) []const u8 {
-        return switch (head) {
-            .primitive => |p| p.spelling(),
-            .datatype => |id| self.datatypes.get(id).name,
-        };
-    }
-
     /// Adds `declared`, with a generated `instance[C,T]` dictionary when its
     /// class takes one. Returns the instance already declared for its class
     /// and head instead, adding nothing, when there is one.
@@ -115,7 +107,7 @@ pub const Env = struct {
             .builtin => null,
             .dictionary => try self.interner.generate(
                 declared.module,
-                try std.fmt.allocPrint(self.allocator(), "instance[{s},{s}]", .{ self.classes.spelling(declared.class), self.headSpelling(declared.head) }),
+                try std.fmt.allocPrint(self.allocator(), "instance[{s},{s}]", .{ self.classes.spelling(declared.class), self.datatypes.get(declared.head()).name }),
                 .vanilla,
             ),
         };

@@ -165,7 +165,10 @@ module.exports = grammar({
         field("name", $.type_identifier),
         repeat(field("parameter", $._type_variable)),
         "=",
-        sep1(field("constructor", $.constructor_declaration), "|"),
+        choice(
+          sep1(field("constructor", $.constructor_declaration), "|"),
+          field("representation", $.primitive_type),
+        ),
         optional(field("deriving", $.deriving)),
         ";",
       ),
@@ -564,6 +567,8 @@ module.exports = grammar({
     kind: _ => token(seq(":", /[a-zA-Z_][a-zA-Z0-9_]*/)),
 
     primitive: _ => token(seq("%", LOWER_NAME)),
+
+    primitive_type: _ => token(seq("%", UPPER_NAME)),
 
     operator_name: $ =>
       seq("(", field("operator", $._bare_section_operator), ")"),

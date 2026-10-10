@@ -25,7 +25,7 @@ pub const Mismatch = struct {
     };
 
     pub const Reason = enum {
-        /// Two different constructors, or two different primitives.
+        /// Two different constructors.
         incompatible,
         /// Binding would have built an infinite type.
         occurs,
@@ -65,11 +65,6 @@ pub fn unify(
         // without instantiation, which is a bug in the caller rather than a
         // type error in the program.
         .variable => @panic("a bound type variable reached unification"),
-        .primitive => |p| {
-            if (right != .primitive or right.primitive != p) {
-                return .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
-            }
-        },
         // Nominal in the head, pointwise in the arguments.
         .constructor => |c| {
             if (right != .constructor or right.constructor.name != c.name or

@@ -124,7 +124,7 @@ pub const Resolver = struct {
                 if (try self.given(class, target, at, span)) |found| return found;
                 return self.fail(.ambiguous, class, t, span);
             },
-            .primitive, .constructor => {},
+            .constructor => {},
             .record => |r| {
                 if (class != .eq) return self.fail(.unsatisfied, class, t, span);
                 return try self.recordDictionary(r, at, span);
@@ -132,7 +132,7 @@ pub const Resolver = struct {
             else => return self.fail(.unsatisfied, class, t, span),
         }
 
-        const id = self.registry.instanceFor(class, classes.Head.of(target).?) orelse
+        const id = self.registry.instanceFor(class, target.constructor.name) orelse
             return self.fail(.unsatisfied, class, t, span);
         const instance = self.registry.instance(id);
         var result = self.builder.symbol(instance.dictionary.?, span);

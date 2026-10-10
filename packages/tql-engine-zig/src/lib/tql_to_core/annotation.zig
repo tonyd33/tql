@@ -140,7 +140,7 @@ fn translateSignature(
 fn mentions(t: types.Type, index: types.TypeVar) bool {
     return switch (t) {
         .variable => |v| v == index,
-        .meta, .primitive => false,
+        .meta => false,
         .constructor => |c| for (c.arguments) |argument| {
             if (mentions(argument, index)) break true;
         } else false,
@@ -154,14 +154,18 @@ fn mentions(t: types.Type, index: types.TypeVar) bool {
 
 /// An instance's head and context, translated.
 pub const InstanceHead = struct {
-    head: classes.Head,
-    /// The head over its variables, bound in order from 0.
+    /// A datatype over distinct variables, bound in order from 0.
     type: types.Type,
     context: []const types.TypeClassConstraint,
+
+    /// Returns the datatype the instance is declared at.
+    pub fn head(self: InstanceHead) core.datatypes.TypeId {
+        return self.type.constructor.name;
+    }
 };
 
-/// Translates an instance's head and context. The head is a primitive, or a
-/// declared type applied to distinct variables.
+/// Translates an instance's head and context. The head is a declared type
+/// applied to distinct variables.
 pub fn translateInstance(
     arena: Allocator,
     gpa: Allocator,
@@ -182,9 +186,8 @@ pub fn translateInstance(
     };
     const head_type = try t.type(declared.head);
     const written = unparenthesized(declared.head);
-    const head: classes.Head = switch (head_type) {
-        .primitive => |p| .{ .primitive = p },
-        .constructor => |c| blk: {
+    switch (head_type) {
+        .constructor => |c| {
             for (c.arguments, headArguments(written), 0..) |argument, w, i| {
                 if (argument != .variable) {
                     try sink.report(
@@ -207,18 +210,17 @@ pub fn translateInstance(
                     return error.BadAnnotation;
                 }
             }
-            break :blk .{ .datatype = c.name };
         },
         .variable => return badHead(sink, written.span, "a type variable"),
         .function => return badHead(sink, written.span, "a function type"),
         .record => return badHead(sink, written.span, "a record type"),
         .alias => return badHead(sink, written.span, "an alias"),
         .meta => unreachable,
-    };
+    }
 
     const context = try arena.alloc(types.TypeClassConstraint, declared.context.len);
     for (declared.context, context) |c, *slot| slot.* = try t.constraint(c);
-    return .{ .head = head, .type = head_type, .context = context };
+    return .{ .type = head_type, .context = context };
 }
 
 fn unparenthesized(written: cst.Type) cst.Type {
@@ -241,7 +243,7 @@ fn badHead(sink: *diagnostic.Sink, span: diagnostic.Span, what: []const u8) Erro
     try sink.report(
         .invalid_instance,
         span,
-        "an instance head must be a primitive or a declared type, not {s}",
+        "an instance head must be a declared type, not {s}",
         .{what},
     );
     return error.BadAnnotation;
@@ -386,7 +388,7 @@ pub fn translateField(
 /// Whether a record appears anywhere in `t`.
 fn hasRecord(t: types.Type) bool {
     return switch (t) {
-        .variable, .meta, .primitive => false,
+        .variable, .meta => false,
         .record => true,
         .constructor => |c| for (c.arguments) |argument| {
             if (hasRecord(argument)) break true;
@@ -451,7 +453,6 @@ const Translator = struct {
                     return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, &.{});
                 },
                 .alias => |alias| return try self.aliasAt(alias, &.{}, span),
-                .primitive => |p| return .{ .primitive = p },
                 .class => return try self.notAType(name, span),
             },
             .failed => |failure| {
@@ -473,15 +474,6 @@ const Translator = struct {
             .found => |found| switch (found) {
                 .datatype => |declared| declared,
                 .alias => |alias| return try self.aliasAt(alias, node.arguments, span),
-                .primitive => {
-                    try self.sink.report(
-                        .type_mismatch,
-                        span,
-                        "`{s}` takes 0 type argument(s), given {d}",
-                        .{ node.constructor, node.arguments.len },
-                    );
-                    return error.BadAnnotation;
-                },
                 .class => return try self.notAType(node.constructor, span),
             },
             .failed => |failure| {

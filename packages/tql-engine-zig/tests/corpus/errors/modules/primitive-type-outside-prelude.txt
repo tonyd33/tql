@@ -1,0 +1,14 @@
+title: a primitive type representation is not visible outside the prelude
+grammar: typescript
+asserts: error
+
+--- tql ---
+data Count = %Int;
+main root = [1];
+
+--- error ---
+error[unresolved-name]: `%Int` is not defined
+ --> 1:14
+  |
+1 | data Count = %Int;
+  |              ^^^^

@@ -47,30 +47,9 @@ pub const Selector = struct {
     symbol: symbols.SymbolId,
 };
 
-/// What an instance is declared at: a primitive type, or a declared type at
-/// distinct variables.
-pub const Head = union(enum) {
-    primitive: types.Primitive,
-    datatype: symbols.TypeId,
-
-    /// The head of `t`, or null when `t` is not a primitive or a declared
-    /// type.
-    ///
-    /// Preconditions:
-    /// - `t` is not an alias.
-    pub fn of(t: types.Type) ?Head {
-        return switch (t) {
-            .primitive => |p| .{ .primitive = p },
-            .constructor => |c| .{ .datatype = c.name },
-            else => null,
-        };
-    }
-};
-
 pub const Instance = struct {
     class: ClassId,
-    head: Head,
-    /// The head applied to its variables, bound in order from 0.
+    /// A datatype applied to distinct variables, bound in order from 0.
     type: types.Type,
     /// Constraints over the head's variables. Those with dictionary evidence
     /// are the dictionary's parameters, in order.
@@ -82,6 +61,11 @@ pub const Instance = struct {
     dictionary: ?symbols.SymbolId,
     module: symbols.ModuleId,
     span: diagnostic.Span = .unknown,
+
+    /// Returns the datatype the instance is declared at.
+    pub fn head(self: Instance) symbols.TypeId {
+        return self.type.constructor.name;
+    }
 };
 
 /// The classes and instances of one link.
@@ -92,7 +76,7 @@ pub const Registry = struct {
     instances: std.ArrayList(Instance) = .empty,
     by_head: std.AutoHashMapUnmanaged(Key, InstanceId) = .empty,
 
-    const Key = struct { class: ClassId, head: Head };
+    const Key = struct { class: ClassId, head: symbols.TypeId };
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
@@ -158,7 +142,7 @@ pub const Registry = struct {
     /// Adds `instance`. Returns the instance already declared for its class
     /// and head instead, adding nothing, when there is one.
     pub fn addInstance(self: *Registry, declared: Instance) Allocator.Error!Addition {
-        const entry = try self.by_head.getOrPut(self.allocator, .{ .class = declared.class, .head = declared.head });
+        const entry = try self.by_head.getOrPut(self.allocator, .{ .class = declared.class, .head = declared.head() });
         if (entry.found_existing) return .{ .existing = entry.value_ptr.* };
         const id: InstanceId = @enumFromInt(self.instances.items.len);
         try self.instances.append(self.allocator, declared);
@@ -174,7 +158,7 @@ pub const Registry = struct {
         return &self.instances.items[@intFromEnum(id)];
     }
 
-    pub fn instanceFor(self: *const Registry, class: ClassId, head: Head) ?InstanceId {
+    pub fn instanceFor(self: *const Registry, class: ClassId, head: symbols.TypeId) ?InstanceId {
         return self.by_head.get(.{ .class = class, .head = head });
     }
 
@@ -270,9 +254,8 @@ pub fn reduce(
         .meta, .variable => try sink.leaf(class, expanded),
         .alias => unreachable,
         .function => return written,
-        .primitive => |p| _ = registry.instanceFor(class, .{ .primitive = p }) orelse return written,
         .constructor => |c| {
-            const found = registry.instanceFor(class, .{ .datatype = c.name }) orelse return written;
+            const found = registry.instanceFor(class, c.name) orelse return written;
             for (registry.instance(found).context) |needed| {
                 const argument = c.arguments[needed.type.variable];
                 if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;

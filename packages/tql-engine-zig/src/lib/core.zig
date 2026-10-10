@@ -35,6 +35,7 @@ pub const PrimOp = details.PrimOp;
 pub const Pseudo = details.Pseudo;
 pub const Operation = details.Operation;
 pub const Scalar = details.Scalar;
+pub const Comparison = details.Comparison;
 
 pub const SymbolId = symbols.SymbolId;
 pub const ModuleId = symbols.ModuleId;

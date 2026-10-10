@@ -819,6 +819,11 @@ pub const Machine = struct {
                     return try self.boolValue(tested.subject.kindId() == tested.kind_id);
                 },
 
+                inline else => |p| {
+                    const c = comptime p.compared() orelse @compileError("no evaluation for " ++ @tagName(p));
+                    return try self.comparison(c.comparison, arguments);
+                },
+
                 // `[parent]`, or `[]` at the root.
                 .parent => {
                     const subject = try self.nodeArgument(arguments);
@@ -1075,6 +1080,25 @@ pub const Machine = struct {
         };
     }
 
+    fn comparison(
+        self: *Machine,
+        comptime made: core.Comparison,
+        arguments: []const *value.Thunk,
+    ) Error!value.Value {
+        if (arguments.len != 2) return error.TypeError;
+        const left = try self.force(arguments[0]);
+        const right = try self.force(arguments[1]);
+        switch (made) {
+            .eq => return try self.boolValue(try equal(left, right)),
+            .ne => return try self.boolValue(!try equal(left, right)),
+            .lt, .lte, .gt, .gte => return try self.boolValue(made.answer(try ordering(left, right))),
+            .compare => {
+                const c = self.program.structural.ordering(try ordering(left, right));
+                return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+            },
+        }
+    }
+
     fn operator(
         self: *Machine,
         scalar: core.Scalar,
@@ -1108,15 +1132,6 @@ pub const Machine = struct {
                 const a, const b = try numbers(left, right);
                 if (b == 0) return error.DivideByZero;
                 return .{ .number = @divTrunc(a, b) };
-            },
-
-            .eq => return try self.boolValue(try equal(left, right)),
-            .ne => return try self.boolValue(!try equal(left, right)),
-
-            .lt, .lte, .gt, .gte => return try self.boolValue(scalar.answer(try ordering(left, right))),
-            .compare => {
-                const c = self.program.structural.ordering(try ordering(left, right));
-                return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
             },
 
             .match, .not_match => {

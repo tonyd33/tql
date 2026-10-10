@@ -35,6 +35,15 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
             try B.filter(types.node_type, types.node_type),
         ) },
         .is_kind => .{ .type = try B.func(types.kind_type, try B.func(types.node_type, try B.boolType())) },
+        inline else => |p| {
+            const c = comptime p.compared() orelse @compileError("no scheme for " ++ @tagName(p));
+            const operand = c.operands.named();
+            const result = switch (c.comparison) {
+                .compare => try B.declared.orderingType(B.arena),
+                else => try B.boolType(),
+            };
+            return .{ .type = try B.func(operand, try B.func(operand, result)) };
+        },
     };
 }
 
@@ -54,12 +63,6 @@ const Builder = struct {
     fn boolType(self: Builder) !types.Type {
         return try self.declared.boolType(self.arena);
     }
-
-    /// `a -> a -> result`.
-    fn comparison(self: Builder, result: types.Type) !types.Scheme {
-        const a = types.variable_type(0);
-        return .{ .quantified = 1, .type = try self.func(a, try self.func(a, result)) };
-    }
 };
 
 /// The scheme of a scalar operator, built against `arena` and `declared`.
@@ -71,8 +74,6 @@ pub fn operatorScheme(
     const B = Builder{ .arena = arena, .declared = declared };
 
     return switch (operator) {
-        .eq, .ne, .lt, .lte, .gt, .gte => try B.comparison(try B.boolType()),
-        .compare => try B.comparison(try B.declared.orderingType(B.arena)),
         .match, .not_match => .{ .type = try B.func(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
@@ -177,16 +178,6 @@ pub fn synthesizedSymbol(target: *core.env.Env, spelling: []const u8, what: core
     return id;
 }
 
-/// The `op[...]` symbol of `scalar`, with its scheme.
-pub fn operatorSymbol(target: *core.env.Env, scalar: Scalar) Allocator.Error!core.SymbolId {
-    var buffer: [16]u8 = undefined;
-    const spelling = std.fmt.bufPrint(&buffer, "op[{s}]", .{scalar.spelling()}) catch unreachable;
-    return synthesizedSymbol(target, spelling, .{ .operator = scalar }) catch |err| switch (err) {
-        error.TooManyRecordFields => unreachable,
-        error.OutOfMemory => |e| return e,
-    };
-}
-
 /// `select[label]`, reading the record field `label`, with its scheme.
 pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!core.SymbolId {
     const spelling = try std.fmt.allocPrint(target.gpa, "select[{s}]", .{label});
@@ -197,38 +188,4 @@ pub fn selectSymbol(target: *core.env.Env, label: []const u8) Allocator.Error!co
         error.TooManyRecordFields => unreachable,
         error.OutOfMemory => |e| return e,
     };
-}
-
-/// Declares the instances the machine implements at the primitive types.
-///
-/// Preconditions:
-/// - `populate` has run on `target`.
-pub fn declareInstances(target: *core.env.Env) !void {
-    const equal = try operatorSymbol(target, .eq);
-    const compare = try operatorSymbol(target, .compare);
-
-    for ([_]types.Primitive{ .Int, .String, .Node, .Kind }) |p| {
-        try declareInstance(target, .eq, p, &.{equal});
-        try declareInstance(target, .serial, p, &.{});
-    }
-    for ([_]types.Primitive{ .Int, .String }) |p| try declareInstance(target, .ord, p, &.{compare});
-}
-
-/// An instance at `head` with no context, `methods` in class order.
-fn declareInstance(
-    target: *core.env.Env,
-    class: core.classes.ClassId,
-    head: types.Primitive,
-    methods: []const core.SymbolId,
-) !void {
-    const arena = target.allocator();
-    _ = (try target.declareInstance(.{
-        .class = class,
-        .head = .{ .primitive = head },
-        .type = .{ .primitive = head },
-        .context = &.{},
-        .methods = try arena.dupe(core.SymbolId, methods),
-        .dictionary = undefined,
-        .module = .prelude,
-    })).added;
 }

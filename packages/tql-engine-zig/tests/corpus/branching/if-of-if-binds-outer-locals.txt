@@ -23,13 +23,13 @@ main :: Node -> [Int]
 choose = {} \u {} ->
   let
     t4 = {} \n {n} -> case (
-      case op[>]# n@0 0 of
+      case %gt_int# n@0 0 of
         False ->
           let c0 = False in
           c0@1
         True ->
           let t1 = {n@0} \u {} -> op[-]# n@0 1 in
-          op[>]# t1@1 0
+          %gt_int# t1@1 0
     ) of
       False ->
         let t2 = {n@0} \u {} -> op[*]# n@0 3 in

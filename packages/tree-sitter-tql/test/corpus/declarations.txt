@@ -299,6 +299,34 @@ data List a = Nil | Cons a (List a);
           argument: (type_variable))))))
 
 ========================================
+a data type represented by a primitive
+========================================
+
+data Int = %Int;
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    representation: (primitive_type)))
+
+========================================
+a primitive data type deriving a class
+========================================
+
+data Int = %Int deriving (Serial);
+
+---
+
+(source_file
+  (data_declaration
+    name: (type_identifier)
+    representation: (primitive_type)
+    deriving: (deriving
+      class: (type_identifier))))
+
+========================================
 a constructor field may be a primitive or a list
 ========================================
 

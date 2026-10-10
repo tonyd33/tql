@@ -117,16 +117,16 @@ pub const Laws = struct {
     /// A comparison of `left` and `right` that answers what a `case` makes of
     /// another one.
     pub const Folded = struct {
-        comparison: core.Scalar,
+        comparison: core.SymbolId,
         left: core.Term,
         right: core.Term,
     };
 
     /// A `case` that maps a comparison's result to `True` and `False` is the
     /// comparison that returns that `Bool`:
-    /// `case op[compare] a b of { LT -> True; EQ -> False; GT -> False }` is
-    /// `op[<] a b`, and `case op[=] a b of { False -> True; True -> False }` is
-    /// `op[!=] a b`.
+    /// `case %compare_int a b of { LT -> True; EQ -> False; GT -> False }` is
+    /// `%lt_int a b`, and `case %eq_int a b of { False -> True; True -> False }`
+    /// is `%ne_int a b`.
     ///
     /// Preconditions: `scrutinee` is simplified.
     pub fn foldComparison(
@@ -143,29 +143,25 @@ pub const Laws = struct {
             else => return null,
         };
         const compared = switch (inner.function.kind) {
-            .symbol => |id| switch (self.interner.details(id)) {
-                .synthesized => |s| switch (s) {
-                    .operator => |o| o,
-                    else => return null,
-                },
-                else => return null,
-            },
+            .symbol => |id| (self.primopOf(id) orelse return null).compared() orelse return null,
             else => return null,
         };
 
         var wanted: [3]bool = undefined;
-        if (compared == .compare) {
+        if (compared.comparison == .compare) {
             for (&wanted, self.ordering) |*slot, constructor| {
                 slot.* = self.answer(alternatives, constructor) orelse return null;
             }
         } else {
-            const answers = compared.answers() orelse return null;
+            const answers = compared.comparison.answers().?;
             const if_false = self.answer(alternatives, self.false_) orelse return null;
             const if_true = self.answer(alternatives, self.true_) orelse return null;
             for (&wanted, answers) |*slot, given| slot.* = if (given) if_true else if_false;
         }
+        const comparison = core.Comparison.answering(wanted) orelse return null;
+        const primop = core.PrimOp.comparing(comparison, compared.operands) orelse return null;
         return .{
-            .comparison = core.Scalar.answering(wanted) orelse return null,
+            .comparison = self.primitives.get(primop) orelse return null,
             .left = inner.argument,
             .right = outer.argument,
         };

@@ -11,7 +11,9 @@ pub const TypeVar = u8;
 /// An unknown standing for a type not yet determined.
 pub const Meta = u32;
 
-pub const Primitive = enum {
+/// A type the machine represents directly. The prelude declares each as
+/// `data Int = %Int;`.
+pub const Primitive = enum(u32) {
     Int,
     String,
     Regex,
@@ -21,12 +23,27 @@ pub const Primitive = enum {
     pub fn spelling(self: Primitive) []const u8 {
         return @tagName(self);
     }
+
+    /// The datatype `Registry.reserveBuiltins` reserves for this primitive.
+    pub fn id(self: Primitive) datatypes.TypeId {
+        return @enumFromInt(@intFromEnum(self));
+    }
+
+    /// Returns the type that names this primitive's datatype.
+    pub fn named(self: Primitive) Type {
+        return switch (self) {
+            .Int => int_type,
+            .String => string_type,
+            .Regex => regex_type,
+            .Node => node_type,
+            .Kind => kind_type,
+        };
+    }
 };
 
 pub const Type = union(enum) {
     variable: TypeVar,
     meta: Meta,
-    primitive: Primitive,
     /// A declared algebraic data type at its arguments. `[a]` is `List` at
     /// one argument and `Bool` is a nullary one.
     constructor: *const Constructed,
@@ -127,7 +144,7 @@ pub const Type = union(enum) {
     /// shared, not copied.
     pub fn clone(self: Type, allocator: std.mem.Allocator) std.mem.Allocator.Error!Type {
         switch (self) {
-            .variable, .meta, .primitive => return self,
+            .variable, .meta => return self,
             .constructor => |c| {
                 const arguments = try allocator.alloc(Type, c.arguments.len);
                 for (c.arguments, arguments) |argument, *copy| copy.* = try argument.clone(allocator);
@@ -160,7 +177,6 @@ pub const Type = union(enum) {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
             .meta => |id| if (names) |n| try n.write(id, w) else try w.print("?{d}", .{id}),
-            .primitive => |p| try w.writeAll(p.spelling()),
             .constructor => |c| {
                 const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c);
                 if (parenthesize) try w.writeByte('(');
@@ -293,11 +309,16 @@ pub const Scheme = struct {
     }
 };
 
-pub const int_type: Type = .{ .primitive = .Int };
-pub const string_type: Type = .{ .primitive = .String };
-pub const regex_type: Type = .{ .primitive = .Regex };
-pub const node_type: Type = .{ .primitive = .Node };
-pub const kind_type: Type = .{ .primitive = .Kind };
+pub const int_type = primitiveType(.Int);
+pub const string_type = primitiveType(.String);
+pub const regex_type = primitiveType(.Regex);
+pub const node_type = primitiveType(.Node);
+pub const kind_type = primitiveType(.Kind);
+
+fn primitiveType(comptime p: Primitive) Type {
+    const head: Type.Constructed = .{ .name = p.id(), .spelling = p.spelling(), .arguments = &.{} };
+    return .{ .constructor = &head };
+}
 
 /// The fields of `Point`, a position in the queried file.
 pub const point_record: Type = .{ .record = .{ .fields = &.{
@@ -434,7 +455,6 @@ pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.
     const head = context.head(t);
     switch (head) {
         .variable, .meta => return context.replace(head),
-        .primitive => return head,
         .constructor => |c| {
             const changed = try rewriteAll(allocator, c.arguments, context) orelse return head;
             return try constructed(allocator, c.name, c.spelling, changed);

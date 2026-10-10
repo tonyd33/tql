@@ -15,5 +15,5 @@ class A {}
 [true, false]
 
 --- simplified ---
-differ = \x -> \y -> op[!=] x y
-main = const (Cons (op[!=] 1 2) (Cons (op[!=] 2 2) Nil))
+differ = \x -> \y -> %ne_int x y
+main = const (Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil))

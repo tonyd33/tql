@@ -458,7 +458,7 @@ pub const Lowerer = struct {
                 self.builder.symbol(self.scope.datatypes.boolConstructor(false).symbol, span),
                 span,
             ),
-            inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Scalar, @tagName(o)), span),
+            inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Comparison, @tagName(o)), span),
             .pipe => return try self.combinator("kleisli", left, right, span),
             .stream_union => return try self.combinator("alt", left, right, span),
             .compose => return try self.combinator("compose", left, right, span),
@@ -495,7 +495,7 @@ pub const Lowerer = struct {
 
     /// `case compare left right of { LT -> a; EQ -> b; GT -> c }`, each
     /// alternative what `comparison` answers.
-    fn ordered(self: *Lowerer, left: core.Term, right: core.Term, comparison: core.Scalar, span: diagnostic.Span) Error!core.Term {
+    fn ordered(self: *Lowerer, left: core.Term, right: core.Term, comparison: core.Comparison, span: diagnostic.Span) Error!core.Term {
         const registry = self.scope.datatypes;
         var bodies: [3]core.Term = undefined;
         for (&bodies, [_]std.math.Order{ .lt, .eq, .gt }) |*body, order| {

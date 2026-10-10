@@ -17,7 +17,7 @@ class A {}
 --- simplified ---
 main =
   letrec
-    is_even = \n -> case op[=] n 0 of
+    is_even = \n -> case %eq_int n 0 of
       False -> case is_even (op[-] n 1) of
         False -> True
         True -> False

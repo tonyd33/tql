@@ -255,11 +255,9 @@ pub const Linker = struct {
         }
 
         const head = try annotation.translateInstance(self.arena(), self.gpa, declared, self.scope, self.sink);
-        const head_name = self.env.headSpelling(head.head);
-        const head_module: core.ModuleId = switch (head.head) {
-            .primitive => .prelude,
-            .datatype => |id| self.env.datatypes.get(id).module,
-        };
+        const head_datatype = self.env.datatypes.get(head.head());
+        const head_name = head_datatype.name;
+        const head_module = head_datatype.module;
         if (self.module() != class.name.module.? and self.module() != head_module) {
             try self.sink.report(
                 .orphan_instance,
@@ -311,7 +309,6 @@ pub const Linker = struct {
 
         const id = try self.addInstance(.{
             .class = class_id,
-            .head = head.head,
             .type = head.type,
             .context = head.context,
             .methods = &.{},
@@ -342,7 +339,7 @@ pub const Linker = struct {
                     .duplicate_instance,
                     declared.span,
                     "`{s} {s}` is already declared in `{s}`",
-                    .{ self.env.classes.spelling(declared.class), self.env.headSpelling(declared.head), self.env.interner.moduleName(self.env.classes.instance(first).module) },
+                    .{ self.env.classes.spelling(declared.class), self.env.datatypes.get(declared.head()).name, self.env.interner.moduleName(self.env.classes.instance(first).module) },
                 );
                 return error.BadAnnotation;
             },
@@ -390,7 +387,7 @@ pub const Linker = struct {
             // Constructors that failed to translate were never set.
             if (self.env.datatypes.get(id).constructors.len != declared.constructors.len) continue;
             for (declared.deriving, 0..) |derived, i| {
-                const instance = self.declareDerived(id, declared.deriving[0..i], derived) catch |err| switch (err) {
+                const instance = self.declareDerived(id, declared, declared.deriving[0..i], derived) catch |err| switch (err) {
                     error.BadAnnotation => {
                         self.failed = true;
                         continue;
@@ -411,6 +408,7 @@ pub const Linker = struct {
     fn declareDerived(
         self: *Linker,
         id: datatypes.TypeId,
+        declared: *const cst.DataDeclaration,
         earlier: []const cst.DataDeclaration.Derived,
         derived: cst.DataDeclaration.Derived,
     ) annotation.Error!classes.InstanceId {
@@ -432,6 +430,15 @@ pub const Linker = struct {
                 return error.BadAnnotation;
             },
         }
+        if (declared.representation != null and self.env.classes.evidenceOf(class_id) == .dictionary) {
+            try self.sink.report(
+                .invalid_deriving,
+                derived.span,
+                "`{s}` cannot be derived for `{s}`, which the machine represents",
+                .{ derived.class, declared.name },
+            );
+            return error.BadAnnotation;
+        }
 
         const class = self.env.classes.get(class_id);
         const name = self.env.datatypes.get(id).name;
@@ -441,7 +448,6 @@ pub const Linker = struct {
         }
         return try self.addInstance(.{
             .class = class_id,
-            .head = .{ .datatype = id },
             .type = try self.env.datatypes.applied(self.arena(), id),
             .context = &.{},
             .methods = implementations,
@@ -517,7 +523,6 @@ pub const Linker = struct {
         const symbol = instance.methods[0];
         try self.env.annotate(symbol, .{
             .scheme = try self.methodScheme(self.env.schemeOf(class.methods[0]).?, .{
-                .head = instance.head,
                 .type = instance.type,
                 .context = instance.context,
             }),

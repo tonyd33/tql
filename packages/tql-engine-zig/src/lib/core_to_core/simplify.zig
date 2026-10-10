@@ -5,7 +5,6 @@ const std = @import("std");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
 const Laws = @import("laws.zig").Laws;
-const primitives = @import("../primitives.zig");
 const cost = @import("cost.zig");
 const Options = @import("options.zig").Options;
 const Analyser = @import("occurrence.zig").Analyser;
@@ -285,8 +284,7 @@ pub const Simplifier = struct {
         if (self.options.laws and default == null) {
             if (self.laws.foldComparison(scrutinee, case_alternatives)) |folded| {
                 self.changed = true;
-                const comparison = try primitives.operatorSymbol(self.env, folded.comparison);
-                const call = try self.builder.applyMany(self.builder.symbol(comparison, scrutinee.span), &.{ folded.left, folded.right }, span);
+                const call = try self.builder.applyMany(self.builder.symbol(folded.comparison, scrutinee.span), &.{ folded.left, folded.right }, span);
                 return try self.rebuild(call, arguments);
             }
             if (try self.laws.rewriteCase(scrutinee, case_alternatives, span)) |rewritten| {

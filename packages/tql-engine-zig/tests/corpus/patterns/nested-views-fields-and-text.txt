@@ -72,12 +72,12 @@ main = \root -> concat_map (
       False -> Nil
       True -> case field[object] cons0 of
         Nil -> Nil
-        Cons cons0' cons1' -> case op[=] (%text cons0') "console" of
+        Cons cons0' cons1' -> case %eq_string (%text cons0') "console" of
           False -> Nil
           True -> case cons1' of
             Nil -> case field[property] cons0 of
               Nil -> Nil
-              Cons cons0 cons1' -> case op[=] (%text cons0) "error" of
+              Cons cons0 cons1' -> case %eq_string (%text cons0) "error" of
                 False -> Nil
                 True -> case cons1' of
                   Nil -> case cons1 of
