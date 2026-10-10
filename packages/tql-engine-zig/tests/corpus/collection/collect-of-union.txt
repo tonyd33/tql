@@ -6,6 +6,8 @@ asserts: types, values
 contributes every one of its values.
 
 --- tql ---
+import Data.Function (const);
+
 main = collect $ const [1, 2] <|> pure 3;
 
 --- source ---

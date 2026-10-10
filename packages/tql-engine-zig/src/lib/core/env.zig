@@ -32,6 +32,8 @@ pub const Env = struct {
     /// Definitions the simplifier inlines at every saturated call, whatever
     /// their size.
     always_inline: symbols.SymbolTable(void),
+    /// The symbol each `Known` names. Null until a library module exports it.
+    known: std.EnumArray(symbols.Known, ?symbols.SymbolId) = .initFill(null),
     /// The symbol each primitive is interned as. Null before the primitives
     /// are populated.
     primitives: std.EnumArray(details.PrimOp, ?symbols.SymbolId) = .initFill(null),
@@ -42,7 +44,7 @@ pub const Env = struct {
         span: diagnostic.Span,
     };
 
-    /// Declares `Prelude` as `ModuleId.prelude`, and reserves the classes the
+    /// Declares `Prim` as `ModuleId.prim`, and reserves the classes the
     /// engine names in it.
     pub fn init(gpa: Allocator) !Env {
         const arena = try gpa.create(std.heap.ArenaAllocator);
@@ -52,7 +54,7 @@ pub const Env = struct {
 
         const scratch = arena.allocator();
         var interner = symbols.Interner.init(scratch);
-        _ = try interner.declareModule(symbols.ModuleId.prelude_name);
+        _ = try interner.declareModule(symbols.ModuleId.prim_name);
         var class_registry = classes.Registry.init(scratch);
         try class_registry.reserveBuiltins();
         return .{
@@ -64,6 +66,29 @@ pub const Env = struct {
             .schemes = symbols.SymbolTable(types.Scheme).init(scratch),
             .annotations = symbols.SymbolTable(Annotation).init(scratch),
             .always_inline = symbols.SymbolTable(void).init(scratch),
+        };
+    }
+
+    /// A copy with its own arena. It shares what `self` allocated, so `self`
+    /// must outlive it and not change while it lives.
+    pub fn clone(self: *const Env, gpa: Allocator) !Env {
+        const arena = try gpa.create(std.heap.ArenaAllocator);
+        errdefer gpa.destroy(arena);
+        arena.* = .init(gpa);
+        errdefer arena.deinit();
+
+        const scratch = arena.allocator();
+        return .{
+            .gpa = gpa,
+            .arena = arena,
+            .interner = try self.interner.clone(scratch),
+            .datatypes = try self.datatypes.clone(scratch),
+            .classes = try self.classes.clone(scratch),
+            .schemes = try self.schemes.clone(scratch),
+            .annotations = try self.annotations.clone(scratch),
+            .always_inline = try self.always_inline.clone(scratch),
+            .known = self.known,
+            .primitives = self.primitives,
         };
     }
 

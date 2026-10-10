@@ -6,6 +6,8 @@ asserts: core, types, values, stg
 a reusable value rather than an error.
 
 --- tql ---
+import Data.Function (const);
+
 add x y = x + y;
 main =
   let { add10 = add 10; }

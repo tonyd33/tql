@@ -6,6 +6,8 @@ asserts: values
 every `t`.
 
 --- tql ---
+import Data.Function (const);
+
 data Tagged t = Tagged Int deriving (Serial);
 tag :: Int -> Tagged (Int -> Int);
 tag n = Tagged n;

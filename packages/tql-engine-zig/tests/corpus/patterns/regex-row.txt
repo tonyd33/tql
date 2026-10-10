@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 f s = case s of { r"^on" -> "handler"; _ -> "other"; };
 
 main = const [f "onClick", f "render"];

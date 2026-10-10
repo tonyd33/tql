@@ -85,8 +85,8 @@ test "a method of a dictionary built in place becomes its field" {
     var pb = try core.test_support.ProgramBuilder.init(std.testing.allocator);
     defer pb.deinit();
     const e = &pb.env;
-    const class = try e.classes.declare(.{ .name = .{ .module = .prelude, .name = "Describe" } });
-    const describe = try e.interner.intern(.prelude, "describe", .{ .method = .{ .class = class, .index = 0 } });
+    const class = try e.classes.declare(.{ .name = .{ .module = .prim, .name = "Describe" } });
+    const describe = try e.interner.intern(.prim, "describe", .{ .method = .{ .class = class, .index = 0 } });
     e.classes.getMut(class).methods = try e.allocator().dupe(core.SymbolId, &.{describe});
     const constructor = try pb.global("dict[Describe]");
     e.classes.getMut(class).constructor = constructor;

@@ -337,7 +337,7 @@ const TestTerms = struct {
     }
 
     fn global(self: *TestTerms, name: []const u8) !core.SymbolId {
-        return try self.interner.intern(.prelude, name, .vanilla);
+        return try self.interner.intern(.prim, name, .vanilla);
     }
 
     fn local(self: *TestTerms, name: []const u8) !core.SymbolId {

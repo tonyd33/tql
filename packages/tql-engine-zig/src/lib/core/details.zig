@@ -118,7 +118,7 @@ pub const PrimOp = enum {
     eq_kind,
     ne_kind,
 
-    /// Returns the name the prelude writes it by.
+    /// Returns the name `Prim` writes it by.
     pub fn spelling(self: PrimOp) []const u8 {
         return switch (self) {
             inline else => |primop| "%" ++ @tagName(primop),
@@ -189,7 +189,7 @@ pub const Pseudo = enum {
     /// `\a b -> case a of { _ -> b }`.
     seq,
 
-    /// Returns the name the prelude writes it by.
+    /// Returns the name `Prim` writes it by.
     pub fn spelling(self: Pseudo) []const u8 {
         return switch (self) {
             inline else => |pseudo| "%" ++ @tagName(pseudo),

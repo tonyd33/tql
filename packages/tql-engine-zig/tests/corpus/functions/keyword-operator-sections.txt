@@ -3,6 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+import Data.List (append, map);
+
 main = const (append (map (True and) [True, False]) (map (or False) [True, False]));
 
 --- source ---

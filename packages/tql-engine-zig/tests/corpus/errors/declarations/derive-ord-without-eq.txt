@@ -5,12 +5,14 @@ asserts: error
 `Eq` is `Ord`'s superclass, so `Ord T` needs `Eq T`.
 
 --- tql ---
+import Data.Function (const);
+
 data T = T Int deriving (Ord);
 main = const [];
 
 --- error ---
 error[invalid-instance]: `Ord T` needs `Eq T`
- --> 1:26
+ --> 3:26
   |
-1 | data T = T Int deriving (Ord);
+3 | data T = T Int deriving (Ord);
   |                          ^^^

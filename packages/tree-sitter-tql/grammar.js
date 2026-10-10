@@ -88,6 +88,7 @@ module.exports = grammar({
           optional(field("constructors", $.all_constructors)),
         ),
         seq("pattern", field("synonym", $.type_identifier)),
+        seq("module", field("module", $.module_name)),
       ),
 
     all_constructors: _ => seq("(", "..", ")"),

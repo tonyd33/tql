@@ -3,6 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (identity);
+
 main = collect (children | of_kind :class_declaration | #name | arr text) | identity;
 
 --- source ---

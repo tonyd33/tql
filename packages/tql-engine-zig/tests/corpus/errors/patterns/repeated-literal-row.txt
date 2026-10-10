@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 f n = case n of {
   1 -> "one";
   1 -> "uno";
@@ -13,7 +15,7 @@ main = const [f 1];
 
 --- error ---
 error[type-mismatch]: `1` is never matched
- --> 3:3
+ --> 5:3
   |
-3 |   1 -> "uno";
+5 |   1 -> "uno";
   |   ^

@@ -673,7 +673,7 @@ pub const Inference = struct {
     /// at the signature.
     ///
     /// `desugar.Program.components` is already in dependency order, so a callee's
-    /// scheme is generalized before its caller's body is inferred. The prelude
+    /// scheme is generalized before its caller's body is inferred. The library
     /// arrives in earlier components than user code and needs no special case.
     pub fn component(
         self: *Inference,

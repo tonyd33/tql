@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 instance Nope Int where {
   nope n = n;
 };
@@ -10,11 +12,11 @@ main = const [];
 
 --- error ---
 error[unresolved-name]: `Nope` is not a class
- --> 1:1
+ --> 3:1
   |
-1 | instance Nope Int where {
+3 | instance Nope Int where {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^
-2 |   nope n = n;
+4 |   nope n = n;
   |   ^^^^^^^^^^^
-3 | };
+5 | };
   | ^^

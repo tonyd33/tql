@@ -11,9 +11,9 @@ pub const Laws = struct {
     interner: *const core.Interner,
     classes: *const core.classes.Registry,
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
-    /// Null when the prelude has none.
+    /// Null when the library has none.
     kleisli: ?core.SymbolId,
-    /// Null when the prelude has none.
+    /// Null when the library has none.
     concat_map: ?core.SymbolId,
     nil: core.SymbolId,
     cons: core.SymbolId,

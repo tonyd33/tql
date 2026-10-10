@@ -6,6 +6,8 @@ Every `Name` equals every other, so two people with different names and the
 same number are equal.
 
 --- tql ---
+import Data.Function (const);
+
 data Name = Name String;
 instance Eq Name where { eq a b = true; };
 data Person = Person Name Int deriving (Eq);

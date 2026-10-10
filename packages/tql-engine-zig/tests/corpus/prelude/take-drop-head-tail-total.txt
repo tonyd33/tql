@@ -3,6 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+import Data.List (drop, head, tail, take);
+
 main =
   const [take 2 [1, 2, 3], drop 2 [1, 2, 3], head [1, 2, 3], tail [1, 2, 3],
          take 5 [1], drop 5 [1], head [], tail [], take 0 [1]];

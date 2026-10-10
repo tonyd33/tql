@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 data S = S Int deriving (Eq, Eq);
 main = const [];
 
 --- error ---
 error[invalid-deriving]: `Eq` is derived more than once
- --> 1:30
+ --> 3:30
   |
-1 | data S = S Int deriving (Eq, Eq);
+3 | data S = S Int deriving (Eq, Eq);
   |                              ^^

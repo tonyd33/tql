@@ -51,12 +51,12 @@ const Fixture = struct {
         gpa.destroy(self);
     }
 
-    /// The prelude's own view: every structural type, no imports.
+    /// `Prim`'s own view: every structural type, no imports.
     fn scope(self: *const Fixture) ModuleScope {
         return .{
-            .module = .prelude,
+            .module = .prim,
             .imports = &.{},
-            .exports = &.{.all},
+            .exports = &.{},
             .interner = &self.env.interner,
             .datatypes = &self.env.datatypes,
             .classes = &self.env.classes,

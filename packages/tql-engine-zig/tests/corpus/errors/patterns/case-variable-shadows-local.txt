@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 f x xs = case xs of {
   [x] -> x;
   _ -> 0;
@@ -12,7 +14,7 @@ main = const [f 1 [2]];
 
 --- error ---
 error[shadowed-local]: `x` in a pattern would shadow the local `x`; bind another name and compare after the bind
- --> 2:4
+ --> 4:4
   |
-2 |   [x] -> x;
+4 |   [x] -> x;
   |    ^

@@ -1,0 +1,25 @@
+module Data.Node (
+  Node,
+  Kind,
+  Range,
+  Point,
+  text,
+  kind,
+  kind_name,
+  is_named,
+  is_extra,
+  range,
+  filename,
+  parent,
+  ancestors,
+  children,
+  named_children,
+  descendants,
+  named_descendants,
+  children_of_kind,
+  descendants_of_kind,
+  of_kind,
+  is_kind,
+);
+
+import Prim;

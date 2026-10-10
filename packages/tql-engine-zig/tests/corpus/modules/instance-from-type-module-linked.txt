@@ -31,6 +31,7 @@ gallery = [Circle 1, Square 2];
 --- tql ---
 import Classes;
 import Gallery;
+import Data.List (map);
 
 names = map describe gallery;
 

@@ -7,6 +7,8 @@ does, since `has` has no compiler special casing. This is evidence for the
 claim that the prelude is ordinary higher-order TQL.
 
 --- tql ---
+import Data.List (null);
+
 methods = #body | children | of_kind :method_definition;
 
 main =

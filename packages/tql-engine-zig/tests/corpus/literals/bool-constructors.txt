@@ -5,6 +5,8 @@ asserts: core, types, values
 A list has one element type, so this case lists bools only.
 
 --- tql ---
+import Data.Function (const);
+
 main = const [true, false, true];
 
 --- source ---

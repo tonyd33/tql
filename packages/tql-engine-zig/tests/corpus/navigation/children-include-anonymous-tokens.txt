@@ -5,6 +5,8 @@ asserts: types, values
 `type` in `import type` is an anonymous keyword outside any field.
 
 --- tql ---
+import Data.List (map);
+
 main = descendants_of_kind :import_statement | collect children | arr (map kind);
 
 --- source ---

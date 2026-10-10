@@ -1,4 +1,4 @@
-title: a primitive type representation is not visible outside the prelude
+title: only a built-in type takes a representation
 grammar: typescript
 asserts: error
 
@@ -7,7 +7,7 @@ data Count = %Int;
 main root = [1];
 
 --- error ---
-error[unresolved-name]: `%Int` is not defined
+error[type-mismatch]: `Count` is not a built-in type, so it cannot be represented as `%Int`
  --> 1:14
   |
 1 | data Count = %Int;

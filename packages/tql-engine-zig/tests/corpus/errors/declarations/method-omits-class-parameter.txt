@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: Int -> String; };
 main = const [];
 
 --- error ---
 error[invalid-class]: `describe` does not mention `a`, the parameter of `Describe`
- --> 1:26
+ --> 3:26
   |
-1 | class Describe a where { describe :: Int -> String; };
+3 | class Describe a where { describe :: Int -> String; };
   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^

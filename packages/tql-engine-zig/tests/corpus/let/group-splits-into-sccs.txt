@@ -7,6 +7,8 @@ asserts: core, values
 innermost.
 
 --- tql ---
+import Data.Function (const);
+
 main =
   let {
     answer = [is_even four, is_odd four];

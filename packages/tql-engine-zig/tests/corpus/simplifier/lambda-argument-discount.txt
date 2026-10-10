@@ -7,6 +7,8 @@ application of `k` is removed and the call is inlined; called with the
 parameter `g` it stays a call.
 
 --- tql ---
+import Data.Function (const);
+
 combine :: (Int -> Int -> Int) -> Int;
 combine k = k 1 2 + k 3 4;
 

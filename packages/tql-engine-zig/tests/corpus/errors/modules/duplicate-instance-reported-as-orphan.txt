@@ -21,7 +21,7 @@ instance Describe Int where { describe n = "again"; };
 main root = [1];
 
 --- error ---
-error[orphan-instance]: `Describe Int` must be declared in `Classes`, which declares `Describe`, or in `Prelude`, which declares `Int`
+error[orphan-instance]: `Describe Int` must be declared in `Classes`, which declares `Describe`, or in `Prim`, which declares `Int`
  --> 3:1
   |
 3 | instance Describe Int where { describe n = "again"; };

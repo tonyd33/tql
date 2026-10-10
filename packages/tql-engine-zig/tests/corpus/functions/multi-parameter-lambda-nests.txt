@@ -6,6 +6,8 @@ asserts: core, types, values
 the same way.
 
 --- tql ---
+import Data.Function (const);
+
 main =
   let {
     a = \x y -> x + y;

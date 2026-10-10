@@ -6,6 +6,8 @@ asserts: types, values
 `Square`, whatever their fields.
 
 --- tql ---
+import Data.Function (const);
+
 data Shape = Circle Int | Square Int deriving (Eq, Ord);
 main = const [
   Circle 1 = Circle 1,

@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const [-7, 0 - 7];
 
 --- source ---

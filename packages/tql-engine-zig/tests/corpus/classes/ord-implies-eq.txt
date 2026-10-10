@@ -6,6 +6,8 @@ asserts: types, values
 implies.
 
 --- tql ---
+import Data.Function (const);
+
 within :: Ord a => a -> a -> a -> Bool;
 within lo hi x = lo <= x and x = x and x <= hi;
 main = const [within 1 3 2, within "a" "b" "c"];

@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.List (append);
+
 class Describe a where {
   describe :: a -> String;
 };

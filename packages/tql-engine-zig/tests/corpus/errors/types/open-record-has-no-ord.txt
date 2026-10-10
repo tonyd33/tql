@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 bigger r = r < r and r.x = 1;
 main = const [bigger {x = 1}];
 
 --- error ---
 error[unsatisfied-constraint]: `Ord {x: a | b}` is not satisfied.
- --> 1:12
+ --> 3:12
   |
-1 | bigger r = r < r and r.x = 1;
+3 | bigger r = r < r and r.x = 1;
   |            ^^^^^

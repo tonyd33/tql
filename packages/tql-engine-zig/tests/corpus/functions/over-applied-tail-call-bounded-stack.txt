@@ -7,6 +7,8 @@ iteration's tail call is over-applied. `acc < 0` forces the accumulator, so no
 thunk chain builds up behind it.
 
 --- tql ---
+import Data.Function (compose, identity);
+
 loop n acc =
   if n <= 0 then acc
   else if acc < 0 then 0

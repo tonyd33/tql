@@ -24,7 +24,7 @@ pub const Datatype = struct {
     /// Count of bound type parameters, numbered from zero.
     parameters: u8,
     constructors: []const Constructor,
-    /// Set from `reserveBuiltins` until the prelude's declaration claims it.
+    /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
 };
 
@@ -55,17 +55,28 @@ pub const Registry = struct {
     allocator: Allocator,
     datatypes: std.ArrayList(Datatype) = .empty,
     by_name: symbols.QualifiedName.Map(TypeId) = .empty,
-    aliases: symbols.QualifiedName.Map(Alias) = .empty,
+    /// A pointer to an alias stays valid as more are defined.
+    aliases: symbols.QualifiedName.Map(*const Alias) = .empty,
 
     pub fn init(allocator: Allocator) Registry {
         return .{ .allocator = allocator };
     }
 
+    /// A copy allocated from `allocator`, sharing the datatypes' contents.
+    pub fn clone(self: *const Registry, allocator: Allocator) Allocator.Error!Registry {
+        return .{
+            .allocator = allocator,
+            .datatypes = try self.datatypes.clone(allocator),
+            .by_name = try self.by_name.clone(allocator),
+            .aliases = try self.aliases.clone(allocator),
+        };
+    }
+
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// The prelude declares the primitives, `List`, `Bool` and `Ordering`;
-    /// these rows reserve their ids so a primitive scheme can name any of them
-    /// before the prelude is parsed.
+    /// `Prim` declares the primitives, `List`, `Bool` and `Ordering`; these
+    /// rows reserve their ids so a primitive scheme can name any of them
+    /// before `Prim` is parsed.
     pub const Structural = struct {
         name: []const u8,
         parameters: u8,
@@ -110,22 +121,22 @@ pub const Registry = struct {
         };
     };
 
-    /// Declares the prelude's built-in types: the aliases `Range` and `Point`,
-    /// and each `Structural` row with no constructors yet. The primitive
-    /// schemes mention them, so their ids must exist before `prelude.tql` is
-    /// parsed; the prelude's own declarations fill the constructors in.
+    /// Declares `Prim`'s built-in types: the aliases `Range` and `Point`, and
+    /// each `Structural` row with no constructors yet. The primitive schemes
+    /// mention them, so their ids must exist before `Prim` is parsed; its own
+    /// declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
-            try self.defineAlias(.prelude, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
+            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
         }
         for (Structural.all) |s| {
-            const id = try self.declare(interner, .prelude, s.name, s.parameters, &.{});
+            const id = try self.declare(interner, .prim, s.name, s.parameters, &.{});
             if (s.representation) |p| std.debug.assert(id == p.id());
             self.datatypes.items[@intFromEnum(id)].reserved = true;
         }
     }
 
-    /// Marks reserved `id` as declared by the prelude.
+    /// Marks reserved `id` as declared by `Prim`.
     pub fn claim(self: *Registry, id: TypeId) void {
         self.datatypes.items[@intFromEnum(id)].reserved = false;
     }
@@ -139,11 +150,11 @@ pub const Registry = struct {
     }
 
     pub fn listId(self: *const Registry) TypeId {
-        return self.lookup(.prelude, types.list_spelling).?;
+        return self.lookup(.prim, types.list_spelling).?;
     }
 
     pub fn boolId(self: *const Registry) TypeId {
-        return self.lookup(.prelude, types.bool_spelling).?;
+        return self.lookup(.prim, types.bool_spelling).?;
     }
 
     /// The constructor `b` denotes. `False` is tag 0 and `True` is tag 1,
@@ -154,7 +165,7 @@ pub const Registry = struct {
     }
 
     pub fn orderingId(self: *const Registry) TypeId {
-        return self.lookup(.prelude, types.ordering_spelling).?;
+        return self.lookup(.prim, types.ordering_spelling).?;
     }
 
     /// The constructor `order` denotes: `LT`, `EQ` or `GT`, tags 0 to 2 of
@@ -276,12 +287,14 @@ pub const Registry = struct {
 
     /// `alias` and everything it points to must outlive the registry.
     pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
-        try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, alias);
+        const stored = try self.allocator.create(Alias);
+        stored.* = alias;
+        try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, stored);
     }
 
     /// The alias `module` declares as `name`.
     pub fn aliasNamed(self: *const Registry, module: symbols.ModuleId, name: []const u8) ?*const Alias {
-        return self.aliases.getPtr(.{ .module = module, .name = name });
+        return self.aliases.get(.{ .module = module, .name = name });
     }
 
     pub fn constructorOf(

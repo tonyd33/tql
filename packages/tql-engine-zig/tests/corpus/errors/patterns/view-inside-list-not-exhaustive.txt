@@ -6,6 +6,8 @@ The value that falls through is a one-element list whose element the view
 rejects.
 
 --- tql ---
+import Data.Function (const);
+
 f xs = case xs of {
   [] -> 0;
   [(\x -> x > 0 -> True)] -> 1;
@@ -16,14 +18,14 @@ main = const [f [1]];
 
 --- error ---
 error[type-mismatch]: `[_]` is not matched
- --> 1:8
+ --> 3:8
   |
-1 | f xs = case xs of {
+3 | f xs = case xs of {
   |        ^^^^^^^^^^^^
-2 |   [] -> 0;
+4 |   [] -> 0;
   |   ^^^^^^^^
 ...
-4 |   _ : _ : _ -> 2;
+6 |   _ : _ : _ -> 2;
   |   ^^^^^^^^^^^^^^^
-5 | };
+7 | };
   | ^

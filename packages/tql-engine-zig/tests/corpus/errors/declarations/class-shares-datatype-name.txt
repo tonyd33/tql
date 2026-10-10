@@ -3,13 +3,15 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Shape a where { area :: a -> Int; };
 data Shape = Circle Int;
 main = const [];
 
 --- error ---
 error[duplicate-definition]: `Shape` is declared more than once
- --> 2:1
+ --> 4:1
   |
-2 | data Shape = Circle Int;
+4 | data Shape = Circle Int;
   | ^^^^^^^^^^^^^^^^^^^^^^^^

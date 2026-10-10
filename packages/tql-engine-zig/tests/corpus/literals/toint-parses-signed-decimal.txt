@@ -3,6 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
+import Data.Function (const);
+import Data.Int (toint);
+
 main = const ["42", "-7"] | toint;
 
 --- source ---

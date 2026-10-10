@@ -1,0 +1,12 @@
+title: a primitive's `%` name resolves in any module
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = [%kind_name root];
+
+--- source ---
+let x = 1;
+
+--- values ---
+["program"]

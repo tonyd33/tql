@@ -5314,6 +5314,16 @@
           }
         ]
       },
+      "module": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "module_name",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": false,

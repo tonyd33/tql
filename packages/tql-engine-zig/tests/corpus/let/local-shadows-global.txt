@@ -8,6 +8,8 @@ the global binding, so shadowing is lexical rather than dynamic. `other` being
 declared later also exercises forward reference.
 
 --- tql ---
+import Data.Function (const);
+
 label = "global";
 main =
   let { label = "local" }

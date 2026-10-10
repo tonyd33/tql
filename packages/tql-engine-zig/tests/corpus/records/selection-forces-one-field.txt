@@ -5,6 +5,8 @@ asserts: values
 `b` diverges, but nothing reads it.
 
 --- tql ---
+import Data.Function (const);
+
 loop x = loop x;
 main = const [{a = 1, b = loop 0}.a];
 

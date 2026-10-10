@@ -5,6 +5,8 @@ asserts: core, types, values
 `2 + 3 * 4` is `2 + (3 * 4)`; `10 - 3 - 2` is `(10 - 3) - 2`.
 
 --- tql ---
+import Data.Function (const);
+
 main = const [2 + 3 * 4, 10 - 3 - 2];
 
 --- source ---

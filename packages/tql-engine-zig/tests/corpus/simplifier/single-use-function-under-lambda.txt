@@ -3,6 +3,9 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.Function (const);
+import Data.List (map);
+
 main = let { f x = x * 2 } in const (map (\y -> f y + 1) [1, 2]);
 
 --- source ---

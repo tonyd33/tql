@@ -6,6 +6,8 @@ asserts: core, types, values, stg
 one component, then generalized together.
 
 --- tql ---
+import Data.Function (const);
+
 main =
   let {
     is_even n = if n = 0 then true else is_odd (n - 1);

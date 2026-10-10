@@ -1,3 +1,6 @@
+import Data.Int (toint);
+import Data.List (concat_map, map, null, take);
+
 data Size = Small | Medium | Large Int;
 
 classify n = if n < 16 then Small else if n < 4096 then Medium else Large n;

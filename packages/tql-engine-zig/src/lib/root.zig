@@ -27,14 +27,12 @@ const grammar = @import("lang/grammar.zig");
 const string_literal = @import("lang/string_literal.zig");
 const pcre2 = @import("regex.zig");
 
-/// The prelude, linked beneath every query.
-pub const prelude_source = @embedFile("prelude.tql");
-
 pub const load = @import("load.zig");
 pub const Loader = load.Loader;
 
-/// The libraries every host can import.
-pub const bundled_modules: []const load.Bundled = &.{};
+/// The modules every host can import, `Prelude` among them.
+pub const library = @import("library.zig");
+pub const Library = library.Library;
 
 // IMPROVE: don't export this
 pub const ds = @import("ds.zig");
@@ -47,8 +45,9 @@ pub const CompileTimes = struct {
     parse: std.Io.Duration = .zero,
     /// Reading and parsing every module the query imports.
     load: std.Io.Duration = .zero,
-    /// Parsing and desugaring `prelude.tql`.
-    prelude: std.Io.Duration = .zero,
+    /// Starting the link from the compiled library, and compiling it first
+    /// when the engine has none yet.
+    library: std.Io.Duration = .zero,
     /// Desugaring and linking the query and its imports.
     desugar: std.Io.Duration = .zero,
     type_check: std.Io.Duration = .zero,
@@ -77,9 +76,13 @@ pub const Config = struct {
 pub const Engine = struct {
     config: Config,
     tql_parser: parse.Parser,
-    /// Where an imported module's source comes from, besides `bundled`.
+    /// Where an imported module's source comes from, besides the library.
     loader: ?Loader = null,
-    bundled: []const load.Bundled = bundled_modules,
+    /// The compiled library every link extends. It must outlive the engine
+    /// and every program the engine links. Null until the first link compiles
+    /// one, which the engine then owns.
+    library: ?*const Library = null,
+    owned_library: ?*Library = null,
     /// What the latest compilation read besides its query.
     sources: diagnostic.Sources,
     /// How long the latest compilation's stages took, up to type checking.
@@ -94,6 +97,10 @@ pub const Engine = struct {
     }
 
     pub fn deinit(self: *Engine) void {
+        if (self.owned_library) |owned| {
+            owned.deinit();
+            self.config.allocator.destroy(owned);
+        }
         self.sources.deinit();
         self.tql_parser.deinit();
     }
@@ -113,9 +120,9 @@ pub const Engine = struct {
         return try self.tql_parser.parseCollecting(query_source, .entry);
     }
 
-    /// Parse and desugar a query, then link it against the prelude and every
+    /// Parse and desugar a query, then link it against the library and every
     /// module it imports into a resolved program. Diagnostics are collected;
-    /// the caller owns the result.
+    /// the caller owns the result, which must not outlive the library.
     pub fn desugarQuery(
         self: *Engine,
         query_source: []const u8,
@@ -143,23 +150,17 @@ pub const Engine = struct {
     ) !core.Program {
         const io = self.config.io;
         self.sources.clear();
-        var desugarer = try tql_to_core.Desugarer.init(self.config.allocator);
+        try library.addSources(&self.sources);
+
+        const library_start = std.Io.Timestamp.now(io, .real);
+        var desugarer = try (try self.compiledLibrary(sink)).link(self.config.allocator);
         defer desugarer.deinit();
-
-        const prelude_start = std.Io.Timestamp.now(io, .real);
-        try self.addPrelude(&desugarer, sink);
-        self.times.prelude = prelude_start.untilNow(io, .real);
-
-        var shipped: load.BundledLoader = .{ .modules = self.bundled };
-        var loaders: std.ArrayList(Loader) = .empty;
-        defer loaders.deinit(self.config.allocator);
-        if (self.loader) |l| try loaders.append(self.config.allocator, l);
-        try loaders.append(self.config.allocator, shipped.loader());
+        self.times.library = library_start.untilNow(io, .real);
 
         var graph: load.Graph = .{
             .gpa = self.config.allocator,
             .parser = &self.tql_parser,
-            .loaders = loaders.items,
+            .loader = self.loader,
             .sources = &self.sources,
         };
         defer graph.deinit();
@@ -195,23 +196,15 @@ pub const Engine = struct {
         return program;
     }
 
-    /// Parses and desugars `prelude.tql` into the link.
-    ///
-    /// Recompiled per link: a module's `SymbolId`s index the registry it was
-    /// desugared against, so a cached one would be valid only per registry
-    /// prefix. The prelude is grammar-generic.
-    fn addPrelude(
-        self: *Engine,
-        desugarer: *tql_to_core.Desugarer,
-        sink: *diagnostic.Sink,
-    ) !void {
-        const id = try self.sources.add(.{ .name = "prelude.tql", .text = prelude_source });
-        var parsed = try self.tql_parser.parseCollecting(prelude_source, id);
-        defer parsed.deinit();
-        // Compiled in, so a parse error here is a bug in this repository.
-        if (parsed.hasErrors()) return error.PreludeInvalid;
-
-        try desugarer.add(.prelude, &.{}, parsed.source_file, null, sink);
+    /// The library links extend, compiled on first use unless one was given.
+    fn compiledLibrary(self: *Engine, sink: *diagnostic.Sink) !*const Library {
+        if (self.library) |shared| return shared;
+        const owned = try self.config.allocator.create(Library);
+        errdefer self.config.allocator.destroy(owned);
+        owned.* = try Library.init(self.config.allocator, sink);
+        self.owned_library = owned;
+        self.library = owned;
+        return owned;
     }
 
     /// Check and translate a query once, for running against many targets.
@@ -384,26 +377,25 @@ test {
     refAllDecls(inspect);
 }
 
-test "a module both bundled and loaded is ambiguous" {
+test "a module both in the library and loaded is ambiguous" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
     defer grammars.deinit();
     var engine = try Engine.init(.{ .allocator = allocator, .io = std.testing.io });
     defer engine.deinit();
-    engine.bundled = &.{.{ .name = "Lib", .path = "bundled/Lib.tql", .text = "module Lib; answer = 42;" }};
-    var modules: load.BundledLoader = .{ .modules = &.{.{ .name = "Lib", .path = "lib/Lib.tql", .text = "module Lib; answer = 1;" }} };
+    var modules: load.MapLoader = .{ .modules = &.{.{ .name = "Data.List", .path = "lib/Data/List.tql", .text = "module Data.List; answer = 1;" }} };
     engine.loader = modules.loader();
     var sink = diagnostic.Sink.init(allocator);
     defer sink.deinit();
 
     try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
-        "import Lib; main root = [answer];",
+        "import Data.List; main root = [answer];",
         try grammars.get("typescript"),
         &sink,
     ));
     try std.testing.expectEqual(1, sink.items().len);
     try std.testing.expectEqual(.ambiguous_module, sink.items()[0].category);
-    try std.testing.expectEqualStrings("`Lib` is found as both `lib/Lib.tql` and `bundled/Lib.tql`", sink.items()[0].message);
+    try std.testing.expectEqualStrings("`Data.List` is found as both `lib/Data/List.tql` and `Data/List.tql`", sink.items()[0].message);
 }
 
 test "compileQuery times every stage" {
@@ -433,6 +425,6 @@ test "compile times serialize as <stage>_ns" {
     var jws: std.json.Stringify = .{ .writer = &w.writer };
     try jws.write(CompileTimes{ .parse = .fromNanoseconds(1), .translate = .fromNanoseconds(7) });
     try std.testing.expectEqualStrings(
-        \\{"parse_ns":1,"load_ns":0,"prelude_ns":0,"desugar_ns":0,"type_check_ns":0,"simplify_ns":0,"translate_ns":7}
+        \\{"parse_ns":1,"load_ns":0,"library_ns":0,"desugar_ns":0,"type_check_ns":0,"simplify_ns":0,"translate_ns":7}
     , w.written());
 }

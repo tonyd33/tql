@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const $ do {
   n & ((* n) -> 9) <- [1, 2, 3, 4];
   return n;

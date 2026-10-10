@@ -6,6 +6,8 @@ asserts: values
 `t`, even a function type.
 
 --- tql ---
+import Data.Function (const);
+
 data Tagged t = Tagged Int deriving (Eq);
 same :: Tagged (Int -> Int) -> Tagged (Int -> Int) -> Bool;
 same a b = a = b;

@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
+import Data.List (null);
+
 main root = do {
   (of_kind :call_expression -> [
     call & (#function -> [(of_kind :member_expression -> [

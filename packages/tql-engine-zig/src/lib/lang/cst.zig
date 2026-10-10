@@ -46,6 +46,7 @@ pub const SourceFile = struct {
         try w.print(" ({s}", .{if (filter == .hiding) "hiding" else label});
         for (items) |item| switch (item.kind) {
             .synonym => try w.print(" (pattern {s})", .{item.name}),
+            .module => try w.print(" (module {s})", .{item.name}),
             .type_and_constructors => try w.print(" {s}(..)", .{item.name}),
             .value, .type => try w.print(" {s}", .{item.name}),
         };
@@ -86,13 +87,13 @@ pub const Filter = union(enum) {
     hiding: []const Item,
 };
 
-/// `x`, `T`, `T(..)` or `pattern P` in an export or import list.
+/// `x`, `T`, `T(..)`, `pattern P` or `module M` in an export or import list.
 pub const Item = struct {
     name: []const u8,
     kind: Kind,
     span: diagnostic.Span = .unknown,
 
-    pub const Kind = enum { value, type, type_and_constructors, synonym };
+    pub const Kind = enum { value, type, type_and_constructors, synonym, module };
 };
 
 /// `name :: type;` or `name p1 p2 = body;`.
@@ -501,6 +502,8 @@ pub const Expression = struct {
         /// `:class_declaration`, carried without the leading colon.
         kind_test: Identifier,
         name: Identifier,
+        /// `%text`, carried with its `%`.
+        primitive: Identifier,
         number: i64,
         string: []const u8,
         boolean: bool,
@@ -528,7 +531,7 @@ pub const Expression = struct {
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .kind_test => |k| try w.print("(kind {s})", .{k}),
-            .name => |n| try w.print("{s}", .{n}),
+            .name, .primitive => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
             .boolean => |b| try w.writeAll(if (b) "true" else "false"),

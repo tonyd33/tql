@@ -6,6 +6,8 @@ asserts: types, values
 stops at 0 despite the infinite source.
 
 --- tql ---
+import Data.List (all);
+
 from n = pure n <|> from (n + 1);
 negative n = n < 0;
 main root = return $ all negative (from 0 root);

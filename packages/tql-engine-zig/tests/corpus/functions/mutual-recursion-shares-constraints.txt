@@ -6,6 +6,8 @@ asserts: types, values
 schemes carry the constraint.
 
 --- tql ---
+import Data.Function (const);
+
 f x = if x = x then 1 else g x;
 g x = f x;
 main = const [g 1, f "s"];

@@ -5,6 +5,8 @@ asserts: core, types, values
 `[1]` matches both `Cons x Nil` and `Cons x t`.
 
 --- tql ---
+import Data.Function (const);
+
 shape xs = case xs of {
   Cons x Nil -> 1;
   Cons x t -> 2;

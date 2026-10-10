@@ -7,6 +7,8 @@ which is known, so the call goes to `describe[Shape]` and no dictionary is
 built.
 
 --- tql ---
+import Data.List (concat_map);
+
 class Describe a where {
   describe :: a -> [String];
 };

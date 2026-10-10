@@ -1,0 +1,21 @@
+module Data.Bool (Bool(..), not, and, or);
+
+import Prim (Bool(..));
+
+not :: Bool -> Bool;
+not b = case b of {
+  False -> True;
+  True -> False;
+};
+
+and :: Bool -> Bool -> Bool;
+and a b = case a of {
+  False -> False;
+  True -> b;
+};
+
+or :: Bool -> Bool -> Bool;
+or a b = case a of {
+  False -> b;
+  True -> True;
+};

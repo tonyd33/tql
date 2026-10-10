@@ -6,6 +6,8 @@ asserts: core, values
 row matches. The last row is reached from several paths and is bound once.
 
 --- tql ---
+import Data.Function (const);
+
 f xs = case xs of {
   [a, b] if a = b -> "pair";
   [_, _] -> "two";

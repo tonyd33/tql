@@ -43,17 +43,37 @@ pub const Desugarer = struct {
     entry_offset: u32 = 0,
     /// The linked index of every definition added so far.
     linked: std.AutoHashMapUnmanaged(core.SymbolId, u32) = .empty,
-    /// What each module exports, by `ModuleId`.
-    exports: std.ArrayList(cst.Filter) = .empty,
+    /// What each module added so far exports, by `ModuleId`.
+    exports: std.ArrayList(scope_mod.Exports) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) !Desugarer {
         var target = try core.env.Env.init(allocator);
         errdefer target.deinit();
         try primitives.populate(&target);
+        return .{ .allocator = allocator, .env = target };
+    }
 
-        var exports: std.ArrayList(cst.Filter) = .empty;
-        try exports.append(allocator, .all);
-        return .{ .allocator = allocator, .env = target, .exports = exports };
+    /// A desugarer holding everything `base` has added. It shares what `base`
+    /// allocated, so `base` must outlive it and every program it finishes,
+    /// and must not change meanwhile.
+    pub fn extend(allocator: std.mem.Allocator, base: *const Desugarer) !Desugarer {
+        var target = try base.env.?.clone(allocator);
+        errdefer target.deinit();
+        var definitions = try base.definitions.clone(allocator);
+        errdefer definitions.deinit(allocator);
+        var edges = try base.edges.clone(allocator);
+        errdefer edges.deinit(allocator);
+        var linked = try base.linked.clone(allocator);
+        errdefer linked.deinit(allocator);
+        return .{
+            .allocator = allocator,
+            .env = target,
+            .definitions = definitions,
+            .edges = edges,
+            .entry_offset = base.entry_offset,
+            .linked = linked,
+            .exports = try base.exports.clone(allocator),
+        };
     }
 
     pub fn deinit(self: *Desugarer) void {
@@ -84,8 +104,8 @@ pub const Desugarer = struct {
                 .datatype => |id| id,
                 else => null,
             } else null;
-            // A structural type is reserved before any source is read, so the
-            // prelude's declaration fills in the row already standing rather
+            // A structural type is reserved before any source is read, so
+            // `Prim`'s declaration fills in the row already standing rather
             // than opening a new one.
             const reserved = if (existing) |id| self.env.?.datatypes.get(id).reserved else false;
 
@@ -106,7 +126,12 @@ pub const Desugarer = struct {
                 }
                 self.env.?.datatypes.claim(existing.?);
             } else if (declared.representation) |r| {
-                try sink.report(.unresolved_name, r.span, "`{s}` is not defined", .{r.name});
+                try sink.report(
+                    .type_mismatch,
+                    r.span,
+                    "`{s}` is not a built-in type, so it cannot be represented as `{s}`",
+                    .{ declared.name, r.name },
+                );
                 continue;
             }
 
@@ -287,9 +312,9 @@ pub const Desugarer = struct {
         );
     }
 
-    /// Declares a module for `add`. `ModuleId.prelude` is declared already.
-    pub fn declareModule(self: *Desugarer, name: []const u8, exports: cst.Filter) !core.ModuleId {
-        try self.exports.append(self.allocator, exports);
+    /// Declares a module for `add`. The library's modules are declared
+    /// already.
+    pub fn declareModule(self: *Desugarer, name: []const u8) !core.ModuleId {
         return try self.env.?.interner.declareModule(name);
     }
 
@@ -299,6 +324,7 @@ pub const Desugarer = struct {
     ///
     /// Preconditions:
     /// - Each module `imports` names was added before.
+    /// - Every module declared before `module` was added.
     pub fn add(
         self: *Desugarer,
         module: core.ModuleId,
@@ -337,7 +363,10 @@ pub const Desugarer = struct {
             .kind = .{ .value = .{ .definition = m.definition } },
         });
 
-        if (!try scope.checkItems(sink)) return error.DesugarFailed;
+        if (!try scope.checkImports(sink)) return error.DesugarFailed;
+        const header_exports: cst.Filter = if (source.header) |h| h.exports else .all;
+        const exports = try scope.exportsOf(self.env.?.allocator(), header_exports, sink) orelse
+            return error.DesugarFailed;
         var failed = class_linker.failed;
 
         const first: u32 = @intCast(self.linked.count());
@@ -405,6 +434,8 @@ pub const Desugarer = struct {
         self.entry_offset = first;
         try self.definitions.appendSlice(self.allocator, definitions);
         try self.edges.appendSlice(self.allocator, edges);
+        std.debug.assert(self.exports.items.len == @intFromEnum(module));
+        try self.exports.append(self.allocator, exports);
     }
 
     /// The linked indices of the definitions `body` mentions, in first-mention

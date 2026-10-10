@@ -1,3 +1,5 @@
+import Data.List (map, null);
+
 is_mutable n = is_kind :list n or is_kind :dictionary n or is_kind :set n;
 
 mutable_default =

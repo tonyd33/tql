@@ -8,8 +8,7 @@ const grammar = @import("lang/grammar.zig");
 const parse = @import("parse.zig");
 const tql_to_core = @import("tql_to_core.zig");
 const core = @import("core.zig");
-
-const prelude_name = core.ModuleId.prelude_name;
+const library = @import("library.zig");
 
 /// Where module sources come from.
 pub const Loader = struct {
@@ -30,24 +29,24 @@ pub const Loaded = union(enum) {
     failed: []const u8,
 };
 
-/// A module shipped inside the engine, found by name in every host.
-pub const Bundled = struct {
+/// A module source held in memory.
+pub const Named = struct {
     name: []const u8,
     /// How diagnostics name it.
     path: []const u8,
     text: []const u8,
 };
 
-/// Serves bundled modules by name.
-pub const BundledLoader = struct {
-    modules: []const Bundled,
+/// Serves sources held in memory by name.
+pub const MapLoader = struct {
+    modules: []const Named,
 
-    pub fn loader(self: *BundledLoader) Loader {
+    pub fn loader(self: *MapLoader) Loader {
         return .{ .context = self, .loadFn = load };
     }
 
     fn load(context: *anyopaque, name: []const u8) Loaded {
-        const self: *BundledLoader = @ptrCast(@alignCast(context));
+        const self: *MapLoader = @ptrCast(@alignCast(context));
         for (self.modules) |m| {
             if (std.mem.eql(u8, m.name, name)) return .{ .found = .{ .name = m.path, .text = m.text } };
         }
@@ -79,14 +78,15 @@ const Module = struct {
 pub const Graph = struct {
     gpa: std.mem.Allocator,
     parser: *parse.Parser,
-    /// Asked in turn; a module more than one finds is ambiguous.
-    loaders: []const Loader,
+    /// Where a module outside the library comes from. A library module it
+    /// also finds is ambiguous.
+    loader: ?Loader,
     sources: *diagnostic.Sources,
     /// Each module after every module it imports, the entry last.
     order: std.ArrayList(Module) = .empty,
     /// The import chain from the entry to the module being visited.
     path: std.ArrayList(?[]const u8) = .empty,
-    /// Every module named so far, loaded or rejected, and the prelude.
+    /// Every module named so far, loaded or rejected.
     seen: std.StringHashMapUnmanaged(void) = .empty,
 
     pub fn deinit(self: *Graph) void {
@@ -101,7 +101,6 @@ pub const Graph = struct {
     /// Loads everything `entry` imports. Every problem found is reported;
     /// the graph is complete only when `sink` stays empty.
     pub fn visitEntry(self: *Graph, entry: cst.SourceFile, sink: *diagnostic.Sink) !void {
-        try self.seen.put(self.gpa, prelude_name, {});
         try self.visit(.{ .source = entry, .parsed = null }, sink);
     }
 
@@ -114,34 +113,44 @@ pub const Graph = struct {
             }
             if (self.seen.contains(import.module)) continue;
             try self.seen.put(self.gpa, import.module, {});
+            if (library.named(import.module)) |id| {
+                try self.checkUnshadowed(import, id, sink);
+                continue;
+            }
             try self.load(import, sink);
         }
         _ = self.path.pop();
         try self.order.append(self.gpa, module);
     }
 
-    fn load(self: *Graph, import: cst.Import, sink: *diagnostic.Sink) Error!void {
-        var found: ?diagnostic.Source = null;
-        for (self.loaders) |l| switch (l.load(import.module)) {
+    /// Reports a library module the loader also finds.
+    fn checkUnshadowed(self: *Graph, import: cst.Import, id: core.ModuleId, sink: *diagnostic.Sink) Error!void {
+        switch (self.find(import)) {
             .missing => {},
-            .failed => |reason| return try sink.report(
-                .unreadable_module,
+            .failed => |reason| try reportUnreadable(import, reason, sink),
+            .found => |source| try sink.report(
+                .ambiguous_module,
                 import.span,
-                "`{s}` cannot be read: {s}",
-                .{ import.module, reason },
+                "`{s}` is found as both `{s}` and `{s}`",
+                .{ import.module, source.name orelse import.module, library.modules[@intFromEnum(id)].path },
             ),
-            .found => |source| {
-                if (found) |earlier| return try sink.report(
-                    .ambiguous_module,
-                    import.span,
-                    "`{s}` is found as both `{s}` and `{s}`",
-                    .{ import.module, earlier.name orelse import.module, source.name orelse import.module },
-                );
-                found = source;
-            },
-        };
-        const source = found orelse {
-            return try sink.report(.unresolved_module, import.span, "no module is named `{s}`", .{import.module});
+        }
+    }
+
+    fn find(self: *Graph, import: cst.Import) Loaded {
+        const l = self.loader orelse return .missing;
+        return l.load(import.module);
+    }
+
+    fn reportUnreadable(import: cst.Import, reason: []const u8, sink: *diagnostic.Sink) !void {
+        try sink.report(.unreadable_module, import.span, "`{s}` cannot be read: {s}", .{ import.module, reason });
+    }
+
+    fn load(self: *Graph, import: cst.Import, sink: *diagnostic.Sink) Error!void {
+        const source = switch (self.find(import)) {
+            .missing => return try sink.report(.unresolved_module, import.span, "no module is named `{s}`", .{import.module}),
+            .failed => |reason| return try reportUnreadable(import, reason, sink),
+            .found => |source| source,
         };
         const id = try self.sources.add(source);
         var parsed = try self.parser.parseCollecting(source.text, id);
@@ -260,7 +269,6 @@ pub const Graph = struct {
     ) !void {
         var ids: std.StringHashMapUnmanaged(core.ModuleId) = .empty;
         defer ids.deinit(self.gpa);
-        try ids.put(self.gpa, prelude_name, .prelude);
         var imports: std.ArrayList(tql_to_core.Import) = .empty;
         defer imports.deinit(self.gpa);
 
@@ -268,19 +276,18 @@ pub const Graph = struct {
         for (self.order.items, 0..) |m, index| {
             imports.clearRetainingCapacity();
             const explicit_prelude = for (m.source.imports) |i| {
-                if (std.mem.eql(u8, i.module, prelude_name)) break true;
+                if (std.mem.eql(u8, i.module, library.prelude_name)) break true;
             } else false;
-            if (!explicit_prelude) try imports.append(self.gpa, .{ .module = .prelude });
+            if (!explicit_prelude) try imports.append(self.gpa, .{ .module = library.prelude });
             for (m.source.imports) |i| {
                 try imports.append(self.gpa, .{
-                    .module = ids.get(i.module).?,
+                    .module = library.named(i.module) orelse ids.get(i.module).?,
                     .qualifier = i.qualifier,
                     .selects = i.selects,
                 });
             }
 
-            const header = m.source.header;
-            const id = try desugarer.declareModule(m.name() orelse "Main", if (header) |h| h.exports else .all);
+            const id = try desugarer.declareModule(m.name() orelse "Main");
             if (m.name()) |name| try ids.put(self.gpa, name, id);
             const generic = self.required(index, &run) == null;
             try desugarer.add(id, imports.items, m.source, if (generic) null else g, sink);

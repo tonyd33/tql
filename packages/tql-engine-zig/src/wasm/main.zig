@@ -27,6 +27,9 @@ export fn tql_free(ptr: [*]u8, len: usize) void {
     gpa.free(ptr[0..len]);
 }
 
+/// Compiled by the first run and kept for every later one.
+var shared_library: ?tql.Library = null;
+
 fn runImpl(
     engine: *tql.Engine,
     grammar: *const tql.Grammar,
@@ -160,6 +163,11 @@ export fn tql_run_dynamic(
 
     var sink = tql.diagnostic.Sink.init(gpa);
     defer sink.deinit();
+
+    if (shared_library == null) {
+        shared_library = tql.Library.init(gpa, &sink) catch |err| return finishErr(&buf, out, @errorName(err));
+    }
+    engine.library = &shared_library.?;
 
     runImpl(&engine, &grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf, &sink) catch |err| {
         return finishDiagnostics(&buf, out, &engine, &sink, err);

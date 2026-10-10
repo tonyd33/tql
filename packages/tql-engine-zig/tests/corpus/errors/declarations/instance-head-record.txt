@@ -3,13 +3,15 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: a -> String; };
 instance Describe {name: String} where { describe r = "record"; };
 main = const [];
 
 --- error ---
 error[invalid-instance]: an instance head must be a declared type, not a record type
- --> 2:19
+ --> 4:19
   |
-2 | instance Describe {name: String} where { describe r = "record"; };
+4 | instance Describe {name: String} where { describe r = "record"; };
   |                   ^^^^^^^^^^^^^^

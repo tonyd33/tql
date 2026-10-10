@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.List (map);
+
 main root = do {
   args@(children -> open : _) <- descendants_of_kind :arguments root;
   return {

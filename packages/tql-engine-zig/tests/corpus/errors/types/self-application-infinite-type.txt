@@ -3,12 +3,14 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 f x = x x;
 main = const [1];
 
 --- error ---
 error[type-mismatch]: Expected `a`, found `a -> b`.
- --> 1:9
+ --> 3:9
   |
-1 | f x = x x;
+3 | f x = x x;
   |         ^

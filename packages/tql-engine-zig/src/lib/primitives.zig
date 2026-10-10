@@ -148,20 +148,20 @@ fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Schem
 }
 
 /// Declares the built-in types, then interns the primitives with their
-/// schemes. Called once on a fresh environment, before any body is resolved,
-/// so a declaration colliding with a primitive's name fails on intern.
+/// schemes, in no module. Called once on a fresh environment, before any body
+/// is resolved.
 pub fn populate(target: *core.env.Env) !void {
     try target.datatypes.reserveBuiltins(&target.interner);
 
     const B = Builder{ .arena = target.allocator(), .declared = &target.datatypes };
     for (std.enums.values(PrimOp)) |primop| {
         const scheme = try schemeOf(B, primop);
-        const id = try target.interner.intern(.prelude, primop.spelling(), .{ .primop = primop });
+        const id = try target.interner.internOrGet(primop.spelling(), .{ .primop = primop });
         try target.setScheme(id, scheme);
         target.primitives.set(primop, id);
     }
     for (std.enums.values(Pseudo)) |pseudo| {
-        _ = try target.interner.intern(.prelude, pseudo.spelling(), .{ .pseudo = pseudo });
+        _ = try target.interner.internOrGet(pseudo.spelling(), .{ .pseudo = pseudo });
     }
 }
 

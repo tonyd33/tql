@@ -1,0 +1,14 @@
+title: a library module imported qualified supplies names the prelude lacks
+grammar: typescript
+asserts: values
+
+--- tql ---
+import Data.List as L;
+
+main root = L.map (\x -> x + 1) [1, 2];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[2, 3]

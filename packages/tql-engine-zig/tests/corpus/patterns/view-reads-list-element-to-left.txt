@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 f xs = case xs of {
   [n, ((+ n) -> 3)] -> n;
   _ -> 0;

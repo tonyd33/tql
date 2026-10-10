@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Labelled a where { label :: a -> String; };
 class Labelled a => Describe a where { describe :: a -> String; };
 instance Describe Int where { describe n = "int"; };
@@ -10,7 +12,7 @@ main = const [];
 
 --- error ---
 error[invalid-instance]: `Describe Int` needs `Labelled Int`
- --> 3:1
+ --> 5:1
   |
-3 | instance Describe Int where { describe n = "int"; };
+5 | instance Describe Int where { describe n = "int"; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

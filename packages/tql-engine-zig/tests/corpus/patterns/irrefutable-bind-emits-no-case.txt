@@ -5,6 +5,8 @@ asserts: core, values
 `x`, `x@_` and `_` match every value, so each lowers to a bare `bind`.
 
 --- tql ---
+import Data.Function (const);
+
 main = const $ do {
   x <- [1, 2];
   y@_ <- [x];

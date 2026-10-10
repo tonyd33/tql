@@ -6,6 +6,8 @@ asserts: values
 forced.
 
 --- tql ---
+import Data.Function (const);
+
 data P = P Int Int deriving (Eq);
 boom :: Int;
 boom = boom;

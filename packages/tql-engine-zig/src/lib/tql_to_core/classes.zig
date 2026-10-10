@@ -49,7 +49,7 @@ pub const Linker = struct {
         for (source.declarations) |*decl| {
             if (decl.* != .class_declaration) continue;
             const declared = &decl.class_declaration;
-            if (self.module() == .prelude) {
+            if (self.module() == .prim) {
                 if (self.env.classes.reservation(declared.name)) |id| {
                     self.env.classes.getMut(id).span = declared.span;
                     try ids.append(self.arena(), id);

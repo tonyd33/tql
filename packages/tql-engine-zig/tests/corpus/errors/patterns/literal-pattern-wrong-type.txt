@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 f n = case n + 1 of {
   "one" -> 1;
   _ -> 0;
@@ -12,7 +14,7 @@ main = const [f 1];
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 2:3
+ --> 4:3
   |
-2 |   "one" -> 1;
+4 |   "one" -> 1;
   |   ^^^^^

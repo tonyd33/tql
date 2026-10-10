@@ -11,7 +11,7 @@ pub const TypeVar = u8;
 /// An unknown standing for a type not yet determined.
 pub const Meta = u32;
 
-/// A type the machine represents directly. The prelude declares each as
+/// A type the machine represents directly. `Prim` declares each as
 /// `data Int = %Int;`.
 pub const Primitive = enum(u32) {
     Int,

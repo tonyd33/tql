@@ -3,13 +3,15 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: a -> String; };
 class Describe a where { label :: a -> String; };
 main = const [];
 
 --- error ---
 error[duplicate-definition]: `Describe` is declared more than once
- --> 2:1
+ --> 4:1
   |
-2 | class Describe a where { label :: a -> String; };
+4 | class Describe a where { label :: a -> String; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

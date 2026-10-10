@@ -42,8 +42,8 @@ pub fn formatStg(
 /// `name :: scheme` per entry-module definition, in declaration order, less
 /// those generated for instances.
 ///
-/// Entry definitions only, like `formatCore`: the prelude's schemes are
-/// asserted in a `root.zig` test instead, so a prelude edit does not rewrite
+/// Entry definitions only, like `formatCore`: the library's schemes are
+/// asserted in a `root.zig` test instead, so a library edit does not rewrite
 /// every fixture's types section.
 pub fn formatTypes(
     allocator: std.mem.Allocator,

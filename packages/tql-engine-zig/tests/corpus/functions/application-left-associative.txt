@@ -6,6 +6,8 @@ asserts: core, types, values
 is what left-associativity means here.
 
 --- tql ---
+import Data.Function (const);
+
 add x y = x + y;
 main = const [add 2 3, (add 2) 3];
 

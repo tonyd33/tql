@@ -1,0 +1,29 @@
+title: `module M` re-exports only what the import of `M` selects
+grammar: typescript
+asserts: error
+
+--- module Base ---
+module Base;
+
+two = 2;
+three = 3;
+
+--- module Front ---
+module Front (module Base);
+
+import Base (two);
+
+--- tql ---
+import Front;
+
+main root = [three];
+
+--- source ---
+let x = 1;
+
+--- error ---
+error[unresolved-name]: `three` is not defined
+ --> 3:14
+  |
+3 | main root = [three];
+  |              ^^^^^

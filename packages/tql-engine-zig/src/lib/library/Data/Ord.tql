@@ -1,0 +1,3 @@
+module Data.Ord (Eq(..), Ord(..), Ordering(..));
+
+import Prim (Eq(..), Ord(..), Ordering(..));

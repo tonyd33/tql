@@ -298,6 +298,12 @@ const Walker = struct {
                             .kind = .synonym,
                             .span = spanOf(child, self.source_id),
                         });
+                    } else if (child.childByFieldName("module")) |name| {
+                        try out.append(self.allocator, .{
+                            .name = try self.dupe(name),
+                            .kind = .module,
+                            .span = spanOf(child, self.source_id),
+                        });
                     } else if (child.childByFieldName("name")) |name| {
                         const kind: cst.Item.Kind = if (std.mem.eql(u8, name.grammarKind(), "identifier"))
                             .value
@@ -536,9 +542,10 @@ const Walker = struct {
         const kind = node.grammarKind();
 
         if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
-            .identifier, .qualified_identifier, .primitive => {
+            .identifier, .qualified_identifier => {
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
+            .primitive => return .{ .kind = .{ .primitive = try self.dupe(node) }, .span = span },
             .kind => return .{ .kind = .{ .kind_test = try self.kindName(node) }, .span = span },
             .number => {
                 const text = textOf(node, self.source);

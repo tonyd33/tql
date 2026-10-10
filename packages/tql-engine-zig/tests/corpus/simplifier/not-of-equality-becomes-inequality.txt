@@ -3,6 +3,8 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 differ :: Int -> Int -> Bool;
 differ x y = not $ x = y;
 

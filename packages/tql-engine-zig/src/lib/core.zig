@@ -39,6 +39,7 @@ pub const Comparison = details.Comparison;
 
 pub const SymbolId = symbols.SymbolId;
 pub const ModuleId = symbols.ModuleId;
+pub const Known = symbols.Known;
 pub const SymbolTable = symbols.SymbolTable;
 pub const Interner = symbols.Interner;
 pub const InsertError = symbols.InsertError;

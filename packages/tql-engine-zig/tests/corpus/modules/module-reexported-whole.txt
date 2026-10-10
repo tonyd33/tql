@@ -1,0 +1,30 @@
+title: `module M` in an export list re-exports what the module imports from `M`
+grammar: typescript
+asserts: values
+
+--- module Shapes ---
+module Shapes;
+
+data Shape = Circle Int | Square Int;
+
+--- module Area ---
+module Area (module Shapes, area);
+
+import Shapes;
+
+area :: Shape -> Int;
+area s = case s of {
+  Circle r -> 3 * r * r;
+  Square w -> w * w;
+};
+
+--- tql ---
+import Area;
+
+main root = [area (Circle 1), area (Square 2)];
+
+--- source ---
+let x = 1;
+
+--- values ---
+[3, 4]

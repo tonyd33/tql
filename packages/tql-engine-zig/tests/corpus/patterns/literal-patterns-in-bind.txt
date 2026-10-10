@@ -3,6 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
+import Data.Function (const);
+
 main = const $ do {
   "a" <- ["a", "b", "a"];
   true <- [true, false];

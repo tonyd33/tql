@@ -10,6 +10,8 @@ Both uses are projected to `int` before they meet in one list, since a list
 has a single element type. The polymorphism is in `ident`, not in the list.
 
 --- tql ---
+import Data.Function (const);
+
 main =
   let { ident x = x; }
   in const [ident 1, length (ident "ab")];

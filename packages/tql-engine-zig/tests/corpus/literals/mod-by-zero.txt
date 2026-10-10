@@ -6,6 +6,8 @@ A zero divisor anywhere in the stream fails the whole query, including the
 pairs whose divisor is nonzero.
 
 --- tql ---
+import Data.Int (mod);
+
 main _ = do {
   d <- [5, 0, 7];
   return $ 12 `mod` d;

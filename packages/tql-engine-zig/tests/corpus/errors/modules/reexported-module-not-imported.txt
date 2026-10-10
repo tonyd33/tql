@@ -1,0 +1,28 @@
+title: `module M` in an export list needs an unqualified import of `M`
+grammar: typescript
+asserts: error
+
+--- module Base ---
+module Base;
+
+two = 2;
+
+--- module Front ---
+module Front (module Base);
+
+import Base as B;
+
+--- tql ---
+import Front;
+
+main root = [1];
+
+--- source ---
+let x = 1;
+
+--- error ---
+error[unresolved-name]: `Base` is not imported unqualified
+ --> Front:1:15
+  |
+1 | module Front (module Base);
+  |               ^^^^^^^^^^^

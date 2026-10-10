@@ -6,6 +6,9 @@ Each rejected form is a separate reason: a plain word, a float, a leading plus,
 an internal space, and the empty string. None is an error.
 
 --- tql ---
+import Data.Function (const);
+import Data.Int (toint);
+
 main = const ["abc", "1.5", "+3", "1 2", ""] | toint;
 
 --- source ---

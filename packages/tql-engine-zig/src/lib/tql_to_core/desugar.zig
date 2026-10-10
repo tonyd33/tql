@@ -42,15 +42,18 @@ pub const Lowerer = struct {
         };
     }
 
-    /// A primitive or prelude name that sugar desugars to, resolved in the
-    /// prelude whatever this module declares. Missing only when the prelude
-    /// was not linked beneath this module.
-    pub fn primitive(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
-        const id = self.env.interner.lookup(.prelude, name) orelse {
-            try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{name});
+    /// The library definition sugar desugars to, whatever this module's scope
+    /// holds. Missing only when its module was not linked beneath this one.
+    pub fn known(self: *Lowerer, which: core.Known, span: diagnostic.Span) Error!core.Term {
+        const id = self.env.known.get(which) orelse {
+            try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{@tagName(which)});
             return error.DesugarFailed;
         };
         return self.builder.symbol(id, span);
+    }
+
+    pub fn primop(self: *Lowerer, which: core.PrimOp, span: diagnostic.Span) core.Term {
+        return self.builder.symbol(self.env.primitives.get(which).?, span);
     }
 
     /// The Core term `pseudo` denotes.
@@ -254,10 +257,7 @@ pub const Lowerer = struct {
                 if (scope) |s| {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
-                if (try self.resolveGlobal(name, e.span)) |global| return switch (self.env.interner.details(global)) {
-                    .pseudo => |pseudo| try self.pseudoTerm(pseudo, e.span),
-                    else => self.builder.symbol(global, e.span),
-                };
+                if (try self.resolveGlobal(name, e.span)) |global| return self.builder.symbol(global, e.span);
                 try self.sink.report(
                     .unresolved_name,
                     e.span,
@@ -265,6 +265,17 @@ pub const Lowerer = struct {
                     .{name},
                 );
                 return error.DesugarFailed;
+            },
+
+            .primitive => |name| {
+                const primitive = self.env.interner.lookup(null, name) orelse {
+                    try self.sink.report(.unresolved_name, e.span, "`{s}` is not defined", .{name});
+                    return error.DesugarFailed;
+                };
+                return switch (self.env.interner.details(primitive)) {
+                    .pseudo => |pseudo| try self.pseudoTerm(pseudo, e.span),
+                    else => self.builder.symbol(primitive, e.span),
+                };
             },
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
@@ -450,26 +461,26 @@ pub const Lowerer = struct {
         // ordinary functions on scalars: `op[+] n 1`, never lifted over
         // filters.
         const scalar: core.Scalar = switch (op) {
-            .eq => return try self.combinator("eq", left, right, span),
+            .eq => return try self.combinator(.eq, left, right, span),
             .ne => return try self.builder.choose(
                 self.scope.datatypes,
-                try self.combinator("eq", left, right, span),
+                try self.combinator(.eq, left, right, span),
                 self.builder.symbol(self.scope.datatypes.boolConstructor(true).symbol, span),
                 self.builder.symbol(self.scope.datatypes.boolConstructor(false).symbol, span),
                 span,
             ),
             inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Comparison, @tagName(o)), span),
-            .pipe => return try self.combinator("kleisli", left, right, span),
-            .stream_union => return try self.combinator("alt", left, right, span),
-            .compose => return try self.combinator("compose", left, right, span),
+            .pipe => return try self.combinator(.kleisli, left, right, span),
+            .stream_union => return try self.combinator(.alt, left, right, span),
+            .compose => return try self.combinator(.compose, left, right, span),
             .then => return try self.bind(try self.env.interner.fresh("_"), left, right, span),
             .cons => return try self.builder.applyMany(
                 self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
                 span,
             ),
-            .@"and" => return try self.combinator("and", left, right, span),
-            .@"or" => return try self.combinator("or", left, right, span),
+            .@"and" => return try self.combinator(.@"and", left, right, span),
+            .@"or" => return try self.combinator(.@"or", left, right, span),
             inline else => |o| @field(core.Scalar, @tagName(o)),
         };
         const operator = try self.synthesize(
@@ -485,9 +496,9 @@ pub const Lowerer = struct {
         );
     }
 
-    fn combinator(self: *Lowerer, name: []const u8, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
+    fn combinator(self: *Lowerer, which: core.Known, left: core.Term, right: core.Term, span: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
-            try self.primitive(name, span),
+            try self.known(which, span),
             &.{ left, right },
             span,
         );
@@ -501,13 +512,13 @@ pub const Lowerer = struct {
         for (&bodies, [_]std.math.Order{ .lt, .eq, .gt }) |*body, order| {
             body.* = self.builder.symbol(registry.boolConstructor(comparison.answer(order)).symbol, span);
         }
-        return try self.builder.chooseOrder(registry, try self.combinator("compare", left, right, span), bodies, span);
+        return try self.builder.chooseOrder(registry, try self.combinator(.compare, left, right, span), bodies, span);
     }
 
     /// `concat_map (\name -> body) value`.
     pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
-            try self.primitive("concat_map", span),
+            try self.known(.concat_map, span),
             &.{ try self.builder.lambda(name, body, body.span), value },
             span,
         );

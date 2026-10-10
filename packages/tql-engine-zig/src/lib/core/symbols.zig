@@ -14,10 +14,25 @@ pub const TypeId = enum(u32) { _ };
 
 /// A module of one link, in the order modules were declared.
 pub const ModuleId = enum(u16) {
-    prelude = 0,
+    /// Declared before any other, so the built-in types and classes can be
+    /// reserved in it before its source is read.
+    prim = 0,
     _,
 
-    pub const prelude_name = "Prelude";
+    pub const prim_name = "Prim";
+};
+
+/// A library definition the engine refers to by its spelling: what sugar
+/// desugars to, and what a rewrite recognises.
+pub const Known = enum {
+    eq,
+    compare,
+    @"and",
+    @"or",
+    concat_map,
+    compose,
+    kleisli,
+    alt,
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;
@@ -68,6 +83,11 @@ pub fn SymbolTable(comptime T: type) type {
         /// A no-op when `allocator` is an arena.
         pub fn deinit(self: *Self) void {
             self.entries.deinit(self.allocator);
+        }
+
+        /// A copy allocated from `allocator`.
+        pub fn clone(self: *const Self, allocator: Allocator) Allocator.Error!Self {
+            return .{ .allocator = allocator, .entries = try self.entries.clone(allocator) };
         }
 
         pub fn get(self: *const Self, id: SymbolId) ?T {
@@ -130,6 +150,16 @@ pub const Interner = struct {
 
     pub fn init(allocator: Allocator) Interner {
         return .{ .allocator = allocator };
+    }
+
+    /// A copy allocated from `allocator`, sharing the spellings.
+    pub fn clone(self: *const Interner, allocator: Allocator) Allocator.Error!Interner {
+        return .{
+            .allocator = allocator,
+            .entries = try self.entries.clone(allocator),
+            .by_name = try self.by_name.clone(allocator),
+            .modules = try self.modules.clone(allocator),
+        };
     }
 
     /// Declares a module named `name`. Returns its id.
@@ -215,10 +245,14 @@ pub const Interner = struct {
         return self.entries.items[@intFromEnum(id)].module;
     }
 
-    /// Whether `id` is a global: declared by a module, or synthesized.
+    /// Whether `id` is a global: declared by a module, synthesized, or a
+    /// primitive.
     pub fn isGlobal(self: *const Interner, id: SymbolId) bool {
         const symbol = self.entries.items[@intFromEnum(id)];
-        return symbol.module != null or symbol.details == .synthesized;
+        return symbol.module != null or switch (symbol.details) {
+            .synthesized, .primop, .pseudo => true,
+            else => false,
+        };
     }
 
     pub fn spelling(self: *const Interner, id: SymbolId) []const u8 {

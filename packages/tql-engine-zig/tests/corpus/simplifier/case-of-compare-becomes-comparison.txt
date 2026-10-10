@@ -3,6 +3,8 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
+import Data.Function (const);
+
 at_most :: Int -> Int -> Bool;
 at_most x y = case compare x y of { LT -> true; EQ -> true; GT -> false };
 

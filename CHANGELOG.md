@@ -16,6 +16,8 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (map, any);` for `map`, `filter`, `foldr`, `append`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (alt);` for `kleisli` and `alt`. Operators and `do` still work without an import.
+- The compile stats report `library_ns` in place of `prelude_ns`.
 
 ### New Features
 
@@ -50,8 +52,10 @@
 - Added `deriving (Eq, Ord, Serial)` on a `data` declaration.
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
-- Every primitive is a prelude definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in the prelude.
+- Every primitive is a `Prim` definition with a signature, such as `text :: Node -> String; text = %text;`. A primitive's `%` name resolves in any module, and `data X = %Int;` is accepted only for the built-in types.
 - Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
+- `module M` in an export list re-exports what the module imports from `M`, and an export list may name an imported value or type.
+- `T(..)` in an import list is accepted for a type with no constructors, such as `Int`, whatever the export list says.
 
 ### Improvements
 
@@ -61,6 +65,7 @@
 - Queries are simplified before they run: a binding used once moves to its use, a small function applied to all its arguments is inlined, and a `case` of a known constructor takes its alternative.
 - A `do` bind over `children`, `named_children`, `descendants` or `named_descendants` whose pattern tests a kind, such as `:k { .. }` or `(of_kind :k -> [n])`, walks only nodes of that kind, as `descendants_of_kind :k` does.
 - A query that allocates more than 4 GiB on one file stops on that file with `OutOfMemory`, and the run continues with the next. Such a query could exhaust the machine's memory.
+- The library is compiled once per engine, and once per loaded wasm module in `tql-js` and the playground: compiling a later query starts from it.
 
 ### Bug Fixes
 

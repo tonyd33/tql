@@ -33,7 +33,7 @@ pub const Class = struct {
     methods: []const symbols.SymbolId = &.{},
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
     /// selector, then one per method. Null for a class with built-in
-    /// evidence, and for a reservation the prelude has not filled in.
+    /// evidence, and for a reservation `Prim` has not filled in.
     constructor: ?symbols.SymbolId = null,
     /// One per superclass with dictionary evidence, in `superclasses` order.
     selectors: []const Selector = &.{},
@@ -82,12 +82,23 @@ pub const Registry = struct {
         return .{ .allocator = allocator };
     }
 
-    /// Reserves the classes `ClassId` names, in the prelude, at the ids it
-    /// names them by. `Serial` is complete. The prelude's own declarations of
-    /// `Eq` and `Ord` fill in the rest.
+    /// A copy allocated from `allocator`, sharing the classes' contents.
+    pub fn clone(self: *const Registry, allocator: Allocator) Allocator.Error!Registry {
+        return .{
+            .allocator = allocator,
+            .classes = try self.classes.clone(allocator),
+            .by_name = try self.by_name.clone(allocator),
+            .instances = try self.instances.clone(allocator),
+            .by_head = try self.by_head.clone(allocator),
+        };
+    }
+
+    /// Reserves the classes `ClassId` names, in `Prim`, at the ids it names
+    /// them by. `Serial` is complete. `Prim`'s own declarations of `Eq` and
+    /// `Ord` fill in the rest.
     pub fn reserveBuiltins(self: *Registry) Allocator.Error!void {
         for ([_][]const u8{ "Eq", "Ord", "Serial" }, 0..) |name, i| {
-            const id = try self.declare(.{ .name = .{ .module = .prelude, .name = name } });
+            const id = try self.declare(.{ .name = .{ .module = .prim, .name = name } });
             std.debug.assert(@intFromEnum(id) == i);
         }
     }
@@ -125,10 +136,10 @@ pub const Registry = struct {
         };
     }
 
-    /// The reservation the prelude's declaration of `name` fills in, if it is
+    /// The reservation `Prim`'s declaration of `name` fills in, if it is
     /// one and nothing has filled it yet.
     pub fn reservation(self: *const Registry, name: []const u8) ?ClassId {
-        const id = self.lookup(.prelude, name) orelse return null;
+        const id = self.lookup(.prim, name) orelse return null;
         switch (id) {
             .eq, .ord => {},
             else => return null,

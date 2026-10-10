@@ -3,6 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
+import Data.List (map);
+
 main = descendants_of_kind :expression_statement | collect named_descendants | arr (map kind);
 
 --- source ---

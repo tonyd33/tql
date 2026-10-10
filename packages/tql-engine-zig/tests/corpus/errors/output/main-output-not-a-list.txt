@@ -6,11 +6,13 @@ asserts: error
 output of `main` must be a list.
 
 --- tql ---
+import Data.Function (identity);
+
 main = identity;
 
 --- error ---
 error[main-type]: Expected `[a]`, found `Node`.
- --> 1:1
+ --> 3:1
   |
-1 | main = identity;
+3 | main = identity;
   | ^^^^^^^^^^^^^^^^

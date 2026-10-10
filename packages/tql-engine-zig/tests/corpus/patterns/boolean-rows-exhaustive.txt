@@ -6,6 +6,8 @@ asserts: core, values
 are exhaustive.
 
 --- tql ---
+import Data.Function (const);
+
 f b = case b of { true -> "yes"; false -> "no"; };
 
 main = const [f true, f false];

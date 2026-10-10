@@ -19,7 +19,7 @@ pub fn env(gpa: Allocator) !core.env.Env {
 }
 
 /// Reserves the built-in types and fills in the constructors of `List`,
-/// `Bool` and `Ordering` in the shape `prelude.tql` declares them.
+/// `Bool` and `Ordering` in the shape `Prim` declares them.
 pub fn declareStructural(e: *core.env.Env) !void {
     const registry = &e.datatypes;
     const interner = &e.interner;
@@ -35,19 +35,19 @@ pub fn declareStructural(e: *core.env.Env) !void {
     );
     const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
     try e.setConstructors(registry.listId(), try arena.dupe(datatypes.Constructor, &.{
-        .{ .symbol = try interner.intern(.prelude, "Nil", .vanilla), .tag = 0, .fields = &.{} },
-        .{ .symbol = try interner.intern(.prelude, "Cons", .vanilla), .tag = 1, .fields = cons_fields },
+        .{ .symbol = try interner.intern(.prim, "Nil", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "Cons", .vanilla), .tag = 1, .fields = cons_fields },
     }));
 
     try e.setConstructors(registry.boolId(), try arena.dupe(datatypes.Constructor, &.{
-        .{ .symbol = try interner.intern(.prelude, "False", .vanilla), .tag = 0, .fields = &.{} },
-        .{ .symbol = try interner.intern(.prelude, "True", .vanilla), .tag = 1, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "False", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "True", .vanilla), .tag = 1, .fields = &.{} },
     }));
 
     try e.setConstructors(registry.orderingId(), try arena.dupe(datatypes.Constructor, &.{
-        .{ .symbol = try interner.intern(.prelude, "LT", .vanilla), .tag = 0, .fields = &.{} },
-        .{ .symbol = try interner.intern(.prelude, "EQ", .vanilla), .tag = 1, .fields = &.{} },
-        .{ .symbol = try interner.intern(.prelude, "GT", .vanilla), .tag = 2, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "LT", .vanilla), .tag = 0, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "EQ", .vanilla), .tag = 1, .fields = &.{} },
+        .{ .symbol = try interner.intern(.prim, "GT", .vanilla), .tag = 2, .fields = &.{} },
     }));
 }
 
@@ -94,8 +94,8 @@ pub const ProgramBuilder = struct {
 
     /// The global spelled `spelling`, interned on first use.
     pub fn global(self: *ProgramBuilder, spelling: []const u8) !core.SymbolId {
-        return self.env.interner.lookup(.prelude, spelling) orelse
-            try self.env.interner.intern(.prelude, spelling, .vanilla);
+        return self.env.interner.lookup(.prim, spelling) orelse
+            try self.env.interner.intern(.prim, spelling, .vanilla);
     }
 
     /// A fresh local binder.
@@ -103,13 +103,13 @@ pub const ProgramBuilder = struct {
         return try self.env.interner.fresh(spelling);
     }
 
-    /// Declares `name` in the prelude with `constructors`, tagged in order.
+    /// Declares `name` in `Prim` with `constructors`, tagged in order.
     pub fn datatype(
         self: *ProgramBuilder,
         name: []const u8,
         constructors: []const Constructor,
     ) !void {
-        try declareDatatype(&self.env, .prelude, name, constructors);
+        try declareDatatype(&self.env, .prim, name, constructors);
     }
 
     pub fn define(self: *ProgramBuilder, name: core.SymbolId, body: core.Term) !void {

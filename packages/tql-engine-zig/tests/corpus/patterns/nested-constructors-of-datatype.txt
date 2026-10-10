@@ -5,6 +5,8 @@ asserts: core, types, values
 A nullary constructor in argument position needs no parentheses.
 
 --- tql ---
+import Data.Function (const);
+
 data Maybe a = Just a | Nothing;
 
 both :: Maybe Int -> Maybe Int -> Int;

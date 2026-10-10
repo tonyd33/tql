@@ -3,6 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
+import Data.Function (const);
+
 class Describe a where { describe :: a -> String; };
 instance Describe Int where {
   describe n = "int";
@@ -12,7 +14,7 @@ main = const [];
 
 --- error ---
 error[invalid-instance]: `label` is not a method of `Describe`
- --> 4:3
+ --> 6:3
   |
-4 |   label n = "label";
+6 |   label n = "label";
   |   ^^^^^^^^^^^^^^^^^^
