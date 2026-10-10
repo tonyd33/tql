@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.List (null);
+import Data.Foldable (null);
 
 main root = do {
   (of_kind :call_expression -> [

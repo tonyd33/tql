@@ -1,0 +1,48 @@
+module Data.Foldable (
+  Foldable(..),
+  fold_map,
+  fold,
+  to_list,
+  null,
+  any,
+  all,
+  concat,
+);
+
+import Prim (List(..), Bool(..));
+import Data.Bool (and, or);
+import Data.Monoid (Semigroup(..), Monoid(..));
+
+class Foldable t where {
+  foldr :: (a -> b -> b) -> b -> t a -> b;
+};
+
+instance Foldable List where {
+  foldr f z = let {
+    go ys = case ys of {
+      Nil -> z;
+      Cons h t -> f h $ go t;
+    };
+  } in go;
+};
+
+fold_map :: (Foldable t, Monoid m) => (a -> m) -> t a -> m;
+fold_map f xs = foldr (append . f) mempty xs;
+
+fold :: (Foldable t, Monoid m) => t m -> m;
+fold xs = foldr append mempty xs;
+
+to_list :: Foldable t => t a -> [a];
+to_list xs = foldr Cons Nil xs;
+
+null :: Foldable t => t a -> Bool;
+null xs = foldr (\_ _ -> False) True xs;
+
+any :: Foldable t => (a -> Bool) -> t a -> Bool;
+any p xs = foldr (\x acc -> or (p x) acc) False xs;
+
+all :: Foldable t => (a -> Bool) -> t a -> Bool;
+all p xs = foldr (\x acc -> and (p x) acc) True xs;
+
+concat :: Foldable t => t [a] -> [a];
+concat xss = foldr append [] xss;

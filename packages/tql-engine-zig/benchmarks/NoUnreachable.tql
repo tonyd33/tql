@@ -1,4 +1,4 @@
-import Data.List (all, any, null);
+import Data.Foldable (all, any, null);
 
 statements = named_children | keep (not . is_extra);
 

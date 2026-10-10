@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.List (any);
+import Data.Foldable (any);
 
 starts_with_s n = text n ~ r"^S";
 named_s c = any starts_with_s (#name c);

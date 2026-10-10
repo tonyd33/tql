@@ -1,5 +1,6 @@
 import Data.Int (toint);
-import Data.List (concat_map, null, take);
+import Data.List (concat_map, take);
+import Data.Foldable (null);
 
 data Size = Small | Medium | Large Int;
 

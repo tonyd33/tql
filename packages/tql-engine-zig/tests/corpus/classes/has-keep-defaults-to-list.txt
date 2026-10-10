@@ -1,0 +1,18 @@
+title: `has (keep p)` defaults the container between them to `List`
+grammar: typescript
+asserts: types, values
+
+Nothing outside `has (keep p)` fixes the type `keep` builds, and `List`
+satisfies both its `Alternative` and `has`'s `Foldable`.
+
+--- tql ---
+main root = return $ has (keep (= 1)) 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+main :: Node -> [Bool]

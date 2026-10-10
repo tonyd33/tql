@@ -5,8 +5,6 @@ asserts: types, values
 `combine` infers only `Monoid`, which entails the `Semigroup` its `append` raises.
 
 --- tql ---
-import Data.List (foldr);
-
 data Max = Max Int;
 
 instance Semigroup Max where {
@@ -34,5 +32,5 @@ class A {}
 [7,1,2]
 
 --- types ---
-combine :: Monoid a => [a] -> a
+combine :: (Foldable a, Monoid b) => a b -> b
 main :: Node -> [Int]

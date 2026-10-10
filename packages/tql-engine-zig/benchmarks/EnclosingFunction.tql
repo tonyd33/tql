@@ -1,4 +1,4 @@
-import Data.List (any, null);
+import Data.Foldable (any, null);
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration];
 

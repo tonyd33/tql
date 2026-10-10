@@ -109,6 +109,8 @@ pub const Simplifier = struct {
     known: core.SymbolTable(Constructed),
     /// Each binding that may be inlined, by its simplified value.
     unfoldings: core.SymbolTable(core.Term),
+    /// Bindings, local or global, to a lambda, loop breakers included.
+    functions: core.SymbolTable(void),
     /// Whether a rewrite fired.
     changed: bool = false,
 
@@ -142,12 +144,15 @@ pub const Simplifier = struct {
             .substitution = .init(scratch),
             .known = .init(scratch),
             .unfoldings = .init(scratch),
+            .functions = .init(scratch),
         };
     }
 
     /// Record `value`, simplified, as `name`'s unfolding, when `name` is not a
-    /// loop breaker and `value` is a lambda or trivial.
+    /// loop breaker and `value` is a lambda or trivial. Record a lambda as a
+    /// function either way.
     pub fn unfold(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        if (value.kind == .lambda) try self.functions.put(name, {});
         if (self.recorded(name) == .loop_breaker) return;
         if (cost.trivial(value)) {
             if (!self.options.post_inline) return;
@@ -376,6 +381,13 @@ pub const Simplifier = struct {
         }
         try self.know(name, value);
         return true;
+    }
+
+    /// Record what the global `name` is bound to before any definition is
+    /// simplified: a constructor of trivial fields or a function.
+    pub fn seed(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        try self.know(name, value);
+        if (value.kind == .lambda) try self.functions.put(name, {});
     }
 
     /// Record `name` as bound to `value`, simplified, when `value` is a
@@ -618,10 +630,7 @@ pub const Simplifier = struct {
         if (try self.knownConstructor(t)) |known| return .{ .constructor = known.constructor };
         return switch (t.kind) {
             .lambda => .lambda,
-            .symbol => |id| if (self.unfoldings.get(id)) |unfolding|
-                if (unfolding.kind == .lambda) .lambda else null
-            else
-                null,
+            .symbol => |id| if (self.functions.get(id) != null) .lambda else null,
             else => null,
         };
     }

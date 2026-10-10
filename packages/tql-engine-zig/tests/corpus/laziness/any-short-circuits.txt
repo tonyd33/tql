@@ -1,24 +1,22 @@
-title: `all` short-circuits on the first violation
+title: `any` short-circuits on the first match
 grammar: typescript
 asserts: types, values
 
-`and` does not force its second operand once the first is false, so `all`
+`or` does not force its second operand once the first is true, so `any`
 stops at 0 despite the infinite source.
 
 --- tql ---
-import Data.Foldable (all);
+import Data.Foldable (any);
 
 from n = always n <|> from (n + 1);
-negative n = n < 0;
-main root = return $ all negative (from 0 root);
+main root = return $ any (= 0) (from 0 root);
 
 --- source ---
 class A {}
 
 --- values ---
-[false]
+[true]
 
 --- types ---
 from :: Alternative b => Int -> a -> b Int
-negative :: Int -> Bool
 main :: Node -> [Bool]

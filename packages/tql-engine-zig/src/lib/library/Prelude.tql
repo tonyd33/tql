@@ -5,6 +5,7 @@ module Prelude (
   module Data.Monoid,
   module Data.Functor,
   module Control.Applicative,
+  module Data.Foldable,
   module Data.List,
   module Data.Node,
   module Data.Filter,
@@ -27,6 +28,7 @@ import Data.Bool (not, and, or);
 import Data.Monoid (Semigroup(..), Monoid(..));
 import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..), return, guard);
+import Data.Foldable (Foldable(..));
 import Data.List (Sized(..));
 import Data.Node;
 import Data.Filter (always, none, arr, collect, keep, has, first, or_else);

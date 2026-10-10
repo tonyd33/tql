@@ -7,7 +7,6 @@ either, and the division by zero in each is never evaluated.
 
 --- tql ---
 import Data.Function (const);
-import Data.List (foldr);
 
 main = const [seq [1 / 0] 1, seq (\x -> x / 0) 2, seq 3 4, foldr seq 5 [6, 7]];
 

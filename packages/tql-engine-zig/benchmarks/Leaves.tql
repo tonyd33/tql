@@ -1,4 +1,4 @@
-import Data.List (null);
+import Data.Foldable (null);
 
 leaf n = {
   kind = kind n,

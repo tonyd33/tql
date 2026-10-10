@@ -16,7 +16,7 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
-- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (filter, any);` for `filter`, `foldr`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (filter, take);` for `filter`, `concat_map`, `take`, `drop`, `head` and `tail`; `import Data.Foldable (any);` for `null`, `any`, `all` and `concat`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
 - The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
@@ -69,6 +69,7 @@
 - Added the `Alternative` class, with `empty :: f a` and `alt :: f a -> f a -> f a`. `guard`, `none`, `keep` and `<|>` work at any `Alternative`, not only lists.
 - A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (arr (+ 1) x)` is `Int -> Int`.
 - Added the `Semigroup` and `Monoid` classes, with `append :: a -> a -> a` and `mempty :: a`, at lists, `Unit` and `Ordering`.
+- Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all`, `concat`, `has`, `first`, `or_else` and `collect` work at any `Foldable`, not only lists.
 
 ### Improvements
 
@@ -81,6 +82,7 @@
 - The library is compiled once per engine, and once per loaded wasm module in `tql-js` and the playground: compiling a later query starts from it.
 - A constraint `main` cannot satisfy is reported where it is raised: in `main x = [x < x];` the `Ord Node` error points at `x < x`.
 - A function given only some of its arguments is inlined when one of them is a constructor, a lambda or a class dictionary: `main = always 1` compiles to `\x -> [1]`.
+- A function passed a named recursive function is inlined as if passed a lambda: `concat` over lists compiles to a loop calling `append`.
 
 ### Bug Fixes
 

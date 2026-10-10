@@ -2,16 +2,16 @@ title: there is no null literal
 grammar: typescript
 asserts: error
 
-Absence is the empty stream. `null` resolves to the list layer's emptiness
+Absence is the empty stream. `null` resolves to `Foldable`'s emptiness
 test, so the rejection is about its type rather than its name.
 
 --- tql ---
-import Data.List (null);
+import Data.Foldable (null);
 
 main = null;
 
 --- error ---
-error[main-type]: Expected `Node`, found `[a]`.
+error[main-type]: Expected `Node`, found `a b`.
  --> 3:1
   |
 3 | main = null;

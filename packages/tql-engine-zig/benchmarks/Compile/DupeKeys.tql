@@ -1,6 +1,7 @@
 module Compile.DupeKeys (dupe_keys) for javascript;
 
-import Data.List (any, concat_map);
+import Data.List (concat_map);
+import Data.Foldable (any);
 
 data Member = Member String String Node;
 

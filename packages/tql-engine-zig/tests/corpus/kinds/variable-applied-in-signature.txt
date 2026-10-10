@@ -5,7 +5,7 @@ asserts: types, values
 At the call, `f a` meets `[Int]`, so `f` is `List` and `a` is `Int`.
 
 --- tql ---
-import Data.List (null);
+import Data.Foldable (null);
 
 apply :: (f a -> b) -> f a -> b;
 apply g x = g x;

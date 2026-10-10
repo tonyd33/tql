@@ -1,0 +1,37 @@
+title: `has`, `first`, `or_else` and `collect` take a filter into any `Foldable`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Foldable (to_list, concat);
+
+data Opt a = None | Some a;
+
+instance Foldable Opt where {
+  foldr f z o = case o of {
+    None -> z;
+    Some x -> f x z;
+  };
+};
+
+positive n = if n > 0 then Some n else None;
+
+flag b = if b then 1 else 0;
+
+main root = concat [
+  [flag $ has positive 1, flag $ has positive 0],
+  first positive 2,
+  to_list $ or_else positive (\_ -> Some 9) 0,
+  concat $ collect positive 3,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,0,2,9,3]
+
+--- types ---
+positive :: Int -> Opt Int
+flag :: Bool -> Int
+main :: Node -> [Int]

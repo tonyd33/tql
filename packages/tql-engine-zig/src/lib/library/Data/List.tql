@@ -1,13 +1,8 @@
 module Data.List (
   List(..),
   Sized(..),
-  null,
-  concat,
   concat_map,
   filter,
-  foldr,
-  any,
-  all,
   take,
   drop,
   head,
@@ -15,7 +10,6 @@ module Data.List (
 );
 
 import Prim (Int, String, List(..), Bool(..), seq);
-import Data.Bool (and, or);
 import Data.Monoid (Semigroup(..));
 
 class Sized a where {
@@ -36,18 +30,6 @@ instance Sized [a] where {
   } in foldl_strict acc 0 xs;
 };
 
-null :: [a] -> Bool;
-null xs = case xs of {
-  Nil -> True;
-  Cons h t -> False;
-};
-
-concat :: [[a]] -> [a];
-concat xss = case xss of {
-  Nil -> Nil;
-  Cons h t -> append h $ concat t;
-};
-
 concat_map :: (a -> [b]) -> [a] -> [b];
 concat_map f xs = case xs of {
   Nil -> Nil;
@@ -61,24 +43,6 @@ filter p xs = case xs of {
     False -> filter p t;
     True -> Cons h $ filter p t;
   };
-};
-
-foldr :: (a -> b -> b) -> b -> [a] -> b;
-foldr f z xs = case xs of {
-  Nil -> z;
-  Cons h t -> f h $ foldr f z t;
-};
-
-any :: (a -> Bool) -> [a] -> Bool;
-any p xs = case xs of {
-  Nil -> False;
-  Cons h t -> or (p h) $ any p t;
-};
-
-all :: (a -> Bool) -> [a] -> Bool;
-all p xs = case xs of {
-  Nil -> True;
-  Cons h t -> and (p h) $ all p t;
 };
 
 take :: Int -> [a] -> [a];

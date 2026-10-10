@@ -11,10 +11,11 @@ module Data.Filter (
   or_else,
 );
 
-import Prim (List(..), Bool(..));
+import Prim (Bool(..));
 import Data.Bool (not);
-import Data.List (null, concat_map, head);
+import Data.List (concat_map);
 import Control.Applicative (Applicative(..), Alternative(..));
+import Data.Foldable (Foldable(..), to_list, null);
 
 -- `Filter a b` is `a -> [b]`.
 
@@ -33,8 +34,8 @@ union p q x = alt (p x) (q x);
 arr :: Applicative f => (a -> b) -> a -> f b;
 arr f x = pure (f x);
 
-collect :: Filter a b -> Filter a [b];
-collect p x = [p x];
+collect :: (Foldable g, Applicative f) => (a -> g b) -> a -> f [b];
+collect p x = pure $ to_list $ p x;
 
 keep :: Alternative f => (a -> Bool) -> a -> f a;
 keep p x = case p x of {
@@ -42,14 +43,13 @@ keep p x = case p x of {
   True -> pure x;
 };
 
-has :: Filter a b -> a -> Bool;
+has :: Foldable f => (a -> f b) -> a -> Bool;
 has p x = not $ null $ p x;
 
-first :: Filter a b -> Filter a b;
-first p x = head (p x);
+first :: Foldable f => (a -> f b) -> a -> [b];
+first p x = foldr (\y _ -> [y]) [] $ p x;
 
-or_else :: Filter a b -> Filter a b -> Filter a b;
-or_else primary fallback x = case primary x of {
-  Nil -> fallback x;
-  results -> results;
-};
+or_else :: Foldable f => (a -> f b) -> (a -> f b) -> a -> f b;
+or_else primary fallback x = let {
+  results = primary x;
+} in if null results then fallback x else results;
