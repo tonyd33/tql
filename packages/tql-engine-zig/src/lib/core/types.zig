@@ -470,20 +470,29 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
+pub const function_spelling = "(->)";
 
 /// A declared type at its arguments, copied into `allocator`.
+/// `(->)` at both arguments is the function type.
 pub fn constructed(
     allocator: std.mem.Allocator,
     name: datatypes.TypeId,
     spelling: []const u8,
     arguments: []const Type,
 ) !Type {
+    return try constructedOwning(allocator, name, spelling, try allocator.dupe(Type, arguments));
+}
+
+/// `constructed`, taking ownership of `arguments`.
+fn constructedOwning(
+    allocator: std.mem.Allocator,
+    name: datatypes.TypeId,
+    spelling: []const u8,
+    arguments: []const Type,
+) !Type {
+    if (name == datatypes.function_id and arguments.len == 2) return try func(allocator, arguments[0], arguments[1]);
     const node = try allocator.create(Type.Constructed);
-    node.* = .{
-        .name = name,
-        .spelling = spelling,
-        .arguments = try allocator.dupe(Type, arguments),
-    };
+    node.* = .{ .name = name, .spelling = spelling, .arguments = arguments };
     return .{ .constructor = node };
 }
 
@@ -507,9 +516,7 @@ pub fn apply(allocator: std.mem.Allocator, head: Type, argument: Type) std.mem.A
             const arguments = try allocator.alloc(Type, c.arguments.len + 1);
             @memcpy(arguments[0..c.arguments.len], c.arguments);
             arguments[c.arguments.len] = argument;
-            const node = try allocator.create(Type.Constructed);
-            node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = arguments };
-            return .{ .constructor = node };
+            return try constructedOwning(allocator, c.name, c.spelling, arguments);
         },
         .alias => |a| return try apply(allocator, a.expansion, argument),
         .variable, .meta, .application => {

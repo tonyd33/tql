@@ -8,6 +8,10 @@ const Allocator = std.mem.Allocator;
 
 pub const TypeId = symbols.TypeId;
 
+/// `(->)`, the function type's constructor short of an argument. At both it
+/// is a `types.Type.function`.
+pub const function_id: TypeId = Registry.Structural.function.id();
+
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
     /// Dispatch index within the datatype: `Nil` is 0, `Cons` is 1.
@@ -80,7 +84,7 @@ pub const Registry = struct {
     ///
     /// `Prim` declares the primitives, `List`, `Bool` and `Ordering`; these
     /// rows reserve their ids so a primitive scheme can name any of them
-    /// before `Prim` is parsed.
+    /// before `Prim` is parsed. No source declares `(->)`.
     pub const Structural = struct {
         name: []const u8,
         parameters: []const types.Kind,
@@ -88,6 +92,17 @@ pub const Registry = struct {
         constructors: []const []const u8 = &.{},
         /// Set for `data Int = %Int;`, which has no constructors.
         representation: ?types.Primitive = null,
+        /// Whether `Prim` declares it, claiming the reservation.
+        declared: bool = true,
+
+        /// Returns the id `reserveBuiltins` gives this row: its position in
+        /// `all`.
+        pub fn id(comptime self: Structural) TypeId {
+            const index = for (all, 0..) |row, i| {
+                if (std.mem.eql(u8, row.name, self.name)) break i;
+            } else unreachable;
+            return @enumFromInt(index);
+        }
 
         fn primitive(comptime p: types.Primitive) Structural {
             return .{ .name = p.spelling(), .parameters = &.{}, .representation = p };
@@ -111,6 +126,12 @@ pub const Registry = struct {
             .constructors = &.{ "LT", "EQ", "GT" },
         };
 
+        pub const function: Structural = .{
+            .name = types.function_spelling,
+            .parameters = &.{ .type, .type },
+            .declared = false,
+        };
+
         /// The primitives come first, in `Primitive` order, so each takes the id
         /// `Primitive.id` names.
         pub const all: []const Structural = &.{
@@ -122,6 +143,7 @@ pub const Registry = struct {
             Structural.list,
             Structural.boolean,
             Structural.ordering,
+            Structural.function,
         };
     };
 
@@ -136,7 +158,7 @@ pub const Registry = struct {
         for (Structural.all) |s| {
             const id = try self.declare(interner, .prim, s.name, s.parameters, &.{});
             if (s.representation) |p| std.debug.assert(id == p.id());
-            self.datatypes.items[@intFromEnum(id)].reserved = true;
+            self.datatypes.items[@intFromEnum(id)].reserved = s.declared;
         }
     }
 

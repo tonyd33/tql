@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const core = @import("../core.zig");
+const datatypes = core.datatypes;
 const types = core.types;
 const Substitution = @import("substitution.zig").Substitution;
 
@@ -116,11 +117,15 @@ pub fn unify(
 
 const Split = struct { head: types.Type, argument: types.Type };
 
-/// `t` as a head at its last argument, when it is an application or a
-/// declared type at one or more arguments.
+/// `t` as a head at its last argument, when it is an application, a function
+/// or a declared type at one or more arguments.
 fn split(arena: Allocator, t: types.Type) Allocator.Error!?Split {
     switch (t) {
         .application => |a| return .{ .head = a.head, .argument = a.argument },
+        .function => |arrow| return .{
+            .head = try types.constructed(arena, datatypes.function_id, types.function_spelling, &.{arrow.from}),
+            .argument = arrow.to,
+        },
         .constructor => |c| {
             if (c.arguments.len == 0) return null;
             const last = c.arguments.len - 1;

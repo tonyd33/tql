@@ -60,6 +60,7 @@
 - A type variable may be applied to types, and a declared type may be left short of its last arguments: `data Wrap f a = Wrap (f a);` holds a `Wrap Maybe Int` or a `Wrap (Either String) Int`. Kinds are inferred.
 - An alias parameter its body never uses is no longer an error.
 - A class may range over type constructors: `class Mappable f where { mapf :: (a -> b) -> f a -> f b; };` takes `instance Mappable List` and `instance Mappable (Either e)`. A context may constrain an applied variable, `Eq (f a) =>`, and one is inferred where needed.
+- A type variable applied to an argument matches a function type: `f a` against `Int -> Bool` makes `f` the function type short of its result, printed `(->) Int`.
 
 ### Improvements
 

@@ -1,0 +1,19 @@
+title: a class over constructors has no instance at the function type
+grammar: typescript
+asserts: error
+
+`mapf` at a function needs `Mappable ((->) Int)`, which no instance gives.
+
+--- tql ---
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+
+main = pure (mapf (+ 1) (\x -> x * 2) 3);
+
+--- error ---
+error[unsatisfied-constraint]: `Mappable ((->) Int)` is not satisfied.
+ --> 5:14
+  |
+5 | main = pure (mapf (+ 1) (\x -> x * 2) 3);
+  |              ^^^^
