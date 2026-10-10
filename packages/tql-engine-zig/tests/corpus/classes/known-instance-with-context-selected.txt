@@ -7,8 +7,6 @@ asserts: simplified, values
 implementation with that dictionary and no list dictionary is built.
 
 --- tql ---
-import Data.List (append);
-
 class Describe a where {
   describe :: a -> [String];
 };

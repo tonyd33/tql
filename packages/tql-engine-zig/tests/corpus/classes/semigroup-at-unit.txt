@@ -1,0 +1,17 @@
+title: `append` and `mempty` at `Unit`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main root = case append Unit mempty of {
+  Unit -> ["unit"];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["unit"]
+
+--- types ---
+main :: Node -> [String]

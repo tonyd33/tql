@@ -1,4 +1,4 @@
-import Data.List (all, any, append, null);
+import Data.List (all, any, null);
 
 statements = named_children | keep (not . is_extra);
 

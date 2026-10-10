@@ -6,8 +6,6 @@ asserts: types, values
 `Describe a`.
 
 --- tql ---
-import Data.List (append);
-
 class Describe a where {
   describe :: a -> [String];
 };

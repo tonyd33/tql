@@ -37,4 +37,4 @@ kids = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%children
 named_kids = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%children_of_kind :class_declaration root)
 all = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%descendants_of_kind :class_declaration root)
 named_all = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%descendants_of_kind :class_declaration root)
-main = \x -> append (append (append (kids x) (named_kids x)) (all x)) (named_all x)
+main = \x -> append[List] (append[List] (append[List] (kids x) (named_kids x)) (all x)) (named_all x)

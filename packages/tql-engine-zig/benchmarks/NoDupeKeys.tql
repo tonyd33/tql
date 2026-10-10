@@ -1,4 +1,4 @@
-import Data.List (any, append, concat_map);
+import Data.List (any, concat_map);
 
 data Member = Member String String Node;
 

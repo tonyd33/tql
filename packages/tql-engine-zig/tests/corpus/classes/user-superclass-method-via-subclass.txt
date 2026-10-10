@@ -3,8 +3,6 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.List (append);
-
 class Labelled a where {
   label :: a -> String;
 };

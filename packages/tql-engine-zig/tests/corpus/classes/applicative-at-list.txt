@@ -5,8 +5,6 @@ asserts: types, values
 `ap` applies every function to every argument, functions outermost.
 
 --- tql ---
-import Data.List (append);
-
 main root = append (pure 0) (ap [(+ 1), (* 10)] [1, 2]);
 
 --- source ---

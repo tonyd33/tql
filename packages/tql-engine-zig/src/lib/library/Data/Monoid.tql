@@ -1,0 +1,43 @@
+module Data.Monoid (Semigroup(..), Monoid(..));
+
+import Prim (List(..), Ordering(..));
+import Data.Unit (Unit(..));
+
+class Semigroup a where {
+  append :: a -> a -> a;
+};
+
+class Semigroup a => Monoid a where {
+  mempty :: a;
+};
+
+instance Semigroup [a] where {
+  append xs ys = case xs of {
+    Nil -> ys;
+    Cons h t -> Cons h (append t ys);
+  };
+};
+
+instance Monoid [a] where {
+  mempty = Nil;
+};
+
+instance Semigroup Unit where {
+  append _ _ = Unit;
+};
+
+instance Monoid Unit where {
+  mempty = Unit;
+};
+
+instance Semigroup Ordering where {
+  append x y = case x of {
+    LT -> LT;
+    EQ -> y;
+    GT -> GT;
+  };
+};
+
+instance Monoid Ordering where {
+  mempty = EQ;
+};

@@ -2,7 +2,6 @@ module Data.List (
   List(..),
   Sized(..),
   null,
-  append,
   concat,
   concat_map,
   filter,
@@ -17,6 +16,7 @@ module Data.List (
 
 import Prim (Int, String, List(..), Bool(..), seq);
 import Data.Bool (and, or);
+import Data.Monoid (Semigroup(..));
 
 class Sized a where {
   length :: a -> Int;
@@ -40,12 +40,6 @@ null :: [a] -> Bool;
 null xs = case xs of {
   Nil -> True;
   Cons h t -> False;
-};
-
-append :: [a] -> [a] -> [a];
-append xs ys = case xs of {
-  Nil -> ys;
-  Cons h t -> Cons h (append t ys);
 };
 
 concat :: [[a]] -> [a];

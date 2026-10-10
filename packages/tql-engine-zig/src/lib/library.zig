@@ -21,6 +21,7 @@ pub const modules = [_]load.Named{
     .{ .name = "Data.Ord", .path = "Data/Ord.tql", .text = @embedFile("library/Data/Ord.tql") },
     .{ .name = "Data.Function", .path = "Data/Function.tql", .text = @embedFile("library/Data/Function.tql") },
     .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
+    .{ .name = "Data.Monoid", .path = "Data/Monoid.tql", .text = @embedFile("library/Data/Monoid.tql") },
     .{ .name = "Data.List", .path = "Data/List.tql", .text = @embedFile("library/Data/List.tql") },
     .{ .name = "Data.Functor", .path = "Data/Functor.tql", .text = @embedFile("library/Data/Functor.tql") },
     .{ .name = "Control.Applicative", .path = "Control/Applicative.tql", .text = @embedFile("library/Control/Applicative.tql") },

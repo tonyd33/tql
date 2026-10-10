@@ -2,7 +2,7 @@ module Control.Applicative (Applicative(..), Alternative(..), return, guard);
 
 import Prim (List(..), Bool(..));
 import Data.Unit (Unit(..));
-import Data.List (append);
+import Data.Monoid (Semigroup(..));
 import Data.Functor (Functor(..));
 
 class Functor f => Applicative f where {

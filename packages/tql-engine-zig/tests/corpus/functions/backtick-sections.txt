@@ -4,7 +4,6 @@ asserts: core, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (append);
 import Data.Int (mod);
 
 main = const (append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]));

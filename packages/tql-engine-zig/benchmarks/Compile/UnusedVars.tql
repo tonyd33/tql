@@ -1,6 +1,6 @@
 module Compile.UnusedVars (unused_vars) for javascript;
 
-import Data.List (any, append, concat_map, filter, null);
+import Data.List (any, concat_map, filter, null);
 import Data.Function (identity);
 
 is_one_of ks n = any (= kind n) ks;
