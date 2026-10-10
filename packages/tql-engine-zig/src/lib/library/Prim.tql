@@ -103,7 +103,10 @@ descendants_of_kind :: Kind -> Filter Node Node;
 descendants_of_kind = %descendants_of_kind;
 
 of_kind :: Kind -> Filter Node Node;
-of_kind = %of_kind;
+of_kind k x = case is_kind k x of {
+  False -> Nil;
+  True -> Cons x Nil;
+};
 
 is_kind :: Kind -> Node -> Bool;
 is_kind = %is_kind;

@@ -30,7 +30,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .descendants,
         .named_descendants,
         => .{ .type = try B.filter(types.node_type, types.node_type) },
-        .of_kind, .children_of_kind, .descendants_of_kind => .{ .type = try B.func(
+        .children_of_kind, .descendants_of_kind => .{ .type = try B.func(
             types.kind_type,
             try B.filter(types.node_type, types.node_type),
         ) },

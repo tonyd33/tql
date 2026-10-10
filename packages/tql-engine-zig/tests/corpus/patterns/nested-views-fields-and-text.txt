@@ -84,7 +84,7 @@ main = \root -> concat_map (
                 True -> case cons1' of
                   Nil -> case cons1 of
                     Nil -> concat_map (\_ -> Cons (%text scrutinee) Nil) (
-                      case concat_map (%of_kind :catch_clause) (%ancestors scrutinee) of
+                      case concat_map (of_kind :catch_clause) (%ancestors scrutinee) of
                         Nil -> Cons Unit Nil
                         Cons h t -> Nil
                     )

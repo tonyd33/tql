@@ -826,12 +826,6 @@ pub const Machine = struct {
                     return try self.rangeRecord(rangeOf(subject));
                 },
 
-                // `[x]` when the kind matches, otherwise `[]`.
-                .of_kind => {
-                    const tested = try self.kindTestArguments(arguments);
-                    if (tested.subject.kindId() != tested.kind_id) return self.nil();
-                    return self.singleton(arguments[1]);
-                },
                 .is_kind => {
                     const tested = try self.kindTestArguments(arguments);
                     return try self.boolValue(tested.subject.kindId() == tested.kind_id);
@@ -924,8 +918,7 @@ pub const Machine = struct {
         };
     }
 
-    /// The kind and node arguments of `of_kind`, `is_kind` and the `_of_kind`
-    /// axes.
+    /// The kind and node arguments of `is_kind` and the `_of_kind` axes.
     fn kindTestArguments(
         self: *Machine,
         arguments: []const *value.Thunk,

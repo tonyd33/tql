@@ -97,7 +97,6 @@ pub const PrimOp = enum {
     named_descendants,
     children_of_kind,
     descendants_of_kind,
-    of_kind,
     is_kind,
     eq_int,
     ne_int,

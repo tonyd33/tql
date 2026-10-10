@@ -126,10 +126,8 @@ pub const Simplifier = struct {
                 .interner = &env.interner,
                 .classes = &env.classes,
                 .primitives = &env.primitives,
-                .kleisli = env.known.get(.kleisli),
-                .concat_map = env.known.get(.concat_map),
+                .known = &env.known,
                 .nil = env.datatypes.nilConstructor().symbol,
-                .cons = env.datatypes.consConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
                 .true_ = env.datatypes.boolConstructor(true).symbol,
                 .ordering = .{
@@ -382,30 +380,23 @@ pub const Simplifier = struct {
         return true;
     }
 
-    /// Hand `head`, simplified, to the `case` frame `frame`, followed by
+    /// Hand `scrutinee`, simplified, to the `case` frame `frame`, followed by
     /// `rest`.
-    fn rebuildCase(self: *Simplifier, head: core.Term, frame: Select, rest: []const Frame) Error!core.Term {
-        var scrutinee = head;
+    fn rebuildCase(self: *Simplifier, scrutinee: core.Term, frame: Select, rest: []const Frame) Error!core.Term {
         const instance = if (frame.dupable) try self.instantiate(frame) else frame;
-        var case_alternatives = instance.alternatives;
         const default = instance.default;
         const span = frame.span;
 
         if (self.options.laws and default == null) {
-            if (self.laws.foldComparison(scrutinee, case_alternatives)) |folded| {
+            if (self.laws.foldComparison(scrutinee, instance.alternatives)) |folded| {
                 self.changed = true;
                 const call = try self.builder.applyMany(self.builder.symbol(folded.comparison, scrutinee.span), &.{ folded.left, folded.right }, span);
                 return try self.rebuild(call, rest);
             }
-            if (try self.laws.rewriteCase(scrutinee, case_alternatives, span)) |rewritten| {
-                self.changed = true;
-                scrutinee = rewritten.scrutinee;
-                case_alternatives = rewritten.alternatives;
-            }
         }
         const known = if (self.options.case_of_known_constructor) try self.knownConstructor(scrutinee) else null;
         if (known) |known_constructor| {
-            for (case_alternatives) |alternative| {
+            for (instance.alternatives) |alternative| {
                 if (alternative.constructor != known_constructor.constructor) continue;
                 self.changed = true;
                 return try self.take(alternative, known_constructor.fields, rest, span);
@@ -425,12 +416,12 @@ pub const Simplifier = struct {
         var inner = rest;
         if (rest.len > 0) {
             self.changed = true;
-            const copies = case_alternatives.len + @intFromBool(default != null);
+            const copies = instance.alternatives.len + @intFromBool(default != null);
             if (copies > 1) inner = try self.dupable(rest, &bindings);
         }
 
-        const alternatives = try self.builder.slice(core.Case.Alternative, case_alternatives.len);
-        for (case_alternatives, alternatives) |old, *new| {
+        const alternatives = try self.builder.slice(core.Case.Alternative, instance.alternatives.len);
+        for (instance.alternatives, alternatives) |old, *new| {
             new.* = .{
                 .constructor = old.constructor,
                 .binders = old.binders,

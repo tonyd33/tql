@@ -1,0 +1,85 @@
+title: a case of of_kind on a call's result becomes a kind test on the call bound once
+grammar: typescript
+asserts: simplified, values, stg
+
+Inlining `of_kind` binds its node operand, so `top c` is evaluated once for
+both the kind test and `n`.
+
+--- tql ---
+top n = case parent n of { [p] -> top p; _ -> n };
+
+main root = do {
+  c <- children root;
+  [
+    case of_kind :class_declaration (top c) of { [n] -> text n; _ -> "other" },
+    case of_kind :class_declaration c of { [n] -> text n; _ -> "other" },
+  ];
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["other", "class A {}"]
+
+--- simplified ---
+top = \n -> case %parent n of
+  Nil -> n
+  Cons p cons1 -> case cons1 of
+    Nil -> top p
+    Cons _ _ -> n
+main = \root -> concat_map (
+  \c -> Cons (
+    let x = top c in
+    case %is_kind :class_declaration x of
+      False -> "other"
+      True -> %text x
+  ) (
+    Cons (
+      case %is_kind :class_declaration c of
+        False -> "other"
+        True -> %text c
+    ) Nil
+  )
+) (%children root)
+
+--- stg ---
+top = {} \u {} ->
+  let
+    t0 = {} \n {n} -> case %parent# n@0 of
+      Nil -> n@0
+      Cons p cons1 -> case cons1@2 of
+        Nil -> top p@1
+        Cons _ _ -> n@0
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    t7 = {} \n {root} ->
+      let
+        t5 = {} \u {} ->
+          let
+            t4 = {} \n {c} ->
+              let
+                t0 = {c@0} \u {} ->
+                  let x = {c@0} \u {} -> top c@0 in
+                  case %is_kind# :class_declaration x@1 of
+                    False -> "other"
+                    True -> %text# x@1
+                t3 = {c@0} \u {} ->
+                  let
+                    t1 = {c@0} \u {} -> case %is_kind# :class_declaration c@0 of
+                      False -> "other"
+                      True -> %text# c@0
+                    c2 = Nil
+                  in
+                  Cons t1@1 c2@2
+              in
+              Cons t0@1 t3@2
+          in
+          t4@0
+        t6 = {root@0} \u {} -> %children# root@0
+      in
+      concat_map t5@1 t6@2
+  in
+  t7@0

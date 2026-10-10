@@ -457,7 +457,7 @@ fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.S
     else
         try all(lowerer, inside.items, span);
     const kind = try lowerer.expression(.{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span }, null);
-    const function = try b.apply(lowerer.primop(.of_kind, node.span), kind, node.span);
+    const function = try b.apply(try lowerer.known(.of_kind, node.span), kind, node.span);
     return try view(lowerer, function, element, true, node.span);
 }
 

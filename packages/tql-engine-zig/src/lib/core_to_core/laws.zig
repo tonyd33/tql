@@ -11,22 +11,24 @@ pub const Laws = struct {
     interner: *const core.Interner,
     classes: *const core.classes.Registry,
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
-    /// Null when the library has none.
-    kleisli: ?core.SymbolId,
-    /// Null when the library has none.
-    concat_map: ?core.SymbolId,
+    /// A key is null when the library has none.
+    known: *const std.EnumArray(core.Known, ?core.SymbolId),
     nil: core.SymbolId,
-    cons: core.SymbolId,
     false_: core.SymbolId,
     true_: core.SymbolId,
     /// `LT`, `EQ` and `GT`.
     ordering: [3]core.SymbolId,
 
+    /// The library definitions a law matches on.
+    const named = [_]core.Known{ .kleisli, .concat_map, .of_kind };
+
     /// Whether a law matches on `symbol`.
     pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
         return switch (self.interner.details(symbol)) {
             .method, .instance => true,
-            else => symbol == self.kleisli or symbol == self.concat_map,
+            else => for (named) |key| {
+                if (self.known.get(key) == symbol) break true;
+            } else false,
         };
     }
 
@@ -82,36 +84,6 @@ pub const Laws = struct {
         var result = self.builder.symbol(instance.methods[method.index], span);
         try self.spine(argument, &result, span);
         return result;
-    }
-
-    /// `case of_kind k x of { Nil -> a; Cons n t -> b }` becomes
-    /// `case is_kind k x of { False -> a; True -> let n = x in let t = Nil in b }`.
-    /// Returns null unless `x` is a symbol.
-    ///
-    /// Preconditions: `scrutinee` is simplified.
-    /// Postconditions: the result's scrutinee is simplified and its
-    /// alternatives are not.
-    pub fn rewriteCase(
-        self: *const Laws,
-        scrutinee: core.Term,
-        alternatives: []const core.Case.Alternative,
-        span: diagnostic.Span,
-    ) Allocator.Error!?core.Case {
-        const tested = self.kindTest(.of_kind, scrutinee) orelse return null;
-        if (tested.subject.kind != .symbol) return null;
-        const is_kind = self.primitives.get(.is_kind) orelse return null;
-        const nil = alternativeFor(alternatives, self.nil) orelse return null;
-        const cons = alternativeFor(alternatives, self.cons) orelse return null;
-
-        const b = self.builder;
-        const tail = try b.let(cons.binders[1], b.symbol(self.nil, span), cons.body, span);
-        return .{
-            .scrutinee = try b.applyMany(b.symbol(is_kind, scrutinee.span), &.{ tested.kind, tested.subject }, scrutinee.span),
-            .alternatives = try b.dupeSlice(core.Case.Alternative, &.{
-                .{ .constructor = self.false_, .binders = &.{}, .body = nil.body },
-                .{ .constructor = self.true_, .binders = &.{}, .body = try b.let(cons.binders[0], tested.subject, tail, span) },
-            }),
-        };
     }
 
     /// A comparison of `left` and `right` that answers what a `case` makes of
@@ -193,8 +165,8 @@ pub const Laws = struct {
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const kleisli = self.kleisli orelse return null;
-        const kind = self.kindTested(.of_kind, argument) orelse return null;
+        const kleisli = self.known.get(.kleisli) orelse return null;
+        const kind = operandOf(self.known.get(.of_kind) orelse return null, argument) orelse return null;
         const composed = operandOf(kleisli, function) orelse return null;
 
         switch (composed.kind) {
@@ -228,7 +200,7 @@ pub const Laws = struct {
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const concat_map = self.concat_map orelse return null;
+        const concat_map = self.known.get(.concat_map) orelse return null;
         const mapped = operandOf(concat_map, function) orelse return null;
         const lambda = switch (mapped.kind) {
             .lambda => |l| l,
@@ -248,7 +220,7 @@ pub const Laws = struct {
         };
 
         const s = lambda.parameter;
-        const tested = self.kindTest(.is_kind, matched.scrutinee) orelse return null;
+        const tested = self.kindTest(matched.scrutinee) orelse return null;
         if (!isSymbol(tested.subject, s)) return null;
         if (core.free.occurs(tested.kind, s)) return null;
         const fused = self.fusedAxis(axis, tested.kind) orelse return null;
@@ -279,20 +251,15 @@ pub const Laws = struct {
         return self.primitives.get(fused);
     }
 
-    /// `k`, when `t` is `primop k`.
-    fn kindTested(self: *const Laws, primop: core.PrimOp, t: core.Term) ?core.Term {
-        return operandOf(self.primitives.get(primop) orelse return null, t);
-    }
-
     const KindTest = struct { kind: core.Term, subject: core.Term };
 
-    /// `k` and `x`, when `t` is `primop k x`.
-    fn kindTest(self: *const Laws, primop: core.PrimOp, t: core.Term) ?KindTest {
+    /// `k` and `x`, when `t` is `is_kind k x`.
+    fn kindTest(self: *const Laws, t: core.Term) ?KindTest {
         const a = switch (t.kind) {
             .apply => |a| a,
             else => return null,
         };
-        const kind = self.kindTested(primop, a.function) orelse return null;
+        const kind = operandOf(self.primitives.get(.is_kind) orelse return null, a.function) orelse return null;
         return .{ .kind = kind, .subject = a.argument };
     }
 

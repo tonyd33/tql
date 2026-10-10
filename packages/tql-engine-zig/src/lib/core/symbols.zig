@@ -33,6 +33,7 @@ pub const Known = enum {
     compose,
     kleisli,
     alt,
+    of_kind,
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;
