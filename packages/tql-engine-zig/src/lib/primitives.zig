@@ -20,7 +20,7 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
         .string_length => .{ .type = try B.func(types.string_type, types.int_type) },
-        .mod => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
+        .div, .mod, .quot, .rem => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
         .toint => .{ .type = try B.listFunction(types.string_type, types.int_type) },
         .filename => .{ .type = try B.listFunction(types.node_type, types.string_type) },
         .parent,
@@ -79,7 +79,7 @@ pub fn operatorScheme(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
         ) },
-        .add, .subtract, .multiply, .divide => .{ .type = try B.func(
+        .add, .subtract, .multiply => .{ .type = try B.func(
             types.int_type,
             try B.func(types.int_type, types.int_type),
         ) },

@@ -1,16 +1,27 @@
-title: integer division truncates, associates left and binds like multiplication
+title: div and mod floor, quot and rem truncate, and every pair is defined
 grammar: typescript
-asserts: types, values
+asserts: values
+
+Each pair satisfies `q * b + r = a` for every `a` and `b`. A zero divisor
+gives quotient 0 and remainder `a`, and the least `Int` divided by `-1`
+wraps to itself with remainder 0.
 
 --- tql ---
+import Data.Int (div, mod, quot, rem);
 
-main = Filter (\_ -> [7 / 2, -7 / 2, 8 / 2 / 2, 1 + 6 / 2]);
+least = 0 - 9223372036854775807 - 1;
+
+main = pure [
+  [div 7 2, mod 7 2, quot 7 2, rem 7 2],
+  [div (-7) 2, mod (-7) 2, quot (-7) 2, rem (-7) 2],
+  [div 7 (-2), mod 7 (-2), quot 7 (-2), rem 7 (-2)],
+  [div (-7) (-2), mod (-7) (-2), quot (-7) (-2), rem (-7) (-2)],
+  [div 7 0, mod 7 0, quot (-7) 0, rem (-7) 0],
+  [div least (-1), mod least (-1), quot least (-1), rem least (-1)]
+];
 
 --- source ---
 class A {}
 
 --- values ---
-[3, -3, 2, 4]
-
---- types ---
-main :: Filter Node Int
+[[[3,1,3,1],[-4,1,-3,-1],[-4,-1,-3,1],[3,-1,3,-1],[0,7,0,-7],[-9223372036854775808,0,-9223372036854775808,0]]]

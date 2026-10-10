@@ -13,7 +13,6 @@ pub const Scalar = enum {
     add,
     subtract,
     multiply,
-    divide,
 
     /// How the operator is written, and how its symbol is named.
     pub fn spelling(self: Scalar) []const u8 {
@@ -23,7 +22,6 @@ pub const Scalar = enum {
             .add => "+",
             .subtract => "-",
             .multiply => "*",
-            .divide => "/",
         };
     }
 };
@@ -86,7 +84,10 @@ pub const PrimOp = enum {
     is_extra,
     range,
     string_length,
+    div,
     mod,
+    quot,
+    rem,
     toint,
     filename,
     parent,

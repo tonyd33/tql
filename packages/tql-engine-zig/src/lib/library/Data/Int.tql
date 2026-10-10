@@ -1,6 +1,6 @@
-module Data.Int (Int, mod, subtract, toint);
+module Data.Int (Int, div, mod, quot, rem, subtract, toint);
 
-import Prim (Int, String, mod);
+import Prim (Int, String, div, mod, quot, rem);
 import Data.Filter (Filter(..));
 
 subtract :: Int -> Int -> Int;

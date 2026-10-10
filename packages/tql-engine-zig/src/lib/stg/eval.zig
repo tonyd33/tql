@@ -47,8 +47,6 @@ inline fn note(site: Site, bytes: usize) void {
 pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A thunk was re-entered while it was still being evaluated.
     Cycle,
-    /// Division or modulo by zero.
-    DivideByZero,
     /// Reached only by a program the type checker should have rejected.
     TypeError,
     /// Evaluation nested deeper than the machine's stack budget.
@@ -780,13 +778,10 @@ pub const Machine = struct {
                 .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
             .builtin => |primop| switch (primop) {
-                // Floored: the result takes the divisor's sign.
-                .mod => {
+                inline .div, .mod, .quot, .rem => |p| {
                     if (arguments.len != 2) return error.TypeError;
                     const a, const b = try numbers(try self.force(arguments[0]), try self.force(arguments[1]));
-                    if (b == 0) return error.DivideByZero;
-                    const r = @rem(a, b);
-                    return .{ .number = if (r != 0 and (r < 0) != (b < 0)) r + b else r };
+                    return .{ .number = divide(p, a, b) };
                 },
 
                 .string_length => {
@@ -1074,6 +1069,30 @@ pub const Machine = struct {
         return .{ a, b };
     }
 
+    /// Returns the quotient or remainder `primop` names. `div` and `mod`
+    /// floor, `quot` and `rem` truncate, and each pair satisfies
+    /// `q * b + r = a` for every `a` and `b`: a zero divisor gives quotient
+    /// 0 and remainder `a`, and the least `Int` divided by `-1` wraps.
+    fn divide(comptime primop: core.PrimOp, a: i64, b: i64) i64 {
+        if (b == 0) return switch (primop) {
+            .div, .quot => 0,
+            .mod, .rem => a,
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+        if (b == -1) return switch (primop) {
+            .div, .quot => 0 -% a,
+            .mod, .rem => 0,
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+        return switch (primop) {
+            .div => @divFloor(a, b),
+            .mod => a - @divFloor(a, b) * b,
+            .quot => @divTrunc(a, b),
+            .rem => @rem(a, b),
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+    }
+
     /// The order of two `Int`s or two `String`s, the primitive types with
     /// `Ord` instances.
     fn ordering(left: value.Value, right: value.Value) Error!std.math.Order {
@@ -1124,26 +1143,16 @@ pub const Machine = struct {
         switch (scalar) {
             .add => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a + b };
+                return .{ .number = a +% b };
             },
             .subtract => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a - b };
+                return .{ .number = a -% b };
             },
             .multiply => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a * b };
+                return .{ .number = a *% b };
             },
-            // Division by zero is undefined until the language has a Maybe.
-            // A scalar operator has no way to yield nothing, so the old
-            // "empty stream" answer stopped being expressible when division
-            // became a scalar.
-            .divide => {
-                const a, const b = try numbers(left, right);
-                if (b == 0) return error.DivideByZero;
-                return .{ .number = @divTrunc(a, b) };
-            },
-
             .match, .not_match => {
                 const haystack = switch (left) {
                     .string => |s| s,

@@ -697,7 +697,7 @@ const Walker = struct {
             .dollar
         else
             .{ .binary = operatorFromSpelling(textOf(op_node, self.source)) orelse {
-                try self.sink.report(.parse, span, "unknown operator", .{});
+                try self.unknownOperator(op_node);
                 return null;
             } };
 
@@ -720,13 +720,27 @@ const Walker = struct {
         };
     }
 
+    fn unknownOperator(self: *Walker, op_node: ts.Node) !void {
+        const span = spanOf(op_node, self.source_id);
+        if (std.mem.eql(u8, textOf(op_node, self.source), "/")) {
+            try self.sink.report(
+                .parse,
+                span,
+                "`/` is not an operator: write ``a `div` b``, which floors, or ``a `quot` b``, which truncates, with `import Data.Int (div, quot);`",
+                .{},
+            );
+        } else {
+            try self.sink.report(.parse, span, "unknown operator", .{});
+        }
+    }
+
     fn binary(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const left_node = try self.requiredField(node, "left") orelse return null;
         const right_node = try self.requiredField(node, "right") orelse return null;
 
         const operator = if (node.childByFieldName("operator")) |op_node|
             operatorFromSpelling(textOf(op_node, self.source)) orelse {
-                try self.sink.report(.parse, span, "unknown operator", .{});
+                try self.unknownOperator(op_node);
                 return null;
             }
         else
