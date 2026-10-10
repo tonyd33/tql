@@ -2,6 +2,7 @@ module Prelude (
   module Prim,
   module Data.Unit,
   module Data.Bool,
+  module Data.Functor,
   module Data.List,
   module Data.Node,
   module Data.Filter,
@@ -21,6 +22,7 @@ import Prim (
 );
 import Data.Unit (Unit(..));
 import Data.Bool (not, and, or);
+import Data.Functor (Functor(..));
 import Data.List (Sized(..));
 import Data.Node;
 import Data.Filter (pure, none, arr, collect, keep, has, first, or_else, guard, return);

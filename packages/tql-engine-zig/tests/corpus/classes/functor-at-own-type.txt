@@ -1,0 +1,28 @@
+title: `map` reaches a query's own `Functor` instance
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Pair a = Pair a a;
+
+instance Functor Pair where {
+  map f p = case p of {
+    Pair x y -> Pair (f x) (f y);
+  };
+};
+
+both p = case p of {
+  Pair x y -> [x, y];
+};
+
+main root = both (map (+ 1) (Pair 1 2));
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3]
+
+--- types ---
+both :: Pair a -> [a]
+main :: Node -> [Int]

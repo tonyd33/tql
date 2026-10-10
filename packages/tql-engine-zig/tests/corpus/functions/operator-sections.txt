@@ -4,7 +4,7 @@ asserts: core, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (append, map);
+import Data.List (append);
 
 main = const (append (map (10 -) [1, 2]) (map (/ 2) [10, 4]));
 

@@ -3,7 +3,6 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.List (map);
 
 class Mappable f where {
   mapf :: (a -> b) -> f a -> f b;

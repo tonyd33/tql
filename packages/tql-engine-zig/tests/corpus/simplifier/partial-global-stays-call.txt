@@ -4,7 +4,6 @@ asserts: core, simplified, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (map);
 
 add x y = x + y;
 main = const (map (add 1) [1, 2]);
@@ -17,7 +16,7 @@ class A {}
 
 --- simplified ---
 add = \x -> \y -> op[+] x y
-main = const (map (add 1) (Cons 1 (Cons 2 Nil)))
+main = const (map[List] (add 1) (Cons 1 (Cons 2 Nil)))
 
 --- core ---
 add = \x -> \y -> op[+] x y

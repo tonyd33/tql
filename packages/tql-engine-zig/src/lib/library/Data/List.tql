@@ -4,7 +4,6 @@ module Data.List (
   null,
   append,
   concat,
-  map,
   concat_map,
   filter,
   foldr,
@@ -53,12 +52,6 @@ concat :: [[a]] -> [a];
 concat xss = case xss of {
   Nil -> Nil;
   Cons h t -> append h $ concat t;
-};
-
-map :: (a -> b) -> [a] -> [b];
-map f xs = case xs of {
-  Nil -> Nil;
-  Cons h t -> Cons (f h) $ map f t;
 };
 
 concat_map :: (a -> [b]) -> [a] -> [b];

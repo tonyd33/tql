@@ -4,7 +4,6 @@ asserts: core, simplified, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (map);
 
 main = let { a = 2 * 3 } in const (map (\x -> x + a) [1, 2]);
 
@@ -17,7 +16,7 @@ class A {}
 --- simplified ---
 main =
   let a = op[*] 2 3 in
-  const (map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
+  const (map[List] (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
 
 --- core ---
 main =

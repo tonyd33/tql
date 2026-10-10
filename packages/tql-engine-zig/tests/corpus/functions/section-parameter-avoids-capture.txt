@@ -4,7 +4,6 @@ asserts: core, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (map);
 
 same x = map (= x) [1, 2];
 main = const (same 1);

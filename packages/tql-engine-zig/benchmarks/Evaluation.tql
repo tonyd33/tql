@@ -1,5 +1,5 @@
 import Data.Int (toint);
-import Data.List (concat_map, map, null, take);
+import Data.List (concat_map, null, take);
 
 data Size = Small | Medium | Large Int;
 

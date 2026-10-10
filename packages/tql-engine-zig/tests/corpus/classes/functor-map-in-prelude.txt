@@ -1,0 +1,12 @@
+title: `map` is in scope without an import
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = map (+ 1) [1, 2];
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3]

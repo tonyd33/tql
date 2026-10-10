@@ -1,0 +1,21 @@
+title: a method that recurses through its instance is not unrolled
+grammar: typescript
+asserts: simplified, values
+
+`map[List]` calls itself through the `Functor List` dictionary until the
+simplifier selects the method. The method is the loop breaker, not the
+dictionary, so a call at a literal list stays a call.
+
+--- tql ---
+import Data.Function (const);
+
+main = const (map (\x -> x + 1) [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[2,3]
+
+--- simplified ---
+main = const (map[List] (\x -> op[+] x 1) (Cons 1 (Cons 2 Nil)))

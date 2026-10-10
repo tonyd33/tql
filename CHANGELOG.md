@@ -16,7 +16,7 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
-- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (map, any);` for `map`, `filter`, `foldr`, `append`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (alt);` for `kleisli` and `alt`. Operators and `do` still work without an import.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (filter, any);` for `filter`, `foldr`, `append`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (alt);` for `kleisli` and `alt`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
 
@@ -61,6 +61,7 @@
 - An alias parameter its body never uses is no longer an error.
 - A class may range over type constructors: `class Mappable f where { mapf :: (a -> b) -> f a -> f b; };` takes `instance Mappable List` and `instance Mappable (Either e)`. A context may constrain an applied variable, `Eq (f a) =>`, and one is inferred where needed.
 - A type variable applied to an argument matches a function type: `f a` against `Int -> Bool` makes `f` the function type short of its result, printed `(->) Int`.
+- Added the `Functor` class, whose method is `map`.
 
 ### Improvements
 

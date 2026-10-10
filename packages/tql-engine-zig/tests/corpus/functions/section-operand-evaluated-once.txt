@@ -4,7 +4,6 @@ asserts: core, values
 
 --- tql ---
 import Data.Function (const);
-import Data.List (map);
 
 inc x = x + 1;
 main = const (map (= inc 1) [2, 3]);

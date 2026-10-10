@@ -6,7 +6,6 @@ asserts: core, types, values
 `n#name` is a `[Node]`, and `map text` maps over it.
 
 --- tql ---
-import Data.List (map);
 
 name_of n = map text n#name;
 main = children | of_kind :class_declaration | name_of;

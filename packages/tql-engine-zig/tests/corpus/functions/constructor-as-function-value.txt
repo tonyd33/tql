@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 import Data.Function (const, flip);
-import Data.List (append, map);
+import Data.List (append);
 
 data Pair = Pair Int Int;
 

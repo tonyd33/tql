@@ -6,7 +6,6 @@ asserts: types, values, stg
 
 --- tql ---
 import Data.Function (const);
-import Data.List (map);
 
 main =
   let {
@@ -41,6 +40,6 @@ main = {} \u {} ->
           in
           Cons 1 t3@0
       in
-      map t1@1 t4@2
+      map[List] t1@1 t4@2
   in
   const t5@1
