@@ -244,7 +244,7 @@ pub const Inference = struct {
     ///               ------------------------------
     ///               Gamma |- \x -> e : alpha -> tau
     fn lambda(self: *Inference, lam: core.Lambda, t: core.Term) Error!Elaborated {
-        const parameter = try self.subst.fresh();
+        const parameter = try self.subst.fresh(.type);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -278,7 +278,7 @@ pub const Inference = struct {
             );
         }
 
-        const result = try self.subst.fresh();
+        const result = try self.subst.fresh(.type);
         const arrow = try types.func(self.subst.arena, argument, result);
 
         switch (try unify.unify(self.subst, callee, arrow)) {
@@ -323,7 +323,7 @@ pub const Inference = struct {
             const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
             const declared = self.env.datatypes.get(owner);
             arguments = try self.subst.arena.alloc(types.Type, declared.parameters.len);
-            for (arguments) |*argument| argument.* = try self.subst.fresh();
+            for (arguments, declared.parameters) |*argument, kind| argument.* = try self.subst.fresh(kind);
             const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
             try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
         }
@@ -496,7 +496,7 @@ pub const Inference = struct {
     ) Error!void {
         const placeholders = try self.gpa.alloc(types.Type, bindings.len);
         defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh();
+        for (placeholders) |*p| p.* = try self.subst.fresh(.type);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -900,7 +900,7 @@ pub const Inference = struct {
         const instantiated = try self.instantiate(scheme, span);
 
         // 1. `Node -> [tau]`
-        const output = try self.subst.fresh();
+        const output = try self.subst.fresh(.type);
         const wanted = try self.subst.datatypes.filter(self.subst.arena, types.node_type, output);
 
         switch (try unify.unify(self.subst, wanted, instantiated.type)) {

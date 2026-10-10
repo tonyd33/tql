@@ -23,9 +23,9 @@ pub const Outcome = union(enum) {
 };
 
 /// Decides `class t`.
-pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) Outcome {
+pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) std.mem.Allocator.Error!Outcome {
     var first: ?types.Meta = null;
-    const culprit = classes.reduce(subst.classes, class, t, subst, FirstResidual{ .first = &first }) catch |e| switch (e) {};
+    const culprit = try classes.reduce(subst.classes, class, t, subst, FirstResidual{ .first = &first });
     if (culprit) |c| return .{ .fails = c };
     if (first) |meta| return .{ .deferred = meta };
     return .holds;
@@ -57,7 +57,7 @@ pub fn reduce(
 const FirstResidual = struct {
     first: *?types.Meta,
 
-    pub const Error = error{};
+    pub const Error = std.mem.Allocator.Error;
 
     pub fn leaf(self: FirstResidual, _: classes.ClassId, t: types.Type) Error!void {
         if (self.first.* == null) self.first.* = metaOf(t);
@@ -109,7 +109,7 @@ pub const Set = struct {
         t: types.Type,
         origin: diagnostic.Span,
     ) !?Violation {
-        switch (entails(subst, class, t)) {
+        switch (try entails(subst, class, t)) {
             .holds => return null,
             .fails => |culprit| return .{ .class = class, .type = culprit, .origin = origin },
             .deferred => {
@@ -129,7 +129,7 @@ pub const Set = struct {
         errdefer kept.deinit(self.gpa);
 
         for (self.items.items) |c| {
-            switch (entails(subst, c.class, c.type)) {
+            switch (try entails(subst, c.class, c.type)) {
                 .holds => {},
                 .fails => |culprit| {
                     kept.deinit(self.gpa);

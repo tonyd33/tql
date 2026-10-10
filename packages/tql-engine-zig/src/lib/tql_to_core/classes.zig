@@ -220,9 +220,7 @@ pub const Linker = struct {
         const constructor = try self.env.interner.generate(self.module(), spelling, .vanilla);
         const fields = try self.arena().alloc(types.Type, count);
         for (fields, 0..) |*field, i| field.* = types.variable_type(@intCast(i));
-        const parameters = try self.arena().alloc(types.Kind, count);
-        @memset(parameters, .type);
-        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, parameters, &.{});
+        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, types.typeKinds(count), &.{});
         self.env.datatypes.setConstructors(&self.env.interner, id, try self.arena().dupe(datatypes.Constructor, &.{
             .{ .symbol = constructor, .tag = 0, .fields = fields },
         }));
@@ -538,7 +536,7 @@ pub const Linker = struct {
     /// the class's own constraint.
     fn methodScheme(self: *Linker, method: types.Scheme, head: annotation.InstanceHead) Error!types.Scheme {
         const parameters = classes.parameterCount(head.type);
-        const arguments = try self.arena().alloc(types.Type, method.quantified);
+        const arguments = try self.arena().alloc(types.Type, method.variables.len);
         arguments[0] = head.type;
         for (arguments[1..], 0..) |*argument, i| argument.* = types.variable_type(@intCast(parameters + i));
 
@@ -548,7 +546,10 @@ pub const Linker = struct {
             slot.* = .{ .class = c.class, .type = try types.substitute(self.arena(), c.type, arguments) };
         }
         return .{
-            .quantified = @intCast(parameters + method.quantified - 1),
+            .variables = try std.mem.concat(self.arena(), types.Kind, &.{
+                self.env.datatypes.get(head.head()).parameters[0..parameters],
+                method.variables[1..],
+            }),
             .constraints = constraints,
             .type = try types.substitute(self.arena(), method.type, arguments),
         };
@@ -715,7 +716,7 @@ const Bound = struct {
         return t;
     }
 
-    pub fn expand(_: Bound, t: types.Type) types.Type {
+    pub fn normalize(_: Bound, t: types.Type) error{}!types.Type {
         var current = t;
         while (current == .alias) current = current.alias.expansion;
         return current;

@@ -1263,8 +1263,10 @@ const Walker = struct {
     }
 
     fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
-        const name_node = try self.requiredField(node, "constructor") orelse return null;
-        const constructor = try self.dupe(name_node);
+        const head: cst.TypeApplication.Head = if (node.childByFieldName("variable")) |variable|
+            .{ .variable = try self.dupe(variable) }
+        else
+            .{ .constructor = try self.dupe(try self.requiredField(node, "constructor") orelse return null) };
         var arguments: std.ArrayList(cst.Type) = .empty;
 
         var cursor = node.walk();
@@ -1283,7 +1285,7 @@ const Walker = struct {
 
         return cst.Type{
             .kind = .{ .application = try self.boxed(cst.TypeApplication{
-                .constructor = constructor,
+                .head = head,
                 .arguments = try arguments.toOwnedSlice(self.allocator),
             }) },
             .span = span,

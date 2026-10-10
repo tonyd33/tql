@@ -9483,7 +9483,7 @@
       },
       "constructor": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "qualified_type_identifier",
@@ -9491,6 +9491,16 @@
           },
           {
             "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "variable": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_variable",
             "named": true
           }
         ]

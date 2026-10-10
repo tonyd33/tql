@@ -660,7 +660,10 @@ module.exports = grammar({
 
     type_application: $ =>
       seq(
-        field("constructor", $._constructor),
+        choice(
+          field("constructor", $._constructor),
+          field("variable", $._type_variable),
+        ),
         repeat1(field("argument", $._type_operand)),
       ),
 

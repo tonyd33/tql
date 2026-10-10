@@ -118,7 +118,7 @@ pub const Resolver = struct {
         at: ?u32,
         span: diagnostic.Span,
     ) Error!core.Term {
-        const target = self.subst.expand(t);
+        const target = try self.subst.normalize(t);
         switch (target) {
             .meta, .variable => {
                 if (try self.given(class, target, at, span)) |found| return found;

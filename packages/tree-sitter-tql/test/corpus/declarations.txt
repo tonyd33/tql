@@ -194,6 +194,33 @@ f :: (Maybe a) -> Int;
       to: (type_identifier))))
 
 ========================================
+a type variable applied to arguments
+========================================
+
+f :: (a -> b) -> f a -> f (g b);
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (parenthesized_type
+        (function_type
+          from: (type_variable)
+          to: (type_variable)))
+      to: (function_type
+        from: (type_application
+          variable: (type_variable)
+          argument: (type_variable))
+        to: (type_application
+          variable: (type_variable)
+          argument: (parenthesized_type
+            (type_application
+              variable: (type_variable)
+              argument: (type_variable))))))))
+
+========================================
 list and record types
 ========================================
 

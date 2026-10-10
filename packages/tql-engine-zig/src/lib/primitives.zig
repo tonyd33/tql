@@ -132,7 +132,7 @@ fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.
         result = try types.func(arena, types.variable_type(@intCast(i)), result);
     }
 
-    return .{ .quantified = @intCast(labels.len), .type = result };
+    return .{ .variables = types.typeKinds(labels.len), .type = result };
 }
 
 /// `select[l] : forall t r. {l: t | r} -> t`.
@@ -144,7 +144,7 @@ fn selectScheme(arena: Allocator, label: []const u8) Allocator.Error!types.Schem
         .fields = fields,
         .rest = try types.store(arena, types.variable_type(1)),
     } };
-    return .{ .quantified = 2, .type = try types.func(arena, subject, field) };
+    return .{ .variables = &.{ .type, .row }, .type = try types.func(arena, subject, field) };
 }
 
 /// Declares the built-in types, then interns the primitives with their

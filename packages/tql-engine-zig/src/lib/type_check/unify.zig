@@ -32,6 +32,8 @@ pub const Mismatch = struct {
         /// Records whose label sets differ where no row can make up the
         /// difference.
         labels,
+        /// A metavariable and a type of different kinds.
+        kind,
     };
 };
 
@@ -57,10 +59,27 @@ pub fn unify(
 
     if (left == .meta and right == .meta and left.meta == right.meta) return .unified;
 
-    if (left != .meta and right == .meta) return bindMeta(subst, right.meta, a);
+    if (left == .meta) return try bindMeta(subst, left.meta, b);
+    if (right == .meta) return try bindMeta(subst, right.meta, a);
+
+    // `m a` against `T x_1 .. x_n` is `m` against `T x_1 .. x_(n-1)` and `a`
+    // against `x_n`.
+    if (left == .application or right == .application) {
+        const incompatible: Result = .{ .mismatch = .{ .reason = .incompatible, .expected = a, .found = b } };
+        const l = try split(subst.arena, left) orelse return incompatible;
+        const r = try split(subst.arena, right) orelse return incompatible;
+        const l_kind = try kindOf(subst, subst.resolve(l.head));
+        if (!l_kind.eql(try kindOf(subst, subst.resolve(r.head)))) {
+            return .{ .mismatch = .{ .reason = .kind, .expected = a, .found = b } };
+        }
+        switch (try unify(subst, l.head, r.head)) {
+            .unified => return try unify(subst, l.argument, r.argument),
+            .mismatch => |m| return .{ .mismatch = m },
+        }
+    }
 
     switch (left) {
-        .meta => |id| return bindMeta(subst, id, b),
+        .meta => unreachable,
         // A bound variable reaching unification means a scheme was used
         // without instantiation, which is a bug in the caller rather than a
         // type error in the program.
@@ -94,17 +113,58 @@ pub fn unify(
             }
             return try records(subst, a, b, r, right.record);
         },
-        .alias => unreachable,
+        .alias, .application => unreachable,
     }
     return .unified;
 }
 
-fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Result {
+const Split = struct { head: types.Type, argument: types.Type };
+
+/// `t` as a head at its last argument, when it is an application or a
+/// declared type at one or more arguments.
+fn split(arena: Allocator, t: types.Type) Allocator.Error!?Split {
+    switch (t) {
+        .application => |a| return .{ .head = a.head, .argument = a.argument },
+        .constructor => |c| {
+            if (c.arguments.len == 0) return null;
+            const last = c.arguments.len - 1;
+            return .{
+                .head = try types.constructed(arena, c.name, c.spelling, c.arguments[0..last]),
+                .argument = c.arguments[last],
+            };
+        },
+        else => return null,
+    }
+}
+
+fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Allocator.Error!Result {
     if (subst.occurs(id, t)) {
         return .{ .mismatch = .{ .reason = .occurs, .expected = .{ .meta = id }, .found = t } };
     }
+    if (!try hasKind(subst, t, subst.kindOf(id))) {
+        return .{ .mismatch = .{ .reason = .kind, .expected = .{ .meta = id }, .found = t } };
+    }
     subst.bind(id, t);
     return .unified;
+}
+
+/// Whether `t` has kind `kind`. A record is a type or, after `|`, a row.
+fn hasKind(subst: *Substitution, t: types.Type, kind: types.Kind) Allocator.Error!bool {
+    const head = subst.expand(t);
+    if (head == .record) return kind == .type or kind == .row;
+    return (try kindOf(subst, head)).eql(kind);
+}
+
+/// The kind of `t`, which is neither a record nor a bound variable.
+fn kindOf(subst: *Substitution, t: types.Type) Allocator.Error!types.Kind {
+    return switch (t) {
+        .meta => |id| subst.kindOf(id),
+        .constructor => |c| try types.Kind.arrows(subst.arena, subst.datatypes.get(c.name).parameters[c.arguments.len..], .type),
+        .function => .type,
+        .alias => |a| try kindOf(subst, a.expansion),
+        .application => |a| (try kindOf(subst, subst.resolve(a.head))).arrow.to,
+        .record, .variable => unreachable,
+    };
 }
 
 /// Unifies two records label by label, then solves their rows for the labels
@@ -165,24 +225,24 @@ fn records(
 
     const left_id = left_row orelse {
         const right_id = right_row orelse return .unified;
-        return bindMeta(subst, right_id, .{ .record = .{ .fields = only_left.items } });
+        return try bindMeta(subst, right_id, .{ .record = .{ .fields = only_left.items } });
     };
     const right_id = right_row orelse {
-        return bindMeta(subst, left_id, .{ .record = .{ .fields = only_right.items } });
+        return try bindMeta(subst, left_id, .{ .record = .{ .fields = only_right.items } });
     };
 
     if (only_left.items.len == 0) {
-        return bindMeta(subst, left_id, try withFields(subst, only_right.items, .{ .meta = right_id }));
+        return try bindMeta(subst, left_id, try withFields(subst, only_right.items, .{ .meta = right_id }));
     }
     if (only_right.items.len == 0) {
-        return bindMeta(subst, right_id, try withFields(subst, only_left.items, .{ .meta = left_id }));
+        return try bindMeta(subst, right_id, try withFields(subst, only_left.items, .{ .meta = left_id }));
     }
-    const shared = try subst.fresh();
-    switch (bindMeta(subst, left_id, try withFields(subst, only_right.items, shared))) {
+    const shared = try subst.fresh(.row);
+    switch (try bindMeta(subst, left_id, try withFields(subst, only_right.items, shared))) {
         .unified => {},
         .mismatch => |m| return .{ .mismatch = m },
     }
-    return bindMeta(subst, right_id, try withFields(subst, only_left.items, shared));
+    return try bindMeta(subst, right_id, try withFields(subst, only_left.items, shared));
 }
 
 fn missing(

@@ -12,6 +12,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
+const kinds = @import("kinds.zig");
 const classes_mod = @import("classes.zig");
 const resolve = @import("resolve.zig");
 const scope_mod = @import("scope.zig");
@@ -88,11 +89,22 @@ pub const Desugarer = struct {
     /// desugared, so a constructor reference resolves like any other global.
     ///
     /// An alias body or constructor field may name a type declared below it.
+    /// The module's datatypes and aliases are kinded together: each
+    /// parameter's kind is what their bodies and fields need of it, or
+    /// `Type` where they leave it open.
     fn declareTypes(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
         const arena = self.env.?.allocator();
         const interner = &self.env.?.interner;
+        const registry = &self.env.?.datatypes;
+        var group = kinds.Group.init(arena, self.allocator);
+        defer group.deinit();
 
-        const Pending = struct { declared: *const cst.DataDeclaration, id: datatypes.TypeId };
+        const Pending = struct {
+            declared: *const cst.DataDeclaration,
+            id: datatypes.TypeId,
+            /// Null when a constructor failed to translate.
+            constructors: ?[]const datatypes.Constructor = null,
+        };
         var pending: std.ArrayList(Pending) = .empty;
         defer pending.deinit(self.allocator);
 
@@ -136,22 +148,17 @@ pub const Desugarer = struct {
             }
 
             const id = existing orelse blk: {
-                const parameters = try arena.alloc(types.Kind, declared.parameters.len);
-                @memset(parameters, .type);
-                break :blk try self.env.?.datatypes.declare(
-                    interner,
-                    scope.module,
-                    try arena.dupe(u8, declared.name),
-                    parameters,
-                    &.{},
-                );
+                // Kinded once the module's declarations are solved.
+                const id = try registry.declare(interner, scope.module, try arena.dupe(u8, declared.name), &.{}, &.{});
+                try group.declare(id, declared.parameters.len);
+                break :blk id;
             };
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
 
-        try self.declareAliases(scope, source, sink);
+        try self.declareAliases(scope, source, &group, sink);
 
-        for (pending.items) |p| {
+        for (pending.items) |*p| {
             const declared = p.declared;
             const constructors = try arena.alloc(datatypes.Constructor, declared.constructors.len);
             var failed = false;
@@ -172,7 +179,7 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = annotation.translateField(arena, self.allocator, field, declared, self.env.?.datatypes.get(p.id).parameters, scope, sink) catch |err| switch (err) {
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, p.id, &group, scope, sink) catch |err| switch (err) {
                         error.BadAnnotation => {
                             failed = true;
                             break;
@@ -183,14 +190,27 @@ pub const Desugarer = struct {
 
                 out.* = .{ .symbol = symbol, .tag = @intCast(tag), .fields = fields };
             }
-            if (failed) continue;
-
-            try self.env.?.setConstructors(p.id, constructors);
+            if (!failed) p.constructors = constructors;
         }
+
+        // Solve the kinds before any constructor's scheme reads them.
+        var kinded = group.datatypes.iterator();
+        while (kinded.next()) |entry| registry.setParameters(entry.key_ptr.*, try group.inference.zonkAll(entry.value_ptr.*));
+        for (pending.items) |p| {
+            if (p.constructors) |constructors| try self.env.?.setConstructors(p.id, constructors);
+        }
+        for (group.aliases.values()) |alias| try registry.defineAlias(scope.module, try group.solved(alias));
     }
 
-    /// Translates a module's aliases, each after the aliases its body names.
-    fn declareAliases(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    /// Translates a module's aliases into `group`, each after the aliases
+    /// its body names.
+    fn declareAliases(
+        self: *Desugarer,
+        scope: *const ModuleScope,
+        source: cst.SourceFile,
+        group: *kinds.Group,
+        sink: *diagnostic.Sink,
+    ) !void {
         var aliases: std.ArrayList(*const cst.TypeAlias) = .empty;
         defer aliases.deinit(self.allocator);
 
@@ -215,7 +235,7 @@ pub const Desugarer = struct {
         const states = try self.allocator.alloc(AliasState, aliases.items.len);
         defer self.allocator.free(states);
         @memset(states, .unvisited);
-        for (0..aliases.items.len) |i| _ = try self.declareAlias(scope, aliases.items, states, i, sink);
+        for (0..aliases.items.len) |i| _ = try self.declareAlias(scope, aliases.items, states, i, group, sink);
     }
 
     const AliasState = enum { unvisited, visiting, declared, failed };
@@ -228,6 +248,7 @@ pub const Desugarer = struct {
         aliases: []const *const cst.TypeAlias,
         states: []AliasState,
         i: usize,
+        group: *kinds.Group,
         sink: *diagnostic.Sink,
     ) !bool {
         switch (states[i]) {
@@ -254,7 +275,7 @@ pub const Desugarer = struct {
             const j = for (aliases, 0..) |other, j| {
                 if (std.mem.eql(u8, other.name, name)) break j;
             } else continue;
-            if (!try self.declareAlias(scope, aliases, states, j, sink)) {
+            if (!try self.declareAlias(scope, aliases, states, j, group, sink)) {
                 states[i] = .failed;
                 return false;
             }
@@ -264,6 +285,7 @@ pub const Desugarer = struct {
             self.env.?.allocator(),
             self.allocator,
             aliases[i],
+            group,
             scope,
             sink,
         ) catch |err| switch (err) {
@@ -273,7 +295,7 @@ pub const Desugarer = struct {
             },
             else => |e| return e,
         };
-        try self.env.?.datatypes.defineAlias(scope.module, translated);
+        try group.define(translated);
         states[i] = .declared;
         return true;
     }
@@ -571,7 +593,10 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
     switch (t.kind) {
         .constructor => |name| try out.append(gpa, name),
         .application => |a| {
-            try out.append(gpa, a.constructor);
+            switch (a.head) {
+                .constructor => |name| try out.append(gpa, name),
+                .variable => {},
+            }
             for (a.arguments) |argument| try typeNames(gpa, argument, out);
         },
         .variable => {},

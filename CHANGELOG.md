@@ -57,6 +57,8 @@
 - Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
 - `module M` in an export list re-exports what the module imports from `M`, and an export list may name an imported value or type.
 - `T(..)` in an import list is accepted for a type with no constructors, such as `Int`, whatever the export list says.
+- A type variable may be applied to types, and a declared type may be left short of its last arguments: `data Wrap f a = Wrap (f a);` holds a `Wrap Maybe Int` or a `Wrap (Either String) Int`. Kinds are inferred.
+- An alias parameter its body never uses is no longer an error.
 
 ### Improvements
 

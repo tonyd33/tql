@@ -63,8 +63,8 @@ test "occurs check sees through a solved metavariable" {
     const t = try Fixture.init(gpa);
     defer t.deinit(gpa);
 
-    const a = try t.subst.fresh();
-    const b = try t.subst.fresh();
+    const a = try t.subst.fresh(.type);
+    const b = try t.subst.fresh(.type);
     t.subst.bind(b.meta, try t.subst.datatypes.list(t.subst.arena, a));
 
     // `a` is not syntactically in `b`, but it is once `b` is resolved.
@@ -81,5 +81,5 @@ test "a record scheme at the field ceiling still builds" {
     for (labels) |*l| l.* = "f";
 
     const scheme = try primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = labels });
-    try testing.expectEqual(primitives.max_record_fields, scheme.quantified);
+    try testing.expectEqual(primitives.max_record_fields, scheme.variables.len);
 }

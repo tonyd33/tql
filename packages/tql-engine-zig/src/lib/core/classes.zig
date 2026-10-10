@@ -248,7 +248,8 @@ pub fn parameterCount(t: types.Type) u8 {
 /// `view` supplies:
 /// - `resolve(t) Type`: `t` with every solved metavariable at its head
 ///   followed
-/// - `expand(t) Type`: `resolve`, also stripping every alias at the head
+/// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head
+///   and rebuilding an application whose head is solved
 ///
 /// `sink` supplies `leaf(class, t) !void`, for a constraint on a
 /// metavariable or bound variable.
@@ -262,11 +263,11 @@ pub fn reduce(
     sink: anytype,
 ) @TypeOf(sink).Error!?types.Type {
     const written = view.resolve(t);
-    const expanded = view.expand(written);
+    const expanded = try view.normalize(written);
     switch (expanded) {
         .meta, .variable => try sink.leaf(class, expanded),
         .alias => unreachable,
-        .function => return written,
+        .function, .application => return written,
         .constructor => |c| {
             const found = registry.instanceFor(class, c.name) orelse return written;
             for (registry.instance(found).context) |needed| {

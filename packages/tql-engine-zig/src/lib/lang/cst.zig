@@ -684,8 +684,13 @@ pub const FilterType = struct {
 };
 
 pub const TypeApplication = struct {
-    constructor: Identifier,
+    head: Head,
     arguments: []const Type,
+
+    pub const Head = union(enum) {
+        constructor: Identifier,
+        variable: Identifier,
+    };
 };
 
 pub const TypeField = struct {
@@ -865,7 +870,8 @@ pub const Type = struct {
         /// A concrete type name: `Filter`'s operands aside, anything
         /// capitalized.
         constructor: Identifier,
-        /// A declared type at its arguments, like `List a`.
+        /// A declared type or a type variable at its arguments, like
+        /// `List a` or `f a`.
         application: *TypeApplication,
         variable: Identifier,
         function: *FunctionType,
@@ -879,7 +885,9 @@ pub const Type = struct {
         switch (self.kind) {
             .constructor => |c| try w.print("{s}", .{c}),
             .application => |a| {
-                try w.print("({s}", .{a.constructor});
+                switch (a.head) {
+                    .constructor, .variable => |name| try w.print("({s}", .{name}),
+                }
                 for (a.arguments) |arg| {
                     try w.writeByte(' ');
                     try arg.sexpr(w);

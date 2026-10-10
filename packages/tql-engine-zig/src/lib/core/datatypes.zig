@@ -34,15 +34,23 @@ pub const Alias = struct {
     parameters: []const Parameter,
     /// Names parameter `i` as `types.Type.variable` `i`.
     body: types.Type,
+    /// The kind of `body`.
+    kind: types.Kind,
 
     pub const Parameter = struct {
         name: []const u8,
         kind: types.Kind,
     };
 
-    /// The alias at `arguments`, expanded. Takes ownership of `arguments`.
+    /// The alias at `arguments`, expanded. Arguments past its parameters
+    /// apply the expansion. Takes ownership of `arguments`.
+    ///
+    /// Preconditions:
+    /// - `arguments` has at least one per parameter.
     pub fn apply(self: *const Alias, allocator: Allocator, arguments: []const types.Type) Allocator.Error!types.Type {
-        return try types.aliased(allocator, self.name, arguments, try types.substitute(allocator, self.body, arguments));
+        var expansion = try types.substitute(allocator, self.body, arguments[0..self.parameters.len]);
+        for (arguments[self.parameters.len..]) |argument| expansion = try types.apply(allocator, expansion, argument);
+        return try types.aliased(allocator, self.name, arguments, expansion);
     }
 };
 
@@ -123,7 +131,7 @@ pub const Registry = struct {
     /// declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
-            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
+            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
         }
         for (Structural.all) |s| {
             const id = try self.declare(interner, .prim, s.name, s.parameters, &.{});
@@ -195,7 +203,7 @@ pub const Registry = struct {
         constructor: Constructor,
     ) Allocator.Error!types.Scheme {
         const result = try self.applied(arena, id);
-        return .{ .quantified = @intCast(self.get(id).parameters.len), .type = try types.arrows(arena, constructor.fields, result) };
+        return .{ .variables = self.get(id).parameters, .type = try types.arrows(arena, constructor.fields, result) };
     }
 
     /// `id` applied to its own parameters, in order.
@@ -252,6 +260,12 @@ pub const Registry = struct {
         try self.by_name.put(self.allocator, .{ .module = module, .name = name }, id);
         own(interner, id, constructors);
         return id;
+    }
+
+    /// Sets the kinds of `id`'s parameters, for a type declared before they
+    /// were solved. `parameters` must outlive the registry.
+    pub fn setParameters(self: *Registry, id: TypeId, parameters: []const types.Kind) void {
+        self.datatypes.items[@intFromEnum(id)].parameters = parameters;
     }
 
     /// Fills in a type declared with no constructors yet. A recursive type's

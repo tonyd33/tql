@@ -1,0 +1,22 @@
+title: a type variable applied in a signature is inferred a constructor
+grammar: typescript
+asserts: types, values
+
+At the call, `f a` meets `[Int]`, so `f` is `List` and `a` is `Int`.
+
+--- tql ---
+import Data.List (null);
+
+apply :: (f a -> b) -> f a -> b;
+apply g x = g x;
+
+main root = [apply null [1], apply null []];
+
+--- source ---
+class A {}
+
+--- values ---
+[false,true]
+--- types ---
+apply :: (a b -> c) -> a b -> c
+main :: Node -> [Bool]

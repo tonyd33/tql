@@ -1,0 +1,30 @@
+title: a constructor short of its last argument is a type argument
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Maybe a = Nothing | Just a;
+data Either a b = Left a | Right b;
+data Wrap f a = Wrap (f a);
+
+maybe :: Wrap Maybe Int;
+maybe = Wrap (Just 1);
+
+either :: Wrap (Either String) Int;
+either = Wrap (Right 2);
+
+count :: Wrap f Int -> Int;
+count _ = 1;
+
+main root = [count maybe + count either];
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+--- types ---
+maybe :: Wrap Maybe Int
+either :: Wrap (Either String) Int
+count :: Wrap a Int -> Int
+main :: Node -> [Int]

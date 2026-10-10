@@ -93,5 +93,5 @@ test "a signature may have as many variables as a scheme can number" {
 
     const signature: cst.Signature = .{ .name = "f", .type = try manyVariables(fix, 255) };
     const scheme = try annotation.translate(fix.env.allocator(), gpa, &signature, &fix.scope(), &fix.sink);
-    try testing.expectEqual(255, scheme.quantified);
+    try testing.expectEqual(255, scheme.variables.len);
 }
