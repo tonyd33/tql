@@ -325,19 +325,23 @@ pub const Linker = struct {
         defer self.gpa.free(defined);
         @memset(defined, null);
         for (declared.methods) |*definition| {
+            const name = definition.name orelse {
+                try self.sink.report(.invalid_instance, definition.span, "`_` is not a method of `{s}`", .{class.name.name});
+                return error.BadAnnotation;
+            };
             const index = for (class.methods, 0..) |method, i| {
-                if (std.mem.eql(u8, self.env.interner.spelling(method), definition.name)) break i;
+                if (std.mem.eql(u8, self.env.interner.spelling(method), name)) break i;
             } else {
                 try self.sink.report(
                     .invalid_instance,
                     definition.span,
                     "`{s}` is not a method of `{s}`",
-                    .{ definition.name, class.name.name },
+                    .{ name, class.name.name },
                 );
                 return error.BadAnnotation;
             };
             if (defined[index] != null) {
-                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{definition.name});
+                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{name});
                 return error.BadAnnotation;
             }
             defined[index] = definition;

@@ -29,10 +29,6 @@ const Error = desugar.Error;
 const Lowerer = desugar.Lowerer;
 const Entry = resolve.Scope.Entry;
 
-fn isWildcard(name: []const u8) bool {
-    return std.mem.eql(u8, name, "_");
-}
-
 /// The statements after a `do` bind, and the block's result.
 pub const Rest = struct {
     statements: []const cst.Statement,
@@ -70,6 +66,7 @@ const Pattern = struct {
 
     const Kind = union(enum) {
         variable: []const u8,
+        wildcard,
         constructor: Constructor,
         synonym: Synonym,
         view: *const View,
@@ -173,15 +170,13 @@ pub fn bind(
 /// yielding `f` when `body` does not match.
 pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!core.Term {
     const b = lowerer.builder;
-    try checkParameters(lowerer, synonym);
+    const names = try checkParameters(lowerer, synonym);
     try check(lowerer, synonym.body, null);
 
     const span = synonym.span;
     const s = try lowerer.env.interner.fresh("s");
     const k = try lowerer.env.interner.fresh("k");
     const f = try lowerer.env.interner.fresh("f");
-    const names = try b.slice([]const u8, synonym.parameters.len);
-    for (synonym.parameters, names) |parameter, *name| name.* = parameter.name;
 
     const arms = try b.dupeSlice(Arm, &.{.{
         .written = synonym.body,
@@ -193,17 +188,28 @@ pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!co
     return try b.lambda(s, try b.lambda(k, try b.lambda(f, term, span), span), span);
 }
 
-/// Reject a synonym whose parameters repeat, whose body binds a variable that
-/// is not a parameter, or whose body leaves a parameter unbound.
-fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!void {
-    for (synonym.parameters, 0..) |parameter, i| {
-        for (synonym.parameters[0..i]) |earlier| {
-            if (!std.mem.eql(u8, earlier.name, parameter.name)) continue;
+/// Returns the parameters' names. Rejects a synonym whose parameters repeat,
+/// whose body binds a variable that is not a parameter, or whose body leaves a
+/// parameter unbound.
+fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error![]const []const u8 {
+    const names = try lowerer.builder.slice([]const u8, synonym.parameters.len);
+    for (synonym.parameters, names, 0..) |parameter, *name, i| {
+        name.* = parameter.name orelse {
+            try lowerer.sink.report(
+                .unresolved_name,
+                parameter.span,
+                "the parameter `_` of `{s}` is not bound by its pattern",
+                .{synonym.name},
+            );
+            return error.DesugarFailed;
+        };
+        for (names[0..i]) |earlier| {
+            if (!std.mem.eql(u8, earlier, name.*)) continue;
             try lowerer.sink.report(
                 .duplicate_definition,
                 parameter.span,
                 "`{s}` names two parameters of `{s}`",
-                .{ parameter.name, synonym.name },
+                .{ name.*, synonym.name },
             );
             return error.DesugarFailed;
         }
@@ -212,8 +218,8 @@ fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!
     var binders: std.ArrayList(Variable) = .empty;
     try boundVariables(lowerer.builder.allocator, synonym.body, &binders);
     for (binders.items) |variable| {
-        for (synonym.parameters) |parameter| {
-            if (std.mem.eql(u8, parameter.name, variable.name)) break;
+        for (names) |name| {
+            if (std.mem.eql(u8, name, variable.name)) break;
         } else {
             try lowerer.sink.report(
                 .unresolved_name,
@@ -224,19 +230,20 @@ fn checkParameters(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!
             return error.DesugarFailed;
         }
     }
-    for (synonym.parameters) |parameter| {
+    for (synonym.parameters, names) |parameter, name| {
         for (binders.items) |variable| {
-            if (std.mem.eql(u8, parameter.name, variable.name)) break;
+            if (std.mem.eql(u8, name, variable.name)) break;
         } else {
             try lowerer.sink.report(
                 .unresolved_name,
                 parameter.span,
                 "the parameter `{s}` of `{s}` is not bound by its pattern",
-                .{ parameter.name, synonym.name },
+                .{ name, synonym.name },
             );
             return error.DesugarFailed;
         }
     }
+    return names;
 }
 
 const Variable = struct { name: []const u8, span: diagnostic.Span };
@@ -244,9 +251,10 @@ const Variable = struct { name: []const u8, span: diagnostic.Span };
 /// Append every variable `pattern` binds, as written.
 fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayList(Variable)) Error!void {
     switch (pattern.kind) {
-        .variable => |name| if (!isWildcard(name)) try out.append(allocator, .{ .name = name, .span = pattern.span }),
+        .variable => |name| try out.append(allocator, .{ .name = name, .span = pattern.span }),
+        .wildcard => {},
         .as => |a| {
-            if (!isWildcard(a.name)) try out.append(allocator, .{ .name = a.name, .span = a.name_span });
+            try out.append(allocator, .{ .name = a.name, .span = a.name_span });
             try boundVariables(allocator, a.pattern, out);
         },
         .conjunction => |c| {
@@ -361,6 +369,7 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
     const span = pattern.span;
     switch (pattern.kind) {
         .variable => |name| return .{ .kind = .{ .variable = name }, .span = span },
+        .wildcard => return .{ .kind = .wildcard, .span = span },
         .literal => |literal| return .{ .kind = .{ .literal = literal }, .span = span },
         .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, span),
         .constructor => |c| {
@@ -456,7 +465,7 @@ fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.S
     const node = outer orelse return try all(lowerer, inside.items, span);
     const n = node.kind.node;
     const element: Pattern = if (inside.items.len == 0)
-        .{ .kind = .{ .variable = "_" }, .span = node.span }
+        .{ .kind = .wildcard, .span = node.span }
     else
         try all(lowerer, inside.items, span);
     const kind = try lowerer.expression(.{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span }, null);
@@ -524,7 +533,7 @@ fn literalExpression(literal: cst.Pattern.Literal, span: diagnostic.Span) cst.Ex
 /// The variable naming the whole value `pattern` matches, if one does.
 fn givenName(pattern: Pattern) ?[]const u8 {
     switch (pattern.kind) {
-        .variable => |name| return if (isWildcard(name)) null else name,
+        .variable => |name| return name,
         .view => |v| return if (v.yields_self) givenName(v.pattern.kind.constructor.arguments[0]) else null,
         .all => |patterns| {
             for (patterns) |p| {
@@ -540,7 +549,7 @@ fn givenName(pattern: Pattern) ?[]const u8 {
 fn binderName(pattern: Pattern) []const u8 {
     if (givenName(pattern)) |name| return name;
     return switch (pattern.kind) {
-        .variable => "_",
+        .wildcard => "_",
         .view => |v| if (v.yields_self) binderName(v.pattern.kind.constructor.arguments[0]) else "scrutinee",
         else => "scrutinee",
     };
@@ -565,14 +574,13 @@ const Checker = struct {
     fn visit(self: *Checker, pattern: cst.Pattern, whole: bool) Error!void {
         switch (pattern.kind) {
             .variable => |name| try self.variable(name, pattern.span, whole),
+            .wildcard => {},
             .as, .conjunction => {
                 var conjuncts: std.ArrayList(cst.Pattern) = .empty;
                 try flatten(self.lowerer.builder.allocator, pattern, &conjuncts);
                 var names: usize = 0;
                 for (conjuncts.items) |conjunct| switch (conjunct.kind) {
-                    .variable => |name| if (!isWildcard(name)) {
-                        names += 1;
-                    },
+                    .variable => names += 1,
                     else => {},
                 };
                 if (names > 1) {
@@ -632,7 +640,6 @@ const Checker = struct {
     }
 
     fn variable(self: *Checker, name: []const u8, span: diagnostic.Span, whole: bool) Error!void {
-        if (isWildcard(name)) return;
         for (self.seen.items) |earlier| {
             if (!std.mem.eql(u8, earlier, name)) continue;
             try self.lowerer.sink.report(
@@ -920,11 +927,10 @@ const Matcher = struct {
         for (first.items, 0..) |item, i| {
             switch (item.pattern.kind) {
                 .variable => |name| {
-                    if (!isWildcard(name)) {
-                        try bindings.append(b.allocator, .{ .name = name, .symbol = item.occurrence });
-                    }
+                    try bindings.append(b.allocator, .{ .name = name, .symbol = item.occurrence });
                     continue;
                 },
+                .wildcard => continue,
                 .literal => |literal| if (self.known(item.occurrence, literal)) |holds| {
                     if (holds) continue;
                     return try self.compile(rows[1..]);
@@ -1237,7 +1243,7 @@ fn fieldName(
             if (c.symbol != constructor) continue;
             const argument = c.arguments[index];
             if (givenName(argument)) |name| return name;
-            if (argument.kind != .variable) tested = true;
+            if (argument.kind != .variable and argument.kind != .wildcard) tested = true;
         }
     }
     return if (tested) null else "_";
@@ -1339,7 +1345,7 @@ const Emitter = struct {
 
     fn lookup(bindings: []const Entry, name: []const u8) core.SymbolId {
         for (bindings) |binding| {
-            if (std.mem.eql(u8, binding.name, name)) return binding.symbol;
+            if (std.mem.eql(u8, binding.name orelse continue, name)) return binding.symbol;
         }
         unreachable;
     }
@@ -1431,6 +1437,7 @@ const Written = struct {
         if (parenthesize) try w.writeByte('(');
         switch (self.pattern.kind) {
             .variable => |name| try w.writeAll(name),
+            .wildcard => try w.writeAll("_"),
             .constructor => |c| {
                 try w.writeAll(c.name);
                 for (c.arguments) |argument| {
@@ -1493,7 +1500,7 @@ const Written = struct {
             .conjunction => .conjunction,
             .cons => .cons,
             .constructor => |c| if (c.arguments.len > 0) .application else .atom,
-            .variable, .list, .tuple, .as, .view, .literal, .boolean, .node => .atom,
+            .variable, .wildcard, .list, .tuple, .as, .view, .literal, .boolean, .node => .atom,
         };
     }
 };

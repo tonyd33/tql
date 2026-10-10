@@ -209,16 +209,17 @@ pub const ClassConstraint = struct {
 };
 
 pub const Definition = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     parameters: []const Parameter,
     body: Expression,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Definition, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(define {s} (params", .{self.name});
+        try w.print("(define {s} (params", .{self.name orelse "_"});
         for (self.parameters) |p| {
             try w.writeByte(' ');
-            try w.writeAll(p.name);
+            try w.writeAll(p.name orelse "_");
         }
         try w.writeAll(") ");
         try self.body.sexpr(w);
@@ -292,7 +293,7 @@ pub const PatternSynonym = struct {
 
     pub fn sexpr(self: PatternSynonym, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(pattern {s} (params", .{self.name});
-        for (self.parameters) |p| try w.print(" {s}", .{p.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p.name orelse "_"});
         try w.writeAll(") ");
         try self.body.sexpr(w);
         try w.writeByte(')');
@@ -328,22 +329,24 @@ pub const ConstructorDeclaration = struct {
 };
 
 pub const Parameter = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     span: diagnostic.Span = .unknown,
 };
 
 /// A `let` binding, which is a definition without the terminator: `f x = e`.
 pub const Binding = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     parameters: []const Parameter,
     value: Expression,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Binding, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(bind {s} (params", .{self.name});
+        try w.print("(bind {s} (params", .{self.name orelse "_"});
         for (self.parameters) |p| {
             try w.writeByte(' ');
-            try w.writeAll(p.name);
+            try w.writeAll(p.name orelse "_");
         }
         try w.writeAll(") ");
         try self.value.sexpr(w);
@@ -632,7 +635,7 @@ pub const Expression = struct {
                 try w.writeAll("(lambda (params");
                 for (l.parameters) |p| {
                     try w.writeByte(' ');
-                    try w.writeAll(p.name);
+                    try w.writeAll(p.name orelse "_");
                 }
                 try w.writeAll(") ");
                 try l.body.sexpr(w);
@@ -757,8 +760,10 @@ pub const Pattern = struct {
     span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
-        /// `x` binds the matched value. `_` binds nothing.
+        /// `x` binds the matched value.
         variable: Identifier,
+        /// `_` matches any value and binds nothing.
+        wildcard,
         constructor: Constructor,
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
@@ -832,6 +837,7 @@ pub const Pattern = struct {
     pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .variable => |name| try w.writeAll(name),
+            .wildcard => try w.writeAll("_"),
             .as => |a| {
                 try w.print("(@ {s} ", .{a.name});
                 try a.pattern.sexpr(w);

@@ -401,7 +401,7 @@ const Walker = struct {
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const name = try self.dupe(name_node);
+        const name = try self.binder(name_node);
         const params = try self.parameters(node);
 
         const body_node = try self.requiredField(node, "body") orelse return null;
@@ -427,7 +427,7 @@ const Walker = struct {
                     if (std.mem.eql(u8, field, "parameter")) {
                         const child = cursor.node();
                         try collected.append(self.allocator, .{
-                            .name = try self.dupe(child),
+                            .name = try self.binder(child),
                             .span = spanOf(child, self.source_id),
                         });
                     }
@@ -439,9 +439,15 @@ const Walker = struct {
         return collected.toOwnedSlice(self.allocator);
     }
 
+    /// The name `node` binds, or null for `_`, which binds nothing.
+    fn binder(self: *Walker, node: ts.Node) !?cst.Identifier {
+        if (std.mem.eql(u8, textOf(node, self.source), "_")) return null;
+        return try self.dupe(node);
+    }
+
     fn binding(self: *Walker, node: ts.Node) !?cst.Binding {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const name = try self.dupe(name_node);
+        const name = try self.binder(name_node);
         const params = try self.parameters(node);
 
         const value_node = try self.requiredField(node, "value") orelse return null;
@@ -522,6 +528,11 @@ const Walker = struct {
 
         if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
             .identifier, .qualified_identifier => {
+                // Reported, and still returned as a name so the enclosing form
+                // reports nothing more. A parse error stops compilation.
+                if (std.mem.eql(u8, textOf(node, self.source), "_")) {
+                    try self.sink.report(.parse, span, "`_` is a wildcard and has no value", .{});
+                }
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
             .primitive => return .{ .kind = .{ .primitive = try self.dupe(node) }, .span = span },
@@ -935,7 +946,8 @@ const Walker = struct {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
         if (std.mem.eql(u8, kind, "identifier")) {
-            return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
+            const name = try self.binder(node) orelse return .{ .kind = .wildcard, .span = span };
+            return .{ .kind = .{ .variable = name }, .span = span };
         }
         if (isConstructor(kind)) {
             return .{
@@ -984,9 +996,11 @@ const Walker = struct {
             const name_node = try self.requiredField(node, "name") orelse return null;
             const inner_node = try self.requiredField(node, "pattern") orelse return null;
             const inner = try self.pattern(inner_node) orelse return null;
+            // `_@p` names nothing, so it is `p`.
+            const name = try self.binder(name_node) orelse return inner;
             return .{
                 .kind = .{ .as = try self.boxed(cst.Pattern.As{
-                    .name = try self.dupe(name_node),
+                    .name = name,
                     .name_span = spanOf(name_node, self.source_id),
                     .pattern = inner,
                 }) },
