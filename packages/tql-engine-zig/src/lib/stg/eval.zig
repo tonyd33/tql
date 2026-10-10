@@ -54,6 +54,8 @@ pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A local read a slot bound under a different name. Reached only by a
     /// translation bug, and checked only in safe builds.
     MisplacedLocal,
+    /// A regex reached a construct the matcher cannot run, such as `\K`.
+    RegexFailed,
 };
 
 /// Whether each environment slot records the name it was bound under, and
@@ -1162,8 +1164,8 @@ pub const Machine = struct {
                     .regex => |r| r,
                     else => return error.TypeError,
                 };
-                if (self.match_data == null) self.match_data = try pcre2.MatchData.create();
-                const hit = pattern.compiled.isMatch(haystack, &self.match_data.?);
+                if (self.match_data == null) self.match_data = try pcre2.MatchData.create(self.gpa);
+                const hit = try pattern.compiled.isMatch(haystack, &self.match_data.?);
                 return try self.boolValue(if (scalar == .match) hit else !hit);
             },
         }

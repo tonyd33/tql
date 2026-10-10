@@ -1,0 +1,13 @@
+title: a regex with a backreference is a compile error
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = "aa" ~ r"(a)\1";
+
+--- error ---
+error[invalid-regex]: `(a)\1` uses a backreference, which tql regexes do not support
+ --> 1:15
+  |
+1 | main = "aa" ~ r"(a)\1";
+  |               ^^^^^^^^
