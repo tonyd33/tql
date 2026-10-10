@@ -1,5 +1,5 @@
 import Data.Foldable (any, null, concat_map);
-import Control.Monad (filter);
+import Data.List (filter);
 import Data.Function (identity);
 
 is_one_of ks n = any (= kind n) ks;

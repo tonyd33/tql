@@ -11,19 +11,36 @@ pub const Error = Allocator.Error;
 
 /// What the calls of a function pass at one parameter.
 const Passed = union(enum) {
-    /// Only the parameter itself, from a recursive call, if anything.
+    /// No call passes a value known so far.
     nothing,
-    /// One closed dictionary, or the parameter itself.
+    /// One closed dictionary.
     dictionary: core.Term,
     varies,
+
+    /// Returns what a parameter passed both `self` and `other` is passed.
+    fn join(self: Passed, other: Passed) Passed {
+        return switch (self) {
+            .nothing => other,
+            .varies => .varies,
+            .dictionary => |d| switch (other) {
+                .nothing => self,
+                .dictionary => |e| if (equal(d, e)) self else .varies,
+                .varies => .varies,
+            },
+        };
+    }
 };
+
+/// One argument a call passes at a parameter.
+const Argument = struct { parameter: core.SymbolId, term: core.Term };
 
 /// Substitutes the dictionaries of a program's functions.
 ///
 /// A function is a global or a `let` or `letrec` binding whose value is a
-/// lambda. Its parameter is substituted when every call outside the function
-/// passes one closed dictionary there, and every call inside passes that or
-/// the parameter itself. A function a law matches on, a join point, and one
+/// lambda. Its parameter is substituted when every call passes one closed
+/// dictionary there, counting a parameter passed on as the dictionary it is
+/// substituted by, and an instance applied to parameters as that instance
+/// applied to theirs. A function a law matches on, a join point, and one
 /// named anywhere but at the head of a call keep every parameter. An
 /// instance applied to dictionaries is a call of each method a law may
 /// select from it.
@@ -37,6 +54,8 @@ pub const Substituter = struct {
     functions: core.SymbolTable([]const core.SymbolId),
     /// What every call passes, by parameter.
     passed: core.SymbolTable(Passed),
+    /// Every argument a call passes at a function's parameter.
+    arguments: std.ArrayList(Argument) = .empty,
 
     pub fn init(scratch: Allocator, builder: core.Builder, env: *core.env.Env) Substituter {
         return .{
@@ -53,6 +72,7 @@ pub const Substituter = struct {
     pub fn run(self: *Substituter, program: *core.Program) Error!bool {
         for (program.definitions) |d| try self.declare(d.symbol, d.body);
         for (program.definitions) |d| try self.calls(d.body);
+        try self.solve();
 
         if (!self.drops()) return false;
 
@@ -88,12 +108,12 @@ pub const Substituter = struct {
     fn calls(self: *Substituter, t: core.Term) Error!void {
         switch (t.kind) {
             .literal => {},
-            .symbol => |id| self.call(id, &.{}),
+            .symbol => |id| try self.call(id, &.{}),
             .apply => {
                 const applications = try self.scratch.alloc(core.Term, t.spineLength());
                 t.applications(applications);
                 switch (t.head().kind) {
-                    .symbol => |id| self.call(id, applications),
+                    .symbol => |id| try self.call(id, applications),
                     else => try self.calls(t.head()),
                 }
                 for (applications) |a| try self.calls(a.kind.apply.argument);
@@ -118,25 +138,53 @@ pub const Substituter = struct {
     }
 
     /// Record what `id`, applied by each of `applications`, is passed.
-    fn call(self: *Substituter, id: core.SymbolId, applications: []const core.Term) void {
-        for (laws.selectable(&self.env.interner, &self.env.classes, id)) |method| self.call(method, applications);
+    fn call(self: *Substituter, id: core.SymbolId, applications: []const core.Term) Error!void {
+        for (laws.selectable(&self.env.interner, &self.env.classes, id)) |method| try self.call(method, applications);
         const parameters = self.functions.get(id) orelse return;
         const applied = @min(parameters.len, applications.len);
         for (parameters[applied..]) |parameter| self.passed.getPtr(parameter).?.* = .varies;
         for (parameters[0..applied], applications[0..applied]) |parameter, a| {
-            const argument = a.kind.apply.argument;
-            if (argument.kind == .symbol and argument.kind.symbol == parameter) continue;
-            const passed = self.passed.getPtr(parameter).?;
-            if (!laws.closedDictionary(&self.env.interner, &self.env.classes, argument)) {
-                passed.* = .varies;
-                continue;
-            }
-            passed.* = switch (passed.*) {
-                .nothing => .{ .dictionary = argument },
-                .dictionary => |d| if (equal(d, argument)) passed.* else .varies,
-                .varies => .varies,
-            };
+            try self.arguments.append(self.scratch, .{ .parameter = parameter, .term = a.kind.apply.argument });
         }
+    }
+
+    /// Join what each argument passes into its parameter, until nothing
+    /// changes.
+    fn solve(self: *Substituter) Error!void {
+        var changed = true;
+        while (changed) {
+            changed = false;
+            for (self.arguments.items) |argument| {
+                const passed = self.passed.getPtr(argument.parameter).?;
+                const joined = passed.join(try self.passing(argument.term));
+                if (std.meta.activeTag(joined) == std.meta.activeTag(passed.*)) continue;
+                passed.* = joined;
+                changed = true;
+            }
+        }
+    }
+
+    /// What passing `t` passes, given what each parameter is passed so far.
+    fn passing(self: *Substituter, t: core.Term) Error!Passed {
+        if (t.kind == .symbol) {
+            if (self.passed.get(t.kind.symbol)) |passed| return passed;
+        }
+        if (laws.appliedInstance(&self.env.interner, &self.env.classes, t) == null) return .varies;
+        const applications = try self.scratch.alloc(core.Term, t.spineLength());
+        t.applications(applications);
+        var result = t.head();
+        var rebuilt = false;
+        for (applications) |a| {
+            const argument = a.kind.apply.argument;
+            const dictionary = switch (try self.passing(argument)) {
+                .dictionary => |d| d,
+                .nothing => return .nothing,
+                .varies => return .varies,
+            };
+            rebuilt = rebuilt or !core.same(dictionary, argument);
+            result = try self.builder.apply(result, dictionary, a.span);
+        }
+        return .{ .dictionary = if (rebuilt) result else t };
     }
 
     /// The dictionary substituted for `parameter`, if it is dropped.

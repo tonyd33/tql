@@ -1,9 +1,9 @@
-title: `bind`, `join`, `kleisli` and `filter` at `Maybe`
+title: `bind`, `join`, `kleisli` and `mfilter` at `Maybe`
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Control.Monad (join, kleisli, filter);
+import Control.Monad (join, kleisli, mfilter);
 import Data.Int (mod);
 import Data.Maybe (Maybe(..));
 
@@ -15,8 +15,8 @@ main root = [
   join $ Just $ half 6,
   kleisli half half 8,
   kleisli half half 6,
-  filter (> 1) $ Just 4,
-  filter (> 1) $ Just 1,
+  mfilter (> 1) $ Just 4,
+  mfilter (> 1) $ Just 1,
 ];
 
 --- source ---

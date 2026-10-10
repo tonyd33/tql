@@ -48,21 +48,6 @@ pub fn appliedInstance(
     return instance;
 }
 
-/// Whether `t` is an instance applied to a closed dictionary for each
-/// constraint of its context.
-pub fn closedDictionary(
-    interner: *const core.Interner,
-    classes: *const core.classes.Registry,
-    t: core.Term,
-) bool {
-    if (appliedInstance(interner, classes, t) == null) return false;
-    var walk = t;
-    while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
-        if (!closedDictionary(interner, classes, walk.kind.apply.argument)) return false;
-    }
-    return true;
-}
-
 /// The methods a law may select from `symbol`, each then applied to what
 /// `symbol` is applied to: an instance's methods, or none.
 pub fn selectable(

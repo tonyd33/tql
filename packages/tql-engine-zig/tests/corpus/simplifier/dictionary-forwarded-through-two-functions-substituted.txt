@@ -1,0 +1,29 @@
+title: a dictionary forwarded from one function to another is substituted into both
+grammar: typescript
+asserts: simplified, values
+
+`twice` passes its dictionary on to `size`, and every call of `twice` passes
+`Sized List`. Both are too large to inline, and both take no dictionary.
+
+--- tql ---
+import Data.Function (const);
+
+size :: Sized s => s -> Int;
+size xs = length xs + length xs * 2 + length xs * 3;
+
+twice :: Sized s => s -> Int;
+twice xs = size xs + size xs * 2 + size xs * 3;
+
+main = const [twice [1], twice [1, 2]];
+
+--- source ---
+class A {}
+
+--- values ---
+[36,72]
+--- simplified ---
+size = \xs -> op[+] (op[+] (length[List] xs) (op[*] (length[List] xs) 2)) (op[*] (length[List] xs) 3)
+twice = \xs -> op[+] (op[+] (size xs) (op[*] (size xs) 2)) (op[*] (size xs) 3)
+main =
+  let x = Cons (twice (Cons 1 Nil)) (Cons (twice (Cons 1 (Cons 2 Nil))) Nil) in
+  \y -> x

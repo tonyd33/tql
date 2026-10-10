@@ -1,15 +1,16 @@
 //! Core-to-Core simplification of a checked program.
 //!
-//! Each iteration analyses every binder's occurrences, then simplifies every
-//! definition in one traversal, until no rewrite fires. Then each dictionary
-//! every call of a function passes the same is substituted, and if one was,
-//! the iterations resume. Definitions `main` does not reach are dropped
-//! before each iteration. That runs twice: first holding back from inlining
-//! the functions a law matches on, then not.
-//! Every rewrite is an
-//! equation of the call-by-need lambda calculus or a law of the language, so
-//! skipping this pass changes no observable result, and the corpus is run
-//! both ways.
+//! A simplifier run iterates until no rewrite fires or its iterations run
+//! out. Each iteration drops the definitions `main` does not reach, analyses
+//! every binder's occurrences, then simplifies every definition in one
+//! traversal. After a run, each dictionary every call of a function passes
+//! the same is substituted, and if one was, another run follows, for a
+//! bounded number of rounds. Each phase runs this: first holding back from
+//! inlining the functions a law matches on, then not.
+//!
+//! Every rewrite is an equation of the call-by-need lambda calculus or a law
+//! of the language, so skipping this pass changes no observable result, and
+//! the corpus is run both ways.
 //!
 //! Runs after inference, so a rewrite may assume its input type-checked.
 
@@ -40,13 +41,25 @@ test {
 /// owns its terms exactly as the desugared one did.
 pub fn run(program: *core.Program, options: Options) Error!void {
     for ([_]simplify.Phase{ .laws, .final }) |phase| {
-        for (0..options.max_iterations) |_| {
-            if (options.dead_bindings) try dropUnreachable(program);
-            if (try iterate(program, options, phase)) {
-                if (std.debug.runtime_safety) try expectJoinPointsHold(program);
-            } else if (!try substitute(program, options)) break;
+        var rounds: u32 = 0;
+        while (true) : (rounds += 1) {
+            try runSimplifier(program, options, phase);
+            if (rounds == options.max_substitution_rounds or !try substitute(program, options)) break;
         }
     }
+}
+
+/// Iterate until no rewrite fires, for at most `options.max_iterations`.
+///
+/// Postconditions:
+/// - With `options.dead_bindings`, every definition is reachable from `main`.
+fn runSimplifier(program: *core.Program, options: Options, phase: simplify.Phase) Error!void {
+    for (0..options.max_iterations) |_| {
+        if (options.dead_bindings) try dropUnreachable(program);
+        if (!try iterate(program, options, phase)) return;
+        if (std.debug.runtime_safety) try expectJoinPointsHold(program);
+    }
+    if (options.dead_bindings) try dropUnreachable(program);
 }
 
 /// Drop every definition `main` does not reach. A symbol reaches each method

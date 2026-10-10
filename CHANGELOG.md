@@ -16,7 +16,7 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
-- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `take`, `drop`, `head` and `tail`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Control.Monad (filter);` for `filter`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `head` and `tail`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
 - The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
@@ -72,7 +72,7 @@
 - Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all`, `concat`, `has`, `first`, `or_else` and `collect` work at any `Foldable`, not only lists.
 - Added the `Traversable` class, whose method is `traverse`, and `sequence`: `sequence [[1, 2], [3, 4]]` is `[[1, 3], [1, 4], [2, 3], [2, 4]]`.
 - Added `Data.Maybe`: `import Data.Maybe (Maybe(..));` brings `Maybe`, `Nothing` and `Just`, a `Functor`, `Applicative`, `Alternative`, `Foldable`, `Traversable` and `Monad`.
-- Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `filter` in `Control.Monad`.
+- Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `mfilter` in `Control.Monad`.
 - `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
 
 ### Improvements

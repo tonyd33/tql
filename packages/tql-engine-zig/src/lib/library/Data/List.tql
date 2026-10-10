@@ -1,13 +1,14 @@
 module Data.List (
   List(..),
   Sized(..),
+  filter,
   take,
   drop,
   head,
   tail,
 );
 
-import Prim (Int, String, List(..), seq);
+import Prim (Int, String, List(..), Bool(..), seq);
 
 class Sized a where {
   length :: a -> Int;
@@ -25,6 +26,15 @@ instance Sized [a] where {
     };
     acc n _ = n + 1;
   } in foldl_strict acc 0 xs;
+};
+
+filter :: (a -> Bool) -> [a] -> [a];
+filter p xs = case xs of {
+  Nil -> Nil;
+  Cons h t -> case p h of {
+    False -> filter p t;
+    True -> Cons h $ filter p t;
+  };
 };
 
 take :: Int -> [a] -> [a];

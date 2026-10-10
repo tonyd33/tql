@@ -1,4 +1,4 @@
-module Control.Monad (Monad(..), join, kleisli, filter);
+module Control.Monad (Monad(..), join, kleisli, mfilter);
 
 import Prim (List(..), Bool(..));
 import Data.Function (identity);
@@ -22,5 +22,5 @@ join mma = bind mma identity;
 kleisli :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c;
 kleisli p q x = bind (p x) q;
 
-filter :: (Monad m, Alternative m) => (a -> Bool) -> m a -> m a;
-filter p xs = bind xs (\x -> if p x then pure x else empty);
+mfilter :: (Monad m, Alternative m) => (a -> Bool) -> m a -> m a;
+mfilter p xs = bind xs (\x -> if p x then pure x else empty);

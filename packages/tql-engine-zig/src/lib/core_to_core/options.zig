@@ -30,6 +30,9 @@ pub const Options = struct {
     /// The largest unfolding, less its discounts, a call inlines without the
     /// always-inline mark.
     inline_threshold: u32 = 12,
-    /// Iterations per phase before the pass stops short of a fixpoint.
+    /// Iterations per simplifier run before it stops short of a fixpoint.
     max_iterations: u32 = 4,
+    /// Rounds of dictionary substitution, each followed by a simplifier run,
+    /// per phase.
+    max_substitution_rounds: u32 = 4,
 };
