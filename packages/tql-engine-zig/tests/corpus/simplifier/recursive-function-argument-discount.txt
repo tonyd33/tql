@@ -24,7 +24,6 @@ class A {}
 [10]
 
 --- simplified ---
-combine = \k -> op[+] (k 1 2) (k 3 4)
 count = \n -> \acc -> case %eq_int n 0 of
   False -> count (op[-] n 1) (op[+] acc 1)
   True -> acc

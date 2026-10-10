@@ -255,7 +255,7 @@ pub const Inference = struct {
         const body = try self.elaborate(lam.body);
         return .{
             .type = try types.func(self.subst.arena, parameter, body.type),
-            .term = if (evidence.same(body.term, lam.body)) t else try self.builder.lambda(lam.parameter, body.term, t.span),
+            .term = if (core.same(body.term, lam.body)) t else try self.builder.lambda(lam.parameter, body.term, t.span),
         };
     }
 
@@ -293,7 +293,7 @@ pub const Inference = struct {
         }
 
         try self.recheck();
-        const unchanged = evidence.same(function.term, app.function) and evidence.same(operand.term, app.argument);
+        const unchanged = core.same(function.term, app.function) and core.same(operand.term, app.argument);
         return .{
             .type = result,
             .term = if (unchanged) t else try self.builder.apply(function.term, operand.term, t.span),
@@ -325,7 +325,7 @@ pub const Inference = struct {
         }
 
         var first: ?Branch = null;
-        var alternatives: evidence.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
+        var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
         for (c.alternatives, 0..) |alternative, i| {
             const mark = self.scope.mark();
             defer self.scope.truncate(mark);
@@ -341,7 +341,7 @@ pub const Inference = struct {
                 .constructor = alternative.constructor,
                 .binders = alternative.binders,
                 .body = elaborated_body.term,
-            }, !evidence.same(elaborated_body.term, alternative.body));
+            }, !core.same(elaborated_body.term, alternative.body));
             try self.joinBranch(&first, elaborated_body.type, alternative.body.span);
         }
 
@@ -353,8 +353,8 @@ pub const Inference = struct {
         }
 
         const unchanged = alternatives.copy == null and
-            evidence.same(elaborated_scrutinee.term, c.scrutinee) and
-            evidence.sameOptional(default, c.default);
+            core.same(elaborated_scrutinee.term, c.scrutinee) and
+            core.sameOptional(default, c.default);
         return .{
             .type = first.?.type,
             .term = if (unchanged) t else try self.builder.caseWithDefault(
@@ -408,7 +408,7 @@ pub const Inference = struct {
         const body = try self.elaborate(l.body);
 
         const new_value = try self.builder.abstract(bound, elaborated_value.term);
-        const unchanged = evidence.same(new_value, l.value) and evidence.same(body.term, l.body);
+        const unchanged = core.same(new_value, l.value) and core.same(body.term, l.body);
         return .{
             .type = body.type,
             .term = if (unchanged) t else try self.builder.let(l.name, new_value, body.term, t.span),
@@ -432,7 +432,7 @@ pub const Inference = struct {
         const body = try self.elaborate(l.body);
         try self.expect(body.type, result, l.body.span);
 
-        const unchanged = evidence.same(value.term, l.value) and evidence.same(body.term, l.body);
+        const unchanged = core.same(value.term, l.value) and core.same(body.term, l.body);
         return .{
             .type = body.type,
             .term = if (unchanged) t else try self.builder.let(l.name, value.term, body.term, t.span),
@@ -460,15 +460,15 @@ pub const Inference = struct {
         for (l.bindings, spans) |b, *span| span.* = b.value.span;
         try self.inferGroup(l.bindings, spans, frames, values, generalized);
 
-        var bindings: evidence.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
+        var bindings: core.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
         for (l.bindings, generalized, frames, values, 0..) |b, g, frame, value, i| {
             const bound = try self.parameters(frame, g.dictionaries);
             const abstracted = try self.builder.abstract(bound, value);
-            try bindings.set(self.builder, i, .{ .name = b.name, .value = abstracted }, !evidence.same(abstracted, b.value));
+            try bindings.set(self.builder, i, .{ .name = b.name, .value = abstracted }, !core.same(abstracted, b.value));
             try self.scope.push(b.name, .{ .scheme = g.scheme });
         }
         const body = try self.elaborate(l.body);
-        const unchanged = bindings.copy == null and evidence.same(body.term, l.body);
+        const unchanged = bindings.copy == null and core.same(body.term, l.body);
         return .{
             .type = body.type,
             .term = if (unchanged) t else try self.builder.letrec(bindings.copy orelse l.bindings, body.term, t.span),
@@ -789,7 +789,7 @@ pub const Inference = struct {
             };
 
             const elaborated = try self.builder.abstract(bound, body);
-            if (!evidence.same(elaborated, definition.body)) try self.elaborated.put(symbol, elaborated);
+            if (!core.same(elaborated, definition.body)) try self.elaborated.put(symbol, elaborated);
         }
 
         try self.rejectAmbiguous();

@@ -37,12 +37,6 @@ class A {}
 [1]
 
 --- simplified ---
-wrap = \d -> \x -> case d of
-  dict[Twice] _ m -> m (
-    case d of
-      dict[Twice] m _ -> case m of
-        dict[Pointed] m -> m x
-  )
 main =
   let x = Cons 1 Nil in
   \y -> x

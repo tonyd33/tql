@@ -6,6 +6,68 @@ const diagnostic = @import("../diagnostic.zig");
 
 const Allocator = std.mem.Allocator;
 
+/// The library definitions a law matches on, besides methods and instances.
+const anchors = [_]core.Known{ .kleisli, .list_bind, .of_kind };
+
+/// Whether a law matches on `symbol`.
+pub fn named(
+    interner: *const core.Interner,
+    known: *const std.EnumArray(core.Known, ?core.SymbolId),
+    symbol: core.SymbolId,
+) bool {
+    return switch (interner.details(symbol)) {
+        .method, .instance => true,
+        else => for (anchors) |key| {
+            if (known.get(key) == symbol) break true;
+        } else false,
+    };
+}
+
+/// The instance `t` is the dictionary of, when `t` is an instance applied to
+/// a dictionary for each constraint of its context.
+pub fn appliedInstance(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    t: core.Term,
+) ?*const core.classes.Instance {
+    const head = t.head();
+    if (head.kind != .symbol) return null;
+    const instance = switch (interner.details(head.kind.symbol)) {
+        .instance => |id| classes.instance(id),
+        else => return null,
+    };
+    if (t.spineLength() != classes.dictionaryCount(instance.context)) return null;
+    return instance;
+}
+
+/// Whether `t` is an instance applied to a closed dictionary for each
+/// constraint of its context.
+pub fn closedDictionary(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    t: core.Term,
+) bool {
+    if (appliedInstance(interner, classes, t) == null) return false;
+    var walk = t;
+    while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
+        if (!closedDictionary(interner, classes, walk.kind.apply.argument)) return false;
+    }
+    return true;
+}
+
+/// The methods a law may select from `symbol`, each then applied to what
+/// `symbol` is applied to: an instance's methods, or none.
+pub fn selectable(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    symbol: core.SymbolId,
+) []const core.SymbolId {
+    return switch (interner.details(symbol)) {
+        .instance => |id| classes.instance(id).methods,
+        else => &.{},
+    };
+}
+
 pub const Laws = struct {
     builder: core.Builder,
     interner: *const core.Interner,
@@ -18,19 +80,6 @@ pub const Laws = struct {
     true_: core.SymbolId,
     /// `LT`, `EQ` and `GT`.
     ordering: [3]core.SymbolId,
-
-    /// The library definitions a law matches on.
-    const named = [_]core.Known{ .kleisli, .list_bind, .of_kind };
-
-    /// Whether a law matches on `symbol`.
-    pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
-        return switch (self.interner.details(symbol)) {
-            .method, .instance => true,
-            else => for (named) |key| {
-                if (self.known.get(key) == symbol) break true;
-            } else false,
-        };
-    }
 
     /// The term a law rewrites `function argument` to, when one matches.
     ///
@@ -74,13 +123,8 @@ pub const Laws = struct {
         if (class.constructor == head.kind.symbol) {
             return spineArgument(argument, class.selectors.len + class.methods.len, class.selectors.len + method.index);
         }
-        const instance = switch (self.interner.details(head.kind.symbol)) {
-            .instance => |id| self.classes.instance(id),
-            else => return null,
-        };
+        const instance = appliedInstance(self.interner, self.classes, argument) orelse return null;
         if (instance.class != method.class) return null;
-
-        if (argument.spineLength() != self.classes.dictionaryCount(instance.context)) return null;
         var result = self.builder.symbol(instance.methods[method.index], span);
         try self.spine(argument, &result, span);
         return result;

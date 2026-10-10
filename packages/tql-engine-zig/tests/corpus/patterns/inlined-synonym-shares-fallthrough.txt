@@ -23,13 +23,6 @@ f(w, y);
 --- values ---
 ["xy","neither","neither"]
 --- simplified ---
-$mBoth = \s -> \k -> \f -> case s of
-  Nil -> f
-  Cons cons0 cons1 -> case cons1 of
-    Nil -> f
-    Cons cons0' cons1 -> case cons1 of
-      Nil -> k (%text cons0) (%text cons0')
-      Cons _ _ -> f
 describe = \xs ->
   join alternative = "neither" in
   case xs of

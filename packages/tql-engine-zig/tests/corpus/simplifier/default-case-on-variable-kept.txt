@@ -8,19 +8,21 @@ diverge.
 --- tql ---
 f :: Int -> Int;
 f x = seq x 1;
-main = always (f 2);
+main = always (map f [2]);
 
 --- source ---
 class A {}
 
 --- values ---
-[1]
+[[1]]
 
 --- core ---
 f = \x -> seq x 1
-main = always (f 2)
+main = always (map f (Cons 2 Nil))
 
 --- simplified ---
 f = \x -> case x of
   _ -> 1
-main = \x -> Cons 1 Nil
+main =
+  let v = map[List] f (Cons 2 Nil) in
+  \x -> Cons v Nil

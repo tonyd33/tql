@@ -26,12 +26,6 @@ pick :: P -> P -> Int
 main :: Node -> [Int]
 
 --- stg ---
-fst = {} \u {} ->
-  let
-    t0 = {} \n {p} -> case p@0 of
-      Mk a b -> a@1
-  in
-  t0@0
 pick = {} \u {} ->
   let
     t4 = {} \n {p,q} -> case p@0 of

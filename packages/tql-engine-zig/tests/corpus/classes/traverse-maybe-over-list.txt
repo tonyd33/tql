@@ -1,6 +1,6 @@
 title: `traverse` at `Maybe` over a list fails when any element fails
 grammar: typescript
-asserts: types, values
+asserts: types, values, simplified
 
 --- tql ---
 import Data.Int (mod);
@@ -19,3 +19,9 @@ class A {}
 --- types ---
 half :: Int -> Maybe Int
 main :: Node -> [Maybe [Int]]
+
+--- simplified ---
+half = \n -> case %eq_int (%mod n 2) 0 of
+  False -> Nothing
+  True -> Just (op[/] n 2)
+main = \root -> Cons (traverse[List] half (Cons 2 (Cons 4 Nil))) (Cons (traverse[List] half (Cons 2 (Cons 3 Nil))) Nil)

@@ -8,8 +8,11 @@ pub const Options = struct {
     /// `case` frame `E`.
     let_from_head: bool = true,
     /// A binding nothing uses is dropped, and so is a recursive group nothing
-    /// live mentions.
+    /// live mentions and a global `main` does not reach.
     dead_bindings: bool = true,
+    /// A dictionary that every call of a function passes the same is
+    /// substituted into its body, and the parameter dropped.
+    dictionary_arguments: bool = true,
     /// A binding used once moves to its occurrence.
     pre_inline: bool = true,
     /// A binding to a trivial value, local or global, is substituted at every

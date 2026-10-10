@@ -4,13 +4,13 @@ asserts: stg, values
 
 --- tql ---
 f x = x + (1 + 2);
-main = always (f (3 + 4));
+main = always (map f [3 + 4]);
 
 --- source ---
 class A {}
 
 --- values ---
-[10]
+[[10]]
 
 --- stg ---
 f = {} \u {} ->
@@ -24,14 +24,18 @@ main = {} \u {} ->
   let
     v = {} \u {} ->
       let
-        t0 = {} \u {} -> op[+]# 3 4
-        t1 = {} \u {} -> op[+]# 1 2
+        t2 = {} \u {} ->
+          let
+            t0 = {} \u {} -> op[+]# 3 4
+            c1 = Nil
+          in
+          Cons t0@0 c1@1
       in
-      op[+]# t0@0 t1@1
+      map[List] f t2@0
   in
   let
-    t3 = {v@0} \n {x} ->
-      let c2 = Nil in
-      Cons v@0 c2@2
+    t4 = {v@0} \n {x} ->
+      let c3 = Nil in
+      Cons v@0 c3@2
   in
-  t3@1
+  t4@1

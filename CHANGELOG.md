@@ -86,6 +86,7 @@
 - A constraint `main` cannot satisfy is reported where it is raised: in `main x = [x < x];` the `Ord Node` error points at `x < x`.
 - A function given only some of its arguments is inlined when one of them is a constructor, a lambda or a class dictionary: `main = always 1` compiles to `\x -> [1]`.
 - A function passed a named recursive function is inlined as if passed a lambda: `concat` over lists compiles to a loop calling `append`.
+- A function every call passes the same class instance takes that instance in place of a dictionary parameter, so its methods are selected at compile time: `any` over lists compiles to a loop, and a local function using `length` calls the list's `length` directly.
 
 ### Bug Fixes
 

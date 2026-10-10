@@ -1,10 +1,11 @@
-title: a method of a known instance with a context passes the context's evidence
+title: a method of a known instance with a context is selected
 grammar: typescript
 asserts: simplified, values
 
 `describe` at `[Shape]` selects from `Describe [a]` applied to the known
 `Describe Shape` dictionary, so the call goes to the list instance's
-implementation with that dictionary and no list dictionary is built.
+implementation and no list dictionary is built. Every call of that
+implementation passes `Describe Shape`, so it takes no dictionary.
 
 --- tql ---
 class Describe a where {
@@ -33,4 +34,4 @@ class A {}
 ["circle"]
 
 --- simplified ---
-main = \root -> describe[List] instance[Describe,Shape] (Cons (Circle 1) Nil)
+main = \root -> describe[List] (Cons (Circle 1) Nil)

@@ -1,0 +1,30 @@
+title: `fold_map` at `List` takes no dictionary
+grammar: typescript
+asserts: simplified, values
+
+Every call of `fold_map` passes `Foldable List` and `Monoid [Int]`, so its
+body is a loop appending with `append[List]`.
+
+--- tql ---
+import Data.Function (const);
+import Data.Foldable (fold_map);
+
+doubled xs = fold_map (\x -> [x, x]) xs;
+
+main = const (doubled [1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[1,1,2,2]
+
+--- simplified ---
+doubled = \xs ->
+  letrec
+    go = \ys -> case ys of
+      Nil -> Nil
+      Cons h t -> append[List] (Cons h (Cons h Nil)) (go t)
+  in
+  go xs
+main = const (doubled (Cons 1 (Cons 2 Nil)))

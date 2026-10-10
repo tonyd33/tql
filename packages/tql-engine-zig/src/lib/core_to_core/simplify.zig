@@ -4,7 +4,8 @@
 const std = @import("std");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
-const Laws = @import("laws.zig").Laws;
+const laws = @import("laws.zig");
+const Laws = laws.Laws;
 const cost = @import("cost.zig");
 const Options = @import("options.zig").Options;
 const Analyser = @import("occurrence.zig").Analyser;
@@ -273,17 +274,15 @@ pub const Simplifier = struct {
     /// The operands of `t`'s application spine as frames, before
     /// `continuation`. `simplified` says whether the operands are.
     fn unwind(self: *Simplifier, t: core.Term, simplified: bool, continuation: []const Frame) Error![]const Frame {
-        const spine = t.spineLength();
-        const frames = try self.scratch.alloc(Frame, spine + continuation.len);
-        @memcpy(frames[spine..], continuation);
-        var walk = t;
-        var i = spine;
-        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
-            i -= 1;
-            const argument = walk.kind.apply.argument;
-            frames[i] = .{ .apply = .{
+        const applications = try self.scratch.alloc(core.Term, t.spineLength());
+        t.applications(applications);
+        const frames = try self.scratch.alloc(Frame, applications.len + continuation.len);
+        @memcpy(frames[applications.len..], continuation);
+        for (applications, frames[0..applications.len]) |a, *frame| {
+            const argument = a.kind.apply.argument;
+            frame.* = .{ .apply = .{
                 .operand = if (simplified) .{ .done = argument } else .{ .suspended = argument },
-                .span = walk.span,
+                .span = a.span,
             } };
         }
         return frames;
@@ -571,15 +570,10 @@ pub const Simplifier = struct {
         };
         const constructor = self.env.datatypes.constructorOf(&self.env.interner, id) orelse return null;
 
+        if (t.spineLength() != constructor.fields.len) return null;
         const fields = try self.scratch.alloc(core.Term, constructor.fields.len);
-        var walk = t;
-        var i = fields.len;
-        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
-            if (i == 0) return null;
-            i -= 1;
-            fields[i] = walk.kind.apply.argument;
-        }
-        if (i != 0) return null;
+        t.applications(fields);
+        for (fields) |*field| field.* = field.kind.apply.argument;
         return .{ .constructor = id, .fields = fields };
     }
 
@@ -589,7 +583,7 @@ pub const Simplifier = struct {
     fn inlined(self: *Simplifier, name: core.SymbolId, continuation: []const Frame) Error!?core.Term {
         if (!self.options.call_site_inline) return null;
         const unfolding = self.unfoldings.get(name) orelse return null;
-        if (self.phase == .laws and self.laws.names(name)) return null;
+        if (self.phase == .laws and laws.named(&self.env.interner, &self.env.known, name)) return null;
         const arity = unfolding.arity();
         const applied = @min(appliedTo(continuation), arity);
 

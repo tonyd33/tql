@@ -24,8 +24,6 @@ class A {}
 [4, 6]
 
 --- simplified ---
-combine = \k -> op[+] (k 1 2) (k 3 4)
-via = \g -> combine g
 main =
   let x = Cons (op[+] 1 3) (Cons (op[+] 2 4) Nil) in
   \y -> x

@@ -6,7 +6,7 @@ asserts: core, simplified, values
 import Data.Function (const);
 
 f b = let { a = 2 * 3 } in if b then a else a + 1;
-main = const [f true, f false];
+main = const (map f [true, false]);
 
 --- source ---
 class A {}
@@ -20,9 +20,7 @@ f = \b ->
   case b of
     False -> op[+] a 1
     True -> a
-main =
-  let x = Cons (op[*] 2 3) (Cons (op[+] (op[*] 2 3) 1) Nil) in
-  \y -> x
+main = const (map[List] f (Cons True (Cons False Nil)))
 
 --- core ---
 f = \b ->
@@ -30,4 +28,4 @@ f = \b ->
   case b of
     False -> op[+] a 1
     True -> a
-main = const (Cons (f True) (Cons (f False) Nil))
+main = const (map f (Cons True (Cons False Nil)))

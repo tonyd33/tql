@@ -5,13 +5,13 @@ asserts: stg, values
 --- tql ---
 f :: Int -> Int -> Int;
 f x y = seq x y;
-main = always (f 1 2);
+main = always (map (f 1) [2]);
 
 --- source ---
 class A {}
 
 --- values ---
-[2]
+[[2]]
 
 --- stg ---
 f = {} \u {} ->
@@ -22,8 +22,18 @@ f = {} \u {} ->
   t0@0
 main = {} \u {} ->
   let
-    t1 = {} \n {x} ->
-      let c0 = Nil in
-      Cons 2 c0@1
+    v = {} \u {} ->
+      let
+        t0 = {} \u {} -> f 1
+        t2 = {} \u {} ->
+          let c1 = Nil in
+          Cons 2 c1@0
+      in
+      map[List] t0@0 t2@1
   in
-  t1@0
+  let
+    t4 = {v@0} \n {x} ->
+      let c3 = Nil in
+      Cons v@0 c3@2
+  in
+  t4@1

@@ -290,22 +290,6 @@ pub const Resolver = struct {
 /// Each placeholder's evidence, by its symbol.
 pub const Replacements = std.AutoHashMapUnmanaged(core.SymbolId, core.Term);
 
-/// `original`, copied on the first `set` whose element changed.
-pub fn Rebuilt(comptime T: type) type {
-    return struct {
-        original: []const T,
-        copy: ?[]T = null,
-
-        pub fn set(self: *@This(), builder: core.Builder, i: usize, value: T, changed: bool) Allocator.Error!void {
-            if (self.copy == null) {
-                if (!changed) return;
-                self.copy = try builder.dupeSlice(T, self.original);
-            }
-            self.copy.?[i] = value;
-        }
-    };
-}
-
 /// `t` with each symbol `replacements` has an entry for replaced by it.
 /// Shares every subtree with nothing replaced.
 pub fn substitute(
@@ -318,58 +302,47 @@ pub fn substitute(
         .literal => return t,
         .lambda => |l| {
             const body = try substitute(builder, l.body, replacements);
-            if (same(body, l.body)) return t;
+            if (core.same(body, l.body)) return t;
             return try builder.lambda(l.parameter, body, t.span);
         },
         .apply => |a| {
             const function = try substitute(builder, a.function, replacements);
             const argument = try substitute(builder, a.argument, replacements);
-            if (same(function, a.function) and same(argument, a.argument)) return t;
+            if (core.same(function, a.function) and core.same(argument, a.argument)) return t;
             return try builder.apply(function, argument, t.span);
         },
         .case => |c| {
             const scrutinee = try substitute(builder, c.scrutinee, replacements);
-            var alternatives: Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
+            var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
             for (c.alternatives, 0..) |alternative, i| {
                 const body = try substitute(builder, alternative.body, replacements);
                 try alternatives.set(builder, i, .{
                     .constructor = alternative.constructor,
                     .binders = alternative.binders,
                     .body = body,
-                }, !same(body, alternative.body));
+                }, !core.same(body, alternative.body));
             }
             const default = if (c.default) |d| try substitute(builder, d, replacements) else null;
-            if (alternatives.copy == null and same(scrutinee, c.scrutinee) and sameOptional(default, c.default)) return t;
+            if (alternatives.copy == null and core.same(scrutinee, c.scrutinee) and core.sameOptional(default, c.default)) return t;
             return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
         },
         .let => |l| {
             const value = try substitute(builder, l.value, replacements);
             const body = try substitute(builder, l.body, replacements);
-            if (same(value, l.value) and same(body, l.body)) return t;
+            if (core.same(value, l.value) and core.same(body, l.body)) return t;
             return try builder.let(l.name, value, body, t.span);
         },
         .letrec => |l| {
-            var bindings: Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
+            var bindings: core.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
             for (l.bindings, 0..) |binding, i| {
                 const value = try substitute(builder, binding.value, replacements);
-                try bindings.set(builder, i, .{ .name = binding.name, .value = value }, !same(value, binding.value));
+                try bindings.set(builder, i, .{ .name = binding.name, .value = value }, !core.same(value, binding.value));
             }
             const body = try substitute(builder, l.body, replacements);
-            if (bindings.copy == null and same(body, l.body)) return t;
+            if (bindings.copy == null and core.same(body, l.body)) return t;
             return try builder.letrec(bindings.copy orelse l.bindings, body, t.span);
         },
     }
-}
-
-/// Whether `a` and `b` are one node, or one symbol or literal.
-pub fn same(a: core.Term, b: core.Term) bool {
-    return std.meta.eql(a.kind, b.kind);
-}
-
-/// Whether `a` and `b` are both absent, or `same`.
-pub fn sameOptional(a: ?core.Term, b: ?core.Term) bool {
-    if (a == null or b == null) return a == null and b == null;
-    return same(a.?, b.?);
 }
 
 /// `symbol = \d -> case d of { constructor f_0 .. f_n -> f_index }`.

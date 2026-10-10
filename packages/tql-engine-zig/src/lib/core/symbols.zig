@@ -118,6 +118,12 @@ pub fn SymbolTable(comptime T: type) type {
             return self.entries.items[index];
         }
 
+        pub fn getPtr(self: *Self, id: SymbolId) ?*T {
+            const index = @intFromEnum(id);
+            if (index >= self.entries.items.len) return null;
+            return if (self.entries.items[index]) |*value| value else null;
+        }
+
         pub fn reserve(self: *Self, len: usize) Allocator.Error!void {
             if (len <= self.entries.items.len) return;
             try self.entries.ensureTotalCapacityPrecise(self.allocator, len);

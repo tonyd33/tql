@@ -4,23 +4,32 @@ asserts: stg, values
 
 --- tql ---
 add x y = x + y;
-main = always (add 1 2);
+main = always (map (add 1) [2]);
 
 --- source ---
 class A {}
 
 --- values ---
-[3]
+[[3]]
 
 --- stg ---
 add = {} \u {} ->
   let t0 = {} \n {x,y} -> op[+]# x@0 y@1 in
   t0@0
 main = {} \u {} ->
-  let v = {} \u {} -> op[+]# 1 2 in
   let
-    t1 = {v@0} \n {x} ->
-      let c0 = Nil in
-      Cons v@0 c0@2
+    v = {} \u {} ->
+      let
+        t0 = {} \u {} -> add 1
+        t2 = {} \u {} ->
+          let c1 = Nil in
+          Cons 2 c1@0
+      in
+      map[List] t0@0 t2@1
   in
-  t1@1
+  let
+    t4 = {v@0} \n {x} ->
+      let c3 = Nil in
+      Cons v@0 c3@2
+  in
+  t4@1

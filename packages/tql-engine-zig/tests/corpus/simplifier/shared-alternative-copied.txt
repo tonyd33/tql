@@ -6,7 +6,7 @@ asserts: core, simplified, values
 import Data.Function (const);
 
 size xs = case xs of { [x] -> 1; ys -> length ys };
-main = const [size [1], size [1, 2]];
+main = const (map size [[1], [1, 2]]);
 
 --- source ---
 class A {}
@@ -20,20 +20,7 @@ size = \xs -> case xs of
   Cons x cons1 -> case cons1 of
     Nil -> 1
     Cons _ _ -> length[List] xs
-main =
-  let
-    x = Cons 1 (
-      Cons (
-        let xs = Cons 1 (Cons 2 Nil) in
-        case xs of
-          Nil -> length[List] xs
-          Cons x cons1 -> case cons1 of
-            Nil -> 1
-            Cons _ _ -> length[List] xs
-      ) Nil
-    )
-  in
-  \y -> x
+main = const (map[List] size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))
 
 --- core ---
 size = \xs ->
@@ -43,4 +30,4 @@ size = \xs ->
     Cons x cons1 -> case cons1 of
       Nil -> 1
       Cons _ _ -> jump alternative xs
-main = const (Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil))
+main = const (map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))

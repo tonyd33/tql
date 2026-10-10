@@ -18,9 +18,6 @@ let x = 1;
 ["class A {}", "other"]
 
 --- simplified ---
-f = \x -> case %is_kind :class_declaration x of
-  False -> "other"
-  True -> %text x
 main = \x -> bind[List] (%children x) (
   \x -> Cons (
     case %is_kind :class_declaration x of

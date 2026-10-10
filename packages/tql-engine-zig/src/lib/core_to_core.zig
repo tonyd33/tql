@@ -1,8 +1,11 @@
 //! Core-to-Core simplification of a checked program.
 //!
 //! Each iteration analyses every binder's occurrences, then simplifies every
-//! definition in one traversal, until no rewrite fires. That runs twice: first
-//! holding back from inlining the functions a law matches on, then not.
+//! definition in one traversal, until no rewrite fires. Then each dictionary
+//! every call of a function passes the same is substituted, and if one was,
+//! the iterations resume. Definitions `main` does not reach are dropped
+//! before each iteration. That runs twice: first holding back from inlining
+//! the functions a law matches on, then not.
 //! Every rewrite is an
 //! equation of the call-by-need lambda calculus or a law of the language, so
 //! skipping this pass changes no observable result, and the corpus is run
@@ -14,6 +17,8 @@ const std = @import("std");
 const core = @import("core.zig");
 const occurrence = @import("core_to_core/occurrence.zig");
 const simplify = @import("core_to_core/simplify.zig");
+const dictionaries = @import("core_to_core/dictionaries.zig");
+const laws = @import("core_to_core/laws.zig");
 
 /// Which rewrites run.
 pub const Options = @import("core_to_core/options.zig").Options;
@@ -26,6 +31,7 @@ pub const Error = Allocator.Error;
 test {
     std.testing.refAllDecls(occurrence);
     std.testing.refAllDecls(simplify);
+    std.testing.refAllDecls(dictionaries);
 }
 
 /// Simplify every definition in `program`, in place.
@@ -35,10 +41,71 @@ test {
 pub fn run(program: *core.Program, options: Options) Error!void {
     for ([_]simplify.Phase{ .laws, .final }) |phase| {
         for (0..options.max_iterations) |_| {
-            if (!try iterate(program, options, phase)) break;
-            if (std.debug.runtime_safety) try expectJoinPointsHold(program);
+            if (options.dead_bindings) try dropUnreachable(program);
+            if (try iterate(program, options, phase)) {
+                if (std.debug.runtime_safety) try expectJoinPointsHold(program);
+            } else if (!try substitute(program, options)) break;
         }
     }
+}
+
+/// Drop every definition `main` does not reach. A symbol reaches each method
+/// a law may select from it.
+fn dropUnreachable(program: *core.Program) Error!void {
+    var scratch: std.heap.ArenaAllocator = .init(program.env.gpa);
+    defer scratch.deinit();
+    var reached: Reached = .{
+        .scratch = scratch.allocator(),
+        .env = &program.env,
+        .definitions = program.definitions,
+        .indices = .init(scratch.allocator()),
+        .seen = try scratch.allocator().alloc(bool, program.definitions.len),
+    };
+    @memset(reached.seen, false);
+    for (program.definitions, 0..) |d, i| try reached.indices.put(d.symbol, @intCast(i));
+    _ = try reached.visit(program.entry, .use);
+    while (reached.pending.pop()) |i| _ = try core.free.anyMention(program.definitions[i].body, &reached, Reached.visit);
+    if (std.mem.indexOfScalar(bool, reached.seen, false) == null) return;
+
+    const before = std.mem.count(bool, reached.seen[0..program.entry_offset], &.{true});
+    const entry = std.mem.count(bool, reached.seen[program.entry_offset..program.entry_end], &.{true});
+    var kept: std.ArrayList(core.Definition) = .empty;
+    for (program.definitions, reached.seen) |d, seen| if (seen) try kept.append(program.env.allocator(), d);
+    program.definitions = kept.items;
+    program.entry_offset = @intCast(before);
+    program.entry_end = @intCast(before + entry);
+    program.components = &.{};
+}
+
+/// The definitions reached so far, by position.
+const Reached = struct {
+    scratch: Allocator,
+    env: *const core.env.Env,
+    definitions: []const core.Definition,
+    /// Each definition's position.
+    indices: core.SymbolTable(u32),
+    seen: []bool,
+    /// Reached, with bodies not yet walked.
+    pending: std.ArrayList(u32) = .empty,
+
+    fn visit(self: *Reached, symbol: core.SymbolId, role: core.free.Role) Error!bool {
+        if (role != .use) return false;
+        for (laws.selectable(&self.env.interner, &self.env.classes, symbol)) |method| _ = try self.visit(method, .use);
+        const i = self.indices.get(symbol) orelse return false;
+        if (self.seen[i]) return false;
+        self.seen[i] = true;
+        try self.pending.append(self.scratch, i);
+        return false;
+    }
+};
+
+/// Substitute constant dictionaries. Returns whether one was.
+fn substitute(program: *core.Program, options: Options) Error!bool {
+    if (!options.dictionary_arguments) return false;
+    var scratch: std.heap.ArenaAllocator = .init(program.env.gpa);
+    defer scratch.deinit();
+    var substituter: dictionaries.Substituter = .init(scratch.allocator(), .{ .allocator = program.env.allocator() }, &program.env);
+    return try substituter.run(program);
 }
 
 /// Panic if `program` breaks an invariant on join points.
