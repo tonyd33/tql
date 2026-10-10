@@ -322,7 +322,7 @@ pub const Inference = struct {
         if (c.alternatives.len > 0) {
             const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
             const declared = self.env.datatypes.get(owner);
-            arguments = try self.subst.arena.alloc(types.Type, declared.parameters);
+            arguments = try self.subst.arena.alloc(types.Type, declared.parameters.len);
             for (arguments) |*argument| argument.* = try self.subst.fresh();
             const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
             try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);

@@ -187,7 +187,7 @@ pub const Linker = struct {
                 self.arena(),
                 self.gpa,
                 signature,
-                .{ .class = id, .name = declared.name, .parameter = declared.parameter },
+                .{ .class = id, .name = declared.name, .parameter = declared.parameter, .kind = self.env.classes.get(id).parameter },
                 self.scope,
                 self.sink,
             );
@@ -220,7 +220,9 @@ pub const Linker = struct {
         const constructor = try self.env.interner.generate(self.module(), spelling, .vanilla);
         const fields = try self.arena().alloc(types.Type, count);
         for (fields, 0..) |*field, i| field.* = types.variable_type(@intCast(i));
-        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, @intCast(count), &.{});
+        const parameters = try self.arena().alloc(types.Kind, count);
+        @memset(parameters, .type);
+        const id = try self.env.datatypes.declare(&self.env.interner, self.module(), spelling, parameters, &.{});
         self.env.datatypes.setConstructors(&self.env.interner, id, try self.arena().dupe(datatypes.Constructor, &.{
             .{ .symbol = constructor, .tag = 0, .fields = fields },
         }));
@@ -254,7 +256,7 @@ pub const Linker = struct {
             return error.BadAnnotation;
         }
 
-        const head = try annotation.translateInstance(self.arena(), self.gpa, declared, self.scope, self.sink);
+        const head = try annotation.translateInstance(self.arena(), self.gpa, declared, class.parameter, self.scope, self.sink);
         const head_datatype = self.env.datatypes.get(head.head());
         const head_name = head_datatype.name;
         const head_module = head_datatype.module;

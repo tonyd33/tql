@@ -18,6 +18,7 @@
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
 - The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (map, any);` for `map`, `filter`, `foldr`, `append`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (alt);` for `kleisli` and `alt`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
+- A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
 
 ### New Features
 

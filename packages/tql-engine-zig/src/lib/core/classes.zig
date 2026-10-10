@@ -28,6 +28,8 @@ pub const Evidence = enum {
 
 pub const Class = struct {
     name: symbols.QualifiedName,
+    /// The kind of the class's parameter.
+    parameter: types.Kind = .type,
     superclasses: []const ClassId = &.{},
     /// Method symbols, in declaration order.
     methods: []const symbols.SymbolId = &.{},

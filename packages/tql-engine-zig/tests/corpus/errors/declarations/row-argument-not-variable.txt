@@ -11,7 +11,7 @@ f x = x.name;
 main = const [];
 
 --- error ---
-error[type-mismatch]: `r` in `Named` stands for a record's other fields, so its argument must be a type variable
+error[kind-mismatch]: `Int` has kind `Type`, but kind `Row` is expected
  --> 4:12
   |
 4 | f :: Named Int -> String;

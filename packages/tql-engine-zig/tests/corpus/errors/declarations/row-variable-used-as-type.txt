@@ -12,7 +12,7 @@ f x = x;
 main = const [];
 
 --- error ---
-error[type-mismatch]: `r` stands for a record's other fields in one place and for a type in another
+error[kind-mismatch]: `r` has kind `Row`, but kind `Type` is expected
  --> 3:28
   |
 3 | f :: {name: String | r} -> r;

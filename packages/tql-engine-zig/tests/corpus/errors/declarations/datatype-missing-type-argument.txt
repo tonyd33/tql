@@ -9,7 +9,7 @@ data T = C List;
 main = pure 1;
 
 --- error ---
-error[type-mismatch]: `List` takes 1 type argument(s), given 0
+error[kind-mismatch]: `List` has kind `Type -> Type`, but kind `Type` is expected
  --> 1:12
   |
 1 | data T = C List;

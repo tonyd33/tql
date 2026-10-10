@@ -21,8 +21,8 @@ pub const Datatype = struct {
     name: []const u8,
     /// The module that declares it.
     module: symbols.ModuleId,
-    /// Count of bound type parameters, numbered from zero.
-    parameters: u8,
+    /// The kind of each bound type parameter, numbered from zero.
+    parameters: []const types.Kind,
     constructors: []const Constructor,
     /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
@@ -37,12 +37,8 @@ pub const Alias = struct {
 
     pub const Parameter = struct {
         name: []const u8,
-        sort: Sort,
+        kind: types.Kind,
     };
-
-    /// What a type variable stands for: a type, or the fields after `|` in
-    /// an open record.
-    pub const Sort = enum { type, row };
 
     /// The alias at `arguments`, expanded. Takes ownership of `arguments`.
     pub fn apply(self: *const Alias, allocator: Allocator, arguments: []const types.Type) Allocator.Error!types.Type {
@@ -79,31 +75,31 @@ pub const Registry = struct {
     /// before `Prim` is parsed.
     pub const Structural = struct {
         name: []const u8,
-        parameters: u8,
+        parameters: []const types.Kind,
         /// Constructor spellings in tag order.
         constructors: []const []const u8 = &.{},
         /// Set for `data Int = %Int;`, which has no constructors.
         representation: ?types.Primitive = null,
 
         fn primitive(comptime p: types.Primitive) Structural {
-            return .{ .name = p.spelling(), .parameters = 0, .representation = p };
+            return .{ .name = p.spelling(), .parameters = &.{}, .representation = p };
         }
 
         pub const list: Structural = .{
             .name = types.list_spelling,
-            .parameters = 1,
+            .parameters = &.{.type},
             .constructors = &.{ "Nil", "Cons" },
         };
 
         pub const boolean: Structural = .{
             .name = types.bool_spelling,
-            .parameters = 0,
+            .parameters = &.{},
             .constructors = &.{ "False", "True" },
         };
 
         pub const ordering: Structural = .{
             .name = types.ordering_spelling,
-            .parameters = 0,
+            .parameters = &.{},
             .constructors = &.{ "LT", "EQ", "GT" },
         };
 
@@ -199,13 +195,13 @@ pub const Registry = struct {
         constructor: Constructor,
     ) Allocator.Error!types.Scheme {
         const result = try self.applied(arena, id);
-        return .{ .quantified = self.get(id).parameters, .type = try types.arrows(arena, constructor.fields, result) };
+        return .{ .quantified = @intCast(self.get(id).parameters.len), .type = try types.arrows(arena, constructor.fields, result) };
     }
 
     /// `id` applied to its own parameters, in order.
     pub fn applied(self: *const Registry, arena: Allocator, id: TypeId) Allocator.Error!types.Type {
         const declared = self.get(id);
-        const arguments = try arena.alloc(types.Type, declared.parameters);
+        const arguments = try arena.alloc(types.Type, declared.parameters.len);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
         return try types.constructed(arena, id, declared.name, arguments);
     }
@@ -235,15 +231,15 @@ pub const Registry = struct {
         return try types.func(arena, input, try self.list(arena, output));
     }
 
-    /// `name` and the constructor slice must outlive the registry; both are
-    /// expected to live in the program arena. Each constructor's symbol is
+    /// `name`, `parameters` and the constructor slice must outlive the
+    /// registry; all are expected to live in the program arena. Each constructor's symbol is
     /// pointed back at the datatype declaring it.
     pub fn declare(
         self: *Registry,
         interner: *symbols.Interner,
         module: symbols.ModuleId,
         name: []const u8,
-        parameters: u8,
+        parameters: []const types.Kind,
         constructors: []const Constructor,
     ) Allocator.Error!TypeId {
         const id: TypeId = @enumFromInt(self.datatypes.items.len);

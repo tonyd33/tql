@@ -5,8 +5,10 @@
 //! type checker receives is a finished `Scheme` in a side table.
 //!
 //! The translation is syntax-directed: `Filter a b` expands to `a -> [b]`, and
-//! type variables become `forall` binders in order of first appearance. A
-//! variable after `|` in a record type is a row, and may not also be a type.
+//! type variables become `forall` binders in order of first appearance. Each
+//! written type is checked against the kind its position expects: a variable
+//! after `|` in a record type has kind `Row`, and may not also have kind
+//! `Type`.
 //! An alias expands where it is written, keeping its name for printing.
 
 const std = @import("std");
@@ -65,6 +67,8 @@ pub const MethodOf = struct {
     name: []const u8,
     /// The class parameter as written.
     parameter: []const u8,
+    /// The class parameter's kind.
+    kind: types.Kind,
 };
 
 /// Translates the signature of a method of `class` into the method's scheme:
@@ -99,8 +103,8 @@ fn translateSignature(
         .sink = sink,
         .variables = .free,
     };
-    if (method_of) |m| _ = try t.binder(m.parameter, .type, signature.span);
-    const translated = try t.type(signature.type);
+    if (method_of) |m| _ = try t.binder(m.parameter, m.kind, signature.span);
+    const translated = try t.type(signature.type, .type);
 
     const leading: usize = if (method_of != null) 1 else 0;
     const context = try arena.alloc(types.TypeClassConstraint, leading + signature.context.len);
@@ -165,11 +169,12 @@ pub const InstanceHead = struct {
 };
 
 /// Translates an instance's head and context. The head is a declared type
-/// applied to distinct variables.
+/// applied to distinct variables, of kind `parameter`.
 pub fn translateInstance(
     arena: Allocator,
     gpa: Allocator,
     declared: *const cst.InstanceDeclaration,
+    parameter: types.Kind,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!InstanceHead {
@@ -184,7 +189,7 @@ pub fn translateInstance(
         .sink = sink,
         .variables = .free,
     };
-    const head_type = try t.type(declared.head);
+    const head_type = try t.type(declared.head, parameter);
     const written = unparenthesized(declared.head);
     switch (head_type) {
         .constructor => |c| {
@@ -331,12 +336,12 @@ pub fn translateAlias(
             return error.BadAnnotation;
         }
     }
-    try t.declaration(alias.name, alias.parameters, alias.span);
-    const body = try t.type(alias.type);
+    try t.declaration(alias.name, alias.parameters, null, alias.span);
+    const body = try t.type(alias.type, .type);
 
     const parameters = try arena.alloc(datatypes.Alias.Parameter, alias.parameters.len);
     for (vars.items, parameters) |v, *slot| {
-        const sort = v.sort orelse {
+        const kind = v.kind orelse {
             try sink.report(
                 .type_mismatch,
                 alias.span,
@@ -345,7 +350,7 @@ pub fn translateAlias(
             );
             return error.BadAnnotation;
         };
-        slot.* = .{ .name = try arena.dupe(u8, v.name), .sort = sort };
+        slot.* = .{ .name = try arena.dupe(u8, v.name), .kind = kind };
     }
 
     return .{
@@ -356,12 +361,13 @@ pub fn translateAlias(
 }
 
 /// Translates a constructor field's written type. Variable `i` is the
-/// datatype's parameter `i`.
+/// datatype's parameter `i`, of kind `parameters[i]`.
 pub fn translateField(
     arena: Allocator,
     gpa: Allocator,
     written: cst.Type,
     declared: *const cst.DataDeclaration,
+    parameters: []const types.Kind,
     scope: *const ModuleScope,
     sink: *diagnostic.Sink,
 ) Error!types.Type {
@@ -376,8 +382,8 @@ pub fn translateField(
         .sink = sink,
         .variables = .free,
     };
-    try t.declaration(declared.name, declared.parameters, declared.span);
-    const field = try t.type(written);
+    try t.declaration(declared.name, declared.parameters, parameters, declared.span);
+    const field = try t.type(written, .type);
     if (hasRecord(field)) {
         try sink.report(.type_mismatch, written.span, "a constructor field may not be a record yet", .{});
         return error.BadAnnotation;
@@ -412,91 +418,111 @@ const Translator = struct {
     },
 
     /// Bring `parameters` into scope as variables `0..` and admit no others.
-    fn declaration(self: *Translator, name: []const u8, parameters: []const []const u8, span: diagnostic.Span) Error!void {
-        for (parameters) |parameter| _ = try self.binder(parameter, null, span);
+    /// Each takes its kind from `kinds`, or from its first use when null.
+    fn declaration(
+        self: *Translator,
+        name: []const u8,
+        parameters: []const []const u8,
+        kinds: ?[]const types.Kind,
+        span: diagnostic.Span,
+    ) Error!void {
+        for (parameters, 0..) |parameter, i| {
+            _ = try self.binder(parameter, if (kinds) |k| k[i] else null, span);
+        }
         self.variables = .{ .parameters_of = name };
     }
 
-    fn @"type"(self: *Translator, node: cst.Type) Error!types.Type {
+    /// Translates `node`, which must have kind `expected`.
+    fn @"type"(self: *Translator, node: cst.Type, expected: types.Kind) Error!types.Type {
+        switch (node.kind) {
+            .constructor => |name| return try self.named(name, &.{}, node.span, expected),
+            .application => |a| return try self.named(a.constructor, a.arguments, node.span, expected),
+            .variable => |name| return .{ .variable = try self.binder(name, expected, node.span) },
+            .parenthesized => |inner| return try self.type(inner.*, expected),
+            .list, .function, .filter, .record => {},
+        }
+        if (expected != .type) {
+            const what = switch (node.kind) {
+                .list => "a list type",
+                .function => "a function type",
+                .filter => "a `Filter` type",
+                .record => "a record type",
+                .constructor, .application, .variable, .parenthesized => unreachable,
+            };
+            try self.sink.report(.kind_mismatch, node.span, "{s} has kind `Type`, but kind `{f}` is expected", .{ what, expected });
+            return error.BadAnnotation;
+        }
         return switch (node.kind) {
-            .constructor => |name| try self.named(name, node.span),
-            .application => |a| try self.application(a.*, node.span),
-            .variable => |name| .{ .variable = try self.binder(name, .type, node.span) },
-            .list => |element| try self.scope.datatypes.list(self.arena, try self.type(element.*)),
-            .parenthesized => |inner| try self.type(inner.*),
-            .function => |f| try types.func(self.arena, try self.type(f.from), try self.type(f.to)),
+            .list => |element| try self.scope.datatypes.list(self.arena, try self.type(element.*, .type)),
+            .function => |f| try types.func(self.arena, try self.type(f.from, .type), try self.type(f.to, .type)),
             // `Filter a b` is `a -> [b]`. The expansion happens here, so
             // nothing downstream has a `Filter` case.
             .filter => |f| try types.func(
                 self.arena,
-                try self.type(f.input),
-                try self.scope.datatypes.list(self.arena, try self.type(f.output)),
+                try self.type(f.input, .type),
+                try self.scope.datatypes.list(self.arena, try self.type(f.output, .type)),
             ),
             .record => |r| try self.record(r, node.span),
+            .constructor, .application, .variable, .parenthesized => unreachable,
         };
     }
 
-    fn named(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.Type {
-        switch (self.scope.typeNamed(name)) {
+    /// `name` applied to `written`, which must have kind `expected`.
+    fn named(
+        self: *Translator,
+        name: []const u8,
+        written: []const cst.Type,
+        span: diagnostic.Span,
+        expected: types.Kind,
+    ) Error!types.Type {
+        const declared = switch (self.scope.typeNamed(name)) {
             .found => |found| switch (found) {
-                .datatype => |declared| {
-                    const parameters = self.scope.datatypes.get(declared).parameters;
-                    if (parameters != 0) {
-                        try self.sink.report(
-                            .type_mismatch,
-                            span,
-                            "`{s}` takes {d} type argument(s), given 0",
-                            .{ name, parameters },
-                        );
+                .datatype => |declared| declared,
+                .alias => |alias| {
+                    const expanded = try self.aliasAt(alias, written, span);
+                    if (expected != .type) {
+                        try self.sink.report(.kind_mismatch, span, "`{s}` has kind `Type`, but kind `{f}` is expected", .{ name, expected });
                         return error.BadAnnotation;
                     }
-                    return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, &.{});
+                    return expanded;
                 },
-                .alias => |alias| return try self.aliasAt(alias, &.{}, span),
                 .class => return try self.notAType(name, span),
             },
             .failed => |failure| {
                 try self.scope.reportFailure(self.sink, span, name, failure);
                 return error.BadAnnotation;
             },
-            .missing => {},
-        }
-        try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
-        return error.BadAnnotation;
-    }
-
-    fn application(
-        self: *Translator,
-        node: cst.TypeApplication,
-        span: diagnostic.Span,
-    ) Error!types.Type {
-        const declared = switch (self.scope.typeNamed(node.constructor)) {
-            .found => |found| switch (found) {
-                .datatype => |declared| declared,
-                .alias => |alias| return try self.aliasAt(alias, node.arguments, span),
-                .class => return try self.notAType(node.constructor, span),
-            },
-            .failed => |failure| {
-                try self.scope.reportFailure(self.sink, span, node.constructor, failure);
-                return error.BadAnnotation;
-            },
             .missing => {
-                try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{node.constructor});
+                try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
                 return error.BadAnnotation;
             },
         };
         const parameters = self.scope.datatypes.get(declared).parameters;
-        if (node.arguments.len != parameters) {
+        if (written.len > parameters.len) {
             try self.sink.report(
-                .type_mismatch,
+                .kind_mismatch,
                 span,
-                "`{s}` takes {d} type argument(s), given {d}",
-                .{ node.constructor, parameters, node.arguments.len },
+                "`{s}` has kind `{f}`: it takes {d} type argument(s), given {d}",
+                .{ name, types.Kind.of(parameters), parameters.len, written.len },
             );
             return error.BadAnnotation;
         }
-        const arguments = try self.arena.alloc(types.Type, node.arguments.len);
-        for (node.arguments, arguments) |argument, *copy| copy.* = try self.type(argument);
+        const rest = types.Kind.of(parameters[written.len..]);
+        if (!rest.eql(expected)) {
+            if (written.len == 0) {
+                try self.sink.report(.kind_mismatch, span, "`{s}` has kind `{f}`, but kind `{f}` is expected", .{ name, rest, expected });
+            } else {
+                try self.sink.report(
+                    .kind_mismatch,
+                    span,
+                    "`{s}` given {d} of its {d} type arguments has kind `{f}`, but kind `{f}` is expected",
+                    .{ name, written.len, parameters.len, rest, expected },
+                );
+            }
+            return error.BadAnnotation;
+        }
+        const arguments = try self.arena.alloc(types.Type, written.len);
+        for (written, parameters[0..written.len], arguments) |argument, kind, *copy| copy.* = try self.type(argument, kind);
         return try types.constructed(self.arena, declared, self.scope.datatypes.get(declared).name, arguments);
     }
 
@@ -524,8 +550,6 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
-    const Sort = datatypes.Alias.Sort;
-
     /// `alias` applied to `written`, expanded.
     fn aliasAt(
         self: *Translator,
@@ -543,56 +567,30 @@ const Translator = struct {
             return error.BadAnnotation;
         }
         const arguments = try self.arena.alloc(types.Type, written.len);
-        for (alias.parameters, written, arguments) |parameter, argument, *slot| {
-            slot.* = switch (parameter.sort) {
-                .type => try self.type(argument),
-                .row => try self.row(argument, alias, parameter),
-            };
-        }
+        for (alias.parameters, written, arguments) |parameter, argument, *slot| slot.* = try self.type(argument, parameter.kind);
         return try alias.apply(self.arena, arguments);
-    }
-
-    /// The argument for a row parameter, which only a type variable can be.
-    fn row(
-        self: *Translator,
-        argument: cst.Type,
-        alias: *const datatypes.Alias,
-        parameter: datatypes.Alias.Parameter,
-    ) Error!types.Type {
-        var inner = argument;
-        while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
-        if (inner.kind != .variable) {
-            try self.sink.report(
-                .type_mismatch,
-                argument.span,
-                "`{s}` in `{s}` stands for a record's other fields, so its argument must be a type variable",
-                .{ parameter.name, alias.name },
-            );
-            return error.BadAnnotation;
-        }
-        return .{ .variable = try self.binder(inner.kind.variable, .row, argument.span) };
     }
 
     const Variable = struct {
         name: []const u8,
         /// Null for an alias parameter its body has not used yet.
-        sort: ?Sort,
+        kind: ?types.Kind,
     };
 
     /// The `forall` position of a type variable, assigned on first appearance.
-    fn binder(self: *Translator, name: []const u8, sort: ?Sort, span: diagnostic.Span) Error!types.TypeVar {
+    fn binder(self: *Translator, name: []const u8, kind: ?types.Kind, span: diagnostic.Span) Error!types.TypeVar {
         for (self.vars.items, 0..) |*seen, i| {
             if (!std.mem.eql(u8, seen.name, name)) continue;
-            const known = seen.sort orelse {
-                seen.sort = sort;
+            const known = seen.kind orelse {
+                seen.kind = kind;
                 return @intCast(i);
             };
-            if (sort != null and known != sort.?) {
+            if (kind != null and !known.eql(kind.?)) {
                 try self.sink.report(
-                    .type_mismatch,
+                    .kind_mismatch,
                     span,
-                    "`{s}` stands for a record's other fields in one place and for a type in another",
-                    .{name},
+                    "`{s}` has kind `{f}`, but kind `{f}` is expected",
+                    .{ name, known, kind.? },
                 );
                 return error.BadAnnotation;
             }
@@ -614,7 +612,7 @@ const Translator = struct {
             );
             return error.BadAnnotation;
         }
-        try self.vars.append(self.gpa, .{ .name = name, .sort = sort });
+        try self.vars.append(self.gpa, .{ .name = name, .kind = kind });
         return @intCast(self.vars.items.len - 1);
     }
 
@@ -623,7 +621,7 @@ const Translator = struct {
         for (r.fields, copies) |f, *copy| {
             copy.* = .{
                 .label = try self.arena.dupe(u8, f.name),
-                .type = try types.store(self.arena, try self.type(f.type)),
+                .type = try types.store(self.arena, try self.type(f.type, .type)),
             };
         }
         std.mem.sort(types.Type.Field, copies, {}, types.Type.Field.lessThan);

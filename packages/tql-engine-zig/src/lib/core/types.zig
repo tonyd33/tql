@@ -41,6 +41,71 @@ pub const Primitive = enum(u32) {
     }
 };
 
+/// The type of a type: `Type` for one with values, `Row` for the fields after
+/// `|` in an open record, and `k -> k` for a constructor short of arguments.
+pub const Kind = union(enum) {
+    type,
+    row,
+    arrow: *const Arrow,
+
+    pub const Arrow = struct {
+        from: Kind,
+        to: Kind,
+    };
+
+    pub fn eql(a: Kind, b: Kind) bool {
+        return switch (a) {
+            .type, .row => std.meta.activeTag(a) == std.meta.activeTag(b),
+            .arrow => |x| b == .arrow and x.from.eql(b.arrow.from) and x.to.eql(b.arrow.to),
+        };
+    }
+
+    pub fn format(self: Kind, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try self.write(w, false);
+    }
+
+    fn write(self: Kind, w: *std.Io.Writer, parenthesize: bool) std.Io.Writer.Error!void {
+        switch (self) {
+            .type => try w.writeAll("Type"),
+            .row => try w.writeAll("Row"),
+            .arrow => |arrow| {
+                if (parenthesize) try w.writeByte('(');
+                try arrow.from.write(w, true);
+                try w.writeAll(" -> ");
+                try arrow.to.write(w, false);
+                if (parenthesize) try w.writeByte(')');
+            },
+        }
+    }
+
+    /// Format `parameters[0] -> .. -> Type`, the kind of a declared type
+    /// still short of those arguments.
+    pub fn of(parameters: []const Kind) Of {
+        return .{ .parameters = parameters };
+    }
+
+    pub const Of = struct {
+        parameters: []const Kind,
+
+        pub fn eql(self: Of, k: Kind) bool {
+            var rest = k;
+            for (self.parameters) |parameter| {
+                if (rest != .arrow or !rest.arrow.from.eql(parameter)) return false;
+                rest = rest.arrow.to;
+            }
+            return rest == .type;
+        }
+
+        pub fn format(self: Of, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            for (self.parameters) |parameter| {
+                try parameter.write(w, true);
+                try w.writeAll(" -> ");
+            }
+            try w.writeAll("Type");
+        }
+    };
+};
+
 pub const Type = union(enum) {
     variable: TypeVar,
     meta: Meta,

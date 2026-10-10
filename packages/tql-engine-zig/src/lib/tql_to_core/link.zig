@@ -135,13 +135,17 @@ pub const Desugarer = struct {
                 continue;
             }
 
-            const id = existing orelse try self.env.?.datatypes.declare(
-                interner,
-                scope.module,
-                try arena.dupe(u8, declared.name),
-                @intCast(declared.parameters.len),
-                &.{},
-            );
+            const id = existing orelse blk: {
+                const parameters = try arena.alloc(types.Kind, declared.parameters.len);
+                @memset(parameters, .type);
+                break :blk try self.env.?.datatypes.declare(
+                    interner,
+                    scope.module,
+                    try arena.dupe(u8, declared.name),
+                    parameters,
+                    &.{},
+                );
+            };
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
 
@@ -168,7 +172,7 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = annotation.translateField(arena, self.allocator, field, declared, scope, sink) catch |err| switch (err) {
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, self.env.?.datatypes.get(p.id).parameters, scope, sink) catch |err| switch (err) {
                         error.BadAnnotation => {
                             failed = true;
                             break;
@@ -278,7 +282,7 @@ pub const Desugarer = struct {
     /// structural type: the same arity, the same representation, and the
     /// same constructor spellings in the same tag order.
     fn conforms(s: datatypes.Registry.Structural, declared: cst.DataDeclaration) bool {
-        if (declared.parameters.len != s.parameters) return false;
+        if (declared.parameters.len != s.parameters.len) return false;
         const representation: ?types.Primitive = if (declared.representation) |r|
             std.meta.stringToEnum(types.Primitive, r.name[1..]) orelse return false
         else
@@ -308,7 +312,7 @@ pub const Desugarer = struct {
             declared.span,
             "`{s}` is built directly by the evaluator and must declare {d} " ++
                 "parameter(s) and the constructors `{s}` in that order",
-            .{ declared.name, s.parameters, spelled },
+            .{ declared.name, s.parameters.len, spelled },
         );
     }
 
