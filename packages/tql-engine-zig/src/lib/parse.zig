@@ -545,7 +545,13 @@ const Walker = struct {
                 const text = textOf(node, self.source);
                 const body = if (text.len >= 2) text[1 .. text.len - 1] else text;
                 switch (try string_literal.decode(self.allocator, body)) {
-                    .bytes => |bytes| return .{ .kind = .{ .string = bytes }, .span = span },
+                    .bytes => |bytes| {
+                        if (!std.unicode.utf8ValidateSlice(bytes)) {
+                            try self.sink.report(.parse, span, "a string literal must be UTF-8", .{});
+                            return null;
+                        }
+                        return .{ .kind = .{ .string = bytes }, .span = span };
+                    },
                     .invalid_escape => |at| {
                         try self.sink.report(
                             .parse,

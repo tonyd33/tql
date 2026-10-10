@@ -320,7 +320,11 @@ pub const CompiledQuery = struct {
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
         defer machine.deinit();
-        machine.target = .{ .source = target, .path = target_path };
+        machine.target = .{
+            .source = target,
+            .path = target_path,
+            .utf8 = std.unicode.utf8ValidateSlice(target),
+        };
 
         const entry = machine.global(self.checked.entry) orelse
             return error.MissingEntry;

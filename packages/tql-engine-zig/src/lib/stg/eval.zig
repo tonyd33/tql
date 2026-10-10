@@ -228,6 +228,9 @@ pub const Machine = struct {
     pub const Target = struct {
         source: []const u8,
         path: ?[]const u8,
+        /// Whether all of `source` is well-formed UTF-8, so a node's text needs
+        /// no decoding.
+        utf8: bool,
     };
 
     pub fn init(
@@ -789,7 +792,7 @@ pub const Machine = struct {
                 .string_length => {
                     if (arguments.len != 1) return error.TypeError;
                     return switch (try self.force(arguments[0])) {
-                        .string => |s| .{ .number = @intCast(s.len) },
+                        .string => |s| .{ .number = @intCast(codePoints(s)) },
                         else => error.TypeError,
                     };
                 },
@@ -798,8 +801,7 @@ pub const Machine = struct {
                 // a scalar rather than a singleton list.
                 .text => {
                     const subject = try self.nodeArgument(arguments);
-                    const target = self.target orelse return error.TypeError;
-                    return .{ .string = target.source[subject.startByte()..subject.endByte()] };
+                    return .{ .string = try self.nodeText(subject) };
                 },
                 .kind => {
                     const subject = try self.nodeArgument(arguments);
@@ -877,7 +879,7 @@ pub const Machine = struct {
                 .filename => {
                     const target = self.target orelse return self.nil();
                     const path = target.path orelse return self.nil();
-                    return self.singleton(try self.valueThunk(.{ .string = path }));
+                    return self.singleton(try self.valueThunk(.{ .string = try self.decoded(path) }));
                 },
 
                 // Children and anonymous tokens, document order.
@@ -906,6 +908,20 @@ pub const Machine = struct {
     }
 
     /// The single node argument of a tree primitive.
+    /// Returns the source `node` spans, as a string.
+    fn nodeText(self: *Machine, node: ts.Node) Error![]const u8 {
+        const target = self.target orelse return error.TypeError;
+        const bytes = target.source[node.startByte()..node.endByte()];
+        return if (target.utf8) bytes else self.decoded(bytes);
+    }
+
+    /// Returns `bytes` with each ill-formed UTF-8 sequence replaced by U+FFFD,
+    /// copied into the arena only when there is one.
+    fn decoded(self: *Machine, bytes: []const u8) Error![]const u8 {
+        if (std.unicode.utf8ValidateSlice(bytes)) return bytes;
+        return std.fmt.allocPrint(self.arena, "{f}", .{std.unicode.fmtUtf8(bytes)});
+    }
+
     fn nodeArgument(self: *Machine, arguments: []const *value.Thunk) Error!ts.Node {
         if (arguments.len != 1) return error.TypeError;
         return switch (try self.force(arguments[0])) {
@@ -1069,6 +1085,15 @@ pub const Machine = struct {
             else => return error.TypeError,
         };
         return .{ a, b };
+    }
+
+    /// Returns the number of code points in `s`, which is well-formed UTF-8.
+    fn codePoints(s: []const u8) usize {
+        var n: usize = 0;
+        for (s) |b| {
+            if (b & 0xC0 != 0x80) n += 1;
+        }
+        return n;
     }
 
     /// Returns the quotient or remainder `primop` names. `div` and `mod`
@@ -1336,13 +1361,12 @@ pub const Machine = struct {
                 }
             },
             .node => |n| {
-                const target = self.target orelse return error.TypeError;
                 const inner = n.inner;
                 try jws.beginObject();
                 try jws.objectField("kind");
                 try jws.write(inner.kind());
                 try jws.objectField("text");
-                try jws.write(target.source[inner.startByte()..inner.endByte()]);
+                try jws.write(try self.nodeText(inner));
                 try writeLocation(rangeOf(inner), jws);
                 try jws.endObject();
             },

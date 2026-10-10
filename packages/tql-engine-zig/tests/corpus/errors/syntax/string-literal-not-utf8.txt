@@ -1,0 +1,13 @@
+title: a string literal must be UTF-8
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure "café";
+
+--- error ---
+error[parse]: a string literal must be UTF-8
+ --> 1:13
+  |
+1 | main = pure "café";
+  |             ^^^^^^
