@@ -15,7 +15,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = \root -> bind[List] (Cons Unit Nil) (\_ -> Cons 1 Nil)
+main = \root -> bind[List] (Cons () Nil) (\_ -> Cons 1 Nil)
 
 --- core ---
 main = \root -> bind (guard True) (\_ -> return 1)

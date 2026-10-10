@@ -1,10 +1,10 @@
-title: `append` and `mempty` at `Unit`
+title: `append` and `mempty` at `()`
 grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root = case append Unit mempty of {
-  Unit -> ["unit"];
+main root = case append () mempty of {
+  () -> ["unit"];
 };
 
 --- source ---

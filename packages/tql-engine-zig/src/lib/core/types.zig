@@ -278,7 +278,7 @@ pub const Type = union(enum) {
                 try w.writeByte('a' + @as(u8, @intCast(i)));
             } else try w.print("?{d}", .{id}),
             .constructor => |c| {
-                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c);
+                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c) and !isTupleSugar(c);
                 if (parenthesize) try w.writeByte('(');
                 try writeConstructed(c, w, names);
                 if (parenthesize) try w.writeByte(')');
@@ -354,6 +354,15 @@ fn writeConstructed(
     w: *std.Io.Writer,
     names: ?*MetaNames,
 ) std.Io.Writer.Error!void {
+    if (isTupleSugar(c)) {
+        try w.writeByte('(');
+        for (c.arguments, 0..) |argument, i| {
+            if (i > 0) try w.writeAll(", ");
+            try argument.write(w, .top, names);
+        }
+        try w.writeByte(')');
+        return;
+    }
     if (isListSugar(c)) {
         try w.writeByte('[');
         try c.arguments[0].write(w, .top, names);
@@ -369,6 +378,12 @@ fn writeConstructed(
 
 fn isListSugar(c: *const Type.Constructed) bool {
     return c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling);
+}
+
+/// Whether `c` is a tuple type at all its components, written `(a, b)`.
+fn isTupleSugar(c: *const Type.Constructed) bool {
+    const arity = tupleArity(c.spelling) orelse return false;
+    return c.arguments.len == arity;
 }
 
 pub const TypeClassConstraint = struct {
@@ -471,6 +486,18 @@ pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
 pub const function_spelling = "(->)";
+
+/// The most components a tuple has.
+pub const max_tuple_arity = std.math.maxInt(TypeVar);
+
+/// The number of components of the tuple type `spelling` names, if it names
+/// one.
+pub fn tupleArity(spelling: []const u8) ?TypeVar {
+    if (spelling.len < 2 or spelling[0] != '(' or spelling[spelling.len - 1] != ')') return null;
+    const commas = spelling[1 .. spelling.len - 1];
+    for (commas) |c| if (c != ',') return null;
+    return if (commas.len == 0) 0 else @intCast(commas.len + 1);
+}
 
 /// A declared type at its arguments, copied into `allocator`.
 /// `(->)` at both arguments is the function type.

@@ -676,9 +676,13 @@ pub fn translate(
 
     const registry = &program.env.datatypes;
     var spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8) = .empty;
+    var tuples: std.AutoHashMapUnmanaged(core.SymbolId, void) = .empty;
     for (registry.datatypes.items) |datatype| {
         for (datatype.constructors) |c| {
             try spellings.put(arena.allocator(), c.symbol, try arena.allocator().dupe(u8, program.env.interner.spelling(c.symbol)));
+        }
+        if (datatype.tuple) {
+            try tuples.put(arena.allocator(), datatype.constructors[0].symbol, {});
         }
     }
     const nil = builtin(registry.nilConstructor());
@@ -702,6 +706,7 @@ pub fn translate(
             .gt = builtin(registry.orderingConstructor(.gt)),
         },
         .spellings = spellings,
+        .tuples = tuples,
         .nil = nil_thunk,
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),

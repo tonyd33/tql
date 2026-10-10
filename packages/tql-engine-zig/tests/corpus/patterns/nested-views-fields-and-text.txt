@@ -85,7 +85,7 @@ main = \root -> bind[List] (%descendants_of_kind :call_expression root) (
                   Nil -> case cons1 of
                     Nil -> bind[List] (
                       case bind[List] (%ancestors scrutinee) (of_kind :catch_clause) of
-                        Nil -> Cons Unit Nil
+                        Nil -> Cons () Nil
                         Cons h t -> Nil
                     ) (\_ -> Cons (%text scrutinee) Nil)
                     Cons _ _ -> Nil

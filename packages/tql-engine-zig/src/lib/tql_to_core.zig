@@ -53,14 +53,12 @@ const Fixture = struct {
     }
 
     /// `Prim`'s own view: every structural type, no imports.
-    fn scope(self: *const Fixture) ModuleScope {
+    fn scope(self: *Fixture) ModuleScope {
         return .{
             .module = .prim,
             .imports = &.{},
             .exports = &.{},
-            .interner = &self.env.interner,
-            .datatypes = &self.env.datatypes,
-            .classes = &self.env.classes,
+            .env = &self.env,
         };
     }
 

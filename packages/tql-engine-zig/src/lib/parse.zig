@@ -368,25 +368,13 @@ const Walker = struct {
         else
             &.{};
 
-        var methods: std.ArrayList(cst.Signature) = .empty;
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "method")) {
-                        try methods.append(self.allocator, try self.signature(cursor.node()) orelse return null);
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
+        const methods = try self.fieldChildren(cst.Signature, node, "method", signature) orelse return null;
 
         return .{
             .name = try self.dupe(name_node),
             .parameter = try self.dupe(parameter_node),
             .superclasses = superclasses,
-            .methods = try methods.toOwnedSlice(self.allocator),
+            .methods = methods,
             .span = spanOf(node, self.source_id),
         };
     }
@@ -400,25 +388,13 @@ const Walker = struct {
             &.{};
         const head = try self.typeExpr(type_node) orelse return null;
 
-        var methods: std.ArrayList(cst.Definition) = .empty;
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "method")) {
-                        try methods.append(self.allocator, try self.definition(cursor.node()) orelse return null);
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
+        const methods = try self.fieldChildren(cst.Definition, node, "method", definition) orelse return null;
 
         return .{
             .class = try self.dupe(class_node),
             .head = head,
             .context = constraints,
-            .methods = try methods.toOwnedSlice(self.allocator),
+            .methods = methods,
             .span = spanOf(node, self.source_id),
         };
     }
@@ -530,6 +506,9 @@ const Walker = struct {
         let_expression,
         do_expression,
         list,
+        unit,
+        tuple,
+        tuple_constructor,
         record,
         parenthesized,
         of_shape,
@@ -603,7 +582,10 @@ const Walker = struct {
             .lambda => return self.lambda(node, span),
             .let_expression => return self.letExpr(node, span),
             .do_expression => return self.doExpr(node, span),
-            .list => return self.list(node, span),
+            .list => return .{ .kind = .{ .list = try self.children(cst.Expression, node, expression) orelse return null }, .span = span },
+            .unit => return .{ .kind = .{ .tuple = &.{} }, .span = span },
+            .tuple => return .{ .kind = .{ .tuple = try self.components(cst.Expression, node, expression) orelse return null }, .span = span },
+            .tuple_constructor => return .{ .kind = .{ .tuple_constructor = try self.tupleArity(node) orelse return null }, .span = span },
             .record => return self.record(node, span),
             .of_shape => {
                 const pattern_node = try self.requiredField(node, "pattern") orelse return null;
@@ -833,25 +815,12 @@ const Walker = struct {
         const name_node = try self.requiredField(node, "name") orelse return null;
         const type_node = try self.requiredField(node, "type") orelse return null;
         const name = try self.dupe(name_node);
-        var params: std.ArrayList(cst.Identifier) = .empty;
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "parameter")) {
-                        try params.append(self.allocator, try self.dupe(cursor.node()));
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
+        const params = try self.fieldChildren(cst.Identifier, node, "parameter", identifier) orelse return null;
 
         const ty = try self.typeExpr(type_node) orelse return null;
         return .{
             .name = name,
-            .parameters = try params.toOwnedSlice(self.allocator),
+            .parameters = params,
             .type = ty,
             .span = spanOf(node, self.source_id),
         };
@@ -881,25 +850,11 @@ const Walker = struct {
     fn constructorDeclaration(self: *Walker, node: ts.Node) !?cst.ConstructorDeclaration {
         const name_node = try self.requiredField(node, "name") orelse return null;
         const name = try self.dupe(name_node);
-        var fields: std.ArrayList(cst.Type) = .empty;
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "field")) {
-                        const t = try self.typeExpr(cursor.node()) orelse return null;
-                        try fields.append(self.allocator, t);
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
+        const fields = try self.fieldChildren(cst.Type, node, "field", typeExpr) orelse return null;
 
         return .{
             .name = name,
-            .fields = try fields.toOwnedSlice(self.allocator),
+            .fields = fields,
             .span = spanOf(node, self.source_id),
         };
     }
@@ -970,41 +925,23 @@ const Walker = struct {
         }
         if (std.mem.eql(u8, kind, "constructor_pattern")) {
             const name_node = try self.requiredField(node, "constructor") orelse return null;
-            var arguments: std.ArrayList(cst.Pattern) = .empty;
-            var cursor = node.walk();
-            defer cursor.destroy();
-            if (cursor.gotoFirstChild()) {
-                while (true) {
-                    if (cursor.fieldName()) |field| {
-                        if (std.mem.eql(u8, field, "argument")) {
-                            const argument = try self.pattern(cursor.node()) orelse return null;
-                            try arguments.append(self.allocator, argument);
-                        }
-                    }
-                    if (!cursor.gotoNextSibling()) break;
-                }
-            }
+            const arguments = try self.fieldChildren(cst.Pattern, node, "argument", pattern) orelse return null;
             return .{
                 .kind = .{ .constructor = .{
                     .name = try self.dupe(name_node),
-                    .arguments = try arguments.toOwnedSlice(self.allocator),
+                    .arguments = arguments,
                 } },
                 .span = span,
             };
         }
         if (std.mem.eql(u8, kind, "list_pattern")) {
-            var elements: std.ArrayList(cst.Pattern) = .empty;
-            var i: u32 = 0;
-            while (i < node.namedChildCount()) : (i += 1) {
-                const child = node.namedChild(i).?;
-                if (child.isExtra()) continue;
-                const element = try self.pattern(child) orelse return null;
-                try elements.append(self.allocator, element);
-            }
-            return .{
-                .kind = .{ .list = try elements.toOwnedSlice(self.allocator) },
-                .span = span,
-            };
+            return .{ .kind = .{ .list = try self.children(cst.Pattern, node, pattern) orelse return null }, .span = span };
+        }
+        if (std.mem.eql(u8, kind, "tuple_pattern")) {
+            return .{ .kind = .{ .tuple = try self.components(cst.Pattern, node, pattern) orelse return null }, .span = span };
+        }
+        if (std.mem.eql(u8, kind, "unit")) {
+            return .{ .kind = .{ .tuple = &.{} }, .span = span };
         }
         if (std.mem.eql(u8, kind, "cons_pattern")) {
             const head_node = try self.requiredField(node, "head") orelse return null;
@@ -1212,18 +1149,82 @@ const Walker = struct {
         };
     }
 
-    fn list(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
-        var elements: std.ArrayList(cst.Expression) = .empty;
+    /// The components of the tuple `node`, converted by `convert`. Null
+    /// after reporting more than `cst.max_tuple_arity`.
+    fn components(
+        self: *Walker,
+        comptime T: type,
+        node: ts.Node,
+        comptime convert: fn (*Walker, ts.Node) (error{OutOfMemory})!?T,
+    ) (error{OutOfMemory})!?[]const T {
+        const converted = try self.children(T, node, convert) orelse return null;
+        if (!try self.withinTupleArity(converted.len, node)) return null;
+        return converted;
+    }
+
+    /// The number of components `(,..)` constructs: one more than its
+    /// commas. Null after reporting more than `cst.max_tuple_arity`.
+    fn tupleArity(self: *Walker, node: ts.Node) (error{OutOfMemory})!?u8 {
+        var arity: usize = 1;
+        var i: u32 = 0;
+        while (i < node.childCount()) : (i += 1) {
+            if (std.mem.eql(u8, node.child(i).?.kind(), ",")) arity += 1;
+        }
+        if (!try self.withinTupleArity(arity, node)) return null;
+        return @intCast(arity);
+    }
+
+    /// Whether a tuple of `arity` components is allowed, reporting at `node`
+    /// when it is not.
+    fn withinTupleArity(self: *Walker, arity: usize, node: ts.Node) (error{OutOfMemory})!bool {
+        if (arity <= cst.max_tuple_arity) return true;
+        try self.sink.report(.parse, spanOf(node, self.source_id), "a tuple has at most {d} components, given {d}", .{ cst.max_tuple_arity, arity });
+        return false;
+    }
+
+    /// Each child of `node` under `field`, converted by `convert`.
+    fn fieldChildren(
+        self: *Walker,
+        comptime T: type,
+        node: ts.Node,
+        field: []const u8,
+        comptime convert: anytype,
+    ) (error{OutOfMemory})!?[]const T {
+        var converted: std.ArrayList(T) = .empty;
+        var cursor = node.walk();
+        defer cursor.destroy();
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                if (cursor.fieldName()) |name| {
+                    if (std.mem.eql(u8, name, field)) {
+                        try converted.append(self.allocator, try convert(self, cursor.node()) orelse return null);
+                    }
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+        }
+        return try converted.toOwnedSlice(self.allocator);
+    }
+
+    fn identifier(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Identifier {
+        return try self.dupe(node);
+    }
+
+    /// Each named child of `node` but comments, converted by `convert`.
+    fn children(
+        self: *Walker,
+        comptime T: type,
+        node: ts.Node,
+        comptime convert: fn (*Walker, ts.Node) (error{OutOfMemory})!?T,
+    ) (error{OutOfMemory})!?[]const T {
+        var converted: std.ArrayList(T) = .empty;
         var i: u32 = 0;
         while (i < node.namedChildCount()) : (i += 1) {
             const child = node.namedChild(i).?;
             if (child.isExtra()) continue;
-            try elements.append(self.allocator, try self.expression(child) orelse return null);
+            try converted.append(self.allocator, try convert(self, child) orelse return null);
         }
-        return .{
-            .kind = .{ .list = try elements.toOwnedSlice(self.allocator) },
-            .span = span,
-        };
+        return try converted.toOwnedSlice(self.allocator);
     }
 
     fn record(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
@@ -1265,28 +1266,17 @@ const Walker = struct {
     fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
         const head: cst.TypeApplication.Head = if (node.childByFieldName("variable")) |variable|
             .{ .variable = try self.dupe(variable) }
-        else
-            .{ .constructor = try self.dupe(try self.requiredField(node, "constructor") orelse return null) };
-        var arguments: std.ArrayList(cst.Type) = .empty;
-
-        var cursor = node.walk();
-        defer cursor.destroy();
-        if (cursor.gotoFirstChild()) {
-            while (true) {
-                if (cursor.fieldName()) |field| {
-                    if (std.mem.eql(u8, field, "argument")) {
-                        const t = try self.typeExpr(cursor.node()) orelse return null;
-                        try arguments.append(self.allocator, t);
-                    }
-                }
-                if (!cursor.gotoNextSibling()) break;
-            }
-        }
+        else head: {
+            const constructor = try self.requiredField(node, "constructor") orelse return null;
+            if (std.mem.eql(u8, constructor.kind(), "tuple_constructor")) break :head .{ .tuple = try self.tupleArity(constructor) orelse return null };
+            break :head .{ .constructor = try self.dupe(constructor) };
+        };
+        const arguments = try self.fieldChildren(cst.Type, node, "argument", typeExpr) orelse return null;
 
         return cst.Type{
             .kind = .{ .application = try self.boxed(cst.TypeApplication{
                 .head = head,
-                .arguments = try arguments.toOwnedSlice(self.allocator),
+                .arguments = arguments,
             }) },
             .span = span,
         };
@@ -1347,6 +1337,15 @@ const Walker = struct {
                 .kind = .{ .list = try self.boxed(inner) },
                 .span = span,
             };
+        }
+        if (std.mem.eql(u8, kind, "tuple_type")) {
+            return cst.Type{ .kind = .{ .tuple = try self.components(cst.Type, node, typeExpr) orelse return null }, .span = span };
+        }
+        if (std.mem.eql(u8, kind, "unit")) {
+            return cst.Type{ .kind = .{ .tuple = &.{} }, .span = span };
+        }
+        if (std.mem.eql(u8, kind, "tuple_constructor")) {
+            return cst.Type{ .kind = .{ .tuple_constructor = try self.tupleArity(node) orelse return null }, .span = span };
         }
         if (std.mem.eql(u8, kind, "parenthesized_type")) {
             const inner_node = node.namedChild(0) orelse {

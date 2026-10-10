@@ -21,6 +21,6 @@ main = \root -> bind[List] (%descendants root) (
   \open -> bind[List] (
     case %eq_string (%text open) "(" of
       False -> Nil
-      True -> Cons Unit Nil
+      True -> Cons () Nil
   ) (\_ -> bind[List] (bind[List] (%named_descendants root) (of_kind (%kind open))) (\token -> Cons (%text token) Nil))
 )

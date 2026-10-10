@@ -2,6 +2,8 @@ module Data.List (
   List(..),
   Sized(..),
   filter,
+  zip,
+  unzip,
   take,
   drop,
   head,
@@ -9,6 +11,7 @@ module Data.List (
 );
 
 import Prim (Int, String, List(..), Bool(..), seq);
+import Data.Tuple (fst, snd);
 
 class Sized a where {
   length :: a -> Int;
@@ -35,6 +38,23 @@ filter p xs = case xs of {
     False -> filter p t;
     True -> Cons h $ filter p t;
   };
+};
+
+zip :: [a] -> [b] -> [(a, b)];
+zip xs ys = case xs of {
+  Nil -> Nil;
+  Cons x xt -> case ys of {
+    Nil -> Nil;
+    Cons y yt -> Cons (x, y) $ zip xt yt;
+  };
+};
+
+unzip :: [(a, b)] -> ([a], [b]);
+unzip ps = case ps of {
+  Nil -> ([], []);
+  Cons p rest -> let {
+    unzipped = unzip rest;
+  } in (Cons (fst p) (fst unzipped), Cons (snd p) (snd unzipped));
 };
 
 take :: Int -> [a] -> [a];

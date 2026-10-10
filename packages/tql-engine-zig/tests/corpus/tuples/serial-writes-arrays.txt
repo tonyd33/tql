@@ -1,0 +1,12 @@
+title: a tuple outputs as a JSON array of its components, and `()` as an empty one
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = [((1, "a"), (), [(True, 2)])];
+
+--- source ---
+class A {}
+
+--- values ---
+[[[1,"a"],[],[[true,2]]]]

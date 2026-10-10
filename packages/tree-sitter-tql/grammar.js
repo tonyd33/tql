@@ -39,9 +39,11 @@ module.exports = grammar({
 
   // A `do` statement is a pattern or an expression until `<-`, and a pattern's
   // `(` opens a view or a parenthesized pattern until `->` or `)`. `:k {` is a
-  // node pattern or `:k` applied to a record until `#` or `<-`.
+  // node pattern or `:k` applied to a record until `#` or `<-`. A signature's
+  // `(C t, ..` is a context or a tuple type until `=>`.
   conflicts: $ => [
     [$.list_pattern, $.list],
+    [$.class_constraint, $._type_operand],
     [$._simple_pattern, $._primary],
     [$.constructor_pattern, $._primary],
     [$.node_pattern, $._primary],
@@ -470,6 +472,8 @@ module.exports = grammar({
       choice(
         $.identifier,
         $.list_pattern,
+        $.unit,
+        $.tuple_pattern,
         $.parenthesized_pattern,
         $.view_pattern,
         $.as_pattern,
@@ -515,6 +519,9 @@ module.exports = grammar({
 
     parenthesized_pattern: $ => seq("(", $._pattern, ")"),
 
+    tuple_pattern: $ =>
+      seq("(", $._pattern, repeat1(seq(",", $._pattern)), ")"),
+
     of_shape: $ => seq("of_shape", field("pattern", $._atomic_pattern)),
 
     if_expression: $ =>
@@ -551,6 +558,9 @@ module.exports = grammar({
         $.regex,
         $.list,
         $.record,
+        $.unit,
+        $.tuple,
+        $.tuple_constructor,
         $.parenthesized,
         $.operator_name,
         $.left_section,
@@ -635,6 +645,14 @@ module.exports = grammar({
 
     parenthesized: $ => seq("(", $._expression, ")"),
 
+    // `()` is the unit value, pattern and type.
+    unit: _ => seq("(", ")"),
+
+    tuple: $ => seq("(", $._expression, repeat1(seq(",", $._expression)), ")"),
+
+    // `(,)` is the pair constructor, `(,,)` the triple's.
+    tuple_constructor: _ => seq("(", repeat1(","), ")"),
+
     list: $ => seq("[", optional(sep_trailing($._expression, ",")), "]"),
 
     record: $ => seq("{", optional(sep_trailing($.record_field, ",")), "}"),
@@ -653,6 +671,9 @@ module.exports = grammar({
         $.type_application,
         $.list_type,
         $.record_type,
+        $.unit,
+        $.tuple_type,
+        $.tuple_constructor,
         $._constructor,
         $._type_variable,
         $.parenthesized_type,
@@ -661,7 +682,7 @@ module.exports = grammar({
     type_application: $ =>
       seq(
         choice(
-          field("constructor", $._constructor),
+          field("constructor", choice($._constructor, $.tuple_constructor)),
           field("variable", $._type_variable),
         ),
         repeat1(field("argument", $._type_operand)),
@@ -678,12 +699,17 @@ module.exports = grammar({
       choice(
         $.list_type,
         $.record_type,
+        $.unit,
+        $.tuple_type,
+        $.tuple_constructor,
         $._constructor,
         $._type_variable,
         $.parenthesized_type,
       ),
 
     list_type: $ => seq("[", $._type, "]"),
+
+    tuple_type: $ => seq("(", $._type, repeat1(seq(",", $._type)), ")"),
 
     record_type: $ =>
       choice(

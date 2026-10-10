@@ -1,5 +1,0 @@
-module Data.Unit;
-
-import Prim (Eq, Ord);
-
-data Unit = Unit deriving (Eq, Ord);

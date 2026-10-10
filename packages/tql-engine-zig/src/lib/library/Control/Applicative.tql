@@ -1,7 +1,6 @@
 module Control.Applicative (Applicative(..), Alternative(..), return, guard);
 
 import Prim (List(..), Bool(..));
-import Data.Unit (Unit(..));
 import Data.Monoid (Semigroup(..));
 import Data.Functor (Functor(..));
 
@@ -36,8 +35,8 @@ instance Alternative List where {
 return :: Applicative f => a -> f a;
 return = pure;
 
-guard :: Alternative f => Bool -> f Unit;
+guard :: Alternative f => Bool -> f ();
 guard b = case b of {
   False -> empty;
-  True -> pure Unit;
+  True -> pure ();
 };

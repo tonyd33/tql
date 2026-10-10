@@ -22,6 +22,7 @@
 - The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
 - The filter `alt` is renamed `union`: `import Data.Filter (union);`. `alt` is the `Alternative` method. `<|>` is unchanged.
 - `append` is the `Semigroup` method, exported by the prelude. Drop it from `import Data.List (...)`.
+- `Unit` is replaced by `()`, the empty tuple: write `()` for the value, the pattern and the type. `guard` returns `f ()`, and the `Data.Unit` module is gone.
 
 ### New Features
 
@@ -74,6 +75,7 @@
 - Added `Data.Maybe`: `import Data.Maybe (Maybe(..));` brings `Maybe`, `Nothing` and `Just`, a `Functor`, `Applicative`, `Alternative`, `Foldable`, `Traversable` and `Monad`.
 - Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `mfilter` in `Control.Monad`.
 - `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
+- Added tuples: `(1, "a")` is a value, `(n, s)` a pattern and `(Int, String)` a type, with up to 255 components. `(,)` and `(,,)` are their constructors as functions.
 
 ### Improvements
 

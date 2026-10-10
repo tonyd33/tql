@@ -6,6 +6,9 @@ const string_literal = @import("string_literal.zig");
 /// `x` from the import qualified as `A.B`.
 pub const Identifier = []const u8;
 
+/// The most components a tuple has.
+pub const max_tuple_arity = std.math.maxInt(u8);
+
 pub const SourceFile = struct {
     header: ?ModuleHeader = null,
     imports: []const Import = &.{},
@@ -535,6 +538,10 @@ pub const Expression = struct {
         do: *Do,
         /// A list literal: `[a, b, c]` or `[]`.
         list: []const Expression,
+        /// `(a, b, ..)`, or `()` with no components.
+        tuple: []const Expression,
+        /// `(,)`, the constructor of tuples with `arity` components.
+        tuple_constructor: u8,
         record: Record,
         parenthesized: *Expression,
         /// `of_shape p`: the filter keeping a value `p` matches.
@@ -651,14 +658,15 @@ pub const Expression = struct {
                 try d.result.sexpr(w);
                 try w.writeByte(')');
             },
-            .list => |elements| {
-                try w.writeAll("(list");
+            .list, .tuple => |elements| {
+                try w.print("({t}", .{self.kind});
                 for (elements) |e| {
                     try w.writeByte(' ');
                     try e.sexpr(w);
                 }
                 try w.writeByte(')');
             },
+            .tuple_constructor => |arity| try w.print("(tuple_constructor {d})", .{arity}),
             .record => |r| {
                 try w.writeAll("(record");
                 for (r.fields) |f| {
@@ -703,6 +711,8 @@ pub const TypeApplication = struct {
     pub const Head = union(enum) {
         constructor: Identifier,
         variable: Identifier,
+        /// `(,)`, the constructor of tuple types with `arity` components.
+        tuple: u8,
     };
 };
 
@@ -743,6 +753,8 @@ pub const Pattern = struct {
         constructor: Constructor,
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
+        /// `(p, q, ..)`, or `()` with no components.
+        tuple: []const Pattern,
         cons: *Cons,
         /// `x@p`
         as: *As,
@@ -856,8 +868,8 @@ pub const Pattern = struct {
                 }
                 try w.writeByte(')');
             },
-            .list => |elements| {
-                try w.writeAll("(list");
+            .list, .tuple => |elements| {
+                try w.print("({t}", .{self.kind});
                 for (elements) |element| {
                     try w.writeByte(' ');
                     try element.sexpr(w);
@@ -890,6 +902,10 @@ pub const Type = struct {
         function: *FunctionType,
         filter: *FilterType,
         list: *Type,
+        /// `(a, b, ..)`, or `()` with no components.
+        tuple: []const Type,
+        /// `(,)`, the constructor of tuple types with `arity` components.
+        tuple_constructor: u8,
         record: RecordType,
         parenthesized: *Type,
     };
@@ -907,6 +923,7 @@ pub const Type = struct {
             .application => |a| {
                 switch (a.head) {
                     .constructor, .variable => |name| try w.print("({s}", .{name}),
+                    .tuple => |arity| try w.print("((tuple_constructor {d})", .{arity}),
                 }
                 for (a.arguments) |arg| {
                     try w.writeByte(' ');
@@ -934,6 +951,15 @@ pub const Type = struct {
                 try t.sexpr(w);
                 try w.writeByte(')');
             },
+            .tuple => |components| {
+                try w.writeAll("(tuple_type");
+                for (components) |c| {
+                    try w.writeByte(' ');
+                    try c.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
+            .tuple_constructor => |arity| try w.print("(tuple_constructor {d})", .{arity}),
             .record => |r| {
                 try w.writeAll("(record_type");
                 for (r.fields) |f| {

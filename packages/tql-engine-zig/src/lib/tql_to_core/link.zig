@@ -351,13 +351,12 @@ pub const Desugarer = struct {
     ) !void {
         const builder = core.Builder{ .allocator = self.env.?.allocator() };
         const interner = &self.env.?.interner;
+        const tuples_before = self.env.?.tuples;
         const scope: ModuleScope = .{
             .module = module,
             .imports = imports,
             .exports = self.exports.items,
-            .interner = interner,
-            .datatypes = &self.env.?.datatypes,
-            .classes = &self.env.?.classes,
+            .env = &self.env.?,
         };
 
         // The module's datatypes, aliases and classes are kinded together:
@@ -395,16 +394,11 @@ pub const Desugarer = struct {
         for (declarations.items.items, first..) |d, index| {
             try self.linked.put(self.allocator, d.symbol, @intCast(index));
         }
-        for (generated.items, first + declarations.items.items.len..) |method, index| {
-            try self.linked.put(self.allocator, method.symbol, @intCast(index));
-        }
 
         const written = declarations.items.items.len;
-        const definitions = try builder.slice(core.Definition, written + generated.items.len);
-        const edges = try builder.slice([]const u32, definitions.len);
+        const definitions = try builder.slice(core.Definition, written);
+        const edges = try builder.slice([]const u32, written);
         @memset(edges, &.{});
-        @memcpy(definitions[written..], generated.items);
-        for (generated.items, edges[written..]) |method, *edge| edge.* = try self.references(builder, method.body);
 
         const language = if (g) |known| known.language else null;
         var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, language, sink);
@@ -451,11 +445,19 @@ pub const Desugarer = struct {
             try self.env.?.annotate(d.symbol, .{ .scheme = scheme, .span = span });
         }
 
+        for (self.env.?.tuples, tuples_before) |now, before| {
+            if (before == null) if (now) |id| try class_linker.deriveTuple(id, &generated);
+        }
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 
         self.entry_offset = first;
         try self.definitions.appendSlice(self.allocator, definitions);
         try self.edges.appendSlice(self.allocator, edges);
+        for (generated.items) |method| {
+            try self.linked.put(self.allocator, method.symbol, @intCast(self.definitions.items.len));
+            try self.definitions.append(self.allocator, method);
+            try self.edges.append(self.allocator, try self.references(builder, method.body));
+        }
         std.debug.assert(self.exports.items.len == @intFromEnum(module));
         try self.exports.append(self.allocator, exports);
     }
@@ -591,7 +593,7 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
         .application => |a| {
             switch (a.head) {
                 .constructor => |name| try out.append(gpa, name),
-                .variable => {},
+                .variable, .tuple => {},
             }
             for (a.arguments) |argument| try typeNames(gpa, argument, out);
         },
@@ -605,6 +607,8 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
             try typeNames(gpa, f.output, out);
         },
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
+        .tuple => |components| for (components) |component| try typeNames(gpa, component, out),
+        .tuple_constructor => {},
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
 }

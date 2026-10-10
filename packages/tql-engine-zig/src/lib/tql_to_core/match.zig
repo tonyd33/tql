@@ -258,7 +258,7 @@ fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.
             try boundVariables(allocator, c.tail, out);
         },
         .constructor => |c| for (c.arguments) |argument| try boundVariables(allocator, argument, out),
-        .list => |elements| for (elements) |element| try boundVariables(allocator, element, out),
+        .list, .tuple => |elements| for (elements) |element| try boundVariables(allocator, element, out),
         .view => |v| try boundVariables(allocator, v.pattern, out),
         .node => |n| for (n.fields) |f| try boundVariables(allocator, f.pattern, out),
         .literal, .boolean => {},
@@ -376,6 +376,11 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
             };
         },
         .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), span),
+        .tuple => |components| {
+            const arguments = try b.slice(Pattern, components.len);
+            for (components, arguments) |component, *out| out.* = try expand(lowerer, component);
+            return constructorPattern(try lowerer.tupleConstructor(@intCast(components.len)), arguments, span);
+        },
         .list => |elements| {
             var spine = builtinPattern(lowerer, .nil, &.{}, span);
             var i = elements.len;
@@ -487,13 +492,11 @@ fn cell(lowerer: *Lowerer, head: Pattern, tail: Pattern, span: diagnostic.Span) 
 const Builtin = enum { nil, cons, false, true };
 
 fn builtinPattern(lowerer: *Lowerer, which: Builtin, arguments: []const Pattern, span: diagnostic.Span) Pattern {
-    return .{
-        .kind = .{ .constructor = .{
-            .symbol = builtinConstructor(lowerer.scope.datatypes, which).symbol,
-            .arguments = arguments,
-        } },
-        .span = span,
-    };
+    return constructorPattern(builtinConstructor(&lowerer.scope.env.datatypes, which).symbol, arguments, span);
+}
+
+fn constructorPattern(symbol: core.SymbolId, arguments: []const Pattern, span: diagnostic.Span) Pattern {
+    return .{ .kind = .{ .constructor = .{ .symbol = symbol, .arguments = arguments } }, .span = span };
 }
 
 fn builtinConstructor(registry: *const datatypes.Registry, which: Builtin) datatypes.Constructor {
@@ -611,6 +614,7 @@ const Checker = struct {
                 for (c.arguments) |argument| try self.visit(argument, false);
             },
             .list => |elements| for (elements) |element| try self.visit(element, false),
+            .tuple => |components| for (components) |component| try self.visit(component, false),
             .cons => |c| {
                 try self.visit(c.head, false);
                 try self.visit(c.tail, false);
@@ -661,7 +665,7 @@ fn constructorNamed(
     span: diagnostic.Span,
 ) Error!*const datatypes.Constructor {
     if (try lowerer.resolveGlobal(c.name, span)) |id| {
-        if (lowerer.scope.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
+        if (lowerer.scope.env.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
     try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor or a pattern synonym", .{c.name});
     return error.DesugarFailed;
@@ -975,7 +979,7 @@ const Matcher = struct {
     fn split(self: *Matcher, rows: []const Row, item: Item) Error!*const Tree {
         const b = self.lowerer.builder;
         const occurrence = item.occurrence;
-        const declared = self.lowerer.scope.datatypes.get(try self.datatypeOf(rows, occurrence));
+        const declared = self.lowerer.scope.env.datatypes.get(try self.datatypeOf(rows, occurrence));
         const branches = try b.slice(Tree.Branch, declared.constructors.len);
         for (declared.constructors, branches) |constructor, *branch| {
             const fields = try b.slice(core.SymbolId, constructor.fields.len);
@@ -1026,7 +1030,7 @@ const Matcher = struct {
                         .type_mismatch,
                         item.pattern.span,
                         "`{s}` is not a constructor of `{s}`",
-                        .{ self.lowerer.env.interner.spelling(c.symbol), self.lowerer.scope.datatypes.get(expected).name },
+                        .{ self.lowerer.env.interner.spelling(c.symbol), self.lowerer.scope.env.datatypes.get(expected).name },
                     );
                     return error.DesugarFailed;
                 }
@@ -1261,7 +1265,7 @@ const Emitter = struct {
                 const guard = self.arms[leaf.alternative].guard.?;
                 const condition = try self.lowerer.expression(guard, &inner);
                 const matched = try self.body(leaf, &inner);
-                return try self.lowerer.builder.choose(self.lowerer.scope.datatypes, condition, try self.emit(otherwise), matched, guard.span);
+                return try self.lowerer.builder.choose(&self.lowerer.scope.env.datatypes, condition, try self.emit(otherwise), matched, guard.span);
             },
             .test_ => |t| {
                 const alternatives = try b.slice(core.Case.Alternative, t.branches.len);
@@ -1296,7 +1300,7 @@ const Emitter = struct {
                     l.span,
                 );
                 const matched = try self.emit(l.matched);
-                return try self.lowerer.builder.choose(self.lowerer.scope.datatypes, condition, try self.emit(l.failed), matched, l.span);
+                return try self.lowerer.builder.choose(&self.lowerer.scope.env.datatypes, condition, try self.emit(l.failed), matched, l.span);
             },
             .synonym => |s| {
                 var continuation = try self.emit(s.matched);
@@ -1353,6 +1357,14 @@ const Witness = struct {
         const step = self.matcher.stepFor(self.occurrence) orelse return w.writeAll("_");
         if (self.isList(step)) return self.formatList(w, step);
         const name = self.matcher.lowerer.env.interner.spelling(step.constructor);
+        if (self.isTuple(step)) {
+            try w.writeByte('(');
+            for (step.fields, 0..) |field, i| {
+                if (i > 0) try w.writeAll(", ");
+                try self.at(field, false).format(w);
+            }
+            return w.writeByte(')');
+        }
         const parenthesize = self.nested and step.fields.len > 0;
         if (parenthesize) try w.writeByte('(');
         try w.writeAll(name);
@@ -1369,7 +1381,12 @@ const Witness = struct {
 
     fn isList(self: Witness, step: Step) bool {
         const lowerer = self.matcher.lowerer;
-        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == lowerer.scope.datatypes.listId();
+        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == lowerer.scope.env.datatypes.listId();
+    }
+
+    fn isTuple(self: Witness, step: Step) bool {
+        const env = self.matcher.lowerer.env;
+        return env.datatypes.get(datatypes.ownerOf(&env.interner, step.constructor).?).tuple;
     }
 
     /// The step fixing the tail of the chain starting at `step`: a `Nil`, or
@@ -1422,13 +1439,14 @@ const Written = struct {
                     try (Written{ .pattern = argument, .context = .atom }).format(w);
                 }
             },
-            .list => |elements| {
-                try w.writeByte('[');
+            .list, .tuple => |elements| {
+                const brackets = if (self.pattern.kind == .list) "[]" else "()";
+                try w.writeByte(brackets[0]);
                 for (elements, 0..) |element, i| {
                     if (i > 0) try w.writeAll(", ");
                     try (Written{ .pattern = element }).format(w);
                 }
-                try w.writeByte(']');
+                try w.writeByte(brackets[1]);
             },
             .cons => |c| {
                 try (Written{ .pattern = c.head, .context = .application }).format(w);
@@ -1476,7 +1494,7 @@ const Written = struct {
             .conjunction => .conjunction,
             .cons => .cons,
             .constructor => |c| if (c.arguments.len > 0) .application else .atom,
-            .variable, .list, .as, .view, .literal, .boolean, .node => .atom,
+            .variable, .list, .tuple, .as, .view, .literal, .boolean, .node => .atom,
         };
     }
 };

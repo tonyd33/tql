@@ -1,7 +1,6 @@
 module Data.Monoid (Semigroup(..), Monoid(..));
 
 import Prim (List(..), Ordering(..));
-import Data.Unit (Unit(..));
 
 class Semigroup a where {
   append :: a -> a -> a;
@@ -22,12 +21,12 @@ instance Monoid [a] where {
   mempty = Nil;
 };
 
-instance Semigroup Unit where {
-  append _ _ = Unit;
+instance Semigroup () where {
+  append _ _ = ();
 };
 
-instance Monoid Unit where {
-  mempty = Unit;
+instance Monoid () where {
+  mempty = ();
 };
 
 instance Semigroup Ordering where {

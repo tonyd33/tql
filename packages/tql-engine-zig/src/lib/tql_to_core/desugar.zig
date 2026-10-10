@@ -224,7 +224,7 @@ pub const Lowerer = struct {
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
             // A boolean is a nullary constructor, not a literal, so `case` on
             // one is uniform with `case` on any other declared type.
-            .boolean => |b| return self.builder.symbol(self.scope.datatypes.boolConstructor(b).symbol, e.span),
+            .boolean => |b| return self.builder.symbol(self.scope.env.datatypes.boolConstructor(b).symbol, e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -337,7 +337,7 @@ pub const Lowerer = struct {
             .@"if" => |i| {
                 const otherwise = try self.expression(i.alternative, scope);
                 const matched = try self.expression(i.consequence, scope);
-                return try self.builder.choose(self.scope.datatypes, try self.expression(i.condition, scope), otherwise, matched, e.span);
+                return try self.builder.choose(&self.scope.env.datatypes, try self.expression(i.condition, scope), otherwise, matched, e.span);
             },
 
             .constructor => |name| return try self.constructorRef(name, e.span),
@@ -354,20 +354,28 @@ pub const Lowerer = struct {
             .do => |d| return try self.doBlock(d.statements, d.result, scope, e.span),
 
             .list => |elements| {
-                var spine = self.builder.symbol(self.scope.datatypes.nilConstructor().symbol, e.span);
+                var spine = self.builder.symbol(self.scope.env.datatypes.nilConstructor().symbol, e.span);
                 var i = elements.len;
                 while (i > 0) {
                     i -= 1;
                     // An inner cell spans its head element.
                     const cell = if (i == 0) e.span else elements[i].span;
                     spine = try self.builder.applyMany(
-                        self.builder.symbol(self.scope.datatypes.consConstructor().symbol, cell),
+                        self.builder.symbol(self.scope.env.datatypes.consConstructor().symbol, cell),
                         &.{ try self.expression(elements[i], scope), spine },
                         cell,
                     );
                 }
                 return spine;
             },
+
+            .tuple => |components| {
+                const constructor = self.builder.symbol(try self.tupleConstructor(@intCast(components.len)), e.span);
+                const arguments = try self.builder.slice(core.Term, components.len);
+                for (components, arguments) |component, *argument| argument.* = try self.expression(component, scope);
+                return try self.builder.applyMany(constructor, arguments, e.span);
+            },
+            .tuple_constructor => |arity| return self.builder.symbol(try self.tupleConstructor(arity), e.span),
 
             .record => |r| return try self.record(r, e.span, scope),
         }
@@ -463,10 +471,10 @@ pub const Lowerer = struct {
         const scalar: core.Scalar = switch (op) {
             .eq => return try self.combinator(.eq, left, right, span),
             .ne => return try self.builder.choose(
-                self.scope.datatypes,
+                &self.scope.env.datatypes,
                 try self.combinator(.eq, left, right, span),
-                self.builder.symbol(self.scope.datatypes.boolConstructor(true).symbol, span),
-                self.builder.symbol(self.scope.datatypes.boolConstructor(false).symbol, span),
+                self.builder.symbol(self.scope.env.datatypes.boolConstructor(true).symbol, span),
+                self.builder.symbol(self.scope.env.datatypes.boolConstructor(false).symbol, span),
                 span,
             ),
             inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Comparison, @tagName(o)), span),
@@ -475,7 +483,7 @@ pub const Lowerer = struct {
             .compose => return try self.combinator(.compose, left, right, span),
             .then => return try self.then(left, right),
             .cons => return try self.builder.applyMany(
-                self.builder.symbol(self.scope.datatypes.consConstructor().symbol, span),
+                self.builder.symbol(self.scope.env.datatypes.consConstructor().symbol, span),
                 &.{ left, right },
                 span,
             ),
@@ -507,12 +515,17 @@ pub const Lowerer = struct {
     /// `case compare left right of { LT -> a; EQ -> b; GT -> c }`, each
     /// alternative what `comparison` answers.
     fn ordered(self: *Lowerer, left: core.Term, right: core.Term, comparison: core.Comparison, span: diagnostic.Span) Error!core.Term {
-        const registry = self.scope.datatypes;
+        const registry = &self.scope.env.datatypes;
         var bodies: [3]core.Term = undefined;
         for (&bodies, [_]std.math.Order{ .lt, .eq, .gt }) |*body, order| {
             body.* = self.builder.symbol(registry.boolConstructor(comparison.answer(order)).symbol, span);
         }
         return try self.builder.chooseOrder(registry, try self.combinator(.compare, left, right, span), bodies, span);
+    }
+
+    /// The constructor of tuples with `arity` components.
+    pub fn tupleConstructor(self: *Lowerer, arity: core.types.TypeVar) Error!core.SymbolId {
+        return self.env.datatypes.get(try self.env.tuple(arity)).constructors[0].symbol;
     }
 
     /// `bind value (\name -> body)`, at `statement`. A type error in the call

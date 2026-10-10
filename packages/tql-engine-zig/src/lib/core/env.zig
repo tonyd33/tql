@@ -37,6 +37,8 @@ pub const Env = struct {
     /// The symbol each primitive is interned as. Null before the primitives
     /// are populated.
     primitives: std.EnumArray(details.PrimOp, ?symbols.SymbolId) = .initFill(null),
+    /// The tuple datatype of each arity declared so far.
+    tuples: [types.max_tuple_arity + 1]?symbols.TypeId = @splat(null),
 
     /// A written signature, translated.
     pub const Annotation = struct {
@@ -89,6 +91,7 @@ pub const Env = struct {
             .always_inline = try self.always_inline.clone(scratch),
             .known = self.known,
             .primitives = self.primitives,
+            .tuples = self.tuples,
         };
     }
 
@@ -110,6 +113,51 @@ pub const Env = struct {
         try self.schemes.put(id, scheme);
     }
 
+    /// The datatype of tuples with `arity` components, declared in `Prim`
+    /// the first time it is asked for with `Eq`, `Ord` and `Serial`, each
+    /// requiring its class of every component. Its constructor is spelled as
+    /// the type, and no name lookup finds it.
+    ///
+    /// Preconditions:
+    /// - `arity` is not one.
+    /// - `Prim` has declared its classes.
+    pub fn tuple(self: *Env, arity: types.TypeVar) Allocator.Error!symbols.TypeId {
+        if (self.tuples[arity]) |id| return id;
+
+        const scratch = self.allocator();
+        const name = try scratch.alloc(u8, if (arity == 0) 2 else arity + 1);
+        name[0] = '(';
+        @memset(name[1 .. name.len - 1], ',');
+        name[name.len - 1] = ')';
+        const parameters = try scratch.alloc(types.Kind, arity);
+        @memset(parameters, .type);
+        const id = try self.datatypes.declare(&self.interner, .prim, name, parameters, &.{});
+        self.datatypes.markTuple(id);
+        self.tuples[arity] = id;
+
+        const fields = try scratch.alloc(types.Type, arity);
+        for (fields, 0..) |*field, i| field.* = types.variable_type(@intCast(i));
+        try self.setConstructors(id, try scratch.dupe(datatypes.Constructor, &.{.{
+            .symbol = try self.interner.generate(.prim, name, .vanilla),
+            .tag = 0,
+            .fields = fields,
+        }}));
+
+        for ([_]classes.ClassId{ .eq, .ord, .serial }) |class| {
+            const context = try scratch.alloc(classes.Requirement, arity);
+            for (context, 0..) |*requirement, i| requirement.* = .{ .class = class, .variable = @intCast(i) };
+            _ = try self.declareInstance(.{
+                .class = class,
+                .type = try self.datatypes.applied(scratch, id),
+                .context = context,
+                .methods = &.{},
+                .dictionary = undefined,
+                .module = .prim,
+            });
+        }
+        return id;
+    }
+
     /// Fill in the constructors of `id`, declared with none yet, and give
     /// each its scheme.
     pub fn setConstructors(
@@ -124,8 +172,9 @@ pub const Env = struct {
     }
 
     /// Adds `declared`, with a generated `instance[C,T]` dictionary when its
-    /// class takes one. Returns the instance already declared for its class
-    /// and head instead, adding nothing, when there is one.
+    /// class takes one and a generated `m[T]` for each method `m`. Returns
+    /// the instance already declared for its class and head instead, adding
+    /// nothing, when there is one.
     pub fn declareInstance(self: *Env, declared: classes.Instance) Allocator.Error!classes.Registry.Addition {
         var instance = declared;
         instance.dictionary = switch (self.classes.evidenceOf(declared.class)) {
@@ -137,10 +186,21 @@ pub const Env = struct {
             ),
         };
         const addition = try self.classes.addInstance(instance);
-        switch (addition) {
-            .added => |id| if (instance.dictionary) |dictionary| self.interner.setDetails(dictionary, .{ .instance = id }),
-            .existing => {},
+        const id = switch (addition) {
+            .added => |id| id,
+            .existing => return addition,
+        };
+        if (instance.dictionary) |dictionary| self.interner.setDetails(dictionary, .{ .instance = id });
+        const class_methods = self.classes.get(declared.class).methods;
+        const methods = try self.allocator().alloc(symbols.SymbolId, class_methods.len);
+        for (class_methods, methods, 0..) |method, *symbol, i| {
+            symbol.* = try self.interner.generate(
+                declared.module,
+                try std.fmt.allocPrint(self.allocator(), "{s}[{s}]", .{ self.interner.spelling(method), self.datatypes.get(declared.head()).name }),
+                .{ .instance_method = .{ .instance = id, .index = @intCast(i) } },
+            );
         }
+        self.classes.instanceMut(id).methods = methods;
         return addition;
     }
 

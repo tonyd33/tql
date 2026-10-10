@@ -30,6 +30,9 @@
 (comment) @comment
 
 (boolean) @constant.builtin
+(unit) @constant.builtin
+
+(tuple_constructor) @type
 
 (kind) @type
 

@@ -252,6 +252,7 @@ fn headArguments(written: cst.Type) []const cst.Type {
     return switch (written.kind) {
         .application => |a| a.arguments,
         .list => |element| element[0..1],
+        .tuple => |components| components,
         else => &.{},
     };
 }
@@ -461,9 +462,12 @@ const Translator = struct {
             .application => |a| switch (a.head) {
                 .constructor => |name| return try self.named(name, a.arguments, node.span, expected),
                 .variable => |name| return try self.variable(name, a.arguments, node.span, expected),
+                .tuple => |arity| return try self.tuple(arity, a.arguments, node.span, expected),
             },
             .variable => |name| return try self.variable(name, &.{}, node.span, expected),
             .parenthesized => |inner| return try self.type(inner.*, expected),
+            .tuple => |components| return try self.tuple(@intCast(components.len), components, node.span, expected),
+            .tuple_constructor => |arity| return try self.tuple(arity, &.{}, node.span, expected),
             .list, .function, .filter, .record => {},
         }
         if (!self.group.inference.unify(expected, .type)) {
@@ -472,23 +476,36 @@ const Translator = struct {
                 .function => "a function type",
                 .filter => "a `Filter` type",
                 .record => "a record type",
-                .constructor, .application, .variable, .parenthesized => unreachable,
+                .constructor, .application, .variable, .parenthesized, .tuple, .tuple_constructor => unreachable,
             };
             return self.kindMismatch(node.span, what, .type, expected);
         }
         return switch (node.kind) {
-            .list => |element| try self.scope.datatypes.list(self.arena, try self.type(element.*, .type)),
+            .list => |element| try self.scope.env.datatypes.list(self.arena, try self.type(element.*, .type)),
             .function => |f| try types.func(self.arena, try self.type(f.from, .type), try self.type(f.to, .type)),
             // `Filter a b` is `a -> [b]`. The expansion happens here, so
             // nothing downstream has a `Filter` case.
             .filter => |f| try types.func(
                 self.arena,
                 try self.type(f.input, .type),
-                try self.scope.datatypes.list(self.arena, try self.type(f.output, .type)),
+                try self.scope.env.datatypes.list(self.arena, try self.type(f.output, .type)),
             ),
             .record => |r| try self.record(r, node.span),
-            .constructor, .application, .variable, .parenthesized => unreachable,
+            .constructor, .application, .variable, .parenthesized, .tuple, .tuple_constructor => unreachable,
         };
+    }
+
+    /// The type of tuples with `arity` components applied to `written`, which
+    /// must have kind `expected`.
+    fn tuple(
+        self: *Translator,
+        arity: types.TypeVar,
+        written: []const cst.Type,
+        span: diagnostic.Span,
+        expected: types.Kind,
+    ) Error!types.Type {
+        const id = try self.scope.env.tuple(arity);
+        return try self.spine(self.scope.env.datatypes.get(id).name, .{ .datatype = id }, written, span, expected);
     }
 
     /// The type `name` names, applied to `written`, which must have kind
@@ -611,7 +628,7 @@ const Translator = struct {
         }
 
         return switch (head) {
-            .datatype => |id| try types.constructed(self.arena, id, self.scope.datatypes.get(id).name, arguments),
+            .datatype => |id| try types.constructed(self.arena, id, self.scope.env.datatypes.get(id).name, arguments),
             .alias => |alias| try alias.apply(self.arena, arguments),
             .variable => |index| blk: {
                 var applied: types.Type = .{ .variable = index };
@@ -623,7 +640,7 @@ const Translator = struct {
 
     /// The kinds of datatype `id`'s parameters, solved or not.
     fn parameterKinds(self: *const Translator, id: datatypes.TypeId) []const types.Kind {
-        return self.group.datatypes.get(id) orelse self.scope.datatypes.get(id).parameters;
+        return self.group.datatypes.get(id) orelse self.scope.env.datatypes.get(id).parameters;
     }
 
     /// The arrow `k` is, making it one when it is unsolved. Null when it is
@@ -693,7 +710,7 @@ const Translator = struct {
     }
 
     fn classKind(self: *const Translator, id: classes.ClassId) types.Kind {
-        return self.group.classKind(id, self.scope.classes);
+        return self.group.classKind(id, &self.scope.env.classes);
     }
 
     const Variable = struct {

@@ -96,9 +96,9 @@ pub const ModuleScope = struct {
     imports: []const Import,
     /// What each module linked before this one exports, by `ModuleId`.
     exports: []const Exports,
-    interner: *const core.Interner,
-    datatypes: *const datatypes.Registry,
-    classes: *const classes.Registry,
+    /// What names resolve to, and where a tuple type the module writes is
+    /// declared.
+    env: *core.env.Env,
 
     pub fn value(self: *const ModuleScope, written: []const u8) Resolved(core.SymbolId) {
         return self.resolve(core.SymbolId, written, declaredValue, exportedValue, valueSubject);
@@ -147,7 +147,7 @@ pub const ModuleScope = struct {
     }
 
     fn declaredValue(self: *const ModuleScope, module: ModuleId, name: []const u8) ?core.SymbolId {
-        return self.interner.lookup(module, name);
+        return self.env.interner.lookup(module, name);
     }
 
     fn exportedValue(self: *const ModuleScope, module: ModuleId, name: []const u8) ?core.SymbolId {
@@ -155,9 +155,9 @@ pub const ModuleScope = struct {
     }
 
     pub fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
-        if (self.datatypes.lookup(module, name)) |id| return .{ .datatype = id };
-        if (self.datatypes.aliasNamed(module, name)) |alias| return .{ .alias = alias };
-        if (self.classes.lookup(module, name)) |id| return .{ .class = id };
+        if (self.env.datatypes.lookup(module, name)) |id| return .{ .datatype = id };
+        if (self.env.datatypes.aliasNamed(module, name)) |alias| return .{ .alias = alias };
+        if (self.env.classes.lookup(module, name)) |id| return .{ .class = id };
         return null;
     }
 
@@ -166,13 +166,13 @@ pub const ModuleScope = struct {
     }
 
     fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
-        switch (self.interner.details(symbol)) {
+        switch (self.env.interner.details(symbol)) {
             .synonym => return .{ .synonym = name },
-            .method => |m| return .{ .method = .{ .name = name, .class = self.classes.spelling(m.class) } },
+            .method => |m| return .{ .method = .{ .name = name, .class = self.env.classes.spelling(m.class) } },
             else => {},
         }
-        const owner = datatypes.ownerOf(self.interner, symbol) orelse return .{ .value = name };
-        return .{ .constructors_of = self.datatypes.get(owner).name };
+        const owner = datatypes.ownerOf(&self.env.interner, symbol) orelse return .{ .value = name };
+        return .{ .constructors_of = self.env.datatypes.get(owner).name };
     }
 
     fn typeSubject(_: *const ModuleScope, _: TypeName, name: []const u8) Subject {
@@ -192,7 +192,7 @@ pub const ModuleScope = struct {
                 .ambiguous_name,
                 span,
                 "`{s}` is declared by both `{s}` and `{s}`",
-                .{ written, self.interner.moduleName(modules[0]), self.interner.moduleName(modules[1]) },
+                .{ written, self.env.interner.moduleName(modules[0]), self.env.interner.moduleName(modules[1]) },
             ),
             .unknown_qualifier => |q| try sink.report(
                 .unresolved_name,
@@ -233,7 +233,7 @@ pub const ModuleScope = struct {
                 .unresolved_name,
                 item.span,
                 "`{s}` does not export `{s}`",
-                .{ self.interner.moduleName(module), item.name },
+                .{ self.env.interner.moduleName(module), item.name },
             );
             return false;
         }
@@ -245,7 +245,7 @@ pub const ModuleScope = struct {
             .unresolved_name,
             item.span,
             "`{s}` does not export the {s} of `{s}`",
-            .{ self.interner.moduleName(module), noun, item.name },
+            .{ self.env.interner.moduleName(module), noun, item.name },
         );
         return false;
     }
@@ -254,8 +254,8 @@ pub const ModuleScope = struct {
     /// names no constructor, and a synonym item names a synonym.
     fn itemNames(self: *const ModuleScope, item: cst.Item, symbol: core.SymbolId) bool {
         return switch (item.kind) {
-            .value => datatypes.ownerOf(self.interner, symbol) == null,
-            .synonym => self.interner.details(symbol) == .synonym,
+            .value => datatypes.ownerOf(&self.env.interner, symbol) == null,
+            .synonym => self.env.interner.details(symbol) == .synonym,
             else => unreachable,
         };
     }
@@ -263,10 +263,10 @@ pub const ModuleScope = struct {
     /// Whether `exports` holds every constructor or method of `name`.
     fn exportsMembers(self: *const ModuleScope, exports: *const Exports, name: TypeName) bool {
         switch (name) {
-            .datatype => |id| for (self.datatypes.get(id).constructors) |c| {
+            .datatype => |id| for (self.env.datatypes.get(id).constructors) |c| {
                 if (!self.holds(exports, c.symbol)) return false;
             },
-            .class => |id| for (self.classes.get(id).methods) |m| {
+            .class => |id| for (self.env.classes.get(id).methods) |m| {
                 if (!self.holds(exports, m)) return false;
             },
             .alias => {},
@@ -275,7 +275,7 @@ pub const ModuleScope = struct {
     }
 
     fn holds(self: *const ModuleScope, exports: *const Exports, symbol: core.SymbolId) bool {
-        return exports.values.get(self.interner.spelling(symbol)) == symbol;
+        return exports.values.get(self.env.interner.spelling(symbol)) == symbol;
     }
 
     /// What `T(..)` names the members of. Reports an alias, which has none.
@@ -317,29 +317,29 @@ pub const ModuleScope = struct {
                     try reportUndeclared(item, sink);
                     return false;
                 }
-                try out.values.put(arena, self.interner.spelling(symbol), symbol);
+                try out.values.put(arena, self.env.interner.spelling(symbol), symbol);
             },
             .type, .type_and_constructors => {
                 const name = try self.inScope(TypeName, self.typeNamed(item.name), item, sink) orelse return false;
                 if (item.kind == .type_and_constructors) {
                     _ = try membersNoun(name, item, sink) orelse return false;
                     switch (name) {
-                        .datatype => |id| for (self.datatypes.get(id).constructors) |c| try self.exportMember(arena, c.symbol, out),
-                        .class => |id| for (self.classes.get(id).methods) |m| try self.exportMember(arena, m, out),
+                        .datatype => |id| for (self.env.datatypes.get(id).constructors) |c| try self.exportMember(arena, c.symbol, out),
+                        .class => |id| for (self.env.classes.get(id).methods) |m| try self.exportMember(arena, m, out),
                         .alias => unreachable,
                     }
                 }
                 try out.types.put(arena, self.typeSpelling(name), name);
             },
             .module => {
-                if (std.mem.eql(u8, item.name, self.interner.moduleName(self.module))) {
+                if (std.mem.eql(u8, item.name, self.env.interner.moduleName(self.module))) {
                     try self.exportOwn(arena, out);
                     return true;
                 }
                 var imported = false;
                 for (self.imports) |import| {
                     if (import.qualifier != null) continue;
-                    if (!std.mem.eql(u8, self.interner.moduleName(import.module), item.name)) continue;
+                    if (!std.mem.eql(u8, self.env.interner.moduleName(import.module), item.name)) continue;
                     imported = true;
                     try self.exportImported(arena, import, out);
                 }
@@ -374,15 +374,15 @@ pub const ModuleScope = struct {
     /// The spelling `name` was declared with.
     fn typeSpelling(self: *const ModuleScope, name: TypeName) []const u8 {
         return switch (name) {
-            .datatype => |id| self.datatypes.get(id).name,
+            .datatype => |id| self.env.datatypes.get(id).name,
             .alias => |alias| alias.name,
-            .class => |id| self.classes.spelling(id),
+            .class => |id| self.env.classes.spelling(id),
         };
     }
 
     /// Adds `member`, a constructor or method, when it is in scope here.
     fn exportMember(self: *const ModuleScope, arena: std.mem.Allocator, member: core.SymbolId, out: *Exports) !void {
-        const spelling = self.interner.spelling(member);
+        const spelling = self.env.interner.spelling(member);
         const visible = self.value(spelling);
         if (visible == .found and visible.found == member) try out.values.put(arena, spelling, member);
     }
@@ -390,21 +390,21 @@ pub const ModuleScope = struct {
     /// Adds everything this module declares, its constructors and methods
     /// included.
     fn exportOwn(self: *const ModuleScope, arena: std.mem.Allocator, out: *Exports) !void {
-        var symbols = self.interner.by_name.iterator();
+        var symbols = self.env.interner.by_name.iterator();
         while (symbols.next()) |entry| {
             if (entry.key_ptr.module != self.module) continue;
             try out.values.put(arena, entry.key_ptr.name, entry.value_ptr.*);
         }
-        for (self.datatypes.datatypes.items, 0..) |d, i| {
+        for (self.env.datatypes.datatypes.items, 0..) |d, i| {
             if (d.module != self.module) continue;
             try out.types.put(arena, d.name, .{ .datatype = @enumFromInt(i) });
         }
-        var aliases = self.datatypes.aliases.iterator();
+        var aliases = self.env.datatypes.aliases.iterator();
         while (aliases.next()) |entry| {
             if (entry.key_ptr.module != self.module) continue;
             try out.types.put(arena, entry.key_ptr.name, .{ .alias = entry.value_ptr.* });
         }
-        for (self.classes.classes.items, 0..) |c, i| {
+        for (self.env.classes.classes.items, 0..) |c, i| {
             if (c.name.module != self.module) continue;
             try out.types.put(arena, c.name.name, .{ .class = @enumFromInt(i) });
         }

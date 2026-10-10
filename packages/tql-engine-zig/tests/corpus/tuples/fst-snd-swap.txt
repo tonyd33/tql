@@ -1,0 +1,12 @@
+title: `fst`, `snd` and `swap` are in the prelude
+grammar: typescript
+asserts: values
+
+--- tql ---
+main root = [(fst (1, "a"), snd (1, "a"), swap (1, "a"))];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,"a",["a",1]]]

@@ -16,10 +16,10 @@ pub const prelude_name = "Prelude";
 /// exports its spelling.
 pub const modules = [_]load.Named{
     .{ .name = core.ModuleId.prim_name, .path = "Prim.tql", .text = @embedFile("library/Prim.tql") },
-    .{ .name = "Data.Unit", .path = "Data/Unit.tql", .text = @embedFile("library/Data/Unit.tql") },
     .{ .name = "Data.Bool", .path = "Data/Bool.tql", .text = @embedFile("library/Data/Bool.tql") },
     .{ .name = "Data.Ord", .path = "Data/Ord.tql", .text = @embedFile("library/Data/Ord.tql") },
     .{ .name = "Data.Function", .path = "Data/Function.tql", .text = @embedFile("library/Data/Function.tql") },
+    .{ .name = "Data.Tuple", .path = "Data/Tuple.tql", .text = @embedFile("library/Data/Tuple.tql") },
     .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
     .{ .name = "Data.Monoid", .path = "Data/Monoid.tql", .text = @embedFile("library/Data/Monoid.tql") },
     .{ .name = "Data.List", .path = "Data/List.tql", .text = @embedFile("library/Data/List.tql") },

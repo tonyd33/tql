@@ -363,16 +363,13 @@ pub const Linker = struct {
             .span = declared.span,
         });
 
-        const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
-        for (class.methods, defined, implementations, 0..) |method, definition, *implementation, i| {
-            implementation.* = try self.methodSymbol(id, i, definition.?.name, head_name);
-            try self.env.annotate(implementation.*, .{
+        for (class.methods, defined, self.env.classes.instance(id).methods) |method, definition, implementation| {
+            try self.env.annotate(implementation, .{
                 .scheme = try self.methodScheme(self.env.schemeOf(method).?, head),
                 .span = definition.?.span,
             });
-            try out.append(self.gpa, .{ .symbol = implementation.*, .definition = definition.? });
+            try out.append(self.gpa, .{ .symbol = implementation, .definition = definition.? });
         }
-        self.env.classes.instanceMut(id).methods = implementations;
     }
 
     /// Adds `declared`. Reports an instance already declared for its class
@@ -390,16 +387,6 @@ pub const Linker = struct {
                 return error.BadAnnotation;
             },
         };
-    }
-
-    /// `method[head]`, `instance`'s implementation of method `index` of its
-    /// class.
-    fn methodSymbol(self: *Linker, instance: classes.InstanceId, index: usize, method: []const u8, head: []const u8) Error!core.SymbolId {
-        return try self.env.interner.generate(
-            self.module(),
-            try std.fmt.allocPrint(self.arena(), "{s}[{s}]", .{ method, head }),
-            .{ .instance_method = .{ .instance = instance, .index = @intCast(index) } },
-        );
     }
 
     /// A derived instance whose context is being inferred.
@@ -448,7 +435,7 @@ pub const Linker = struct {
         try self.inferContexts(pending.items);
         for (pending.items) |p| {
             if (p.failed or self.env.classes.instance(p.instance).methods.len == 0) continue;
-            try out.append(self.gpa, try self.generate(p));
+            try out.append(self.gpa, try self.generate(p.instance, p.datatype));
         }
     }
 
@@ -487,7 +474,7 @@ pub const Linker = struct {
             return error.BadAnnotation;
         }
 
-        const instance = try self.addInstance(.{
+        return try self.addInstance(.{
             .class = class_id,
             .type = try self.env.datatypes.applied(self.arena(), id),
             .context = &.{},
@@ -496,14 +483,15 @@ pub const Linker = struct {
             .module = self.module(),
             .span = derived.span,
         });
-        const class = self.env.classes.get(class_id);
-        const name = self.env.datatypes.get(id).name;
-        const implementations = try self.arena().alloc(core.SymbolId, class.methods.len);
-        for (class.methods, implementations, 0..) |method, *implementation, i| {
-            implementation.* = try self.methodSymbol(instance, i, self.env.interner.spelling(method), name);
+    }
+
+    /// Appends the method of each instance tuple type `id` was declared
+    /// with that has one.
+    pub fn deriveTuple(self: *Linker, id: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
+        for ([_]classes.ClassId{ .eq, .ord, .serial }) |class_id| {
+            const instance = self.env.classes.instanceFor(class_id, id).?;
+            if (self.env.classes.instance(instance).methods.len > 0) try out.append(self.gpa, try self.generate(instance, id));
         }
-        self.env.classes.instanceMut(instance).methods = implementations;
-        return instance;
     }
 
     /// Sets each derived instance's context to what its fields need, reduced
@@ -578,8 +566,8 @@ pub const Linker = struct {
 
     /// The derived instance's method, annotated with the class method's
     /// scheme at its head.
-    fn generate(self: *Linker, p: Pending) Error!core.Definition {
-        const instance = self.env.classes.instance(p.instance);
+    fn generate(self: *Linker, id: classes.InstanceId, datatype: datatypes.TypeId) Error!core.Definition {
+        const instance = self.env.classes.instance(id);
         const class = self.env.classes.get(instance.class);
         const span = instance.span;
         const derivation: Derivation = .{
@@ -589,7 +577,7 @@ pub const Linker = struct {
             .class = instance.class,
             .method = class.methods[0],
             .itself = instance.methods[0],
-            .datatype = p.datatype,
+            .datatype = datatype,
             .span = span,
         };
         const symbol = instance.methods[0];

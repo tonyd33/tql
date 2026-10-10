@@ -1,0 +1,22 @@
+title: tuple patterns nest, and a failed component tries the next alternative
+grammar: typescript
+asserts: values
+
+--- tql ---
+describe p = case p of {
+  ((0, _), _) -> "origin row";
+  ((x, y), True) -> "marked";
+  (_, False) -> "plain";
+};
+
+main root = [
+  describe ((0, 5), True),
+  describe ((1, 5), True),
+  describe ((1, 5), False),
+];
+
+--- source ---
+class A {}
+
+--- values ---
+["origin row","marked","plain"]

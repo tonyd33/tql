@@ -1,0 +1,18 @@
+title: a view's result matches a tuple pattern
+grammar: typescript
+asserts: values
+
+--- tql ---
+halves n = (n / 2, n - n / 2);
+
+split n = case n of {
+  (halves -> (a, b)) -> a + b * 10;
+};
+
+main root = [split 7];
+
+--- source ---
+class A {}
+
+--- values ---
+[43]

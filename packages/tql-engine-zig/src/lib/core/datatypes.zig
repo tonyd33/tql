@@ -30,6 +30,8 @@ pub const Datatype = struct {
     constructors: []const Constructor,
     /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
+    /// Set for a tuple type, which `Env.tuple` declares.
+    tuple: bool = false,
 };
 
 /// `type Named r = {name: String | r};`
@@ -160,6 +162,11 @@ pub const Registry = struct {
             if (s.representation) |p| std.debug.assert(id == p.id());
             self.datatypes.items[@intFromEnum(id)].reserved = s.declared;
         }
+    }
+
+    /// Marks `id` as a tuple type.
+    pub fn markTuple(self: *Registry, id: TypeId) void {
+        self.datatypes.items[@intFromEnum(id)].tuple = true;
     }
 
     /// Marks reserved `id` as declared by `Prim`.
