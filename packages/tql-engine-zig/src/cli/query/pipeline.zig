@@ -124,6 +124,7 @@ const FileResult = struct {
     /// still alive.
     values: []const u8,
     count: usize,
+    syntax_errors: []const tql.SyntaxError = &.{},
     stats: FileStats,
     /// Why the file produced no outputs, when reading or running it failed.
     failure: ?anyerror = null,
@@ -144,6 +145,8 @@ const Progress = struct {
     matched: std.atomic.Value(usize) = .init(0),
     /// Paths that could not be walked, read or run.
     failed: std.atomic.Value(usize) = .init(0),
+    /// Files that ran over a tree recovered from syntax errors.
+    unparsed: std.atomic.Value(usize) = .init(0),
 };
 
 const SharedContext = struct {
@@ -251,9 +254,31 @@ fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr
             try stderr.writer.flush();
             continue;
         }
+        if (result.syntax_errors.len > 0) {
+            try stderr.lock.lock(ctx.io);
+            defer stderr.lock.unlock(ctx.io);
+            try warnSyntaxErrors(stderr.writer, result.filename, result.syntax_errors, ctx.grammar.name);
+            try stderr.writer.flush();
+        }
         if (result.count == 0) continue;
         try stdout.print("{s}: {s}\n", .{ result.filename, result.values });
     }
+}
+
+/// Print one line for a file that does not parse, at its first syntax error.
+///
+/// Preconditions:
+/// - `errors` is not empty
+fn warnSyntaxErrors(w: *std.Io.Writer, filename: []const u8, errors: []const tql.SyntaxError, grammar: []const u8) !void {
+    const first = errors[0].start_point;
+    try w.print("{s}:{d}:{d}: warning: {d} syntax error{s} under the {s} grammar; findings may be incomplete\n", .{
+        filename,
+        first.row + 1,
+        first.column + 1,
+        errors.len,
+        if (errors.len == 1) "" else "s",
+        grammar,
+    });
 }
 
 fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
@@ -282,6 +307,8 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         try jws.beginWriteRaw();
         try jws.writer.writeAll(result.values);
         jws.endWriteRaw();
+        try jws.objectField("syntax_errors");
+        try jws.write(result.syntax_errors);
         try jws.objectField("stats");
         try writeStats(jws, result.stats, null, null);
         try jws.endObject();
@@ -369,6 +396,7 @@ fn workerThread(ctx: *SharedContext) !void {
         const result = queryFile(ctx, entry, budget.allocator()) catch |err|
             failedResult(ctx, entry, err);
         if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
+        if (result.syntax_errors.len > 0) _ = ctx.progress.unparsed.fetchAdd(1, .monotonic);
 
         ctx.result_queue.push(result) catch |err| {
             result.deinit();
@@ -410,6 +438,7 @@ fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) 
         .filename = entry.path,
         .values = run_result.json,
         .count = run_result.count,
+        .syntax_errors = run_result.syntax_errors,
         .stats = .{
             .read_time = read_time,
             .parse_time = run_result.parse_time,
@@ -504,6 +533,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
     allocator.free(workers);
 
     if (progress.failed.load(.monotonic) > 0) return .runtime_error;
+    if (progress.unparsed.load(.monotonic) > 0) return .parse_error;
     return .success;
 }
 test "a scratch budget refuses what would pass its limit" {
