@@ -8,7 +8,7 @@ second xs = case xs of {
   _ -> [];
 };
 
-main = pure (second [1, 2, 3]);
+main = always (second [1, 2, 3]);
 
 --- source ---
 class A {}
@@ -24,4 +24,4 @@ second = \xs ->
     Cons _ cons1 -> case cons1 of
       Nil -> jump alternative
       Cons b _ -> Cons b Nil
-main = pure (second (Cons 1 (Cons 2 (Cons 3 Nil))))
+main = always (second (Cons 1 (Cons 2 (Cons 3 Nil))))

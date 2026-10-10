@@ -9,7 +9,7 @@ main x = [x < x];
 
 --- error ---
 error[unsatisfied-constraint]: `Ord Node` is not satisfied.
- --> 1:1
+ --> 1:11
   |
 1 | main x = [x < x];
-  | ^^^^^^^^^^^^^^^^^
+  |           ^^^^^

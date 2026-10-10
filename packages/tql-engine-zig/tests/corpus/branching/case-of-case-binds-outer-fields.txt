@@ -12,7 +12,7 @@ fst p = case p of { Mk a b -> a };
 pick p q = case (case p of { Mk a b -> Mk b a }) of {
   Mk x y -> x + 10 * y + 100 * fst q;
 };
-main = pure $ pick (Mk 1 2) (Mk 7 8);
+main = always $ pick (Mk 1 2) (Mk 7 8);
 
 --- source ---
 class A {}
@@ -59,4 +59,4 @@ main = {} \u {} ->
       in
       pick t0@0 t1@1
   in
-  pure t2@0
+  always instance[Applicative,List] t2@0

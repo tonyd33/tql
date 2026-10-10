@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { unused = 2 * 3 } in pure 1;
+main = let { unused = 2 * 3 } in always 1;
 
 --- source ---
 class A {}
@@ -12,9 +12,9 @@ class A {}
 [1]
 
 --- simplified ---
-main = pure 1
+main = always instance[Applicative,List] 1
 
 --- core ---
 main =
   let unused = op[*] 2 3 in
-  pure 1
+  always 1

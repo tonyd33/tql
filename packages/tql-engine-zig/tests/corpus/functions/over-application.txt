@@ -11,7 +11,7 @@ import Data.Function (compose, identity);
 
 add a b = a + b;
 adder n = if n = 0 then identity else compose (add 1) (adder (n - 1));
-main = pure $ adder 1 10;
+main = always $ adder 1 10;
 
 --- source ---
 class A {}
@@ -39,4 +39,4 @@ adder = {} \u {} ->
   t3@0
 main = {} \u {} ->
   let t0 = {} \u {} -> adder 1 10 in
-  pure t0@0
+  always instance[Applicative,List] t0@0

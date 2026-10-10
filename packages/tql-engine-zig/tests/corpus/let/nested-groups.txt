@@ -8,7 +8,7 @@ The inner group closes at its own `}`, leaving the outer body to continue.
 main =
   let { outer = 10; } in
     let { inner = outer + 5; } in
-      pure inner;
+      always inner;
 
 --- source ---
 class A {}
@@ -23,4 +23,4 @@ main :: Node -> [Int]
 main =
   let outer = 10 in
   let inner = op[+] outer 5 in
-  pure inner
+  always inner

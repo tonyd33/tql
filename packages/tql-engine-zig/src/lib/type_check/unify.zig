@@ -157,7 +157,7 @@ fn hasKind(subst: *Substitution, t: types.Type, kind: types.Kind) Allocator.Erro
 }
 
 /// The kind of `t`, which is neither a record nor a bound variable.
-fn kindOf(subst: *Substitution, t: types.Type) Allocator.Error!types.Kind {
+pub fn kindOf(subst: *Substitution, t: types.Type) Allocator.Error!types.Kind {
     return switch (t) {
         .meta => |id| subst.kindOf(id),
         .constructor => |c| try types.Kind.arrows(subst.arena, subst.datatypes.get(c.name).parameters[c.arguments.len..], .type),

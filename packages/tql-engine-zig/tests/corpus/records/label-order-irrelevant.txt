@@ -11,7 +11,7 @@ main =
     x = { a = 1, b = 2 };
     y = { b = 2, a = 1 };
   }
-  in pure (x = y);
+  in always (x = y);
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ main :: Node -> [Bool]
 main =
   let x = record[a,b] 1 2 in
   let y = record[a,b] 1 2 in
-  pure (eq x y)
+  always (eq x y)

@@ -1,0 +1,19 @@
+title: `always` ignores its input and yields once per input
+grammar: typescript
+asserts: types, values
+
+Two class declarations give `always 1` two inputs, so `always` runs
+twice.
+
+--- tql ---
+main = children | of_kind :class_declaration | always 1;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[1, 1]
+
+--- types ---
+main :: Node -> [Int]

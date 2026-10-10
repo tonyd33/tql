@@ -8,7 +8,7 @@ sum xs = case xs of {
   h : t -> h + sum t;
 };
 
-main = pure (sum [1, 2, 3]);
+main = always (sum [1, 2, 3]);
 
 --- source ---
 class A {}
@@ -23,4 +23,4 @@ main :: Node -> [Int]
 sum = \xs -> case xs of
   Nil -> 0
   Cons h t -> op[+] h (sum t)
-main = pure (sum (Cons 1 (Cons 2 (Cons 3 Nil))))
+main = always (sum (Cons 1 (Cons 2 (Cons 3 Nil))))

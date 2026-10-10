@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = pure (seq 1 2);
+main = always (seq 1 2);
 
 --- source ---
 class A {}
@@ -12,7 +12,7 @@ class A {}
 [2]
 
 --- core ---
-main = pure (seq 1 2)
+main = always (seq 1 2)
 
 --- simplified ---
-main = pure 2
+main = always instance[Applicative,List] 2

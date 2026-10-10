@@ -6,7 +6,7 @@ The source is infinite but the predicate holds at 0, so `has` stops at the
 first element. Termination is the evidence.
 
 --- tql ---
-from n = pure n <|> from (n + 1);
+from n = always n <|> from (n + 1);
 non_negative x = x >= 0;
 main root = return $ has (from 0 | keep non_negative) root;
 

@@ -1,0 +1,36 @@
+title: a local `let` leaves an applicative to the expression around it
+grammar: typescript
+asserts: values
+
+Inside the `let`, nothing fixes the list's element type, but the list's
+other element makes it `Box Int`. Only a top-level group defaults.
+
+--- tql ---
+import Data.List (concat_map);
+
+data Box a = Box a;
+
+instance Functor Box where {
+  map f b = case b of {
+    Box x -> Box (f x);
+  };
+};
+
+instance Applicative Box where {
+  pure = Box;
+  ap bf bx = case bf of {
+    Box f -> map f bx;
+  };
+};
+
+unbox b = case b of {
+  Box x -> [x];
+};
+
+main root = concat_map unbox [pure 1, let { g y = y; } in g (Box 2)];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]

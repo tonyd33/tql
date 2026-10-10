@@ -6,7 +6,7 @@ asserts: error
 
 --- tql ---
 data T = C List;
-main = pure 1;
+main = always 1;
 
 --- error ---
 error[kind-mismatch]: `List` has kind `Type -> Type`, but kind `Type` is expected

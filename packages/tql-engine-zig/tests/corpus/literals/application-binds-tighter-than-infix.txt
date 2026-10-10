@@ -6,7 +6,7 @@ asserts: core, types, values
 
 --- tql ---
 add x y = x + y;
-main = pure $ add 1 2 + add 3 4;
+main = always $ add 1 2 + add 3 4;
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ main :: Node -> [Int]
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = pure (op[+] (add 1 2) (add 3 4))
+main = always (op[+] (add 1 2) (add 3 4))

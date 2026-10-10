@@ -19,6 +19,7 @@
 - The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (filter, any);` for `filter`, `foldr`, `append`, `concat`, `concat_map`, `null`, `any`, `all`, `take`, `drop`, `head` and `tail`; `import Data.Function (const);` for `identity`, `const`, `compose` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (alt);` for `kleisli` and `alt`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
+- The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
 
 ### New Features
 
@@ -40,7 +41,7 @@
 - Added `kind_name :: Node -> String`, a node's kind as a string. An anonymous token's is its spelling.
 - Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
 - A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];`.
-- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
+- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = always :comment;` yields `["comment"]`.
 - `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
 - Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
 - Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
@@ -62,6 +63,8 @@
 - A class may range over type constructors: `class Mappable f where { mapf :: (a -> b) -> f a -> f b; };` takes `instance Mappable List` and `instance Mappable (Either e)`. A context may constrain an applied variable, `Eq (f a) =>`, and one is inferred where needed.
 - A type variable applied to an argument matches a function type: `f a` against `Int -> Bool` makes `f` the function type short of its result, printed `(->) Int`.
 - Added the `Functor` class, whose method is `map`.
+- Added the `Applicative` class, with `pure :: a -> f a` and `ap :: f (a -> b) -> f a -> f b`. `return` is `pure`, and `always` and `arr` work at any `Applicative`, not only lists.
+- A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (arr (+ 1) x)` is `Int -> Int`.
 
 ### Improvements
 
@@ -72,6 +75,7 @@
 - A `do` bind over `children`, `named_children`, `descendants` or `named_descendants` whose pattern tests a kind, such as `:k { .. }` or `(of_kind :k -> [n])`, walks only nodes of that kind, as `descendants_of_kind :k` does.
 - A query that allocates more than 4 GiB on one file stops on that file with `OutOfMemory`, and the run continues with the next. Such a query could exhaust the machine's memory.
 - The library is compiled once per engine, and once per loaded wasm module in `tql-js` and the playground: compiling a later query starts from it.
+- A constraint `main` cannot satisfy is reported where it is raised: in `main x = [x < x];` the `Ord Node` error points at `x < x`.
 
 ### Bug Fixes
 

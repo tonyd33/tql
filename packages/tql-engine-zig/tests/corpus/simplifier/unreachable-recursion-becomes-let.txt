@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { go n = if true then n else go (n + 1) } in pure (go 1);
+main = let { go n = if true then n else go (n + 1) } in always (go 1);
 
 --- source ---
 class A {}
@@ -12,7 +12,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = pure 1
+main = always instance[Applicative,List] 1
 
 --- core ---
 main =
@@ -21,4 +21,4 @@ main =
       False -> go (op[+] n 1)
       True -> n
   in
-  pure (go 1)
+  always (go 1)

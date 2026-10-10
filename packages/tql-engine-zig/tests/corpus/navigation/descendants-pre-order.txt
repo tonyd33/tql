@@ -25,4 +25,4 @@ main :: Node -> [Kind]
 main = kleisli descendants (arr kind)
 
 --- simplified ---
-main = kleisli %descendants (arr %kind)
+main = kleisli %descendants (arr instance[Applicative,List] %kind)

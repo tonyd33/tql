@@ -10,7 +10,7 @@ method_names = #body | children | of_kind :method_definition | #name | arr text;
 
 main =
   children | of_kind :class_declaration
-  | or_else method_names (pure "none");
+  | or_else method_names (always "none");
 
 --- source ---
 class A { m() {} n() {} }

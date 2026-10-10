@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { s = "ab" } in pure (length s + length s);
+main = let { s = "ab" } in always (length s + length s);
 
 --- source ---
 class A {}
@@ -14,9 +14,9 @@ class A {}
 --- simplified ---
 main =
   let s = "ab" in
-  pure (op[+] (%string_length s) (%string_length s))
+  always instance[Applicative,List] (op[+] (%string_length s) (%string_length s))
 
 --- core ---
 main =
   let s = "ab" in
-  pure (op[+] (length s) (length s))
+  always (op[+] (length s) (length s))

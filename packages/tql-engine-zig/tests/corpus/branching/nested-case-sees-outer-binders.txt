@@ -4,7 +4,7 @@ asserts: core, values
 
 --- tql ---
 data P = Mk Int Int;
-main = pure $ case Mk 1 2 of {
+main = always $ case Mk 1 2 of {
   Mk a b -> case Mk 3 4 of { Mk c d -> 1000 * a + 100 * b + 10 * c + d }
 };
 
@@ -15,7 +15,7 @@ class A {}
 [1234]
 
 --- core ---
-main = pure (
+main = always (
   case Mk 1 2 of
     Mk a b -> case Mk 3 4 of
       Mk c d -> op[+] (op[+] (op[+] (op[*] 1000 a) (op[*] 100 b)) (op[*] 10 c)) d

@@ -8,7 +8,7 @@ main =
     lo = 2;
     hi = 5;
   }
-  in pure (lo + hi);
+  in always (lo + hi);
 
 --- source ---
 class A {}
@@ -23,4 +23,4 @@ main :: Node -> [Int]
 main =
   let lo = 2 in
   let hi = 5 in
-  pure (op[+] lo hi)
+  always (op[+] lo hi)

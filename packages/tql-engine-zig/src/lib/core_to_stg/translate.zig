@@ -518,7 +518,7 @@ pub const Translator = struct {
 
     /// How many arguments a primitive's denotation takes: the arrow count of
     /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
-    /// primitive counts its input, making `pure` arity two.
+    /// primitive counts its input, making `children_of_kind` arity two.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
         var arity: u32 = 0;

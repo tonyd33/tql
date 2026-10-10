@@ -1,5 +1,5 @@
 module Data.Filter (
-  pure,
+  always,
   none,
   kleisli,
   alt,
@@ -10,21 +10,19 @@ module Data.Filter (
   first,
   or_else,
   guard,
-  return,
 );
 
 import Prim (List(..), Bool(..));
 import Data.Unit (Unit(..));
 import Data.Bool (not);
 import Data.List (null, append, concat_map, head);
+import Control.Applicative (Applicative(..));
 
 -- `Filter a b` is `a -> [b]`, the Kleisli category of the list monad. Every
 -- name below is that monad's, or a list function lifted into it.
 
--- FIXME: Consider removing this while we don't truly have functors as it can
--- be confused with `return`
-pure :: a -> Filter b a;
-pure v x = [v];
+always :: Applicative f => b -> a -> f b;
+always v x = pure v;
 
 none :: Filter a b;
 none x = [];
@@ -35,8 +33,8 @@ kleisli p q x = concat_map q (p x);
 alt :: Filter a b -> Filter a b -> Filter a b;
 alt p q x = append (p x) (q x);
 
-arr :: (a -> b) -> Filter a b;
-arr f x = [f x];
+arr :: Applicative f => (a -> b) -> a -> f b;
+arr f x = pure (f x);
 
 collect :: Filter a b -> Filter a [b];
 collect p x = [p x];
@@ -64,8 +62,3 @@ guard b = case b of {
   False -> Nil;
   True -> Cons Unit Nil;
 };
-
--- FIXME: Consider removing this while we don't truly have functors as it can
--- be confused with `pure`
-return :: a -> List a;
-return a = [a];

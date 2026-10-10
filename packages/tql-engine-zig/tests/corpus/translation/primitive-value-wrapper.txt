@@ -3,7 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = pure "ab" | arr length;
+main = always "ab" | arr length;
 
 --- source ---
 class A {}
@@ -14,9 +14,9 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t0 = {} \u {} -> pure "ab"
+    t0 = {} \u {} -> always instance[Applicative,List] "ab"
     t3 = {} \u {} ->
       let t2 = {} \n {p1} -> %string_length# p1@0 in
-      arr t2@0
+      arr instance[Applicative,List] t2@0
   in
   kleisli t0@0 t3@1

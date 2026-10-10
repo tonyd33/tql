@@ -8,11 +8,11 @@ asserts: error
 a :: Node -> [String];
 a x = if true then [] else b x;
 b x = a x;
-main = pure (length (b 1));
+main = always (length (b 1));
 
 --- error ---
 error[type-mismatch]: Expected `Node`, found `Int`.
- --> 4:24
+ --> 4:26
   |
-4 | main = pure (length (b 1));
-  |                        ^
+4 | main = always (length (b 1));
+  |                          ^

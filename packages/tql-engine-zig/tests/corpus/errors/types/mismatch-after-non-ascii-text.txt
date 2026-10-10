@@ -4,11 +4,11 @@ asserts: error
 
 --- tql ---
 double n = n * 2;
-main = pure { a = "ü", b = double "héllo" };
+main = always { a = "ü", b = double "héllo" };
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 2:36
+ --> 2:38
   |
-2 | main = pure { a = "ü", b = double "héllo" };
-  |                                   ^^^^^^^
+2 | main = always { a = "ü", b = double "héllo" };
+  |                                     ^^^^^^^

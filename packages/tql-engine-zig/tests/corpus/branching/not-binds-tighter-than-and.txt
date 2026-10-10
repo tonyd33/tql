@@ -6,7 +6,7 @@ asserts: core, types, values
 would be `[true]`.
 
 --- tql ---
-main = pure $ not false and false;
+main = always $ not false and false;
 
 --- source ---
 class A {}
@@ -18,4 +18,4 @@ class A {}
 main :: Node -> [Bool]
 
 --- core ---
-main = pure (and (not False) False)
+main = always (and (not False) False)

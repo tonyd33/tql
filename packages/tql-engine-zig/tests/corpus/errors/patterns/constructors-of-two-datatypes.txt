@@ -7,7 +7,7 @@ data Maybe a = Just a | Nothing;
 
 f xs = case xs of { Cons a t -> a; Nothing -> 0; };
 
-main = pure (f [1]);
+main = always (f [1]);
 
 --- error ---
 error[type-mismatch]: `Nothing` is not a constructor of `List`

@@ -5,11 +5,11 @@ asserts: error
 Compiled `regex` values intentionally have no JSON encoding.
 
 --- tql ---
-main = pure r"^abc";
+main = always r"^abc";
 
 --- error ---
 error[unsatisfied-constraint]: `Serial Regex` is not satisfied.
  --> 1:1
   |
-1 | main = pure r"^abc";
-  | ^^^^^^^^^^^^^^^^^^^^
+1 | main = always r"^abc";
+  | ^^^^^^^^^^^^^^^^^^^^^^

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = pure (length "ab");
+main = always (length "ab");
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let t0 = {} \u {} -> %string_length# "ab" in
-  pure t0@0
+  always instance[Applicative,List] t0@0

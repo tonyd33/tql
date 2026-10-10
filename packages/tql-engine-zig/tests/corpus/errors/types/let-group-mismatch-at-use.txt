@@ -6,11 +6,11 @@ asserts: error
 of it is where the mismatch is found.
 
 --- tql ---
-main = let { a = b + 1; b = "s"; } in pure a;
+main = let { a = b + 1; b = "s"; } in always a;
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
  --> 1:18
   |
-1 | main = let { a = b + 1; b = "s"; } in pure a;
+1 | main = let { a = b + 1; b = "s"; } in always a;
   |                  ^

@@ -6,7 +6,7 @@ asserts: error
 f : Int;
 f = 1;
 
-main = pure f;
+main = always f;
 
 --- error ---
 error[parse]: syntax error

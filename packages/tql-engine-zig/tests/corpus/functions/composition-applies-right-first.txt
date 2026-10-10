@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main = pure $ ((\x -> x - 1) . (\x -> x * 2)) 5;
+main = always $ ((\x -> x - 1) . (\x -> x * 2)) 5;
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = pure (compose (\x -> op[-] x 1) (\x -> op[*] x 2) 5)
+main = always (compose (\x -> op[-] x 1) (\x -> op[*] x 2) 5)

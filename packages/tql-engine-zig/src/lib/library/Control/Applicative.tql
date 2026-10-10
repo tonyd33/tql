@@ -1,0 +1,25 @@
+module Control.Applicative (Applicative(..), return);
+
+import Prim (List(..));
+import Data.Functor (Functor(..));
+
+class Functor f => Applicative f where {
+  pure :: a -> f a;
+  ap :: f (a -> b) -> f a -> f b;
+};
+
+instance Applicative List where {
+  pure x = Cons x Nil;
+  ap fs xs = case fs of {
+    Nil -> Nil;
+    Cons f rest -> let {
+      applied ys = case ys of {
+        Nil -> ap rest xs;
+        Cons y t -> Cons (f y) $ applied t;
+      };
+    } in applied xs;
+  };
+};
+
+return :: Applicative f => a -> f a;
+return = pure;

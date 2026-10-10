@@ -4,7 +4,7 @@ asserts: stg, values
 
 --- tql ---
 add x y = x + y;
-main = pure (add 1 2);
+main = always (add 1 2);
 
 --- source ---
 class A {}
@@ -18,4 +18,4 @@ add = {} \u {} ->
   t0@0
 main = {} \u {} ->
   let t0 = {} \u {} -> op[+]# 1 2 in
-  pure t0@0
+  always instance[Applicative,List] t0@0

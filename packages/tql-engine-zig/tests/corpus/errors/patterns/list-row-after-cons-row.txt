@@ -9,7 +9,7 @@ f xs = case xs of {
   [] -> 0;
 };
 
-main = pure (f [1]);
+main = always (f [1]);
 
 --- error ---
 error[type-mismatch]: `[a]` is never matched

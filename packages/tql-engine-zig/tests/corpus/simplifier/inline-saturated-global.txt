@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 double x = x * 2;
-main = pure (double 21);
+main = always (double 21);
 
 --- source ---
 class A {}
@@ -14,8 +14,8 @@ class A {}
 
 --- simplified ---
 double = \x -> op[*] x 2
-main = pure (op[*] 21 2)
+main = always instance[Applicative,List] (op[*] 21 2)
 
 --- core ---
 double = \x -> op[*] x 2
-main = pure (double 21)
+main = always (double 21)

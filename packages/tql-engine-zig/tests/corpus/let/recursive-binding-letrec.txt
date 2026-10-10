@@ -8,7 +8,7 @@ self-reference resolves without a forward declaration.
 --- tql ---
 main =
   let { countdown n = if n <= 0 then 0 else countdown (n - 1); }
-  in pure (countdown 3);
+  in always (countdown 3);
 
 --- source ---
 class A {}
@@ -31,4 +31,4 @@ main =
       False -> countdown (op[-] n 1)
       True -> 0
   in
-  pure (countdown 3)
+  always (countdown 3)

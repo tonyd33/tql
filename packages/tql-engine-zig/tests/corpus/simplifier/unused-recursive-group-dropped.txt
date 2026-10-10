@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { evens = Cons 0 odds; odds = Cons 1 evens } in pure 1;
+main = let { evens = Cons 0 odds; odds = Cons 1 evens } in always 1;
 
 --- source ---
 class A {}
@@ -12,7 +12,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = pure 1
+main = always instance[Applicative,List] 1
 
 --- core ---
 main =
@@ -20,4 +20,4 @@ main =
     evens = Cons 0 odds
     odds = Cons 1 evens
   in
-  pure 1
+  always 1

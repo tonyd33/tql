@@ -68,7 +68,7 @@ declares binding scope = any (= binding) (declared scope);
 
 pattern_kinds = [:array_pattern, :object_pattern, :pair_pattern, :assignment_pattern, :object_assignment_pattern, :rest_pattern];
 
-pattern_root n = or_else (parent | keep (is_one_of pattern_kinds) | pattern_root) (pure n) n;
+pattern_root n = or_else (parent | keep (is_one_of pattern_kinds) | pattern_root) (always n) n;
 
 assigns_to root site =
   (is_kind :assignment_expression site or is_kind :augmented_assignment_expression site)
@@ -134,7 +134,7 @@ used_after binding = do {
 };
 
 declaration_names root = do {
-  scope <- (pure root <|> descendants) root;
+  scope <- (always root <|> descendants) root;
   b <- declared scope;
   guard $ not $ is_exported b;
   guard $ not $ has (parent | of_kind :function_expression) b;
@@ -147,5 +147,5 @@ main root = do {
   b <- declaration_names root;
   guard $ not $ is_used b;
   guard $ not $ any identity (used_after b);
-  or_else last_write (pure b) b;
+  or_else last_write (always b) b;
 };

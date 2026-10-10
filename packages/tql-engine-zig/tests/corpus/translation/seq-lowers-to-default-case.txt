@@ -5,7 +5,7 @@ asserts: stg, values
 --- tql ---
 f :: Int -> Int -> Int;
 f x y = seq x y;
-main = pure (f 1 2);
+main = always (f 1 2);
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ f = {} \u {} ->
       _ -> y@1
   in
   t0@0
-main = {} \u {} -> pure 2
+main = {} \u {} -> always instance[Applicative,List] 2

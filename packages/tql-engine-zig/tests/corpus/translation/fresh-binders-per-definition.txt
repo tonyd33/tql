@@ -4,7 +4,7 @@ asserts: stg, values
 
 --- tql ---
 f x = x + (1 + 2);
-main = pure (f (3 + 4));
+main = always (f (3 + 4));
 
 --- source ---
 class A {}
@@ -29,4 +29,4 @@ main = {} \u {} ->
       in
       op[+]# t0@0 t1@1
   in
-  pure t2@0
+  always instance[Applicative,List] t2@0

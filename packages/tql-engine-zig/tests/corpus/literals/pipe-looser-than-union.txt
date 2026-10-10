@@ -2,7 +2,7 @@ title: pipe binds looser than union
 grammar: typescript
 asserts: core, types, values
 
-The last stage is `arr (...) <|> pure false`, so every class yields an extra
+The last stage is `arr (...) <|> always false`, so every class yields an extra
 `false`. Parenthesize the pipeline to make it the left operand of `<|>`.
 
 Both union operands yield `Bool`, since union requires a single element type.
@@ -11,7 +11,7 @@ Both union operands yield `Bool`, since union requires a single element type.
 main = children | of_kind :class_declaration
   | #name
   | arr (\n -> text n = "A")
-  <|> pure false
+  <|> always false
 ;
 
 --- source ---
@@ -25,4 +25,4 @@ class B {}
 main :: Node -> [Bool]
 
 --- core ---
-main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (alt (arr (\n -> eq (text n) "A")) (pure False))
+main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (alt (arr (\n -> eq (text n) "A")) (always False))

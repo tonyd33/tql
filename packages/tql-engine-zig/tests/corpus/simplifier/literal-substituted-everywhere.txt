@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { a = 5 } in pure (a + a);
+main = let { a = 5 } in always (a + a);
 
 --- source ---
 class A {}
@@ -12,9 +12,9 @@ class A {}
 [10]
 
 --- simplified ---
-main = pure (op[+] 5 5)
+main = always instance[Applicative,List] (op[+] 5 5)
 
 --- core ---
 main =
   let a = 5 in
-  pure (op[+] a a)
+  always (op[+] a a)

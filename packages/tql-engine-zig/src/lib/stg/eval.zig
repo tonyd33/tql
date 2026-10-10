@@ -740,8 +740,7 @@ pub const Machine = struct {
     }
 
     /// Run a primitive, forcing exactly what its denotation forces and no
-    /// more. `pure` forces nothing, `null` forces at most the first cell,
-    /// `length` forces a whole spine.
+    /// more. `%text` forces its node, and `%eq_int` both of its integers.
     fn primitive(
         self: *Machine,
         call: *const stg.Expr.Primitive,

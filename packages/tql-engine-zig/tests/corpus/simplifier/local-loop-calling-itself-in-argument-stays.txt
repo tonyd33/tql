@@ -6,7 +6,7 @@ asserts: simplified, values
 f xs = let {
   go ys = case ys of { [] -> 0; h : t -> h + go t };
 } in go xs;
-main = pure (f [1, 2, 3]);
+main = always (f [1, 2, 3]);
 
 --- source ---
 class A {}
@@ -22,4 +22,4 @@ f = \xs ->
       Cons h t -> op[+] h (go t)
   in
   go xs
-main = pure (f (Cons 1 (Cons 2 (Cons 3 Nil))))
+main = always instance[Applicative,List] (f (Cons 1 (Cons 2 (Cons 3 Nil))))

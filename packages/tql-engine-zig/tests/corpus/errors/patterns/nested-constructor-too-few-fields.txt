@@ -5,7 +5,7 @@ asserts: error
 --- tql ---
 f xs = case xs of { Cons a (Cons b) -> a; _ -> 0; };
 
-main = pure (f [1]);
+main = always (f [1]);
 
 --- error ---
 error[type-mismatch]: `Cons` binds 2 field(s), given 1

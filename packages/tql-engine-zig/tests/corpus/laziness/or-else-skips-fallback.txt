@@ -6,8 +6,8 @@ The fallback is infinite, but the primary yields, so `or_else` never looks at
 it.
 
 --- tql ---
-from n = pure n <|> from (n + 1);
-main = or_else (pure 0) (from 1);
+from n = always n <|> from (n + 1);
+main = or_else (always 0) (from 1);
 
 --- source ---
 class A {}

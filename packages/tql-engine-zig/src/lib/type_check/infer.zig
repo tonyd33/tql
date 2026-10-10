@@ -101,6 +101,8 @@ pub const Inference = struct {
     elaborated: core.SymbolTable(core.Term),
     /// The placeholders `main` is applied to.
     entry_evidence: []const core.Term = &.{},
+    /// `main`, while a program is checked.
+    entry: ?core.SymbolId = null,
 
     pub fn init(
         gpa: Allocator,
@@ -515,6 +517,17 @@ pub const Inference = struct {
             value.* = inferred.term;
         }
 
+        // `main` is checked at `Node -> [tau]` before it generalizes, so it
+        // quantifies over nothing that type determines.
+        for (bindings, placeholders, spans) |b, p, span| {
+            if (b.name != self.entry) continue;
+            const wanted = try self.subst.datatypes.filter(self.subst.arena, types.node_type, try self.subst.fresh(.type));
+            switch (try unify.unify(self.subst, wanted, p)) {
+                .unified => {},
+                .mismatch => |m| return self.fail(.main_type, span, .{ .mismatch = m }),
+            }
+        }
+
         // Generalize against the environment *outside* the group, so the
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
@@ -599,6 +612,12 @@ pub const Inference = struct {
         }
         bounds[group.len] = quantified.items.len;
 
+        if (try self.defaultAmbiguous(env.items, quantified.items)) {
+            if (try self.undecided.recheck(self.subst)) |v| {
+                return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
+            }
+        }
+
         var taken: std.ArrayList(constraints.Constraint) = .empty;
         defer taken.deinit(self.gpa);
         try self.undecided.partitionByMetas(self.subst, quantified.items, &taken, self.gpa);
@@ -644,6 +663,38 @@ pub const Inference = struct {
                 .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, context),
             };
         }
+    }
+
+    /// Binds to `List` each metavariable of `List`'s kind that an undecided
+    /// constraint mentions and that is in neither `env` nor `quantified`, when
+    /// no constraint mentioning it fails at `List`.
+    ///
+    /// Returns whether any was bound.
+    fn defaultAmbiguous(self: *Inference, env: []const types.Meta, quantified: []const types.Meta) Error!bool {
+        const datatypes = self.subst.datatypes;
+        const list_id = datatypes.listId();
+        const kind = try types.Kind.arrows(self.subst.arena, datatypes.get(list_id).parameters, .type);
+        const list = try types.constructed(self.subst.arena, list_id, types.list_spelling, &.{});
+
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        for (self.undecided.all()) |c| try self.subst.freeMetas(c.type, &free);
+
+        var bound = false;
+        for (free.items) |id| {
+            if (std.mem.indexOfScalar(types.Meta, env, id) != null) continue;
+            if (std.mem.indexOfScalar(types.Meta, quantified, id) != null) continue;
+            if (!self.subst.kindOf(id).eql(kind)) continue;
+            const holds = for (self.undecided.all()) |c| {
+                if (!try self.subst.mentionsAny(c.type, &.{id})) continue;
+                const at_list = try self.subst.assigned(c.type, id, list);
+                if (try constraints.entails(self.subst, c.class, at_list) == .fails) break false;
+            } else true;
+            if (!holds) continue;
+            self.subst.bind(id, list);
+            bound = true;
+        }
+        return bound;
     }
 
     /// The group context `taken` reduces to: each constraint with dictionary
@@ -784,6 +835,7 @@ pub const Inference = struct {
 
     /// A linked program: every component, then `main`'s three extra checks.
     pub fn check(self: *Inference, p: *const core.Program) Error!void {
+        self.entry = p.entry;
         try self.program(p.definitions, p.components);
 
         // Only after the body has a type, and spanning the whole definition
@@ -918,6 +970,12 @@ pub const Inference = struct {
                 span,
                 .{ .mismatch = m },
             ),
+        }
+
+        if (try self.defaultAmbiguous(&.{}, &.{})) {
+            if (try self.undecided.recheck(self.subst)) |v| {
+                return self.fail(.unsatisfied_constraint, v.origin, .{ .violation = v });
+            }
         }
 
         // 2. `Serial tau`

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main = pure (0 : 1:[2]);
+main = always (0 : 1:[2]);
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 main :: Node -> [[Int]]
 
 --- core ---
-main = pure (Cons 0 (Cons 1 (Cons 2 Nil)))
+main = always (Cons 0 (Cons 1 (Cons 2 Nil)))

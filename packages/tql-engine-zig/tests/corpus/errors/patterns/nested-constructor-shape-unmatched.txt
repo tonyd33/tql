@@ -7,7 +7,7 @@ A one-element list reaches no alternative.
 --- tql ---
 f xs = case xs of { Cons a (Cons b Nil) -> [a]; Nil -> []; };
 
-main = pure (f [1, 2]);
+main = always (f [1, 2]);
 
 --- error ---
 error[type-mismatch]: `[_]` is not matched

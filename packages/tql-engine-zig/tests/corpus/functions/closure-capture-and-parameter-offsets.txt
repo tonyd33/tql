@@ -4,7 +4,7 @@ asserts: values, stg
 
 --- tql ---
 f a b c = \x -> c - a * x - b;
-main = pure $ f 1 30 3 0;
+main = always $ f 1 30 3 0;
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ f = {} \u {} ->
   t2@0
 main = {} \u {} ->
   let t0 = {} \u {} -> f 1 30 3 0 in
-  pure t0@0
+  always instance[Applicative,List] t0@0

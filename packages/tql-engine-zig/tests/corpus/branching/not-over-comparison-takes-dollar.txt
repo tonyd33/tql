@@ -6,7 +6,7 @@ asserts: core, types, values
 it the whole comparison.
 
 --- tql ---
-main = pure $ not $ 1 = 1;
+main = always $ not $ 1 = 1;
 
 --- source ---
 class A {}
@@ -18,4 +18,4 @@ class A {}
 main :: Node -> [Bool]
 
 --- core ---
-main = pure (not (eq 1 1))
+main = always (not (eq 1 1))

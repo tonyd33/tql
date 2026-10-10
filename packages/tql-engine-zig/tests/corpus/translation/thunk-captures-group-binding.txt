@@ -3,7 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = let { a = 1 + 2; b = a * a } in pure (b + b);
+main = let { a = 1 + 2; b = a * a } in always (b + b);
 
 --- source ---
 class A {}
@@ -16,4 +16,4 @@ main = {} \u {} ->
   let a = {} \u {} -> op[+]# 1 2 in
   let b = {a@0} \u {} -> op[*]# a@0 a@0 in
   let t0 = {b@1} \u {} -> op[+]# b@0 b@0 in
-  pure t0@2
+  always instance[Applicative,List] t0@2

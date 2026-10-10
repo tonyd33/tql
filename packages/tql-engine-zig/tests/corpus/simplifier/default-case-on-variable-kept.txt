@@ -8,7 +8,7 @@ diverge.
 --- tql ---
 f :: Int -> Int;
 f x = seq x 1;
-main = pure (f 2);
+main = always (f 2);
 
 --- source ---
 class A {}
@@ -18,9 +18,9 @@ class A {}
 
 --- core ---
 f = \x -> seq x 1
-main = pure (f 2)
+main = always (f 2)
 
 --- simplified ---
 f = \x -> case x of
   _ -> 1
-main = pure 1
+main = always instance[Applicative,List] 1

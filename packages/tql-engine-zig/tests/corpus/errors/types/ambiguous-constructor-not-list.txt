@@ -1,0 +1,24 @@
+title: an ambiguous constructor variable `List` cannot satisfy stays ambiguous
+grammar: typescript
+asserts: error
+
+`Pointed` has no `List` instance, so `f` is not defaulted.
+
+--- tql ---
+class Pointed f where {
+  point :: a -> f a;
+};
+
+size x = length (point x);
+
+main root = [size 1];
+
+--- source ---
+class A {}
+
+--- error ---
+error[ambiguous-constraint]: `Pointed a` is ambiguous: nothing determines its type.
+ --> 5:18
+  |
+5 | size x = length (point x);
+  |                  ^^^^^

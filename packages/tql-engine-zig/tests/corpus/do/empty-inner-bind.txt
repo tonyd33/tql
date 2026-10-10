@@ -5,7 +5,7 @@ asserts: core, types, values
 --- tql ---
 main root = do {
   l <- [1, 2];
-  r <- (children | of_kind :interface_declaration | pure 0) root;
+  r <- (children | of_kind :interface_declaration | always 0) root;
   return $ l + r;
 };
 
@@ -19,4 +19,4 @@ class A {}
 main :: Node -> [Int]
 
 --- core ---
-main = \root -> concat_map (\l -> concat_map (\r -> return (op[+] l r)) (kleisli (kleisli children (of_kind :interface_declaration)) (pure 0) root)) (Cons 1 (Cons 2 Nil))
+main = \root -> concat_map (\l -> concat_map (\r -> return (op[+] l r)) (kleisli (kleisli children (of_kind :interface_declaration)) (always 0) root)) (Cons 1 (Cons 2 Nil))
