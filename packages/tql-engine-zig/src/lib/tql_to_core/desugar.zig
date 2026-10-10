@@ -232,13 +232,21 @@ pub const Lowerer = struct {
             // Compiled here only to reject a malformed pattern as a compile
             // error rather than a runtime failure. Core keeps the pattern.
             .regex => |r| {
-                var compiled = pcre2.Regex.compile(r) catch {
-                    try self.sink.report(
-                        .invalid_regex,
-                        e.span,
-                        "`{s}` is not a valid regular expression",
-                        .{r},
-                    );
+                var compiled = pcre2.Regex.compile(r) catch |err| {
+                    switch (err) {
+                        error.InvalidPattern => try self.sink.report(
+                            .invalid_regex,
+                            e.span,
+                            "`{s}` is not a valid regular expression",
+                            .{r},
+                        ),
+                        error.Backreference => try self.sink.report(
+                            .invalid_regex,
+                            e.span,
+                            "`{s}` uses a backreference, which tql regexes do not support",
+                            .{r},
+                        ),
+                    }
                     return error.DesugarFailed;
                 };
                 compiled.deinit();

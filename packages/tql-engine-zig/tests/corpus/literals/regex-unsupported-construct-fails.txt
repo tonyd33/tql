@@ -1,0 +1,15 @@
+title: a regex construct the matcher cannot run fails the match
+grammar: typescript
+asserts: runtime_error
+
+`\K` compiles, but the matcher rejects it when a match reaches it. The
+failure stops the run; it is never read as no match.
+
+--- tql ---
+main = pure $ "ab" ~ r"a\Kb";
+
+--- source ---
+class A {}
+
+--- runtime error ---
+RegexFailed

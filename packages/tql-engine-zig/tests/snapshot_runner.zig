@@ -883,7 +883,7 @@ fn evaluate(
         allocator,
         arena.allocator(),
     ) catch |err| switch (err) {
-        error.Cycle, error.StackOverflow => return .{ .failed = err },
+        error.Cycle, error.StackOverflow, error.RegexFailed => return .{ .failed = err },
         else => |e| return e,
     };
     allocator.free(outcome.syntax_errors);

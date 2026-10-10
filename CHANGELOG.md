@@ -29,6 +29,7 @@
 - `main` is a `Filter Node t`. `main root = do { x <- descendants root; ... };` becomes `main = do { x <- descendants; ... };`: a `do` over `Filter Node` gives every statement the root, `root <- identity;` names it, and `y <- pure x | p;` binds `p`'s results at `x`. `main root = [v];` becomes `main = pure v;`, and a signature `main :: Node -> [Int]` becomes `main :: Filter Node Int`.
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
+- A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run with `RegexFailed`.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
 ### New Features
@@ -110,6 +111,7 @@
 
 ### Bug Fixes
 
+- A regex match never gives up: `~` no longer reads a pattern that backtracks too much as no match, nor `!~` as a match.
 - `Int` arithmetic wraps in every build mode: `9223372036854775807 + 1` is `-9223372036854775808`. It panicked in a debug build, and the least `Int` divided by `-1` killed the process.
 - A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
