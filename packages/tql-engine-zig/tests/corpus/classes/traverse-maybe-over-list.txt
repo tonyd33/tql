@@ -1,0 +1,21 @@
+title: `traverse` at `Maybe` over a list fails when any element fails
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Int (mod);
+import Data.Maybe (Maybe(..));
+
+half n = if n `mod` 2 = 0 then Just (n / 2) else Nothing;
+
+main root = [traverse half [2, 4], traverse half [2, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[[1,2]]},{"tag":"Nothing","fields":[]}]
+
+--- types ---
+half :: Int -> Maybe Int
+main :: Node -> [Maybe [Int]]

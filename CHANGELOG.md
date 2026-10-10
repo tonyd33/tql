@@ -70,6 +70,8 @@
 - A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (arr (+ 1) x)` is `Int -> Int`.
 - Added the `Semigroup` and `Monoid` classes, with `append :: a -> a -> a` and `mempty :: a`, at lists, `Unit` and `Ordering`.
 - Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all`, `concat`, `has`, `first`, `or_else` and `collect` work at any `Foldable`, not only lists.
+- Added the `Traversable` class, whose method is `traverse`, and `sequence`: `sequence [[1, 2], [3, 4]]` is `[[1, 3], [1, 4], [2, 3], [2, 4]]`.
+- Added `Data.Maybe`: `import Data.Maybe (Maybe(..));` brings `Maybe`, `Nothing` and `Just`, a `Functor`, `Applicative`, `Alternative`, `Foldable` and `Traversable`.
 
 ### Improvements
 
