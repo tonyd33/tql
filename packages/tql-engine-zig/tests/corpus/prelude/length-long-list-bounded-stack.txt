@@ -4,7 +4,7 @@ asserts: values
 
 --- tql ---
 count n = if n <= 0 then Nil else Cons n (count (n - 1));
-main root = if length (count 100000) = 100000 then [1] else Nil;
+main = Filter (\_ -> if length (count 100000) = 100000 then [1] else Nil);
 
 --- source ---
 class A {}

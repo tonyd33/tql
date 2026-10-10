@@ -14,4 +14,4 @@ ys = [x for x in a, b]
 ["a", "b"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

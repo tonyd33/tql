@@ -1,0 +1,15 @@
+title: `main = pure v` yields `v` once
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+main :: Filter Node Int

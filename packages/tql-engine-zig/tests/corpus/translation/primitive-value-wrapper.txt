@@ -3,7 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-main = always "ab" | arr length;
+main = pure "ab" | arr length;
 
 --- source ---
 class A {}
@@ -15,11 +15,11 @@ class A {}
 main = {} \u {} ->
   let
     p = {} \u {} ->
-      let v = {} \u {} -> "ab" in
+      let y = {} \u {} -> "ab" in
       let
-        t1 = {v@0} \n {x} ->
+        t1 = {y@0} \n {_} ->
           let c0 = Nil in
-          Cons v@0 c0@2
+          Cons y@0 c0@2
       in
       t1@1
   in

@@ -6,7 +6,7 @@ asserts: types, values
 import Data.Foldable (any);
 
 starts_with_s n = text n ~ r"^S";
-named_s c = any starts_with_s (#name c);
+named_s c = any starts_with_s c#name;
 
 main =
   children | of_kind :class_declaration
@@ -24,4 +24,4 @@ class Store {}
 --- types ---
 starts_with_s :: Node -> Bool
 named_s :: Node -> Bool
-main :: Node -> [String]
+main :: Filter Node String

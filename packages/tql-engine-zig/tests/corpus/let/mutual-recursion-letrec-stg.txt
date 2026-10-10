@@ -6,14 +6,12 @@ asserts: core, types, values, stg
 one component, then generalized together.
 
 --- tql ---
-import Data.Function (const);
-
 main =
   let {
     is_even n = if n = 0 then true else is_odd (n - 1);
     is_odd n = if n = 0 then false else is_even (n - 1);
   }
-  in const [is_even 4, is_even 7];
+  in Filter (\_ -> [is_even 4, is_even 7]);
 
 --- source ---
 class A {}
@@ -31,10 +29,10 @@ main =
       False -> is_even (op[-] n 1)
       True -> False
   in
-  const (Cons (is_even 4) (Cons (is_even 7) Nil))
+  Filter (\_ -> Cons (is_even 4) (Cons (is_even 7) Nil))
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- stg ---
 main = {} \u {} ->
@@ -55,7 +53,7 @@ main = {} \u {} ->
         c3@2
   in
   let
-    x = {is_even@1} \u {} ->
+    t8 = {is_even@1} \n {_} ->
       let
         t4 = {is_even@0} \u {} -> is_even@0 4
         t7 = {is_even@0} \u {} ->
@@ -65,7 +63,6 @@ main = {} \u {} ->
           in
           Cons t5@1 c6@2
       in
-      Cons t4@1 t7@2
+      Cons t4@2 t7@3
   in
-  let t8 = {x@2} \n {y} -> x@0 in
-  t8@3
+  t8@2

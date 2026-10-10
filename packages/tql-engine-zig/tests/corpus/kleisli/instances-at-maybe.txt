@@ -26,7 +26,7 @@ chained = bind positive (\a -> Kleisli (\x -> Just (a + x)));
 halve :: Kleisli Maybe Int Int;
 halve = Kleisli (\x -> if x `mod` 2 = 0 then Just (x / 2) else Nothing);
 
-main root = [
+main = Filter (\_ -> [
   run_kleisli doubled 3,
   run_kleisli doubled (-3),
   run_kleisli summed 3,
@@ -36,7 +36,7 @@ main root = [
   run_kleisli (compose halve positive) 3,
   run_kleisli identity 5,
   run_kleisli empty 5
-];
+]);
 
 --- source ---
 class A {}
@@ -51,4 +51,4 @@ summed :: Kleisli Maybe Int Int
 fallback :: Kleisli Maybe Int Int
 chained :: Kleisli Maybe Int Int
 halve :: Kleisli Maybe Int Int
-main :: Node -> [Maybe Int]
+main :: Filter Node (Maybe Int)

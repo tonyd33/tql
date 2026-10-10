@@ -11,7 +11,7 @@ import Data.Function (compose, identity);
 
 add a b = a + b;
 adder n = if n = 0 then identity else compose (add 1) (adder (n - 1));
-main = always $ adder 1 10;
+main = pure $ adder 1 10;
 
 --- source ---
 class A {}
@@ -38,10 +38,10 @@ adder = {} \u {} ->
   in
   t3@0
 main = {} \u {} ->
-  let v = {} \u {} -> adder 1 10 in
+  let y = {} \u {} -> adder 1 10 in
   let
-    t1 = {v@0} \n {x} ->
+    t1 = {y@0} \n {_} ->
       let c0 = Nil in
-      Cons v@0 c0@2
+      Cons y@0 c0@2
   in
   t1@1

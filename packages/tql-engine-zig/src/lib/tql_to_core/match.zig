@@ -425,9 +425,9 @@ fn flatten(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayLi
 }
 
 /// `conjuncts` against one value, keeping the order they are written. A node
-/// pattern's fields become `(#f -> [p])` views. The first kinded node pattern
-/// `:k { .. }` becomes the outer view `(of_kind :k -> [..])` holding every
-/// conjunct; a later one nests inside it.
+/// pattern's fields become `(field[f] -> [p])` views. The first kinded node
+/// pattern `:k { .. }` becomes the outer view `(run (of_kind :k) -> [..])`
+/// holding every conjunct; a later one nests inside it.
 fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.Span) Error!Pattern {
     const b = lowerer.builder;
     var outer: ?cst.Pattern = null;
@@ -448,8 +448,7 @@ fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.S
             outer = conjunct;
         }
         for (n.fields) |f| {
-            var navigation: cst.Navigation = .{ .node = null, .field = f.name };
-            const function = try lowerer.expression(.{ .kind = .{ .navigation = &navigation }, .span = f.name_span }, null);
+            const function = try lowerer.fieldFunction(f.name, f.name_span);
             try inside.append(b.allocator, try view(lowerer, function, try expand(lowerer, f.pattern), false, f.span));
         }
     }
@@ -461,7 +460,8 @@ fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.S
     else
         try all(lowerer, inside.items, span);
     const kind = try lowerer.expression(.{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span }, null);
-    const function = try b.apply(try lowerer.known(.of_kind, node.span), kind, node.span);
+    const of_kind = try b.apply(try lowerer.known(.of_kind, node.span), kind, node.span);
+    const function = try b.apply(try lowerer.known(.run, node.span), of_kind, node.span);
     return try view(lowerer, function, element, true, node.span);
 }
 
@@ -624,8 +624,7 @@ const Checker = struct {
             .node => |n| {
                 if (n.kind) |kind| _ = try self.lowerer.expression(.{ .kind = .{ .kind_test = kind }, .span = n.kind_span }, null);
                 for (n.fields) |f| {
-                    var navigation: cst.Navigation = .{ .node = null, .field = f.name };
-                    _ = try self.lowerer.expression(.{ .kind = .{ .navigation = &navigation }, .span = f.name_span }, null);
+                    _ = try self.lowerer.fieldFunction(f.name, f.name_span);
                     try self.visit(f.pattern, false);
                 }
             },

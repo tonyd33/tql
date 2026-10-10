@@ -23,7 +23,7 @@ instance Describe Shape where {
   };
 };
 
-main root = describe (Group [Circle 1, Square 2]);
+main = Filter (\_ -> describe (Group [Circle 1, Square 2]));
 
 --- source ---
 class A {}
@@ -32,4 +32,4 @@ class A {}
 ["circle", "square"]
 
 --- simplified ---
-main = \root -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))
+main = \_ -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))

@@ -517,14 +517,10 @@ pub const Translator = struct {
     }
 
     /// How many arguments a primitive's denotation takes: the arrow count of
-    /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
-    /// primitive counts its input, making `children_of_kind` arity two.
+    /// its declared scheme.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
-        var arity: u32 = 0;
-        var walk = scheme.type;
-        while (walk == .function) : (walk = walk.function.to) arity += 1;
-        return arity;
+        return @intCast(core.types.arrowCount(scheme.type));
     }
 
     /// Wrap a primitive in a closure that applies it, so it can be passed as a

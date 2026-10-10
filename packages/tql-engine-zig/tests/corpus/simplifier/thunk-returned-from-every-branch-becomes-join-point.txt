@@ -3,10 +3,8 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 f b x = let { t = x * 2 + x * 3 + x * 4 + x * 5 } in if b then t else t;
-main = const [f True 1, f False 2];
+main = Filter (\_ -> [f True 1, f False 2]);
 
 --- source ---
 class A {}
@@ -20,6 +18,4 @@ f = \b -> \x ->
   case b of
     False -> jump t
     True -> jump t
-main =
-  let x = Cons (f True 1) (Cons (f False 2) Nil) in
-  \y -> x
+main = \_ -> Cons (f True 1) (Cons (f False 2) Nil)

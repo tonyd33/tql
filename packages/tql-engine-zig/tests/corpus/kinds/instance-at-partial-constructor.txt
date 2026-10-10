@@ -33,7 +33,7 @@ from_right d m = case m of {
   Right x -> x;
 };
 
-main root = [from_maybe 0 (mapf (+ 1) (Just 1)), from_right 0 (mapf (+ 1) (Right 2)), from_right 0 (mapf (+ 1) (Left "e"))];
+main = Filter (\_ -> [from_maybe 0 (mapf (+ 1) (Just 1)), from_right 0 (mapf (+ 1) (Right 2)), from_right 0 (mapf (+ 1) (Left "e"))]);
 
 --- source ---
 class A {}
@@ -43,4 +43,4 @@ class A {}
 --- types ---
 from_maybe :: a -> Maybe a -> a
 from_right :: a -> Either b a -> a
-main :: Node -> [Int]
+main :: Filter Node Int

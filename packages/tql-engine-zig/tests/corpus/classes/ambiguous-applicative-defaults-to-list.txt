@@ -2,14 +2,14 @@ title: an applicative nothing determines defaults to `List`
 grammar: typescript
 asserts: types, values
 
-`arr (+ 1) x` is some `f Int` with `Applicative f`, and `length` needs
+`pure (x + 1)` is some `f Int` with `Applicative f`, and `length` needs
 `Sized (f Int)`. Nothing else fixes `f`, and `List` satisfies both, so
 `count` takes no dictionary.
 
 --- tql ---
-count x = length (arr (+ 1) x);
+count x = length (pure (x + 1));
 
-main root = [count 1];
+main = pure (count 1);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 
 --- types ---
 count :: Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -14,4 +14,4 @@ class A {}
 [{"k":"class_declaration","n":{"kind":"class_declaration","text":"class A {}","start_byte":0,"end_byte":10,"start_point":{"row":0,"column":0},"end_point":{"row":0,"column":10}}}]
 
 --- types ---
-main :: Node -> [{k: Kind, n: Node}]
+main :: Filter Node {k: Kind, n: Node}

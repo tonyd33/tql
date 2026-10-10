@@ -602,10 +602,6 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
             try typeNames(gpa, f.from, out);
             try typeNames(gpa, f.to, out);
         },
-        .filter => |f| {
-            try typeNames(gpa, f.input, out);
-            try typeNames(gpa, f.output, out);
-        },
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
         .tuple => |components| for (components) |component| try typeNames(gpa, component, out),
         .builtin_constructor => {},

@@ -1,9 +1,9 @@
-title: kleisli applied to its input fuses its axis before it is inlined
+title: a composed filter run on its input fuses its axis before it is inlined
 grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main root = (descendants | of_kind :class_declaration | #name) root;
+main = Filter (\root -> run (descendants | of_kind :class_declaration | #name) root);
 
 --- source ---
 class A {}
@@ -24,4 +24,4 @@ class A {}
 main = \root -> bind[List] (%descendants_of_kind :class_declaration root) field[name]
 
 --- core ---
-main = \root -> kleisli (kleisli descendants (of_kind :class_declaration)) field[name] root
+main = Filter (\root -> run (compose_flipped (compose_flipped descendants (of_kind :class_declaration)) (Filter field[name])) root)

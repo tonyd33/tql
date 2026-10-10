@@ -3,10 +3,12 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main root = do {
+threes = do {
   [1, 2];
   return 3;
 };
+
+main = Filter (\_ -> threes);
 
 --- source ---
 class A {}
@@ -15,7 +17,9 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Node -> [Int]
+threes :: [Int]
+main :: Filter Node Int
 
 --- core ---
-main = \root -> bind (Cons 1 (Cons 2 Nil)) (\_ -> return 3)
+threes = bind (Cons 1 (Cons 2 Nil)) (\_ -> return 3)
+main = Filter (\_ -> threes)

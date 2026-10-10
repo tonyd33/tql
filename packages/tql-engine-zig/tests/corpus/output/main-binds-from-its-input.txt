@@ -1,0 +1,20 @@
+title: `main` is a `Filter Node tau` whose `do` reads the root
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main :: Filter Node (String, String);
+main = do {
+  root <- identity;
+  c <- children_of_kind :class_declaration;
+  return (kind_name root, kind_name c);
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[["program","class_declaration"]]
+
+--- types ---
+main :: Filter Node (String, String)

@@ -23,3 +23,37 @@ module Data.Node (
 );
 
 import Prim;
+import Data.Filter (Filter(..));
+
+filename :: Filter Node String;
+filename = Filter %filename;
+
+parent :: Filter Node Node;
+parent = Filter %parent;
+
+ancestors :: Filter Node Node;
+ancestors = Filter %ancestors;
+
+children :: Filter Node Node;
+children = Filter %children;
+
+named_children :: Filter Node Node;
+named_children = Filter %named_children;
+
+descendants :: Filter Node Node;
+descendants = Filter %descendants;
+
+named_descendants :: Filter Node Node;
+named_descendants = Filter %named_descendants;
+
+children_of_kind :: Kind -> Filter Node Node;
+children_of_kind k = Filter (%children_of_kind k);
+
+descendants_of_kind :: Kind -> Filter Node Node;
+descendants_of_kind k = Filter (%descendants_of_kind k);
+
+of_kind :: Kind -> Filter Node Node;
+of_kind k = Filter (\x -> case is_kind k x of {
+  False -> Nil;
+  True -> Cons x Nil;
+});

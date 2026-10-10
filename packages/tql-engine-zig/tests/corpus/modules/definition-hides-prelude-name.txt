@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 keep x = [x, x];
-main root = keep 1;
+main = Filter (\_ -> keep 1);
 
 --- source ---
 let x = 1;
@@ -14,4 +14,4 @@ let x = 1;
 
 --- types ---
 keep :: a -> [a]
-main :: Node -> [Int]
+main :: Filter Node Int

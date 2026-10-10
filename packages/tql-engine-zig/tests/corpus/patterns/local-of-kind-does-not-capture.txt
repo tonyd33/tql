@@ -3,9 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = do {
+main = do {
   let of_kind = \k n -> [n];
-  c@:class_declaration {} <- descendants root;
+  c@:class_declaration {} <- descendants;
   return $ text c;
 };
 

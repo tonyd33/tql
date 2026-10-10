@@ -1,0 +1,15 @@
+title: `main` whose type is not a `Filter` is rejected
+grammar: typescript
+asserts: error
+
+`main` is a `Filter Node b`. A list of outputs is not one.
+
+--- tql ---
+main = [1];
+
+--- error ---
+error[main-type]: Expected `Filter Node a`, found `[Int]`.
+ --> 1:1
+  |
+1 | main = [1];
+  | ^^^^^^^^^^^

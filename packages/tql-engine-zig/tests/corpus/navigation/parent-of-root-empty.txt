@@ -12,4 +12,4 @@ class A {}
 []
 
 --- types ---
-main :: Node -> [Kind]
+main :: Filter Node Kind

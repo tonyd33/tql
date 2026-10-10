@@ -16,7 +16,7 @@ let p = "a\\b";
 [true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- core ---
-main = kleisli (kleisli descendants (of_kind :string)) (arr (\s -> op[~] (text s) r"a\b"))
+main = compose_flipped (compose_flipped descendants (of_kind :string)) (arr (\s -> op[~] (text s) r"a\b"))

@@ -15,7 +15,7 @@ import Shape as S;
 perimeter :: S.Shape -> Int;
 perimeter s = case s of { S.Square n -> 4 * n; S.Rect w h -> 2 * (w + h) };
 
-main root = [S.area (S.Rect 2 3), perimeter (S.Square 2)];
+main = Filter (\_ -> [S.area (S.Rect 2 3), perimeter (S.Square 2)]);
 
 --- source ---
 let x = 1;
@@ -25,4 +25,4 @@ let x = 1;
 
 --- types ---
 perimeter :: Shape -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

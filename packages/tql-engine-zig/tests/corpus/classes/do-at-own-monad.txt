@@ -39,7 +39,7 @@ twice = do {
   return (a + b);
 };
 
-main root = [twice];
+main = pure twice;
 
 --- source ---
 class A {}
@@ -49,4 +49,4 @@ class A {}
 --- types ---
 tick :: a -> Counted a
 twice :: Counted Int
-main :: Node -> [Counted Int]
+main :: Filter Node (Counted Int)

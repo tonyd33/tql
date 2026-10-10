@@ -6,12 +6,11 @@ Every call of `any` passes `Foldable List`, so `foldr` in its body is
 `foldr[List]` and inlines into a loop.
 
 --- tql ---
-import Data.Function (const);
 import Data.Foldable (any);
 
 positive xs = any (\x -> x > 0) xs;
 
-main = const [positive [0, 1], positive [0]];
+main = Filter (\_ -> [positive [0, 1], positive [0]]);
 
 --- source ---
 class A {}
@@ -20,6 +19,4 @@ class A {}
 [true,false]
 
 --- simplified ---
-main =
-  let x = Cons (any (\x -> %gt_int x 0) (Cons 0 (Cons 1 Nil))) (Cons (any (\x -> %gt_int x 0) (Cons 0 Nil)) Nil) in
-  \y -> x
+main = \_ -> Cons (any (\x -> %gt_int x 0) (Cons 0 (Cons 1 Nil))) (Cons (any (\x -> %gt_int x 0) (Cons 0 Nil)) Nil)

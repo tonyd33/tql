@@ -6,11 +6,11 @@ Each method is paired with the class it came from: the outer binding stays in
 scope inside the inner branch.
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  m <- (#body | children | of_kind :method_definition) c;
-  cn <- c#name;
-  mn <- m#name;
+main = do {
+  c <- children_of_kind :class_declaration;
+  m <- pure c | #body | children | of_kind :method_definition;
+  cn <- pure c | #name;
+  mn <- pure m | #name;
   return { class = text cn, method = text mn };
 };
 
@@ -26,4 +26,4 @@ class B { p() {} }
 ]
 
 --- types ---
-main :: Node -> [{class: String, method: String}]
+main :: Filter Node {class: String, method: String}

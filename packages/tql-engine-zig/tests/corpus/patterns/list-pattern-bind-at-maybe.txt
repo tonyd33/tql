@@ -14,7 +14,7 @@ sum_of_two m = do {
   return (a + b);
 };
 
-main root = [sum_of_two (Just [1, 2]), sum_of_two (Just [1]), sum_of_two Nothing];
+main = Filter (\_ -> [sum_of_two (Just [1, 2]), sum_of_two (Just [1]), sum_of_two Nothing]);
 
 --- source ---
 class A {}
@@ -23,7 +23,7 @@ class A {}
 [{"tag":"Just","fields":[3]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
 --- types ---
 sum_of_two :: (Monad a, Alternative a) => a [Int] -> a Int
-main :: Node -> [Maybe Int]
+main :: Filter Node (Maybe Int)
 --- simplified ---
 sum_of_two = \m -> case m of
   Nothing -> Nothing
@@ -34,4 +34,4 @@ sum_of_two = \m -> case m of
       Cons b cons1 -> case cons1 of
         Nil -> Just (op[+] a b)
         Cons _ _ -> Nothing
-main = \root -> Cons (sum_of_two (Just (Cons 1 (Cons 2 Nil)))) (Cons (sum_of_two (Just (Cons 1 Nil))) (Cons Nothing Nil))
+main = \_ -> Cons (sum_of_two (Just (Cons 1 (Cons 2 Nil)))) (Cons (sum_of_two (Just (Cons 1 Nil))) (Cons Nothing Nil))

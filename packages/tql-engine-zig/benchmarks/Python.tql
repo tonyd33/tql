@@ -1,5 +1,3 @@
-import Data.Foldable (null);
-
 is_mutable n = is_kind :list n or is_kind :dictionary n or is_kind :set n;
 
 mutable_default =
@@ -7,9 +5,9 @@ mutable_default =
   | #value
   | keep is_mutable;
 
-bare_except = descendants_of_kind :except_clause | keep (null . #value);
+bare_except = descendants_of_kind :except_clause | keep (not . has #value);
 
-function_depth = length . (ancestors | of_kind :function_definition);
+function_depth = length . run (ancestors | of_kind :function_definition);
 
 nested_function = descendants_of_kind :function_definition | keep ((>= 2) . function_depth);
 
@@ -18,7 +16,7 @@ max_of acc xs = case xs of {
   h : t -> if h > acc then max_of h t else max_of acc t;
 };
 
-block_depth n = (if is_kind :block n then 1 else 0) + max_of 0 (map block_depth (named_children n));
+block_depth n = (if is_kind :block n then 1 else 0) + max_of 0 (map block_depth (run named_children n));
 
 deep_function = descendants_of_kind :function_definition | keep ((>= 6) . block_depth);
 

@@ -1,0 +1,18 @@
+title: a filter is not a function
+grammar: typescript
+asserts: error
+
+An axis is a `Filter Node Node`, which takes no argument by application.
+
+--- tql ---
+main = do {
+  c <- descendants;
+  return (children c);
+};
+
+--- error ---
+error[over-application]: `Filter Node Node` has no argument left to take.
+ --> 3:20
+  |
+3 |   return (children c);
+  |                    ^

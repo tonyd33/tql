@@ -1,0 +1,24 @@
+title: a call given every argument its type takes inlines, though its body takes more
+grammar: typescript
+asserts: values, simplified
+
+`keep p` builds a `Filter`, so `keep` takes one argument by its type. Its
+body, with the wrapper erased, takes two. Given one, it inlines.
+
+--- tql ---
+main = descendants | keep is_named | arr kind_name;
+
+--- source ---
+class A {}
+
+--- values ---
+["class_declaration","type_identifier","class_body"]
+
+--- simplified ---
+main = \x -> bind[List] (
+  bind[List] (%descendants x) (
+    \x -> case %is_named x of
+      False -> Nil
+      True -> Cons x Nil
+  )
+) (\x -> Cons (%kind_name x) Nil)

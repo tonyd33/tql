@@ -16,7 +16,7 @@ instance Mappable List where {
 
 twice g x = mapf g (mapf g x);
 
-main root = twice (+ 1) [1, 2];
+main = Filter (\_ -> twice (+ 1) [1, 2]);
 
 --- source ---
 class A {}
@@ -25,4 +25,4 @@ class A {}
 [3,4]
 --- types ---
 twice :: Mappable b => (a -> a) -> b a -> b a
-main :: Node -> [Int]
+main :: Filter Node Int

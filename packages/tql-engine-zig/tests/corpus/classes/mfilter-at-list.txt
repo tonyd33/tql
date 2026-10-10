@@ -7,12 +7,11 @@ calls `bind[List]`, which stays a call, so each kept element is a
 singleton list appended.
 
 --- tql ---
-import Data.Function (const);
 import Control.Monad (mfilter);
 
 positives xs = mfilter (\x -> x > 0) xs;
 
-main = const (positives [0, 1, 2]);
+main = Filter (\_ -> positives [0, 1, 2]);
 
 --- source ---
 class A {}
@@ -21,4 +20,4 @@ class A {}
 [1,2]
 
 --- simplified ---
-main = const (mfilter (\x -> %gt_int x 0) (Cons 0 (Cons 1 (Cons 2 Nil))))
+main = \_ -> mfilter (\x -> %gt_int x 0) (Cons 0 (Cons 1 (Cons 2 Nil)))

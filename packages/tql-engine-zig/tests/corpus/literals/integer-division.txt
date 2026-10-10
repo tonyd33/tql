@@ -3,9 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 
-main = const [7 / 2, -7 / 2, 8 / 2 / 2, 1 + 6 / 2];
+main = Filter (\_ -> [7 / 2, -7 / 2, 8 / 2 / 2, 1 + 6 / 2]);
 
 --- source ---
 class A {}
@@ -14,4 +13,4 @@ class A {}
 [3, -3, 2, 4]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

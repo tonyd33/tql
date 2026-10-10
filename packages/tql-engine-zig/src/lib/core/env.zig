@@ -218,4 +218,11 @@ pub const Env = struct {
     pub fn alwaysInlines(self: *const Env, symbol: symbols.SymbolId) bool {
         return self.always_inline.get(symbol) != null;
     }
+
+    /// The parameters `symbol` takes by its scheme: one per dictionary of its
+    /// context and one per arrow.
+    pub fn typedArity(self: *const Env, symbol: symbols.SymbolId) ?usize {
+        const scheme = self.schemeOf(symbol) orelse return null;
+        return self.classes.dictionaryCount(scheme.constraints) + types.arrowCount(scheme.type);
+    }
 };

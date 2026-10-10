@@ -6,10 +6,10 @@ Both methods of A precede the method of B: the outer bind's order is preserved
 and the inner bind's results are concatenated within each branch.
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  m <- (#body | children | of_kind :method_definition) c;
-  n <- m#name;
+main = do {
+  c <- children_of_kind :class_declaration;
+  m <- pure c | #body | children | of_kind :method_definition;
+  n <- pure m | #name;
   return $ text n;
 };
 
@@ -21,7 +21,7 @@ class B { p() {} }
 ["m", "n", "p"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = \root -> bind (children_of_kind :class_declaration root) (\c -> bind (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> bind (field[name] m) (\n -> return (text n))))
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (compose_flipped (compose_flipped (pure c) (Filter field[body])) children) (of_kind :method_definition)) (\m -> bind (compose_flipped (pure m) (Filter field[name])) (\n -> return (text n))))

@@ -5,7 +5,7 @@ asserts: error
 --- tql ---
 f xs = case xs of { [a, b] -> a; h : t -> h; };
 
-main = always (f [1]);
+main = pure (f [1]);
 
 --- error ---
 error[type-mismatch]: `[]` is not matched

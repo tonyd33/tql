@@ -5,11 +5,11 @@ asserts: error
 --- tql ---
 newtype Name = Name String;
 
-main root = [Name "a"];
+main = pure (Name "a");
 
 --- error ---
 error[unsatisfied-constraint]: `Serial Name` is not satisfied.
  --> 3:1
   |
-3 | main root = [Name "a"];
+3 | main = pure (Name "a");
   | ^^^^^^^^^^^^^^^^^^^^^^^

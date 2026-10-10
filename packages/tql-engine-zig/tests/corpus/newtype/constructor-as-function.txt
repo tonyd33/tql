@@ -10,7 +10,7 @@ unname n = case n of {
   Name s -> s;
 };
 
-main root = map unname (map Name ["a", "b"]);
+main = Filter (\_ -> map unname (map Name ["a", "b"]));
 
 --- source ---
 class A {}
@@ -20,8 +20,8 @@ class A {}
 
 --- simplified ---
 unname = \n -> n
-main = \root -> map[List] unname (map[List] (\x -> x) (Cons "a" (Cons "b" Nil)))
+main = \_ -> map[List] unname (map[List] (\x -> x) (Cons "a" (Cons "b" Nil)))
 
 --- types ---
 unname :: Name -> String
-main :: Node -> [String]
+main :: Filter Node String

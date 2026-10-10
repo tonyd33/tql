@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main = always :class_declaration <|> (descendants_of_kind :interface_declaration | arr kind);
+main = pure :class_declaration <|> (descendants_of_kind :interface_declaration | arr kind);
 
 --- source ---
 interface I {}
@@ -12,4 +12,4 @@ interface I {}
 ["class_declaration","interface_declaration"]
 
 --- types ---
-main :: Node -> [Kind]
+main :: Filter Node Kind

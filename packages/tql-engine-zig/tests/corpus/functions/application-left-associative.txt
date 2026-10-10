@@ -6,10 +6,8 @@ asserts: core, types, values
 is what left-associativity means here.
 
 --- tql ---
-import Data.Function (const);
-
 add x y = x + y;
-main = const [add 2 3, (add 2) 3];
+main = Filter (\_ -> [add 2 3, (add 2) 3]);
 
 --- source ---
 class A {}
@@ -19,8 +17,8 @@ class A {}
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = const (Cons (add 2 3) (Cons (add 2 3) Nil))
+main = Filter (\_ -> Cons (add 2 3) (Cons (add 2 3) Nil))

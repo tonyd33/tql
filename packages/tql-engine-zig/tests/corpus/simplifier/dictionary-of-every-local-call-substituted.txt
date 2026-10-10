@@ -3,14 +3,13 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-import Data.Function (const);
 import Data.List (drop);
 
 size xs = let {
   f ys = length ys + length ys * 2 + length ys * 3;
 } in f xs + f (drop 1 xs);
 
-main = const [size [1], size [1, 2]];
+main = Filter (\_ -> [size [1], size [1, 2]]);
 
 --- source ---
 class A {}
@@ -22,6 +21,4 @@ class A {}
 size = \xs ->
   let f = \ys -> op[+] (op[+] (length[List] ys) (op[*] (length[List] ys) 2)) (op[*] (length[List] ys) 3) in
   op[+] (f xs) (f (drop 1 xs))
-main =
-  let x = Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil) in
-  \y -> x
+main = \_ -> Cons (size (Cons 1 Nil)) (Cons (size (Cons 1 (Cons 2 Nil))) Nil)

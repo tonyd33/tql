@@ -5,7 +5,7 @@ asserts: values
 --- tql ---
 module Query (main);
 
-main root = [1];
+main = pure 1;
 
 --- source ---
 let x = 1;

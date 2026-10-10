@@ -32,8 +32,11 @@ pub const Known = enum {
     bind,
     empty,
     compose,
+    compose_flipped,
     kleisli,
-    @"union",
+    alt,
+    run,
+    Filter,
     of_kind,
 };
 

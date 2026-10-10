@@ -22,7 +22,7 @@ instance Pointed List where {
 
 bumped x = mapf (+ 1) (point x);
 
-main root = bumped 1;
+main = Filter (\_ -> bumped 1);
 
 --- source ---
 class A {}
@@ -31,4 +31,4 @@ class A {}
 [2]
 --- types ---
 bumped :: Pointed a => Int -> a Int
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -13,4 +13,4 @@ class B {}
 [0, 1]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

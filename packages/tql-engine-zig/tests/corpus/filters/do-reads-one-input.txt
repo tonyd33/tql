@@ -1,0 +1,28 @@
+title: a `do` over `Filter Node` gives every statement the same input
+grammar: typescript
+asserts: types, values, simplified
+
+`descendants_of_kind :k` and `identity` both read the block's input, the
+root. `pure c | #name` runs `#name` at another node. The simplified code is
+the list's own binds, with no dictionary and no bind over a one-element list.
+
+--- tql ---
+main = do {
+  root <- identity;
+  c <- descendants_of_kind :class_declaration;
+  n <- pure c | #name;
+  return (kind_name root, text n);
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["program","A"],["program","B"]]
+
+--- simplified ---
+main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> bind[List] (field[name] y) (\y -> Cons ((,) (%kind_name x) (%text y)) Nil))
+
+--- types ---
+main :: Filter Node (String, String)

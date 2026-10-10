@@ -5,8 +5,9 @@ asserts: values
 --- tql ---
 import Data.List (zip);
 
-main root = do {
-  (n, c) <- zip [1, 2] (children root);
+main = do {
+  root <- identity;
+  (n, c) <- Filter (\_ -> zip [1, 2] (run children root));
   return (n, text c);
 };
 

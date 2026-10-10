@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Control.Monad (join);
 
-main root = append (bind [1, 2] (\x -> [x, x * 10])) (join [[3], [], [4, 5]]);
+main = Filter (\_ -> append (bind [1, 2] (\x -> [x, x * 10])) (join [[3], [], [4, 5]]));
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 [1,10,2,20,3,4,5]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

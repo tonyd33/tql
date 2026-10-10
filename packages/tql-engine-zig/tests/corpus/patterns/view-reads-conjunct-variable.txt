@@ -3,12 +3,10 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const $ do {
+main = Filter (\_ -> do {
   n & ((* n) -> 9) <- [1, 2, 3, 4];
   return n;
-};
+});
 
 --- source ---
 class A {}
@@ -17,8 +15,8 @@ class A {}
 [3]
 
 --- core ---
-main = const (
-  bind (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) (
+main = Filter (
+  \_ -> bind (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))) (
     \n ->
       let view = (\x -> op[*] x n) n in
       case eq view 9 of

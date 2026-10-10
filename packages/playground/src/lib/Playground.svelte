@@ -16,10 +16,10 @@ int_params =
   | #declarator
   | arr text;
 
-main root = do {
-  f <- descendants_of_kind :function_definition root;
-  name <- (#declarator | #declarator) f;
-  return { func = text name, int_params = int_params f };
+main = do {
+  f <- descendants_of_kind :function_definition;
+  name <- pure f | #declarator | #declarator;
+  return { func = text name, int_params = run int_params f };
 };`);
   let target = $state(`#include <stddef.h>
 #include <stdio.h>

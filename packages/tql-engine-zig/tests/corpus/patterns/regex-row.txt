@@ -3,11 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 f s = case s of { r"^on" -> "handler"; _ -> "other"; };
 
-main = const [f "onClick", f "render"];
+main = Filter (\_ -> [f "onClick", f "render"]);
 
 --- source ---
 class A {}
@@ -19,4 +17,4 @@ class A {}
 f = \s -> case op[~] s r"^on" of
   False -> "other"
   True -> "handler"
-main = const (Cons (f "onClick") (Cons (f "render") Nil))
+main = Filter (\_ -> Cons (f "onClick") (Cons (f "render") Nil))

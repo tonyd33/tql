@@ -186,8 +186,9 @@ pub const Registry = struct {
         return self.by_head.get(.{ .class = class, .head = head });
     }
 
-    /// How many constraints of `context` have dictionary evidence.
-    pub fn dictionaryCount(self: *const Registry, context: []const Requirement) usize {
+    /// How many constraints of `context`, each with a `class`, have
+    /// dictionary evidence.
+    pub fn dictionaryCount(self: *const Registry, context: anytype) usize {
         var count: usize = 0;
         for (context) |c| {
             if (self.evidenceOf(c.class) == .dictionary) count += 1;

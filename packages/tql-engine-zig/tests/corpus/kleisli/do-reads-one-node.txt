@@ -12,11 +12,11 @@ ask = identity;
 pairs :: Kleisli List Node (String, String);
 pairs = do {
   n <- ask;
-  c <- Kleisli named_children;
+  c <- Kleisli (run named_children);
   return (kind_name n, kind_name c);
 };
 
-main = descendants_of_kind :class_declaration | run_kleisli pairs;
+main = descendants_of_kind :class_declaration | Filter (run_kleisli pairs);
 
 --- source ---
 class A { b() {} }
@@ -25,7 +25,7 @@ class A { b() {} }
 [["class_declaration","type_identifier"],["class_declaration","class_body"]]
 
 --- simplified ---
-pairs = \x -> bind[List] (Cons x Nil) (\y -> bind[List] (%named_children x) (\y' -> Cons ((,) (%kind_name y) (%kind_name y')) Nil))
+pairs = \x -> bind[List] (%named_children x) (\y -> Cons ((,) (%kind_name x) (%kind_name y)) Nil)
 main =
   let p = %descendants_of_kind :class_declaration in
   \x -> bind[List] (p x) pairs
@@ -33,4 +33,4 @@ main =
 --- types ---
 ask :: Kleisli List Node Node
 pairs :: Kleisli List Node (String, String)
-main :: Node -> [(String, String)]
+main :: Filter Node (String, String)

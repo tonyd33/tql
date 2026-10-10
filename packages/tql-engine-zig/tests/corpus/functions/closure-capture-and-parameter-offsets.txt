@@ -4,7 +4,7 @@ asserts: values, stg
 
 --- tql ---
 f a b c = \x -> c - a * x - b;
-main = always $ f 1 30 3 0;
+main = pure $ f 1 30 3 0;
 
 --- source ---
 class A {}
@@ -25,10 +25,10 @@ f = {} \u {} ->
   in
   t2@0
 main = {} \u {} ->
-  let v = {} \u {} -> f 1 30 3 0 in
+  let y = {} \u {} -> f 1 30 3 0 in
   let
-    t1 = {v@0} \n {x} ->
+    t1 = {y@0} \n {_} ->
       let c0 = Nil in
-      Cons v@0 c0@2
+      Cons y@0 c0@2
   in
   t1@1

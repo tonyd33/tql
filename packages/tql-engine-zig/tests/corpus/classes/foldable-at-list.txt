@@ -5,12 +5,12 @@ asserts: types, values
 --- tql ---
 import Data.Foldable (fold_map, fold, to_list, concat);
 
-main root = concat [
+main = Filter (\_ -> concat [
   foldr (:) [] [1, 2],
   fold_map (\x -> [x, x]) [3],
   fold [[4], [], [5]],
   to_list [6],
-];
+]);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 [1,2,3,3,4,5,6]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -70,6 +70,7 @@ pub const Laws = struct {
     known: *const std.EnumArray(core.Known, ?core.SymbolId),
     list: core.datatypes.TypeId,
     nil: core.SymbolId,
+    cons: core.SymbolId,
     false_: core.SymbolId,
     true_: core.SymbolId,
     /// `LT`, `EQ` and `GT`.
@@ -86,7 +87,29 @@ pub const Laws = struct {
     ) Allocator.Error!?core.Term {
         if (try self.fuseKindAxis(function, argument, span)) |fused| return fused;
         if (try self.selectKnownMethod(function, argument, span)) |selected| return selected;
+        if (try self.bindKnownList(function, argument, span)) |bound| return bound;
         return try self.fuseKindBind(function, argument, span);
+    }
+
+    /// `bind (Cons e Nil) f` becomes `f e`, and `bind Nil f` becomes `Nil`,
+    /// at the `List` instance. `empty` at the `List` instance may stand for
+    /// `Nil`.
+    fn bindKnownList(
+        self: *const Laws,
+        function: core.Term,
+        argument: core.Term,
+        span: diagnostic.Span,
+    ) Allocator.Error!?core.Term {
+        const call = switch (function.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        if (!self.isListMethod(call.function, .bind)) return null;
+        const list = call.argument;
+        if (isSymbol(list, self.nil) or self.isListMethod(list, .empty)) return list;
+        if (!isSymbol(list.head(), self.cons)) return null;
+        if (!isSymbol(spineArgument(list, 2, 1) orelse return null, self.nil)) return null;
+        return try self.builder.apply(argument, spineArgument(list, 2, 0).?, span);
     }
 
     /// Applies `result` to the arguments of `t`'s spine, in order.

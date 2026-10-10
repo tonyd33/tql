@@ -1,9 +1,6 @@
 module Data.Filter (
-  always,
-  none,
-  kleisli,
-  union,
-  arr,
+  Filter(..),
+  run,
   collect,
   keep,
   has,
@@ -12,35 +9,73 @@ module Data.Filter (
 
 import Prim (Bool(..));
 import Data.Bool (not);
+import Data.Tuple (fst, snd);
+import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..));
-import Data.Foldable (Foldable(..), to_list, null);
-import Control.Monad (kleisli);
+import Data.Foldable (null);
+import Control.Monad (Monad(..), kleisli);
+import Control.Category (Category(..));
+import Control.Arrow (Arrow(..), ArrowZero(..), ArrowPlus(..));
 
-always :: Applicative f => b -> a -> f b;
-always v x = pure v;
+newtype Filter a b = Filter (a -> [b]);
 
-none :: Alternative f => a -> f b;
-none x = empty;
-
-union :: Alternative f => (a -> f b) -> (a -> f b) -> a -> f b;
-union p q x = alt (p x) (q x);
-
-arr :: Applicative f => (a -> b) -> a -> f b;
-arr f x = pure (f x);
-
-collect :: (Foldable g, Applicative f) => (a -> g b) -> a -> f [b];
-collect p x = pure $ to_list $ p x;
-
-keep :: Alternative f => (a -> Bool) -> a -> f a;
-keep p x = case p x of {
-  False -> empty;
-  True -> pure x;
+run :: Filter a b -> a -> [b];
+run f = case f of {
+  Filter g -> g;
 };
 
-has :: Foldable f => (a -> f b) -> a -> Bool;
-has p x = not $ null $ p x;
+instance Functor (Filter a) where {
+  map f p = Filter (\x -> map f (run p x));
+};
 
-or_else :: Foldable f => (a -> f b) -> (a -> f b) -> a -> f b;
-or_else primary fallback x = let {
-  results = primary x;
-} in if null results then fallback x else results;
+instance Applicative (Filter a) where {
+  pure y = Filter (\_ -> pure y);
+  ap pf py = Filter (\x -> ap (run pf x) (run py x));
+};
+
+instance Alternative (Filter a) where {
+  empty = Filter (\_ -> empty);
+  alt p q = Filter (\x -> alt (run p x) (run q x));
+};
+
+instance Monad (Filter a) where {
+  bind p f = Filter (\x -> bind (run p x) (\y -> run (f y) x));
+};
+
+instance Category Filter where {
+  identity = Filter pure;
+  compose g f = Filter (kleisli (run f) (run g));
+};
+
+instance Arrow Filter where {
+  arr f = Filter (pure . f);
+  first p = Filter (\q -> map (\b -> (b, snd q)) (run p (fst q)));
+  second p = Filter (\q -> map (\b -> (fst q, b)) (run p (snd q)));
+  split f g = Filter (\q -> ap (map (,) (run f (fst q))) (run g (snd q)));
+  fanout f g = ap (map (,) f) g;
+};
+
+instance ArrowZero Filter where {
+  zero_arrow = empty;
+};
+
+instance ArrowPlus Filter where {
+  plus = alt;
+};
+
+collect :: Filter a b -> Filter a [b];
+collect p = Filter (\x -> pure (run p x));
+
+keep :: (a -> Bool) -> Filter a a;
+keep p = Filter (\x -> case p x of {
+  False -> empty;
+  True -> pure x;
+});
+
+has :: Filter a b -> a -> Bool;
+has p x = not $ null $ run p x;
+
+or_else :: Filter a b -> Filter a b -> Filter a b;
+or_else primary fallback = Filter (\x -> let {
+  results = run primary x;
+} in if null results then run fallback x else results);

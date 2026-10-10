@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..));
 
 half n = if n `mod` 2 = 0 then Just (n / 2) else Nothing;
 
-main root = [
+main = Filter (\_ -> [
   bind (Just 4) half,
   bind (Just 3) half,
   join $ Just $ half 6,
@@ -17,7 +17,7 @@ main root = [
   kleisli half half 6,
   mfilter (> 1) $ Just 4,
   mfilter (> 1) $ Just 1,
-];
+]);
 
 --- source ---
 class A {}
@@ -27,4 +27,4 @@ class A {}
 
 --- types ---
 half :: Int -> Maybe Int
-main :: Node -> [Maybe Int]
+main :: Filter Node (Maybe Int)

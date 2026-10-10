@@ -6,8 +6,6 @@ As written, the join point is bound inside the scrutinee, and the evaluation
 without `core_to_core` runs it there, in a nested evaluation.
 
 --- tql ---
-import Data.Function (const);
-
 label xs = case (
   case xs of {
     [x] -> x > 10;
@@ -17,7 +15,7 @@ label xs = case (
   True -> "big";
   False -> "small";
 };
-main = const [label [1], label [1, 2], label [20]];
+main = Filter (\_ -> [label [1], label [1, 2], label [20]]);
 
 --- source ---
 class A {}
@@ -40,6 +38,4 @@ label = \xs ->
         False -> jump j
         True -> jump j'
       Cons _ _ -> jump alternative xs
-main =
-  let x = Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil)) in
-  \y -> x
+main = \_ -> Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil))

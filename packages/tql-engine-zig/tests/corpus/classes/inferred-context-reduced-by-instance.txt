@@ -23,7 +23,7 @@ instance Describe a => Describe [a] where {
 
 f x = describe [x];
 
-main root = f 1;
+main = Filter (\_ -> f 1);
 
 --- source ---
 class A {}
@@ -33,4 +33,4 @@ class A {}
 
 --- types ---
 f :: Describe a => a -> [String]
-main :: Node -> [String]
+main :: Filter Node String

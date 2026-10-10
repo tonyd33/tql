@@ -701,11 +701,6 @@ pub const FunctionType = struct {
     to: Type,
 };
 
-pub const FilterType = struct {
-    input: Type,
-    output: Type,
-};
-
 /// A bracketed type constructor.
 pub const BuiltinConstructor = union(enum) {
     /// `(,)`, the constructor of tuple types with `arity` components.
@@ -908,15 +903,13 @@ pub const Type = struct {
     span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
-        /// A concrete type name: `Filter`'s operands aside, anything
-        /// capitalized.
+        /// A concrete type name: anything capitalized.
         constructor: Identifier,
         /// A declared type or a type variable at its arguments, like
         /// `List a` or `f a`.
         application: *TypeApplication,
         variable: Identifier,
         function: *FunctionType,
-        filter: *FilterType,
         list: *Type,
         /// `(a, b, ..)`, or `()` with no components.
         tuple: []const Type,
@@ -955,13 +948,6 @@ pub const Type = struct {
                 try f.from.sexpr(w);
                 try w.writeByte(' ');
                 try f.to.sexpr(w);
-                try w.writeByte(')');
-            },
-            .filter => |f| {
-                try w.writeAll("(Filter ");
-                try f.input.sexpr(w);
-                try w.writeByte(' ');
-                try f.output.sexpr(w);
                 try w.writeByte(')');
             },
             .list => |t| {

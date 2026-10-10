@@ -3,8 +3,8 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-main root = do {
-  "class" <- descendants root;
+main = do {
+  "class" <- descendants;
   return 1;
 };
 
@@ -12,5 +12,5 @@ main root = do {
 error[type-mismatch]: Expected `Node`, found `String`.
  --> 2:3
   |
-2 |   "class" <- descendants root;
+2 |   "class" <- descendants;
   |   ^^^^^^^

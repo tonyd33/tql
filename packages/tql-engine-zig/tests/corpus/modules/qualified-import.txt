@@ -10,7 +10,7 @@ double x = x * 2;
 --- tql ---
 import Numbers as N;
 
-main root = [N.double 4];
+main = pure (N.double 4);
 
 --- source ---
 let x = 1;

@@ -3,9 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-kleisli f g x = [];
-union f g x = [];
-main root = ((\x -> [1, 2]) | (\n -> [n * 10]) <|> (\x -> [3])) root;
+compose f g x = [];
+alt f g x = [];
+main = Filter (\x -> [1, 2]) | Filter (\n -> [n * 10]) <|> Filter (\x -> [3]);
 
 --- source ---
 let x = 1;

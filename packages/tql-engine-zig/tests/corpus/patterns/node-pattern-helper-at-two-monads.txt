@@ -14,7 +14,7 @@ class_name m = do {
   return $ text c;
 };
 
-main root = [{in_list = class_name (children root), in_maybe = class_name (Just root)}];
+main = arr (\root -> {in_list = class_name (run children root), in_maybe = class_name (Just root)});
 
 --- source ---
 class A {}
@@ -23,7 +23,7 @@ class A {}
 [{"in_list":["class A {}"],"in_maybe":{"tag":"Nothing","fields":[]}}]
 --- types ---
 class_name :: (Monad a, Alternative a) => a Node -> a String
-main :: Node -> [{in_list: [String], in_maybe: Maybe String}]
+main :: Filter Node {in_list: [String], in_maybe: Maybe String}
 --- simplified ---
 class_name = \d -> \d' -> \m -> case d of
   dict[Monad] _ m' -> m' m (
@@ -34,4 +34,4 @@ class_name = \d -> \d' -> \m -> case d of
         dict[Monad] m _ -> case m of
           dict[Applicative] _ m _ -> m (%text c)
   )
-main = \root -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children root)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just root))) Nil
+main = \x -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children x)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just x))) Nil

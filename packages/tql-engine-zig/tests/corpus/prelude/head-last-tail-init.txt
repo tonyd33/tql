@@ -5,12 +5,12 @@ asserts: types, values
 --- tql ---
 import Data.List (tail, init);
 
-main root = [(
+main = pure (
   [head [1, 2, 3], head []],
   [last [1, 2, 3], last [1], last []],
   [tail [1, 2, 3], tail []],
   [init [1, 2, 3], init [1], init []]
-)];
+);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 [[[{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[3]},{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[[2,3]]},{"tag":"Nothing","fields":[]}],[{"tag":"Just","fields":[[1,2]]},{"tag":"Just","fields":[[]]},{"tag":"Nothing","fields":[]}]]]
 
 --- types ---
-main :: Node -> [([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])]
+main :: Filter Node ([Maybe Int], [Maybe Int], [Maybe [Int]], [Maybe [Int]])

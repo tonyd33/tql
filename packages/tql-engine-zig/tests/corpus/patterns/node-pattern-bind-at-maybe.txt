@@ -15,7 +15,7 @@ name_of m = do {
   return $ text n;
 };
 
-main root = append (map (\c -> name_of (Just c)) (children root)) [name_of (Just root), name_of Nothing];
+main = ((children <|> identity) | arr (name_of . Just)) <|> pure (name_of Nothing);
 
 --- source ---
 class A {}
@@ -24,11 +24,11 @@ class A {}
 [{"tag":"Just","fields":["A"]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
 --- types ---
 name_of :: (Monad a, Alternative a) => a Node -> a String
-main :: Node -> [Maybe String]
+main :: Filter Node (Maybe String)
 --- core ---
 name_of = \m -> bind m (
   \scrutinee ->
-    let view = of_kind :class_declaration scrutinee in
+    let view = run (of_kind :class_declaration) scrutinee in
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
@@ -41,7 +41,7 @@ name_of = \m -> bind m (
               Cons _ _ -> empty
             Cons _ _ -> empty
 )
-main = \root -> append (map (\c -> name_of (Just c)) (children root)) (Cons (name_of (Just root)) (Cons (name_of Nothing) Nil))
+main = alt (compose_flipped (alt children identity) (arr (compose name_of Just))) (pure (name_of Nothing))
 --- simplified ---
 name_of = \m -> case m of
   Nothing -> Nothing
@@ -52,4 +52,4 @@ name_of = \m -> case m of
       Cons n cons1 -> case cons1 of
         Nil -> Just (%text n)
         Cons _ _ -> Nothing
-main = \root -> append[List] (map[List] (\c -> name_of (Just c)) (%children root)) (Cons (name_of (Just root)) (Cons Nothing Nil))
+main = \x -> append[List] (bind[List] (append[List] (%children x) (Cons x Nil)) (\x -> Cons (name_of (Just x)) Nil)) (Cons Nothing Nil)

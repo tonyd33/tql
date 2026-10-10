@@ -11,7 +11,7 @@ describe c = case c of {
   Code _ -> "failed";
 };
 
-main root = [describe (Code 0), describe (Code 2)];
+main = Filter (\_ -> [describe (Code 0), describe (Code 2)]);
 
 --- source ---
 class A {}

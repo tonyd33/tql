@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 double x = x * 2;
-main = always (double 21);
+main = pure (double 21);
 
 --- source ---
 class A {}
@@ -14,9 +14,9 @@ class A {}
 
 --- simplified ---
 main =
-  let v = op[*] 21 2 in
-  \x -> Cons v Nil
+  let y = op[*] 21 2 in
+  \_ -> Cons y Nil
 
 --- core ---
 double = \x -> op[*] x 2
-main = always (double 21)
+main = pure (double 21)

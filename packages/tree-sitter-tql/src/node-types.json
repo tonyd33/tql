@@ -4559,104 +4559,6 @@
     }
   },
   {
-    "type": "filter_type",
-    "named": true,
-    "fields": {
-      "input": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "function_constructor",
-            "named": true
-          },
-          {
-            "type": "list_type",
-            "named": true
-          },
-          {
-            "type": "parenthesized_type",
-            "named": true
-          },
-          {
-            "type": "qualified_type_identifier",
-            "named": true
-          },
-          {
-            "type": "record_type",
-            "named": true
-          },
-          {
-            "type": "tuple_constructor",
-            "named": true
-          },
-          {
-            "type": "tuple_type",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
-            "named": true
-          },
-          {
-            "type": "type_variable",
-            "named": true
-          },
-          {
-            "type": "unit",
-            "named": true
-          }
-        ]
-      },
-      "output": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "function_constructor",
-            "named": true
-          },
-          {
-            "type": "list_type",
-            "named": true
-          },
-          {
-            "type": "parenthesized_type",
-            "named": true
-          },
-          {
-            "type": "qualified_type_identifier",
-            "named": true
-          },
-          {
-            "type": "record_type",
-            "named": true
-          },
-          {
-            "type": "tuple_constructor",
-            "named": true
-          },
-          {
-            "type": "tuple_type",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
-            "named": true
-          },
-          {
-            "type": "type_variable",
-            "named": true
-          },
-          {
-            "type": "unit",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "function_constructor",
     "named": true,
     "fields": {}
@@ -4669,10 +4571,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "filter_type",
-            "named": true
-          },
           {
             "type": "function_constructor",
             "named": true
@@ -4723,10 +4621,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "filter_type",
-            "named": true
-          },
           {
             "type": "function_constructor",
             "named": true
@@ -6789,10 +6683,6 @@
       "required": true,
       "types": [
         {
-          "type": "filter_type",
-          "named": true
-        },
-        {
           "type": "function_constructor",
           "named": true
         },
@@ -8570,10 +8460,6 @@
       "required": true,
       "types": [
         {
-          "type": "filter_type",
-          "named": true
-        },
-        {
           "type": "function_constructor",
           "named": true
         },
@@ -8642,10 +8528,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "filter_type",
-            "named": true
-          },
           {
             "type": "function_constructor",
             "named": true
@@ -9386,10 +9268,6 @@
         "required": true,
         "types": [
           {
-            "type": "filter_type",
-            "named": true
-          },
-          {
             "type": "function_constructor",
             "named": true
           },
@@ -9731,10 +9609,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "filter_type",
-            "named": true
-          },
           {
             "type": "function_constructor",
             "named": true
@@ -10462,10 +10336,6 @@
       "required": true,
       "types": [
         {
-          "type": "filter_type",
-          "named": true
-        },
-        {
           "type": "function_constructor",
           "named": true
         },
@@ -10544,10 +10414,6 @@
         "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "filter_type",
-            "named": true
-          },
           {
             "type": "function_constructor",
             "named": true
@@ -11391,10 +11257,6 @@
   },
   {
     "type": "@",
-    "named": false
-  },
-  {
-    "type": "Filter",
     "named": false
   },
   {

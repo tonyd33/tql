@@ -6,15 +6,13 @@ asserts: core, values
 row matches. The last row is reached from several paths and is bound once.
 
 --- tql ---
-import Data.Function (const);
-
 f xs = case xs of {
   [a, b] if a = b -> "pair";
   [_, _] -> "two";
   _ -> "other";
 };
 
-main = const [f [1, 1], f [1, 2], f [1]];
+main = Filter (\_ -> [f [1, 1], f [1, 2], f [1]]);
 
 --- source ---
 class A {}
@@ -34,4 +32,4 @@ f = \xs ->
           False -> "two"
           True -> "pair"
         Cons _ _ -> jump alternative
-main = const (Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))
+main = Filter (\_ -> Cons (f (Cons 1 (Cons 1 Nil))) (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 1 Nil)) Nil)))

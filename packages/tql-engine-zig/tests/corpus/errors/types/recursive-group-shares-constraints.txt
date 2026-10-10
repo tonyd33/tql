@@ -8,11 +8,11 @@ carry `Eq a` too. Calling `g` at `Regex` is refused just as calling `f` is.
 --- tql ---
 f x = if x = x then 1 else g x;
 g x = f x;
-main = always (g r"a");
+main = pure (g r"a");
 
 --- error ---
 error[unsatisfied-constraint]: `Eq Regex` is not satisfied.
- --> 3:16
+ --> 3:14
   |
-3 | main = always (g r"a");
-  |                ^
+3 | main = pure (g r"a");
+  |              ^

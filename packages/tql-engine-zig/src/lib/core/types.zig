@@ -63,6 +63,14 @@ pub const Kind = union(enum) {
         };
     }
 
+    /// How many arrows `t` is written with before its result.
+    pub fn arrowCount(t: Type) usize {
+        var count: usize = 0;
+        var walk = t;
+        while (walk == .function) : (walk = walk.function.to) count += 1;
+        return count;
+    }
+
     /// Returns `froms[0] -> .. -> froms[n-1] -> to`.
     pub fn arrows(allocator: std.mem.Allocator, froms: []const Kind, to: Kind) std.mem.Allocator.Error!Kind {
         var result = to;
@@ -485,6 +493,7 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
+pub const filter_spelling = "Filter";
 pub const function_spelling = "(->)";
 
 /// The most components a tuple has.
@@ -598,6 +607,14 @@ pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     const arrow = try allocator.create(Type.Arrow);
     arrow.* = .{ .from = from, .to = to };
     return .{ .function = arrow };
+}
+
+/// How many arrows `t` is written with before its result.
+pub fn arrowCount(t: Type) usize {
+    var count: usize = 0;
+    var walk = t;
+    while (walk == .function) : (walk = walk.function.to) count += 1;
+    return count;
 }
 
 /// Returns `froms[0] -> .. -> froms[n-1] -> to`.

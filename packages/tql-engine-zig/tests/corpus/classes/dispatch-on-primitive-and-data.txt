@@ -21,7 +21,7 @@ instance Describe Shape where {
   describe s = case s of { Circle _ -> "circle"; Square _ -> "square" };
 };
 
-main root = [describe 1, describe "text", describe (Square 2)];
+main = Filter (\_ -> [describe 1, describe "text", describe (Square 2)]);
 
 --- source ---
 class A {}

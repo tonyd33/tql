@@ -12,7 +12,7 @@ unwrap w = case w of {
   Wrap x -> x;
 };
 
-main root = unwrap (Wrap [1, 2]);
+main = Filter (\_ -> unwrap (Wrap [1, 2]));
 
 --- source ---
 class A {}
@@ -21,4 +21,4 @@ class A {}
 [1,2]
 --- types ---
 unwrap :: Wrap a b -> a b
-main :: Node -> [Int]
+main :: Filter Node Int

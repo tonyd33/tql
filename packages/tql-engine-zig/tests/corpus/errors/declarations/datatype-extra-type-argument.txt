@@ -5,7 +5,7 @@ asserts: error
 --- tql ---
 data Box a = B a;
 data T = C (Box Int String);
-main = always 1;
+main = pure 1;
 
 --- error ---
 error[kind-mismatch]: `Box` has kind `Type -> Type`: it takes 1 type argument(s), given 2

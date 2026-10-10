@@ -260,16 +260,6 @@ pub const Registry = struct {
         return try types.constructed(arena, self.orderingId(), types.ordering_spelling, &.{});
     }
 
-    /// `Filter a b` = `a -> [b]`.
-    pub fn filter(
-        self: *const Registry,
-        arena: Allocator,
-        input: types.Type,
-        output: types.Type,
-    ) !types.Type {
-        return try types.func(arena, input, try self.list(arena, output));
-    }
-
     /// `name`, `parameters` and the constructor slice must outlive the
     /// registry; all are expected to live in the program arena. Each constructor's symbol is
     /// pointed back at the datatype declaring it.

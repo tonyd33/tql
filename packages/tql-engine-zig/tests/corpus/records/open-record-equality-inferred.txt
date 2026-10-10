@@ -3,10 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 
 same_name a b = a.name = b.name;
-main = const [same_name {name = 1, k = 2} {name = 1, j = "x"}];
+main = pure $ same_name {name = 1, k = 2} {name = 1, j = "x"};
 
 --- source ---
 class A {}
@@ -16,4 +15,4 @@ class A {}
 
 --- types ---
 same_name :: Eq a => {name: a | b} -> {name: a | c} -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

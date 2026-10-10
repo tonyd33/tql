@@ -12,11 +12,11 @@ rewrap g w = case w of {
   Wrap x -> Wrap (g x);
 };
 
-main root = [1];
+main = pure 1;
 
 --- source ---
 class A {}
 
 --- types ---
 rewrap :: (a b -> c d) -> Wrap a b -> Wrap c d
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -10,7 +10,7 @@ first p = case p of {
   Pair (x, _) -> x;
 };
 
-main root = [first (Pair (1, 2))];
+main = pure $ first (Pair (1, 2));
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 
 --- types ---
 first :: Pair a -> a
-main :: Node -> [Int]
+main :: Filter Node Int

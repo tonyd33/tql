@@ -3,11 +3,9 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-import Data.Function (const);
-
 n = 100;
 shadowed n = n + 1;
-main = const [shadowed 1, n];
+main = Filter (\_ -> [shadowed 1, n]);
 
 --- source ---
 class A {}
@@ -18,9 +16,9 @@ class A {}
 --- types ---
 n :: Int
 shadowed :: Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 n = 100
 shadowed = \n -> op[+] n 1
-main = const (Cons (shadowed 1) (Cons n Nil))
+main = Filter (\_ -> Cons (shadowed 1) (Cons n Nil))

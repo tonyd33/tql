@@ -7,7 +7,7 @@ only to know whether a first result exists. A strict implementation that
 materialized the stream would not terminate.
 
 --- tql ---
-from n = always n <|> from (n + 1);
+from n = pure n <|> from (n + 1);
 nats = from 0;
 main = arr (has nats);
 
@@ -18,6 +18,6 @@ class A {}
 [true]
 
 --- types ---
-from :: Alternative b => Int -> a -> b Int
-nats :: Alternative b => a -> b Int
-main :: Node -> [Bool]
+from :: Alternative a => Int -> a Int
+nats :: Alternative a => a Int
+main :: Filter Node Bool

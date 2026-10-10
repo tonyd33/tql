@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 wrap x = return (x + 1);
 
-main root = wrap 1;
+main = Filter (\_ -> wrap 1);
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 wrap :: Applicative a => Int -> a Int
-main :: Node -> [Int]
+main :: Filter Node Int

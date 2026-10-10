@@ -20,7 +20,7 @@ over_list xs = do {
   return (x + 10);
 };
 
-main root = [{at_maybe = [checked (Just 1), checked (Just 2)], at_list = over_list [1, 2, 1]}];
+main = pure {at_maybe = [checked (Just 1), checked (Just 2)], at_list = over_list [1, 2, 1]};
 
 --- source ---
 class A {}
@@ -34,10 +34,10 @@ checked = \m -> case m of
     False -> Nothing
     True -> Just (op[+] x 10)
 over_list = \xs -> bind[List] xs (
-  \x -> bind[List] (Cons x Nil) (
-    \scrutinee -> case %eq_int scrutinee 1 of
-      False -> Nil
-      True -> Cons (op[+] x 10) Nil
-  )
+  \x -> case %eq_int x 1 of
+    False -> Nil
+    True -> Cons (op[+] x 10) Nil
 )
-main = \root -> Cons (record[at_list,at_maybe] (over_list (Cons 1 (Cons 2 (Cons 1 Nil)))) (Cons (checked (Just 1)) (Cons (checked (Just 2)) Nil))) Nil
+main =
+  let y = record[at_list,at_maybe] (over_list (Cons 1 (Cons 2 (Cons 1 Nil)))) (Cons (checked (Just 1)) (Cons (checked (Just 2)) Nil)) in
+  \_ -> Cons y Nil

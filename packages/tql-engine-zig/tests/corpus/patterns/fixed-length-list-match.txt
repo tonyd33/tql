@@ -8,7 +8,7 @@ pair xs = case xs of {
   _ -> [];
 };
 
-main = always (pair [1, 2]) <|> always (pair [1, 2, 3]);
+main = pure (pair [1, 2]) <|> pure (pair [1, 2, 3]);
 
 --- source ---
 class A {}
@@ -17,7 +17,7 @@ class A {}
 [[1,2],[]]
 --- types ---
 pair :: [a] -> [a]
-main :: Node -> [[Int]]
+main :: Filter Node [Int]
 
 --- core ---
 pair = \xs ->
@@ -29,4 +29,4 @@ pair = \xs ->
       Cons b cons1 -> case cons1 of
         Nil -> Cons a (Cons b Nil)
         Cons _ _ -> jump alternative
-main = union (always (pair (Cons 1 (Cons 2 Nil)))) (always (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))
+main = alt (pure (pair (Cons 1 (Cons 2 Nil)))) (pure (pair (Cons 1 (Cons 2 (Cons 3 Nil)))))

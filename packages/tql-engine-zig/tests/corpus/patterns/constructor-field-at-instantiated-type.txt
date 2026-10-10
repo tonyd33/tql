@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 data Maybe a = Just a | Nothing;
 or_default m d = case m of { Just x -> x; Nothing -> d };
-main = always $ or_default (Just 42) 0;
+main = pure $ or_default (Just 42) 0;
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 or_default :: Maybe a -> a -> a
-main :: Node -> [Int]
+main :: Filter Node Int

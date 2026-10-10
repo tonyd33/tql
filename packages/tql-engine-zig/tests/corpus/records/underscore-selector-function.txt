@@ -12,4 +12,4 @@ class A {}
 ["class_declaration"]
 
 --- types ---
-main :: Node -> [Kind]
+main :: Filter Node Kind

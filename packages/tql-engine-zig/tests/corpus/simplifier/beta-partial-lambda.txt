@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const (map ((\x y -> x + y) (2 * 3)) [1, 2]);
+main = Filter (\_ -> map ((\x y -> x + y) (2 * 3)) [1, 2]);
 
 --- source ---
 class A {}
@@ -14,12 +12,10 @@ class A {}
 [7,8]
 
 --- simplified ---
-main = const (
-  map[List] (
-    let x = op[*] 2 3 in
-    \y -> op[+] x y
-  ) (Cons 1 (Cons 2 Nil))
-)
+main = \_ -> map[List] (
+  let x = op[*] 2 3 in
+  \y -> op[+] x y
+) (Cons 1 (Cons 2 Nil))
 
 --- core ---
-main = const (map ((\x -> \y -> op[+] x y) (op[*] 2 3)) (Cons 1 (Cons 2 Nil)))
+main = Filter (\_ -> map ((\x -> \y -> op[+] x y) (op[*] 2 3)) (Cons 1 (Cons 2 Nil)))

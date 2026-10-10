@@ -133,6 +133,7 @@ pub const Simplifier = struct {
                 .known = &env.known,
                 .list = env.datatypes.listId(),
                 .nil = env.datatypes.nilConstructor().symbol,
+                .cons = env.datatypes.consConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
                 .true_ = env.datatypes.boolConstructor(true).symbol,
                 .ordering = .{
@@ -579,17 +580,19 @@ pub const Simplifier = struct {
     }
 
     /// A copy of `name`'s unfolding, analysed, when a call to it under
-    /// `continuation` inlines it. A call short of the unfolding's arity
-    /// inlines only when an argument it has is known or a dictionary.
+    /// `continuation` inlines it. A call short of the parameters `name` takes
+    /// by its scheme inlines only when an argument it has is known or a
+    /// dictionary.
     fn inlined(self: *Simplifier, name: core.SymbolId, continuation: []const Frame) Error!?core.Term {
         if (!self.options.call_site_inline) return null;
         const unfolding = self.unfoldings.get(name) orelse return null;
         if (self.phase == .laws and laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return null;
         const arity = unfolding.arity();
         const applied = @min(appliedTo(continuation), arity);
+        const saturated = applied >= @min(arity, self.env.typedArity(name) orelse arity);
 
         if (self.env.alwaysInlines(name)) {
-            if (applied < arity) return null;
+            if (!saturated) return null;
         } else {
             const parameters = try self.scratch.alloc(core.SymbolId, arity);
             const known = try self.scratch.alloc(?cost.Known, arity);
@@ -601,7 +604,7 @@ pub const Simplifier = struct {
                 argument_known.* = try self.argumentKnown(argument);
                 if (argument_known.* != null or self.dictionary(argument)) interesting = true;
             }
-            if (applied < arity and !interesting) return null;
+            if (!saturated and !interesting) return null;
             const measured = cost.measure(body, parameters, known);
             if (measured.size > self.options.inline_threshold + measured.discount) return null;
         }

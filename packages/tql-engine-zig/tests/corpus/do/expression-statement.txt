@@ -6,9 +6,9 @@ asserts: core, types, values
 way.
 
 --- tql ---
-main root = do {
-  class_decl <- children_of_kind :class_declaration root;
-  name <- #name class_decl;
+main = do {
+  class_decl <- children_of_kind :class_declaration;
+  name <- pure class_decl | #name;
   guard $ text name ~ r"^S";
   _ <- guard $ text name ~ r"e$";
   return $ text name;
@@ -23,7 +23,7 @@ class Store {}
 ["Service", "Store"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = \root -> bind (children_of_kind :class_declaration root) (\class_decl -> bind (field[name] class_decl) (\name -> bind (guard (op[~] (text name) r"^S")) (\_ -> bind (guard (op[~] (text name) r"e$")) (\_ -> return (text name)))))
+main = bind (children_of_kind :class_declaration) (\class_decl -> bind (compose_flipped (pure class_decl) (Filter field[name])) (\name -> bind (guard (op[~] (text name) r"^S")) (\_ -> bind (guard (op[~] (text name) r"e$")) (\_ -> return (text name)))))

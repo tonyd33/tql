@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Data.List (take);
 
-main = take 1 . (children | of_kind :class_declaration | #name) | arr text;
+main = Filter (take 1 . run (children | of_kind :class_declaration | #name)) | arr text;
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class B {}
 ["A"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

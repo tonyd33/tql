@@ -16,7 +16,7 @@ class Other {}
 [[true, false], [false, true]]
 
 --- types ---
-main :: Node -> [[Bool]]
+main :: Filter Node [Bool]
 
 --- core ---
-main = kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr (\n -> Cons (op[~] (text n) r"^Ser") (Cons (op[!~] (text n) r"^Ser") Nil)))
+main = compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Filter field[name])) (arr (\n -> Cons (op[~] (text n) r"^Ser") (Cons (op[!~] (text n) r"^Ser") Nil)))

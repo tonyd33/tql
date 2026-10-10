@@ -3,10 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 inc x = x + 1;
-main = const (map (= inc 1) [2, 3]);
+main = Filter (\_ -> map (= inc 1) [2, 3]);
 
 --- source ---
 class A {}
@@ -16,8 +14,8 @@ class A {}
 
 --- core ---
 inc = \x -> op[+] x 1
-main = const (
-  map (
+main = Filter (
+  \_ -> map (
     let e = inc 1 in
     \x -> eq x e
   ) (Cons 2 (Cons 3 Nil))

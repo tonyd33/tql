@@ -1,5 +1,3 @@
-import Data.Foldable (null);
-
 leaf n = {
   kind = kind n,
   text = text n,
@@ -7,4 +5,4 @@ leaf n = {
   column = (range n).start_point.column,
 };
 
-main = descendants | keep is_named | keep (null . named_children) | arr leaf;
+main = descendants | keep is_named | keep (not . has named_children) | arr leaf;

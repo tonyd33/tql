@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = always ((let { k = 2 * 3 } in \x -> x + k * k) 1);
+main = pure ((let { k = 2 * 3 } in \x -> x + k * k) 1);
 
 --- source ---
 class A {}
@@ -14,14 +14,14 @@ class A {}
 --- simplified ---
 main =
   let
-    v =
+    y =
       let k = op[*] 2 3 in
       op[+] 1 (op[*] k k)
   in
-  \x -> Cons v Nil
+  \_ -> Cons y Nil
 
 --- core ---
-main = always (
+main = pure (
   (
     let k = op[*] 2 3 in
     \x -> op[+] x (op[*] k k)

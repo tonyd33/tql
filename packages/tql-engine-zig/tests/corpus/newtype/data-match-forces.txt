@@ -10,9 +10,9 @@ data Box = Box Int;
 loop :: Box;
 loop = loop;
 
-main root = [case loop of {
+main = pure $ case loop of {
   Box _ -> 1;
-}];
+};
 
 --- source ---
 class A {}

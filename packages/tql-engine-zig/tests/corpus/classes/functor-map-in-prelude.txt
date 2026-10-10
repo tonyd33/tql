@@ -3,7 +3,7 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = map (+ 1) [1, 2];
+main = Filter (\_ -> map (+ 1) [1, 2]);
 
 --- source ---
 class A {}

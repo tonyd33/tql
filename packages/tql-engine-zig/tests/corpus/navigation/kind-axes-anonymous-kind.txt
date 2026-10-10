@@ -4,12 +4,13 @@ asserts: values
 
 --- tql ---
 
-main root = do {
-  args@(children -> open : _) <- descendants_of_kind :arguments root;
+main = do {
+  root <- identity;
+  args@(run children -> open : _) <- descendants_of_kind :arguments;
   return {
     open = text open,
-    descendants = map text (descendants_of_kind (kind open) root),
-    children = map text (children_of_kind (kind open) args),
+    descendants = map text (run (descendants_of_kind (kind open)) root),
+    children = map text (run (children_of_kind (kind open)) args),
   };
 };
 

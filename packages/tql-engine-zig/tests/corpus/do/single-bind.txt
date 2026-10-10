@@ -3,8 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
+main = do {
+  c <- children_of_kind :class_declaration;
   return $ text c;
 };
 
@@ -16,7 +16,7 @@ class B {}
 ["class A {}", "class B {}"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = \root -> bind (children_of_kind :class_declaration root) (\c -> return (text c))
+main = bind (children_of_kind :class_declaration) (\c -> return (text c))

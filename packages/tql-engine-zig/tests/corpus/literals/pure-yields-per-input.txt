@@ -1,0 +1,19 @@
+title: `pure` ignores its input and yields once per input
+grammar: typescript
+asserts: types, values
+
+Two class declarations give `pure 1` two inputs, so `pure 1` runs
+twice.
+
+--- tql ---
+main = children | of_kind :class_declaration | pure 1;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[1, 1]
+
+--- types ---
+main :: Filter Node Int

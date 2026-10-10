@@ -4,11 +4,10 @@
 //! freed once desugaring finishes and a signature must outlive it. What the
 //! type checker receives is a finished `Scheme` in a side table.
 //!
-//! The translation is syntax-directed: `Filter a b` expands to `a -> [b]`, and
-//! type variables become `forall` binders in order of first appearance. Each
-//! written type is checked against the kind its position expects: a variable
-//! after `|` in a record type has kind `Row`, and may not also have kind
-//! `Type`.
+//! The translation is syntax-directed: type variables become `forall` binders
+//! in order of first appearance. Each written type is checked against the
+//! kind its position expects: a variable after `|` in a record type has kind
+//! `Row`, and may not also have kind `Type`.
 //! An alias expands where it is written, keeping its name for printing.
 
 const std = @import("std");
@@ -29,7 +28,7 @@ pub const Error = error{BadAnnotation} || Allocator.Error;
 /// Translates a signature's written type into a scheme.
 ///
 /// Type variables are collected in order of first appearance and become the
-/// quantified binders, so `Filter a a` is `forall a. a -> [a]`.
+/// quantified binders, so `a -> [a]` is `forall a. a -> [a]`.
 pub fn translate(
     arena: Allocator,
     gpa: Allocator,
@@ -256,7 +255,6 @@ fn headArgument(written: cst.Type, i: usize) cst.Type {
         .list => |element| element.*,
         .tuple => |components| components[i],
         .function => |f| if (i == 0) f.from else f.to,
-        .filter => |f| if (i == 0) f.input else f.output,
         .constructor, .variable, .builtin_constructor, .record, .parenthesized => unreachable,
     };
 }
@@ -472,13 +470,12 @@ const Translator = struct {
             .parenthesized => |inner| return try self.type(inner.*, expected),
             .tuple => |components| return try self.builtin(.{ .tuple = @intCast(components.len) }, components, node.span, expected),
             .builtin_constructor => |b| return try self.builtin(b, &.{}, node.span, expected),
-            .list, .function, .filter, .record => {},
+            .list, .function, .record => {},
         }
         if (!self.group.inference.unify(expected, .type)) {
             const what = switch (node.kind) {
                 .list => "a list type",
                 .function => "a function type",
-                .filter => "a `Filter` type",
                 .record => "a record type",
                 .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
             };
@@ -487,13 +484,6 @@ const Translator = struct {
         return switch (node.kind) {
             .list => |element| try self.scope.env.datatypes.list(self.arena, try self.type(element.*, .type)),
             .function => |f| try types.func(self.arena, try self.type(f.from, .type), try self.type(f.to, .type)),
-            // `Filter a b` is `a -> [b]`. The expansion happens here, so
-            // nothing downstream has a `Filter` case.
-            .filter => |f| try types.func(
-                self.arena,
-                try self.type(f.input, .type),
-                try self.scope.env.datatypes.list(self.arena, try self.type(f.output, .type)),
-            ),
             .record => |r| try self.record(r, node.span),
             .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
         };

@@ -32,12 +32,12 @@ in_list xs = case xs of {
   _ -> "none";
 };
 
-main root = append [
+main = Filter (\_ -> append [
   in_case (Name "case"),
   fst (in_as (Name "as")),
   in_tuple (Name "tu", Name "ple"),
   in_list [Name "list"]
-] (in_bind (Name "bind"));
+] (in_bind (Name "bind")));
 
 --- source ---
 class A {}
@@ -51,4 +51,4 @@ in_bind :: Name -> [String]
 in_as :: Name -> (String, Name)
 in_tuple :: (Name, Name) -> String
 in_list :: [Name] -> String
-main :: Node -> [String]
+main :: Filter Node String

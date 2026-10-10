@@ -5,11 +5,11 @@ asserts: error
 Both branches of an `if` share the result type.
 
 --- tql ---
-main = if true then always 1 else always "two";
+main = if true then pure 1 else pure "two";
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 1:35
+ --> 1:33
   |
-1 | main = if true then always 1 else always "two";
-  |                                   ^^^^^^^^^^^^
+1 | main = if true then pure 1 else pure "two";
+  |                                 ^^^^^^^^^^

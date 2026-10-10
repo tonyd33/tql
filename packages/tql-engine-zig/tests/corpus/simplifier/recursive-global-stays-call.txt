@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 count n = if n = 0 then 0 else 1 + count (n - 1);
-main = always (count 3);
+main = pure (count 3);
 
 --- source ---
 class A {}
@@ -17,11 +17,11 @@ count = \n -> case %eq_int n 0 of
   False -> op[+] 1 (count (op[-] n 1))
   True -> 0
 main =
-  let v = count 3 in
-  \x -> Cons v Nil
+  let y = count 3 in
+  \_ -> Cons y Nil
 
 --- core ---
 count = \n -> case eq n 0 of
   False -> op[+] 1 (count (op[-] n 1))
   True -> 0
-main = always (count 3)
+main = pure (count 3)

@@ -1,0 +1,23 @@
+title: `Filter` has the functor, monad and arrow instances of `Kleisli List`
+grammar: typescript
+asserts: values
+
+--- tql ---
+names = descendants_of_kind :class_declaration | #name;
+
+main = Filter (\root -> [
+  run (map text names) root,
+  run (ap (pure kind_name) names) root,
+  run (bind names (\n -> pure n <|> pure n) | arr text) root,
+  run (arr kind_name | Filter (\k -> [k, k])) root,
+  run (first names | arr (text . fst)) (root, 1),
+  run (fanout names (arr kind_name) | arr snd) root,
+  run (zero_arrow <|> plus (names | arr text) empty) root
+]);
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["A","B"],["type_identifier","type_identifier"],["A","A","B","B"],["program","program"],["A","B"],["program","program"],["A","B"]]

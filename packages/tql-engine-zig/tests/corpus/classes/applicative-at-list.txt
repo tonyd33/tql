@@ -5,7 +5,7 @@ asserts: types, values
 `ap` applies every function to every argument, functions outermost.
 
 --- tql ---
-main root = append (pure 0) (ap [(+ 1), (* 10)] [1, 2]);
+main = Filter (\_ -> append (pure 0) (ap [(+ 1), (* 10)] [1, 2]));
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 [0,2,3,10,20]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -6,7 +6,7 @@ asserts: types, values
 type Pred a = a -> Bool;
 both :: Pred a -> Pred a -> Pred a;
 both p q x = p x and q x;
-main root = [both (\n -> n > 1) (\n -> n < 5) 3];
+main = pure $ both (\n -> n > 1) (\n -> n < 5) 3;
 
 --- source ---
 class A {}
@@ -16,4 +16,4 @@ class A {}
 
 --- types ---
 both :: Pred a -> Pred a -> Pred a
-main :: Node -> [Bool]
+main :: Filter Node Bool

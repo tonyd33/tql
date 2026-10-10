@@ -3,7 +3,7 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = [((1, "a"), (), [(True, 2)])];
+main = pure ((1, "a"), (), [(True, 2)]);
 
 --- source ---
 class A {}

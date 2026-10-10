@@ -6,11 +6,9 @@ A signature may be more specific than the body. The exported scheme carries
 `Eq a`, so every use must satisfy it.
 
 --- tql ---
-import Data.Function (const);
-
 same :: Eq a => a -> a;
 same x = x;
-main = const [same 1];
+main = pure (same 1);
 
 --- source ---
 class A {}
@@ -20,4 +18,4 @@ class A {}
 
 --- types ---
 same :: Eq a => a -> a
-main :: Node -> [Int]
+main :: Filter Node Int

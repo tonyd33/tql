@@ -25,7 +25,7 @@ instance Describe a => Describe [a] where {
   };
 };
 
-main root = describe [Circle 1];
+main = Filter (\_ -> describe [Circle 1]);
 
 --- source ---
 class A {}
@@ -34,4 +34,4 @@ class A {}
 ["circle"]
 
 --- simplified ---
-main = \root -> describe[List] (Cons (Circle 1) Nil)
+main = \_ -> describe[List] (Cons (Circle 1) Nil)

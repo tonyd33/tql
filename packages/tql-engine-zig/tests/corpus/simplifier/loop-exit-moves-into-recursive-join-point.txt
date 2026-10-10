@@ -7,7 +7,7 @@ f x xs = let {
   e = x * 2 + x * 3 + x * 4;
   go ys = case ys of { [] -> e; h : t -> go t };
 } in go xs;
-main = always (f 3 [1, 2]);
+main = pure (f 3 [1, 2]);
 
 --- source ---
 class A {}
@@ -24,5 +24,5 @@ f = \x -> \xs ->
   in
   jump go xs
 main =
-  let v = f 3 (Cons 1 (Cons 2 Nil)) in
-  \x -> Cons v Nil
+  let y = f 3 (Cons 1 (Cons 2 Nil)) in
+  \_ -> Cons y Nil

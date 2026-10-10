@@ -16,7 +16,7 @@ g x = x * 3;
 import Doubling as Q;
 import Tripling as Q;
 
-main root = [Q.f 1, Q.g 1];
+main = Filter (\_ -> [Q.f 1, Q.g 1]);
 
 --- source ---
 let x = 1;

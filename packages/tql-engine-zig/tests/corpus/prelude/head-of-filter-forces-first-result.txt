@@ -1,21 +1,25 @@
-title: `head . p` is a filter's first result, and forces no other
+title: `Filter (take 1 . run p)` is a filter's first result, and forces no other
 grammar: typescript
 asserts: types, values
 
-`p` yields `1` and then a division by zero, which `head` never forces.
-`head . p` is a filter into `Maybe`, which `has` and `or_else` take.
+`p` yields `1` and then a division by zero, which `take 1` never forces.
+`Filter (take 1 . run p)` is the filter of `p`'s first result, which `has`
+and `or_else` take.
 
 --- tql ---
-import Data.Foldable (to_list);
+import Data.List (take);
 
-p :: Node -> [Int];
-p _ = [1, 1 / 0];
+p :: Filter Node Int;
+p = Filter (\_ -> [1, 1 / 0]);
 
-main root = [(
-  has (head . p) root,
-  has (head . none) root,
-  to_list $ or_else (head . none) (head . p) root
-)];
+main = do {
+  root <- identity;
+  return (
+    has (Filter (take 1 . run p)) root,
+    has (Filter (take 1 . run empty)) root,
+    run (or_else (Filter (take 1 . run empty)) (Filter (take 1 . run p))) root
+  );
+};
 
 --- source ---
 class A {}
@@ -24,5 +28,5 @@ class A {}
 [[true,false,[1]]]
 
 --- types ---
-p :: Node -> [Int]
-main :: Node -> [(Bool, Bool, [Int])]
+p :: Filter Node Int
+main :: Filter Node (Bool, Bool, [Int])

@@ -6,8 +6,8 @@ asserts: types, values
 pattern Callee :: Node -> Node;
 pattern Callee f <- :call_expression { #function = f };
 
-main root = do {
-  Callee f <- descendants root;
+main = do {
+  Callee f <- descendants;
   return (text f);
 };
 
@@ -18,4 +18,4 @@ f(1);
 ["f"]
 --- types ---
 $mCallee :: Node -> (Node -> a) -> a -> a
-main :: Node -> [String]
+main :: Filter Node String

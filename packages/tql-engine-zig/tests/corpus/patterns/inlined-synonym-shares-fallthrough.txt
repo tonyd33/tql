@@ -10,9 +10,9 @@ describe xs = case xs of {
   _ -> "neither";
 };
 
-main root = do {
-  a <- descendants_of_kind :arguments root;
-  return (describe (children_of_kind :identifier a));
+main = do {
+  a <- descendants_of_kind :arguments;
+  return (describe (run (children_of_kind :identifier) a));
 };
 
 --- source ---
@@ -36,4 +36,6 @@ describe = \xs ->
             False -> jump alternative
             True -> "xy"
         Cons _ _ -> jump alternative
-main = \root -> bind[List] (%descendants_of_kind :arguments root) (\a -> Cons (describe (%children_of_kind :identifier a)) Nil)
+main =
+  let p = %descendants_of_kind :arguments in
+  \x -> bind[List] (p x) (\y -> Cons (describe (%children_of_kind :identifier y)) Nil)

@@ -10,8 +10,8 @@ pattern Callee f <- :call_expression { #function = f };
 --- tql ---
 import Shapes (pattern Callee);
 
-main root = do {
-  Callee f <- descendants root;
+main = do {
+  Callee f <- descendants;
   return (text f);
 };
 

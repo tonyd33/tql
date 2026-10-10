@@ -5,13 +5,11 @@ asserts: error
 Nothing fixes the element type, so no instance of `Eq` can be chosen.
 
 --- tql ---
-import Data.Function (const);
-
-main = const [[] = []];
+main = pure ([] = []);
 
 --- error ---
 error[ambiguous-constraint]: `Eq [a]` is ambiguous: nothing determines its type.
- --> 3:15
+ --> 1:14
   |
-3 | main = const [[] = []];
-  |               ^^^^^^^
+1 | main = pure ([] = []);
+  |              ^^^^^^^

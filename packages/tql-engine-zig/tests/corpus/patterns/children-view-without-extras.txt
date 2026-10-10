@@ -6,16 +6,16 @@ The filtered pattern matches both calls. The unfiltered one misses the call
 with a comment.
 
 --- tql ---
-filtered root = do {
-  (of_kind :call_expression -> [
-    (#arguments -> [(children | keep (not . is_extra) -> [_, argument, _])])
-  ]) <- descendants root;
+filtered = do {
+  (run (of_kind :call_expression) -> [
+    (run #arguments -> [(run (children | keep (not . is_extra)) -> [_, argument, _])])
+  ]) <- descendants;
   return $ text argument;
 };
 
-unfiltered root = do {
-  (of_kind :call_expression -> [(#arguments -> [(children -> [_, argument, _])])])
-    <- descendants root;
+unfiltered = do {
+  (run (of_kind :call_expression) -> [(run #arguments -> [(run children -> [_, argument, _])])])
+    <- descendants;
   return $ text argument;
 };
 
@@ -29,17 +29,17 @@ g(b);
 ["a","b","b"]
 
 --- core ---
-filtered = \root -> bind (descendants root) (
+filtered = bind descendants (
   \scrutinee ->
-    let view = of_kind :call_expression scrutinee in
+    let view = run (of_kind :call_expression) scrutinee in
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
-        let view = field[arguments] cons0 in
+        let view = run (Filter field[arguments]) cons0 in
         case view of
           Nil -> empty
           Cons cons0 cons1' ->
-            let view = kleisli children (keep (compose not is_extra)) cons0 in
+            let view = run (compose_flipped children (keep (compose not is_extra))) cons0 in
             case view of
               Nil -> empty
               Cons _ cons1'' -> case cons1'' of
@@ -54,17 +54,17 @@ filtered = \root -> bind (descendants root) (
                       Cons _ _ -> empty
                     Cons _ _ -> empty
 )
-unfiltered = \root -> bind (descendants root) (
+unfiltered = bind descendants (
   \scrutinee ->
-    let view = of_kind :call_expression scrutinee in
+    let view = run (of_kind :call_expression) scrutinee in
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
-        let view = field[arguments] cons0 in
+        let view = run (Filter field[arguments]) cons0 in
         case view of
           Nil -> empty
           Cons cons0 cons1' ->
-            let view = children cons0 in
+            let view = run children cons0 in
             case view of
               Nil -> empty
               Cons _ cons1'' -> case cons1'' of
@@ -79,4 +79,4 @@ unfiltered = \root -> bind (descendants root) (
                       Cons _ _ -> empty
                     Cons _ _ -> empty
 )
-main = union filtered unfiltered
+main = alt filtered unfiltered

@@ -3,8 +3,8 @@ grammar: typescript
 asserts: types, values
 
 `f a` against `Int -> Int` makes `f` the function type short of its result,
-`(->) Int`, and `a` the result. A filter is a function, so `Wrap children`
-wraps one.
+`(->) Int`, and `a` the result. `run children` is a function, so
+`Wrap (run children)` wraps one.
 
 --- tql ---
 data Wrap f a = Wrap (f a);
@@ -13,9 +13,9 @@ apply :: (f a -> b) -> f a -> b;
 apply g x = g x;
 
 wrapped = Wrap (+ 1);
-wrapped_filter = Wrap children;
+wrapped_filter = Wrap (run children);
 
-main root = [apply (\h -> h 1) (+ 1)];
+main = pure $ apply (\h -> h 1) (+ 1);
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ class A {}
 apply :: (a b -> c) -> a b -> c
 wrapped :: Wrap ((->) Int) Int
 wrapped_filter :: Wrap ((->) Node) [Node]
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
-main = let { a = 2 * 3 } in const (map (\x -> x + a) [1, 2]);
+main = let { a = 2 * 3 } in Filter (\_ -> map (\x -> x + a) [1, 2]);
 
 --- source ---
 class A {}
@@ -16,9 +14,9 @@ class A {}
 --- simplified ---
 main =
   let a = op[*] 2 3 in
-  const (map[List] (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
+  \_ -> map[List] (\x -> op[+] x a) (Cons 1 (Cons 2 Nil))
 
 --- core ---
 main =
   let a = op[*] 2 3 in
-  const (map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
+  Filter (\_ -> map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))

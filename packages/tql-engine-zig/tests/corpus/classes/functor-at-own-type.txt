@@ -15,7 +15,7 @@ both p = case p of {
   Pair x y -> [x, y];
 };
 
-main root = both (map (+ 1) (Pair 1 2));
+main = Filter (\_ -> both (map (+ 1) (Pair 1 2)));
 
 --- source ---
 class A {}
@@ -25,4 +25,4 @@ class A {}
 
 --- types ---
 both :: Pair a -> [a]
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -9,11 +9,11 @@ describe p = case p of {
   (_, False) -> "plain";
 };
 
-main root = [
+main = Filter (\_ -> [
   describe ((0, 5), True),
   describe ((1, 5), True),
   describe ((1, 5), False),
-];
+]);
 
 --- source ---
 class A {}

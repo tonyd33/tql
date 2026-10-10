@@ -1,0 +1,26 @@
+title: pipe and alternative sections
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+main = (| arr text) (descendants_of_kind :identifier) <|> (pure "c" <|>) (pure "d");
+
+--- source ---
+a;
+b;
+
+--- values ---
+["a", "b", "c", "d"]
+
+--- core ---
+main = alt (
+  (
+    let e = arr text in
+    \x -> compose_flipped x e
+  ) (descendants_of_kind :identifier)
+) (
+  (
+    let e = pure "c" in
+    \y -> alt e y
+  ) (pure "d")
+)

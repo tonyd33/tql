@@ -7,10 +7,10 @@ import Data.List (init, take);
 
 from n = n : from (n + 1);
 
-main root = case init (from 1) of {
+main = Filter (\_ -> case init (from 1) of {
   Just front -> take 3 front;
   Nothing -> [];
-};
+});
 
 --- source ---
 class A {}

@@ -61,7 +61,6 @@
 (infix_application function: (identifier) @function)
 (backtick_operator function: (identifier) @function)
 
-"Filter" @type.builtin
 (type_identifier) @type
 (type_variable) @type
 

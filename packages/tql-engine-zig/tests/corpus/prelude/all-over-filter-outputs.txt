@@ -8,9 +8,9 @@ import Data.Foldable (all);
 method_names = #body | children | of_kind :method_definition | #name;
 is_getter n = text n ~ r"^get";
 
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  return $ all is_getter (method_names c);
+main = do {
+  c <- children_of_kind :class_declaration;
+  return $ all is_getter (run method_names c);
 };
 
 --- source ---
@@ -22,6 +22,6 @@ class C {}
 [true, false, true]
 
 --- types ---
-method_names :: Node -> [Node]
+method_names :: Filter Node Node
 is_getter :: Node -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

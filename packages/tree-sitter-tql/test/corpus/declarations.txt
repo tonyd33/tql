@@ -106,9 +106,10 @@ main = kind;
 (source_file
   (signature
     name: (identifier)
-    type: (filter_type
-      input: (type_variable)
-      output: (type_variable)))
+    type: (type_application
+      constructor: (type_identifier)
+      argument: (type_variable)
+      argument: (type_variable)))
   (definition
     name: (identifier)
     body: (identifier)))
@@ -125,12 +126,14 @@ name_of :: Filter node node -> Filter node string;
   (signature
     name: (identifier)
     type: (function_type
-      from: (filter_type
-        input: (type_variable)
-        output: (type_variable))
-      to: (filter_type
-        input: (type_variable)
-        output: (type_variable)))))
+      from: (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable))
+      to: (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable)))))
 
 ========================================
 a signature with one constraint
@@ -260,9 +263,10 @@ g :: { name: string, size: int };
   (signature
     name: (identifier)
     type: (list_type
-      (filter_type
-        input: (type_variable)
-        output: (type_variable))))
+      (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable))))
   (signature
     name: (identifier)
     type: (record_type

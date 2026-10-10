@@ -7,10 +7,10 @@ value, so no product fan-out occurs. A class with no methods still yields a
 record, with an empty list.
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  n <- c#name;
-  methods <- collect (#body | children | of_kind :method_definition | #name | arr text) c;
+main = do {
+  c <- children_of_kind :class_declaration;
+  n <- pure c | #name;
+  methods <- pure c | collect (#body | children | of_kind :method_definition | #name | arr text);
   return { name = text n, methods = methods };
 };
 
@@ -25,7 +25,7 @@ class B {}
 ]
 
 --- types ---
-main :: Node -> [{methods: [String], name: String}]
+main :: Filter Node {methods: [String], name: String}
 
 --- core ---
-main = \root -> bind (children_of_kind :class_declaration root) (\c -> bind (field[name] c) (\n -> bind (collect (kleisli (kleisli (kleisli (kleisli field[body] children) (of_kind :method_definition)) field[name]) (arr text)) c) (\methods -> return (record[methods,name] methods (text n)))))
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Filter field[name])) (\n -> bind (compose_flipped (pure c) (collect (compose_flipped (compose_flipped (compose_flipped (compose_flipped (Filter field[body]) children) (of_kind :method_definition)) (Filter field[name])) (arr text)))) (\methods -> return (record[methods,name] methods (text n)))))

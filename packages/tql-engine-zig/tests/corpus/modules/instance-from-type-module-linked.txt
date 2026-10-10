@@ -34,11 +34,11 @@ import Gallery;
 
 names = map describe gallery;
 
-main root = names;
+main = Filter (\_ -> names);
 
 --- source ---
 class A {}
 
 --- types ---
 names :: [String]
-main :: Node -> [String]
+main :: Filter Node String

@@ -3,13 +3,11 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const $ do {
+main = Filter (\_ -> do {
   "a" <- ["a", "b", "a"];
   true <- [true, false];
   return 1;
-};
+});
 
 --- source ---
 class A {}
@@ -18,8 +16,8 @@ class A {}
 [1, 1]
 
 --- core ---
-main = const (
-  bind (Cons "a" (Cons "b" (Cons "a" Nil))) (
+main = Filter (
+  \_ -> bind (Cons "a" (Cons "b" (Cons "a" Nil))) (
     \scrutinee -> case eq scrutinee "a" of
       False -> empty
       True -> bind (Cons True (Cons False Nil)) (

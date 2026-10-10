@@ -10,7 +10,7 @@ type Tagged t = Int;
 bump :: Tagged String -> Int;
 bump x = x + 1;
 
-main root = [bump 1];
+main = pure $ bump 1;
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 [2]
 --- types ---
 bump :: Tagged String -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -4,7 +4,7 @@ asserts: stg, values
 
 --- tql ---
 f x = x + (1 + 2);
-main = always (map f [3 + 4]);
+main = pure (map f [3 + 4]);
 
 --- source ---
 class A {}
@@ -22,7 +22,7 @@ f = {} \u {} ->
   t1@0
 main = {} \u {} ->
   let
-    v = {} \u {} ->
+    y = {} \u {} ->
       let
         t2 = {} \u {} ->
           let
@@ -34,8 +34,8 @@ main = {} \u {} ->
       map[List] f t2@0
   in
   let
-    t4 = {v@0} \n {x} ->
+    t4 = {y@0} \n {_} ->
       let c3 = Nil in
-      Cons v@0 c3@2
+      Cons y@0 c3@2
   in
   t4@1

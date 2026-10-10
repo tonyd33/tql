@@ -5,7 +5,7 @@ asserts: values, stg
 --- tql ---
 count_to limit =
   let { go n = if n = limit then n else go (n + 1) } in go 0 + go 5;
-main = always $ count_to 10;
+main = pure $ count_to 10;
 
 --- source ---
 class A {}
@@ -32,10 +32,10 @@ count_to = {} \u {} ->
   in
   t3@0
 main = {} \u {} ->
-  let v = {} \u {} -> count_to 10 in
+  let y = {} \u {} -> count_to 10 in
   let
-    t1 = {v@0} \n {x} ->
+    t1 = {y@0} \n {_} ->
       let c0 = Nil in
-      Cons v@0 c0@2
+      Cons y@0 c0@2
   in
   t1@1

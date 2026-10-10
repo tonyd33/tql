@@ -37,7 +37,7 @@ total = do {
   return (a + b);
 };
 
-main root = [total];
+main = pure total;
 
 --- source ---
 class A {}
@@ -46,7 +46,7 @@ class A {}
 [{"tag":"Done","fields":[4]}]
 --- types ---
 total :: Done Int
-main :: Node -> [Done Int]
+main :: Filter Node (Done Int)
 --- core ---
 total = bind (Done 1) (
   \x -> bind (Done 2) (
@@ -58,4 +58,4 @@ total = bind (Done 1) (
     )
   )
 )
-main = \root -> Cons total Nil
+main = pure total

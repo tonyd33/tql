@@ -8,12 +8,10 @@ the global binding, so shadowing is lexical rather than dynamic. `other` being
 declared later also exercises forward reference.
 
 --- tql ---
-import Data.Function (const);
-
 label = "global";
 main =
   let { label = "local" }
-  in const [label, other];
+  in Filter (\_ -> [label, other]);
 other = label;
 
 --- source ---
@@ -24,12 +22,12 @@ class A {}
 
 --- types ---
 label :: String
-main :: Node -> [String]
+main :: Filter Node String
 other :: String
 
 --- core ---
 label = "global"
 main =
   let label = "local" in
-  const (Cons label (Cons other Nil))
+  Filter (\_ -> Cons label (Cons other Nil))
 other = label

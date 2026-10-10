@@ -22,7 +22,7 @@ instance Describe Int where {
 both :: Describe a => a -> [String];
 both x = append [label x] (describe x);
 
-main root = both 1;
+main = Filter (\_ -> both 1);
 
 --- source ---
 class A {}
@@ -32,4 +32,4 @@ class A {}
 
 --- types ---
 both :: Describe a => a -> [String]
-main :: Node -> [String]
+main :: Filter Node String

@@ -6,8 +6,8 @@ asserts: types, values
 pattern Single :: Node -> [Node];
 pattern Single x <- [x];
 
-main root = do {
-  Single c <- [children root];
+main = do {
+  Single c <- collect children;
   return (kind_name c);
 };
 
@@ -18,4 +18,4 @@ let x = 1;
 ["lexical_declaration"]
 --- types ---
 $mSingle :: [Node] -> (Node -> a) -> a -> a
-main :: Node -> [String]
+main :: Filter Node String

@@ -2,10 +2,10 @@ title: an applicative inside `main`'s output defaults to `List`
 grammar: typescript
 asserts: values
 
-The record's field is some `f Int`. `main` fixes only the outer list.
+The record's field is some `f Int`. `main` fixes only the outer `Filter`.
 
 --- tql ---
-main root = [{ x = pure 1 }];
+main = pure { x = pure 1 };
 
 --- source ---
 class A {}

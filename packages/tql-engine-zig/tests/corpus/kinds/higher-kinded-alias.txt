@@ -9,12 +9,10 @@ type Result = Either String;
 ok :: Result Int;
 ok = Right 1;
 
-main root = [
-  case ok of {
-    Right n -> n;
-    Left _ -> 0;
-  }
-];
+main = pure $ case ok of {
+  Right n -> n;
+  Left _ -> 0;
+};
 
 --- source ---
 class A {}
@@ -23,4 +21,4 @@ class A {}
 [1]
 --- types ---
 ok :: Result Int
-main :: Node -> [Int]
+main :: Filter Node Int

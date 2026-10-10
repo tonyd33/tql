@@ -3,15 +3,13 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 f xs = case xs of {
   Cons (Cons a Nil) Nil -> [a];
   Cons _ (Cons _ _) -> [2];
   _ -> [3];
 };
 
-main = const [f [[1]], f [[2], [3]], f [[4, 5]], f [], f [[], []]];
+main = Filter (\_ -> [f [[1]], f [[2], [3]], f [[4, 5]], f [], f [[], []]]);
 
 --- source ---
 class A {}
@@ -36,4 +34,4 @@ f = \xs ->
         Cons _ _ -> case cons1 of
           Nil -> jump alternative'
           Cons _ _ -> jump alternative
-main = const (Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))
+main = Filter (\_ -> Cons (f (Cons (Cons 1 Nil) Nil)) (Cons (f (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (f (Cons (Cons 4 (Cons 5 Nil)) Nil)) (Cons (f Nil) (Cons (f (Cons Nil (Cons Nil Nil))) Nil)))))

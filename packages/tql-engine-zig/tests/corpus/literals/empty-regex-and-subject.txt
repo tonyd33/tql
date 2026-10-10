@@ -6,9 +6,8 @@ The empty pattern matches everything, the empty string included. A non-empty
 pattern does not match the empty string.
 
 --- tql ---
-import Data.Function (const);
 
-main = const ["" ~ r"", "abc" ~ r"", "" ~ r"a"];
+main = Filter (\_ -> ["" ~ r"", "abc" ~ r"", "" ~ r"a"]);
 
 --- source ---
 class A {}
@@ -17,4 +16,4 @@ class A {}
 [true, true, false]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

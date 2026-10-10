@@ -673,7 +673,6 @@ module.exports = grammar({
 
     _type_atom: $ =>
       choice(
-        $.filter_type,
         $.type_application,
         $.list_type,
         $.record_type,
@@ -692,13 +691,6 @@ module.exports = grammar({
           field("variable", $._type_variable),
         ),
         repeat1(field("argument", $._type_operand)),
-      ),
-
-    filter_type: $ =>
-      seq(
-        "Filter",
-        field("input", $._type_operand),
-        field("output", $._type_operand),
       ),
 
     _type_operand: $ =>

@@ -13,7 +13,7 @@ loop n acc =
   if n <= 0 then acc
   else if acc < 0 then 0
   else compose loop identity (n - 1) (acc + 1);
-main root = always (loop 20000 0) root;
+main = pure (loop 20000 0);
 
 --- source ---
 class A {}

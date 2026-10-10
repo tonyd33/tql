@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root = alt (alt [1] empty) [2, 3];
+main = Filter (\_ -> alt (alt [1] empty) [2, 3]);
 
 --- source ---
 class A {}
@@ -12,4 +12,4 @@ class A {}
 [1,2,3]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

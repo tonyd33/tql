@@ -3,10 +3,8 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 size xs = case xs of { [x] -> 1; ys -> length ys };
-main = const (map size [[1], [1, 2]]);
+main = Filter (\_ -> map size [[1], [1, 2]]);
 
 --- source ---
 class A {}
@@ -20,7 +18,7 @@ size = \xs -> case xs of
   Cons x cons1 -> case cons1 of
     Nil -> 1
     Cons _ _ -> length[List] xs
-main = const (map[List] size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))
+main = \_ -> map[List] size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil))
 
 --- core ---
 size = \xs ->
@@ -30,4 +28,4 @@ size = \xs ->
     Cons x cons1 -> case cons1 of
       Nil -> 1
       Cons _ _ -> jump alternative xs
-main = const (map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))
+main = Filter (\_ -> map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))

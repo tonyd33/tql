@@ -1,4 +1,4 @@
-module Control.Category (Category(..));
+module Control.Category (Category(..), compose_flipped);
 
 class Category k where {
   identity :: k a a;
@@ -9,3 +9,6 @@ instance Category (->) where {
   identity x = x;
   compose f g x = f (g x);
 };
+
+compose_flipped :: Category k => k a b -> k b c -> k a c;
+compose_flipped f g = compose g f;

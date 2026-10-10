@@ -3,9 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main root = do {
-  (of_kind :class_declaration -> [class_ & (#name -> [name])]) <- descendants root;
-  decorator <- #decorator class_;
+main = do {
+  (run (of_kind :class_declaration) -> [class_ & (run #name -> [name])]) <- descendants;
+  decorator <- pure class_ | #decorator;
   return [text name, text decorator];
 };
 
@@ -18,18 +18,18 @@ class B {}
 [["A", "@a"], ["A", "@b"], ["C", "@a"]]
 
 --- core ---
-main = \root -> bind (descendants root) (
+main = bind descendants (
   \scrutinee ->
-    let view = of_kind :class_declaration scrutinee in
+    let view = run (of_kind :class_declaration) scrutinee in
     case view of
       Nil -> empty
       Cons class_ cons1 ->
-        let view = field[name] class_ in
+        let view = run (Filter field[name]) class_ in
         case view of
           Nil -> empty
           Cons name cons1' -> case cons1' of
             Nil -> case cons1 of
-              Nil -> bind (field[decorator] class_) (\decorator -> return (Cons (text name) (Cons (text decorator) Nil)))
+              Nil -> bind (compose_flipped (pure class_) (Filter field[decorator])) (\decorator -> return (Cons (text name) (Cons (text decorator) Nil)))
               Cons _ _ -> empty
             Cons _ _ -> empty
 )

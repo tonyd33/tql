@@ -19,7 +19,7 @@ instance Ord Down where {
   };
 };
 
-main root = [1 < 2, Down 1 < Down 2, Down 1 = Down 1];
+main = Filter (\_ -> [1 < 2, Down 1 < Down 2, Down 1 = Down 1]);
 
 --- source ---
 class A {}
@@ -28,4 +28,4 @@ class A {}
 [true,false,true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

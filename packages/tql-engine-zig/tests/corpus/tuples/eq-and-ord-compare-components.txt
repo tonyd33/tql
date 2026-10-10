@@ -3,14 +3,14 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = [
+main = Filter (\_ -> [
   (1, "a") = (1, "a"),
   (1, "a") = (1, "b"),
   (1, "b") < (2, "a"),
   (1, "a") < (1, "b"),
   (1, 2, 3) >= (1, 2, 3),
   ((), [1]) < ((), [1, 0]),
-];
+]);
 
 --- source ---
 class A {}

@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 pairs = map ((,) 0) [1, 2];
 
-main root = [((,,) 1 2 3, pairs)];
+main = pure ((,,) 1 2 3, pairs);
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 [[[1,2,3],[[0,1],[0,2]]]]
 --- types ---
 pairs :: [(Int, Int)]
-main :: Node -> [((Int, Int, Int), [(Int, Int)])]
+main :: Filter Node ((Int, Int, Int), [(Int, Int)])

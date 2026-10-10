@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const (append (map (True and) [True, False]) (map (or False) [True, False]));
+main = Filter (\_ -> append (map (True and) [True, False]) (map (or False) [True, False]));
 
 --- source ---
 class A {}
@@ -14,4 +12,4 @@ class A {}
 [true, false, true, false]
 
 --- core ---
-main = const (append (map (\y -> and True y) (Cons True (Cons False Nil))) (map (\x -> or x False) (Cons True (Cons False Nil))))
+main = Filter (\_ -> append (map (\y -> and True y) (Cons True (Cons False Nil))) (map (\x -> or x False) (Cons True (Cons False Nil))))

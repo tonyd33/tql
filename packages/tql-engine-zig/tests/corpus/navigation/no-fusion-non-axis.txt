@@ -15,9 +15,11 @@ class B {}
 []
 
 --- simplified ---
-main =
-  let q = of_kind :class_declaration in
-  \x -> bind[List] (%parent x) q
+main = \x -> bind[List] (%parent x) (
+  \x -> case %is_kind :class_declaration x of
+    False -> Nil
+    True -> Cons x Nil
+)
 
 --- core ---
-main = kleisli parent (of_kind :class_declaration)
+main = compose_flipped parent (of_kind :class_declaration)

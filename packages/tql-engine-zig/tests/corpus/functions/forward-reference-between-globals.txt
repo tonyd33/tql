@@ -6,7 +6,7 @@ asserts: core, types, values
 collected before any body is resolved.
 
 --- tql ---
-main = always $ helper 3;
+main = pure $ helper 3;
 helper n = n * 2;
 
 --- source ---
@@ -16,9 +16,9 @@ class A {}
 [6]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 helper :: Int -> Int
 
 --- core ---
-main = always (helper 3)
+main = pure (helper 3)
 helper = \n -> op[*] n 2

@@ -11,7 +11,7 @@ instance Describe Node where {
   describe n = kind_name n;
 };
 
-main x = [describe x];
+main = arr describe;
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 ["program"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

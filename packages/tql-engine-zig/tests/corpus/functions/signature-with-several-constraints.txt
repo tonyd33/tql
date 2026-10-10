@@ -3,11 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
-
 pick :: (Eq a, Sized a) => a -> a -> Int;
 pick x y = if x = y then length x else 0;
-main = const [pick "ab" "ab", pick "ab" "cd"];
+main = Filter (\_ -> [pick "ab" "ab", pick "ab" "cd"]);
 
 --- source ---
 class A {}
@@ -17,4 +15,4 @@ class A {}
 
 --- types ---
 pick :: (Eq a, Sized a) => a -> a -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

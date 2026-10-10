@@ -9,7 +9,7 @@ referenced, so `b`, inferred before `a`, is `Node -> [String]`.
 a :: Node -> [String];
 a x = if true then [] else b x;
 b x = a x;
-main root = b root;
+main = Filter b;
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 --- types ---
 a :: Node -> [String]
 b :: Node -> [String]
-main :: Node -> [String]
+main :: Filter Node String

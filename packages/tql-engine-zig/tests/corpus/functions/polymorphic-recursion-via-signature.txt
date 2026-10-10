@@ -9,7 +9,7 @@ occurs-check failure.
 --- tql ---
 nest :: Int -> a -> Int;
 nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];
-main = always (nest 3 1);
+main = pure (nest 3 1);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 
 --- types ---
 nest :: Int -> a -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

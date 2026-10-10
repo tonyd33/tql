@@ -5,15 +5,15 @@ asserts: values
 --- module Find ---
 module Find;
 
-within :: Kind -> Node -> [Node];
-within k root = descendants_of_kind k root;
+within :: Kind -> Filter Node Node;
+within k = descendants_of_kind k;
 
 --- tql ---
 import Find;
 
-main root = do {
-  c <- within :class_declaration root;
-  n <- c#name;
+main = do {
+  c <- within :class_declaration;
+  n <- pure c | #name;
   return $ text n;
 };
 

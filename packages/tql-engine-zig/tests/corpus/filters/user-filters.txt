@@ -1,0 +1,29 @@
+title: a user filter is point-free, a wrapped lambda, or a `do` over its input
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+point_free = children | of_kind :class_declaration;
+
+wrapped = Filter (\n -> run named_children n);
+
+over_input = do {
+  n <- identity;
+  c <- named_children;
+  guard $ kind_name c != kind_name n;
+  return c;
+};
+
+main = (point_free <|> (wrapped | over_input) <|> wrapped) | arr kind_name;
+
+--- source ---
+class A {}
+
+--- values ---
+["class_declaration","type_identifier","class_body","class_declaration"]
+
+--- types ---
+point_free :: Filter Node Node
+wrapped :: Filter Node Node
+over_input :: Filter Node Node
+main :: Filter Node String

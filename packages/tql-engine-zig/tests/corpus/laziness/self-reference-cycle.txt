@@ -6,7 +6,7 @@ asserts: types, runtime_error
 re-enters a thunk under evaluation. The engine reports the re-entry as a cycle.
 
 --- tql ---
-loop :: Node -> [String];
+loop :: Filter Node String;
 loop = loop;
 main = loop;
 
@@ -14,8 +14,8 @@ main = loop;
 class A {}
 
 --- types ---
-loop :: Node -> [String]
-main :: Node -> [String]
+loop :: Filter Node String
+main :: Filter Node String
 
 --- runtime error ---
 Cycle

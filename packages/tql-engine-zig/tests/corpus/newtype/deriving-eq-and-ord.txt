@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 newtype Name = Name String deriving (Eq, Ord);
 
-main root = [Name "a" = Name "a", Name "a" = Name "b", Name "a" < Name "b"];
+main = Filter (\_ -> [Name "a" = Name "a", Name "a" = Name "b", Name "a" < Name "b"]);
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 [true,false,true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

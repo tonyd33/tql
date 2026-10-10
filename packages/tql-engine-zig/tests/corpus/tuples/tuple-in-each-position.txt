@@ -8,7 +8,7 @@ area p = case p of {
   (w, h) -> w * h;
 };
 
-main root = [area (2, 3), area (4, 5)];
+main = Filter (\_ -> [area (2, 3), area (4, 5)]);
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 [6,20]
 --- types ---
 area :: (Int, Int) -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

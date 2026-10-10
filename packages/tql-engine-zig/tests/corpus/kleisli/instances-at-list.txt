@@ -9,7 +9,7 @@ every result of one side with every result of the other.
 import Control.Arrow (Kleisli(..), run_kleisli);
 
 names :: Kleisli List Node String;
-names = Kleisli (named_children | arr kind_name);
+names = Kleisli (run (named_children | arr kind_name));
 
 lengths :: Kleisli List Node Int;
 lengths = map length names;
@@ -23,12 +23,12 @@ both = alt names (pure "end");
 nothing :: Kleisli List Node String;
 nothing = empty;
 
-main root = [(
+main = arr (\root -> (
   run_kleisli lengths root,
   run_kleisli paired root,
   run_kleisli both root,
   run_kleisli nothing root
-)];
+));
 
 --- source ---
 class A {}
@@ -43,4 +43,4 @@ lengths :: Kleisli List Node Int
 paired :: Kleisli List Node (String, Int)
 both :: Kleisli List Node String
 nothing :: Kleisli List Node String
-main :: Node -> [([Int], [(String, Int)], [String], [String])]
+main :: Filter Node ([Int], [(String, Int)], [String], [String])

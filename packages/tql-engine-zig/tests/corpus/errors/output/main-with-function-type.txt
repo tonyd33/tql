@@ -1,18 +1,16 @@
-title: `main` may not have a function type
+title: `main` may not be a function
 grammar: typescript
 asserts: error
 
-The output of a query is not a function. Two parameters on the head is one
-spelling of that error, and `main a = \b -> e` and `main = \a -> \b -> e` are
-the same function written differently — so the rejection is of the type, not of
-where the parameters were written.
+A query is a `Filter`, which is not a function. A parameter on the head makes
+`main` a function from the root.
 
 --- tql ---
-main root extra = root;
+main root = [root];
 
 --- error ---
-error[main-type]: Expected `[a]`, found `b -> Node`.
+error[main-type]: Expected `Filter Node a`, found `b -> [b]`.
  --> 1:1
   |
-1 | main root extra = root;
-  | ^^^^^^^^^^^^^^^^^^^^^^^
+1 | main root = [root];
+  | ^^^^^^^^^^^^^^^^^^^

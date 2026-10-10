@@ -6,7 +6,7 @@ asserts: values
 import Data.Function (const);
 
 count n = if n <= 0 then Nil else Cons n (count (n - 1));
-main = const [count 20000 = count 20000, count 20000 < count 20000];
+main = Filter $ const [count 20000 = count 20000, count 20000 < count 20000];
 
 --- source ---
 class A {}

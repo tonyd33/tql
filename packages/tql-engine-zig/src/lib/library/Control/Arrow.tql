@@ -9,7 +9,7 @@ module Control.Arrow (
 import Data.Tuple (fst, snd);
 import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..));
-import Control.Monad (Monad(..));
+import Control.Monad (Monad(..), kleisli);
 import Control.Category (Category(..));
 
 class Category k => Arrow k where {
@@ -63,7 +63,7 @@ instance Monad m => Monad (Kleisli m a) where {
 
 instance Monad m => Category (Kleisli m) where {
   identity = Kleisli pure;
-  compose g f = Kleisli (run_kleisli f | run_kleisli g);
+  compose g f = Kleisli (kleisli (run_kleisli f) (run_kleisli g));
 };
 
 instance Monad m => Arrow (Kleisli m) where {

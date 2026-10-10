@@ -390,7 +390,7 @@ test "a module both in the library and loaded is ambiguous" {
     defer sink.deinit();
 
     try std.testing.expectError(error.DesugarFailed, engine.desugarQuery(
-        "import Data.List; main root = [answer];",
+        "import Data.List; main = pure answer;",
         try grammars.get("typescript"),
         &sink,
     ));

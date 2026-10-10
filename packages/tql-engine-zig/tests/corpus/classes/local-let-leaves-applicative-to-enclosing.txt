@@ -27,7 +27,7 @@ unbox b = case b of {
   Box x -> [x];
 };
 
-main root = concat_map unbox [pure 1, let { g y = y; } in g (Box 2)];
+main = Filter (\_ -> concat_map unbox [pure 1, let { g y = y; } in g (Box 2)]);
 
 --- source ---
 class A {}

@@ -14,4 +14,4 @@ x = a && b;
 [{"matches":false,"name":"identifier"},{"matches":true,"name":"&&"},{"matches":false,"name":"identifier"}]
 
 --- types ---
-main :: Node -> [{matches: Bool, name: String}]
+main :: Filter Node {matches: Bool, name: String}

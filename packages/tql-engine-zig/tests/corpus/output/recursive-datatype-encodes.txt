@@ -3,10 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.Function (const);
-
 data Tree = Leaf | Node Tree Int Tree deriving (Serial);
-main = const [Node (Node Leaf 1 Leaf) 2 Leaf];
+main = pure $ Node (Node Leaf 1 Leaf) 2 Leaf;
 
 --- source ---
 class A {}

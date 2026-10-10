@@ -3,7 +3,7 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = [(fst (1, "a"), snd (1, "a"), swap (1, "a"))];
+main = pure (fst (1, "a"), snd (1, "a"), swap (1, "a"));
 
 --- source ---
 class A {}

@@ -11,7 +11,7 @@ import Data.Foldable (concat_map);
 count n = if n <= 0 then Nil else Cons n (count (n - 1));
 keep_none :: Int -> [Int];
 keep_none x = Nil;
-main root = concat_map keep_none (count 3000);
+main = Filter (\_ -> concat_map keep_none (count 3000));
 
 --- source ---
 class A {}

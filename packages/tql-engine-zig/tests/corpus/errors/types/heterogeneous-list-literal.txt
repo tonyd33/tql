@@ -6,11 +6,11 @@ asserts: error
 have one type.
 
 --- tql ---
-main = always [1, "two"];
+main = pure [1, "two"];
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 1:19
+ --> 1:17
   |
-1 | main = always [1, "two"];
-  |                   ^^^^^
+1 | main = pure [1, "two"];
+  |                 ^^^^^

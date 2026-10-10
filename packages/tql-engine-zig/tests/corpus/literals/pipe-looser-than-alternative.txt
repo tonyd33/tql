@@ -1,0 +1,28 @@
+title: pipe binds looser than `<|>`
+grammar: typescript
+asserts: core, types, values
+
+The last stage is `arr (...) <|> pure false`, so every class yields an extra
+`false`. Parenthesize the pipeline to make it the left operand of `<|>`.
+
+Both `<|>` operands yield `Bool`, since `<|>` requires a single element type.
+
+--- tql ---
+main = children | of_kind :class_declaration
+  | #name
+  | arr (\n -> text n = "A")
+  <|> pure false
+;
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[true, false, false, false]
+
+--- types ---
+main :: Filter Node Bool
+
+--- core ---
+main = compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Filter field[name])) (alt (arr (\n -> eq (text n) "A")) (pure False))

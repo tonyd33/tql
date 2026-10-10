@@ -3,11 +3,11 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-main = always (\x -> x + 1);
+main = pure (\x -> x + 1);
 
 --- error ---
 error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
  --> 1:1
   |
-1 | main = always (\x -> x + 1);
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | main = pure (\x -> x + 1);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^

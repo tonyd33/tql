@@ -1,13 +1,13 @@
-title: a filter built from `collect` at `List` takes no dictionary
+title: a filter built from `collect` takes no dictionary
 grammar: typescript
 asserts: simplified, values
 
-`names` is too large to inline, and `main` calls it at `Applicative List`.
+`names` is too large to inline.
 
 --- tql ---
-names root = collect (children | arr text) root;
+names = collect (children | arr text);
 
-main root = names root;
+main = names;
 
 --- source ---
 class A {}
@@ -16,5 +16,5 @@ class A {}
 [["class A {}"]]
 
 --- simplified ---
-names = \root -> Cons (foldr[List] Cons Nil (bind[List] (%children root) (\x -> Cons (%text x) Nil))) Nil
-main = \root -> names root
+names = \x -> Cons (bind[List] (%children x) (\x -> Cons (%text x) Nil)) Nil
+main = names

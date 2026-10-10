@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
-main = let { inc x = x + 1 } in const [inc 1, inc 2];
+main = let { inc x = x + 1 } in Filter (\_ -> [inc 1, inc 2]);
 
 --- source ---
 class A {}
@@ -14,11 +12,9 @@ class A {}
 [2,3]
 
 --- simplified ---
-main =
-  let x = Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil) in
-  \y -> x
+main = \_ -> Cons (op[+] 1 1) (Cons (op[+] 2 1) Nil)
 
 --- core ---
 main =
   let inc = \x -> op[+] x 1 in
-  const (Cons (inc 1) (Cons (inc 2) Nil))
+  Filter (\_ -> Cons (inc 1) (Cons (inc 2) Nil))

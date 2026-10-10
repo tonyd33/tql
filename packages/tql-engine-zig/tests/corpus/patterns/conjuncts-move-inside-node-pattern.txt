@@ -3,8 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main root = do {
-  x & :class_declaration { #name = n } & (text -> t) <- children root;
+main = do {
+  x & :class_declaration { #name = n } & (text -> t) <- children;
   return [text x, text n, t];
 };
 
@@ -15,9 +15,9 @@ class A {}
 [["class A {}", "A", "class A {}"]]
 
 --- core ---
-main = \root -> bind (children root) (
+main = bind children (
   \x ->
-    let view = of_kind :class_declaration x in
+    let view = run (of_kind :class_declaration) x in
     case view of
       Nil -> empty
       Cons x cons1 ->

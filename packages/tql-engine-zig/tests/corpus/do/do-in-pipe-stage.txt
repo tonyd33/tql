@@ -5,9 +5,9 @@ asserts: core, types, values
 The block runs once per input value from the left stage.
 
 --- tql ---
-main = children | of_kind :class_declaration | \c -> do {
-  m <- (#body | children | of_kind :method_definition) c;
-  n <- m#name;
+main = children | of_kind :class_declaration | do {
+  m <- #body | children | of_kind :method_definition;
+  n <- pure m | #name;
   return $ text n;
 };
 
@@ -19,7 +19,7 @@ class B { p() {} }
 ["m", "p"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = kleisli (kleisli children (of_kind :class_declaration)) (\c -> bind (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> bind (field[name] m) (\n -> return (text n))))
+main = compose_flipped (compose_flipped children (of_kind :class_declaration)) (bind (compose_flipped (compose_flipped (Filter field[body]) children) (of_kind :method_definition)) (\m -> bind (compose_flipped (pure m) (Filter field[name])) (\n -> return (text n))))

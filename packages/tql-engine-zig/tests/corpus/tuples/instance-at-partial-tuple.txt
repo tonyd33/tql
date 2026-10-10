@@ -11,7 +11,7 @@ instance Last ((,) a) where {
   last_of p = snd p;
 };
 
-main root = [last_of (1, "a")];
+main = pure $ last_of (1, "a");
 
 --- source ---
 class A {}

@@ -23,7 +23,7 @@ right = base + 2;
 import Left;
 import Right;
 
-main root = [left, right];
+main = Filter (\_ -> [left, right]);
 
 --- source ---
 let x = 1;

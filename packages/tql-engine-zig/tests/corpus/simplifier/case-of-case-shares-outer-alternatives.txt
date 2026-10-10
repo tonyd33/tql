@@ -3,13 +3,11 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 f b xs ys = case (if b then xs else ys) of {
   [] -> 0;
   h : t -> h * 2 + h * 3 + h * 4 + h * 5;
 };
-main = const [f True [1] [], f False [] [2]];
+main = Filter (\_ -> [f True [1] [], f False [] [2]]);
 
 --- source ---
 class A {}
@@ -26,6 +24,4 @@ f = \b -> \xs -> \ys ->
     True -> case xs of
       Nil -> 0
       Cons h t -> jump j h t
-main =
-  let x = Cons (f True (Cons 1 Nil) Nil) (Cons (f False Nil (Cons 2 Nil)) Nil) in
-  \y -> x
+main = \_ -> Cons (f True (Cons 1 Nil) Nil) (Cons (f False Nil (Cons 2 Nil)) Nil)

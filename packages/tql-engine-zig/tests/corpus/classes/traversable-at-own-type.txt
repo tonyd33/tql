@@ -25,10 +25,10 @@ instance Traversable Pair where {
   };
 };
 
-main root = concat [
+main = Filter (\_ -> concat [
   concat $ map to_list $ traverse (\x -> [x, x + 10]) $ Pair 1 2,
   concat $ map to_list $ sequence $ Pair [3] [4],
-];
+]);
 
 --- source ---
 class A {}
@@ -37,4 +37,4 @@ class A {}
 [1,2,1,12,11,2,11,12,3,4]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

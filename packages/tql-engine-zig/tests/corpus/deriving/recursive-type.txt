@@ -6,7 +6,7 @@ asserts: values
 import Data.Function (const);
 
 data Tree = Leaf | Node Tree Int Tree deriving (Eq, Ord);
-main = const [
+main = Filter $ const [
   Node Leaf 1 Leaf = Node Leaf 1 Leaf,
   Node Leaf 1 Leaf < Node (Node Leaf 0 Leaf) 0 Leaf
 ];

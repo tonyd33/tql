@@ -3,13 +3,11 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.Function (const);
-
 data Bag = Bag [Int];
 instance Sized Bag where {
   length b = case b of { Bag xs -> length xs + 100 };
 };
-main = const [length (Bag [1, 2]), length "ab", length [1]];
+main = Filter (\_ -> [length (Bag [1, 2]), length "ab", length [1]]);
 
 --- source ---
 class A {}

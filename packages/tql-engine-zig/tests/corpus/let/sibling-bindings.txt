@@ -8,7 +8,7 @@ main =
     lo = 2;
     hi = 5;
   }
-  in always (lo + hi);
+  in pure (lo + hi);
 
 --- source ---
 class A {}
@@ -17,10 +17,10 @@ class A {}
 [7]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 main =
   let lo = 2 in
   let hi = 5 in
-  always (op[+] lo hi)
+  pure (op[+] lo hi)

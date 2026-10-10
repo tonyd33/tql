@@ -21,18 +21,18 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
         .string_length => .{ .type = try B.func(types.string_type, types.int_type) },
         .mod => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
-        .toint => .{ .type = try B.filter(types.string_type, types.int_type) },
-        .filename => .{ .type = try B.filter(types.node_type, types.string_type) },
+        .toint => .{ .type = try B.listFunction(types.string_type, types.int_type) },
+        .filename => .{ .type = try B.listFunction(types.node_type, types.string_type) },
         .parent,
         .ancestors,
         .children,
         .named_children,
         .descendants,
         .named_descendants,
-        => .{ .type = try B.filter(types.node_type, types.node_type) },
+        => .{ .type = try B.listFunction(types.node_type, types.node_type) },
         .children_of_kind, .descendants_of_kind => .{ .type = try B.func(
             types.kind_type,
-            try B.filter(types.node_type, types.node_type),
+            try B.listFunction(types.node_type, types.node_type),
         ) },
         .is_kind => .{ .type = try B.func(types.kind_type, try B.func(types.node_type, try B.boolType())) },
         inline else => |p| {
@@ -56,8 +56,9 @@ const Builder = struct {
         return try types.func(self.arena, from, to);
     }
 
-    fn filter(self: Builder, input: types.Type, output: types.Type) !types.Type {
-        return try self.declared.filter(self.arena, input, output);
+    /// `input -> [output]`.
+    fn listFunction(self: Builder, input: types.Type, output: types.Type) !types.Type {
+        return try types.func(self.arena, input, try self.declared.list(self.arena, output));
     }
 
     fn boolType(self: Builder) !types.Type {
@@ -100,7 +101,7 @@ pub fn synthesizedScheme(
     return switch (synthesized) {
         // The field id is resolved and threaded, and deliberately unused: a
         // field narrows the *value* but not yet the type.
-        .field => .{ .type = try B.filter(types.node_type, types.node_type) },
+        .field => .{ .type = try B.listFunction(types.node_type, types.node_type) },
         .operator => |operator| try operatorScheme(arena, declared, operator),
         .record => |labels| try recordScheme(arena, labels),
         .select => |label| try selectScheme(arena, label),

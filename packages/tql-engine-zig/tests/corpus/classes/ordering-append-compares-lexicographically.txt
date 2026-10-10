@@ -11,7 +11,7 @@ label o = case o of {
 
 by_both a b c d = append (compare a b) (compare c d);
 
-main root = map label [by_both 1 1 2 3, by_both 2 1 1 3, by_both "a" "a" "b" "b", append mempty GT];
+main = Filter (\_ -> map label [by_both 1 1 2 3, by_both 2 1 1 3, by_both "a" "a" "b" "b", append mempty GT]);
 
 --- source ---
 class A {}
@@ -22,4 +22,4 @@ class A {}
 --- types ---
 label :: Ordering -> String
 by_both :: (Ord a, Ord b) => a -> a -> b -> b -> Ordering
-main :: Node -> [String]
+main :: Filter Node String

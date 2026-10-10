@@ -22,7 +22,7 @@ instance Describe a => Describe [a] where {
   };
 };
 
-main root = [describe [[Circle 1]], describe [drop 1 [Square 1]]];
+main = Filter (\_ -> [describe [[Circle 1]], describe [drop 1 [Square 1]]]);
 
 --- source ---
 class A {}

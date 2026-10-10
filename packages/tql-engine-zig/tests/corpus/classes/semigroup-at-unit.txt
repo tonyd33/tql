@@ -3,8 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root = case append () mempty of {
-  () -> ["unit"];
+main = case append () mempty of {
+  () -> pure "unit";
 };
 
 --- source ---
@@ -14,4 +14,4 @@ class A {}
 ["unit"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

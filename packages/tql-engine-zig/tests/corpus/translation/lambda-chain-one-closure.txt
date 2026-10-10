@@ -4,7 +4,7 @@ asserts: stg, values
 
 --- tql ---
 add x y = x + y;
-main = always (map (add 1) [2]);
+main = pure (map (add 1) [2]);
 
 --- source ---
 class A {}
@@ -18,7 +18,7 @@ add = {} \u {} ->
   t0@0
 main = {} \u {} ->
   let
-    v = {} \u {} ->
+    y = {} \u {} ->
       let
         t0 = {} \u {} -> add 1
         t2 = {} \u {} ->
@@ -28,8 +28,8 @@ main = {} \u {} ->
       map[List] t0@0 t2@1
   in
   let
-    t4 = {v@0} \n {x} ->
+    t4 = {y@0} \n {_} ->
       let c3 = Nil in
-      Cons v@0 c3@2
+      Cons y@0 c3@2
   in
   t4@1

@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const (append (map (: []) [1, 2]) (append (map (0 :) [[1]]) [(:) 1 []]));
+main = Filter (\_ -> append (map (: []) [1, 2]) (append (map (0 :) [[1]]) [(:) 1 []]));
 
 --- source ---
 class A {}
@@ -14,4 +12,4 @@ class A {}
 [[1], [2], [0, 1], [1]]
 
 --- core ---
-main = const (append (map (\x -> Cons x Nil) (Cons 1 (Cons 2 Nil))) (append (map (\y -> Cons 0 y) (Cons (Cons 1 Nil) Nil)) (Cons ((\x -> \y -> Cons x y) 1 Nil) Nil)))
+main = Filter (\_ -> append (map (\x -> Cons x Nil) (Cons 1 (Cons 2 Nil))) (append (map (\y -> Cons 0 y) (Cons (Cons 1 Nil) Nil)) (Cons ((\x -> \y -> Cons x y) 1 Nil) Nil)))

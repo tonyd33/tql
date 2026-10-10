@@ -36,7 +36,7 @@ instance Describe a => Describe [a] where {
 labels :: Describe a => a -> [String];
 labels x = append [label x] (describe x);
 
-main root = labels [1, 2];
+main = Filter (\_ -> labels [1, 2]);
 
 --- source ---
 class A {}

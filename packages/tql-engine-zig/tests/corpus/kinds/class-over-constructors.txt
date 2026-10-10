@@ -15,7 +15,7 @@ instance Mappable List where {
   mapf = map;
 };
 
-main root = mapf length [[1], [2, 3]];
+main = Filter (\_ -> mapf length [[1], [2, 3]]);
 
 --- source ---
 class A {}
@@ -23,4 +23,4 @@ class A {}
 --- values ---
 [1,2]
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

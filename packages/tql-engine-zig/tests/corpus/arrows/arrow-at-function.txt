@@ -11,14 +11,14 @@ import Control.Arrow (Arrow(..));
 double x = x * 2;
 next x = x + 1;
 
-main root = [(
+main = pure (
   arr double 3,
   first double (3, "a"),
   second double ("a", 3),
   split double next (3, 3),
   fanout double next 3,
   fst (first next (1, 1 / 0))
-)];
+);
 
 --- source ---
 class A {}
@@ -29,4 +29,4 @@ class A {}
 --- types ---
 double :: Int -> Int
 next :: Int -> Int
-main :: Node -> [(Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)]
+main :: Filter Node (Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)

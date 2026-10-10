@@ -3507,10 +3507,6 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "filter_type"
-        },
-        {
-          "type": "SYMBOL",
           "name": "type_application"
         },
         {
@@ -3589,31 +3585,6 @@
               "type": "SYMBOL",
               "name": "_type_operand"
             }
-          }
-        }
-      ]
-    },
-    "filter_type": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "Filter"
-        },
-        {
-          "type": "FIELD",
-          "name": "input",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_type_operand"
-          }
-        },
-        {
-          "type": "FIELD",
-          "name": "output",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_type_operand"
           }
         }
       ]

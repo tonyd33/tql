@@ -3,16 +3,15 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 import Data.List (drop, take);
 
-main = const [
+main = Filter (\_ -> [
   take 2 [1, 2, 3],
   drop 2 [1, 2, 3],
   take 5 [1],
   drop 5 [1],
   take 0 [1]
-];
+]);
 
 --- source ---
 class A {}
@@ -21,4 +20,4 @@ class A {}
 [[1,2],[3],[1],[],[]]
 
 --- types ---
-main :: Node -> [[Int]]
+main :: Filter Node [Int]

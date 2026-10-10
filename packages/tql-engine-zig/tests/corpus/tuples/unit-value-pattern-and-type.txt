@@ -10,7 +10,7 @@ check u = case u of {
   () -> 1;
 };
 
-main root = [check (ignore root)];
+main = arr (check . ignore);
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 --- types ---
 ignore :: a -> ()
 check :: () -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

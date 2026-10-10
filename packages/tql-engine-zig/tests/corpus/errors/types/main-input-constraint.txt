@@ -5,11 +5,11 @@ asserts: error
 `main` is run at `Node`, so its `Ord a` is `Ord Node`, which does not hold.
 
 --- tql ---
-main x = [x < x];
+main = arr (\x -> x < x);
 
 --- error ---
 error[unsatisfied-constraint]: `Ord Node` is not satisfied.
- --> 1:11
+ --> 1:19
   |
-1 | main x = [x < x];
-  |           ^^^^^
+1 | main = arr (\x -> x < x);
+  |                   ^^^^^

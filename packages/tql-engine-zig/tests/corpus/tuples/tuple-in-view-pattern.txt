@@ -9,7 +9,7 @@ split n = case n of {
   (halves -> (a, b)) -> a + b * 10;
 };
 
-main root = [split 7];
+main = pure $ split 7;
 
 --- source ---
 class A {}

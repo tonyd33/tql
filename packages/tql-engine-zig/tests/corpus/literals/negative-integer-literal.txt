@@ -3,9 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-import Data.Function (const);
 
-main = const [-7, 0 - 7];
+main = Filter (\_ -> [-7, 0 - 7]);
 
 --- source ---
 class A {}
@@ -14,7 +13,7 @@ class A {}
 [-7, -7]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
-main = const (Cons (-7) (Cons (op[-] 0 7) Nil))
+main = Filter (\_ -> Cons (-7) (Cons (op[-] 0 7) Nil))

@@ -22,7 +22,7 @@ instance Describe Shape where {
 import Classes;
 import Shapes;
 
-main root = [describe (Circle 1), describe (Square 2)];
+main = Filter (\_ -> [describe (Circle 1), describe (Square 2)]);
 
 --- source ---
 class A {}

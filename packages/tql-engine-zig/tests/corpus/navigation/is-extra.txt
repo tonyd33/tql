@@ -14,4 +14,4 @@ f(/* c */ a);
 [{"extra":true,"named":true,"text":"/* c */"},{"extra":false,"named":true,"text":"a"}]
 
 --- types ---
-main :: Node -> [{extra: Bool, named: Bool, text: String}]
+main :: Filter Node {extra: Bool, named: Bool, text: String}

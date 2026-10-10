@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 apply f x = f x;
-main = always $ apply (\n -> n * 3) 5;
+main = pure $ apply (\n -> n * 3) 5;
 
 --- source ---
 class A {}
@@ -14,8 +14,8 @@ class A {}
 
 --- types ---
 apply :: (a -> b) -> a -> b
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 apply = \f -> \x -> f x
-main = always (apply (\n -> op[*] n 3) 5)
+main = pure (apply (\n -> op[*] n 3) 5)

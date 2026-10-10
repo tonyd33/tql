@@ -7,8 +7,8 @@ pattern Callee f <- :call_expression { #function = f };
 pattern Method o p <- Callee (:member_expression { #object = o, #property = p });
 pattern ConsoleCall p <- Method (:identifier {} & (text -> "console")) p;
 
-main root = do {
-  ConsoleCall p <- descendants root;
+main = do {
+  ConsoleCall p <- descendants;
   return (text p);
 };
 
@@ -20,8 +20,8 @@ foo.warn("c");
 --- values ---
 ["error","log"]
 --- simplified ---
-main = \root -> bind[List] (%descendants_of_kind :call_expression root) (
-  \scrutinee -> case field[function] scrutinee of
+main = \x -> bind[List] (%descendants_of_kind :call_expression x) (
+  \y -> case field[function] y of
     Nil -> Nil
     Cons f cons1 -> case cons1 of
       Nil -> case %is_kind :member_expression f of
@@ -44,7 +44,7 @@ main = \root -> bind[List] (%descendants_of_kind :call_expression root) (
 
 --- core ---
 $mCallee = \s -> \k -> \f ->
-  let view = of_kind :call_expression s in
+  let view = run (of_kind :call_expression) s in
   case view of
     Nil -> f
     Cons cons0 cons1 ->
@@ -58,7 +58,7 @@ $mCallee = \s -> \k -> \f ->
           Cons _ _ -> f
 $mMethod = \s -> \k -> \f -> $mCallee s (
   \callee0 ->
-    let view = of_kind :member_expression callee0 in
+    let view = run (of_kind :member_expression) callee0 in
     case view of
       Nil -> f
       Cons cons0 cons1 ->
@@ -79,7 +79,7 @@ $mMethod = \s -> \k -> \f -> $mCallee s (
 ) f
 $mConsoleCall = \s -> \k -> \f -> $mMethod s (
   \method0 -> \p ->
-    let view = of_kind :identifier method0 in
+    let view = run (of_kind :identifier) method0 in
     case view of
       Nil -> f
       Cons cons0 cons1 ->
@@ -90,4 +90,4 @@ $mConsoleCall = \s -> \k -> \f -> $mMethod s (
             Nil -> k p
             Cons _ _ -> f
 ) f
-main = \root -> bind (descendants root) (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) empty)
+main = bind descendants (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) empty)

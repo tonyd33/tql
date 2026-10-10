@@ -3,13 +3,11 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const $ do {
+main = Filter (\_ -> do {
   [a, b] <- [[1, 2], [3], [4, 5], [6, 7, 8]];
   h : _ <- [[a + b], []];
   return h;
-};
+});
 
 --- source ---
 class A {}
@@ -18,8 +16,8 @@ class A {}
 [3, 9]
 
 --- core ---
-main = const (
-  bind (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil)))) (
+main = Filter (
+  \_ -> bind (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil)))) (
     \scrutinee -> case scrutinee of
       Nil -> empty
       Cons a cons1 -> case cons1 of

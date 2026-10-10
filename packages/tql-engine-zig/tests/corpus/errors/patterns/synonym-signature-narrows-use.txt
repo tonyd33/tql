@@ -6,8 +6,8 @@ asserts: error
 pattern Single :: Node -> [Node];
 pattern Single x <- [x];
 
-main root = do {
-  Single 3 <- [children root];
+main = do {
+  Single 3 <- collect children;
   return 1;
 };
 
@@ -15,5 +15,5 @@ main root = do {
 error[type-mismatch]: Expected `Node`, found `Int`.
  --> 5:10
   |
-5 |   Single 3 <- [children root];
+5 |   Single 3 <- collect children;
   |          ^

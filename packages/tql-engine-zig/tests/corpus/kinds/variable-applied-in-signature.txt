@@ -10,7 +10,7 @@ import Data.Foldable (null);
 apply :: (f a -> b) -> f a -> b;
 apply g x = g x;
 
-main root = [apply null [1], apply null []];
+main = Filter (\_ -> [apply null [1], apply null []]);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 [false,true]
 --- types ---
 apply :: (a b -> c) -> a b -> c
-main :: Node -> [Bool]
+main :: Filter Node Bool

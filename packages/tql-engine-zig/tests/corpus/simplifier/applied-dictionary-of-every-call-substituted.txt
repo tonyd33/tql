@@ -6,12 +6,10 @@ Both calls pass `Eq [Int]`, the `List` instance applied to `Eq Int`.
 In `same`, the method selects from it as from any known instance.
 
 --- tql ---
-import Data.Function (const);
-
 same :: Eq a => a -> a -> a -> Bool;
 same x y z = x = y and y = z and x = z;
 
-main = const [same [1] [1] [1], same [1] [2] [1]];
+main = Filter (\_ -> [same [1] [1] [1], same [1] [2] [1]]);
 
 --- source ---
 class A {}
@@ -25,6 +23,4 @@ same = \x -> \y -> \z -> case eq[List] x y of
   True -> case eq[List] y z of
     False -> False
     True -> eq[List] x z
-main =
-  let x = Cons (same (Cons 1 Nil) (Cons 1 Nil) (Cons 1 Nil)) (Cons (same (Cons 1 Nil) (Cons 2 Nil) (Cons 1 Nil)) Nil) in
-  \y -> x
+main = \_ -> Cons (same (Cons 1 Nil) (Cons 1 Nil) (Cons 1 Nil)) (Cons (same (Cons 1 Nil) (Cons 2 Nil) (Cons 1 Nil)) Nil)

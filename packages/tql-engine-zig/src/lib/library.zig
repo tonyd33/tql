@@ -20,7 +20,6 @@ pub const modules = [_]load.Named{
     .{ .name = "Control.Category", .path = "Control/Category.tql", .text = @embedFile("library/Control/Category.tql") },
     .{ .name = "Data.Function", .path = "Data/Function.tql", .text = @embedFile("library/Data/Function.tql") },
     .{ .name = "Data.Tuple", .path = "Data/Tuple.tql", .text = @embedFile("library/Data/Tuple.tql") },
-    .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
     .{ .name = "Data.Monoid", .path = "Data/Monoid.tql", .text = @embedFile("library/Data/Monoid.tql") },
     .{ .name = "Data.Functor", .path = "Data/Functor.tql", .text = @embedFile("library/Data/Functor.tql") },
     .{ .name = "Control.Applicative", .path = "Control/Applicative.tql", .text = @embedFile("library/Control/Applicative.tql") },
@@ -30,8 +29,9 @@ pub const modules = [_]load.Named{
     .{ .name = "Control.Arrow", .path = "Control/Arrow.tql", .text = @embedFile("library/Control/Arrow.tql") },
     .{ .name = "Data.Maybe", .path = "Data/Maybe.tql", .text = @embedFile("library/Data/Maybe.tql") },
     .{ .name = "Data.List", .path = "Data/List.tql", .text = @embedFile("library/Data/List.tql") },
-    .{ .name = "Data.Node", .path = "Data/Node.tql", .text = @embedFile("library/Data/Node.tql") },
     .{ .name = "Data.Filter", .path = "Data/Filter.tql", .text = @embedFile("library/Data/Filter.tql") },
+    .{ .name = "Data.Node", .path = "Data/Node.tql", .text = @embedFile("library/Data/Node.tql") },
+    .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
     .{ .name = prelude_name, .path = "Prelude.tql", .text = @embedFile("library/Prelude.tql") },
 };
 
@@ -44,9 +44,12 @@ const known_owners: std.EnumArray(core.Known, []const u8) = .init(.{
     .bind = "Control.Monad",
     .empty = "Control.Applicative",
     .compose = "Control.Category",
+    .compose_flipped = "Control.Category",
     .kleisli = "Control.Monad",
-    .@"union" = "Data.Filter",
-    .of_kind = core.ModuleId.prim_name,
+    .alt = "Control.Applicative",
+    .run = "Data.Filter",
+    .Filter = "Data.Filter",
+    .of_kind = "Data.Node",
 });
 
 /// Returns the library module named `name`.

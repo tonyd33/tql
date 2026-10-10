@@ -2,12 +2,12 @@ title: a do block binds through the prelude whatever the query defines
 grammar: typescript
 asserts: values
 
-`do` desugars to the prelude's `concat_map`.
+`do` desugars to the prelude's `bind`.
 
 --- tql ---
-concat_map f xs = [];
-main root = do {
-  x <- [1, 2];
+bind p f = [];
+main = do {
+  x <- Filter (\_ -> [1, 2]);
   return $ x + 1;
 };
 

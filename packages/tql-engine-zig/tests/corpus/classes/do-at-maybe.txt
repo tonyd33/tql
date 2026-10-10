@@ -11,7 +11,7 @@ both m n = do {
   return (a + b);
 };
 
-main root = [both (Just 1) (Just 2), both (Just 1) Nothing];
+main = Filter (\_ -> [both (Just 1) (Just 2), both (Just 1) Nothing]);
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 [{"tag":"Just","fields":[3]},{"tag":"Nothing","fields":[]}]
 --- types ---
 both :: Monad a => a Int -> a Int -> a Int
-main :: Node -> [Maybe Int]
+main :: Filter Node (Maybe Int)

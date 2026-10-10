@@ -8,7 +8,7 @@ the same. The signature claims they are independent.
 --- tql ---
 k :: a -> b -> a;
 k x y = if true then x else y;
-main = always (k 1 2);
+main = pure (k 1 2);
 
 --- error ---
 error[signature-mismatch]: Expected `a -> b -> a`, found `a -> a -> a`.

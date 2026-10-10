@@ -5,15 +5,13 @@ asserts: core, types, values
 `[1]` matches both `Cons x Nil` and `Cons x t`.
 
 --- tql ---
-import Data.Function (const);
-
 shape xs = case xs of {
   Cons x Nil -> 1;
   Cons x t -> 2;
   Nil -> 0;
 };
 
-main = const [shape [1], shape [1, 2], shape []];
+main = Filter (\_ -> [shape [1], shape [1, 2], shape []]);
 
 --- source ---
 class A {}
@@ -23,7 +21,7 @@ class A {}
 
 --- types ---
 shape :: [a] -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 shape = \xs -> case xs of
@@ -31,4 +29,4 @@ shape = \xs -> case xs of
   Cons x t -> case t of
     Nil -> 1
     Cons _ _ -> 2
-main = const (Cons (shape (Cons 1 Nil)) (Cons (shape (Cons 1 (Cons 2 Nil))) (Cons (shape Nil) Nil)))
+main = Filter (\_ -> Cons (shape (Cons 1 Nil)) (Cons (shape (Cons 1 (Cons 2 Nil))) (Cons (shape Nil) Nil)))

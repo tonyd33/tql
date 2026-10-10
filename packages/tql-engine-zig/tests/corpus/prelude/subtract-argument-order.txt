@@ -3,10 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 import Data.Int (subtract);
 
-main = const (map (subtract 1) [5, 7]);
+main = Filter (\_ -> map (subtract 1) [5, 7]);
 
 --- source ---
 class A {}
@@ -15,4 +14,4 @@ class A {}
 [4, 6]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

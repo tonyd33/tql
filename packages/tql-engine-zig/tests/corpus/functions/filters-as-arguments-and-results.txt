@@ -2,8 +2,8 @@ title: a higher-order function taking and returning filters
 grammar: typescript
 asserts: types, values
 
-`both` takes two filters and returns their union as a new filter. Both
-arguments are `Filter Node String`, which is what lets the union unify.
+`both` takes two filters and returns their alternative `f <|> g` as a new
+filter. Both arguments are `Filter Node String`, which is what lets `<|>` unify.
 
 --- tql ---
 both f g = f <|> g;
@@ -16,5 +16,5 @@ class A {}
 ["A", "class_declaration"]
 
 --- types ---
-both :: Alternative b => (a -> b c) -> (a -> b c) -> a -> b c
-main :: Node -> [String]
+both :: Alternative a => a b -> a b -> a b
+main :: Filter Node String

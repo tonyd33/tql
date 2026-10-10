@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main = always $ 1 + 1 = 2;
+main = pure $ 1 + 1 = 2;
 
 --- source ---
 class A {}
@@ -12,7 +12,7 @@ class A {}
 [true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- core ---
-main = always (eq (op[+] 1 1) 2)
+main = pure (eq (op[+] 1 1) 2)

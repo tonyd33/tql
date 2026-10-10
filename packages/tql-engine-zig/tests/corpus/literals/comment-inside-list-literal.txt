@@ -3,10 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.Function (const);
 
-main = const [1, -- two
-  2,];
+main = Filter (\_ -> [1, -- two
+  2,]);
 
 --- source ---
 class A {}

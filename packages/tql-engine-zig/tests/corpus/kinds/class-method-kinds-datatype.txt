@@ -20,7 +20,7 @@ instance Wrapping List where {
 list :: Proxy List;
 list = Proxy;
 
-main root = wrapped list;
+main = Filter (\_ -> wrapped list);
 
 --- source ---
 class A {}
@@ -29,4 +29,4 @@ class A {}
 [1]
 --- types ---
 list :: Proxy List
-main :: Node -> [Int]
+main :: Filter Node Int

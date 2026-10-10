@@ -10,7 +10,7 @@ apply_self s = case s of {
   Self f -> f s;
 };
 
-main root = [apply_self (Self (\_ -> 7))];
+main = pure $ apply_self (Self (\_ -> 7));
 
 --- source ---
 class A {}
@@ -20,4 +20,4 @@ class A {}
 
 --- types ---
 apply_self :: Self -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

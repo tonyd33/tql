@@ -25,7 +25,7 @@ instance Labelled String where {
 ping n x y = if n = 0 then [describe x] else pong (n - 1) x y;
 pong n x y = if n = 0 then [label y] else ping (n - 1) x y;
 
-main root = append (ping 3 1 "odd") (ping 2 1 "odd");
+main = Filter (\_ -> append (ping 3 1 "odd") (ping 2 1 "odd"));
 
 --- source ---
 class A {}
@@ -36,4 +36,4 @@ class A {}
 --- types ---
 ping :: (Describe a, Labelled b) => Int -> a -> b -> [String]
 pong :: (Describe a, Labelled b) => Int -> a -> b -> [String]
-main :: Node -> [String]
+main :: Filter Node String

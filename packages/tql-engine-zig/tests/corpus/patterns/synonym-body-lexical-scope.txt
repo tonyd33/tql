@@ -5,9 +5,9 @@ asserts: values
 --- tql ---
 pattern Text s <- (text -> s);
 
-main root = do {
+main = do {
   let text = "shadowed";
-  i@(Text "a") <- descendants_of_kind :identifier root;
+  i@(Text "a") <- descendants_of_kind :identifier;
   return [text, kind_name i];
 };
 

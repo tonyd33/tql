@@ -3,12 +3,10 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 differ :: Int -> Int -> Bool;
 differ x y = not $ x = y;
 
-main = const [differ 1 2, differ 2 2];
+main = Filter (\_ -> [differ 1 2, differ 2 2]);
 
 --- source ---
 class A {}
@@ -17,6 +15,4 @@ class A {}
 [true, false]
 
 --- simplified ---
-main =
-  let x = Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil) in
-  \y -> x
+main = \_ -> Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil)

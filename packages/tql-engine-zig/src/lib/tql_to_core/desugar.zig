@@ -280,28 +280,10 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
-            // A leading `#f` is the bare `field[f]`.
+            // A leading `#f` is `Filter field[f]`, and `x#f` is `field[f] x`.
             .navigation => |n| {
-                const id = (try self.grammar("field", n.field, e.span)).fieldIdForName(n.field);
-                if (id == 0) {
-                    try self.sink.report(
-                        .unknown_field,
-                        e.span,
-                        "`{s}` is not a field in this grammar",
-                        .{n.field},
-                    );
-                    return error.DesugarFailed;
-                }
-                const field = self.builder.symbol(
-                    try self.synthesize(
-                        e.span,
-                        "field[{s}]",
-                        .{n.field},
-                        .{ .field = .{ .name = try self.builder.dupe(n.field), .id = id } },
-                    ),
-                    e.span,
-                );
-                const subject = n.node orelse return field;
+                const field = try self.fieldFunction(n.field, e.span);
+                const subject = n.node orelse return try self.builder.apply(try self.known(.Filter, e.span), field, e.span);
                 return try self.builder.apply(field, try self.expression(subject, scope), e.span);
             },
 
@@ -478,8 +460,8 @@ pub const Lowerer = struct {
                 span,
             ),
             inline .lt, .lte, .gt, .gte => |o| return try self.ordered(left, right, @field(core.Comparison, @tagName(o)), span),
-            .pipe => return try self.combinator(.kleisli, left, right, span),
-            .stream_union => return try self.combinator(.@"union", left, right, span),
+            .pipe => return try self.combinator(.compose_flipped, left, right, span),
+            .stream_union => return try self.combinator(.alt, left, right, span),
             .compose => return try self.combinator(.compose, left, right, span),
             .then => return try self.then(left, right),
             .cons => return try self.builder.applyMany(
@@ -500,6 +482,20 @@ pub const Lowerer = struct {
         return try self.builder.applyMany(
             self.builder.symbol(operator, span),
             &.{ left, right },
+            span,
+        );
+    }
+
+    /// `field[name]`, the function from a node to its children in field
+    /// `name`.
+    pub fn fieldFunction(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
+        const id = (try self.grammar("field", name, span)).fieldIdForName(name);
+        if (id == 0) {
+            try self.sink.report(.unknown_field, span, "`{s}` is not a field in this grammar", .{name});
+            return error.DesugarFailed;
+        }
+        return self.builder.symbol(
+            try self.synthesize(span, "field[{s}]", .{name}, .{ .field = .{ .name = try self.builder.dupe(name), .id = id } }),
             span,
         );
     }

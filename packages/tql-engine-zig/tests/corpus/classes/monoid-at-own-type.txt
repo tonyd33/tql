@@ -21,9 +21,9 @@ instance Monoid Max where {
 
 combine xs = foldr append mempty xs;
 
-main root = append (case combine [Max 3, Max 7, Max 2] of {
+main = Filter (\_ -> append (case combine [Max 3, Max 7, Max 2] of {
   Max n -> [n];
-}) (combine [[1], mempty, [2]]);
+}) (combine [[1], mempty, [2]]));
 
 --- source ---
 class A {}
@@ -33,4 +33,4 @@ class A {}
 
 --- types ---
 combine :: (Foldable a, Monoid b) => a b -> b
-main :: Node -> [Int]
+main :: Filter Node Int

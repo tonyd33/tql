@@ -6,9 +6,8 @@ asserts: types, values, core
 `"\"ab\""` has length 4. Core prints the literal re-escaped.
 
 --- tql ---
-import Data.Function (const);
 
-main = const [length "\"ab\"", length "a\\b", length "\n\t\r"];
+main = Filter (\_ -> [length "\"ab\"", length "a\\b", length "\n\t\r"]);
 
 --- source ---
 class A {}
@@ -17,7 +16,7 @@ class A {}
 [4, 3, 3]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
-main = const (Cons (length "\"ab\"") (Cons (length "a\\b") (Cons (length "\n\t\r") Nil)))
+main = Filter (\_ -> Cons (length "\"ab\"") (Cons (length "a\\b") (Cons (length "\n\t\r") Nil)))

@@ -25,7 +25,7 @@ instance Twin Int where {
 f :: Twin a => a -> Bool;
 f x = x = x;
 
-main root = [f 1];
+main = pure (f 1);
 
 --- source ---
 class A {}
@@ -35,4 +35,4 @@ class A {}
 
 --- types ---
 f :: Twin a => a -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

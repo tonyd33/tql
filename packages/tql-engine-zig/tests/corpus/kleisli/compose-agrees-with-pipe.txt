@@ -5,16 +5,16 @@ asserts: types, values, simplified
 --- tql ---
 import Control.Arrow (Kleisli(..), run_kleisli);
 
-piped :: Node -> [String];
+piped :: Filter Node String;
 piped = named_children | named_children | arr kind_name;
 
 composed :: Node -> [String];
-composed = run_kleisli (compose (Kleisli (arr kind_name)) (compose (Kleisli named_children) (Kleisli named_children)));
+composed = run_kleisli (compose (arr kind_name) (compose (Kleisli (run named_children)) (Kleisli (run named_children))));
 
 dotted :: Node -> [String];
-dotted = run_kleisli (Kleisli (arr kind_name) . Kleisli named_children . Kleisli named_children);
+dotted = run_kleisli (arr kind_name . Kleisli (run named_children) . Kleisli (run named_children));
 
-main root = [piped root = composed root, piped root = dotted root];
+main = Filter (\root -> [run piped root = composed root, run piped root = dotted root]);
 
 --- source ---
 class A { b() {} }
@@ -29,7 +29,7 @@ dotted = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -
 main = \root -> Cons (eq[List] (piped root) (composed root)) (Cons (eq[List] (piped root) (dotted root)) Nil)
 
 --- types ---
-piped :: Node -> [String]
+piped :: Filter Node String
 composed :: Node -> [String]
 dotted :: Node -> [String]
-main :: Node -> [Bool]
+main :: Filter Node Bool

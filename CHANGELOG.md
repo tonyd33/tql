@@ -16,15 +16,17 @@
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
-- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `tail` and `init`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `const` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Data.Filter (union);` for `kleisli` and `union`. Operators and `do` still work without an import.
+- The prelude no longer exports the list, function and integer helpers. Import them: `import Data.List (take);` for `filter`, `take`, `drop`, `tail` and `init`; `import Data.Foldable (any);` for `null`, `any`, `all`, `concat` and `concat_map`; `import Data.Function (const);` for `const` and `flip`; `import Data.Int (mod);` for `mod`, `subtract` and `toint`; `import Control.Monad (kleisli);` for `kleisli`. Operators and `do` still work without an import.
 - The compile stats report `library_ns` in place of `prelude_ns`.
 - A type given the wrong number of arguments, a row variable used as a type, and a type used as a row are `kind-mismatch` errors, not `type-mismatch`: `Maybe` has kind `Type -> Type`, and only a type of kind `Type` has values.
-- The filter `pure` is renamed `always`: `main = children | always 1;`. `pure` is the `Applicative` method.
-- The filter `alt` is renamed `union`: `import Data.Filter (union);`. `alt` is the `Alternative` method. `<|>` is unchanged.
 - `append` is the `Semigroup` method, exported by the prelude. Drop it from `import Data.List (...)`.
 - `Unit` is replaced by `()`, the empty tuple: write `()` for the value, the pattern and the type. `guard` returns `f ()`, and the `Data.Unit` module is gone.
-- The filter `first` is removed, so `Arrow` can take the name. A step after `|` runs once per result, so a filter's first result is a list function composed after it: write `take 1 . p` for `first p`, and `take 1 $ p x` for `first p x`, with `import Data.List (take);`. `head . p` gives the first result as a `Maybe`.
+- The filter `first` is removed, so `Arrow` can take the name. A step after `|` runs once per result, so a filter's first result is a list function composed after it: write `Filter (take 1 . run p)` for `first p`, and `take 1 $ run p x` for `first p x`, with `import Data.List (take);`. `head . run p` gives the first result as a `Maybe`.
 - `head`, `tail` and the new `last` and `init` return a `Maybe`: `head [] = Nothing`, `tail [1, 2] = Just [2]`. Write `take 1 xs` and `drop 1 xs` for the old list results.
+- `Filter a b` is a `newtype` over `a -> [b]`, and a filter is no longer a function. Apply one with `run p x`, and make one from a function with `Filter (\x -> ...)`. The axes, `of_kind`, `filename`, `toint` and `#f` are filters; `x#f` is still the list of `x`'s children in field `f`.
+- `main` is a `Filter Node t`. `main root = do { x <- descendants root; ... };` becomes `main = do { x <- descendants; ... };`: a `do` over `Filter Node` gives every statement the root, `root <- identity;` names it, and `y <- pure x | p;` binds `p`'s results at `x`. `main root = [v];` becomes `main = pure v;`, and a signature `main :: Node -> [Int]` becomes `main :: Filter Node Int`.
+- `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
+- `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
 
 ### New Features
 
@@ -46,13 +48,13 @@
 - Added `kind_name :: Node -> String`, a node's kind as a string. An anonymous token's is its spelling.
 - Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
 - A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];`.
-- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = always :comment;` yields `["comment"]`.
+- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
 - `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
 - Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
 - Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
 - Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
 - Added guards to `case` alternatives: in `[a, b] if a = b -> 1`, a false guard tries the alternatives after it.
-- Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants root;` binds each method call.
+- Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants;` binds each method call.
 - Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };`.
 - Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value.
 - `Eq`, `Ord` and `Sized` are prelude classes: `class Eq a where { eq :: a -> a -> Bool; };`, `class Eq a => Ord a where { compare :: a -> a -> Ordering; };` and `class Sized a where { length :: a -> Int; };`. A written instance is what `=`, `<` and `length` call at its type: `instance Eq Name where { eq a b = ...; };`. `!=` is `not (eq a b)` and `<`, `<=`, `>`, `>=` are read off `compare`. Known types compile to the same comparisons as before.
@@ -68,22 +70,23 @@
 - A class may range over type constructors: `class Mappable f where { mapf :: (a -> b) -> f a -> f b; };` takes `instance Mappable List` and `instance Mappable (Either e)`. A context may constrain an applied variable, `Eq (f a) =>`, and one is inferred where needed.
 - A type variable applied to an argument matches a function type: `f a` against `Int -> Bool` makes `f` the function type short of its result, printed `(->) Int`.
 - Added the `Functor` class, whose method is `map`.
-- Added the `Applicative` class, with `pure :: a -> f a` and `ap :: f (a -> b) -> f a -> f b`. `return` is `pure`, and `always` and `arr` work at any `Applicative`, not only lists.
-- Added the `Alternative` class, with `empty :: f a` and `alt :: f a -> f a -> f a`. `guard`, `none`, `keep` and `<|>` work at any `Alternative`, not only lists.
-- A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (arr (+ 1) x)` is `Int -> Int`.
+- Added the `Applicative` class, with `pure :: a -> f a` and `ap :: f (a -> b) -> f a -> f b`. `return` is `pure`.
+- Added the `Alternative` class, with `empty :: f a` and `alt :: f a -> f a -> f a`. `guard` and `<|>` work at any `Alternative`, not only lists.
+- A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (pure x)` is `a -> Int`.
 - Added the `Semigroup` and `Monoid` classes, with `append :: a -> a -> a` and `mempty :: a`, at lists, `Unit` and `Ordering`.
-- Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all`, `concat`, `has`, `first`, `or_else` and `collect` work at any `Foldable`, not only lists.
+- Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all` and `concat` work at any `Foldable`, not only lists.
 - Added the `Traversable` class, whose method is `traverse`, and `sequence`: `sequence [[1, 2], [3, 4]]` is `[[1, 3], [1, 4], [2, 3], [2, 4]]`.
 - Added `Data.Maybe`: `import Data.Maybe (Maybe(..));` brings `Maybe`, `Nothing` and `Just`, a `Functor`, `Applicative`, `Alternative`, `Foldable`, `Traversable` and `Monad`.
 - Added the `Monad` class, whose method is `bind`, and `join`, `kleisli` and `mfilter` in `Control.Monad`.
 - `do` and `>>` run in any `Monad`: `both m n = do { a <- m; b <- n; return (a + b); };` works at `Maybe`. A pattern that may not match falls through to `empty`, so it needs an `Alternative`. A block over lists compiles as before.
 - Added tuples: `(1, "a")` is a value, `(n, s)` a pattern and `(Int, String)` a type, with up to 255 components. `(,)` and `(,,)` are their constructors as functions.
 - Added `newtype`: `newtype Name = Name String;` declares a type distinct from `String` to the type checker.
-- Added `Control.Category`, with the `Category` class (`identity`, `compose`), and `Control.Arrow`, with `newtype Kleisli m a b = Kleisli (a -> m b)` and `run_kleisli`. `Kleisli m a` is a `Functor`, `Applicative`, `Alternative` and `Monad` that gives every step the same input, and `Kleisli m` a `Category` whose `compose` is `|`.
+- Added `Control.Category`, with the `Category` class (`identity`, `compose`), and `Control.Arrow`, with `newtype Kleisli m a b = Kleisli (a -> m b)` and `run_kleisli`. `Kleisli m a` is a `Functor`, `Applicative`, `Alternative` and `Monad` that gives every step the same input, and `Kleisli m` a `Category`, so `|` composes `Kleisli` arrows.
 - `identity` and `compose` are `Category`'s methods, with an instance at functions, and the prelude exports them. `.` is `compose`, so it composes `Kleisli` arrows as well as functions.
-- Added `Arrow` (`arr`, `first`, `second`, `split`, `fanout`), `ArrowZero` (`zero_arrow`) and `ArrowPlus` (`plus`) to `Control.Arrow`, with instances at functions and at `Kleisli m`. The prelude does not export them yet.
+- Added `Arrow` (`arr`, `first`, `second`, `split`, `fanout`), `ArrowZero` (`zero_arrow`) and `ArrowPlus` (`plus`) to `Control.Arrow`, with instances at functions and at `Kleisli m`.
 - `(->)` is the function type's constructor in types: `instance Mappable ((->) r)` is an instance at functions from `r`. An instance head may also be a function type over two variables: `instance Combine b => Combine (a -> b)`.
 - The prelude exports `Maybe(..)`, `head` and `last`.
+- `Filter` is a `Functor`, `Applicative`, `Alternative` and `Monad` in its output, and a `Category`, `Arrow`, `ArrowZero` and `ArrowPlus`, as `Kleisli List` is. `arr` is `Arrow`'s method, and the prelude exports `Control.Arrow`, `Filter(..)` and `run`.
 
 ### Improvements
 
@@ -94,8 +97,10 @@
 - A `do` bind over `children`, `named_children`, `descendants` or `named_descendants` whose pattern tests a kind, such as `:k { .. }` or `(of_kind :k -> [n])`, walks only nodes of that kind, as `descendants_of_kind :k` does.
 - A query that allocates more than 4 GiB on one file stops on that file with `OutOfMemory`, and the run continues with the next. Such a query could exhaust the machine's memory.
 - The library is compiled once per engine, and once per loaded wasm module in `tql-js` and the playground: compiling a later query starts from it.
-- A constraint `main` cannot satisfy is reported where it is raised: in `main x = [x < x];` the `Ord Node` error points at `x < x`.
-- A function given only some of its arguments is inlined when one of them is a constructor, a lambda or a class dictionary: `main = always 1` compiles to `\x -> [1]`.
+- A constraint `main` cannot satisfy is reported where it is raised: in `main = arr (\x -> x < x);` the `Ord Node` error points at `x < x`.
+- A function given only some of its arguments is inlined when one of them is a constructor, a lambda or a class dictionary: `main = pure 1` compiles to `\x -> [1]`.
+- A function given every argument its type takes is inlined although its body takes more, as `keep is_named` builds a `Filter` from one argument: `descendants | keep is_named` compiles to one loop.
+- A `do` bind over a one-element list is the rest of the block applied to the element: `y <- pure x | p;` costs what `y <- run p x;` does.
 - A function passed a named recursive function is inlined as if passed a lambda: `concat` over lists compiles to a loop calling `append`.
 - A function every call passes the same class instance takes that instance in place of a dictionary parameter, so its methods are selected at compile time: `any` over lists compiles to a loop, and a local function using `length` calls the list's `length` directly.
 
@@ -104,9 +109,9 @@
 - A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
-- `main`'s constraints are checked at the type it runs at: `main x = [x < x];` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
+- `main`'s constraints are checked at the type it runs at: `main = arr (\x -> x < x);` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
 - `=` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
-- The empty record `{}` can be used as a value: `main = const [{}];` gives `[{}]`. It failed with `Unsupported`.
+- The empty record `{}` can be used as a value: `main = pure {};` gives `[{}]`. It failed with `Unsupported`.
 - An unsatisfied constraint names its type variables as a type mismatch does: `` `Eq (a -> a)` is not satisfied``.
 
 ## 0.3.1 (2026-10-03)

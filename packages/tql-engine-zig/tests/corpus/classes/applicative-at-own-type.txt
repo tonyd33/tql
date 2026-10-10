@@ -22,7 +22,7 @@ unbox b = case b of {
   Box x -> [x];
 };
 
-main root = unbox (ap (pure (+ 1)) (Box 41));
+main = Filter (\_ -> unbox (ap (pure (+ 1)) (Box 41)));
 
 --- source ---
 class A {}
@@ -32,4 +32,4 @@ class A {}
 
 --- types ---
 unbox :: Box a -> [a]
-main :: Node -> [Int]
+main :: Filter Node Int

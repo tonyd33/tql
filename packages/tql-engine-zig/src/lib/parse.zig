@@ -1332,19 +1332,6 @@ const Walker = struct {
                 .span = span,
             };
         }
-        if (std.mem.eql(u8, kind, "filter_type")) {
-            const in_node = try self.requiredField(node, "input") orelse return null;
-            const out_node = try self.requiredField(node, "output") orelse return null;
-            const input = try self.typeExpr(in_node) orelse return null;
-            const output = try self.typeExpr(out_node) orelse return null;
-            return cst.Type{
-                .kind = .{ .filter = try self.boxed(cst.FilterType{
-                    .input = input,
-                    .output = output,
-                }) },
-                .span = span,
-            };
-        }
         if (std.mem.eql(u8, kind, "list_type")) {
             const inner_node = node.namedChild(0) orelse {
                 try self.missingField(node, "element");

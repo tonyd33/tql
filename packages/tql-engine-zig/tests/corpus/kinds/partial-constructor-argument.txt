@@ -16,7 +16,7 @@ either = Wrap (Right 2);
 count :: Wrap f Int -> Int;
 count _ = 1;
 
-main root = [count maybe + count either];
+main = pure $ count maybe + count either;
 
 --- source ---
 class A {}
@@ -27,4 +27,4 @@ class A {}
 maybe :: Wrap Maybe Int
 either :: Wrap (Either String) Int
 count :: Wrap a Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

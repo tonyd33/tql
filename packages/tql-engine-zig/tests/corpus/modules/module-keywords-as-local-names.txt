@@ -3,9 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = do {
-  import <- [1, 2];
-  module <- [10];
+main = do {
+  import <- Filter (\_ -> [1, 2]);
+  module <- pure 10;
   return $ import + module;
 };
 

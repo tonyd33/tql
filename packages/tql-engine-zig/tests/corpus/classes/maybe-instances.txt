@@ -9,14 +9,14 @@ import Data.Maybe (Maybe(..));
 none_int :: Maybe Int;
 none_int = Nothing;
 
-main root = concat [
+main = Filter (\_ -> concat [
   to_list $ map (+ 1) $ Just 1,
   to_list $ ap (pure (* 10)) $ Just 3,
   to_list $ ap (Just (* 10)) none_int,
   to_list $ alt none_int $ Just 4,
   to_list $ alt (Just 5) $ Just 6,
   to_list $ alt empty none_int,
-];
+]);
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ class A {}
 
 --- types ---
 none_int :: Maybe Int
-main :: Node -> [Int]
+main :: Filter Node Int

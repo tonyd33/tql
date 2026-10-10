@@ -18,7 +18,7 @@ doubled = arr (\x -> x * 2);
 nothing :: Kleisli List Int Int;
 nothing = zero_arrow;
 
-main root = [(
+main = pure (
   run_kleisli doubled 3,
   run_kleisli (first around) (3, "a"),
   run_kleisli (second around) ("a", 3),
@@ -26,7 +26,7 @@ main root = [(
   run_kleisli (fanout around doubled) 3,
   run_kleisli nothing 3,
   run_kleisli (plus around doubled) 3
-)];
+);
 
 --- source ---
 class A {}
@@ -38,4 +38,4 @@ class A {}
 around :: Kleisli List Int Int
 doubled :: Kleisli List Int Int
 nothing :: Kleisli List Int Int
-main :: Node -> [([Int], [(Int, String)], [(String, Int)], [(Int, Int)], [(Int, Int)], [Int], [Int])]
+main :: Filter Node ([Int], [(Int, String)], [(String, Int)], [(Int, Int)], [(Int, Int)], [Int], [Int])

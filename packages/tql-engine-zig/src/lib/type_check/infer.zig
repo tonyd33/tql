@@ -509,7 +509,7 @@ pub const Inference = struct {
             value.* = inferred.term;
         }
 
-        // `main` is checked at `Node -> [tau]` before it generalizes, so it
+        // `main` is checked at `Filter Node tau` before it generalizes, so it
         // quantifies over nothing that type determines.
         for (bindings, placeholders, spans) |b, p, span| {
             if (b.name == self.entry) _ = try self.mainOutput(p, span);
@@ -932,24 +932,30 @@ pub const Inference = struct {
         return representatives;
     }
 
-    /// `main`'s three extra checks. Its constraints are raised at the types
-    /// `main` is run at, and `finish` applies it to their evidence.
-    /// The `tau` of `Node -> [tau]` once `t` is unified with it, failing at
+    /// `Filter input output`.
+    fn filter(self: *Inference, input: types.Type, output: types.Type) Error!types.Type {
+        const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Filter).?).?;
+        return try types.constructed(self.subst.arena, id, types.filter_spelling, &.{ input, output });
+    }
+
+    /// The `tau` of `Filter Node tau` once `t` is unified with it, failing at
     /// `span` when it cannot be.
     fn mainOutput(self: *Inference, t: types.Type, span: diagnostic.Span) Error!types.Type {
         const output = try self.subst.fresh(.type);
-        const wanted = try self.subst.datatypes.filter(self.subst.arena, types.node_type, output);
+        const wanted = try self.filter(types.node_type, output);
         switch (try unify.unify(self.subst, wanted, t)) {
             .unified => return output,
             .mismatch => |m| return self.fail(.main_type, span, .{ .mismatch = m }),
         }
     }
 
+    /// `main`'s three extra checks. Its constraints are raised at the types
+    /// `main` is run at, and `finish` applies it to their evidence.
     pub fn checkMain(self: *Inference, id: core.SymbolId, span: diagnostic.Span) Error!void {
         const scheme = self.inferred.get(id) orelse return;
         const instantiated = try self.instantiate(scheme, span);
 
-        // 1. `Node -> [tau]`
+        // 1. `Filter Node tau`
         const output = try self.mainOutput(instantiated.type, span);
 
         try self.defaultAmbiguous(&.{});
@@ -978,7 +984,7 @@ pub const Inference = struct {
         }
 
         try self.inferred.put(id, .{
-            .type = try self.subst.datatypes.filter(self.subst.arena, types.node_type, settled),
+            .type = try self.filter(types.node_type, settled),
         });
 
         self.entry_evidence = instantiated.evidence;

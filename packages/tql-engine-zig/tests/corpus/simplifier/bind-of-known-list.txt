@@ -1,0 +1,28 @@
+title: a bind over a one-element or empty list reduces at `List`
+grammar: typescript
+asserts: values, simplified
+
+`bind [x] f` is `f x` and `bind [] f` is `[]`, the list monad's left
+identity and zero.
+
+--- tql ---
+one x = do {
+  y <- [x];
+  return (y + 1);
+};
+
+none x = do {
+  y <- [];
+  return (y + x);
+};
+
+main = Filter (\_ -> append (one 1) (none 2));
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- simplified ---
+main = \_ -> append[List] (Cons (op[+] 1 1) Nil) Nil

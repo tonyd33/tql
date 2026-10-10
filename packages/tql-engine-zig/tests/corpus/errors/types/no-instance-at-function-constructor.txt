@@ -9,11 +9,11 @@ class Mappable f where {
   mapf :: (a -> b) -> f a -> f b;
 };
 
-main = always (mapf (+ 1) (\x -> x * 2) 3);
+main = pure (mapf (+ 1) (\x -> x * 2) 3);
 
 --- error ---
 error[unsatisfied-constraint]: `Mappable ((->) Int)` is not satisfied.
- --> 5:16
+ --> 5:14
   |
-5 | main = always (mapf (+ 1) (\x -> x * 2) 3);
-  |                ^^^^
+5 | main = pure (mapf (+ 1) (\x -> x * 2) 3);
+  |              ^^^^

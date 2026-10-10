@@ -1,14 +1,15 @@
-title: a bound filter is applied like any function
+title: a bound filter runs as a statement
 grammar: typescript
 asserts: core, types, values
 
-`predicate` is bound to a filter and applied to `root` directly.
+`predicate` is bound to a filter and runs on the block's input as the final
+statement.
 
 --- tql ---
-make_predicate = always (arr kind);
-main root = do {
-  predicate <- make_predicate root;
-  predicate root;
+make_predicate = pure (arr kind);
+main = do {
+  predicate <- make_predicate;
+  predicate;
 };
 
 --- source ---
@@ -18,9 +19,9 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate :: (Applicative b, Applicative c) => a -> b (Node -> c Kind)
-main :: Node -> [Kind]
+make_predicate :: (Applicative a, Arrow b) => a (b Node Kind)
+main :: Filter Node Kind
 
 --- core ---
-make_predicate = always (arr kind)
-main = \root -> bind (make_predicate root) (\predicate -> predicate root)
+make_predicate = pure (arr kind)
+main = bind make_predicate (\predicate -> predicate)

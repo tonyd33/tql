@@ -7,7 +7,7 @@ asserts: types, values
 --- tql ---
 pick n = range n;
 twice x = [x, x];
-main root = twice (pick root);
+main = arr pick | Filter twice;
 
 --- source ---
 class A {}
@@ -18,4 +18,4 @@ class A {}
 --- types ---
 pick :: Node -> Range
 twice :: a -> [a]
-main :: Node -> [Range]
+main :: Filter Node Range

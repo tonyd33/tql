@@ -3,8 +3,8 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-main root = do {
-  c@:class_declaration { #name = n } <- descendants root;
+main = do {
+  c@:class_declaration { #name = n } <- descendants;
   return [text c, text n];
 };
 
@@ -16,10 +16,10 @@ class B {}
 [["class A {}", "A"], ["class B {}", "B"]]
 
 --- simplified ---
-main = \root -> bind[List] (%descendants_of_kind :class_declaration root) (
-  \c -> case field[name] c of
+main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (
+  \y -> case field[name] y of
     Nil -> Nil
     Cons n cons1 -> case cons1 of
-      Nil -> Cons (Cons (%text c) (Cons (%text n) Nil)) Nil
+      Nil -> Cons (Cons (%text y) (Cons (%text n) Nil)) Nil
       Cons _ _ -> Nil
 )

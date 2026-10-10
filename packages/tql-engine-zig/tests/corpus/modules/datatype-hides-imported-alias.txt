@@ -15,7 +15,7 @@ data X = X Int;
 unwrap :: X -> Int;
 unwrap x = case x of { X n -> n };
 
-main root = [unwrap (X 1)];
+main = pure (unwrap (X 1));
 
 --- source ---
 let x = 1;
@@ -25,4 +25,4 @@ let x = 1;
 
 --- types ---
 unwrap :: X -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

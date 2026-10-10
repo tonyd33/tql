@@ -5,9 +5,8 @@ asserts: core, types, values
 It evaluates to its final expression.
 
 --- tql ---
-
-main root = do {
-  map text $ children_of_kind :class_declaration root;
+main = do {
+  children_of_kind :class_declaration | arr text;
 };
 
 --- source ---
@@ -17,7 +16,7 @@ class A {}
 ["class A {}"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = \root -> map text (children_of_kind :class_declaration root)
+main = compose_flipped (children_of_kind :class_declaration) (arr text)

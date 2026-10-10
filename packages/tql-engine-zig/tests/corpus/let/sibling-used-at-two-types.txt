@@ -9,7 +9,7 @@ main =
     b = me "s";
     me x = x;
   }
-  in always (a + length b);
+  in pure (a + length b);
 
 --- source ---
 class A {}
@@ -22,4 +22,4 @@ main =
   let me = \x -> x in
   let a = me 1 in
   let b = me "s" in
-  always (op[+] a (length b))
+  pure (op[+] a (length b))

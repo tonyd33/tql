@@ -17,7 +17,7 @@ same_wrap w v = case w of {
   };
 };
 
-main root = [same [1] [1], same [1] [2], same_wrap (Wrap [1]) (Wrap [1])];
+main = Filter (\_ -> [same [1] [1], same [1] [2], same_wrap (Wrap [1]) (Wrap [1])]);
 
 --- source ---
 class A {}
@@ -27,4 +27,4 @@ class A {}
 --- types ---
 same :: Eq (a b) => a b -> a b -> Bool
 same_wrap :: Eq (a b) => Wrap a b -> Wrap a b -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

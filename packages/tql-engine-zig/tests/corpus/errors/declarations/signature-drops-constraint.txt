@@ -9,7 +9,7 @@ every use here is at `Int`.
 --- tql ---
 same :: a -> a -> Bool;
 same x y = x = y;
-main = always (same 1 1);
+main = pure (same 1 1);
 
 --- error ---
 error[signature-mismatch]: `Eq a` is not satisfied.

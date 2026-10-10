@@ -123,11 +123,11 @@ tql query --grammar=c '
 params = #declarator | #parameters | children_of_kind :parameter_declaration;
 int_type = #type | arr text | keep (\t -> t = "int");
 
-main root = do {
-  f <- descendants_of_kind :function_definition root;
+main = do {
+  f <- descendants_of_kind :function_definition;
   guard $ has (params | keep (has int_type)) f;
-  name <- (#declarator | #declarator) f;
-  return { name = text name, params = (params | arr text) f };
+  name <- pure f | #declarator | #declarator;
+  return { name = text name, params = run (params | arr text) f };
 };
 ' main.c
 ```

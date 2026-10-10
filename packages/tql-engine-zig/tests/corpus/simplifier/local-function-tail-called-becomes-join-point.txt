@@ -6,12 +6,10 @@ asserts: simplified, stg, values
 to it.
 
 --- tql ---
-import Data.Function (const);
-
 f b x =
   let { g y = y * 2 + y * 3 + y * 4 + y * 5 }
   in if b then g x else g (x + 1);
-main = const [f True 1, f False 1];
+main = Filter (\_ -> [f True 1, f False 1]);
 
 --- source ---
 class A {}
@@ -25,9 +23,7 @@ f = \b -> \x ->
   case b of
     False -> jump g (op[+] x 1)
     True -> jump g x
-main =
-  let x = Cons (f True 1) (Cons (f False 1) Nil) in
-  \y -> x
+main = \_ -> Cons (f True 1) (Cons (f False 1) Nil)
 
 --- stg ---
 f = {} \u {} ->
@@ -60,7 +56,7 @@ f = {} \u {} ->
   t7@0
 main = {} \u {} ->
   let
-    x = {} \u {} ->
+    t6 = {} \n {_} ->
       let
         t1 = {} \u {} ->
           let c0 = True in
@@ -74,7 +70,6 @@ main = {} \u {} ->
           in
           Cons t3@0 c4@1
       in
-      Cons t1@0 t5@1
+      Cons t1@1 t5@2
   in
-  let t6 = {x@0} \n {y} -> x@0 in
-  t6@1
+  t6@0

@@ -6,10 +6,8 @@ asserts: types, values
 `x`'s type, which `is_x` does not generalize, so `same_as` carries it.
 
 --- tql ---
-import Data.Function (const);
-
 same_as x = let { is_x y = x = y; } in is_x;
-main = const [same_as 1 1, same_as 1 2];
+main = Filter (\_ -> [same_as 1 1, same_as 1 2]);
 
 --- source ---
 class A {}
@@ -19,4 +17,4 @@ class A {}
 
 --- types ---
 same_as :: Eq a => a -> a -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

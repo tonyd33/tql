@@ -3,14 +3,12 @@ grammar: typescript
 asserts: core, values, stg
 
 --- tql ---
-import Data.Function (const);
-
 one xs = case xs of {
   Cons (Cons a Nil) Nil -> [a];
   _ -> [];
 };
 
-main = const [one [[1]], one [[2], [3]], one [[4, 5]]];
+main = Filter (\_ -> [one [[1]], one [[2], [3]], one [[4, 5]]]);
 
 --- source ---
 class A {}
@@ -27,7 +25,7 @@ one = \xs ->
           Nil -> Cons a Nil
           Cons _ _ -> jump alternative
         Cons _ _ -> jump alternative
-main = const (Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))
+main = Filter (\_ -> Cons (one (Cons (Cons 1 Nil) Nil)) (Cons (one (Cons (Cons 2 Nil) (Cons (Cons 3 Nil) Nil))) (Cons (one (Cons (Cons 4 (Cons 5 Nil)) Nil)) Nil)))
 --- values ---
 [[1], [], []]
 
@@ -57,7 +55,7 @@ one = {} \u {} ->
   t5@0
 main = {} \u {} ->
   let
-    x = {} \u {} ->
+    t22 = {} \n {_} ->
       let
         t4 = {} \u {} ->
           let
@@ -116,7 +114,6 @@ main = {} \u {} ->
           in
           Cons t12@0 t20@1
       in
-      Cons t4@0 t21@1
+      Cons t4@1 t21@2
   in
-  let t22 = {x@0} \n {y} -> x@0 in
-  t22@1
+  t22@0
