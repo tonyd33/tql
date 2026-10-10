@@ -33,7 +33,7 @@ instance Labelled String where {
 
 check p = holds p "a" "a";
 
-main root = [label_with 1 "s", label_with "s" 1, [if check (Pair 1 2) then "yes" else "no"]];
+main = Filter (\_ -> [label_with 1 "s", label_with "s" 1, [if check (Pair 1 2) then "yes" else "no"]]);
 
 --- source ---
 class A {}
@@ -43,4 +43,4 @@ class A {}
 
 --- types ---
 check :: Container a => a -> Bool
-main :: Node -> [[String]]
+main :: Filter Node [String]

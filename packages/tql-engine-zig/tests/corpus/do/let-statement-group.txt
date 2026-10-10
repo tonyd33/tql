@@ -5,9 +5,9 @@ asserts: core, types, values
 Two bindings in one group, both used in the result record.
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  cn <- c#name;
+main = do {
+  c <- children_of_kind :class_declaration;
+  cn <- pure c | #name;
   let {
     name = text cn;
     k = kind c
@@ -22,14 +22,14 @@ class A {}
 [{ "k": "class_declaration", "n": "A" }]
 
 --- types ---
-main :: Node -> [{k: Kind, n: String}]
+main :: Filter Node {k: Kind, n: String}
 
 --- core ---
-main = \root -> concat_map (
-  \c -> concat_map (
+main = bind (children_of_kind :class_declaration) (
+  \c -> bind (compose_flipped (pure c) (Filter field[name])) (
     \cn ->
       let name = text cn in
       let k = kind c in
       return (record[k,n] k name)
-  ) (field[name] c)
-) (children_of_kind :class_declaration root)
+  )
+)

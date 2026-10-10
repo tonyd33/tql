@@ -3,9 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const [true];
+main = pure true;
 
 --- source ---
 class A {}
@@ -16,11 +14,11 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t2 = {} \u {} ->
+    t2 = {} \n {_} ->
       let
         c0 = True
         c1 = Nil
       in
-      Cons c0@0 c1@1
+      Cons c0@1 c1@2
   in
-  const t2@0
+  t2@0

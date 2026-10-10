@@ -1,0 +1,14 @@
+module Data.Functor (Functor(..));
+
+import Prim (List(..));
+
+class Functor f where {
+  map :: (a -> b) -> f a -> f b;
+};
+
+instance Functor List where {
+  map f xs = case xs of {
+    Nil -> Nil;
+    Cons h t -> Cons (f h) $ map f t;
+  };
+};

@@ -13,7 +13,9 @@ class A {}
 [7]
 
 --- simplified ---
-main = pure (op[-] 10 3)
+main =
+  let y = op[-] 10 3 in
+  \_ -> Cons y Nil
 
 --- core ---
 main = pure (

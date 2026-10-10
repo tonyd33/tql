@@ -8,7 +8,7 @@ first element. Termination is the evidence.
 --- tql ---
 from n = pure n <|> from (n + 1);
 non_negative x = x >= 0;
-main root = return $ has (from 0 | keep non_negative) root;
+main = arr (has (from 0 | keep non_negative));
 
 --- source ---
 class A {}
@@ -17,6 +17,6 @@ class A {}
 [true]
 
 --- types ---
-from :: Int -> a -> [Int]
+from :: Alternative a => Int -> a Int
 non_negative :: Int -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

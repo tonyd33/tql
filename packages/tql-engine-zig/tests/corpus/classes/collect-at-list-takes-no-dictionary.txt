@@ -1,0 +1,20 @@
+title: a filter built from `collect` takes no dictionary
+grammar: typescript
+asserts: simplified, values
+
+`names` is too large to inline.
+
+--- tql ---
+names = collect (children | arr text);
+
+main = names;
+
+--- source ---
+class A {}
+
+--- values ---
+[["class A {}"]]
+
+--- simplified ---
+names = \x -> Cons (bind[List] (%children x) (\x -> Cons (%text x) Nil)) Nil
+main = names

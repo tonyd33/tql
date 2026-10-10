@@ -3,11 +3,10 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 
 f :: {n: Int, k: String} -> Int;
 f r = r.n;
-main = const [f {k = "a", n = 1}];
+main = pure $ f {k = "a", n = 1};
 
 --- source ---
 class A {}
@@ -17,4 +16,4 @@ class A {}
 
 --- types ---
 f :: {k: String, n: Int} -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

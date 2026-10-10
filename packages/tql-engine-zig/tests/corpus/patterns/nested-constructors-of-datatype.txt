@@ -5,8 +5,6 @@ asserts: core, types, values
 A nullary constructor in argument position needs no parentheses.
 
 --- tql ---
-import Data.Function (const);
-
 data Maybe a = Just a | Nothing;
 
 both :: Maybe Int -> Maybe Int -> Int;
@@ -16,7 +14,7 @@ both m n = case Cons m (Cons n Nil) of {
   _ -> 0;
 };
 
-main = const [both (Just 1) (Just 2), both Nothing (Just 2), both (Just 1) Nothing];
+main = Filter (\_ -> [both (Just 1) (Just 2), both Nothing (Just 2), both (Just 1) Nothing]);
 
 --- source ---
 class A {}
@@ -26,7 +24,7 @@ class A {}
 
 --- types ---
 both :: Maybe Int -> Maybe Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 both = \m -> \n ->
@@ -42,4 +40,4 @@ both = \m -> \n ->
             Cons _ _ -> jump alternative
           Nothing -> jump alternative
       Nothing -> op[-] 0 1
-main = const (Cons (both (Just 1) (Just 2)) (Cons (both Nothing (Just 2)) (Cons (both (Just 1) Nothing) Nil)))
+main = Filter (\_ -> Cons (both (Just 1) (Just 2)) (Cons (both Nothing (Just 2)) (Cons (both (Just 1) Nothing) Nil)))

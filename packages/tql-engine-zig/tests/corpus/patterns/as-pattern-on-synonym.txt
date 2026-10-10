@@ -5,8 +5,8 @@ asserts: values
 --- tql ---
 pattern Callee f <- :call_expression { #function = f };
 
-main root = do {
-  c@(Callee f) <- descendants root;
+main = do {
+  c@(Callee f) <- descendants;
   return [text c, text f];
 };
 

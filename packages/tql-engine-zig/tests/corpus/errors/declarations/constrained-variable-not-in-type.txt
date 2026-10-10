@@ -13,7 +13,7 @@ main = const [f 1];
 
 --- error ---
 error[unresolved-name]: `b` is constrained but does not appear in the type
- --> 3:6
+ --> 3:9
   |
 3 | f :: Eq b => a -> a;
-  |      ^^^^
+  |         ^

@@ -17,7 +17,7 @@ pub const Program = struct {
     definitions: []const core.Definition,
     /// Indices into `definitions`, grouped by strongly connected component in
     /// dependency order. A reference to a definition with a signature is not
-    /// a dependency.
+    /// a dependency. Empty once simplification drops a definition.
     components: []const []const u32,
     /// The linked program's `main`.
     entry: core.SymbolId,

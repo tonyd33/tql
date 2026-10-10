@@ -7,11 +7,13 @@ pairs with 1 then 2, then 20 pairs with 1 then 2, giving 11, 12, 21, 22.
 Varying the first bind fastest would give 11, 21, 12, 22.
 
 --- tql ---
-main _ = do {
+sums = do {
   l <- [10, 20];
   r <- [1, 2];
   return $ l + r;
 };
+
+main = Filter (\_ -> sums);
 
 --- source ---
 class A {}
@@ -20,7 +22,9 @@ class A {}
 [11, 12, 21, 22]
 
 --- types ---
-main :: Node -> [Int]
+sums :: [Int]
+main :: Filter Node Int
 
 --- core ---
-main = \_ -> concat_map (\l -> concat_map (\r -> return (op[+] l r)) (Cons 1 (Cons 2 Nil))) (Cons 10 (Cons 20 Nil))
+sums = bind (Cons 10 (Cons 20 Nil)) (\l -> bind (Cons 1 (Cons 2 Nil)) (\r -> return (op[+] l r)))
+main = Filter (\_ -> sums)

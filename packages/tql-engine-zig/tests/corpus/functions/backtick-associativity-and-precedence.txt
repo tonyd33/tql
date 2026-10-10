@@ -3,10 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 sub a b = a - b;
-main = const [10 `sub` 3 `sub` 2, 2 `sub` 1 * 3];
+main = Filter (\_ -> [10 `sub` 3 `sub` 2, 2 `sub` 1 * 3]);
 
 --- source ---
 class A {}
@@ -16,4 +14,4 @@ class A {}
 
 --- core ---
 sub = \a -> \b -> op[-] a b
-main = const (Cons (sub (sub 10 3) 2) (Cons (op[*] (sub 2 1) 3) Nil))
+main = Filter (\_ -> Cons (sub (sub 10 3) 2) (Cons (op[*] (sub 2 1) 3) Nil))

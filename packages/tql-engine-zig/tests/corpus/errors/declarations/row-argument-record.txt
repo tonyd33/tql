@@ -1,0 +1,18 @@
+title: a row parameter's argument may not be a record type
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+type Named r = {name: String | r};
+f :: Named {age: Int} -> String;
+f x = x.name;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: a record type has kind `Type`, but kind `Row` is expected
+ --> 4:12
+  |
+4 | f :: Named {age: Int} -> String;
+  |            ^^^^^^^^^^

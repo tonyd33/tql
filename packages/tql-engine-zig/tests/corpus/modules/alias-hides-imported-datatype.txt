@@ -15,7 +15,7 @@ type X = Int;
 double :: X -> X;
 double n = n * 2;
 
-main root = [double 1];
+main = pure (double 1);
 
 --- source ---
 let x = 1;
@@ -25,4 +25,4 @@ let x = 1;
 
 --- types ---
 double :: X -> X
-main :: Node -> [X]
+main :: Filter Node X

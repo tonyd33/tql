@@ -1,0 +1,240 @@
+========================================
+a tuple expression
+========================================
+
+main = (1, "a", x);
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (tuple
+      (number)
+      (string)
+      (identifier))))
+
+========================================
+the unit value
+========================================
+
+main = ();
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (unit)))
+
+========================================
+a tuple constructor function
+========================================
+
+main = (,,) 1 2 3;
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (application
+      (application
+        (application
+          (tuple_constructor)
+          (number))
+        (number))
+      (number))))
+
+========================================
+a parenthesized expression is not a tuple
+========================================
+
+main = (1);
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (parenthesized
+      (number))))
+
+========================================
+a tuple pattern nests
+========================================
+
+main = case p of { ((a, b), ()) -> a; };
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (case_expression
+      (identifier)
+      (case_alternative
+        (tuple_pattern
+          (tuple_pattern
+            (identifier)
+            (identifier))
+          (unit))
+        (identifier)))))
+
+========================================
+a tuple pattern in a do bind
+========================================
+
+main = do { (a, b) <- xs; return a; };
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (do_expression
+      (bind_statement
+        (tuple_pattern
+          (identifier)
+          (identifier))
+        (identifier))
+      (application
+        (identifier)
+        (identifier)))))
+
+========================================
+a view pattern is not a tuple
+========================================
+
+main = case p of { (f -> (a, b)) -> a; };
+
+---
+
+(source_file
+  (definition
+    (identifier)
+    (case_expression
+      (identifier)
+      (case_alternative
+        (view_pattern
+          (identifier)
+          (tuple_pattern
+            (identifier)
+            (identifier)))
+        (identifier)))))
+
+========================================
+a tuple type
+========================================
+
+f :: (Int, [a]) -> (a, (b, c));
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (function_type
+      (tuple_type
+        (type_identifier)
+        (list_type
+          (type_variable)))
+      (tuple_type
+        (type_variable)
+        (tuple_type
+          (type_variable)
+          (type_variable))))))
+
+========================================
+the unit type
+========================================
+
+f :: () -> ();
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (function_type
+      (unit)
+      (unit))))
+
+========================================
+a tuple type constructor applied
+========================================
+
+f :: (,) Int String;
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (type_application
+      (tuple_constructor)
+      (type_identifier)
+      (type_identifier))))
+
+========================================
+a context before a tuple type
+========================================
+
+f :: (Eq a, Ord b) => (a, b) -> Bool;
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (context
+      (class_constraint
+        (type_identifier)
+        (type_variable))
+      (class_constraint
+        (type_identifier)
+        (type_variable)))
+    (function_type
+      (tuple_type
+        (type_variable)
+        (type_variable))
+      (type_identifier))))
+
+========================================
+an instance at a tuple type constructor
+========================================
+
+instance Functor ((,) a) where { map f p = p; };
+
+---
+
+(source_file
+  (instance_declaration
+    (type_identifier)
+    (parenthesized_type
+      (type_application
+        (tuple_constructor)
+        (type_variable)))
+    (definition
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier))))
+
+========================================
+an instance at the unit type
+========================================
+
+instance Semigroup () where { append _ _ = (); };
+
+---
+
+(source_file
+  (instance_declaration
+    (type_identifier)
+    (unit)
+    (definition
+      (identifier)
+      (identifier)
+      (identifier)
+      (unit))))

@@ -4,7 +4,7 @@ asserts: core, values
 
 --- tql ---
 describe c = case c of {
-  (#decorator -> _ : _) -> "decorated";
+  (run #decorator -> _ : _) -> "decorated";
   _ -> "plain";
 };
 
@@ -19,8 +19,8 @@ class B {}
 
 --- core ---
 describe = \c ->
-  let view = field[decorator] c in
+  let view = run (Filter field[decorator]) c in
   case view of
     Nil -> "plain"
     Cons _ _ -> "decorated"
-main = kleisli (descendants_of_kind :class_declaration) (arr describe)
+main = compose_flipped (descendants_of_kind :class_declaration) (arr describe)

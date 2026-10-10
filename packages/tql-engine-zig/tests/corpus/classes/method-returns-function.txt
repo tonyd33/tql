@@ -3,7 +3,6 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.List (map);
 
 class Scale a where {
   scale :: a -> Int -> Int;
@@ -15,7 +14,7 @@ instance Scale Unit where {
   scale u = case u of { Single -> \n -> n; Double -> \n -> n * 2 };
 };
 
-main root = map (scale Double) [1, 2, 3];
+main = Filter (\_ -> map (scale Double) [1, 2, 3]);
 
 --- source ---
 class A {}

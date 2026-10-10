@@ -1,0 +1,40 @@
+title: `traverse` and `sequence` reach a query's own `Traversable` instance
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Foldable (to_list, concat);
+
+data Pair a = Pair a a;
+
+instance Functor Pair where {
+  map f p = case p of {
+    Pair x y -> Pair (f x) (f y);
+  };
+};
+
+instance Foldable Pair where {
+  foldr f z p = case p of {
+    Pair x y -> f x $ f y z;
+  };
+};
+
+instance Traversable Pair where {
+  traverse f p = case p of {
+    Pair x y -> ap (map Pair $ f x) $ f y;
+  };
+};
+
+main = Filter (\_ -> concat [
+  concat $ map to_list $ traverse (\x -> [x, x + 10]) $ Pair 1 2,
+  concat $ map to_list $ sequence $ Pair [3] [4],
+]);
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2,1,12,11,2,11,12,3,4]
+
+--- types ---
+main :: Filter Node Int

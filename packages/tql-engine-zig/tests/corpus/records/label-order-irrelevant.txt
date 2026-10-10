@@ -20,7 +20,7 @@ class A {}
 [true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- core ---
 main =

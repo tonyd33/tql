@@ -1,0 +1,34 @@
+title: a function called at two instances keeps its dictionary
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+size :: Sized s => s -> Int;
+size xs = length xs + length xs * 2 + length xs * 3;
+
+main = Filter (\_ -> [size [1], size "ab"]);
+
+--- source ---
+class A {}
+
+--- values ---
+[6,12]
+
+--- simplified ---
+size = \d -> \xs -> op[+] (
+  op[+] (
+    case d of
+      dict[Sized] m -> m xs
+  ) (
+    op[*] (
+      case d of
+        dict[Sized] m -> m xs
+    ) 2
+  )
+) (
+  op[*] (
+    case d of
+      dict[Sized] m -> m xs
+  ) 3
+)
+main = \_ -> Cons (size instance[Sized,List] (Cons 1 Nil)) (Cons (size instance[Sized,String] "ab") Nil)

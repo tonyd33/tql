@@ -18,6 +18,7 @@ pub const symbols = @import("core/symbols.zig");
 pub const details = @import("core/details.zig");
 pub const env = @import("core/env.zig");
 pub const types = @import("core/types.zig");
+pub const kinds = @import("core/kinds.zig");
 pub const datatypes = @import("core/datatypes.zig");
 pub const classes = @import("core/classes.zig");
 pub const print_scope = @import("core/print_scope.zig");
@@ -111,7 +112,100 @@ pub const Term = struct {
         while (current.kind == .apply) : (current = current.kind.apply.function) count += 1;
         return count;
     }
+
+    /// Write the applications of `t`'s spine into `out`, innermost first.
+    ///
+    /// Preconditions: `out.len` is `t.spineLength()`.
+    pub fn applications(t: Term, out: []Term) void {
+        var walk = t;
+        var i = out.len;
+        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
+            i -= 1;
+            out[i] = walk;
+        }
+    }
 };
+
+/// `original`, copied on the first `set` whose element changed.
+pub fn Rebuilt(comptime T: type) type {
+    return struct {
+        original: []const T,
+        copy: ?[]T = null,
+
+        pub fn set(self: *@This(), builder: Builder, i: usize, value: T, changed: bool) Allocator.Error!void {
+            if (self.copy == null) {
+                if (!changed) return;
+                self.copy = try builder.dupeSlice(T, self.original);
+            }
+            self.copy.?[i] = value;
+        }
+    };
+}
+
+fn RewriteError(comptime rewrite: anytype) type {
+    return @typeInfo(@typeInfo(@TypeOf(rewrite)).@"fn".return_type.?).error_union.error_set;
+}
+
+/// `t` with each immediate subterm `s` replaced by `rewrite(context, s)`.
+/// Returns `t` itself when no subterm changed.
+pub fn mapChildren(builder: Builder, t: Term, context: anytype, comptime rewrite: anytype) RewriteError(rewrite)!Term {
+    switch (t.kind) {
+        .symbol, .literal => return t,
+        .lambda => |l| {
+            const body = try rewrite(context, l.body);
+            if (same(body, l.body)) return t;
+            return try builder.lambda(l.parameter, body, t.span);
+        },
+        .apply => |a| {
+            const function = try rewrite(context, a.function);
+            const argument = try rewrite(context, a.argument);
+            if (same(function, a.function) and same(argument, a.argument)) return t;
+            return try builder.apply(function, argument, t.span);
+        },
+        .case => |c| {
+            const scrutinee = try rewrite(context, c.scrutinee);
+            var alternatives: Rebuilt(Case.Alternative) = .{ .original = c.alternatives };
+            for (c.alternatives, 0..) |alternative, i| {
+                const body = try rewrite(context, alternative.body);
+                try alternatives.set(builder, i, .{
+                    .constructor = alternative.constructor,
+                    .binders = alternative.binders,
+                    .body = body,
+                }, !same(body, alternative.body));
+            }
+            const default = if (c.default) |d| try rewrite(context, d) else null;
+            if (alternatives.copy == null and same(scrutinee, c.scrutinee) and sameOptional(default, c.default)) return t;
+            return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
+        },
+        .let => |l| {
+            const value = try rewrite(context, l.value);
+            const body = try rewrite(context, l.body);
+            if (same(value, l.value) and same(body, l.body)) return t;
+            return try builder.let(l.name, value, body, t.span);
+        },
+        .letrec => |l| {
+            var bindings: Rebuilt(Letrec.Binding) = .{ .original = l.bindings };
+            for (l.bindings, 0..) |binding, i| {
+                const value = try rewrite(context, binding.value);
+                try bindings.set(builder, i, .{ .name = binding.name, .value = value }, !same(value, binding.value));
+            }
+            const body = try rewrite(context, l.body);
+            if (bindings.copy == null and same(body, l.body)) return t;
+            return try builder.letrec(bindings.copy orelse l.bindings, body, t.span);
+        },
+    }
+}
+
+/// Whether `a` and `b` are one node, or one symbol or literal.
+pub fn same(a: Term, b: Term) bool {
+    return std.meta.eql(a.kind, b.kind);
+}
+
+/// Whether `a` and `b` are both absent, or `same`.
+pub fn sameOptional(a: ?Term, b: ?Term) bool {
+    if (a == null or b == null) return a == null and b == null;
+    return same(a.?, b.?);
+}
 
 pub const Literal = union(enum) {
     number: i64,

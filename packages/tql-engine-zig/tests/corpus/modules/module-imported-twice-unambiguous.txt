@@ -11,7 +11,7 @@ double x = x * 2;
 import Numbers;
 import Numbers (double);
 
-main root = [double 1];
+main = pure (double 1);
 
 --- source ---
 let x = 1;

@@ -3,8 +3,6 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-import Data.Function (const);
-
 k xs ys = case xs of {
   [x] -> x;
   zs -> case ys of {
@@ -12,7 +10,7 @@ k xs ys = case xs of {
     ws -> length zs * 2 + length zs * 3 + length ws * 4 + length ws * 5;
   };
 };
-main = const [k [] [2, 3]];
+main = pure $ k [] [2, 3];
 
 --- source ---
 class A {}
@@ -66,22 +64,22 @@ k = {} \u {} ->
   t10@0
 main = {} \u {} ->
   let
-    t6 = {} \u {} ->
+    y = {} \u {} ->
       let
-        t4 = {} \u {} ->
+        c0 = Nil
+        t3 = {} \u {} ->
           let
-            c0 = Nil
-            t3 = {} \u {} ->
-              let
-                t2 = {} \u {} ->
-                  let c1 = Nil in
-                  Cons 3 c1@0
-              in
-              Cons 2 t2@0
+            t2 = {} \u {} ->
+              let c1 = Nil in
+              Cons 3 c1@0
           in
-          k c0@0 t3@1
-        c5 = Nil
+          Cons 2 t2@0
       in
-      Cons t4@0 c5@1
+      k c0@0 t3@1
   in
-  const t6@0
+  let
+    t5 = {y@0} \n {_} ->
+      let c4 = Nil in
+      Cons y@0 c4@2
+  in
+  t5@1

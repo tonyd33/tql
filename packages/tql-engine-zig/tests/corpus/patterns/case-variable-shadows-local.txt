@@ -5,11 +5,9 @@ asserts: values
 A variable naming the whole scrutinee shadows, as a bind's variable does.
 
 --- tql ---
-import Data.Function (const);
-
 f x = case x + 1 of { x -> x; };
 
-main = const [f 1];
+main = pure (f 1);
 
 --- source ---
 class A {}

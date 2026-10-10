@@ -3,17 +3,16 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const, flip);
-import Data.List (append, map);
+import Data.Function (flip);
 
 data Pair = Pair Int Int;
 
 second :: Pair -> Int;
 second p = case p of { Pair _ b -> b; };
 
-main = const $ append
+main = Filter (\_ -> append
   [second (flip Pair 1 2), length (map (Cons 1) [[2], [3]])]
-  (map second (map (Pair 1) [2, 3]));
+  (map second (map (Pair 1) [2, 3])));
 
 --- source ---
 class A {}
@@ -23,4 +22,4 @@ class A {}
 
 --- types ---
 second :: Pair -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

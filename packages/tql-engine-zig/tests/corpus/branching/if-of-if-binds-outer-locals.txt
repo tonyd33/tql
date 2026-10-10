@@ -9,7 +9,7 @@ thunk. The outer branch's own let must still read `n`.
 import Data.Function (const);
 
 choose n = if (if n > 0 then n - 1 > 0 else false) then n * 2 + 1 else n * 3 + 1;
-main = const [choose 5, choose 1, choose 0];
+main = Filter $ const [choose 5, choose 1, choose 0];
 
 --- source ---
 class A {}
@@ -19,7 +19,7 @@ class A {}
 
 --- types ---
 choose :: Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- stg ---
 choose = {} \u {} ->
@@ -43,7 +43,7 @@ choose = {} \u {} ->
   t3@0
 main = {} \u {} ->
   let
-    t6 = {} \u {} ->
+    x = {} \u {} ->
       let
         t0 = {} \u {} -> choose 5
         t5 = {} \u {} ->
@@ -60,4 +60,5 @@ main = {} \u {} ->
       in
       Cons t0@0 t5@1
   in
-  const t6@0
+  let t6 = {x@0} \n {y} -> x@0 in
+  t6@1

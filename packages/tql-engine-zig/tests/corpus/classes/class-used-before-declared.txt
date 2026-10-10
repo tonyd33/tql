@@ -14,11 +14,11 @@ class Describe a where {
   describe :: a -> String;
 };
 
-main root = pretty 1;
+main = Filter (\_ -> pretty 1);
 
 --- source ---
 class A {}
 
 --- types ---
 pretty :: Describe a => a -> [String]
-main :: Node -> [String]
+main :: Filter Node String

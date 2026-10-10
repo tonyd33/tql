@@ -1,0 +1,24 @@
+title: a match on a `newtype` is exhaustive only when its field pattern is
+grammar: typescript
+asserts: error
+
+--- tql ---
+newtype Code = Code Int;
+
+describe :: Code -> String;
+describe c = case c of {
+  Code 0 -> "ok";
+};
+
+main root = [describe (Code 0)];
+
+--- error ---
+error[type-mismatch]: `Code _` is not matched
+ --> 4:14
+  |
+4 | describe c = case c of {
+  |              ^^^^^^^^^^^
+5 |   Code 0 -> "ok";
+  |   ^^^^^^^^^^^^^^^
+6 | };
+  | ^

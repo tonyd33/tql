@@ -1,0 +1,32 @@
+title: a class method fixes the kind of a parameter its datatype leaves open
+grammar: typescript
+asserts: types, values
+
+A module's datatypes, aliases and classes are kinded together. `Proxy`'s
+fields leave `t` open, and `wrapped` applies it, so `t` has kind
+`Type -> Type` and `Proxy List` is a type.
+
+--- tql ---
+data Proxy t = Proxy;
+
+class Wrapping f where {
+  wrapped :: Proxy f -> f Int;
+};
+
+instance Wrapping List where {
+  wrapped _ = [1];
+};
+
+list :: Proxy List;
+list = Proxy;
+
+main = Filter (\_ -> wrapped list);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+--- types ---
+list :: Proxy List
+main :: Filter Node Int

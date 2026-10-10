@@ -1,7 +1,16 @@
 module Prelude (
   module Prim,
-  module Data.Unit,
+  module Data.Tuple,
   module Data.Bool,
+  module Data.Monoid,
+  module Control.Category,
+  module Data.Functor,
+  module Control.Applicative,
+  module Data.Foldable,
+  module Data.Traversable,
+  module Control.Monad,
+  module Control.Arrow,
+  module Data.Maybe,
   module Data.List,
   module Data.Node,
   module Data.Filter,
@@ -19,8 +28,17 @@ import Prim (
   Serial,
   seq,
 );
-import Data.Unit (Unit(..));
+import Data.Tuple (fst, snd, swap);
 import Data.Bool (not, and, or);
-import Data.List (Sized(..));
+import Control.Category (Category(..));
+import Data.Monoid (Semigroup(..), Monoid(..));
+import Data.Functor (Functor(..));
+import Control.Applicative (Applicative(..), Alternative(..), return, guard);
+import Data.Foldable (Foldable(..));
+import Data.Traversable (Traversable(..), sequence);
+import Control.Monad (Monad(..));
+import Control.Arrow;
+import Data.Maybe (Maybe(..));
+import Data.List (Sized(..), head, last);
 import Data.Node;
-import Data.Filter (pure, none, arr, collect, keep, has, first, or_else, guard, return);
+import Data.Filter (Filter(..), run, collect, keep, has, or_else);

@@ -3,10 +3,8 @@ grammar: typescript
 asserts: values, stg
 
 --- tql ---
-import Data.Function (const);
-
 add3 a b c = a + b + c;
-main = let { f = add3 1 } in let { g = f 2 } in const [g 3, g 4];
+main = let { f = add3 1 } in let { g = f 2 } in Filter (\_ -> [g 3, g 4]);
 
 --- source ---
 class A {}
@@ -25,7 +23,7 @@ add3 = {} \u {} ->
 main = {} \u {} ->
   let g = {} \u {} -> add3 1 2 in
   let
-    t4 = {g@0} \u {} ->
+    t4 = {g@0} \n {_} ->
       let
         t0 = {g@0} \u {} -> g@0 3
         t3 = {g@0} \u {} ->
@@ -35,6 +33,6 @@ main = {} \u {} ->
           in
           Cons t1@1 c2@2
       in
-      Cons t0@1 t3@2
+      Cons t0@2 t3@3
   in
-  const t4@1
+  t4@1

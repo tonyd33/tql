@@ -1,0 +1,29 @@
+title: an instance head may be the function type at two variables
+grammar: typescript
+asserts: types, values
+
+`a -> b` is `(->) a b`, so its instance's context constrains `b`.
+
+--- tql ---
+class Combine a where {
+  combine :: a -> a -> a;
+};
+
+instance Combine Int where {
+  combine a b = a + b;
+};
+
+instance Combine b => Combine (a -> b) where {
+  combine f g x = combine (f x) (g x);
+};
+
+main = pure $ combine (\x -> x * 2) (\x -> x + 1) 5;
+
+--- source ---
+class A {}
+
+--- values ---
+[16]
+
+--- types ---
+main :: Filter Node Int

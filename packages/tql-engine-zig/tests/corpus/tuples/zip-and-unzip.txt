@@ -1,0 +1,22 @@
+title: `zip` pairs two lists to the shorter, and `unzip` is lazy in its spine
+grammar: typescript
+asserts: types, values
+
+`unzip` takes the first two of an infinite list of pairs.
+
+--- tql ---
+import Data.List (zip, unzip, take);
+import Data.Tuple (fst);
+
+nats n = Cons n (nats (n + 1));
+
+main = pure (zip [1, 2, 3] ["a", "b"], unzip [(1, "a"), (2, "b")], take 2 (fst (unzip (zip (nats 0) (nats 10)))));
+
+--- source ---
+class A {}
+
+--- values ---
+[[[[1,"a"],[2,"b"]],[[1,2],["a","b"]],[0,1]]]
+--- types ---
+nats :: Int -> [Int]
+main :: Filter Node ([(Int, String)], ([Int], [String]), [Int])

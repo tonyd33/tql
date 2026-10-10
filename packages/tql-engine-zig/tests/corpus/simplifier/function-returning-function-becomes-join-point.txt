@@ -6,10 +6,8 @@ Each branch applies `g` to one argument, and the result is the function
 `f` returns.
 
 --- tql ---
-import Data.Function (const);
-
 f b = let { g x y = x * 2 + x * 3 + x * 4 + y } in if b then g 1 else g 2;
-main = const [f True 3, f False 3];
+main = Filter (\_ -> [f True 3, f False 3]);
 
 --- source ---
 class A {}
@@ -23,4 +21,4 @@ f = \b ->
   case b of
     False -> jump g 2
     True -> jump g 1
-main = const (Cons (f True 3) (Cons (f False 3) Nil))
+main = \_ -> Cons (f True 3) (Cons (f False 3) Nil)

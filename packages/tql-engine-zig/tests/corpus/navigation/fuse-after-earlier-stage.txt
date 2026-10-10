@@ -13,7 +13,13 @@ class B {}
 []
 
 --- simplified ---
-main = kleisli (kleisli %children (%descendants_of_kind :class_declaration)) field[name]
+main =
+  let
+    p =
+      let q = %descendants_of_kind :class_declaration in
+      \x -> bind[List] (%children x) q
+  in
+  \x -> bind[List] (p x) field[name]
 
 --- core ---
-main = kleisli (kleisli (kleisli children descendants) (of_kind :class_declaration)) field[name]
+main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Filter field[name])

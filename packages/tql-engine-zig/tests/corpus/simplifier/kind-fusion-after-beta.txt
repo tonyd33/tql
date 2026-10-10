@@ -25,5 +25,5 @@ main = %descendants_of_kind :class_declaration
 
 --- core ---
 main =
-  let only = \k -> kleisli descendants (of_kind k) in
+  let only = \k -> compose_flipped descendants (of_kind k) in
   only :class_declaration

@@ -5,11 +5,10 @@ asserts: types, values
 Both arguments are records with `name` and the same other fields.
 
 --- tql ---
-import Data.Function (const);
 
 same :: Eq r => {name: String | r} -> {name: String | r} -> Bool;
 same a b = a = b;
-main = const [same {name = "a", n = 1} {name = "a", n = 1}];
+main = pure $ same {name = "a", n = 1} {name = "a", n = 1};
 
 --- source ---
 class A {}
@@ -19,4 +18,4 @@ class A {}
 
 --- types ---
 same :: Eq a => {name: String | a} -> {name: String | a} -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

@@ -15,7 +15,7 @@ class A {}
 [false]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- core ---
 main = pure (not (eq 1 1))

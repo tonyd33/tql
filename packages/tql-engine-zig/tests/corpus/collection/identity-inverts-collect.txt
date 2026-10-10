@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Data.Function (identity);
 
-main = collect (children | of_kind :class_declaration | #name | arr text) | identity;
+main = collect (children | of_kind :class_declaration | #name | arr text) | Filter identity;
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class B {}
 ["A", "B"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

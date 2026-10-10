@@ -236,9 +236,9 @@ pub const Details = union(enum) {
     synonym: struct { arity: u32, matcher: symbols.SymbolId },
     /// Method `index` of `class`.
     method: struct { class: classes.ClassId, index: u32 },
-    /// An instance's implementation of a method of its class. Defined like
-    /// any global.
-    instance_method,
+    /// Method `index` of `instance`'s class, as `instance` implements it.
+    /// Defined like any global.
+    instance_method: struct { instance: classes.InstanceId, index: u32 },
     /// The global holding an instance's dictionary.
     instance: classes.InstanceId,
     /// `super[C,S]`, which takes a dictionary of `C` to one of `S`.

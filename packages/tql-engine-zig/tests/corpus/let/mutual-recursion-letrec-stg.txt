@@ -6,14 +6,12 @@ asserts: core, types, values, stg
 one component, then generalized together.
 
 --- tql ---
-import Data.Function (const);
-
 main =
   let {
     is_even n = if n = 0 then true else is_odd (n - 1);
     is_odd n = if n = 0 then false else is_even (n - 1);
   }
-  in const [is_even 4, is_even 7];
+  in Filter (\_ -> [is_even 4, is_even 7]);
 
 --- source ---
 class A {}
@@ -31,31 +29,31 @@ main =
       False -> is_even (op[-] n 1)
       True -> False
   in
-  const (Cons (is_even 4) (Cons (is_even 7) Nil))
+  Filter (\_ -> Cons (is_even 4) (Cons (is_even 7) Nil))
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- stg ---
 main = {} \u {} ->
   letrec
-    is_even = {is_odd@1} \n {n} -> case %eq_int# n@1 0 of
+    is_odd = {is_even@1} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t0 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_odd@0 t0@2
+        is_even@0 t0@2
       True ->
-        let c1 = True in
+        let c1 = False in
         c1@2
-    is_odd = {is_even@0} \n {n} -> case %eq_int# n@1 0 of
+    is_even = {is_odd@0} \n {n} -> case %eq_int# n@1 0 of
       False ->
         let t2 = {n@1} \u {} -> op[-]# n@0 1 in
-        is_even@0 t2@2
+        is_odd@0 t2@2
       True ->
-        let c3 = False in
+        let c3 = True in
         c3@2
   in
   let
-    t8 = {is_even@0} \u {} ->
+    t8 = {is_even@1} \n {_} ->
       let
         t4 = {is_even@0} \u {} -> is_even@0 4
         t7 = {is_even@0} \u {} ->
@@ -65,6 +63,6 @@ main = {} \u {} ->
           in
           Cons t5@1 c6@2
       in
-      Cons t4@1 t7@2
+      Cons t4@2 t7@3
   in
-  const t8@2
+  t8@2

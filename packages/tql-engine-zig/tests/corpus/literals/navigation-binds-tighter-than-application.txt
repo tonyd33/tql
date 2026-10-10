@@ -6,9 +6,8 @@ asserts: core, types, values
 `n#name` is a `[Node]`, and `map text` maps over it.
 
 --- tql ---
-import Data.List (map);
 
-name_of n = map text n#name;
+name_of = Filter (\n -> map text n#name);
 main = children | of_kind :class_declaration | name_of;
 
 --- source ---
@@ -18,9 +17,9 @@ class A {}
 ["A"]
 
 --- types ---
-name_of :: Node -> [String]
-main :: Node -> [String]
+name_of :: Filter Node String
+main :: Filter Node String
 
 --- core ---
-name_of = \n -> map text (field[name] n)
-main = kleisli (kleisli children (of_kind :class_declaration)) name_of
+name_of = Filter (\n -> map text (field[name] n))
+main = compose_flipped (compose_flipped children (of_kind :class_declaration)) name_of

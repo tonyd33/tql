@@ -3,8 +3,8 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-main root = do {
-  :class_declaration {} <- descendants root;
+main = do {
+  :class_declaration {} <- descendants;
   return "class";
 };
 
@@ -16,4 +16,4 @@ function f() { class B {} }
 ["class", "class"]
 
 --- simplified ---
-main = \root -> concat_map (\_ -> Cons "class" Nil) (%descendants_of_kind :class_declaration root)
+main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons "class" Nil)

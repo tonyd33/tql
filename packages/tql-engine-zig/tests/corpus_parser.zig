@@ -945,7 +945,7 @@ test "applyUpdates injects a section whose marker is absent" {
     defer corpus.deinit();
 
     const result = try applyUpdates(testing.allocator, corpus, &.{
-        .{ .kind = .core, .new_content = "(pure 1)" },
+        .{ .kind = .core, .new_content = "(always 1)" },
     });
     defer testing.allocator.free(result);
 
@@ -961,7 +961,7 @@ test "applyUpdates injects a section whose marker is absent" {
         \\["x"]
         \\
         \\--- core ---
-        \\(pure 1)
+        \\(always 1)
         \\
     , result);
 }

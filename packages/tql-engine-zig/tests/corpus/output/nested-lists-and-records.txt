@@ -3,9 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-class_record c = do {
-  n <- c#name;
-  methods <- collect (#body | children | of_kind :method_definition | #name | arr text) c;
+class_record = do {
+  n <- #name;
+  methods <- collect (#body | children | of_kind :method_definition | #name | arr text);
   return { name = text n, methods = methods };
 };
 main = collect $ children | of_kind :class_declaration | class_record;
@@ -23,5 +23,5 @@ class B {}
 ]
 
 --- types ---
-class_record :: Node -> [{methods: [String], name: String}]
-main :: Node -> [[{methods: [String], name: String}]]
+class_record :: Filter Node {methods: [String], name: String}
+main :: Filter Node [{methods: [String], name: String}]

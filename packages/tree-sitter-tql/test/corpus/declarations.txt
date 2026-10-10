@@ -106,9 +106,10 @@ main = kind;
 (source_file
   (signature
     name: (identifier)
-    type: (filter_type
-      input: (type_variable)
-      output: (type_variable)))
+    type: (type_application
+      constructor: (type_identifier)
+      argument: (type_variable)
+      argument: (type_variable)))
   (definition
     name: (identifier)
     body: (identifier)))
@@ -125,12 +126,14 @@ name_of :: Filter node node -> Filter node string;
   (signature
     name: (identifier)
     type: (function_type
-      from: (filter_type
-        input: (type_variable)
-        output: (type_variable))
-      to: (filter_type
-        input: (type_variable)
-        output: (type_variable)))))
+      from: (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable))
+      to: (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable)))))
 
 ========================================
 a signature with one constraint
@@ -146,9 +149,36 @@ size :: Sized a => a -> Int;
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     type: (function_type
       from: (type_variable)
+      to: (type_identifier))))
+
+========================================
+a constraint on an applied type variable
+========================================
+
+f :: (Eq (m a), Show a) => m a -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        type: (parenthesized_type
+          (type_application
+            variable: (type_variable)
+            argument: (type_variable))))
+      (class_constraint
+        class: (type_identifier)
+        type: (type_variable)))
+    type: (function_type
+      from: (type_application
+        variable: (type_variable)
+        argument: (type_variable))
       to: (type_identifier))))
 
 ========================================
@@ -165,10 +195,10 @@ f :: (Eq a, Ord b) => a -> b -> Bool;
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable))
+        type: (type_variable))
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     type: (function_type
       from: (type_variable)
       to: (function_type
@@ -194,6 +224,33 @@ f :: (Maybe a) -> Int;
       to: (type_identifier))))
 
 ========================================
+a type variable applied to arguments
+========================================
+
+f :: (a -> b) -> f a -> f (g b);
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    type: (function_type
+      from: (parenthesized_type
+        (function_type
+          from: (type_variable)
+          to: (type_variable)))
+      to: (function_type
+        from: (type_application
+          variable: (type_variable)
+          argument: (type_variable))
+        to: (type_application
+          variable: (type_variable)
+          argument: (parenthesized_type
+            (type_application
+              variable: (type_variable)
+              argument: (type_variable))))))))
+
+========================================
 list and record types
 ========================================
 
@@ -206,9 +263,10 @@ g :: { name: string, size: int };
   (signature
     name: (identifier)
     type: (list_type
-      (filter_type
-        input: (type_variable)
-        output: (type_variable))))
+      (type_application
+        constructor: (type_identifier)
+        argument: (type_variable)
+        argument: (type_variable))))
   (signature
     name: (identifier)
     type: (record_type
@@ -472,7 +530,7 @@ class Eq a => Describe a where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     name: (type_identifier)
     parameter: (type_variable)
     method: (signature
@@ -515,7 +573,7 @@ instance Describe a => Describe [a] where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     class: (type_identifier)
     type: (list_type
       (type_variable))
@@ -539,10 +597,10 @@ instance (Describe a, Describe b) => Describe (Either a b) where {
     context: (context
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable))
+        type: (type_variable))
       (class_constraint
         class: (type_identifier)
-        variable: (type_variable)))
+        type: (type_variable)))
     class: (type_identifier)
     type: (parenthesized_type
       (type_application
@@ -610,3 +668,82 @@ f :: where_ -> _a -> where_;
       to: (function_type
         from: (type_variable)
         to: (type_variable)))))
+
+========================================
+a newtype declaration
+========================================
+
+newtype Name = Name String deriving (Eq);
+
+---
+
+(source_file
+  (data_declaration
+    (type_identifier)
+    (constructor_declaration
+      (type_identifier)
+      (type_identifier))
+    (deriving
+      (type_identifier))))
+
+========================================
+a newtype with a parameter
+========================================
+
+newtype Wrap f a = Wrap (f a);
+
+---
+
+(source_file
+  (data_declaration
+    (type_identifier)
+    (type_variable)
+    (type_variable)
+    (constructor_declaration
+      (type_identifier)
+      (parenthesized_type
+        (type_application
+          (type_variable)
+          (type_variable))))))
+
+========================================
+an instance at the function type constructor
+========================================
+
+instance Category (->) where {
+  identity x = x;
+};
+
+---
+
+(source_file
+  (instance_declaration
+    (type_identifier)
+    (function_constructor)
+    (definition
+      (identifier)
+      (identifier)
+      (identifier))))
+
+========================================
+the function type constructor partly applied
+========================================
+
+f :: (->) Int Bool -> Maybe ((->) Int);
+
+---
+
+(source_file
+  (signature
+    (identifier)
+    (function_type
+      (type_application
+        (function_constructor)
+        (type_identifier)
+        (type_identifier))
+      (type_application
+        (type_identifier)
+        (parenthesized_type
+          (type_application
+            (function_constructor)
+            (type_identifier)))))))

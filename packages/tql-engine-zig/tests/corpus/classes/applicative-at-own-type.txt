@@ -1,0 +1,35 @@
+title: `pure` and `ap` reach a query's own `Applicative` instance
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Box a = Box a;
+
+instance Functor Box where {
+  map f b = case b of {
+    Box x -> Box (f x);
+  };
+};
+
+instance Applicative Box where {
+  pure = Box;
+  ap bf bx = case bf of {
+    Box f -> map f bx;
+  };
+};
+
+unbox b = case b of {
+  Box x -> [x];
+};
+
+main = Filter (\_ -> unbox (ap (pure (+ 1)) (Box 41)));
+
+--- source ---
+class A {}
+
+--- values ---
+[42]
+
+--- types ---
+unbox :: Box a -> [a]
+main :: Filter Node Int

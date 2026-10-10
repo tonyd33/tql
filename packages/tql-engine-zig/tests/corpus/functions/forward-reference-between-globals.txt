@@ -16,7 +16,7 @@ class A {}
 [6]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 helper :: Int -> Int
 
 --- core ---

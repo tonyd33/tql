@@ -1,0 +1,18 @@
+title: an undetermined container in `main` defaults to `List`
+grammar: typescript
+asserts: types, values
+
+`main` fixes `Filter Node`, but the container `pure` builds is only `Sized`
+and `Applicative`. It defaults to `List`.
+
+--- tql ---
+main = arr (\n -> length (pure (kind_name n)));
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- types ---
+main :: Filter Node Int

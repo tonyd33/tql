@@ -6,12 +6,10 @@ asserts: core, types, values, stg
 a reusable value rather than an error.
 
 --- tql ---
-import Data.Function (const);
-
 add x y = x + y;
 main =
   let { add10 = add 10; }
-  in const [add10 1, add10 2];
+  in Filter (\_ -> [add10 1, add10 2]);
 
 --- source ---
 class A {}
@@ -23,11 +21,11 @@ class A {}
 add = \x -> \y -> op[+] x y
 main =
   let add10 = add 10 in
-  const (Cons (add10 1) (Cons (add10 2) Nil))
+  Filter (\_ -> Cons (add10 1) (Cons (add10 2) Nil))
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- stg ---
 add = {} \u {} ->
@@ -36,7 +34,7 @@ add = {} \u {} ->
 main = {} \u {} ->
   let add10 = {} \u {} -> add 10 in
   let
-    t4 = {add10@0} \u {} ->
+    t4 = {add10@0} \n {_} ->
       let
         t0 = {add10@0} \u {} -> add10@0 1
         t3 = {add10@0} \u {} ->
@@ -46,6 +44,6 @@ main = {} \u {} ->
           in
           Cons t1@1 c2@2
       in
-      Cons t0@1 t3@2
+      Cons t0@2 t3@3
   in
-  const t4@1
+  t4@1

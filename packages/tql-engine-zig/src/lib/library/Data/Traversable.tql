@@ -1,0 +1,18 @@
+module Data.Traversable (Traversable(..), sequence);
+
+import Prim (List(..));
+import Data.Function (identity);
+import Data.Functor (Functor(..));
+import Control.Applicative (Applicative(..));
+import Data.Foldable (Foldable(..));
+
+class (Functor t, Foldable t) => Traversable t where {
+  traverse :: Applicative f => (a -> f b) -> t a -> f (t b);
+};
+
+instance Traversable List where {
+  traverse f xs = foldr (\x acc -> ap (map Cons $ f x) acc) (pure Nil) xs;
+};
+
+sequence :: (Traversable t, Applicative f) => t (f a) -> f (t a);
+sequence xs = traverse identity xs;

@@ -3,23 +3,23 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-kids root = do {
-  (of_kind :class_declaration -> [n]) <- children root;
+kids = do {
+  (run (of_kind :class_declaration) -> [n]) <- children;
   return $ text n;
 };
 
-named_kids root = do {
-  (of_kind :class_declaration -> [n]) <- named_children root;
+named_kids = do {
+  (run (of_kind :class_declaration) -> [n]) <- named_children;
   return $ text n;
 };
 
-all root = do {
-  (of_kind :class_declaration -> [n]) <- descendants root;
+all = do {
+  (run (of_kind :class_declaration) -> [n]) <- descendants;
   return $ text n;
 };
 
-named_all root = do {
-  (of_kind :class_declaration -> [n]) <- named_descendants root;
+named_all = do {
+  (run (of_kind :class_declaration) -> [n]) <- named_descendants;
   return $ text n;
 };
 
@@ -33,8 +33,8 @@ function f() { class B {} }
 ["class A {}", "class A {}", "class A {}", "class B {}", "class A {}", "class B {}"]
 
 --- simplified ---
-kids = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%children_of_kind :class_declaration root)
-named_kids = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%children_of_kind :class_declaration root)
-all = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%descendants_of_kind :class_declaration root)
-named_all = \root -> concat_map (\scrutinee -> Cons (%text scrutinee) Nil) (%descendants_of_kind :class_declaration root)
-main = alt (alt (alt kids named_kids) all) named_all
+kids = \x -> bind[List] (%children_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
+named_kids = \x -> bind[List] (%children_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
+all = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
+named_all = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons (%text y) Nil)
+main = \x -> append[List] (append[List] (append[List] (kids x) (named_kids x)) (all x)) (named_all x)

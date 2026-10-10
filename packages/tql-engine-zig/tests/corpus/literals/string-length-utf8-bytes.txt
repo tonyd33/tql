@@ -6,9 +6,8 @@ asserts: types, values
 length, not character count, is the rule.
 
 --- tql ---
-import Data.Function (const);
 
-main = const ["hello", "héllo"] | arr length;
+main = Filter (\_ -> ["hello", "héllo"]) | arr length;
 
 --- source ---
 class A {}
@@ -17,4 +16,4 @@ class A {}
 [5, 6]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

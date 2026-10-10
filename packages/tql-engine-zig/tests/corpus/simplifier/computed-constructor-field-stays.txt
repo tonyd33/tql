@@ -3,13 +3,11 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 data P = Mk Int Int;
-f x = let { p = Mk (x * 2) 3 } in const [
+f x = let { p = Mk (x * 2) 3 } in Filter (\_ -> [
   case p of { Mk a b -> a + b },
   case p of { Mk a b -> a * b },
-];
+]);
 main = f 2;
 
 --- source ---
@@ -21,24 +19,22 @@ class A {}
 --- simplified ---
 f = \x ->
   let p = Mk (op[*] x 2) 3 in
-  const (
+  \_ -> Cons (
+    case p of
+      Mk a b -> op[+] a b
+  ) (
     Cons (
       case p of
-        Mk a b -> op[+] a b
-    ) (
-      Cons (
-        case p of
-          Mk a b -> op[*] a b
-      ) Nil
-    )
+        Mk a b -> op[*] a b
+    ) Nil
   )
 main = f 2
 
 --- core ---
 f = \x ->
   let p = Mk (op[*] x 2) 3 in
-  const (
-    Cons (
+  Filter (
+    \_ -> Cons (
       case p of
         Mk a b -> op[+] a b
     ) (

@@ -1,0 +1,20 @@
+title: a literal under a `newtype` constructor tests the field
+grammar: typescript
+asserts: values
+
+--- tql ---
+newtype Code = Code Int;
+
+describe :: Code -> String;
+describe c = case c of {
+  Code 0 -> "ok";
+  Code _ -> "failed";
+};
+
+main = Filter (\_ -> [describe (Code 0), describe (Code 2)]);
+
+--- source ---
+class A {}
+
+--- values ---
+["ok","failed"]

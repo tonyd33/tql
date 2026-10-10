@@ -10,11 +10,11 @@ instance Marker Int where {};
 marked :: Marker a => a -> [a];
 marked x = [x];
 
-main root = marked 1;
+main = Filter (\_ -> marked 1);
 
 --- source ---
 class A {}
 
 --- types ---
 marked :: Marker a => a -> [a]
-main :: Node -> [Int]
+main :: Filter Node Int

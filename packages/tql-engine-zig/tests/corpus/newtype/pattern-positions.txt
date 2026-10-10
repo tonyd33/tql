@@ -1,0 +1,54 @@
+title: a `newtype` constructor matches in each pattern position
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+newtype Name = Name String;
+
+in_case :: Name -> String;
+in_case n = case n of {
+  Name s -> s;
+};
+
+in_bind :: Name -> [String];
+in_bind n = do {
+  Name s <- [n];
+  return s;
+};
+
+in_as :: Name -> (String, Name);
+in_as n = case n of {
+  whole@(Name s) -> (s, whole);
+};
+
+in_tuple :: (Name, Name) -> String;
+in_tuple p = case p of {
+  (Name _, Name b) -> b;
+};
+
+in_list :: [Name] -> String;
+in_list xs = case xs of {
+  [Name a] -> a;
+  _ -> "none";
+};
+
+main = Filter (\_ -> append [
+  in_case (Name "case"),
+  fst (in_as (Name "as")),
+  in_tuple (Name "tu", Name "ple"),
+  in_list [Name "list"]
+] (in_bind (Name "bind")));
+
+--- source ---
+class A {}
+
+--- values ---
+["case","as","ple","list","bind"]
+
+--- types ---
+in_case :: Name -> String
+in_bind :: Name -> [String]
+in_as :: Name -> (String, Name)
+in_tuple :: (Name, Name) -> String
+in_list :: [Name] -> String
+main :: Filter Node String

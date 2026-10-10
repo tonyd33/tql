@@ -16,4 +16,4 @@ let a;
 []
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

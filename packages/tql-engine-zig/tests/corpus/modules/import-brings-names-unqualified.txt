@@ -14,7 +14,7 @@ drop_through x xs = case xs of {
 --- tql ---
 import Lists;
 
-main root = drop_through 2 [1, 2, 3];
+main = Filter (\_ -> drop_through 2 [1, 2, 3]);
 
 --- source ---
 let x = 1;
@@ -23,4 +23,4 @@ let x = 1;
 [3]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -1,0 +1,19 @@
+title: tuples are equal when every component is, and ordered by their first differing component
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = Filter (\_ -> [
+  (1, "a") = (1, "a"),
+  (1, "a") = (1, "b"),
+  (1, "b") < (2, "a"),
+  (1, "a") < (1, "b"),
+  (1, 2, 3) >= (1, 2, 3),
+  ((), [1]) < ((), [1, 0]),
+]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true,true,true,true]

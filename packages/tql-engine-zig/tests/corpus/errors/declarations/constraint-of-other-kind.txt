@@ -1,0 +1,20 @@
+title: a constraint's variable has its class's kind
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+g :: Mappable a => a -> Int;
+g _ = 1;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `a` has kind `Type`, but kind `Type -> Type` is expected
+ --> 6:15
+  |
+6 | g :: Mappable a => a -> Int;
+  |               ^

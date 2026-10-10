@@ -12,6 +12,7 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const grammar = @import("../lang/grammar.zig");
 const annotation = @import("annotation.zig");
+const kinds = @import("kinds.zig");
 const classes_mod = @import("classes.zig");
 const resolve = @import("resolve.zig");
 const scope_mod = @import("scope.zig");
@@ -88,9 +89,18 @@ pub const Desugarer = struct {
     /// desugared, so a constructor reference resolves like any other global.
     ///
     /// An alias body or constructor field may name a type declared below it.
-    fn declareTypes(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    /// Their kinds, and the constructors that depend on them, are left in
+    /// `group` to solve.
+    fn declareTypes(
+        self: *Desugarer,
+        scope: *const ModuleScope,
+        source: cst.SourceFile,
+        group: *kinds.Group,
+        sink: *diagnostic.Sink,
+    ) !void {
         const arena = self.env.?.allocator();
         const interner = &self.env.?.interner;
+        const registry = &self.env.?.datatypes;
 
         const Pending = struct { declared: *const cst.DataDeclaration, id: datatypes.TypeId };
         var pending: std.ArrayList(Pending) = .empty;
@@ -135,17 +145,16 @@ pub const Desugarer = struct {
                 continue;
             }
 
-            const id = existing orelse try self.env.?.datatypes.declare(
-                interner,
-                scope.module,
-                try arena.dupe(u8, declared.name),
-                @intCast(declared.parameters.len),
-                &.{},
-            );
+            const id = existing orelse blk: {
+                // Kinded once the module's declarations are solved.
+                const id = try registry.declare(interner, scope.module, try arena.dupe(u8, declared.name), &.{}, &.{}, if (declared.newtype) .newtype else .data);
+                try group.declare(id, declared.parameters.len);
+                break :blk id;
+            };
             try pending.append(self.allocator, .{ .declared = declared, .id = id });
         }
 
-        try self.declareAliases(scope, source, sink);
+        try self.declareAliases(scope, source, group, sink);
 
         for (pending.items) |p| {
             const declared = p.declared;
@@ -168,7 +177,7 @@ pub const Desugarer = struct {
 
                 const fields = try arena.alloc(types.Type, written.fields.len);
                 for (written.fields, fields) |field, *slot| {
-                    slot.* = annotation.translateField(arena, self.allocator, field, declared, scope, sink) catch |err| switch (err) {
+                    slot.* = annotation.translateField(arena, self.allocator, field, declared, p.id, group, scope, sink) catch |err| switch (err) {
                         error.BadAnnotation => {
                             failed = true;
                             break;
@@ -179,14 +188,19 @@ pub const Desugarer = struct {
 
                 out.* = .{ .symbol = symbol, .tag = @intCast(tag), .fields = fields };
             }
-            if (failed) continue;
-
-            try self.env.?.setConstructors(p.id, constructors);
+            if (!failed) try group.setConstructors(p.id, constructors);
         }
     }
 
-    /// Translates a module's aliases, each after the aliases its body names.
-    fn declareAliases(self: *Desugarer, scope: *const ModuleScope, source: cst.SourceFile, sink: *diagnostic.Sink) !void {
+    /// Translates a module's aliases into `group`, each after the aliases
+    /// its body names.
+    fn declareAliases(
+        self: *Desugarer,
+        scope: *const ModuleScope,
+        source: cst.SourceFile,
+        group: *kinds.Group,
+        sink: *diagnostic.Sink,
+    ) !void {
         var aliases: std.ArrayList(*const cst.TypeAlias) = .empty;
         defer aliases.deinit(self.allocator);
 
@@ -211,7 +225,7 @@ pub const Desugarer = struct {
         const states = try self.allocator.alloc(AliasState, aliases.items.len);
         defer self.allocator.free(states);
         @memset(states, .unvisited);
-        for (0..aliases.items.len) |i| _ = try self.declareAlias(scope, aliases.items, states, i, sink);
+        for (0..aliases.items.len) |i| _ = try self.declareAlias(scope, aliases.items, states, i, group, sink);
     }
 
     const AliasState = enum { unvisited, visiting, declared, failed };
@@ -224,6 +238,7 @@ pub const Desugarer = struct {
         aliases: []const *const cst.TypeAlias,
         states: []AliasState,
         i: usize,
+        group: *kinds.Group,
         sink: *diagnostic.Sink,
     ) !bool {
         switch (states[i]) {
@@ -250,7 +265,7 @@ pub const Desugarer = struct {
             const j = for (aliases, 0..) |other, j| {
                 if (std.mem.eql(u8, other.name, name)) break j;
             } else continue;
-            if (!try self.declareAlias(scope, aliases, states, j, sink)) {
+            if (!try self.declareAlias(scope, aliases, states, j, group, sink)) {
                 states[i] = .failed;
                 return false;
             }
@@ -260,6 +275,7 @@ pub const Desugarer = struct {
             self.env.?.allocator(),
             self.allocator,
             aliases[i],
+            group,
             scope,
             sink,
         ) catch |err| switch (err) {
@@ -269,7 +285,7 @@ pub const Desugarer = struct {
             },
             else => |e| return e,
         };
-        try self.env.?.datatypes.defineAlias(scope.module, translated);
+        try group.define(translated);
         states[i] = .declared;
         return true;
     }
@@ -278,7 +294,7 @@ pub const Desugarer = struct {
     /// structural type: the same arity, the same representation, and the
     /// same constructor spellings in the same tag order.
     fn conforms(s: datatypes.Registry.Structural, declared: cst.DataDeclaration) bool {
-        if (declared.parameters.len != s.parameters) return false;
+        if (declared.parameters.len != s.parameters.len) return false;
         const representation: ?types.Primitive = if (declared.representation) |r|
             std.meta.stringToEnum(types.Primitive, r.name[1..]) orelse return false
         else
@@ -308,7 +324,7 @@ pub const Desugarer = struct {
             declared.span,
             "`{s}` is built directly by the evaluator and must declare {d} " ++
                 "parameter(s) and the constructors `{s}` in that order",
-            .{ declared.name, s.parameters, spelled },
+            .{ declared.name, s.parameters.len, spelled },
         );
     }
 
@@ -335,19 +351,24 @@ pub const Desugarer = struct {
     ) !void {
         const builder = core.Builder{ .allocator = self.env.?.allocator() };
         const interner = &self.env.?.interner;
+        const tuples_before = self.env.?.tuples;
         const scope: ModuleScope = .{
             .module = module,
             .imports = imports,
             .exports = self.exports.items,
-            .interner = interner,
-            .datatypes = &self.env.?.datatypes,
-            .classes = &self.env.?.classes,
+            .env = &self.env.?,
         };
 
+        // The module's datatypes, aliases and classes are kinded together:
+        // each parameter's kind is what their bodies, fields and methods need
+        // of it, or `Type` where they leave it open.
+        var group = kinds.Group.init(self.env.?.allocator(), self.allocator);
+        defer group.deinit();
         var class_linker: classes_mod.Linker = .{ .gpa = self.allocator, .env = &self.env.?, .scope = &scope, .sink = sink };
         try class_linker.declareClasses(source);
-        try self.declareTypes(&scope, source, sink);
-        try class_linker.declareMembers(source);
+        try self.declareTypes(&scope, source, &group, sink);
+        try class_linker.declareMembers(source, &group);
+        try group.commit(&self.env.?, module);
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.declareInstances(source, &methods);
@@ -373,16 +394,11 @@ pub const Desugarer = struct {
         for (declarations.items.items, first..) |d, index| {
             try self.linked.put(self.allocator, d.symbol, @intCast(index));
         }
-        for (generated.items, first + declarations.items.items.len..) |method, index| {
-            try self.linked.put(self.allocator, method.symbol, @intCast(index));
-        }
 
         const written = declarations.items.items.len;
-        const definitions = try builder.slice(core.Definition, written + generated.items.len);
-        const edges = try builder.slice([]const u32, definitions.len);
+        const definitions = try builder.slice(core.Definition, written);
+        const edges = try builder.slice([]const u32, written);
         @memset(edges, &.{});
-        @memcpy(definitions[written..], generated.items);
-        for (generated.items, edges[written..]) |method, *edge| edge.* = try self.references(builder, method.body);
 
         const language = if (g) |known| known.language else null;
         var lowerer = desugar.Lowerer.init(builder, &self.env.?, &scope, language, sink);
@@ -429,11 +445,19 @@ pub const Desugarer = struct {
             try self.env.?.annotate(d.symbol, .{ .scheme = scheme, .span = span });
         }
 
+        for (self.env.?.tuples, tuples_before) |now, before| {
+            if (before == null) if (now) |id| try class_linker.deriveTuple(id, &generated);
+        }
         if (failed or sink.hasErrors()) return error.DesugarFailed;
 
         self.entry_offset = first;
         try self.definitions.appendSlice(self.allocator, definitions);
         try self.edges.appendSlice(self.allocator, edges);
+        for (generated.items) |method| {
+            try self.linked.put(self.allocator, method.symbol, @intCast(self.definitions.items.len));
+            try self.definitions.append(self.allocator, method);
+            try self.edges.append(self.allocator, try self.references(builder, method.body));
+        }
         std.debug.assert(self.exports.items.len == @intFromEnum(module));
         try self.exports.append(self.allocator, exports);
     }
@@ -567,7 +591,10 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
     switch (t.kind) {
         .constructor => |name| try out.append(gpa, name),
         .application => |a| {
-            try out.append(gpa, a.constructor);
+            switch (a.head) {
+                .constructor => |name| try out.append(gpa, name),
+                .variable, .builtin => {},
+            }
             for (a.arguments) |argument| try typeNames(gpa, argument, out);
         },
         .variable => {},
@@ -575,11 +602,9 @@ fn typeNames(gpa: std.mem.Allocator, t: cst.Type, out: *std.ArrayList([]const u8
             try typeNames(gpa, f.from, out);
             try typeNames(gpa, f.to, out);
         },
-        .filter => |f| {
-            try typeNames(gpa, f.input, out);
-            try typeNames(gpa, f.output, out);
-        },
         .list, .parenthesized => |inner| try typeNames(gpa, inner.*, out),
+        .tuple => |components| for (components) |component| try typeNames(gpa, component, out),
+        .builtin_constructor => {},
         .record => |r| for (r.fields) |f| try typeNames(gpa, f.type, out),
     }
 }

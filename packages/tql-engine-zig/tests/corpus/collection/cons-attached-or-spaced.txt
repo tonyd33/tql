@@ -11,7 +11,7 @@ class A {}
 --- values ---
 [[0,1,2]]
 --- types ---
-main :: Node -> [[Int]]
+main :: Filter Node [Int]
 
 --- core ---
 main = pure (Cons 0 (Cons 1 (Cons 2 Nil)))

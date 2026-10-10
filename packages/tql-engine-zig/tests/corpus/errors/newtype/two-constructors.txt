@@ -1,0 +1,15 @@
+title: a `newtype` with two constructors is a parse error naming `data`
+grammar: typescript
+asserts: error
+
+--- tql ---
+newtype Choice = Left Int | Right Int;
+
+main root = [1];
+
+--- error ---
+error[parse]: a `newtype` has one constructor of one field; declare `Choice` with `data`
+ --> 1:1
+  |
+1 | newtype Choice = Left Int | Right Int;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

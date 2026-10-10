@@ -15,10 +15,13 @@ const Leaf = union(enum) {
     /// Replaces each metavariable listed with the bound variable at its
     /// index.
     bound: []const types.Meta,
+    /// Replaces one metavariable with a type.
+    assigned: struct { meta: types.Meta, type: types.Type },
 
     fn replace(self: Leaf, head: types.Type) types.Type {
         switch (self) {
             .resolved => {},
+            .assigned => |a| if (head == .meta and head.meta == a.meta) return a.type,
             .bound => |metas| if (head == .meta) {
                 if (std.mem.indexOfScalar(types.Meta, metas, head.meta)) |index| return .{ .variable = @intCast(index) };
             },
@@ -54,6 +57,8 @@ pub const Substitution = struct {
     classes: *const classes.Registry,
     /// Indexed by `Meta`. `null` means unsolved.
     solutions: std.ArrayList(?types.Type),
+    /// Indexed by `Meta`.
+    kinds: std.ArrayList(types.Kind),
     gpa: Allocator,
 
     pub fn init(
@@ -62,18 +67,24 @@ pub const Substitution = struct {
         declared: *const datatypes.Registry,
         registry: *const classes.Registry,
     ) Substitution {
-        return .{ .arena = arena, .datatypes = declared, .classes = registry, .solutions = .empty, .gpa = gpa };
+        return .{ .arena = arena, .datatypes = declared, .classes = registry, .solutions = .empty, .kinds = .empty, .gpa = gpa };
     }
 
     pub fn deinit(self: *Substitution) void {
         self.solutions.deinit(self.gpa);
+        self.kinds.deinit(self.gpa);
     }
 
-    /// A metavariable no type mentions yet.
-    pub fn fresh(self: *Substitution) !types.Type {
+    /// A metavariable of kind `kind` no type mentions yet.
+    pub fn fresh(self: *Substitution, kind: types.Kind) !types.Type {
         const id: types.Meta = @intCast(self.solutions.items.len);
         try self.solutions.append(self.gpa, null);
+        try self.kinds.append(self.gpa, kind);
         return .{ .meta = id };
+    }
+
+    pub fn kindOf(self: *const Substitution, id: types.Meta) types.Kind {
+        return self.kinds.items[id];
     }
 
     pub fn count(self: *const Substitution) usize {
@@ -120,6 +131,17 @@ pub const Substitution = struct {
         var current = self.resolve(t);
         while (current == .alias) current = self.resolve(current.alias.expansion);
         return current;
+    }
+
+    /// `expand`, also rebuilding an application whose head is solved as its
+    /// head's solution at its argument. An `.application` in the result has
+    /// an unsolved head.
+    pub fn normalize(self: *Substitution, t: types.Type) Allocator.Error!types.Type {
+        const head = self.expand(t);
+        if (head != .application) return head;
+        const applied = try self.normalize(head.application.head);
+        if (std.meta.eql(applied, head.application.head)) return head;
+        return try types.apply(self.arena, applied, head.application.argument);
     }
 
     /// `r` with its row followed to the end: every field reachable through
@@ -177,6 +199,7 @@ pub const Substitution = struct {
                 if (self.occurs(id, f.type.*)) break true;
             } else if (r.rest) |rest| self.occurs(id, rest.*) else false,
             .function => |arrow| self.occurs(id, arrow.from) or self.occurs(id, arrow.to),
+            .application => |a| self.occurs(id, a.head) or self.occurs(id, a.argument),
         };
     }
 
@@ -199,6 +222,10 @@ pub const Substitution = struct {
                 try self.freeMetas(arrow.from, out);
                 try self.freeMetas(arrow.to, out);
             },
+            .application => |a| {
+                try self.freeMetas(a.head, out);
+                try self.freeMetas(a.argument, out);
+            },
             // Arguments first, in the order they print.
             .alias => |a| {
                 for (a.arguments) |argument| try self.freeMetas(argument, out);
@@ -210,13 +237,14 @@ pub const Substitution = struct {
     /// Replaces each of `scheme`'s quantified variables with a fresh
     /// metavariable, copying the type.
     ///
+    /// Postconditions:
+    /// - The type has no bound variable.
+    ///
     /// Returns the instantiated type together with the metavariables the bound
     /// variables became.
     pub fn instantiate(self: *Substitution, scheme: types.Scheme) !Instantiated {
-        // A monomorphic scheme's type has no bound variable to replace.
-        if (scheme.quantified == 0) return .{ .type = scheme.type, .metas = &.{} };
-        const metas = try self.arena.alloc(types.Type, scheme.quantified);
-        for (metas) |*m| m.* = try self.fresh();
+        const metas = try self.arena.alloc(types.Type, scheme.variables.len);
+        for (metas, scheme.variables) |*m, kind| m.* = try self.fresh(kind);
         return .{
             .type = try self.instantiateWith(scheme.type, metas),
             .metas = metas,
@@ -232,8 +260,38 @@ pub const Substitution = struct {
     /// `t` with each `.variable` replaced by `metas[index]`, for a type whose
     /// bound variables index the same `forall` a scheme was instantiated with.
     pub fn instantiateWith(self: *Substitution, t: types.Type, metas: []const types.Type) !types.Type {
-        if (metas.len == 0) return t;
         return types.substitute(self.arena, t, metas);
+    }
+
+    /// `t` with each of `metas` replaced by the bound variable at its index,
+    /// or null when `t` has a free metavariable `metas` lacks.
+    pub fn abstractOver(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!?types.Type {
+        if (!try self.within(t, metas)) return null;
+        return try self.rewrite(t, .{ .bound = metas });
+    }
+
+    /// `t` with metavariable `id` replaced by `by`, as if `id` were bound to
+    /// it. The substitution is unchanged.
+    pub fn assigned(self: *Substitution, t: types.Type, id: types.Meta, by: types.Type) Allocator.Error!types.Type {
+        return try self.rewrite(t, .{ .assigned = .{ .meta = id, .type = by } });
+    }
+
+    /// Whether `t` has any of `metas` free.
+    pub fn mentionsAny(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!bool {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        try self.freeMetas(t, &free);
+        for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) != null) return true;
+        return false;
+    }
+
+    /// Whether every free metavariable of `t` is one of `metas`.
+    pub fn within(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!bool {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        try self.freeMetas(t, &free);
+        for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) == null) return false;
+        return true;
     }
 
     /// The inverse of `instantiate`: turns the given free metavariables into
@@ -254,8 +312,10 @@ pub const Substitution = struct {
             slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, .{ .bound = metas }) };
         }
 
+        const variables = try self.arena.alloc(types.Kind, metas.len);
+        for (metas, variables) |id, *kind| kind.* = self.kindOf(id);
         return .{
-            .quantified = @intCast(metas.len),
+            .variables = variables,
             .constraints = bound,
             .type = try self.rewrite(t, .{ .bound = metas }),
         };

@@ -13,12 +13,12 @@ assignment_in_condition =
 empty_block =
   named_descendants
   | keep (is_kind :compound_statement)
-  | keep ((= 2) . length . children);
+  | keep ((= 2) . length . run children);
 
 wide_call =
   named_descendants
   | keep (is_kind :argument_list)
-  | keep ((>= 6) . length . named_children)
+  | keep ((>= 6) . length . run named_children)
   | parent;
 
 row n = { kind = kind n, row = (range n).start_point.row };

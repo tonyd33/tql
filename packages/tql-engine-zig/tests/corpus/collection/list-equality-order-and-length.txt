@@ -13,7 +13,7 @@ main =
     ab = ["a", "b"];
     a = ["a"];
   }
-  in const [ab = ab, a = ab, [1, 2] = [2, 1]];
+  in Filter $ const [ab = ab, a = ab, [1, 2] = [2, 1]];
 
 --- source ---
 class A {}
@@ -22,4 +22,4 @@ class A {}
 [true, false, false]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

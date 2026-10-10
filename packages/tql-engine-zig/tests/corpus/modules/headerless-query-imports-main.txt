@@ -13,7 +13,7 @@ answer = 41;
 
 --- tql ---
 import Helpers;
-main root = [helper];
+main = pure helper;
 
 --- source ---
 let x = 1;

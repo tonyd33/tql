@@ -1,0 +1,20 @@
+title: a class instance at a tuple type short of its last component
+grammar: typescript
+asserts: values
+
+--- tql ---
+class Last f where {
+  last_of :: f b -> b;
+};
+
+instance Last ((,) a) where {
+  last_of p = snd p;
+};
+
+main = pure $ last_of (1, "a");
+
+--- source ---
+class A {}
+
+--- values ---
+["a"]

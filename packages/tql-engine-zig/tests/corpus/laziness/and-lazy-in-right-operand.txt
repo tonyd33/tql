@@ -17,7 +17,7 @@ class A {}
 
 --- types ---
 loop :: a -> b
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- values ---
 [false]

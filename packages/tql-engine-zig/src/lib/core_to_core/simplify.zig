@@ -4,7 +4,8 @@
 const std = @import("std");
 const core = @import("../core.zig");
 const diagnostic = @import("../diagnostic.zig");
-const Laws = @import("laws.zig").Laws;
+const laws = @import("laws.zig");
+const Laws = laws.Laws;
 const cost = @import("cost.zig");
 const Options = @import("options.zig").Options;
 const Analyser = @import("occurrence.zig").Analyser;
@@ -83,7 +84,8 @@ const Constructed = struct {
 ///   `E[let j = \x -> u in b]` is `let j = \x -> E[u] in E[b]`, and a jump
 ///   drops it, `E[j a]` is `j a`;
 /// - a saturated call to a function with an unfolding small enough, or
-///   marked to always inline, is replaced by a copy of the unfolding;
+///   marked to always inline, is replaced by a copy of the unfolding, and so
+///   is a call short of its arity passed a known value or a dictionary;
 /// - the laws.
 ///
 /// Before a continuation is copied into several places it is made dupable:
@@ -104,10 +106,12 @@ pub const Simplifier = struct {
     options: Options,
     phase: Phase,
     substitution: core.SymbolTable(Substitution),
-    /// Locals bound to a constructor of trivial arguments.
+    /// Bindings, local or global, to a constructor of trivial arguments.
     known: core.SymbolTable(Constructed),
     /// Each binding that may be inlined, by its simplified value.
     unfoldings: core.SymbolTable(core.Term),
+    /// Bindings, local or global, to a lambda, loop breakers included.
+    functions: core.SymbolTable(void),
     /// Whether a rewrite fired.
     changed: bool = false,
 
@@ -127,7 +131,9 @@ pub const Simplifier = struct {
                 .classes = &env.classes,
                 .primitives = &env.primitives,
                 .known = &env.known,
+                .list = env.datatypes.listId(),
                 .nil = env.datatypes.nilConstructor().symbol,
+                .cons = env.datatypes.consConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
                 .true_ = env.datatypes.boolConstructor(true).symbol,
                 .ordering = .{
@@ -141,12 +147,15 @@ pub const Simplifier = struct {
             .substitution = .init(scratch),
             .known = .init(scratch),
             .unfoldings = .init(scratch),
+            .functions = .init(scratch),
         };
     }
 
     /// Record `value`, simplified, as `name`'s unfolding, when `name` is not a
-    /// loop breaker and `value` is a lambda or trivial.
+    /// loop breaker and `value` is a lambda or trivial. Record a lambda as a
+    /// function either way.
     pub fn unfold(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        if (value.kind == .lambda) try self.functions.put(name, {});
         if (self.recorded(name) == .loop_breaker) return;
         if (cost.trivial(value)) {
             if (!self.options.post_inline) return;
@@ -267,17 +276,15 @@ pub const Simplifier = struct {
     /// The operands of `t`'s application spine as frames, before
     /// `continuation`. `simplified` says whether the operands are.
     fn unwind(self: *Simplifier, t: core.Term, simplified: bool, continuation: []const Frame) Error![]const Frame {
-        const spine = t.spineLength();
-        const frames = try self.scratch.alloc(Frame, spine + continuation.len);
-        @memcpy(frames[spine..], continuation);
-        var walk = t;
-        var i = spine;
-        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
-            i -= 1;
-            const argument = walk.kind.apply.argument;
-            frames[i] = .{ .apply = .{
+        const applications = try self.scratch.alloc(core.Term, t.spineLength());
+        t.applications(applications);
+        const frames = try self.scratch.alloc(Frame, applications.len + continuation.len);
+        @memcpy(frames[applications.len..], continuation);
+        for (applications, frames[0..applications.len]) |a, *frame| {
+            const argument = a.kind.apply.argument;
+            frame.* = .{ .apply = .{
                 .operand = if (simplified) .{ .done = argument } else .{ .suspended = argument },
-                .span = walk.span,
+                .span = a.span,
             } };
         }
         return frames;
@@ -373,11 +380,23 @@ pub const Simplifier = struct {
             try self.substitution.put(name, .{ .done = value });
             return false;
         }
-        if (try self.constructed(value)) |c| {
-            for (c.fields) |field| if (!cost.trivial(field)) return true;
-            try self.known.put(name, c);
-        }
+        try self.know(name, value);
         return true;
+    }
+
+    /// Record what the global `name` is bound to before any definition is
+    /// simplified: a constructor of trivial fields or a function.
+    pub fn seed(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        try self.know(name, value);
+        if (value.kind == .lambda) try self.functions.put(name, {});
+    }
+
+    /// Record `name` as bound to `value`, simplified, when `value` is a
+    /// constructor of trivial fields.
+    pub fn know(self: *Simplifier, name: core.SymbolId, value: core.Term) Error!void {
+        const c = try self.constructed(value) orelse return;
+        for (c.fields) |field| if (!cost.trivial(field)) return;
+        try self.known.put(name, c);
     }
 
     /// Hand `scrutinee`, simplified, to the `case` frame `frame`, followed by
@@ -535,7 +554,7 @@ pub const Simplifier = struct {
     }
 
     /// The constructor and fields `t` is known to be, when it is a saturated
-    /// constructor application or a local recorded in `known`.
+    /// constructor application or a binding recorded in `known`.
     fn knownConstructor(self: *Simplifier, t: core.Term) Error!?Constructed {
         if (try self.constructed(t)) |c| return c;
         return switch (t.kind) {
@@ -553,40 +572,52 @@ pub const Simplifier = struct {
         };
         const constructor = self.env.datatypes.constructorOf(&self.env.interner, id) orelse return null;
 
+        if (t.spineLength() != constructor.fields.len) return null;
         const fields = try self.scratch.alloc(core.Term, constructor.fields.len);
-        var walk = t;
-        var i = fields.len;
-        while (walk.kind == .apply) : (walk = walk.kind.apply.function) {
-            if (i == 0) return null;
-            i -= 1;
-            fields[i] = walk.kind.apply.argument;
-        }
-        if (i != 0) return null;
+        t.applications(fields);
+        for (fields) |*field| field.* = field.kind.apply.argument;
         return .{ .constructor = id, .fields = fields };
     }
 
     /// A copy of `name`'s unfolding, analysed, when a call to it under
-    /// `continuation` inlines it.
+    /// `continuation` inlines it. A call short of the parameters `name` takes
+    /// by its scheme inlines only when an argument it has is known or a
+    /// dictionary.
     fn inlined(self: *Simplifier, name: core.SymbolId, continuation: []const Frame) Error!?core.Term {
         if (!self.options.call_site_inline) return null;
         const unfolding = self.unfoldings.get(name) orelse return null;
-        if (self.phase == .laws and self.laws.names(name)) return null;
+        if (self.phase == .laws and laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return null;
         const arity = unfolding.arity();
-        if (appliedTo(continuation) < arity) return null;
+        const applied = @min(appliedTo(continuation), arity);
+        const saturated = applied >= @min(arity, self.env.typedArity(name) orelse arity);
 
-        if (!self.env.alwaysInlines(name)) {
+        if (self.env.alwaysInlines(name)) {
+            if (!saturated) return null;
+        } else {
             const parameters = try self.scratch.alloc(core.SymbolId, arity);
             const known = try self.scratch.alloc(?cost.Known, arity);
+            @memset(known, null);
             const body = unfolding.peel(parameters);
-            for (known, continuation[0..arity]) |*argument_known, frame| {
-                argument_known.* = try self.argumentKnown(frame.apply.operand.value());
+            var interesting = false;
+            for (known[0..applied], continuation[0..applied]) |*argument_known, frame| {
+                const argument = frame.apply.operand.value();
+                argument_known.* = try self.argumentKnown(argument);
+                if (argument_known.* != null or self.dictionary(argument)) interesting = true;
             }
+            if (!saturated and !interesting) return null;
             const measured = cost.measure(body, parameters, known);
             if (measured.size > self.options.inline_threshold + measured.discount) return null;
         }
 
         var renamed: std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId) = .empty;
         return try self.analyser.analyse(try self.copy(unfolding, &renamed));
+    }
+
+    /// Whether `argument` is an instance's dictionary, applied to the
+    /// dictionaries of its context or not.
+    fn dictionary(self: *const Simplifier, argument: core.Term) bool {
+        const head = argument.head();
+        return head.kind == .symbol and self.env.interner.details(head.kind.symbol) == .instance;
     }
 
     /// What an argument, not yet simplified, is known to be, looking through
@@ -597,10 +628,7 @@ pub const Simplifier = struct {
         if (try self.knownConstructor(t)) |known| return .{ .constructor = known.constructor };
         return switch (t.kind) {
             .lambda => .lambda,
-            .symbol => |id| if (self.unfoldings.get(id)) |unfolding|
-                if (unfolding.kind == .lambda) .lambda else null
-            else
-                null,
+            .symbol => |id| if (self.functions.get(id) != null) .lambda else null,
             else => null,
         };
     }

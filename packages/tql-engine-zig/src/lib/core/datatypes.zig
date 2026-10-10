@@ -8,6 +8,10 @@ const Allocator = std.mem.Allocator;
 
 pub const TypeId = symbols.TypeId;
 
+/// `(->)`, the function type's constructor short of an argument. At both it
+/// is a `types.Type.function`.
+pub const function_id: TypeId = Registry.Structural.function.id();
+
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
     /// Dispatch index within the datatype: `Nil` is 0, `Cons` is 1.
@@ -21,11 +25,20 @@ pub const Datatype = struct {
     name: []const u8,
     /// The module that declares it.
     module: symbols.ModuleId,
-    /// Count of bound type parameters, numbered from zero.
-    parameters: u8,
+    /// The kind of each bound type parameter, numbered from zero.
+    parameters: []const types.Kind,
     constructors: []const Constructor,
     /// Set from `reserveBuiltins` until `Prim`'s declaration claims it.
     reserved: bool = false,
+    form: Form = .data,
+
+    pub const Form = enum {
+        data,
+        /// Declared by `Env.tuple`.
+        tuple,
+        /// One constructor of one field.
+        newtype,
+    };
 };
 
 /// `type Named r = {name: String | r};`
@@ -34,19 +47,23 @@ pub const Alias = struct {
     parameters: []const Parameter,
     /// Names parameter `i` as `types.Type.variable` `i`.
     body: types.Type,
+    /// The kind of `body`.
+    kind: types.Kind,
 
     pub const Parameter = struct {
         name: []const u8,
-        sort: Sort,
+        kind: types.Kind,
     };
 
-    /// What a type variable stands for: a type, or the fields after `|` in
-    /// an open record.
-    pub const Sort = enum { type, row };
-
-    /// The alias at `arguments`, expanded. Takes ownership of `arguments`.
+    /// The alias at `arguments`, expanded. Arguments past its parameters
+    /// apply the expansion. Takes ownership of `arguments`.
+    ///
+    /// Preconditions:
+    /// - `arguments` has at least one per parameter.
     pub fn apply(self: *const Alias, allocator: Allocator, arguments: []const types.Type) Allocator.Error!types.Type {
-        return try types.aliased(allocator, self.name, arguments, try types.substitute(allocator, self.body, arguments));
+        var expansion = try types.substitute(allocator, self.body, arguments[0..self.parameters.len]);
+        for (arguments[self.parameters.len..]) |argument| expansion = try types.apply(allocator, expansion, argument);
+        return try types.aliased(allocator, self.name, arguments, expansion);
     }
 };
 
@@ -76,35 +93,52 @@ pub const Registry = struct {
     ///
     /// `Prim` declares the primitives, `List`, `Bool` and `Ordering`; these
     /// rows reserve their ids so a primitive scheme can name any of them
-    /// before `Prim` is parsed.
+    /// before `Prim` is parsed. No source declares `(->)`.
     pub const Structural = struct {
         name: []const u8,
-        parameters: u8,
+        parameters: []const types.Kind,
         /// Constructor spellings in tag order.
         constructors: []const []const u8 = &.{},
         /// Set for `data Int = %Int;`, which has no constructors.
         representation: ?types.Primitive = null,
+        /// Whether `Prim` declares it, claiming the reservation.
+        declared: bool = true,
+
+        /// Returns the id `reserveBuiltins` gives this row: its position in
+        /// `all`.
+        pub fn id(comptime self: Structural) TypeId {
+            const index = for (all, 0..) |row, i| {
+                if (std.mem.eql(u8, row.name, self.name)) break i;
+            } else unreachable;
+            return @enumFromInt(index);
+        }
 
         fn primitive(comptime p: types.Primitive) Structural {
-            return .{ .name = p.spelling(), .parameters = 0, .representation = p };
+            return .{ .name = p.spelling(), .parameters = &.{}, .representation = p };
         }
 
         pub const list: Structural = .{
             .name = types.list_spelling,
-            .parameters = 1,
+            .parameters = &.{.type},
             .constructors = &.{ "Nil", "Cons" },
         };
 
         pub const boolean: Structural = .{
             .name = types.bool_spelling,
-            .parameters = 0,
+            .parameters = &.{},
             .constructors = &.{ "False", "True" },
         };
 
         pub const ordering: Structural = .{
             .name = types.ordering_spelling,
-            .parameters = 0,
+            .parameters = &.{},
             .constructors = &.{ "LT", "EQ", "GT" },
+        };
+
+        pub const function: Structural = .{
+            .name = types.function_spelling,
+            .parameters = &.{ .type, .type },
+            .declared = false,
         };
 
         /// The primitives come first, in `Primitive` order, so each takes the id
@@ -118,6 +152,7 @@ pub const Registry = struct {
             Structural.list,
             Structural.boolean,
             Structural.ordering,
+            Structural.function,
         };
     };
 
@@ -127,12 +162,12 @@ pub const Registry = struct {
     /// declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
-            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion });
+            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
         }
         for (Structural.all) |s| {
-            const id = try self.declare(interner, .prim, s.name, s.parameters, &.{});
+            const id = try self.declare(interner, .prim, s.name, s.parameters, &.{}, .data);
             if (s.representation) |p| std.debug.assert(id == p.id());
-            self.datatypes.items[@intFromEnum(id)].reserved = true;
+            self.datatypes.items[@intFromEnum(id)].reserved = s.declared;
         }
     }
 
@@ -199,13 +234,13 @@ pub const Registry = struct {
         constructor: Constructor,
     ) Allocator.Error!types.Scheme {
         const result = try self.applied(arena, id);
-        return .{ .quantified = self.get(id).parameters, .type = try types.arrows(arena, constructor.fields, result) };
+        return .{ .variables = self.get(id).parameters, .type = try types.arrows(arena, constructor.fields, result) };
     }
 
     /// `id` applied to its own parameters, in order.
     pub fn applied(self: *const Registry, arena: Allocator, id: TypeId) Allocator.Error!types.Type {
         const declared = self.get(id);
-        const arguments = try arena.alloc(types.Type, declared.parameters);
+        const arguments = try arena.alloc(types.Type, declared.parameters.len);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
         return try types.constructed(arena, id, declared.name, arguments);
     }
@@ -225,26 +260,17 @@ pub const Registry = struct {
         return try types.constructed(arena, self.orderingId(), types.ordering_spelling, &.{});
     }
 
-    /// `Filter a b` = `a -> [b]`.
-    pub fn filter(
-        self: *const Registry,
-        arena: Allocator,
-        input: types.Type,
-        output: types.Type,
-    ) !types.Type {
-        return try types.func(arena, input, try self.list(arena, output));
-    }
-
-    /// `name` and the constructor slice must outlive the registry; both are
-    /// expected to live in the program arena. Each constructor's symbol is
+    /// `name`, `parameters` and the constructor slice must outlive the
+    /// registry; all are expected to live in the program arena. Each constructor's symbol is
     /// pointed back at the datatype declaring it.
     pub fn declare(
         self: *Registry,
         interner: *symbols.Interner,
         module: symbols.ModuleId,
         name: []const u8,
-        parameters: u8,
+        parameters: []const types.Kind,
         constructors: []const Constructor,
+        form: Datatype.Form,
     ) Allocator.Error!TypeId {
         const id: TypeId = @enumFromInt(self.datatypes.items.len);
         try self.datatypes.append(self.allocator, .{
@@ -252,10 +278,17 @@ pub const Registry = struct {
             .module = module,
             .parameters = parameters,
             .constructors = constructors,
+            .form = form,
         });
         try self.by_name.put(self.allocator, .{ .module = module, .name = name }, id);
         own(interner, id, constructors);
         return id;
+    }
+
+    /// Sets the kinds of `id`'s parameters, for a type declared before they
+    /// were solved. `parameters` must outlive the registry.
+    pub fn setParameters(self: *Registry, id: TypeId, parameters: []const types.Kind) void {
+        self.datatypes.items[@intFromEnum(id)].parameters = parameters;
     }
 
     /// Fills in a type declared with no constructors yet. A recursive type's
@@ -310,6 +343,12 @@ pub const Registry = struct {
 };
 
 /// The datatype declaring `constructor`, when the symbol is one.
+/// The form of the datatype `constructor` builds, or null for a symbol that
+/// is not a constructor.
+pub fn formOf(interner: *const symbols.Interner, registry: *const Registry, constructor: symbols.SymbolId) ?Datatype.Form {
+    return registry.get(ownerOf(interner, constructor) orelse return null).form;
+}
+
 pub fn ownerOf(interner: *const symbols.Interner, constructor: symbols.SymbolId) ?TypeId {
     return switch (interner.details(constructor)) {
         .constructor => |c| c.owner,

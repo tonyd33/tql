@@ -1,0 +1,21 @@
+title: matching a `newtype` constructor does not force the scrutinee
+grammar: typescript
+asserts: values
+
+`loop` is a cycle, which a `data` constructor in the same place forces.
+
+--- tql ---
+newtype Wrap = Wrap Int;
+
+loop :: Wrap;
+loop = loop;
+
+main = pure $ case loop of {
+  Wrap _ -> 1;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1]

@@ -1,0 +1,17 @@
+title: a type variable has one kind
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+f :: g -> g Int;
+f x = x;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `g` has kind `Type`: it takes 0 type argument(s), given 1
+ --> 3:11
+  |
+3 | f :: g -> g Int;
+  |           ^^^^^

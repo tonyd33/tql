@@ -18,5 +18,5 @@ class B {}
 ["A"]
 
 --- types ---
-methods :: Node -> [Node]
-main :: Node -> [String]
+methods :: Filter Node Node
+main :: Filter Node String

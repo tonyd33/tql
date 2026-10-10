@@ -23,15 +23,9 @@ class A {}
 --- types ---
 fst :: P -> Int
 pick :: P -> P -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- stg ---
-fst = {} \u {} ->
-  let
-    t0 = {} \n {p} -> case p@0 of
-      Mk a b -> a@1
-  in
-  t0@0
 pick = {} \u {} ->
   let
     t4 = {} \n {p,q} -> case p@0 of
@@ -52,11 +46,16 @@ pick = {} \u {} ->
   t4@0
 main = {} \u {} ->
   let
-    t2 = {} \u {} ->
+    y = {} \u {} ->
       let
         t0 = {} \u {} -> Mk 1 2
         t1 = {} \u {} -> Mk 7 8
       in
       pick t0@0 t1@1
   in
-  pure t2@0
+  let
+    t3 = {y@0} \n {_} ->
+      let c2 = Nil in
+      Cons y@0 c2@2
+  in
+  t3@1

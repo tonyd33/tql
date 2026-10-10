@@ -5,8 +5,8 @@ asserts: types, values
 --- tql ---
 pattern Id x <- x;
 
-main root = do {
-  Id n <- children root;
+main = do {
+  Id n <- children;
   return (kind_name n);
 };
 
@@ -17,4 +17,4 @@ let x = 1;
 ["lexical_declaration"]
 --- types ---
 $mId :: a -> (a -> b) -> c -> b
-main :: Node -> [String]
+main :: Filter Node String

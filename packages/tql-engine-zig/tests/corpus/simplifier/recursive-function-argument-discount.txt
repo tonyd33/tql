@@ -1,0 +1,28 @@
+title: a recursive global passed as an argument counts as a known function
+grammar: typescript
+asserts: simplified, values
+
+`count` is a loop breaker, so it has no unfolding, but it is still a
+function. `combine` applies it twice, which brings `combine` under the
+threshold as a lambda argument would.
+
+--- tql ---
+combine :: (Int -> Int -> Int) -> Int;
+combine k = k 1 2 + k 3 4;
+
+count :: Int -> Int -> Int;
+count n acc = if n = 0 then acc else count (n - 1) (acc + 1);
+
+main = Filter (\_ -> [combine count]);
+
+--- source ---
+class A {}
+
+--- values ---
+[10]
+
+--- simplified ---
+count = \n -> \acc -> case %eq_int n 0 of
+  False -> count (op[-] n 1) (op[+] acc 1)
+  True -> acc
+main = \_ -> Cons (op[+] (count 1 2) (count 3 4)) Nil

@@ -3,11 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 sign x = case x of { -3 -> "minus three"; _ -> "other" };
 
-main = const [sign (-3), sign 3];
+main = Filter (\_ -> [sign (-3), sign 3]);
 
 --- source ---
 class A {}
@@ -19,4 +17,4 @@ class A {}
 sign = \x -> case eq x (-3) of
   False -> "other"
   True -> "minus three"
-main = const (Cons (sign (-3)) (Cons (sign 3) Nil))
+main = Filter (\_ -> Cons (sign (-3)) (Cons (sign 3) Nil))

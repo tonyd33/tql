@@ -8,8 +8,8 @@ pairs whose divisor is nonzero.
 --- tql ---
 import Data.Int (mod);
 
-main _ = do {
-  d <- [5, 0, 7];
+main = do {
+  d <- Filter (\_ -> [5, 0, 7]);
   return $ 12 `mod` d;
 };
 
@@ -17,7 +17,7 @@ main _ = do {
 class A {}
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- runtime error ---
 DivideByZero

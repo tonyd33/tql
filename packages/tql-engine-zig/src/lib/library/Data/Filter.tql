@@ -1,71 +1,81 @@
 module Data.Filter (
-  pure,
-  none,
-  kleisli,
-  alt,
-  arr,
+  Filter(..),
+  run,
   collect,
   keep,
   has,
-  first,
   or_else,
-  guard,
-  return,
 );
 
-import Prim (List(..), Bool(..));
-import Data.Unit (Unit(..));
+import Prim (Bool(..));
 import Data.Bool (not);
-import Data.List (null, append, concat_map, head);
+import Data.Tuple (fst, snd);
+import Data.Functor (Functor(..));
+import Control.Applicative (Applicative(..), Alternative(..));
+import Data.Foldable (null);
+import Control.Monad (Monad(..), kleisli);
+import Control.Category (Category(..));
+import Control.Arrow (Arrow(..), ArrowZero(..), ArrowPlus(..));
 
--- `Filter a b` is `a -> [b]`, the Kleisli category of the list monad. Every
--- name below is that monad's, or a list function lifted into it.
+newtype Filter a b = Filter (a -> [b]);
 
--- FIXME: Consider removing this while we don't truly have functors as it can
--- be confused with `return`
-pure :: a -> Filter b a;
-pure v x = [v];
+run :: Filter a b -> a -> [b];
+run f = case f of {
+  Filter g -> g;
+};
 
-none :: Filter a b;
-none x = [];
+instance Functor (Filter a) where {
+  map f p = Filter (\x -> map f (run p x));
+};
 
-kleisli :: Filter a b -> Filter b c -> Filter a c;
-kleisli p q x = concat_map q (p x);
+instance Applicative (Filter a) where {
+  pure y = Filter (\_ -> pure y);
+  ap pf py = Filter (\x -> ap (run pf x) (run py x));
+};
 
-alt :: Filter a b -> Filter a b -> Filter a b;
-alt p q x = append (p x) (q x);
+instance Alternative (Filter a) where {
+  empty = Filter (\_ -> empty);
+  alt p q = Filter (\x -> alt (run p x) (run q x));
+};
 
-arr :: (a -> b) -> Filter a b;
-arr f x = [f x];
+instance Monad (Filter a) where {
+  bind p f = Filter (\x -> bind (run p x) (\y -> run (f y) x));
+};
+
+instance Category Filter where {
+  identity = Filter pure;
+  compose g f = Filter (kleisli (run f) (run g));
+};
+
+instance Arrow Filter where {
+  arr f = Filter (pure . f);
+  first p = Filter (\q -> map (\b -> (b, snd q)) (run p (fst q)));
+  second p = Filter (\q -> map (\b -> (fst q, b)) (run p (snd q)));
+  split f g = Filter (\q -> ap (map (,) (run f (fst q))) (run g (snd q)));
+  fanout f g = ap (map (,) f) g;
+};
+
+instance ArrowZero Filter where {
+  zero_arrow = empty;
+};
+
+instance ArrowPlus Filter where {
+  plus = alt;
+};
 
 collect :: Filter a b -> Filter a [b];
-collect p x = [p x];
+collect p = Filter (\x -> pure (run p x));
 
 keep :: (a -> Bool) -> Filter a a;
-keep p x = case p x of {
-  False -> Nil;
-  True -> Cons x Nil;
-};
+keep p = Filter (\x -> case p x of {
+  False -> empty;
+  True -> pure x;
+});
 
 has :: Filter a b -> a -> Bool;
-has p x = not $ null $ p x;
-
-first :: Filter a b -> Filter a b;
-first p x = head (p x);
+has p x = not $ null $ run p x;
 
 or_else :: Filter a b -> Filter a b -> Filter a b;
-or_else primary fallback x = case primary x of {
-  Nil -> fallback x;
-  Cons h t -> Cons h t;
-};
-
-guard :: Bool -> [Unit];
-guard b = case b of {
-  False -> Nil;
-  True -> Cons Unit Nil;
-};
-
--- FIXME: Consider removing this while we don't truly have functors as it can
--- be confused with `pure`
-return :: a -> List a;
-return a = [a];
+or_else primary fallback = Filter (\x -> let {
+  results = run primary x;
+} in if null results then run fallback x else results);

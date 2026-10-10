@@ -41,6 +41,95 @@ pub const Primitive = enum(u32) {
     }
 };
 
+/// The type of a type: `Type` for one with values, `Row` for the fields after
+/// `|` in an open record, and `k -> k` for a constructor short of arguments.
+pub const Kind = union(enum) {
+    type,
+    row,
+    arrow: *const Arrow,
+    /// An unknown during kind inference. A declared kind never holds one.
+    meta: KindMeta,
+
+    pub const Arrow = struct {
+        from: Kind,
+        to: Kind,
+    };
+
+    pub fn eql(a: Kind, b: Kind) bool {
+        return switch (a) {
+            .type, .row => std.meta.activeTag(a) == std.meta.activeTag(b),
+            .arrow => |x| b == .arrow and x.from.eql(b.arrow.from) and x.to.eql(b.arrow.to),
+            .meta => |id| b == .meta and b.meta == id,
+        };
+    }
+
+    /// How many arrows `t` is written with before its result.
+    pub fn arrowCount(t: Type) usize {
+        var count: usize = 0;
+        var walk = t;
+        while (walk == .function) : (walk = walk.function.to) count += 1;
+        return count;
+    }
+
+    /// Returns `froms[0] -> .. -> froms[n-1] -> to`.
+    pub fn arrows(allocator: std.mem.Allocator, froms: []const Kind, to: Kind) std.mem.Allocator.Error!Kind {
+        var result = to;
+        var i = froms.len;
+        while (i > 0) {
+            i -= 1;
+            const arrow = try allocator.create(Arrow);
+            arrow.* = .{ .from = froms[i], .to = result };
+            result = .{ .arrow = arrow };
+        }
+        return result;
+    }
+
+    /// Format with each metavariable named `k`, `k1`, ... in order of first
+    /// appearance. Share one `names` across every kind in a message.
+    pub fn named(self: Kind, names: *KindNames) Named {
+        return .{ .kind = self, .names = names };
+    }
+
+    pub const Named = struct {
+        kind: Kind,
+        names: *KindNames,
+
+        pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            try self.kind.write(w, false, self.names);
+        }
+    };
+
+    fn write(self: Kind, w: *std.Io.Writer, parenthesize: bool, names: *KindNames) std.Io.Writer.Error!void {
+        switch (self) {
+            .type => try w.writeAll("Type"),
+            .row => try w.writeAll("Row"),
+            .arrow => |arrow| {
+                if (parenthesize) try w.writeByte('(');
+                try arrow.from.write(w, true, names);
+                try w.writeAll(" -> ");
+                try arrow.to.write(w, false, names);
+                if (parenthesize) try w.writeByte(')');
+            },
+            .meta => |id| if (names.index(id)) |i| {
+                if (i == 0) try w.writeByte('k') else try w.print("k{d}", .{i});
+            } else try w.print("?k{d}", .{id}),
+        }
+    }
+};
+
+/// `count` kinds, each `Type`.
+///
+/// Preconditions:
+/// - `count` is at most 256.
+pub fn typeKinds(count: usize) []const Kind {
+    return all_type_kinds[0..count];
+}
+
+const all_type_kinds = [_]Kind{.type} ** 256;
+
+/// An unknown kind, numbered within one inference.
+pub const KindMeta = u32;
+
 pub const Type = union(enum) {
     variable: TypeVar,
     meta: Meta,
@@ -52,6 +141,13 @@ pub const Type = union(enum) {
     /// A type written through an alias: `Range`, or `Named r`. Transparent
     /// to unification and classes, which see only `expansion`.
     alias: *const Aliased,
+    /// A type variable or metavariable at an argument: `f a`. `f a b` is
+    /// `(f a) b`.
+    ///
+    /// Invariants:
+    /// - Its head is never a `.constructor` or `.alias` when `apply` builds
+    ///   it. A metavariable at its head may since have been solved to one.
+    application: *const Application,
 
     pub const Constructed = struct {
         name: datatypes.TypeId,
@@ -88,6 +184,11 @@ pub const Type = union(enum) {
     pub const Arrow = struct {
         from: Type,
         to: Type,
+    };
+
+    pub const Application = struct {
+        head: Type,
+        argument: Type,
     };
 
     pub const Aliased = struct {
@@ -170,15 +271,22 @@ pub const Type = union(enum) {
                 for (a.arguments, arguments) |argument, *copy| copy.* = try argument.clone(allocator);
                 return try aliased(allocator, a.spelling, arguments, try a.expansion.clone(allocator));
             },
+            .application => |a| {
+                const node = try allocator.create(Application);
+                node.* = .{ .head = try a.head.clone(allocator), .argument = try a.argument.clone(allocator) };
+                return .{ .application = node };
+            },
         }
     }
 
     fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MetaNames) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
-            .meta => |id| if (names) |n| try n.write(id, w) else try w.print("?{d}", .{id}),
+            .meta => |id| if (if (names) |n| n.index(id) else null) |i| {
+                try w.writeByte('a' + @as(u8, @intCast(i)));
+            } else try w.print("?{d}", .{id}),
             .constructor => |c| {
-                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c);
+                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c) and !isTupleSugar(c);
                 if (parenthesize) try w.writeByte('(');
                 try writeConstructed(c, w, names);
                 if (parenthesize) try w.writeByte(')');
@@ -213,35 +321,56 @@ pub const Type = union(enum) {
                 }
                 if (parenthesize) try w.writeByte(')');
             },
+            .application => |a| {
+                if (position == .argument) try w.writeByte('(');
+                try a.head.write(w, .top, names);
+                try w.writeByte(' ');
+                try a.argument.write(w, .argument, names);
+                if (position == .argument) try w.writeByte(')');
+            },
         }
     }
 };
 
 /// Letters for metavariables within one message.
-pub const MetaNames = struct {
-    seen: [26]Meta = undefined,
-    len: usize = 0,
+pub const MetaNames = Names(Meta);
 
-    /// Write the letter `id` was given, giving it the next one if it has none.
-    /// Past `z`, write `?id`.
-    fn write(self: *MetaNames, id: Meta, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        const index = for (self.seen[0..self.len], 0..) |m, i| {
-            if (m == id) break i;
-        } else blk: {
-            if (self.len == self.seen.len) return w.print("?{d}", .{id});
+/// Names for kind metavariables within one message.
+pub const KindNames = Names(KindMeta);
+
+/// Indices for metavariables within one message, handed out in order of
+/// first appearance.
+fn Names(comptime Id: type) type {
+    return struct {
+        seen: [26]Id = undefined,
+        len: usize = 0,
+
+        /// Returns the index `id` was given, giving it the next one if it has
+        /// none. Null past the 26th.
+        fn index(self: *@This(), id: Id) ?usize {
+            if (std.mem.indexOfScalar(Id, self.seen[0..self.len], id)) |i| return i;
+            if (self.len == self.seen.len) return null;
             self.seen[self.len] = id;
             self.len += 1;
-            break :blk self.len - 1;
-        };
-        try w.writeByte('a' + @as(u8, @intCast(index)));
-    }
-};
+            return self.len - 1;
+        }
+    };
+}
 
 fn writeConstructed(
     c: *const Type.Constructed,
     w: *std.Io.Writer,
     names: ?*MetaNames,
 ) std.Io.Writer.Error!void {
+    if (isTupleSugar(c)) {
+        try w.writeByte('(');
+        for (c.arguments, 0..) |argument, i| {
+            if (i > 0) try w.writeAll(", ");
+            try argument.write(w, .top, names);
+        }
+        try w.writeByte(')');
+        return;
+    }
     if (isListSugar(c)) {
         try w.writeByte('[');
         try c.arguments[0].write(w, .top, names);
@@ -259,15 +388,21 @@ fn isListSugar(c: *const Type.Constructed) bool {
     return c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling);
 }
 
+/// Whether `c` is a tuple type at all its components, written `(a, b)`.
+fn isTupleSugar(c: *const Type.Constructed) bool {
+    const arity = tupleArity(c.spelling) orelse return false;
+    return c.arguments.len == arity;
+}
+
 pub const TypeClassConstraint = struct {
     class: classes.ClassId,
     type: Type,
 };
 
-/// `forall alpha_bar. constraints => tau`. `quantified` is the count of bound
-/// variables, which are numbered from zero.
+/// `forall alpha_bar. constraints => tau`. `variables` holds the kind of
+/// each bound variable, numbered from zero.
 pub const Scheme = struct {
-    quantified: u8 = 0,
+    variables: []const Kind = &.{},
     constraints: []const TypeClassConstraint = &.{},
     type: Type,
 
@@ -302,7 +437,7 @@ pub const Scheme = struct {
             copy.* = .{ .class = c.class, .type = try c.type.clone(allocator) };
         }
         return .{
-            .quantified = self.quantified,
+            .variables = try allocator.dupe(Kind, self.variables),
             .constraints = constraints,
             .type = try self.type.clone(allocator),
         };
@@ -358,21 +493,82 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
+pub const filter_spelling = "Filter";
+pub const function_spelling = "(->)";
+
+/// The most components a tuple has.
+pub const max_tuple_arity = std.math.maxInt(TypeVar);
+
+/// The number of components of the tuple type `spelling` names, if it names
+/// one.
+pub fn tupleArity(spelling: []const u8) ?TypeVar {
+    if (spelling.len < 2 or spelling[0] != '(' or spelling[spelling.len - 1] != ')') return null;
+    const commas = spelling[1 .. spelling.len - 1];
+    for (commas) |c| if (c != ',') return null;
+    return if (commas.len == 0) 0 else @intCast(commas.len + 1);
+}
 
 /// A declared type at its arguments, copied into `allocator`.
+/// `(->)` at both arguments is the function type.
 pub fn constructed(
     allocator: std.mem.Allocator,
     name: datatypes.TypeId,
     spelling: []const u8,
     arguments: []const Type,
 ) !Type {
+    return try constructedOwning(allocator, name, spelling, try allocator.dupe(Type, arguments));
+}
+
+/// `constructed`, taking ownership of `arguments`.
+fn constructedOwning(
+    allocator: std.mem.Allocator,
+    name: datatypes.TypeId,
+    spelling: []const u8,
+    arguments: []const Type,
+) !Type {
+    if (name == datatypes.function_id and arguments.len == 2) return try func(allocator, arguments[0], arguments[1]);
     const node = try allocator.create(Type.Constructed);
-    node.* = .{
-        .name = name,
-        .spelling = spelling,
-        .arguments = try allocator.dupe(Type, arguments),
-    };
+    node.* = .{ .name = name, .spelling = spelling, .arguments = arguments };
     return .{ .constructor = node };
+}
+
+/// A declared type at its arguments, reading `a -> b` as `(->)` at `a` and
+/// `b`.
+pub const Applied = union(enum) {
+    declared: *const Type.Constructed,
+    function: *const Type.Arrow,
+
+    pub fn name(self: Applied) datatypes.TypeId {
+        return switch (self) {
+            .declared => |c| c.name,
+            .function => datatypes.function_id,
+        };
+    }
+
+    pub fn arity(self: Applied) usize {
+        return switch (self) {
+            .declared => |c| c.arguments.len,
+            .function => 2,
+        };
+    }
+
+    /// Preconditions:
+    /// - `i` is less than `arity()`.
+    pub fn argument(self: Applied, i: usize) Type {
+        return switch (self) {
+            .declared => |c| c.arguments[i],
+            .function => |f| if (i == 0) f.from else f.to,
+        };
+    }
+};
+
+/// `t` as a declared type at its arguments, if it is one.
+pub fn asApplied(t: Type) ?Applied {
+    return switch (t) {
+        .constructor => |c| .{ .declared = c },
+        .function => |f| .{ .function = f },
+        else => null,
+    };
 }
 
 /// The arrow `t` is, looking through aliases.
@@ -384,10 +580,41 @@ pub fn arrowOf(t: Type) ?*const Type.Arrow {
     };
 }
 
+/// `head` applied to `argument`. A declared type takes `argument` as its next
+/// argument, and an alias applies its expansion.
+///
+/// Preconditions:
+/// - `head` has an arrow kind.
+pub fn apply(allocator: std.mem.Allocator, head: Type, argument: Type) std.mem.Allocator.Error!Type {
+    switch (head) {
+        .constructor => |c| {
+            const arguments = try allocator.alloc(Type, c.arguments.len + 1);
+            @memcpy(arguments[0..c.arguments.len], c.arguments);
+            arguments[c.arguments.len] = argument;
+            return try constructedOwning(allocator, c.name, c.spelling, arguments);
+        },
+        .alias => |a| return try apply(allocator, a.expansion, argument),
+        .variable, .meta, .application => {
+            const node = try allocator.create(Type.Application);
+            node.* = .{ .head = head, .argument = argument };
+            return .{ .application = node };
+        },
+        .function, .record => unreachable,
+    }
+}
+
 pub fn func(allocator: std.mem.Allocator, from: Type, to: Type) !Type {
     const arrow = try allocator.create(Type.Arrow);
     arrow.* = .{ .from = from, .to = to };
     return .{ .function = arrow };
+}
+
+/// How many arrows `t` is written with before its result.
+pub fn arrowCount(t: Type) usize {
+    var count: usize = 0;
+    var walk = t;
+    while (walk == .function) : (walk = walk.function.to) count += 1;
+    return count;
 }
 
 /// Returns `froms[0] -> .. -> froms[n-1] -> to`.
@@ -414,6 +641,37 @@ pub fn aliased(
     return .{ .alias = node };
 }
 
+/// Whether `a` and `b` are the same type, node for node, looking through
+/// aliases. A metavariable is equal only to itself.
+pub fn eql(a: Type, b: Type) bool {
+    if (a == .alias) return eql(a.alias.expansion, b);
+    if (b == .alias) return eql(a, b.alias.expansion);
+    if (std.meta.activeTag(a) != std.meta.activeTag(b)) return false;
+    return switch (a) {
+        .variable => |v| v == b.variable,
+        .meta => |id| id == b.meta,
+        .constructor => |c| c.name == b.constructor.name and allEql(c.arguments, b.constructor.arguments),
+        .function => |arrow| eql(arrow.from, b.function.from) and eql(arrow.to, b.function.to),
+        .application => |x| eql(x.head, b.application.head) and eql(x.argument, b.application.argument),
+        .record => |r| {
+            const other = b.record;
+            if (r.fields.len != other.fields.len) return false;
+            for (r.fields, other.fields) |f, g| {
+                if (!std.mem.eql(u8, f.label, g.label) or !eql(f.type.*, g.type.*)) return false;
+            }
+            const rest = r.rest orelse return other.rest == null;
+            return if (other.rest) |o| eql(rest.*, o.*) else false;
+        },
+        .alias => unreachable,
+    };
+}
+
+fn allEql(as: []const Type, bs: []const Type) bool {
+    if (as.len != bs.len) return false;
+    for (as, bs) |x, y| if (!eql(x, y)) return false;
+    return true;
+}
+
 /// `t` with each bound variable replaced by `arguments` at its index.
 /// Returns `t` itself when it has no variable, and shares every unchanged
 /// subtree otherwise.
@@ -437,7 +695,10 @@ const Arguments = struct {
 
     fn replace(self: Arguments, t: Type) Type {
         return switch (t) {
-            .variable => |index| self.arguments[index],
+            .variable => |index| if (index < self.arguments.len)
+                self.arguments[index]
+            else
+                @panic("a bound type variable outside its scheme"),
             else => t,
         };
     }
@@ -493,6 +754,12 @@ pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.
             const expansion = try rewrite(allocator, a.expansion, context);
             if (changed == null and std.meta.eql(expansion, a.expansion)) return head;
             return try aliased(allocator, a.spelling, changed orelse a.arguments, expansion);
+        },
+        .application => |a| {
+            const applied = try rewrite(allocator, a.head, context);
+            const argument = try rewrite(allocator, a.argument, context);
+            if (std.meta.eql(applied, a.head) and std.meta.eql(argument, a.argument)) return head;
+            return try apply(allocator, applied, argument);
         },
     }
 }

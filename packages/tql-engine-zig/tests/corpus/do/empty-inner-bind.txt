@@ -3,9 +3,9 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main root = do {
-  l <- [1, 2];
-  r <- (children | of_kind :interface_declaration | pure 0) root;
+main = do {
+  l <- Filter (\_ -> [1, 2]);
+  r <- children | of_kind :interface_declaration | pure 0;
   return $ l + r;
 };
 
@@ -16,7 +16,7 @@ class A {}
 []
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
-main = \root -> concat_map (\l -> concat_map (\r -> return (op[+] l r)) (kleisli (kleisli children (of_kind :interface_declaration)) (pure 0) root)) (Cons 1 (Cons 2 Nil))
+main = bind (Filter (\_ -> Cons 1 (Cons 2 Nil))) (\l -> bind (compose_flipped (compose_flipped children (of_kind :interface_declaration)) (pure 0)) (\r -> return (op[+] l r)))

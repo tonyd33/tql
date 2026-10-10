@@ -10,6 +10,7 @@
   "of"
   "type"
   "data"
+  "newtype"
   "module"
   "import"
   "hiding"
@@ -30,6 +31,10 @@
 (comment) @comment
 
 (boolean) @constant.builtin
+(unit) @constant.builtin
+
+(tuple_constructor) @type
+(function_constructor) @type
 
 (kind) @type
 
@@ -56,7 +61,6 @@
 (infix_application function: (identifier) @function)
 (backtick_operator function: (identifier) @function)
 
-"Filter" @type.builtin
 (type_identifier) @type
 (type_variable) @type
 

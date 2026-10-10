@@ -17,4 +17,4 @@ let x: string = "a";
 [{"literal":false,"text":"string"},{"literal":true,"text":"\"a\""}]
 
 --- types ---
-main :: Node -> [{literal: Bool, text: String}]
+main :: Filter Node {literal: Bool, text: String}

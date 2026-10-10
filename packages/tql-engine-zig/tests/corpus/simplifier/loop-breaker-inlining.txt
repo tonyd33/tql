@@ -3,12 +3,10 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 main = let {
   is_even n = if n = 0 then true else is_odd (n - 1);
   is_odd n = not (is_even n);
-} in const [is_even 4, is_odd 7];
+} in Filter (\_ -> [is_even 4, is_odd 7]);
 
 --- source ---
 class A {}
@@ -25,14 +23,12 @@ main =
         True -> False
       True -> True
   in
-  const (
-    Cons (is_even 4) (
-      Cons (
-        case is_even 7 of
-          False -> True
-          True -> False
-      ) Nil
-    )
+  \_ -> Cons (is_even 4) (
+    Cons (
+      case is_even 7 of
+        False -> True
+        True -> False
+    ) Nil
   )
 
 --- core ---
@@ -43,4 +39,4 @@ main =
       True -> True
     is_odd = \n -> not (is_even n)
   in
-  const (Cons (is_even 4) (Cons (is_odd 7) Nil))
+  Filter (\_ -> Cons (is_even 4) (Cons (is_odd 7) Nil))

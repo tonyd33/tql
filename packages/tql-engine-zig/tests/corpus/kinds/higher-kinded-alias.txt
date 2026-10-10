@@ -1,0 +1,24 @@
+title: an alias of a constructor short of an argument takes it after
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+data Either a b = Left a | Right b;
+type Result = Either String;
+
+ok :: Result Int;
+ok = Right 1;
+
+main = pure $ case ok of {
+  Right n -> n;
+  Left _ -> 0;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+--- types ---
+ok :: Result Int
+main :: Filter Node Int

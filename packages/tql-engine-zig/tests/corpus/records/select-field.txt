@@ -3,9 +3,8 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 
-main = const [{a = 1, b = "x"}.a];
+main = pure $ {a = 1, b = "x"}.a;
 
 --- source ---
 class A {}
@@ -14,4 +13,4 @@ class A {}
 [1]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

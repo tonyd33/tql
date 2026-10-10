@@ -17,7 +17,7 @@ class A {}
 [7]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 main =

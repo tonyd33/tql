@@ -17,7 +17,7 @@ class A {}
 [[1,2],[]]
 --- types ---
 pair :: [a] -> [a]
-main :: Node -> [[Int]]
+main :: Filter Node [Int]
 
 --- core ---
 pair = \xs ->

@@ -14,7 +14,8 @@ class A {}
 --- simplified ---
 main =
   let s = "ab" in
-  pure (op[+] (%string_length s) (%string_length s))
+  let y = op[+] (%string_length s) (%string_length s) in
+  \_ -> Cons y Nil
 
 --- core ---
 main =

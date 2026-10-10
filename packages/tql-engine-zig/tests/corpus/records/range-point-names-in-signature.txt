@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 line :: Range -> Point
-main :: Node -> [Point]
+main :: Filter Node Point

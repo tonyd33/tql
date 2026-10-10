@@ -1,0 +1,21 @@
+title: a class over constructors takes no instance at a type
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+class Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+instance Mappable Int where {
+  mapf g x = x;
+};
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Int` has kind `Type`, but kind `Type -> Type` is expected
+ --> 6:19
+  |
+6 | instance Mappable Int where {
+  |                   ^^^

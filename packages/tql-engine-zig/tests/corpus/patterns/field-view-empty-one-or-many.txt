@@ -5,18 +5,18 @@ asserts: core, values
 A class with two decorators matches `_ : _` once.
 
 --- tql ---
-undecorated c = do {
-  (#decorator -> []) <- [c];
+undecorated = do {
+  (run #decorator -> []) <- identity;
   return "none";
 };
 
-one_decorator c = do {
-  (#decorator -> [d]) <- [c];
+one_decorator = do {
+  (run #decorator -> [d]) <- identity;
   return $ text d;
 };
 
-decorated c = do {
-  (#decorator -> _ : _) <- [c];
+decorated = do {
+  (run #decorator -> _ : _) <- identity;
   return "some";
 };
 
@@ -31,27 +31,27 @@ class A {}
 ["none", "@a", "some", "some"]
 
 --- core ---
-undecorated = \c -> concat_map (
+undecorated = bind identity (
   \scrutinee ->
-    let view = field[decorator] scrutinee in
+    let view = run (Filter field[decorator]) scrutinee in
     case view of
       Nil -> return "none"
-      Cons _ _ -> Nil
-) (Cons c Nil)
-one_decorator = \c -> concat_map (
+      Cons _ _ -> empty
+)
+one_decorator = bind identity (
   \scrutinee ->
-    let view = field[decorator] scrutinee in
+    let view = run (Filter field[decorator]) scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons d cons1 -> case cons1 of
         Nil -> return (text d)
-        Cons _ _ -> Nil
-) (Cons c Nil)
-decorated = \c -> concat_map (
+        Cons _ _ -> empty
+)
+decorated = bind identity (
   \scrutinee ->
-    let view = field[decorator] scrutinee in
+    let view = run (Filter field[decorator]) scrutinee in
     case view of
-      Nil -> Nil
+      Nil -> empty
       Cons _ _ -> return "some"
-) (Cons c Nil)
-main = kleisli (descendants_of_kind :class_declaration) (alt (alt undecorated one_decorator) decorated)
+)
+main = compose_flipped (descendants_of_kind :class_declaration) (alt (alt undecorated one_decorator) decorated)

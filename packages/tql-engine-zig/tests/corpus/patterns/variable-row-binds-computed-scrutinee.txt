@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-count n = case pure n 1 of {
+count n = case run (pure n) 1 of {
   Cons x Nil -> x;
   ys -> length ys;
 };
@@ -19,7 +19,7 @@ class A {}
 --- core ---
 count = \n ->
   join alternative ys = length ys in
-  let scrutinee = pure n 1 in
+  let scrutinee = run (pure n) 1 in
   case scrutinee of
     Nil -> jump alternative scrutinee
     Cons x cons1 -> case cons1 of

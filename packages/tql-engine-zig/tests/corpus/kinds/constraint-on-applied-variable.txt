@@ -1,0 +1,30 @@
+title: a context constrains a type variable applied to types
+grammar: typescript
+asserts: types, values
+
+`Eq (f a)` is written in `same`'s signature, and inferred for `same_wrap`,
+whose fields are of type `f a`.
+
+--- tql ---
+data Wrap f a = Wrap (f a);
+
+same :: Eq (f a) => f a -> f a -> Bool;
+same x y = x = y;
+
+same_wrap w v = case w of {
+  Wrap x -> case v of {
+    Wrap y -> x = y;
+  };
+};
+
+main = Filter (\_ -> [same [1] [1], same [1] [2], same_wrap (Wrap [1]) (Wrap [1])]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false,true]
+--- types ---
+same :: Eq (a b) => a b -> a b -> Bool
+same_wrap :: Eq (a b) => Wrap a b -> Wrap a b -> Bool
+main :: Filter Node Bool

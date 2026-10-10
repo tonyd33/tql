@@ -1,0 +1,24 @@
+title: a query cannot write an `Eq` instance at a tuple type
+grammar: typescript
+asserts: error
+
+`Eq` and the tuple types are both `Prim`'s, which gives every tuple type
+`Eq`, `Ord` and `Serial`.
+
+--- tql ---
+instance Eq (a, b) where {
+  eq x y = True;
+};
+
+main root = [1];
+
+--- error ---
+error[orphan-instance]: `Eq (,)` must be declared in `Prim`, which declares `Eq`, or in `Prim`, which declares `(,)`
+ --> 1:1
+  |
+1 | instance Eq (a, b) where {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |   eq x y = True;
+  |   ^^^^^^^^^^^^^^
+3 | };
+  | ^^

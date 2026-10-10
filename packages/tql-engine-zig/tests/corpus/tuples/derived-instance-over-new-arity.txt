@@ -1,0 +1,16 @@
+title: a derived instance compares a field of a tuple arity first written in the same module
+grammar: typescript
+asserts: values
+
+The triple's `Eq` exists before `T` derives its own.
+
+--- tql ---
+data T = T (Int, Int, Int) deriving (Eq);
+
+main = Filter (\_ -> [T (1, 2, 3) = T (1, 2, 3), T (1, 2, 3) = T (1, 2, 4)]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]

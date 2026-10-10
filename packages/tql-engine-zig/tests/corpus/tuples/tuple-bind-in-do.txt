@@ -1,0 +1,19 @@
+title: a `do` bind takes a tuple pattern
+grammar: typescript
+asserts: values
+
+--- tql ---
+import Data.List (zip);
+
+main = do {
+  root <- identity;
+  (n, c) <- Filter (\_ -> zip [1, 2] (run children root));
+  return (n, text c);
+};
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[[1,"class A {}"],[2,"class B {}"]]

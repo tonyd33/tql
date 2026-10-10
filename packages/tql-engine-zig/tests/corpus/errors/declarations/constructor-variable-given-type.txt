@@ -1,0 +1,19 @@
+title: a constructor parameter is not given a type
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+data Wrap f a = Wrap (f a);
+
+g :: Wrap Int Int -> Int;
+g _ = 1;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Int` has kind `Type`, but kind `Type -> Type` is expected
+ --> 5:11
+  |
+5 | g :: Wrap Int Int -> Int;
+  |           ^^^

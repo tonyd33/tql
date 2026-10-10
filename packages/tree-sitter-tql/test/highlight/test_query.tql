@@ -13,7 +13,6 @@ start = _.start_byte;
 
 is_alloc :: Filter Node Node;
 -- <- function
---          ^ type.builtin
 --                 ^ type
 is_alloc = #declarator | keep (\d -> text d ~ r"^alloc");
 --          ^ attribute

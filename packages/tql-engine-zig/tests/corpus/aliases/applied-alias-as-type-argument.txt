@@ -9,7 +9,7 @@ data Box a = Box a;
 unbox :: Box (Named r) -> String;
 unbox b = case b of { Box x -> x.name };
 
-main root = [unbox (Box {name = "a", age = 1})];
+main = pure $ unbox (Box {name = "a", age = 1});
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 
 --- types ---
 unbox :: Box (Named a) -> String
-main :: Node -> [String]
+main :: Filter Node String

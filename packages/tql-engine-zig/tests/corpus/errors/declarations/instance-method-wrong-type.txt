@@ -3,15 +3,13 @@ grammar: typescript
 asserts: error
 
 --- tql ---
-import Data.Function (const);
-
 class Describe a where { describe :: a -> String; };
 instance Describe Int where { describe n = n + 1; };
-main = const [];
+main = empty;
 
 --- error ---
 error[signature-mismatch]: Expected `String`, found `Int`.
- --> 4:31
+ --> 2:31
   |
-4 | instance Describe Int where { describe n = n + 1; };
+2 | instance Describe Int where { describe n = n + 1; };
   |                               ^^^^^^^^^^^^^^^^^^^

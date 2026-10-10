@@ -27,4 +27,4 @@ class B {}
 ]
 
 --- types ---
-main :: Node -> [Node]
+main :: Filter Node Node

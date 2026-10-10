@@ -5,8 +5,8 @@ asserts: types, values
 --- tql ---
 methods = #body | children | of_kind :method_definition;
 
-main root = do {
-  c <- children_of_kind :class_declaration root;
+main = do {
+  c <- children_of_kind :class_declaration;
   return $ has methods c;
 };
 
@@ -18,5 +18,5 @@ class B {}
 [true, false]
 
 --- types ---
-methods :: Node -> [Node]
-main :: Node -> [Bool]
+methods :: Filter Node Node
+main :: Filter Node Bool

@@ -9,8 +9,8 @@ pattern MemberCall obj prop <- :call_expression {
 
 pattern Text s <- (text -> s);
 
-main root = do {
-  call@(MemberCall (Text "console") (Text "error")) <- descendants root;
+main = do {
+  call@(MemberCall (Text "console") (Text "error")) <- descendants;
   guard $ not $ has (ancestors | of_kind :catch_clause) call;
   return (text call);
 };
@@ -26,4 +26,4 @@ try { console.error("d"); } catch (e) { console.error("e"); }
 --- types ---
 $mMemberCall :: Node -> (Node -> Node -> a) -> a -> a
 $mText :: Node -> (String -> a) -> b -> a
-main :: Node -> [String]
+main :: Filter Node String

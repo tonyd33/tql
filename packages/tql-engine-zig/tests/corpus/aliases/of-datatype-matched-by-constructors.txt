@@ -7,7 +7,7 @@ data Maybe a = Just a | Nothing;
 type Found = Maybe String;
 name :: Found -> [String];
 name f = case f of { Just s -> [s]; Nothing -> [] };
-main root = name (Just "x");
+main = Filter (\_ -> name (Just "x"));
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 name :: Found -> [String]
-main :: Node -> [String]
+main :: Filter Node String

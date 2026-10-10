@@ -7,7 +7,7 @@ which is known, so the call goes to `describe[Shape]` and no dictionary is
 built.
 
 --- tql ---
-import Data.List (concat_map);
+import Data.Foldable (concat_map);
 
 class Describe a where {
   describe :: a -> [String];
@@ -23,7 +23,7 @@ instance Describe Shape where {
   };
 };
 
-main root = describe (Group [Circle 1, Square 2]);
+main = Filter (\_ -> describe (Group [Circle 1, Square 2]));
 
 --- source ---
 class A {}
@@ -32,4 +32,4 @@ class A {}
 ["circle", "square"]
 
 --- simplified ---
-main = \root -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))
+main = \_ -> describe[Shape] (Group (Cons (Circle 1) (Cons (Square 2) Nil)))

@@ -3,8 +3,8 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main root = do {
-  { #function = f } <- descendants root;
+main = do {
+  { #function = f } <- descendants;
   return $ text f;
 };
 

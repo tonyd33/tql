@@ -1,0 +1,17 @@
+title: `traverse` at `List` over `Maybe` yields one `Maybe` per choice
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+main = Filter (\_ -> append (traverse (\x -> [x, x + 10]) $ Just 1) (traverse (\x -> [x]) Nothing));
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[1]},{"tag":"Just","fields":[11]},{"tag":"Nothing","fields":[]}]
+
+--- types ---
+main :: Filter Node (Maybe Int)

@@ -5,9 +5,8 @@ asserts: core, types, values
 A list has one element type, so this case lists bools only.
 
 --- tql ---
-import Data.Function (const);
 
-main = const [true, false, true];
+main = Filter (\_ -> [true, false, true]);
 
 --- source ---
 class A {}
@@ -16,7 +15,7 @@ class A {}
 [true, false, true]
 
 --- core ---
-main = const (Cons True (Cons False (Cons True Nil)))
+main = Filter (\_ -> Cons True (Cons False (Cons True Nil)))
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

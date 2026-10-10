@@ -3,11 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
-
 is_even n = if n = 0 then true else is_odd (n - 1);
 is_odd n = if n = 0 then false else is_even (n - 1);
-main = const [is_even 4, is_odd 4];
+main = Filter (\_ -> [is_even 4, is_odd 4]);
 
 --- source ---
 class A {}
@@ -18,4 +16,4 @@ class A {}
 --- types ---
 is_even :: Int -> Bool
 is_odd :: Int -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

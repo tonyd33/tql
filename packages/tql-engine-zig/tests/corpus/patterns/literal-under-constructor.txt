@@ -3,8 +3,6 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 data Maybe a = Just a | Nothing;
 
 describe m = case m of {
@@ -13,7 +11,7 @@ describe m = case m of {
   Nothing -> "none";
 };
 
-main = const [describe (Just 0), describe (Just 5), describe Nothing];
+main = Filter (\_ -> [describe (Just 0), describe (Just 5), describe Nothing]);
 
 --- source ---
 class A {}
@@ -27,4 +25,4 @@ describe = \m -> case m of
     False -> "some"
     True -> "zero"
   Nothing -> "none"
-main = const (Cons (describe (Just 0)) (Cons (describe (Just 5)) (Cons (describe Nothing) Nil)))
+main = Filter (\_ -> Cons (describe (Just 0)) (Cons (describe (Just 5)) (Cons (describe Nothing) Nil)))

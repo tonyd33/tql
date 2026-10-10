@@ -1,6 +1,7 @@
 //! Type checking: Hindley-Milner inference over linked Core.
 
 const constraints = @import("type_check/constraints.zig");
+const erase = @import("type_check/erase.zig");
 const infer = @import("type_check/infer.zig");
 const substitution = @import("type_check/substitution.zig");
 const unify = @import("type_check/unify.zig");
@@ -14,14 +15,19 @@ pub const Mismatch = unify.Mismatch;
 pub const Violation = constraints.Violation;
 
 /// Type-checks a linked program, writing each definition's scheme into its
-/// environment and reporting through a `diagnostic.Sink`.
-pub const check = infer.check;
+/// environment and reporting through a `diagnostic.Sink`, then erases every
+/// `newtype`.
+pub fn check(gpa: std.mem.Allocator, program: *core.Program, sink: *diagnostic.Sink) !void {
+    try infer.check(gpa, program, sink);
+    try erase.program(program);
+}
 
 pub const Error = infer.Error;
 
 test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(constraints);
+    refAllDecls(erase);
     refAllDecls(infer);
     refAllDecls(substitution);
     refAllDecls(unify);
@@ -29,6 +35,7 @@ test {
 
 const std = @import("std");
 const core = @import("core.zig");
+const diagnostic = @import("diagnostic.zig");
 const primitives = @import("primitives.zig");
 const test_support = core.test_support;
 
@@ -63,8 +70,8 @@ test "occurs check sees through a solved metavariable" {
     const t = try Fixture.init(gpa);
     defer t.deinit(gpa);
 
-    const a = try t.subst.fresh();
-    const b = try t.subst.fresh();
+    const a = try t.subst.fresh(.type);
+    const b = try t.subst.fresh(.type);
     t.subst.bind(b.meta, try t.subst.datatypes.list(t.subst.arena, a));
 
     // `a` is not syntactically in `b`, but it is once `b` is resolved.
@@ -81,5 +88,5 @@ test "a record scheme at the field ceiling still builds" {
     for (labels) |*l| l.* = "f";
 
     const scheme = try primitives.synthesizedScheme(fix.pb.env.allocator(), &fix.pb.env.datatypes, .{ .record = labels });
-    try testing.expectEqual(primitives.max_record_fields, scheme.quantified);
+    try testing.expectEqual(primitives.max_record_fields, scheme.variables.len);
 }

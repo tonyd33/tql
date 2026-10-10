@@ -16,7 +16,7 @@ class C {}
 [["A", "B", "C"]]
 
 --- core ---
-main = collect (kleisli (kleisli (kleisli children (of_kind :class_declaration)) field[name]) (arr text))
+main = collect (compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (Filter field[name])) (arr text))
 
 --- types ---
-main :: Node -> [[String]]
+main :: Filter Node [String]

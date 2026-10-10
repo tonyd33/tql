@@ -1,0 +1,32 @@
+title: `Filter (take 1 . run p)` is a filter's first result, and forces no other
+grammar: typescript
+asserts: types, values
+
+`p` yields `1` and then a division by zero, which `take 1` never forces.
+`Filter (take 1 . run p)` is the filter of `p`'s first result, which `has`
+and `or_else` take.
+
+--- tql ---
+import Data.List (take);
+
+p :: Filter Node Int;
+p = Filter (\_ -> [1, 1 / 0]);
+
+main = do {
+  root <- identity;
+  return (
+    has (Filter (take 1 . run p)) root,
+    has (Filter (take 1 . run empty)) root,
+    run (or_else (Filter (take 1 . run empty)) (Filter (take 1 . run p))) root
+  );
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false,[1]]]
+
+--- types ---
+p :: Filter Node Int
+main :: Filter Node (Bool, Bool, [Int])

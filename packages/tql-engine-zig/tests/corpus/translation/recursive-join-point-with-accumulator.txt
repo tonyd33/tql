@@ -3,12 +3,10 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-import Data.Function (const);
-
 rev xs = let {
   go ys acc = case ys of { [] -> acc; h : t -> go t (h : acc) };
 } in go xs [];
-main = const (rev [1, 2]);
+main = Filter (\_ -> rev [1, 2]);
 
 --- source ---
 class A {}
@@ -33,7 +31,7 @@ rev = {} \u {} ->
   t2@0
 main = {} \u {} ->
   let
-    t3 = {} \u {} ->
+    t3 = {} \n {_} ->
       let
         t2 = {} \u {} ->
           let
@@ -43,6 +41,6 @@ main = {} \u {} ->
           in
           Cons 1 t1@0
       in
-      rev t2@0
+      rev t2@1
   in
-  const t3@0
+  t3@0

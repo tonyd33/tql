@@ -1,0 +1,18 @@
+title: a mismatch prints tuple types with their components
+grammar: typescript
+asserts: error
+
+--- tql ---
+first_of :: (Int, String) -> Int;
+first_of p = case p of {
+  (n, _) -> n;
+};
+
+main root = [first_of (1, "a", 2)];
+
+--- error ---
+error[type-mismatch]: Expected `(Int, String)`, found `(Int, String, Int)`.
+ --> 6:23
+  |
+6 | main root = [first_of (1, "a", 2)];
+  |                       ^^^^^^^^^^^

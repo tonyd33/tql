@@ -19,7 +19,7 @@ instance Describe Shape where {
 
 both x y = [describe x, describe y];
 
-main root = both 1 (Circle 1);
+main = Filter (\_ -> both 1 (Circle 1));
 
 --- source ---
 class A {}
@@ -29,4 +29,4 @@ class A {}
 
 --- types ---
 both :: (Describe a, Describe b) => a -> b -> [String]
-main :: Node -> [String]
+main :: Filter Node String

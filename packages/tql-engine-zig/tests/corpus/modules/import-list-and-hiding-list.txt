@@ -12,7 +12,7 @@ triple x = x * 3;
 import Numbers (double);
 import Numbers hiding (double) as N;
 
-main root = [double 1, N.triple 1];
+main = Filter (\_ -> [double 1, N.triple 1]);
 
 --- source ---
 let x = 1;

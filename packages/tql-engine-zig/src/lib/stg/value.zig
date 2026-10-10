@@ -205,6 +205,7 @@ test "a thunk is run once and read thereafter" {
         .entry = undefined,
         .structural = undefined,
         .spellings = .empty,
+        .tuples = .empty,
         .nil = undefined,
         .arena = &arena,
     };

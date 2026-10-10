@@ -12,7 +12,7 @@ square x = times x x;
 import Square;
 
 times x y = x + y;
-main root = [square 3, times 3 3];
+main = Filter (\_ -> [square 3, times 3 3]);
 
 --- source ---
 let x = 1;

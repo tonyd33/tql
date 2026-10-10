@@ -3,9 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const ([1, 2] >> [3]);
+main = Filter (\_ -> [1, 2] >> [3]);
 
 --- source ---
 class A {}
@@ -14,7 +12,7 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
-main = const (concat_map (\_ -> Cons 3 Nil) (Cons 1 (Cons 2 Nil)))
+main = Filter (\_ -> bind (Cons 1 (Cons 2 Nil)) (\_ -> Cons 3 Nil))

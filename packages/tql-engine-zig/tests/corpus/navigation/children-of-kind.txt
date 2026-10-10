@@ -14,7 +14,7 @@ class B {}
 ["A", "B"]
 
 --- core ---
-main = kleisli (kleisli (children_of_kind :class_declaration) field[name]) (arr text)
+main = compose_flipped (compose_flipped (children_of_kind :class_declaration) (Filter field[name])) (arr text)
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

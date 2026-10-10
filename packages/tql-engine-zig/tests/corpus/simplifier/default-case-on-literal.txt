@@ -15,4 +15,4 @@ class A {}
 main = pure (seq 1 2)
 
 --- simplified ---
-main = pure 2
+main = \_ -> Cons 2 Nil

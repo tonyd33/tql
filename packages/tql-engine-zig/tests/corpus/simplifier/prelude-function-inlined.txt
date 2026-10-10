@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main root = do {
+main = do {
   guard true;
   return 1;
 };
@@ -15,7 +15,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = \root -> concat_map (\_ -> Cons 1 Nil) (Cons Unit Nil)
+main = \x -> Cons 1 Nil
 
 --- core ---
-main = \root -> concat_map (\_ -> return 1) (guard True)
+main = bind (guard True) (\_ -> return 1)

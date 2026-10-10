@@ -6,8 +6,6 @@ asserts: values
 superclass of `Describe a` provides.
 
 --- tql ---
-import Data.List (append);
-
 class Labelled a where {
   label :: a -> String;
 };
@@ -38,7 +36,7 @@ instance Describe a => Describe [a] where {
 labels :: Describe a => a -> [String];
 labels x = append [label x] (describe x);
 
-main root = labels [1, 2];
+main = Filter (\_ -> labels [1, 2]);
 
 --- source ---
 class A {}

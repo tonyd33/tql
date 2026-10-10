@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 or_default :: Maybe a -> a -> a
-main :: Node -> [Int]
+main :: Filter Node Int

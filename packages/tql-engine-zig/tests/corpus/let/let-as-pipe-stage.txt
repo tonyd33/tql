@@ -18,10 +18,10 @@ class B {}
 ["A", "B"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String
 
 --- core ---
-main = kleisli (kleisli children (of_kind :class_declaration)) (
-  let n = kleisli field[name] (arr text) in
+main = compose_flipped (compose_flipped children (of_kind :class_declaration)) (
+  let n = compose_flipped (Filter field[name]) (arr text) in
   n
 )

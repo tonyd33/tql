@@ -3,8 +3,6 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-import Data.Function (const);
-
 at_most :: Int -> Int -> Bool;
 at_most x y = case compare x y of {
   LT -> true;
@@ -12,7 +10,7 @@ at_most x y = case compare x y of {
   GT -> false;
 };
 
-main = const [at_most 1 2, at_most 2 2, at_most 3 2];
+main = Filter (\_ -> [at_most 1 2, at_most 2 2, at_most 3 2]);
 
 --- source ---
 class A {}
@@ -21,5 +19,4 @@ class A {}
 [true, true, false]
 
 --- simplified ---
-at_most = \x -> \y -> %lte_int x y
-main = const (Cons (%lte_int 1 2) (Cons (%lte_int 2 2) (Cons (%lte_int 3 2) Nil)))
+main = \_ -> Cons (%lte_int 1 2) (Cons (%lte_int 2 2) (Cons (%lte_int 3 2) Nil))

@@ -6,6 +6,9 @@ const string_literal = @import("string_literal.zig");
 /// `x` from the import qualified as `A.B`.
 pub const Identifier = []const u8;
 
+/// The most components a tuple has.
+pub const max_tuple_arity = std.math.maxInt(u8);
+
 pub const SourceFile = struct {
     header: ?ModuleHeader = null,
     imports: []const Import = &.{},
@@ -128,12 +131,9 @@ pub const Signature = struct {
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Signature, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(signature {s} ", .{self.name});
-        if (self.context.len > 0) {
-            try w.writeAll("(=>");
-            for (self.context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
-            try w.writeAll(") ");
-        }
+        try w.print("(signature {s}", .{self.name});
+        try sexprContext(w, self.context);
+        try w.writeByte(' ');
         try self.type.sexpr(w);
         try w.writeByte(')');
     }
@@ -181,15 +181,31 @@ pub const InstanceDeclaration = struct {
 fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writer.Error!void {
     if (context.len == 0) return;
     try w.writeAll(" (=>");
-    for (context) |c| try w.print(" ({s} {s})", .{ c.class, c.variable });
+    for (context) |c| {
+        try w.writeByte(' ');
+        try c.sexpr(w);
+    }
     try w.writeByte(')');
 }
 
 /// `Sized a` in a signature's context.
 pub const ClassConstraint = struct {
     class: Identifier,
-    variable: Identifier,
+    /// A type variable, or one applied to types.
+    type: Type,
     span: diagnostic.Span = .unknown,
+
+    pub fn sexpr(self: ClassConstraint, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("({s} ", .{self.class});
+        try self.type.sexpr(w);
+        try w.writeByte(')');
+    }
+
+    /// The variable constrained, when the type is one alone.
+    pub fn variableName(self: ClassConstraint) ?Identifier {
+        const inner = self.type.unparenthesized();
+        return if (inner.kind == .variable) inner.kind.variable else null;
+    }
 };
 
 pub const Definition = struct {
@@ -210,8 +226,10 @@ pub const Definition = struct {
     }
 };
 
-/// `data T a = C1 f1 f2 | C2 deriving (Eq);`
+/// `data T a = C1 f1 f2 | C2 deriving (Eq);`, or `newtype T a = C f;`.
 pub const DataDeclaration = struct {
+    /// Declared with `newtype`. `constructors` has one constructor of one field.
+    newtype: bool = false,
     name: Identifier,
     parameters: []const Identifier,
     constructors: []const ConstructorDeclaration,
@@ -232,7 +250,7 @@ pub const DataDeclaration = struct {
     };
 
     pub fn sexpr(self: DataDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(data {s} (params", .{self.name});
+        try w.print("({s} {s} (params", .{ if (self.newtype) "newtype" else "data", self.name });
         for (self.parameters) |p| try w.print(" {s}", .{p});
         try w.writeAll(")");
         for (self.constructors) |c| {
@@ -522,6 +540,10 @@ pub const Expression = struct {
         do: *Do,
         /// A list literal: `[a, b, c]` or `[]`.
         list: []const Expression,
+        /// `(a, b, ..)`, or `()` with no components.
+        tuple: []const Expression,
+        /// `(,)`, the constructor of tuples with `arity` components.
+        tuple_constructor: u8,
         record: Record,
         parenthesized: *Expression,
         /// `of_shape p`: the filter keeping a value `p` matches.
@@ -638,14 +660,15 @@ pub const Expression = struct {
                 try d.result.sexpr(w);
                 try w.writeByte(')');
             },
-            .list => |elements| {
-                try w.writeAll("(list");
+            .list, .tuple => |elements| {
+                try w.print("({t}", .{self.kind});
                 for (elements) |e| {
                     try w.writeByte(' ');
                     try e.sexpr(w);
                 }
                 try w.writeByte(')');
             },
+            .tuple_constructor => |arity| try w.print("(tuple_constructor {d})", .{arity}),
             .record => |r| {
                 try w.writeAll("(record");
                 for (r.fields) |f| {
@@ -678,14 +701,30 @@ pub const FunctionType = struct {
     to: Type,
 };
 
-pub const FilterType = struct {
-    input: Type,
-    output: Type,
+/// A bracketed type constructor.
+pub const BuiltinConstructor = union(enum) {
+    /// `(,)`, the constructor of tuple types with `arity` components.
+    tuple: u8,
+    /// `(->)`.
+    function,
+
+    pub fn sexpr(self: BuiltinConstructor, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .tuple => |arity| try w.print("(tuple_constructor {d})", .{arity}),
+            .function => try w.writeAll("(->)"),
+        }
+    }
 };
 
 pub const TypeApplication = struct {
-    constructor: Identifier,
+    head: Head,
     arguments: []const Type,
+
+    pub const Head = union(enum) {
+        constructor: Identifier,
+        variable: Identifier,
+        builtin: BuiltinConstructor,
+    };
 };
 
 pub const TypeField = struct {
@@ -725,6 +764,8 @@ pub const Pattern = struct {
         constructor: Constructor,
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
+        /// `(p, q, ..)`, or `()` with no components.
+        tuple: []const Pattern,
         cons: *Cons,
         /// `x@p`
         as: *As,
@@ -838,8 +879,8 @@ pub const Pattern = struct {
                 }
                 try w.writeByte(')');
             },
-            .list => |elements| {
-                try w.writeAll("(list");
+            .list, .tuple => |elements| {
+                try w.print("({t}", .{self.kind});
                 for (elements) |element| {
                     try w.writeByte(' ');
                     try element.sexpr(w);
@@ -862,24 +903,39 @@ pub const Type = struct {
     span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
-        /// A concrete type name: `Filter`'s operands aside, anything
-        /// capitalized.
+        /// A concrete type name: anything capitalized.
         constructor: Identifier,
-        /// A declared type at its arguments, like `List a`.
+        /// A declared type or a type variable at its arguments, like
+        /// `List a` or `f a`.
         application: *TypeApplication,
         variable: Identifier,
         function: *FunctionType,
-        filter: *FilterType,
         list: *Type,
+        /// `(a, b, ..)`, or `()` with no components.
+        tuple: []const Type,
+        builtin_constructor: BuiltinConstructor,
         record: RecordType,
         parenthesized: *Type,
     };
+
+    /// `self` with its outer parentheses removed.
+    pub fn unparenthesized(self: Type) Type {
+        var inner = self;
+        while (inner.kind == .parenthesized) inner = inner.kind.parenthesized.*;
+        return inner;
+    }
 
     pub fn sexpr(self: Type, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .constructor => |c| try w.print("{s}", .{c}),
             .application => |a| {
-                try w.print("({s}", .{a.constructor});
+                switch (a.head) {
+                    .constructor, .variable => |name| try w.print("({s}", .{name}),
+                    .builtin => |b| {
+                        try w.writeByte('(');
+                        try b.sexpr(w);
+                    },
+                }
                 for (a.arguments) |arg| {
                     try w.writeByte(' ');
                     try arg.sexpr(w);
@@ -894,18 +950,20 @@ pub const Type = struct {
                 try f.to.sexpr(w);
                 try w.writeByte(')');
             },
-            .filter => |f| {
-                try w.writeAll("(Filter ");
-                try f.input.sexpr(w);
-                try w.writeByte(' ');
-                try f.output.sexpr(w);
-                try w.writeByte(')');
-            },
             .list => |t| {
                 try w.writeAll("(list_type ");
                 try t.sexpr(w);
                 try w.writeByte(')');
             },
+            .tuple => |components| {
+                try w.writeAll("(tuple_type");
+                for (components) |c| {
+                    try w.writeByte(' ');
+                    try c.sexpr(w);
+                }
+                try w.writeByte(')');
+            },
+            .builtin_constructor => |b| try b.sexpr(w),
             .record => |r| {
                 try w.writeAll("(record_type");
                 for (r.fields) |f| {

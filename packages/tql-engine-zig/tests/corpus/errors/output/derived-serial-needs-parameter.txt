@@ -5,14 +5,12 @@ asserts: error
 `Box a` encodes when `a` does, and a function does not.
 
 --- tql ---
-import Data.Function (const);
-
 data Box a = Box a deriving (Serial);
-main = const [Box (\x -> x + 1)];
+main = pure (Box (\x -> x + 1));
 
 --- error ---
 error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
- --> 4:1
+ --> 2:1
   |
-4 | main = const [Box (\x -> x + 1)];
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 | main = pure (Box (\x -> x + 1));
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

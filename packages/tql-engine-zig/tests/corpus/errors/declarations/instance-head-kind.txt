@@ -1,0 +1,24 @@
+title: an instance head has its class parameter's kind
+grammar: typescript
+asserts: error
+
+`Describe` ranges over types of kind `Type`, and `Maybe` alone is not one.
+
+--- tql ---
+import Data.Function (const);
+
+data Maybe a = Nothing | Just a;
+class Describe a where {
+  describe :: a -> String;
+};
+instance Describe Maybe where {
+  describe _ = "m";
+};
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Maybe` has kind `Type -> Type`, but kind `Type` is expected
+ --> 7:19
+  |
+7 | instance Describe Maybe where {
+  |                   ^^^^^

@@ -1,0 +1,41 @@
+title: each `Arrow`, `ArrowZero` and `ArrowPlus` method at `Kleisli List`
+grammar: typescript
+asserts: types, values
+
+`split` and `fanout` pair every result of one side with every result of
+the other.
+
+--- tql ---
+import Prelude hiding (arr);
+import Control.Arrow (Arrow(..), ArrowZero(..), ArrowPlus(..), Kleisli(..), run_kleisli);
+
+around :: Kleisli List Int Int;
+around = Kleisli (\x -> [x - 1, x + 1]);
+
+doubled :: Kleisli List Int Int;
+doubled = arr (\x -> x * 2);
+
+nothing :: Kleisli List Int Int;
+nothing = zero_arrow;
+
+main = pure (
+  run_kleisli doubled 3,
+  run_kleisli (first around) (3, "a"),
+  run_kleisli (second around) ("a", 3),
+  run_kleisli (split around doubled) (3, 5),
+  run_kleisli (fanout around doubled) 3,
+  run_kleisli nothing 3,
+  run_kleisli (plus around doubled) 3
+);
+
+--- source ---
+class A {}
+
+--- values ---
+[[[6],[[2,"a"],[4,"a"]],[["a",2],["a",4]],[[2,10],[4,10]],[[2,6],[4,6]],[],[2,4,6]]]
+
+--- types ---
+around :: Kleisli List Int Int
+doubled :: Kleisli List Int Int
+nothing :: Kleisli List Int Int
+main :: Filter Node ([Int], [(Int, String)], [(String, Int)], [(Int, Int)], [(Int, Int)], [Int], [Int])

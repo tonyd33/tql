@@ -2,15 +2,15 @@ title: an unconstrained output type is an ambiguity error
 grammar: typescript
 asserts: error
 
-`none :: Filter a b` leaves `b` free. Nothing in the program fixes it, so no
+`empty :: Filter a b` leaves `b` free. Nothing in the program fixes it, so no
 `Serial` instance can be selected.
 
 --- tql ---
-main = none;
+main = empty;
 
 --- error ---
 error[ambiguous-output]: Expected `Node`, found `a`.
  --> 1:1
   |
-1 | main = none;
-  | ^^^^^^^^^^^^
+1 | main = empty;
+  | ^^^^^^^^^^^^^

@@ -1,23 +1,20 @@
 module Data.List (
   List(..),
   Sized(..),
-  null,
-  append,
-  concat,
-  map,
-  concat_map,
   filter,
-  foldr,
-  any,
-  all,
+  zip,
+  unzip,
   take,
   drop,
   head,
+  last,
   tail,
+  init,
 );
 
 import Prim (Int, String, List(..), Bool(..), seq);
-import Data.Bool (and, or);
+import Data.Tuple (fst, snd);
+import Data.Maybe (Maybe(..));
 
 class Sized a where {
   length :: a -> Int;
@@ -37,36 +34,6 @@ instance Sized [a] where {
   } in foldl_strict acc 0 xs;
 };
 
-null :: [a] -> Bool;
-null xs = case xs of {
-  Nil -> True;
-  Cons h t -> False;
-};
-
-append :: [a] -> [a] -> [a];
-append xs ys = case xs of {
-  Nil -> ys;
-  Cons h t -> Cons h (append t ys);
-};
-
-concat :: [[a]] -> [a];
-concat xss = case xss of {
-  Nil -> Nil;
-  Cons h t -> append h $ concat t;
-};
-
-map :: (a -> b) -> [a] -> [b];
-map f xs = case xs of {
-  Nil -> Nil;
-  Cons h t -> Cons (f h) $ map f t;
-};
-
-concat_map :: (a -> [b]) -> [a] -> [b];
-concat_map f xs = case xs of {
-  Nil -> Nil;
-  Cons h t -> append (f h) $ concat_map f t;
-};
-
 filter :: (a -> Bool) -> [a] -> [a];
 filter p xs = case xs of {
   Nil -> Nil;
@@ -76,22 +43,21 @@ filter p xs = case xs of {
   };
 };
 
-foldr :: (a -> b -> b) -> b -> [a] -> b;
-foldr f z xs = case xs of {
-  Nil -> z;
-  Cons h t -> f h $ foldr f z t;
+zip :: [a] -> [b] -> [(a, b)];
+zip xs ys = case xs of {
+  Nil -> Nil;
+  Cons x xt -> case ys of {
+    Nil -> Nil;
+    Cons y yt -> Cons (x, y) $ zip xt yt;
+  };
 };
 
-any :: (a -> Bool) -> [a] -> Bool;
-any p xs = case xs of {
-  Nil -> False;
-  Cons h t -> or (p h) $ any p t;
-};
-
-all :: (a -> Bool) -> [a] -> Bool;
-all p xs = case xs of {
-  Nil -> True;
-  Cons h t -> and (p h) $ all p t;
+unzip :: [(a, b)] -> ([a], [b]);
+unzip ps = case ps of {
+  Nil -> ([], []);
+  Cons p rest -> let {
+    unzipped = unzip rest;
+  } in (Cons (fst p) (fst unzipped), Cons (snd p) (snd unzipped));
 };
 
 take :: Int -> [a] -> [a];
@@ -106,8 +72,30 @@ drop n xs = if n <= 0 then xs else case xs of {
   Cons h t -> drop (n - 1) t;
 };
 
-head :: [a] -> [a];
-head xs = take 1 xs;
+head :: [a] -> Maybe a;
+head xs = case xs of {
+  [] -> Nothing;
+  x : _ -> Just x;
+};
 
-tail :: [a] -> [a];
-tail xs = drop 1 xs;
+last :: [a] -> Maybe a;
+last xs = case xs of {
+  [] -> Nothing;
+  [x] -> Just x;
+  _ : rest -> last rest;
+};
+
+tail :: [a] -> Maybe [a];
+tail xs = case xs of {
+  [] -> Nothing;
+  _ : rest -> Just rest;
+};
+
+init :: [a] -> Maybe [a];
+init xs = case xs of {
+  [] -> Nothing;
+  x : rest -> Just $ case init rest of {
+    Nothing -> [];
+    Just front -> x : front;
+  };
+};

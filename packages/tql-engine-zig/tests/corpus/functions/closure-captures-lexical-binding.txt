@@ -5,15 +5,12 @@ asserts: types, values, stg
 `bump` captures `step` from the enclosing group, not from its call site.
 
 --- tql ---
-import Data.Function (const);
-import Data.List (map);
-
 main =
   let {
     step = 5 + 5;
     bump = \x -> x + step;
   }
-  in const (map bump [1, 2]);
+  in Filter (\_ -> map bump [1, 2]);
 
 --- source ---
 class A {}
@@ -22,13 +19,13 @@ class A {}
 [11, 12]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- stg ---
 main = {} \u {} ->
   let step = {} \u {} -> op[+]# 5 5 in
   let
-    t5 = {step@0} \u {} ->
+    t5 = {step@0} \n {_} ->
       let
         t1 = {step@0} \u {} ->
           let t0 = {step@0} \n {x} -> op[+]# x@1 step@0 in
@@ -41,6 +38,6 @@ main = {} \u {} ->
           in
           Cons 1 t3@0
       in
-      map t1@1 t4@2
+      map[List] t1@2 t4@3
   in
-  const t5@1
+  t5@1

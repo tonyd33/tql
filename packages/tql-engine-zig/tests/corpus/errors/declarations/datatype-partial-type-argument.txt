@@ -1,0 +1,18 @@
+title: a signature may not give a type only some of its arguments
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+data Either a b = Left a | Right b;
+f :: Either Int -> Int;
+f _ = 1;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Either` given 1 of its 2 type arguments has kind `Type -> Type`, but kind `Type` is expected
+ --> 4:6
+  |
+4 | f :: Either Int -> Int;
+  |      ^^^^^^^^^^

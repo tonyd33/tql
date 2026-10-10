@@ -1,0 +1,27 @@
+title: `traverse` at `Maybe` over a list fails when any element fails
+grammar: typescript
+asserts: types, values, simplified
+
+--- tql ---
+import Data.Int (mod);
+import Data.Maybe (Maybe(..));
+
+half n = if n `mod` 2 = 0 then Just (n / 2) else Nothing;
+
+main = Filter (\_ -> [traverse half [2, 4], traverse half [2, 3]]);
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[[1,2]]},{"tag":"Nothing","fields":[]}]
+
+--- types ---
+half :: Int -> Maybe Int
+main :: Filter Node (Maybe [Int])
+
+--- simplified ---
+half = \n -> case %eq_int (%mod n 2) 0 of
+  False -> Nothing
+  True -> Just (op[/] n 2)
+main = \_ -> Cons (traverse[List] half (Cons 2 (Cons 4 Nil))) (Cons (traverse[List] half (Cons 2 (Cons 3 Nil))) Nil)

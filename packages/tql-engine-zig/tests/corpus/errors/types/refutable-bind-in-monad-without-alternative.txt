@@ -1,0 +1,42 @@
+title: a refutable pattern bound in a monad with no `Alternative`
+grammar: typescript
+asserts: error
+
+A pattern that may not match falls through to `empty`, which `Done` has no
+instance for.
+
+--- tql ---
+data Done a = Done a;
+
+instance Functor Done where {
+  map f d = case d of {
+    Done x -> Done (f x);
+  };
+};
+
+instance Applicative Done where {
+  pure = Done;
+  ap df dx = case df of {
+    Done f -> map f dx;
+  };
+};
+
+instance Monad Done where {
+  bind d f = case d of {
+    Done x -> f x;
+  };
+};
+
+first_of = do {
+  Cons x _ <- Done [1];
+  return x;
+};
+
+main root = [first_of];
+
+--- error ---
+error[unsatisfied-constraint]: `Alternative Done` is not satisfied.
+  --> 23:3
+   |
+23 |   Cons x _ <- Done [1];
+   |   ^^^^^^^^

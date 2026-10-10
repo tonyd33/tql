@@ -14,9 +14,30 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t0 = {} \u {} -> pure "ab"
-    t3 = {} \u {} ->
-      let t2 = {} \n {p1} -> %string_length# p1@0 in
-      arr t2@0
+    p = {} \u {} ->
+      let y = {} \u {} -> "ab" in
+      let
+        t1 = {y@0} \n {_} ->
+          let c0 = Nil in
+          Cons y@0 c0@2
+      in
+      t1@1
   in
-  kleisli t0@0 t3@1
+  let
+    t7 = {p@0} \n {x} ->
+      let
+        t2 = {p@0,x@1} \u {} -> p@0 x@1
+        t6 = {} \u {} ->
+          let
+            t5 = {} \n {x} ->
+              let
+                t3 = {x@0} \u {} -> %string_length# x@0
+                c4 = Nil
+              in
+              Cons t3@1 c4@2
+          in
+          t5@0
+      in
+      bind[List] t2@2 t6@3
+  in
+  t7@1

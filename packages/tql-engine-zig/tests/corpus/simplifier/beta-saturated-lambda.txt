@@ -12,7 +12,9 @@ class A {}
 [3]
 
 --- simplified ---
-main = pure (op[+] 1 2)
+main =
+  let y = op[+] 1 2 in
+  \_ -> Cons y Nil
 
 --- core ---
 main = pure ((\x -> \y -> op[+] x y) 1 2)

@@ -1,6 +1,6 @@
 module Compile.DupeKeys (dupe_keys) for javascript;
 
-import Data.List (any, append, concat_map);
+import Data.Foldable (any, concat_map);
 
 data Member = Member String String Node;
 
@@ -8,7 +8,7 @@ is_accessor t = not (is_named t) and (kind_name t = "get" or kind_name t = "set"
 
 accessor = or_else (children | keep is_accessor | arr kind_name) $ pure "init";
 
-string_value s = case named_children s of {
+string_value s = case run named_children s of {
   [] -> "";
   [f] -> text f;
   _ -> text s;
@@ -20,16 +20,16 @@ key_name =
   <|> (of_kind :number | arr text)
   <|> (of_kind :computed_property_name | named_children | of_kind :string | arr string_value);
 
-method m = do {
-  k <- #name m;
-  n <- key_name k;
-  a <- accessor m;
+method = do {
+  m <- identity;
+  n <- #name | key_name;
+  a <- accessor;
   return $ Member n a m;
 };
 
-pair m = do {
-  k <- #key m;
-  n <- key_name k;
+pair = do {
+  m <- identity;
+  n <- #key | key_name;
   return $ Member n "init" m;
 };
 
@@ -56,6 +56,6 @@ dupes seen ms = case ms of {
   };
 };
 
-object_dupes o = dupes [] (concat_map member (named_children o));
+object_dupes o = dupes [] (concat_map (run member) (run named_children o));
 
-dupe_keys = descendants_of_kind :object | object_dupes;
+dupe_keys = descendants_of_kind :object | Filter object_dupes;

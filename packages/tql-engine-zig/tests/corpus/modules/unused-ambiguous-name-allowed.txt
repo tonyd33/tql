@@ -17,7 +17,7 @@ name = 3;
 import A;
 import B;
 
-main root = [a];
+main = pure a;
 
 --- source ---
 let x = 1;

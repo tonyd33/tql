@@ -22,17 +22,21 @@ pub const ModuleId = enum(u16) {
     pub const prim_name = "Prim";
 };
 
-/// A library definition the engine refers to by its spelling: what sugar
-/// desugars to, and what a rewrite recognises.
+/// A library definition the engine refers to: what sugar desugars to, and
+/// what a rewrite recognises.
 pub const Known = enum {
     eq,
     compare,
     @"and",
     @"or",
-    concat_map,
+    bind,
+    empty,
     compose,
+    compose_flipped,
     kleisli,
     alt,
+    run,
+    Filter,
     of_kind,
 };
 
@@ -95,6 +99,12 @@ pub fn SymbolTable(comptime T: type) type {
             const index = @intFromEnum(id);
             if (index >= self.entries.items.len) return null;
             return self.entries.items[index];
+        }
+
+        pub fn getPtr(self: *Self, id: SymbolId) ?*T {
+            const index = @intFromEnum(id);
+            if (index >= self.entries.items.len) return null;
+            return if (self.entries.items[index]) |*value| value else null;
         }
 
         pub fn reserve(self: *Self, len: usize) Allocator.Error!void {

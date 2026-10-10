@@ -3,17 +3,17 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-getters c = do {
-  m <- (#body | children | of_kind :method_definition) c;
-  n <- m#name;
+getters = do {
+  m <- #body | children | of_kind :method_definition;
+  n <- pure m | #name;
   guard $ text n ~ r"^get";
   return n;
 };
 
-main root = do {
-  c <- children_of_kind :class_declaration root;
+main = do {
+  c <- children_of_kind :class_declaration;
   guard $ has getters c;
-  n <- c#name;
+  n <- pure c | #name;
   return $ text n;
 };
 
@@ -26,5 +26,5 @@ class Store { getA() {} }
 ["Service", "Store"]
 
 --- types ---
-getters :: Node -> [Node]
-main :: Node -> [String]
+getters :: Filter Node Node
+main :: Filter Node String

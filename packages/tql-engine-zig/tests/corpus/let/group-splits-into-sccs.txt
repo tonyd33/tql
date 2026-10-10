@@ -7,8 +7,6 @@ asserts: core, values
 innermost.
 
 --- tql ---
-import Data.Function (const);
-
 main =
   let {
     answer = [is_even four, is_odd four];
@@ -16,7 +14,7 @@ main =
     is_odd n = if n = 0 then false else is_even (n - 1);
     four = 4;
   }
-  in const answer;
+  in Filter (\_ -> answer);
 
 --- source ---
 class A {}
@@ -36,4 +34,4 @@ main =
   in
   let four = 4 in
   let answer = Cons (is_even four) (Cons (is_odd four) Nil) in
-  const answer
+  Filter (\_ -> answer)

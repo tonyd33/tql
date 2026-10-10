@@ -1,6 +1,7 @@
 module Compile.Unreachable (unreachable) for javascript;
 
-import Data.List (all, any, append, null);
+import Data.Foldable (all, any);
+import Data.List (take);
 
 statements = named_children | keep (not . is_extra);
 
@@ -14,15 +15,15 @@ is_breakable n = is_one_of loop_kinds n or is_kind :switch_statement n;
 
 is_jump_target n = is_breakable n or is_one_of function_kinds n;
 
-unlabeled = keep (null . #label);
+unlabeled = keep (not . has #label);
 
-jump_target = first $ ancestors | keep is_jump_target;
+jump_target = Filter (take 1 . run (ancestors | keep is_jump_target));
 
 exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (= n)) n;
 
 breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((= text name) . text)) l;
 
-label_broken l = any (breaks_to l) (#label l);
+label_broken l = any (breaks_to l) l#label;
 
 is_true = has $ statements | of_kind :true;
 
@@ -33,33 +34,33 @@ infinite n =
 
 last_of xs = case xs of { [] -> []; [x] -> [x]; _ : t -> last_of t; };
 
-clause_abrupt c = any abrupt (#body c);
+clause_abrupt c = any abrupt c#body;
 
 abrupt n =
   if is_one_of [:return_statement, :throw_statement, :break_statement, :continue_statement] n then True
-  else if is_kind :statement_block n then any abrupt (statements n)
+  else if is_kind :statement_block n then any abrupt (run statements n)
   else if is_kind :if_statement n then
     has #alternative n
-    and all abrupt (#consequence n)
-    and all abrupt ((#alternative | statements) n)
+    and all abrupt n#consequence
+    and all abrupt (run (#alternative | statements) n)
   else if is_kind :try_statement n then
-    any abrupt ((#finalizer | #body) n)
-    or (all abrupt (#body n) and all abrupt ((#handler | #body) n))
+    any abrupt (run (#finalizer | #body) n)
+    or (all abrupt n#body and all abrupt (run (#handler | #body) n))
   else if is_kind :switch_statement n then
     has (#body | named_children | of_kind :switch_default) n
     and not (exited_by :break_statement n)
-    and all clause_abrupt (last_of ((#body | statements) n))
+    and all clause_abrupt (last_of (run (#body | statements) n))
   else if is_kind :do_statement n then
     not (exited_by :break_statement n)
-    and (infinite n or (all abrupt (#body n) and not (exited_by :continue_statement n)))
+    and (infinite n or (all abrupt n#body and not (exited_by :continue_statement n)))
   else if is_one_of loop_kinds n then infinite n and not (exited_by :break_statement n)
-  else if is_kind :labeled_statement n then all abrupt (#body n) and not (label_broken n)
+  else if is_kind :labeled_statement n then all abrupt n#body and not (label_broken n)
   else False;
 
 hoisted n =
   is_kind :function_declaration n
   or is_kind :generator_function_declaration n
-  or (is_kind :variable_declaration n and all (null . #value) (named_children n));
+  or (is_kind :variable_declaration n and all (not . has #value) (run named_children n));
 
 run_starts skip in_run xs = case xs of {
   [] -> [];
@@ -85,19 +86,19 @@ skips_field m = not (is_field m) or is_static m;
 
 is_constructor = has $ #name | keep ((= "constructor") . text);
 
-unreachable_fields class_ = do {
-  children_of_kind :class_heritage class_;
-  body <- #body class_;
-  ctor <- (named_children | of_kind :method_definition | keep is_constructor) body;
+unreachable_fields = do {
+  children_of_kind :class_heritage;
+  body <- #body;
+  ctor <- pure body | named_children | of_kind :method_definition | keep is_constructor;
   guard $ not $ calls_super ctor;
-  run_starts skips_field False (statements body);
+  pure body | Filter (run_starts skips_field False . run statements);
 };
 
 statement_lists =
-  (descendants_of_kind :statement_block | arr statements)
+  (descendants_of_kind :statement_block | collect statements)
   <|> ((descendants_of_kind :switch_case <|> descendants_of_kind :switch_default) | collect #body)
-  <|> arr statements;
+  <|> collect statements;
 
 unreachable =
-  (statement_lists | unreachable_after)
+  (statement_lists | Filter unreachable_after)
   <|> ((descendants_of_kind :class_declaration <|> descendants_of_kind :class) | unreachable_fields);

@@ -10,9 +10,9 @@ describe xs = case xs of {
   _ -> "neither";
 };
 
-main root = do {
-  a <- descendants_of_kind :arguments root;
-  return (describe (children_of_kind :identifier a));
+main = do {
+  a <- descendants_of_kind :arguments;
+  return (describe (run (children_of_kind :identifier) a));
 };
 
 --- source ---
@@ -23,13 +23,6 @@ f(w, y);
 --- values ---
 ["xy","neither","neither"]
 --- simplified ---
-$mBoth = \s -> \k -> \f -> case s of
-  Nil -> f
-  Cons cons0 cons1 -> case cons1 of
-    Nil -> f
-    Cons cons0' cons1 -> case cons1 of
-      Nil -> k (%text cons0) (%text cons0')
-      Cons _ _ -> f
 describe = \xs ->
   join alternative = "neither" in
   case xs of
@@ -43,4 +36,6 @@ describe = \xs ->
             False -> jump alternative
             True -> "xy"
         Cons _ _ -> jump alternative
-main = \root -> concat_map (\a -> Cons (describe (%children_of_kind :identifier a)) Nil) (%descendants_of_kind :arguments root)
+main =
+  let p = %descendants_of_kind :arguments in
+  \x -> bind[List] (p x) (\y -> Cons (describe (%children_of_kind :identifier y)) Nil)

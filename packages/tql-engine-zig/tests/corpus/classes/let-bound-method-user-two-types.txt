@@ -3,8 +3,6 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-import Data.List (append);
-
 class Describe a where {
   describe :: a -> String;
 };
@@ -17,9 +15,9 @@ instance Describe String where {
   describe s = "string";
 };
 
-main root =
+main = Filter (\_ ->
   let { show x = [describe x, describe x] }
-  in append (show 1) (show "a");
+  in append (show 1) (show "a"));
 
 --- source ---
 class A {}

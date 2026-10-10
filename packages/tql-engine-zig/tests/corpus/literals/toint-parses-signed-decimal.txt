@@ -3,10 +3,9 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 import Data.Int (toint);
 
-main = const ["42", "-7"] | toint;
+main = Filter (\_ -> ["42", "-7"]) | toint;
 
 --- source ---
 class A {}
@@ -15,4 +14,4 @@ class A {}
 [42, -7]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

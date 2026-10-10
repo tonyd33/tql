@@ -1,0 +1,18 @@
+title: a superclass ranges over the same kind as its subclass
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+class Eq f => Mappable f where {
+  mapf :: (a -> b) -> f a -> f b;
+};
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Eq` ranges over kind `Type`, but `Mappable` over kind `Type -> Type`
+ --> 3:7
+  |
+3 | class Eq f => Mappable f where {
+  |       ^^^^

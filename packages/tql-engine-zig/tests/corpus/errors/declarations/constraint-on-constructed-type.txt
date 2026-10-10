@@ -1,0 +1,18 @@
+title: a constraint is on a type variable, not a constructed type
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+data Maybe a = Nothing | Just a deriving (Eq);
+f :: Eq (Maybe a) => Maybe a -> Bool;
+f x = x = x;
+main = const [];
+
+--- error ---
+error[invalid-class]: a constraint must be on a type variable, or one applied to types
+ --> 4:9
+  |
+4 | f :: Eq (Maybe a) => Maybe a -> Bool;
+  |         ^^^^^^^^^

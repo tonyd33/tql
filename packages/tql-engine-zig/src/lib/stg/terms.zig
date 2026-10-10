@@ -226,6 +226,9 @@ pub const Program = struct {
     /// Each constructor's spelling, which a value of a declared type encodes
     /// as its `tag`.
     spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8),
+    /// The tuple constructors, whose values encode as an array of their
+    /// fields.
+    tuples: std.AutoHashMapUnmanaged(core.SymbolId, void),
     /// An evaluated `Nil`, shared the way a literal atom's thunk is.
     nil: *value.Thunk,
     arena: *std.heap.ArenaAllocator,

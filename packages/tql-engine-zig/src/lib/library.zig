@@ -12,20 +12,45 @@ pub const prelude_name = "Prelude";
 
 /// Every library module, `Prim` first. Each imports only modules before it.
 /// A link declares them first, in this order, so the module at index `i` is
-/// `ModuleId` `i`. Each `core.Known` resolves to the first module here that
-/// exports its spelling.
+/// `ModuleId` `i`.
 pub const modules = [_]load.Named{
     .{ .name = core.ModuleId.prim_name, .path = "Prim.tql", .text = @embedFile("library/Prim.tql") },
-    .{ .name = "Data.Unit", .path = "Data/Unit.tql", .text = @embedFile("library/Data/Unit.tql") },
     .{ .name = "Data.Bool", .path = "Data/Bool.tql", .text = @embedFile("library/Data/Bool.tql") },
     .{ .name = "Data.Ord", .path = "Data/Ord.tql", .text = @embedFile("library/Data/Ord.tql") },
+    .{ .name = "Control.Category", .path = "Control/Category.tql", .text = @embedFile("library/Control/Category.tql") },
     .{ .name = "Data.Function", .path = "Data/Function.tql", .text = @embedFile("library/Data/Function.tql") },
-    .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
+    .{ .name = "Data.Tuple", .path = "Data/Tuple.tql", .text = @embedFile("library/Data/Tuple.tql") },
+    .{ .name = "Data.Monoid", .path = "Data/Monoid.tql", .text = @embedFile("library/Data/Monoid.tql") },
+    .{ .name = "Data.Functor", .path = "Data/Functor.tql", .text = @embedFile("library/Data/Functor.tql") },
+    .{ .name = "Control.Applicative", .path = "Control/Applicative.tql", .text = @embedFile("library/Control/Applicative.tql") },
+    .{ .name = "Data.Foldable", .path = "Data/Foldable.tql", .text = @embedFile("library/Data/Foldable.tql") },
+    .{ .name = "Data.Traversable", .path = "Data/Traversable.tql", .text = @embedFile("library/Data/Traversable.tql") },
+    .{ .name = "Control.Monad", .path = "Control/Monad.tql", .text = @embedFile("library/Control/Monad.tql") },
+    .{ .name = "Control.Arrow", .path = "Control/Arrow.tql", .text = @embedFile("library/Control/Arrow.tql") },
+    .{ .name = "Data.Maybe", .path = "Data/Maybe.tql", .text = @embedFile("library/Data/Maybe.tql") },
     .{ .name = "Data.List", .path = "Data/List.tql", .text = @embedFile("library/Data/List.tql") },
-    .{ .name = "Data.Node", .path = "Data/Node.tql", .text = @embedFile("library/Data/Node.tql") },
     .{ .name = "Data.Filter", .path = "Data/Filter.tql", .text = @embedFile("library/Data/Filter.tql") },
+    .{ .name = "Data.Node", .path = "Data/Node.tql", .text = @embedFile("library/Data/Node.tql") },
+    .{ .name = "Data.Int", .path = "Data/Int.tql", .text = @embedFile("library/Data/Int.tql") },
     .{ .name = prelude_name, .path = "Prelude.tql", .text = @embedFile("library/Prelude.tql") },
 };
+
+/// The module that exports each `core.Known` under its spelling.
+const known_owners: std.EnumArray(core.Known, []const u8) = .init(.{
+    .eq = core.ModuleId.prim_name,
+    .compare = core.ModuleId.prim_name,
+    .@"and" = "Data.Bool",
+    .@"or" = "Data.Bool",
+    .bind = "Control.Monad",
+    .empty = "Control.Applicative",
+    .compose = "Control.Category",
+    .compose_flipped = "Control.Category",
+    .kleisli = "Control.Monad",
+    .alt = "Control.Applicative",
+    .run = "Data.Filter",
+    .Filter = "Data.Filter",
+    .of_kind = "Data.Node",
+});
 
 /// Returns the library module named `name`.
 pub fn named(name: []const u8) ?core.ModuleId {
@@ -96,8 +121,8 @@ pub const Library = struct {
                 else => |e| return e,
             };
             for (std.enums.values(core.Known)) |k| {
-                if (env.known.get(k) != null) continue;
-                env.known.set(k, desugarer.exports.items[i].values.get(@tagName(k)));
+                if (!std.mem.eql(u8, known_owners.get(k), m.name)) continue;
+                env.known.set(k, desugarer.exports.items[i].values.get(@tagName(k)) orelse return error.PreludeInvalid);
             }
         }
         for (env.known.values) |symbol| if (symbol == null) return error.PreludeInvalid;

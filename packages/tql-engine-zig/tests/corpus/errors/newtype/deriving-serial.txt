@@ -1,0 +1,15 @@
+title: `Serial` cannot be derived for a `newtype`
+grammar: typescript
+asserts: error
+
+--- tql ---
+newtype Name = Name String deriving (Serial);
+
+main root = [Name "a"];
+
+--- error ---
+error[invalid-deriving]: `Serial` cannot be derived for `Name`, a `newtype`
+ --> 1:38
+  |
+1 | newtype Name = Name String deriving (Serial);
+  |                                      ^^^^^^

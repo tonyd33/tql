@@ -1,0 +1,22 @@
+title: a refutable pattern bound at `Maybe` falls through to `Nothing`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+first_of m = do {
+  Cons x _ <- m;
+  return x;
+};
+
+main = Filter (\_ -> [first_of (Just [1, 2]), first_of (Just []), first_of Nothing]);
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[1]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
+--- types ---
+first_of :: (Monad a, Alternative a) => a [b] -> a b
+main :: Filter Node (Maybe Int)

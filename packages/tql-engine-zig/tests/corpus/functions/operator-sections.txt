@@ -3,10 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-import Data.List (append, map);
-
-main = const (append (map (10 -) [1, 2]) (map (/ 2) [10, 4]));
+main = Filter (\_ -> append (map (10 -) [1, 2]) (map (/ 2) [10, 4]));
 
 --- source ---
 class A {}
@@ -15,4 +12,4 @@ class A {}
 [9, 8, 5, 2]
 
 --- core ---
-main = const (append (map (\y -> op[-] 10 y) (Cons 1 (Cons 2 Nil))) (map (\x -> op[/] x 2) (Cons 10 (Cons 4 Nil))))
+main = Filter (\_ -> append (map (\y -> op[-] 10 y) (Cons 1 (Cons 2 Nil))) (map (\x -> op[/] x 2) (Cons 10 (Cons 4 Nil))))

@@ -5,8 +5,8 @@ asserts: types, values
 --- tql ---
 type Pred = Node -> Bool;
 data Check = Check String Pred;
-run :: Check -> Node -> [String];
-run c n = case c of { Check label p -> if p n then [label] else [] };
+run :: Check -> Filter Node String;
+run c = Filter (\n -> case c of { Check label p -> if p n then [label] else [] });
 main = children | run (Check "named" is_named);
 
 --- source ---
@@ -16,5 +16,5 @@ class A {}
 ["named"]
 
 --- types ---
-run :: Check -> Node -> [String]
-main :: Node -> [String]
+run :: Check -> Filter Node String
+main :: Filter Node String

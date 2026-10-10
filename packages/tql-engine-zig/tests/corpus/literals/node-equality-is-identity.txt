@@ -9,9 +9,9 @@ The cross product is written out. Operators take scalars, so the pairing is the
 `do` block's, not the operator's.
 
 --- tql ---
-main root = do {
-  l <- children_of_kind :class_declaration root;
-  r <- children_of_kind :class_declaration root;
+main = do {
+  l <- children_of_kind :class_declaration;
+  r <- children_of_kind :class_declaration;
   return $ l = r;
 };
 
@@ -23,4 +23,4 @@ class A {}
 [true, false, false, true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

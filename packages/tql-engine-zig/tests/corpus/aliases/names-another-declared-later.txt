@@ -7,7 +7,7 @@ type Ints = Both Int;
 type Both a = {first: a, second: a};
 total :: Ints -> Int;
 total b = b.first + b.second;
-main root = [total {first = 1, second = 2}];
+main = pure $ total {first = 1, second = 2};
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 total :: Ints -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

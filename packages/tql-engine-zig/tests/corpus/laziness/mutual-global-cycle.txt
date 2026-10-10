@@ -10,7 +10,7 @@ Mutual recursion through function parameters terminates instead, because
 each body forces to a closure immediately.
 
 --- tql ---
-a :: Node -> [String];
+a :: Filter Node String;
 a = b;
 b = a;
 main = a;
@@ -19,9 +19,9 @@ main = a;
 class A {}
 
 --- types ---
-a :: Node -> [String]
-b :: Node -> [String]
-main :: Node -> [String]
+a :: Filter Node String
+b :: Filter Node String
+main :: Filter Node String
 
 --- runtime error ---
 Cycle

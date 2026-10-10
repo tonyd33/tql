@@ -13,8 +13,9 @@ class A {}
 [42]
 
 --- simplified ---
-double = \x -> op[*] x 2
-main = pure (op[*] 21 2)
+main =
+  let y = op[*] 21 2 in
+  \_ -> Cons y Nil
 
 --- core ---
 double = \x -> op[*] x 2

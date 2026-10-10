@@ -3,12 +3,12 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root = do {
-  op <- (descendants_of_kind :binary_expression | #operator) root;
+main = do {
+  op <- descendants_of_kind :binary_expression | #operator;
   return {
     kind = kind op,
-    children = length (children op),
-    parent = (parent | arr kind) op,
+    children = length (run children op),
+    parent = run (parent | arr kind) op,
   };
 };
 
@@ -20,4 +20,4 @@ y = a === b;
 [{"children":0,"kind":"&&","parent":["binary_expression"]},{"children":0,"kind":"===","parent":["binary_expression"]}]
 
 --- types ---
-main :: Node -> [{children: Int, kind: Kind, parent: [Kind]}]
+main :: Filter Node {children: Int, kind: Kind, parent: [Kind]}

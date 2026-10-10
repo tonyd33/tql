@@ -1,0 +1,22 @@
+title: an instance context constrains type variables only
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+data Wrap f a = Wrap (f a);
+class Describe a where {
+  describe :: a -> String;
+};
+instance Eq (f a) => Describe (Wrap f a) where {
+  describe _ = "w";
+};
+main = const [];
+
+--- error ---
+error[invalid-instance]: an instance context may only constrain type variables
+ --> 7:10
+  |
+7 | instance Eq (f a) => Describe (Wrap f a) where {
+  |          ^^^^^^^^

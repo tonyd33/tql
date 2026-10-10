@@ -6,9 +6,7 @@ The second list holds functions, which have no class instances. The empty list
 leaves its element type unsolved, and that is not ambiguous.
 
 --- tql ---
-import Data.Function (const);
-
-main = const [length [], length [kind_name, text]];
+main = Filter (\_ -> [length [], length [kind_name, text]]);
 
 --- source ---
 class A {}
@@ -17,4 +15,4 @@ class A {}
 [0, 2]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int

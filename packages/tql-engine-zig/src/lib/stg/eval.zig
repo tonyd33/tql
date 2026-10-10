@@ -740,8 +740,7 @@ pub const Machine = struct {
     }
 
     /// Run a primitive, forcing exactly what its denotation forces and no
-    /// more. `pure` forces nothing, `null` forces at most the first cell,
-    /// `length` forces a whole spine.
+    /// more. `%text` forces its node, and `%eq_int` both of its integers.
     fn primitive(
         self: *Machine,
         call: *const stg.Expr.Primitive,
@@ -1310,6 +1309,10 @@ pub const Machine = struct {
                     try jws.write(c.constructor == structural.true_.symbol);
                 } else if (c.constructor == structural.nil.symbol or c.constructor == structural.cons.symbol) {
                     _ = try self.serializeList(v, jws);
+                } else if (self.program.tuples.contains(c.constructor)) {
+                    try jws.beginArray();
+                    for (c.fields()) |field| try self.serialize(try self.force(field), jws);
+                    try jws.endArray();
                 } else {
                     try jws.beginObject();
                     try jws.objectField("tag");

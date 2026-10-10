@@ -33,4 +33,4 @@ class B {}
 main = %descendants_of_kind :class_declaration
 
 --- core ---
-main = kleisli descendants (of_kind :class_declaration)
+main = compose_flipped descendants (of_kind :class_declaration)

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: runtime_error
 
 --- tql ---
-main root = if seq (1 / 0) 1 = 1 then [1] else [2];
+main = Filter (\_ -> if seq (1 / 0) 1 = 1 then [1] else [2]);
 
 --- source ---
 class A {}

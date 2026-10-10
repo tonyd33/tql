@@ -1,0 +1,22 @@
+title: `any` short-circuits on the first match
+grammar: typescript
+asserts: types, values
+
+`or` does not force its second operand once the first is true, so `any`
+stops at 0 despite the infinite source.
+
+--- tql ---
+import Data.Foldable (any);
+
+from n = pure n <|> from (n + 1);
+main = pure $ any (= 0) (from 0);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- types ---
+from :: Alternative a => Int -> a Int
+main :: Filter Node Bool

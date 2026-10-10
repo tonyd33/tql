@@ -22,7 +22,7 @@ instance Same a => Same [a] where {
 
 alike x = same x x and x = x;
 
-main root = [same (Circle 1) (Circle 1), same [Circle 1] [Square 1], alike [Square 2]];
+main = Filter (\_ -> [same (Circle 1) (Circle 1), same [Circle 1] [Square 1], alike [Square 2]]);
 
 --- source ---
 class A {}
@@ -32,4 +32,4 @@ class A {}
 
 --- types ---
 alike :: Same a => a -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

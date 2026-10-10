@@ -1,0 +1,17 @@
+title: `bind` and `join` at `List`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Control.Monad (join);
+
+main = Filter (\_ -> append (bind [1, 2] (\x -> [x, x * 10])) (join [[3], [], [4, 5]]));
+
+--- source ---
+class A {}
+
+--- values ---
+[1,10,2,20,3,4,5]
+
+--- types ---
+main :: Filter Node Int

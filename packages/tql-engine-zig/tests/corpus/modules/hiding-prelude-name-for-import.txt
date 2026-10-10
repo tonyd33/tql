@@ -11,7 +11,7 @@ keep x = [x, x, x];
 import Prelude hiding (keep);
 import Keep;
 
-main root = keep 1;
+main = Filter (\_ -> keep 1);
 
 --- source ---
 let x = 1;

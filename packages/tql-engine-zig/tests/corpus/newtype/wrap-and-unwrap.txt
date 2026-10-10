@@ -1,0 +1,38 @@
+title: a `newtype` wraps and unwraps with no trace in the machine
+grammar: typescript
+asserts: types, values, simplified, stg
+
+--- tql ---
+newtype Name = Name String;
+
+unname :: Name -> String;
+unname n = case n of {
+  Name s -> s;
+};
+
+main = pure $ unname (Name "a");
+
+--- source ---
+class A {}
+
+--- values ---
+["a"]
+
+--- simplified ---
+main =
+  let y = "a" in
+  \_ -> Cons y Nil
+
+--- stg ---
+main = {} \u {} ->
+  let y = {} \u {} -> "a" in
+  let
+    t1 = {y@0} \n {_} ->
+      let c0 = Nil in
+      Cons y@0 c0@2
+  in
+  t1@1
+
+--- types ---
+unname :: Name -> String
+main :: Filter Node String

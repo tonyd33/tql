@@ -21,4 +21,4 @@ class B { p() {} }
 ["m", "n", "p"]
 
 --- types ---
-main :: Node -> [String]
+main :: Filter Node String

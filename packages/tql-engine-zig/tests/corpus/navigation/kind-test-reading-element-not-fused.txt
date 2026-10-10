@@ -6,9 +6,9 @@ The kind tested comes from `n` itself, so it is not known before `n` is
 bound and the axis stays a plain walk.
 
 --- tql ---
-main root = do {
-  n <- descendants root;
-  if is_kind (kind n) n then return (text n) else [];
+main = do {
+  n <- descendants;
+  if is_kind (kind n) n then return (text n) else empty;
 };
 
 --- source ---
@@ -18,8 +18,8 @@ class A {}
 ["class A {}", "class", "A", "{}", "{", "}"]
 
 --- simplified ---
-main = \root -> concat_map (
-  \n -> case %is_kind (%kind n) n of
+main = \x -> bind[List] (%descendants x) (
+  \y -> case %is_kind (%kind y) y of
     False -> Nil
-    True -> Cons (%text n) Nil
-) (%descendants root)
+    True -> Cons (%text y) Nil
+)

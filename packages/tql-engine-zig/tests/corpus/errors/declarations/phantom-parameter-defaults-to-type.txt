@@ -1,0 +1,23 @@
+title: a parameter no field uses has kind Type
+grammar: typescript
+asserts: error
+
+Nothing in `Proxy`'s declaration needs `t` to be a constructor, so it is a
+`Type`, and `Maybe` is not one.
+
+--- tql ---
+import Data.Function (const);
+
+data Maybe a = Nothing | Just a;
+data Proxy t = Proxy;
+
+p :: Proxy Maybe;
+p = Proxy;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `Maybe` has kind `Type -> Type`, but kind `Type` is expected
+ --> 6:12
+  |
+6 | p :: Proxy Maybe;
+  |            ^^^^^

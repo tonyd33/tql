@@ -1,0 +1,34 @@
+title: an axis is a `Filter` that composes with `|` and fuses with a kind test
+grammar: typescript
+asserts: types, values, simplified
+
+`|` is `Category`'s composition at `Filter`. Inlining `Filter`'s `compose`
+leaves the list's Kleisli composition, which fuses `children` and
+`of_kind :k` into one axis.
+
+--- tql ---
+names = children | of_kind :class_declaration | #name | arr text;
+
+main = names;
+
+--- source ---
+class A {}
+let x = 1;
+class B {}
+
+--- values ---
+["A","B"]
+
+--- simplified ---
+names =
+  let
+    p =
+      let p = %children_of_kind :class_declaration in
+      \x -> bind[List] (p x) field[name]
+  in
+  \x -> bind[List] (p x) (\x -> Cons (%text x) Nil)
+main = names
+
+--- types ---
+names :: Filter Node String
+main :: Filter Node String

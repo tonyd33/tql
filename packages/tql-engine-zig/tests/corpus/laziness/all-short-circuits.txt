@@ -6,11 +6,11 @@ asserts: types, values
 stops at 0 despite the infinite source.
 
 --- tql ---
-import Data.List (all);
+import Data.Foldable (all);
 
 from n = pure n <|> from (n + 1);
 negative n = n < 0;
-main root = return $ all negative (from 0 root);
+main = pure $ all negative (from 0);
 
 --- source ---
 class A {}
@@ -19,6 +19,6 @@ class A {}
 [false]
 
 --- types ---
-from :: Int -> a -> [Int]
+from :: Alternative a => Int -> a Int
 negative :: Int -> Bool
-main :: Node -> [Bool]
+main :: Filter Node Bool

@@ -3,14 +3,12 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 f xs = case xs of {
   [n, ((+ n) -> 3)] -> n;
   _ -> 0;
 };
 
-main = const [f [1, 2], f [2, 2], f [0, 3]];
+main = Filter (\_ -> [f [1, 2], f [2, 2], f [0, 3]]);
 
 --- source ---
 class A {}
@@ -32,4 +30,4 @@ f = \xs ->
           True -> case cons1 of
             Nil -> n
             Cons _ _ -> jump alternative
-main = const (Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))
+main = Filter (\_ -> Cons (f (Cons 1 (Cons 2 Nil))) (Cons (f (Cons 2 (Cons 2 Nil))) (Cons (f (Cons 0 (Cons 3 Nil))) Nil)))

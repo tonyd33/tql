@@ -1,0 +1,17 @@
+title: `pure` and `ap` at `List`
+grammar: typescript
+asserts: types, values
+
+`ap` applies every function to every argument, functions outermost.
+
+--- tql ---
+main = Filter (\_ -> append (pure 0) (ap [(+ 1), (* 10)] [1, 2]));
+
+--- source ---
+class A {}
+
+--- values ---
+[0,2,3,10,20]
+
+--- types ---
+main :: Filter Node Int

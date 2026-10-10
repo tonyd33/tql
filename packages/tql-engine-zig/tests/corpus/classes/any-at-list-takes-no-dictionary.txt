@@ -1,0 +1,22 @@
+title: `any` at `List` takes no dictionary
+grammar: typescript
+asserts: simplified, values
+
+Every call of `any` passes `Foldable List`, so `foldr` in its body is
+`foldr[List]` and inlines into a loop.
+
+--- tql ---
+import Data.Foldable (any);
+
+positive xs = any (\x -> x > 0) xs;
+
+main = Filter (\_ -> [positive [0, 1], positive [0]]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]
+
+--- simplified ---
+main = \_ -> Cons (any (\x -> %gt_int x 0) (Cons 0 (Cons 1 Nil))) (Cons (any (\x -> %gt_int x 0) (Cons 0 Nil)) Nil)

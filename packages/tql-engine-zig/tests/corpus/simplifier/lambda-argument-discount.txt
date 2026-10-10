@@ -7,15 +7,13 @@ application of `k` is removed and the call is inlined; called with the
 parameter `g` it stays a call.
 
 --- tql ---
-import Data.Function (const);
-
 combine :: (Int -> Int -> Int) -> Int;
 combine k = k 1 2 + k 3 4;
 
 via :: (Int -> Int -> Int) -> Int;
 via g = combine g;
 
-main = const [combine (\a b -> a), via (\a b -> b)];
+main = Filter (\_ -> [combine (\a b -> a), via (\a b -> b)]);
 
 --- source ---
 class A {}
@@ -24,11 +22,9 @@ class A {}
 [4, 6]
 
 --- simplified ---
-combine = \k -> op[+] (k 1 2) (k 3 4)
-via = \g -> combine g
-main = const (Cons (op[+] 1 3) (Cons (op[+] 2 4) Nil))
+main = \_ -> Cons (op[+] 1 3) (Cons (op[+] 2 4) Nil)
 
 --- core ---
 combine = \k -> op[+] (k 1 2) (k 3 4)
 via = \g -> combine g
-main = const (Cons (combine (\a -> \b -> a)) (Cons (via (\a -> \b -> b)) Nil))
+main = Filter (\_ -> Cons (combine (\a -> \b -> a)) (Cons (via (\a -> \b -> b)) Nil))

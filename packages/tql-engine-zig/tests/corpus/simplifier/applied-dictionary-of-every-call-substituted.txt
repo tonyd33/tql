@@ -1,0 +1,26 @@
+title: an instance applied to its context's dictionaries is substituted
+grammar: typescript
+asserts: simplified, values
+
+Both calls pass `Eq [Int]`, the `List` instance applied to `Eq Int`.
+In `same`, the method selects from it as from any known instance.
+
+--- tql ---
+same :: Eq a => a -> a -> a -> Bool;
+same x y z = x = y and y = z and x = z;
+
+main = Filter (\_ -> [same [1] [1] [1], same [1] [2] [1]]);
+
+--- source ---
+class A {}
+
+--- values ---
+[true,false]
+
+--- simplified ---
+same = \x -> \y -> \z -> case eq[List] x y of
+  False -> False
+  True -> case eq[List] y z of
+    False -> False
+    True -> eq[List] x z
+main = \_ -> Cons (same (Cons 1 Nil) (Cons 1 Nil) (Cons 1 Nil)) (Cons (same (Cons 1 Nil) (Cons 2 Nil) (Cons 1 Nil)) Nil)

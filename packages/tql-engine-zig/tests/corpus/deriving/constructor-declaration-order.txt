@@ -9,7 +9,7 @@ asserts: types, values
 import Data.Function (const);
 
 data Shape = Circle Int | Square Int deriving (Eq, Ord);
-main = const [
+main = Filter $ const [
   Circle 1 = Circle 1,
   Circle 1 = Square 1,
   Circle 9 < Square 1,
@@ -25,4 +25,4 @@ class A {}
 [true,false,true,false,true,true]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool

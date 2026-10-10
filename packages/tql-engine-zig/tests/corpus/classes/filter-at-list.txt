@@ -1,0 +1,19 @@
+title: `filter` keeps the elements of a list a predicate holds for
+grammar: typescript
+asserts: types, values
+
+`filter` is `Data.List`'s, at lists only. `mfilter` is the one over any
+monad with an `Alternative`.
+
+--- tql ---
+import Data.List (filter);
+
+main = Filter (\_ -> filter (\x -> x > 0) [0, 1, -2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[1,3]
+--- types ---
+main :: Filter Node Int

@@ -29,4 +29,4 @@ describe = \n ->
       False -> "other"
       True -> "function"
     True -> "class"
-main = kleisli named_children (arr describe)
+main = compose_flipped named_children (arr describe)

@@ -16,7 +16,7 @@ instance Describe Int where {
 
 twice x = [describe x, describe x];
 
-main root = twice 1;
+main = Filter (\_ -> twice 1);
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ class A {}
 
 --- types ---
 twice :: Describe a => a -> [String]
-main :: Node -> [String]
+main :: Filter Node String

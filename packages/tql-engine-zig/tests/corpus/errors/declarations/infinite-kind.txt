@@ -1,0 +1,17 @@
+title: a type variable applied to itself has no kind
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+f :: f f -> Int;
+f _ = 1;
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `f` has kind `k -> k1`, but kind `k` is expected
+ --> 3:8
+  |
+3 | f :: f f -> Int;
+  |        ^

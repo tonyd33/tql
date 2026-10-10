@@ -3,9 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.List (any);
+import Data.Foldable (any);
 
-main = descendants_of_kind :call_expression | keep (any ((= "import") . text) . #function) | arr text;
+main = descendants_of_kind :call_expression | keep (any ((= "import") . text) . run #function) | arr text;
 
 --- source ---
 import("x");
@@ -15,4 +15,4 @@ f("y");
 ["import(\"x\")"]
 
 --- core ---
-main = kleisli (kleisli (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) field[function]))) (arr text)
+main = compose_flipped (compose_flipped (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) (run (Filter field[function]))))) (arr text)

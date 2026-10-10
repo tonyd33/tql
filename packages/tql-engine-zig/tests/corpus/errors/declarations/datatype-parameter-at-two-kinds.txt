@@ -1,0 +1,16 @@
+title: a datatype parameter has one kind across its fields
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+data Bad f = Bad f (f Int);
+main = const [];
+
+--- error ---
+error[kind-mismatch]: `f` has kind `Type`: it takes 0 type argument(s), given 1
+ --> 3:21
+  |
+3 | data Bad f = Bad f (f Int);
+  |                     ^^^^^

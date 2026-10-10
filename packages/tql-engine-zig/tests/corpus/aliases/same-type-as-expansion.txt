@@ -8,7 +8,7 @@ f :: P -> Int;
 f p = p.x;
 g :: {x: Int} -> P;
 g r = r;
-main root = [f {x = 1}, f (g {x = 2})];
+main = Filter (\_ -> [f {x = 1}, f (g {x = 2})]);
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ class A {}
 --- types ---
 f :: P -> Int
 g :: {x: Int} -> P
-main :: Node -> [Int]
+main :: Filter Node Int

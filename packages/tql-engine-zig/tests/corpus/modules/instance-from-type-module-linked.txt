@@ -31,15 +31,14 @@ gallery = [Circle 1, Square 2];
 --- tql ---
 import Classes;
 import Gallery;
-import Data.List (map);
 
 names = map describe gallery;
 
-main root = names;
+main = Filter (\_ -> names);
 
 --- source ---
 class A {}
 
 --- types ---
 names :: [String]
-main :: Node -> [String]
+main :: Filter Node String

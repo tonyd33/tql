@@ -14,7 +14,7 @@ class A {}
 
 --- types ---
 apply :: (a -> b) -> a -> b
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 apply = \f -> \x -> f x

@@ -11,7 +11,7 @@ describe xs = case xs of {
   _ -> 0;
 };
 
-main root = [describe [1, 5], describe [7, 2], describe [3, 3]];
+main = Filter (\_ -> [describe [1, 5], describe [7, 2], describe [3, 3]]);
 
 --- source ---
 let x = 1;
@@ -35,4 +35,4 @@ describe = \xs ->
         True -> pair0
       True -> b
   ) alternative
-main = \root -> Cons (describe (Cons 1 (Cons 5 Nil))) (Cons (describe (Cons 7 (Cons 2 Nil))) (Cons (describe (Cons 3 (Cons 3 Nil))) Nil))
+main = Filter (\_ -> Cons (describe (Cons 1 (Cons 5 Nil))) (Cons (describe (Cons 7 (Cons 2 Nil))) (Cons (describe (Cons 3 (Cons 3 Nil))) Nil)))

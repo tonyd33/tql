@@ -5,8 +5,8 @@ asserts: error
 --- tql ---
 pattern Text s <- (text -> s);
 
-main root = do {
-  i@(Text 3) <- descendants root;
+main = do {
+  i@(Text 3) <- descendants;
   return (text i);
 };
 
@@ -14,5 +14,5 @@ main root = do {
 error[type-mismatch]: Expected `String`, found `Int`.
  --> 4:11
   |
-4 |   i@(Text 3) <- descendants root;
+4 |   i@(Text 3) <- descendants;
   |           ^

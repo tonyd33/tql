@@ -6,10 +6,8 @@ asserts: simplified, values
 so each takes the default, which is too large to copy.
 
 --- tql ---
-import Data.Function (const);
-
 f b x = seq (if b then [1] else [2]) (x * 2 + x * 3);
-main = const [f True 1, f False 2];
+main = Filter (\_ -> [f True 1, f False 2]);
 
 --- source ---
 class A {}
@@ -22,4 +20,4 @@ f = \b -> \x ->
   case b of
     False -> jump j
     True -> jump j
-main = const (Cons (f True 1) (Cons (f False 2) Nil))
+main = \_ -> Cons (f True 1) (Cons (f False 2) Nil)

@@ -1,0 +1,23 @@
+title: `mfilter` at `List` takes no dictionary
+grammar: typescript
+asserts: simplified, values
+
+Every call of `mfilter` passes `Monad List` and `Alternative List`. Its body
+calls `bind[List]`, which stays a call, so each kept element is a
+singleton list appended.
+
+--- tql ---
+import Control.Monad (mfilter);
+
+positives xs = mfilter (\x -> x > 0) xs;
+
+main = Filter (\_ -> positives [0, 1, 2]);
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]
+
+--- simplified ---
+main = \_ -> mfilter (\x -> %gt_int x 0) (Cons 0 (Cons 1 (Cons 2 Nil)))

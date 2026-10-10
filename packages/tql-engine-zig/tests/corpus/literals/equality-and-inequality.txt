@@ -3,9 +3,8 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-import Data.Function (const);
 
-main = const [1 = 1, 1 != 1, "a" = "a", "a" = "b"];
+main = Filter (\_ -> [1 = 1, 1 != 1, "a" = "a", "a" = "b"]);
 
 --- source ---
 class A {}
@@ -14,11 +13,11 @@ class A {}
 [true, false, true, false]
 
 --- types ---
-main :: Node -> [Bool]
+main :: Filter Node Bool
 
 --- core ---
-main = const (
-  Cons (eq 1 1) (
+main = Filter (
+  \_ -> Cons (eq 1 1) (
     Cons (
       case eq 1 1 of
         False -> True

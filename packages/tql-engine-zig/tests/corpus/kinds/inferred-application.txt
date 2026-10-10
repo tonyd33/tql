@@ -1,0 +1,22 @@
+title: an inferred type keeps a variable applied to an argument
+grammar: typescript
+asserts: types
+
+Nothing fixes the constructors, so the inferred type quantifies both at kind
+`Type -> Type`.
+
+--- tql ---
+data Wrap f a = Wrap (f a);
+
+rewrap g w = case w of {
+  Wrap x -> Wrap (g x);
+};
+
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- types ---
+rewrap :: (a b -> c d) -> Wrap a b -> Wrap c d
+main :: Filter Node Int

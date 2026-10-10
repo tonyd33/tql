@@ -1,0 +1,17 @@
+title: `append` and `mempty` at `()`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+main = case append () mempty of {
+  () -> pure "unit";
+};
+
+--- source ---
+class A {}
+
+--- values ---
+["unit"]
+
+--- types ---
+main :: Filter Node String

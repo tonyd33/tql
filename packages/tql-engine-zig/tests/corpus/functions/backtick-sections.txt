@@ -3,11 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-import Data.List (append, map);
 import Data.Int (mod);
 
-main = const (append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]));
+main = Filter (\_ -> append (map (`mod` 3) [7, 8]) (append (map (10 `mod`) [3, 4]) [(`mod`) 7 3]));
 
 --- source ---
 class A {}
@@ -16,4 +14,4 @@ class A {}
 [1, 2, 1, 2, 1]
 
 --- core ---
-main = const (append (map (\x -> mod x 3) (Cons 7 (Cons 8 Nil))) (append (map (\y -> mod 10 y) (Cons 3 (Cons 4 Nil))) (Cons (mod 7 3) Nil)))
+main = Filter (\_ -> append (map (\x -> mod x 3) (Cons 7 (Cons 8 Nil))) (append (map (\y -> mod 10 y) (Cons 3 (Cons 4 Nil))) (Cons (mod 7 3) Nil)))

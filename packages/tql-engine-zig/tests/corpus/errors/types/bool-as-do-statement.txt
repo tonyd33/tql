@@ -2,15 +2,19 @@ title: `is_kind` is a test, not a `do` statement
 grammar: typescript
 asserts: error
 
-`is_kind` returns a `Bool`. A statement needs a list; `guard $ is_kind :k c;`
+`is_kind` returns a `Bool`, which is no monad's value. `guard $ is_kind :k c;`
 is the statement form.
 
 --- tql ---
-main root = do { c <- children root; is_kind :class_declaration c; return c; };
+main = do {
+  c <- children;
+  is_kind :class_declaration c;
+  return c;
+};
 
 --- error ---
-error[type-mismatch]: Expected `[a]`, found `Bool`.
- --> 1:38
+error[type-mismatch]: Expected `a b`, found `Bool`.
+ --> 3:3
   |
-1 | main root = do { c <- children root; is_kind :class_declaration c; return c; };
-  |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |   is_kind :class_declaration c;
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

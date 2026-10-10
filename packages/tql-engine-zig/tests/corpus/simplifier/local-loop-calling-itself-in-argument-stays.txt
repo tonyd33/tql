@@ -22,4 +22,6 @@ f = \xs ->
       Cons h t -> op[+] h (go t)
   in
   go xs
-main = pure (f (Cons 1 (Cons 2 (Cons 3 Nil))))
+main =
+  let y = f (Cons 1 (Cons 2 (Cons 3 Nil))) in
+  \_ -> Cons y Nil

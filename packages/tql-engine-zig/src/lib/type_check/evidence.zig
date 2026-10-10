@@ -118,13 +118,13 @@ pub const Resolver = struct {
         at: ?u32,
         span: diagnostic.Span,
     ) Error!core.Term {
-        const target = self.subst.expand(t);
+        const target = try self.subst.normalize(t);
         switch (target) {
-            .meta, .variable => {
+            .meta, .variable, .application => {
                 if (try self.given(class, target, at, span)) |found| return found;
                 return self.fail(.ambiguous, class, t, span);
             },
-            .constructor => {},
+            .constructor, .function => {},
             .record => |r| {
                 if (class != .eq) return self.fail(.unsatisfied, class, t, span);
                 return try self.recordDictionary(r, at, span);
@@ -132,13 +132,14 @@ pub const Resolver = struct {
             else => return self.fail(.unsatisfied, class, t, span),
         }
 
-        const id = self.registry.instanceFor(class, target.constructor.name) orelse
+        const head = types.asApplied(target).?;
+        const id = self.registry.instanceFor(class, head.name()) orelse
             return self.fail(.unsatisfied, class, t, span);
         const instance = self.registry.instance(id);
         var result = self.builder.symbol(instance.dictionary.?, span);
         for (instance.context) |c| {
             if (self.registry.evidenceOf(c.class) != .dictionary) continue;
-            const argument = target.constructor.arguments[c.type.variable];
+            const argument = head.argument(c.variable);
             result = try self.builder.apply(result, try self.resolve(c.class, argument, at, span), span);
         }
         return result;
@@ -197,10 +198,11 @@ pub const Resolver = struct {
     ) Error!?core.Term {
         var path: std.ArrayList(core.SymbolId) = .empty;
         defer path.deinit(self.gpa);
+        const wanted = try self.subst.resolveDeep(target);
         var current = at;
         while (current) |f| : (current = self.table.frames.items[f].parent) {
             for (self.table.frames.items[f].givens.items) |g| {
-                if (!std.meta.eql(self.subst.expand(g.type), target)) continue;
+                if (!types.eql(try self.subst.resolveDeep(g.type), wanted)) continue;
                 path.clearRetainingCapacity();
                 if (!try self.registry.superclassPath(g.class, class, &path, self.gpa)) continue;
                 var result = self.builder.symbol(g.evidence, span);
@@ -266,7 +268,7 @@ pub const Resolver = struct {
                 if (registry.evidenceOf(c.class) != .dictionary) continue;
                 parameters[i] = try env.interner.fresh("d");
                 arguments[i] = builder.symbol(parameters[i], span);
-                try self.table.give(at, .{ .class = c.class, .type = c.type, .evidence = parameters[i] });
+                try self.table.give(at, .{ .class = c.class, .type = types.variable_type(c.variable), .evidence = parameters[i] });
                 i += 1;
             }
 
@@ -289,22 +291,6 @@ pub const Resolver = struct {
 /// Each placeholder's evidence, by its symbol.
 pub const Replacements = std.AutoHashMapUnmanaged(core.SymbolId, core.Term);
 
-/// `original`, copied on the first `set` whose element changed.
-pub fn Rebuilt(comptime T: type) type {
-    return struct {
-        original: []const T,
-        copy: ?[]T = null,
-
-        pub fn set(self: *@This(), builder: core.Builder, i: usize, value: T, changed: bool) Allocator.Error!void {
-            if (self.copy == null) {
-                if (!changed) return;
-                self.copy = try builder.dupeSlice(T, self.original);
-            }
-            self.copy.?[i] = value;
-        }
-    };
-}
-
 /// `t` with each symbol `replacements` has an entry for replaced by it.
 /// Shares every subtree with nothing replaced.
 pub fn substitute(
@@ -312,64 +298,21 @@ pub fn substitute(
     t: core.Term,
     replacements: *const Replacements,
 ) Allocator.Error!core.Term {
-    switch (t.kind) {
-        .symbol => |id| return replacements.get(id) orelse t,
-        .literal => return t,
-        .lambda => |l| {
-            const body = try substitute(builder, l.body, replacements);
-            if (same(body, l.body)) return t;
-            return try builder.lambda(l.parameter, body, t.span);
-        },
-        .apply => |a| {
-            const function = try substitute(builder, a.function, replacements);
-            const argument = try substitute(builder, a.argument, replacements);
-            if (same(function, a.function) and same(argument, a.argument)) return t;
-            return try builder.apply(function, argument, t.span);
-        },
-        .case => |c| {
-            const scrutinee = try substitute(builder, c.scrutinee, replacements);
-            var alternatives: Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
-            for (c.alternatives, 0..) |alternative, i| {
-                const body = try substitute(builder, alternative.body, replacements);
-                try alternatives.set(builder, i, .{
-                    .constructor = alternative.constructor,
-                    .binders = alternative.binders,
-                    .body = body,
-                }, !same(body, alternative.body));
-            }
-            const default = if (c.default) |d| try substitute(builder, d, replacements) else null;
-            if (alternatives.copy == null and same(scrutinee, c.scrutinee) and sameOptional(default, c.default)) return t;
-            return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
-        },
-        .let => |l| {
-            const value = try substitute(builder, l.value, replacements);
-            const body = try substitute(builder, l.body, replacements);
-            if (same(value, l.value) and same(body, l.body)) return t;
-            return try builder.let(l.name, value, body, t.span);
-        },
-        .letrec => |l| {
-            var bindings: Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
-            for (l.bindings, 0..) |binding, i| {
-                const value = try substitute(builder, binding.value, replacements);
-                try bindings.set(builder, i, .{ .name = binding.name, .value = value }, !same(value, binding.value));
-            }
-            const body = try substitute(builder, l.body, replacements);
-            if (bindings.copy == null and same(body, l.body)) return t;
-            return try builder.letrec(bindings.copy orelse l.bindings, body, t.span);
-        },
+    const replacer: Replacer = .{ .builder = builder, .replacements = replacements };
+    return try replacer.term(t);
+}
+
+const Replacer = struct {
+    builder: core.Builder,
+    replacements: *const Replacements,
+
+    fn term(self: Replacer, t: core.Term) Allocator.Error!core.Term {
+        return switch (t.kind) {
+            .symbol => |id| self.replacements.get(id) orelse t,
+            else => try core.mapChildren(self.builder, t, self, term),
+        };
     }
-}
-
-/// Whether `a` and `b` are one node, or one symbol or literal.
-pub fn same(a: core.Term, b: core.Term) bool {
-    return std.meta.eql(a.kind, b.kind);
-}
-
-/// Whether `a` and `b` are both absent, or `same`.
-pub fn sameOptional(a: ?core.Term, b: ?core.Term) bool {
-    if (a == null or b == null) return a == null and b == null;
-    return same(a.?, b.?);
-}
+};
 
 /// `symbol = \d -> case d of { constructor f_0 .. f_n -> f_index }`.
 fn field(

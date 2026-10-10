@@ -12,8 +12,9 @@ other m n = m != n;
 other_kind :: Node -> Node -> Bool;
 other_kind m n = kind m != kind n;
 
-main root = do {
-  c <- children root;
+main = do {
+  root <- identity;
+  c <- children;
   return [before "a" "b", before "b" "a", other root c, other c c, other_kind root c, other_kind c c];
 };
 
@@ -24,7 +25,4 @@ class A {}
 [[true, false, true, false, true, false]]
 
 --- simplified ---
-before = \a -> \b -> %lt_string a b
-other = \m -> \n -> %ne_node m n
-other_kind = \m -> \n -> %ne_kind (%kind m) (%kind n)
-main = \root -> concat_map (\c -> Cons (Cons (%lt_string "a" "b") (Cons (%lt_string "b" "a") (Cons (%ne_node root c) (Cons (%ne_node c c) (Cons (%ne_kind (%kind root) (%kind c)) (Cons (%ne_kind (%kind c) (%kind c)) Nil)))))) Nil) (%children root)
+main = \x -> bind[List] (%children x) (\y -> Cons (Cons (%lt_string "a" "b") (Cons (%lt_string "b" "a") (Cons (%ne_node x y) (Cons (%ne_node y y) (Cons (%ne_kind (%kind x) (%kind y)) (Cons (%ne_kind (%kind y) (%kind y)) Nil)))))) Nil)

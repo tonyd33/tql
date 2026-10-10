@@ -1,0 +1,24 @@
+title: a datatype parameter applied in a field ranges over constructors
+grammar: typescript
+asserts: types, values
+
+`f` is applied to `a`, so it has kind `Type -> Type`, and `List` is one.
+
+--- tql ---
+data Wrap f a = Wrap (f a);
+
+unwrap :: Wrap f a -> f a;
+unwrap w = case w of {
+  Wrap x -> x;
+};
+
+main = Filter (\_ -> unwrap (Wrap [1, 2]));
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2]
+--- types ---
+unwrap :: Wrap a b -> a b
+main :: Filter Node Int

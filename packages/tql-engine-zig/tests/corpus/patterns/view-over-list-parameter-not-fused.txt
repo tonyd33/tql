@@ -1,14 +1,14 @@
 title: an of_kind view bound over a list parameter is not fused
 grammar: typescript
-asserts: simplified, values
+asserts: types, simplified, values
 
 --- tql ---
 names xs = do {
-  (of_kind :class_declaration -> [n]) <- xs;
+  (run (of_kind :class_declaration) -> [n]) <- xs;
   return $ text n;
 };
 
-main root = names (descendants root);
+main = Filter (\root -> names (run descendants root));
 
 --- source ---
 class A {}
@@ -16,10 +16,13 @@ class A {}
 --- values ---
 ["class A {}"]
 
+--- types ---
+names :: (Monad a, Alternative a) => a Node -> a String
+main :: Filter Node String
 --- simplified ---
-names = \xs -> concat_map (
+names = \xs -> bind[List] xs (
   \scrutinee -> case %is_kind :class_declaration scrutinee of
     False -> Nil
     True -> Cons (%text scrutinee) Nil
-) xs
+)
 main = \root -> names (%descendants root)

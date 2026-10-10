@@ -3,11 +3,10 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-import Data.Function (const);
 
 size :: {name: String | r} -> Int;
 size r = length r.name;
-main = const [size {name = "abc", n = 1}];
+main = pure $ size {name = "abc", n = 1};
 
 --- source ---
 class A {}
@@ -17,4 +16,4 @@ class A {}
 
 --- types ---
 size :: {name: String | a} -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

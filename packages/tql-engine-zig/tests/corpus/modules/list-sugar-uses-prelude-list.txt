@@ -6,7 +6,7 @@ asserts: types, values
 data Stack = Nil | Cons Int Stack;
 depth s = case s of { Nil -> 0; Cons h t -> 1 + depth t };
 size xs = case xs of { [] -> 0; h : t -> 1 + size t };
-main root = [size [1, 2, 3], depth (Cons 1 Nil)];
+main = Filter (\_ -> [size [1, 2, 3], depth (Cons 1 Nil)]);
 
 --- source ---
 let x = 1;
@@ -17,4 +17,4 @@ let x = 1;
 --- types ---
 depth :: Stack -> Int
 size :: [a] -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

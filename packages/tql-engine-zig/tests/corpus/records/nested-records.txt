@@ -3,9 +3,9 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main root = do {
-  c <- children_of_kind :class_declaration root;
-  n <- c#name;
+main = do {
+  c <- children_of_kind :class_declaration;
+  n <- pure c | #name;
   return { name = text n, meta = { k = kind c, n = 1 } };
 };
 
@@ -16,7 +16,7 @@ class A {}
 [{ "meta": { "k": "class_declaration", "n": 1 }, "name": "A" }]
 
 --- types ---
-main :: Node -> [{meta: {k: Kind, n: Int}, name: String}]
+main :: Filter Node {meta: {k: Kind, n: Int}, name: String}
 
 --- core ---
-main = \root -> concat_map (\c -> concat_map (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))) (field[name] c)) (children_of_kind :class_declaration root)
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Filter field[name])) (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))))

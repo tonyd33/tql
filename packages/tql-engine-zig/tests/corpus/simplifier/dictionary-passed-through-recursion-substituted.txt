@@ -1,0 +1,27 @@
+title: a dictionary a recursive call passes through is substituted
+grammar: typescript
+asserts: simplified, values
+
+`total`'s recursive call passes its own dictionary, and the one outside
+call passes `Sized List`.
+
+--- tql ---
+total :: Sized s => [s] -> Int;
+total xss = case xss of {
+  Nil -> 0;
+  Cons h t -> length h + total t;
+};
+
+main = Filter (\_ -> [total [[1], [2, 3]]]);
+
+--- source ---
+class A {}
+
+--- values ---
+[3]
+
+--- simplified ---
+total = \xss -> case xss of
+  Nil -> 0
+  Cons h t -> op[+] (length[List] h) (total t)
+main = \_ -> Cons (total (Cons (Cons 1 Nil) (Cons (Cons 2 (Cons 3 Nil)) Nil))) Nil

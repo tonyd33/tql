@@ -25,5 +25,10 @@ f = {} \u {} ->
   in
   t2@0
 main = {} \u {} ->
-  let t0 = {} \u {} -> f 1 30 3 0 in
-  pure t0@0
+  let y = {} \u {} -> f 1 30 3 0 in
+  let
+    t1 = {y@0} \n {_} ->
+      let c0 = Nil in
+      Cons y@0 c0@2
+  in
+  t1@1

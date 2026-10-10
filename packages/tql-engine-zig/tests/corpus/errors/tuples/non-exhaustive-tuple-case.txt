@@ -1,0 +1,24 @@
+title: a tuple `case` missing a combination reports the value that falls through
+grammar: typescript
+asserts: error
+
+--- tql ---
+f p = case p of {
+  (True, _) -> 1;
+  (False, True) -> 2;
+};
+
+main root = [f (False, False)];
+
+--- error ---
+error[type-mismatch]: `(False, False)` is not matched
+ --> 1:7
+  |
+1 | f p = case p of {
+  |       ^^^^^^^^^^^
+2 |   (True, _) -> 1;
+  |   ^^^^^^^^^^^^^^^
+3 |   (False, True) -> 2;
+  |   ^^^^^^^^^^^^^^^^^^^
+4 | };
+  | ^

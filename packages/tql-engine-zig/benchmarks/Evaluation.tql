@@ -1,5 +1,6 @@
 import Data.Int (toint);
-import Data.List (concat_map, map, null, take);
+import Data.List (take);
+import Data.Foldable (null, concat_map);
 
 data Size = Small | Medium | Large Int;
 
@@ -10,7 +11,7 @@ max_of acc xs = case xs of {
   h : t -> if h > acc then max_of h t else max_of acc t;
 };
 
-depth n = 1 + max_of 0 (map depth (named_children n));
+depth n = 1 + max_of 0 (map depth (run named_children n));
 
 insert x xs = case xs of {
   [] -> [x];
@@ -31,12 +32,12 @@ called = descendants_of_kind :call_expression | #function | of_kind :identifier 
 
 numbers = descendants_of_kind :number_literal | arr text | toint;
 
-main root = do {
-  f <- descendants_of_kind :function_definition root;
-  name <- first (#declarator | descendants_of_kind :identifier) f;
-  body <- #body f;
-  let callees = sort_into [] (called body);
-  let larges = concat_map large (map classify (numbers body));
+main = do {
+  f <- descendants_of_kind :function_definition;
+  name <- pure f | Filter (take 1 . run (#declarator | descendants_of_kind :identifier));
+  body <- pure f | #body;
+  let callees = sort_into [] (run called body);
+  let larges = concat_map large (map classify (run numbers body));
   guard $ not (null larges) or length callees >= 8;
   return {
     name = text name,

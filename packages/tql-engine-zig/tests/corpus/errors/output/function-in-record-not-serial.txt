@@ -5,11 +5,11 @@ asserts: error
 `Serial` fails recursively through a record.
 
 --- tql ---
-main = pure { name = "n", f = arr kind };
+main = pure { name = "n", f = children };
 
 --- error ---
-error[unsatisfied-constraint]: `Serial (Node -> [Kind])` is not satisfied.
+error[unsatisfied-constraint]: `Serial (Filter Node Node)` is not satisfied.
  --> 1:1
   |
-1 | main = pure { name = "n", f = arr kind };
+1 | main = pure { name = "n", f = children };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

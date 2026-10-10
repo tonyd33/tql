@@ -1,0 +1,35 @@
+title: `compose` and `.` at `Kleisli List` agree with `|`
+grammar: typescript
+asserts: types, values, simplified
+
+--- tql ---
+import Control.Arrow (Kleisli(..), run_kleisli);
+
+piped :: Filter Node String;
+piped = named_children | named_children | arr kind_name;
+
+composed :: Node -> [String];
+composed = run_kleisli (compose (arr kind_name) (compose (Kleisli (run named_children)) (Kleisli (run named_children))));
+
+dotted :: Node -> [String];
+dotted = run_kleisli (arr kind_name . Kleisli (run named_children) . Kleisli (run named_children));
+
+main = Filter (\root -> [run piped root = composed root, run piped root = dotted root]);
+
+--- source ---
+class A { b() {} }
+
+--- values ---
+[true,true]
+
+--- simplified ---
+piped = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
+composed = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
+dotted = \x -> bind[List] (bind[List] (%named_children x) %named_children) (\x -> Cons (%kind_name x) Nil)
+main = \root -> Cons (eq[List] (piped root) (composed root)) (Cons (eq[List] (piped root) (dotted root)) Nil)
+
+--- types ---
+piped :: Filter Node String
+composed :: Node -> [String]
+dotted :: Node -> [String]
+main :: Filter Node Bool

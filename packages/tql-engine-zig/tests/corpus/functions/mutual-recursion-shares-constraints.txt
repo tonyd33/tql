@@ -6,11 +6,9 @@ asserts: types, values
 schemes carry the constraint.
 
 --- tql ---
-import Data.Function (const);
-
 f x = if x = x then 1 else g x;
 g x = f x;
-main = const [g 1, f "s"];
+main = Filter (\_ -> [g 1, f "s"]);
 
 --- source ---
 class A {}
@@ -21,4 +19,4 @@ class A {}
 --- types ---
 f :: Eq a => a -> Int
 g :: Eq a => a -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

@@ -6,10 +6,8 @@ asserts: types, values
 `int` and at `string` in the same program.
 
 --- tql ---
-import Data.Function (const);
-
 pick x y = x;
-main = const [pick 1 2, length (pick "ab" "cd")];
+main = Filter (\_ -> [pick 1 2, length (pick "ab" "cd")]);
 
 --- source ---
 class A {}
@@ -19,4 +17,4 @@ class A {}
 
 --- types ---
 pick :: a -> b -> a
-main :: Node -> [Int]
+main :: Filter Node Int

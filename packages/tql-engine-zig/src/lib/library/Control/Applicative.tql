@@ -1,0 +1,42 @@
+module Control.Applicative (Applicative(..), Alternative(..), return, guard);
+
+import Prim (List(..), Bool(..));
+import Data.Monoid (Semigroup(..));
+import Data.Functor (Functor(..));
+
+class Functor f => Applicative f where {
+  pure :: a -> f a;
+  ap :: f (a -> b) -> f a -> f b;
+};
+
+class Applicative f => Alternative f where {
+  empty :: f a;
+  alt :: f a -> f a -> f a;
+};
+
+instance Applicative List where {
+  pure x = Cons x Nil;
+  ap fs xs = case fs of {
+    Nil -> Nil;
+    Cons f rest -> let {
+      applied ys = case ys of {
+        Nil -> ap rest xs;
+        Cons y t -> Cons (f y) $ applied t;
+      };
+    } in applied xs;
+  };
+};
+
+instance Alternative List where {
+  empty = Nil;
+  alt = append;
+};
+
+return :: Applicative f => a -> f a;
+return = pure;
+
+guard :: Alternative f => Bool -> f ();
+guard b = case b of {
+  False -> empty;
+  True -> pure ();
+};

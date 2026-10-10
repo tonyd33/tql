@@ -6,8 +6,6 @@ The `case` around the loop moves into its body, so the loop answers `"yes"`
 or `"no"` directly.
 
 --- tql ---
-import Data.Function (const);
-
 f xs = case (
   let {
     go ys = case ys of {
@@ -19,7 +17,7 @@ f xs = case (
   True -> "yes";
   False -> "no";
 };
-main = const [f [1, 3], f [4]];
+main = Filter (\_ -> [f [1, 3], f [4]]);
 
 --- source ---
 class A {}
@@ -37,7 +35,7 @@ f = \xs ->
         True -> "yes"
   in
   jump go xs
-main = const (Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil))
+main = \_ -> Cons (f (Cons 1 (Cons 3 Nil))) (Cons (f (Cons 4 Nil)) Nil)
 
 --- stg ---
 f = {} \u {} ->
@@ -55,7 +53,7 @@ f = {} \u {} ->
   t0@0
 main = {} \u {} ->
   let
-    t9 = {} \u {} ->
+    t9 = {} \n {_} ->
       let
         t3 = {} \u {} ->
           let
@@ -81,6 +79,6 @@ main = {} \u {} ->
           in
           Cons t6@0 c7@1
       in
-      Cons t3@0 t8@1
+      Cons t3@1 t8@2
   in
-  const t9@0
+  t9@0

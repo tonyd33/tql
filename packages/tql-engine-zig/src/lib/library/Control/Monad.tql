@@ -1,0 +1,26 @@
+module Control.Monad (Monad(..), join, kleisli, mfilter);
+
+import Prim (List(..), Bool(..));
+import Data.Function (identity);
+import Data.Monoid (Semigroup(..));
+import Control.Applicative (Applicative(..), Alternative(..));
+
+class Applicative m => Monad m where {
+  bind :: m a -> (a -> m b) -> m b;
+};
+
+instance Monad List where {
+  bind xs f = case xs of {
+    Nil -> Nil;
+    Cons h t -> append (f h) $ bind t f;
+  };
+};
+
+join :: Monad m => m (m a) -> m a;
+join mma = bind mma identity;
+
+kleisli :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c;
+kleisli p q x = bind (p x) q;
+
+mfilter :: (Monad m, Alternative m) => (a -> Bool) -> m a -> m a;
+mfilter p xs = bind xs (\x -> if p x then pure x else empty);

@@ -1,0 +1,17 @@
+title: `run` applies a filter to a value, and `x#f` is a field's list
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = Filter (\root -> do {
+  c <- run (children_of_kind :class_declaration) root;
+  n <- c#name;
+  return [text n, kind_name n];
+});
+
+--- source ---
+class A {}
+class B {}
+
+--- values ---
+[["A","type_identifier"],["B","type_identifier"]]

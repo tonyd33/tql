@@ -1,0 +1,23 @@
+title: `()` is a value, a pattern and a type
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+ignore :: a -> ();
+ignore _ = ();
+
+check u = case u of {
+  () -> 1;
+};
+
+main = arr (check . ignore);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+--- types ---
+ignore :: a -> ()
+check :: () -> Int
+main :: Filter Node Int

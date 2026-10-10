@@ -17,7 +17,7 @@ class A {}
 [6]
 --- types ---
 sum :: [Int] -> Int
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 sum = \xs -> case xs of

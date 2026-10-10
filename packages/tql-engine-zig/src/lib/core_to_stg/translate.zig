@@ -517,14 +517,10 @@ pub const Translator = struct {
     }
 
     /// How many arguments a primitive's denotation takes: the arrow count of
-    /// its declared scheme. `Filter a b` is `a -> [b]`, so a filter-typed
-    /// primitive counts its input, making `pure` arity two.
+    /// its declared scheme.
     fn primitiveArity(self: *Translator, name: core.SymbolId) Error!u32 {
         const scheme = self.program.env.schemeOf(name) orelse return error.Unsupported;
-        var arity: u32 = 0;
-        var walk = scheme.type;
-        while (walk == .function) : (walk = walk.function.to) arity += 1;
-        return arity;
+        return @intCast(core.types.arrowCount(scheme.type));
     }
 
     /// Wrap a primitive in a closure that applies it, so it can be passed as a
@@ -676,9 +672,13 @@ pub fn translate(
 
     const registry = &program.env.datatypes;
     var spellings: std.AutoHashMapUnmanaged(core.SymbolId, []const u8) = .empty;
+    var tuples: std.AutoHashMapUnmanaged(core.SymbolId, void) = .empty;
     for (registry.datatypes.items) |datatype| {
         for (datatype.constructors) |c| {
             try spellings.put(arena.allocator(), c.symbol, try arena.allocator().dupe(u8, program.env.interner.spelling(c.symbol)));
+        }
+        if (datatype.form == .tuple) {
+            try tuples.put(arena.allocator(), datatype.constructors[0].symbol, {});
         }
     }
     const nil = builtin(registry.nilConstructor());
@@ -702,6 +702,7 @@ pub fn translate(
             .gt = builtin(registry.orderingConstructor(.gt)),
         },
         .spellings = spellings,
+        .tuples = tuples,
         .nil = nil_thunk,
         .arena = arena,
         .regexes = try arena.allocator().dupe(*stg.Regex, translator.regexes.items),

@@ -24,4 +24,6 @@ f = \x -> \xs ->
       Cons h t -> jump go t
   in
   jump go xs
-main = pure (f 3 (Cons 1 (Cons 2 Nil)))
+main =
+  let y = f 3 (Cons 1 (Cons 2 Nil)) in
+  \_ -> Cons y Nil

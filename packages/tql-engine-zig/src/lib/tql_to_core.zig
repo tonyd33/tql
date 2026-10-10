@@ -9,6 +9,7 @@ const link_mod = @import("tql_to_core/link.zig");
 pub const Desugarer = link_mod.Desugarer;
 pub const Import = scope_mod.Import;
 pub const Filter = scope_mod.Filter;
+pub const Exports = scope_mod.Exports;
 
 test {
     std.testing.refAllDecls(link_mod);
@@ -52,14 +53,12 @@ const Fixture = struct {
     }
 
     /// `Prim`'s own view: every structural type, no imports.
-    fn scope(self: *const Fixture) ModuleScope {
+    fn scope(self: *Fixture) ModuleScope {
         return .{
             .module = .prim,
             .imports = &.{},
             .exports = &.{},
-            .interner = &self.env.interner,
-            .datatypes = &self.env.datatypes,
-            .classes = &self.env.classes,
+            .env = &self.env,
         };
     }
 
@@ -93,5 +92,5 @@ test "a signature may have as many variables as a scheme can number" {
 
     const signature: cst.Signature = .{ .name = "f", .type = try manyVariables(fix, 255) };
     const scheme = try annotation.translate(fix.env.allocator(), gpa, &signature, &fix.scope(), &fix.sink);
-    try testing.expectEqual(255, scheme.quantified);
+    try testing.expectEqual(255, scheme.variables.len);
 }

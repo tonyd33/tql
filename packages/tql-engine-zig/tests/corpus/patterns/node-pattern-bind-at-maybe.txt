@@ -1,0 +1,55 @@
+title: a node pattern bound at `Maybe` yields `Nothing` where it does not match
+grammar: typescript
+asserts: types, core, simplified, values
+
+The pattern tests the node the same way in any monad: `of_kind` and the
+field read each give a list, matched as one element. Each failed test yields
+`empty`, which is `Nothing` at `Maybe`. The bind is not over an axis, so
+nothing fuses.
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+name_of m = do {
+  :class_declaration { #name = n } <- m;
+  return $ text n;
+};
+
+main = ((children <|> identity) | arr (name_of . Just)) <|> pure (name_of Nothing);
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":["A"]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
+--- types ---
+name_of :: (Monad a, Alternative a) => a Node -> a String
+main :: Filter Node (Maybe String)
+--- core ---
+name_of = \m -> bind m (
+  \scrutinee ->
+    let view = run (of_kind :class_declaration) scrutinee in
+    case view of
+      Nil -> empty
+      Cons cons0 cons1 ->
+        let view = field[name] cons0 in
+        case view of
+          Nil -> empty
+          Cons n cons1' -> case cons1' of
+            Nil -> case cons1 of
+              Nil -> return (text n)
+              Cons _ _ -> empty
+            Cons _ _ -> empty
+)
+main = alt (compose_flipped (alt children identity) (arr (compose name_of Just))) (pure (name_of Nothing))
+--- simplified ---
+name_of = \m -> case m of
+  Nothing -> Nothing
+  Just x -> case %is_kind :class_declaration x of
+    False -> Nothing
+    True -> case field[name] x of
+      Nil -> Nothing
+      Cons n cons1 -> case cons1 of
+        Nil -> Just (%text n)
+        Cons _ _ -> Nothing
+main = \x -> append[List] (bind[List] (append[List] (%children x) (Cons x Nil)) (\x -> Cons (name_of (Just x)) Nil)) (Cons Nothing Nil)

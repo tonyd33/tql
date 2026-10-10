@@ -449,10 +449,11 @@ pub const Analyser = struct {
     }
 
     /// How much inlining a binding of `name` to `value` is worth. The lowest
-    /// is made a loop breaker first.
+    /// is made a loop breaker first. An instance's dictionary ranks above the
+    /// methods it holds.
     fn breakerScore(self: *const Analyser, name: core.SymbolId, value: core.Term) u8 {
         if (self.env.alwaysInlines(name)) return 3;
-        if (cost.trivial(value)) return 2;
+        if (cost.trivial(value) or self.env.interner.details(name) == .instance) return 2;
         if (value.kind == .lambda) return 1;
         return 0;
     }

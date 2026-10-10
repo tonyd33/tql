@@ -26,4 +26,6 @@ fold = \f -> \z -> \xs -> case xs of
     let z2 = f z h in
     case z2 of
       _ -> fold f z2 t
-main = pure (fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))))
+main =
+  let y = fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))) in
+  \_ -> Cons y Nil

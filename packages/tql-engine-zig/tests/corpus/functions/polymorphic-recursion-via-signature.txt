@@ -19,4 +19,4 @@ class A {}
 
 --- types ---
 nest :: Int -> a -> Int
-main :: Node -> [Int]
+main :: Filter Node Int

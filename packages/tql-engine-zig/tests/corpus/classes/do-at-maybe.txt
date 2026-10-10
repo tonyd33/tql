@@ -1,0 +1,23 @@
+title: a `do` block runs in the `Maybe` monad
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Data.Maybe (Maybe(..));
+
+both m n = do {
+  a <- m;
+  b <- n;
+  return (a + b);
+};
+
+main = Filter (\_ -> [both (Just 1) (Just 2), both (Just 1) Nothing]);
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[3]},{"tag":"Nothing","fields":[]}]
+--- types ---
+both :: Monad a => a Int -> a Int -> a Int
+main :: Filter Node (Maybe Int)

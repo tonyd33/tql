@@ -11,8 +11,8 @@ classify n = case n of {
   _ -> "other";
 };
 
-main root = do {
-  n <- descendants root;
+main = do {
+  n <- descendants;
   let r = classify n;
   guard $ r != "other";
   return r;

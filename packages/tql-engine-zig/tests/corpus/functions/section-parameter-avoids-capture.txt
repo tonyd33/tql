@@ -3,11 +3,8 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-import Data.List (map);
-
 same x = map (= x) [1, 2];
-main = const (same 1);
+main = Filter (\_ -> same 1);
 
 --- source ---
 class A {}
@@ -17,4 +14,4 @@ class A {}
 
 --- core ---
 same = \x -> map (\x' -> eq x' x) (Cons 1 (Cons 2 Nil))
-main = const (same 1)
+main = Filter (\_ -> same 1)

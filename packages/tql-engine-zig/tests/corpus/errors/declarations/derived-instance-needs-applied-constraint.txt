@@ -1,0 +1,18 @@
+title: a derived instance cannot require a class of an applied variable
+grammar: typescript
+asserts: error
+
+`Eq (Wrap f a)` would need `Eq (f a)`, which no derived context can state.
+
+--- tql ---
+import Data.Function (const);
+
+data Wrap f a = Wrap (f a) deriving (Eq);
+main = const [];
+
+--- error ---
+error[invalid-deriving]: `Eq (Wrap a b)` needs `Eq (a b)`, but a derived instance can only require a class of a type variable
+ --> 3:22
+  |
+3 | data Wrap f a = Wrap (f a) deriving (Eq);
+  |                      ^^^^^

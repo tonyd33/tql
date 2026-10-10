@@ -12,8 +12,8 @@ pattern Named s <- :class_declaration { #name = (name_of -> s) };
 --- tql ---
 import Names (pattern Named);
 
-main root = do {
-  Named n <- descendants root;
+main = do {
+  Named n <- descendants;
   return n;
 };
 
@@ -24,10 +24,10 @@ function f() {}
 --- values ---
 ["A"]
 --- simplified ---
-main = \root -> concat_map (
-  \scrutinee -> case field[name] scrutinee of
+main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (
+  \y -> case field[name] y of
     Nil -> Nil
     Cons cons0 cons1 -> case cons1 of
       Nil -> Cons (%text cons0) Nil
       Cons _ _ -> Nil
-) (%descendants_of_kind :class_declaration root)
+)

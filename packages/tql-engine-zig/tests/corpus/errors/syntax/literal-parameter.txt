@@ -8,7 +8,7 @@ left of `<-`.
 --- tql ---
 f 3 = 1;
 
-main = pure (f 3);
+main = always (f 3);
 
 --- error ---
 error[parse]: syntax error

@@ -3,11 +3,9 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-import Data.Function (const);
-
 f n = case n of { 3 -> 1; _ -> 0; };
 
-main = const [f 3, f 4];
+main = Filter (\_ -> [f 3, f 4]);
 
 --- source ---
 class A {}
@@ -19,4 +17,4 @@ class A {}
 f = \n -> case eq n 3 of
   False -> 0
   True -> 1
-main = const (Cons (f 3) (Cons (f 4) Nil))
+main = Filter (\_ -> Cons (f 3) (Cons (f 4) Nil))

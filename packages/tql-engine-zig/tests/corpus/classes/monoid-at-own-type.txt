@@ -1,0 +1,36 @@
+title: `append` and `mempty` reach a query's own `Monoid` instance and `List`'s
+grammar: typescript
+asserts: types, values
+
+`combine` infers only `Monoid`, which entails the `Semigroup` its `append` raises.
+
+--- tql ---
+data Max = Max Int;
+
+instance Semigroup Max where {
+  append a b = case a of {
+    Max x -> case b of {
+      Max y -> if x < y then Max y else Max x;
+    };
+  };
+};
+
+instance Monoid Max where {
+  mempty = Max 0;
+};
+
+combine xs = foldr append mempty xs;
+
+main = Filter (\_ -> append (case combine [Max 3, Max 7, Max 2] of {
+  Max n -> [n];
+}) (combine [[1], mempty, [2]]));
+
+--- source ---
+class A {}
+
+--- values ---
+[7,1,2]
+
+--- types ---
+combine :: (Foldable a, Monoid b) => a b -> b
+main :: Filter Node Int

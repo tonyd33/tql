@@ -6,13 +6,11 @@ A join point's parameters are not a lambda: its value runs at most once, so
 `s` moves into it without repeating work.
 
 --- tql ---
-import Data.Function (const);
-
 f b x = let {
   s = x * x;
   g y = s + y * 2 + y * 3 + y * 4 + y * 5;
 } in if b then g 1 else g 2;
-main = const [f True 3, f False 3];
+main = Filter (\_ -> [f True 3, f False 3]);
 
 --- source ---
 class A {}
@@ -26,4 +24,4 @@ f = \b -> \x ->
   case b of
     False -> jump g 2
     True -> jump g 1
-main = const (Cons (f True 3) (Cons (f False 3) Nil))
+main = \_ -> Cons (f True 3) (Cons (f False 3) Nil)

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: types, values
 
 --- tql ---
-main root = [{}];
+main = pure {};
 
 --- source ---
 class A {}
@@ -12,4 +12,4 @@ class A {}
 [{}]
 
 --- types ---
-main :: Node -> [{}]
+main :: Filter Node {}

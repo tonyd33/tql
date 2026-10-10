@@ -1,0 +1,17 @@
+title: an instance head at the function type takes type variables, as any other
+grammar: typescript
+asserts: error
+
+--- tql ---
+import Data.Function (const);
+
+class Describe a where { describe :: a -> String; };
+instance Describe (Int -> Int) where { describe f = "function"; };
+main = const [];
+
+--- error ---
+error[invalid-instance]: each argument of an instance head must be a type variable
+ --> 4:20
+  |
+4 | instance Describe (Int -> Int) where { describe f = "function"; };
+  |                    ^^^

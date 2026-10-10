@@ -6,11 +6,9 @@ asserts: core, values
 are exhaustive.
 
 --- tql ---
-import Data.Function (const);
-
 f b = case b of { true -> "yes"; false -> "no"; };
 
-main = const [f true, f false];
+main = Filter (\_ -> [f true, f false]);
 
 --- source ---
 class A {}
@@ -22,4 +20,4 @@ class A {}
 f = \b -> case b of
   False -> "no"
   True -> "yes"
-main = const (Cons (f True) (Cons (f False) Nil))
+main = Filter (\_ -> Cons (f True) (Cons (f False) Nil))

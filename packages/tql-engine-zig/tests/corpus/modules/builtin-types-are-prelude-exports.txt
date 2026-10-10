@@ -9,7 +9,7 @@ start :: Range -> Int;
 start r = r.start_byte;
 one :: P.Int;
 one = 1;
-main root = [start (P.range root) + one];
+main = P.arr (\root -> start (P.range root) + one);
 
 --- source ---
 let x = 1;

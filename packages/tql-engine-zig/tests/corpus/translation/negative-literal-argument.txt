@@ -3,9 +3,7 @@ grammar: typescript
 asserts: stg, values
 
 --- tql ---
-import Data.Function (const);
-
-main = const [-7, 0 - 7];
+main = Filter (\_ -> [-7, 0 - 7]);
 
 --- source ---
 class A {}
@@ -16,7 +14,7 @@ class A {}
 --- stg ---
 main = {} \u {} ->
   let
-    t3 = {} \u {} ->
+    t3 = {} \n {_} ->
       let
         t2 = {} \u {} ->
           let
@@ -25,6 +23,6 @@ main = {} \u {} ->
           in
           Cons t0@0 c1@1
       in
-      Cons (-7) t2@0
+      Cons (-7) t2@1
   in
-  const t3@0
+  t3@0

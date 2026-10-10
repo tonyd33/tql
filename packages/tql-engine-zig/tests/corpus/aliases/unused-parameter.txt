@@ -1,0 +1,22 @@
+title: an alias parameter its body never uses has kind Type
+grammar: typescript
+asserts: types, values
+
+An alias is transparent, so `Tagged String` is `Int`.
+
+--- tql ---
+type Tagged t = Int;
+
+bump :: Tagged String -> Int;
+bump x = x + 1;
+
+main = pure $ bump 1;
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+--- types ---
+bump :: Tagged String -> Int
+main :: Filter Node Int

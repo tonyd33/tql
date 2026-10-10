@@ -1,0 +1,38 @@
+title: a method reached through a known instance's superclass is selected
+grammar: typescript
+asserts: simplified, values
+
+`wrap` takes only `Twice f`, and reaches `point` through its `Pointed`
+superclass. At `List`, the `case` on the global `Twice List` dictionary
+takes its alternative like any known constructor.
+
+--- tql ---
+class Pointed f where {
+  point :: a -> f a;
+};
+
+class Pointed f => Twice f where {
+  twice :: f a -> f a;
+};
+
+instance Pointed List where {
+  point x = [x];
+};
+
+instance Twice List where {
+  twice xs = xs;
+};
+
+wrap :: Twice f => a -> f a;
+wrap x = twice (point x);
+
+main = Filter (\_ -> wrap 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+
+--- simplified ---
+main = \_ -> Cons 1 Nil

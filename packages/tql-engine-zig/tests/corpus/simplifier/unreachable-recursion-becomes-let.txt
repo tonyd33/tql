@@ -12,7 +12,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = pure 1
+main = \_ -> Cons 1 Nil
 
 --- core ---
 main =

@@ -3,10 +3,10 @@ grammar: typescript
 asserts: simplified, values
 
 --- tql ---
-main root = do {
-  open <- descendants root;
+main = do {
+  open <- descendants;
   guard $ text open = "(";
-  token <- (named_descendants | of_kind (kind open)) root;
+  token <- named_descendants | of_kind (kind open);
   return $ text token;
 };
 
@@ -17,10 +17,19 @@ f(a);
 []
 
 --- simplified ---
-main = \root -> concat_map (
-  \open -> concat_map (\_ -> concat_map (\token -> Cons (%text token) Nil) (concat_map (of_kind (%kind open)) (%named_descendants root))) (
-    case %eq_string (%text open) "(" of
+main = \x -> bind[List] (%descendants x) (
+  \y -> bind[List] (
+    case %eq_string (%text y) "(" of
       False -> Nil
-      True -> Cons Unit Nil
+      True -> Cons () Nil
+  ) (
+    \y' -> bind[List] (
+      bind[List] (%named_descendants x) (
+        let k = %kind y in
+        \x -> case %is_kind k x of
+          False -> Nil
+          True -> Cons x Nil
+      )
+    ) (\y -> Cons (%text y) Nil)
   )
-) (%descendants root)
+)

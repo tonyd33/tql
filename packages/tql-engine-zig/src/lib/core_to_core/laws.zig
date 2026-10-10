@@ -6,6 +6,61 @@ const diagnostic = @import("../diagnostic.zig");
 
 const Allocator = std.mem.Allocator;
 
+/// The library definitions a law matches on, besides methods and instances.
+const anchors = [_]core.Known{ .kleisli, .bind, .of_kind };
+
+/// Whether a law matches on `symbol`: a method, an instance, an anchor, or
+/// an instance's implementation of an anchor.
+pub fn named(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    known: *const std.EnumArray(core.Known, ?core.SymbolId),
+    symbol: core.SymbolId,
+) bool {
+    const anchor = switch (interner.details(symbol)) {
+        .method, .instance => return true,
+        .instance_method => |m| implemented(classes, m.instance, m.index),
+        else => symbol,
+    };
+    for (anchors) |key| if (known.get(key) == anchor) return true;
+    return false;
+}
+
+/// The class method that method `index` of `instance` implements.
+fn implemented(classes: *const core.classes.Registry, instance: core.classes.InstanceId, index: u32) core.SymbolId {
+    return classes.get(classes.instance(instance).class).methods[index];
+}
+
+/// The instance `t` is the dictionary of, when `t` is an instance applied to
+/// a dictionary for each constraint of its context.
+pub fn appliedInstance(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    t: core.Term,
+) ?*const core.classes.Instance {
+    const head = t.head();
+    if (head.kind != .symbol) return null;
+    const instance = switch (interner.details(head.kind.symbol)) {
+        .instance => |id| classes.instance(id),
+        else => return null,
+    };
+    if (t.spineLength() != classes.dictionaryCount(instance.context)) return null;
+    return instance;
+}
+
+/// The methods a law may select from `symbol`, each then applied to what
+/// `symbol` is applied to: an instance's methods, or none.
+pub fn selectable(
+    interner: *const core.Interner,
+    classes: *const core.classes.Registry,
+    symbol: core.SymbolId,
+) []const core.SymbolId {
+    return switch (interner.details(symbol)) {
+        .instance => |id| classes.instance(id).methods,
+        else => &.{},
+    };
+}
+
 pub const Laws = struct {
     builder: core.Builder,
     interner: *const core.Interner,
@@ -13,24 +68,13 @@ pub const Laws = struct {
     primitives: *const std.EnumArray(core.PrimOp, ?core.SymbolId),
     /// A key is null when the library has none.
     known: *const std.EnumArray(core.Known, ?core.SymbolId),
+    list: core.datatypes.TypeId,
     nil: core.SymbolId,
+    cons: core.SymbolId,
     false_: core.SymbolId,
     true_: core.SymbolId,
     /// `LT`, `EQ` and `GT`.
     ordering: [3]core.SymbolId,
-
-    /// The library definitions a law matches on.
-    const named = [_]core.Known{ .kleisli, .concat_map, .of_kind };
-
-    /// Whether a law matches on `symbol`.
-    pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
-        return switch (self.interner.details(symbol)) {
-            .method, .instance => true,
-            else => for (named) |key| {
-                if (self.known.get(key) == symbol) break true;
-            } else false,
-        };
-    }
 
     /// The term a law rewrites `function argument` to, when one matches.
     ///
@@ -43,7 +87,29 @@ pub const Laws = struct {
     ) Allocator.Error!?core.Term {
         if (try self.fuseKindAxis(function, argument, span)) |fused| return fused;
         if (try self.selectKnownMethod(function, argument, span)) |selected| return selected;
+        if (try self.bindKnownList(function, argument, span)) |bound| return bound;
         return try self.fuseKindBind(function, argument, span);
+    }
+
+    /// `bind (Cons e Nil) f` becomes `f e`, and `bind Nil f` becomes `Nil`,
+    /// at the `List` instance. `empty` at the `List` instance may stand for
+    /// `Nil`.
+    fn bindKnownList(
+        self: *const Laws,
+        function: core.Term,
+        argument: core.Term,
+        span: diagnostic.Span,
+    ) Allocator.Error!?core.Term {
+        const call = switch (function.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        if (!self.isListMethod(call.function, .bind)) return null;
+        const list = call.argument;
+        if (isSymbol(list, self.nil) or self.isListMethod(list, .empty)) return list;
+        if (!isSymbol(list.head(), self.cons)) return null;
+        if (!isSymbol(spineArgument(list, 2, 1) orelse return null, self.nil)) return null;
+        return try self.builder.apply(argument, spineArgument(list, 2, 0).?, span);
     }
 
     /// Applies `result` to the arguments of `t`'s spine, in order.
@@ -74,13 +140,8 @@ pub const Laws = struct {
         if (class.constructor == head.kind.symbol) {
             return spineArgument(argument, class.selectors.len + class.methods.len, class.selectors.len + method.index);
         }
-        const instance = switch (self.interner.details(head.kind.symbol)) {
-            .instance => |id| self.classes.instance(id),
-            else => return null,
-        };
+        const instance = appliedInstance(self.interner, self.classes, argument) orelse return null;
         if (instance.class != method.class) return null;
-
-        if (argument.spineLength() != self.classes.dictionaryCount(instance.context)) return null;
         var result = self.builder.symbol(instance.methods[method.index], span);
         try self.spine(argument, &result, span);
         return result;
@@ -149,25 +210,25 @@ pub const Laws = struct {
         return null;
     }
 
-    /// `kleisli <axis> (of_kind k)` becomes the axis that yields only `k`.
+    /// `kleisli d <axis> (of_kind k)` becomes the axis that yields only `k`,
+    /// when `d` is the `List` instance's `Monad` dictionary.
     ///
     /// Both spellings are writable by hand and denote the same list, so this
     /// removes the intermediate list without changing what the query means.
     /// `k` need not be a literal.
     ///
     /// `|` associates left, so an axis after an earlier stage arrives as
-    /// `kleisli (kleisli p <axis>) (of_kind k)`. That is
-    /// `kleisli p (kleisli <axis> (of_kind k))`, and becomes `kleisli p` of the
-    /// fused axis.
+    /// `kleisli d (kleisli d p <axis>) (of_kind k)`. That is
+    /// `kleisli d p (kleisli d <axis> (of_kind k))`, and becomes `kleisli d p`
+    /// of the fused axis.
     fn fuseKindAxis(
         self: *const Laws,
         function: core.Term,
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const kleisli = self.known.get(.kleisli) orelse return null;
         const kind = operandOf(self.known.get(.of_kind) orelse return null, argument) orelse return null;
-        const composed = operandOf(kleisli, function) orelse return null;
+        const composed = self.listKleisliOperand(function) orelse return null;
 
         switch (composed.kind) {
             .symbol => |axis| {
@@ -175,38 +236,66 @@ pub const Laws = struct {
                 return try self.builder.apply(self.builder.symbol(fused, span), kind, span);
             },
             .apply => |a| {
-                const before = operandOf(kleisli, a.function) orelse return null;
+                if (self.listKleisliOperand(a.function) == null) return null;
                 const axis = switch (a.argument.kind) {
                     .symbol => |id| id,
                     else => return null,
                 };
                 const fused = self.fusedAxis(axis, kind) orelse return null;
-                return try self.builder.applyMany(
-                    self.builder.symbol(kleisli, span),
-                    &.{ before, try self.builder.apply(self.builder.symbol(fused, span), kind, span) },
-                    span,
-                );
+                return try self.builder.apply(a.function, try self.builder.apply(self.builder.symbol(fused, span), kind, span), span);
             },
             else => return null,
         }
     }
 
-    /// `concat_map (\s -> case is_kind k s of { False -> Nil; True -> body })
-    /// (axis r)` becomes `concat_map (\s -> body) (axis_of_kind k r)`. Returns
-    /// null unless `k` does not read `s` and `fusedAxis` fuses `k` onto `axis`.
+    /// `p`, when `t` is `kleisli d p` and `d` is the `List` instance's `Monad`
+    /// dictionary.
+    fn listKleisliOperand(self: *const Laws, t: core.Term) ?core.Term {
+        const a = switch (t.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        const dictionary = operandOf(self.known.get(.kleisli) orelse return null, a.function) orelse return null;
+        const instance = appliedInstance(self.interner, self.classes, dictionary) orelse return null;
+        const bind = self.known.get(.bind) orelse return null;
+        if (instance.head() != self.list or instance.class != self.interner.details(bind).method.class) return null;
+        return a.argument;
+    }
+
+    /// Whether `t` is the `List` instance's implementation of the method
+    /// `key` names.
+    fn isListMethod(self: *const Laws, t: core.Term, key: core.Known) bool {
+        if (t.kind != .symbol) return false;
+        const m = switch (self.interner.details(t.kind.symbol)) {
+            .instance_method => |m| m,
+            else => return false,
+        };
+        return self.classes.instance(m.instance).head() == self.list and
+            implemented(self.classes, m.instance, m.index) == self.known.get(key);
+    }
+
+    /// `bind (axis r) (\s -> case is_kind k s of { False -> Nil; True -> body })`
+    /// becomes `bind (axis_of_kind k r) (\s -> body)`, at the `List` instance.
+    /// `empty` at the `List` instance may stand for `Nil`.
+    /// Returns null unless `k` does not read `s` and `fusedAxis` fuses `k`
+    /// onto `axis`.
     fn fuseKindBind(
         self: *const Laws,
         function: core.Term,
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const concat_map = self.known.get(.concat_map) orelse return null;
-        const mapped = operandOf(concat_map, function) orelse return null;
-        const lambda = switch (mapped.kind) {
+        const call = switch (function.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        if (!self.isListMethod(call.function, .bind)) return null;
+        const walked = call.argument;
+        const lambda = switch (argument.kind) {
             .lambda => |l| l,
             else => return null,
         };
-        const walk = switch (argument.kind) {
+        const walk = switch (walked.kind) {
             .apply => |a| a,
             else => return null,
         };
@@ -226,14 +315,14 @@ pub const Laws = struct {
         const fused = self.fusedAxis(axis, tested.kind) orelse return null;
 
         const failed = alternativeFor(matched.alternatives, self.false_) orelse return null;
-        if (!isSymbol(failed.body, self.nil)) return null;
+        if (!isSymbol(failed.body, self.nil) and !self.isListMethod(failed.body, .empty)) return null;
         const passed = alternativeFor(matched.alternatives, self.true_) orelse return null;
 
         return try self.builder.applyMany(
-            self.builder.symbol(concat_map, span),
+            self.builder.symbol(call.function.kind.symbol, span),
             &.{
-                try self.builder.lambda(s, passed.body, mapped.span),
-                try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, argument.span),
+                try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, walked.span),
+                try self.builder.lambda(s, passed.body, argument.span),
             },
             span,
         );

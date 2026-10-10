@@ -6,14 +6,12 @@ asserts: core, types, values
 the same way.
 
 --- tql ---
-import Data.Function (const);
-
 main =
   let {
     a = \x y -> x + y;
     b = \x -> \y -> x + y;
   }
-  in const [a 1 2, b 1 2];
+  in Filter (\_ -> [a 1 2, b 1 2]);
 
 --- source ---
 class A {}
@@ -22,10 +20,10 @@ class A {}
 [3, 3]
 
 --- types ---
-main :: Node -> [Int]
+main :: Filter Node Int
 
 --- core ---
 main =
   let a = \x -> \y -> op[+] x y in
   let b = \x -> \y -> op[+] x y in
-  const (Cons (a 1 2) (Cons (b 1 2) Nil))
+  Filter (\_ -> Cons (a 1 2) (Cons (b 1 2) Nil))

@@ -6,7 +6,7 @@ asserts: values
 import Data.Function (const);
 
 ones = 1 : ones;
-main = const [ones < [1, 2], [2] > ones];
+main = Filter $ const [ones < [1, 2], [2] > ones];
 
 --- source ---
 class A {}
