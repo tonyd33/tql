@@ -1,5 +1,5 @@
 const std = @import("std");
-const tql = @import("tql_engine_zig");
+const tql = @import("tql");
 
 const gpa = std.heap.wasm_allocator;
 

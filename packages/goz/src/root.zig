@@ -165,14 +165,38 @@ pub fn SubcmdResolver(comptime cmds: anytype) type {
         pub fn match(word: []const u8) Result {
             inline for (std.meta.fields(T)) |f| {
                 if (std.mem.eql(u8, word, f.name)) return .{ .subcmd = @field(Fields, f.name) };
-                const entry = @field(cmds, f.name);
-                for (entry.aliases) |alias| {
+                for (aliasesOf(@field(cmds, f.name))) |alias| {
                     if (std.mem.eql(u8, word, alias)) return .{ .subcmd = @field(Fields, f.name) };
                 }
             }
             return .{ .unknown = word };
         }
     };
+}
+
+/// Returns the spec of a subcommand entry: the entry itself, or the `command`
+/// a namespace entry declares.
+fn specOf(comptime entry: anytype) SpecOf(entry) {
+    return if (@TypeOf(entry) == type) entry.command else entry;
+}
+
+fn SpecOf(comptime entry: anytype) type {
+    return if (@TypeOf(entry) == type) @TypeOf(entry.command) else @TypeOf(entry);
+}
+
+fn aliasesOf(comptime entry: anytype) []const []const u8 {
+    const spec = specOf(entry);
+    return if (@hasField(@TypeOf(spec), "aliases")) spec.aliases else &.{};
+}
+
+fn descriptionOf(comptime entry: anytype) ?[]const u8 {
+    const spec = specOf(entry);
+    return if (@hasField(@TypeOf(spec), "description")) spec.description else null;
+}
+
+fn isHidden(comptime entry: anytype) bool {
+    const spec = specOf(entry);
+    return @hasField(@TypeOf(spec), "hidden") and spec.hidden;
 }
 
 fn subcmdNamesStr(comptime aliases: []const []const u8, comptime name: []const u8) []const u8 {
@@ -202,8 +226,7 @@ pub fn printSubcmds(comptime cmds: anytype, writer: *std.Io.Writer) !void {
     const col_width = comptime blk: {
         var w: usize = 0;
         for (std.meta.fields(T)) |f| {
-            const entry = @field(cmds, f.name);
-            const fw = subcmdNamesStr(entry.aliases, f.name).len;
+            const fw = subcmdNamesStr(aliasesOf(@field(cmds, f.name)), f.name).len;
             if (fw > w) w = fw;
         }
         break :blk w;
@@ -211,11 +234,11 @@ pub fn printSubcmds(comptime cmds: anytype, writer: *std.Io.Writer) !void {
 
     inline for (std.meta.fields(T)) |f| {
         const entry = @field(cmds, f.name);
-        if (@hasField(@TypeOf(entry), "hidden") and entry.hidden) continue;
-        const names = comptime subcmdNamesStr(entry.aliases, f.name);
+        if (comptime isHidden(entry)) continue;
+        const names = comptime subcmdNamesStr(aliasesOf(entry), f.name);
         const w = names.len;
         const pad = comptime " " ** (col_width + 2 - w);
-        if (entry.description) |desc| {
+        if (comptime descriptionOf(entry)) |desc| {
             try writer.print("  {s}{s}{s}\n", .{ names, pad, desc });
         } else {
             try writer.print("  {s}\n", .{names});
@@ -622,4 +645,32 @@ test "diagnostic names the argument that failed" {
         try testing.expectEqualStrings("--bravo", diag.arg);
         it.deinit();
     }
+}
+
+const TestFetch = struct {
+    pub const command = .{ .aliases = &[_][]const u8{"get"}, .description = "Fetch things" };
+};
+
+test "a subcommand entry may be a namespace declaring its command" {
+    const cmds = .{ .fetch = TestFetch, .push = .{ .description = "Push things" } };
+    const Resolver = SubcmdResolver(cmds);
+    try testing.expectEqual(Resolver.Result{ .subcmd = .fetch }, Resolver.match("get"));
+    try testing.expectEqual(Resolver.Result{ .subcmd = .push }, Resolver.match("push"));
+
+    var buf: [256]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try printSubcmds(cmds, &writer);
+    try testing.expectEqualStrings(
+        \\  fetch, get  Fetch things
+        \\  push        Push things
+        \\
+    , writer.buffered());
+}
+
+test "a subcommand entry needs neither aliases nor a description" {
+    const cmds = .{ .bare = .{} };
+    var buf: [64]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try printSubcmds(cmds, &writer);
+    try testing.expectEqualStrings("  bare\n", writer.buffered());
 }

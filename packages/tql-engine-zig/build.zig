@@ -394,7 +394,7 @@ pub fn build(b: *std.Build) !void {
         // intend to expose to consumers that were defined in other files part
         // of this module, you will have to make sure to re-export them from
         // the root file.
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/lib/root.zig"),
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
@@ -422,7 +422,7 @@ pub fn build(b: *std.Build) !void {
             // b.createModule defines a new module just like b.addModule but,
             // unlike b.addModule, it does not expose the module to consumers of
             // this package, which is why in this case we don't have to give it a name.
-            .root_source_file = b.path("src/main.zig"),
+            .root_source_file = b.path("src/cli/main.zig"),
             // Target and optimization levels must be explicitly wired in when
             // defining an executable or library (in the root module), and you
             // can also hardcode a specific target for an executable or library
@@ -483,7 +483,7 @@ pub fn build(b: *std.Build) !void {
     });
     const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
     const wasm_mod = b.addModule("tql_engine_zig_wasm", .{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/lib/root.zig"),
         .target = wasm_target,
         .optimize = wasm_optimize,
     });
@@ -493,11 +493,11 @@ pub fn build(b: *std.Build) !void {
     const wasm_exe = b.addExecutable(.{
         .name = "tql",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/wasm.zig"),
+            .root_source_file = b.path("src/wasm/main.zig"),
             .target = wasm_target,
             .optimize = wasm_optimize,
             .imports = &.{
-                .{ .name = "tql_engine_zig", .module = wasm_mod },
+                .{ .name = "tql", .module = wasm_mod },
             },
         }),
     });
@@ -524,7 +524,7 @@ pub fn build(b: *std.Build) !void {
     const test_grammar_selection = GrammarSelection.available;
     const test_grammars = try selectedGrammars(b, test_grammar_selection);
     const test_lib_mod = b.addModule("tql_engine_zig_test", .{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
