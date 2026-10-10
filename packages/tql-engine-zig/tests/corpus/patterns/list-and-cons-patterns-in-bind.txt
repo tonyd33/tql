@@ -19,17 +19,17 @@ class A {}
 
 --- core ---
 main = const (
-  concat_map (
+  bind[List] (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil)))) (
     \scrutinee -> case scrutinee of
       Nil -> Nil
       Cons a cons1 -> case cons1 of
         Nil -> Nil
         Cons b cons1 -> case cons1 of
-          Nil -> concat_map (
+          Nil -> bind[List] (Cons (Cons (op[+] a b) Nil) (Cons Nil Nil)) (
             \scrutinee -> case scrutinee of
               Nil -> Nil
               Cons h _ -> return h
-          ) (Cons (Cons (op[+] a b) Nil) (Cons Nil Nil))
+          )
           Cons _ _ -> Nil
-  ) (Cons (Cons 1 (Cons 2 Nil)) (Cons (Cons 3 Nil) (Cons (Cons 4 (Cons 5 Nil)) (Cons (Cons 6 (Cons 7 (Cons 8 Nil))) Nil))))
+  )
 )

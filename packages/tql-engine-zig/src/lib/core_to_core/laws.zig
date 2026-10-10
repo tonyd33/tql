@@ -20,7 +20,7 @@ pub const Laws = struct {
     ordering: [3]core.SymbolId,
 
     /// The library definitions a law matches on.
-    const named = [_]core.Known{ .kleisli, .concat_map, .of_kind };
+    const named = [_]core.Known{ .kleisli, .list_bind, .of_kind };
 
     /// Whether a law matches on `symbol`.
     pub fn names(self: *const Laws, symbol: core.SymbolId) bool {
@@ -149,25 +149,25 @@ pub const Laws = struct {
         return null;
     }
 
-    /// `kleisli <axis> (of_kind k)` becomes the axis that yields only `k`.
+    /// `kleisli d <axis> (of_kind k)` becomes the axis that yields only `k`,
+    /// when `d` is the `List` instance's `Monad` dictionary.
     ///
     /// Both spellings are writable by hand and denote the same list, so this
     /// removes the intermediate list without changing what the query means.
     /// `k` need not be a literal.
     ///
     /// `|` associates left, so an axis after an earlier stage arrives as
-    /// `kleisli (kleisli p <axis>) (of_kind k)`. That is
-    /// `kleisli p (kleisli <axis> (of_kind k))`, and becomes `kleisli p` of the
-    /// fused axis.
+    /// `kleisli d (kleisli d p <axis>) (of_kind k)`. That is
+    /// `kleisli d p (kleisli d <axis> (of_kind k))`, and becomes `kleisli d p`
+    /// of the fused axis.
     fn fuseKindAxis(
         self: *const Laws,
         function: core.Term,
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const kleisli = self.known.get(.kleisli) orelse return null;
         const kind = operandOf(self.known.get(.of_kind) orelse return null, argument) orelse return null;
-        const composed = operandOf(kleisli, function) orelse return null;
+        const composed = self.listKleisliOperand(function) orelse return null;
 
         switch (composed.kind) {
             .symbol => |axis| {
@@ -175,38 +175,47 @@ pub const Laws = struct {
                 return try self.builder.apply(self.builder.symbol(fused, span), kind, span);
             },
             .apply => |a| {
-                const before = operandOf(kleisli, a.function) orelse return null;
+                if (self.listKleisliOperand(a.function) == null) return null;
                 const axis = switch (a.argument.kind) {
                     .symbol => |id| id,
                     else => return null,
                 };
                 const fused = self.fusedAxis(axis, kind) orelse return null;
-                return try self.builder.applyMany(
-                    self.builder.symbol(kleisli, span),
-                    &.{ before, try self.builder.apply(self.builder.symbol(fused, span), kind, span) },
-                    span,
-                );
+                return try self.builder.apply(a.function, try self.builder.apply(self.builder.symbol(fused, span), kind, span), span);
             },
             else => return null,
         }
     }
 
-    /// `concat_map (\s -> case is_kind k s of { False -> Nil; True -> body })
-    /// (axis r)` becomes `concat_map (\s -> body) (axis_of_kind k r)`. Returns
-    /// null unless `k` does not read `s` and `fusedAxis` fuses `k` onto `axis`.
+    /// `p`, when `t` is `kleisli d p` and `d` is the `List` instance's `Monad`
+    /// dictionary.
+    fn listKleisliOperand(self: *const Laws, t: core.Term) ?core.Term {
+        const a = switch (t.kind) {
+            .apply => |a| a,
+            else => return null,
+        };
+        const dictionary = operandOf(self.known.get(.kleisli) orelse return null, a.function) orelse return null;
+        if (!isSymbol(dictionary, self.known.get(.list_monad) orelse return null)) return null;
+        return a.argument;
+    }
+
+    /// `bind (axis r) (\s -> case is_kind k s of { False -> Nil; True -> body })`
+    /// becomes `bind (axis_of_kind k r) (\s -> body)`, at the `List` instance.
+    /// Returns null unless `k` does not read `s` and `fusedAxis` fuses `k`
+    /// onto `axis`.
     fn fuseKindBind(
         self: *const Laws,
         function: core.Term,
         argument: core.Term,
         span: diagnostic.Span,
     ) Allocator.Error!?core.Term {
-        const concat_map = self.known.get(.concat_map) orelse return null;
-        const mapped = operandOf(concat_map, function) orelse return null;
-        const lambda = switch (mapped.kind) {
+        const bind = self.known.get(.list_bind) orelse return null;
+        const walked = operandOf(bind, function) orelse return null;
+        const lambda = switch (argument.kind) {
             .lambda => |l| l,
             else => return null,
         };
-        const walk = switch (argument.kind) {
+        const walk = switch (walked.kind) {
             .apply => |a| a,
             else => return null,
         };
@@ -230,10 +239,10 @@ pub const Laws = struct {
         const passed = alternativeFor(matched.alternatives, self.true_) orelse return null;
 
         return try self.builder.applyMany(
-            self.builder.symbol(concat_map, span),
+            self.builder.symbol(bind, span),
             &.{
-                try self.builder.lambda(s, passed.body, mapped.span),
-                try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, argument.span),
+                try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, walked.span),
+                try self.builder.lambda(s, passed.body, argument.span),
             },
             span,
         );

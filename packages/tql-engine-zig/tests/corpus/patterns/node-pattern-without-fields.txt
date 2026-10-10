@@ -16,4 +16,4 @@ function f() { class B {} }
 ["class", "class"]
 
 --- simplified ---
-main = \root -> concat_map (\_ -> Cons "class" Nil) (%descendants_of_kind :class_declaration root)
+main = \root -> bind[List] (%descendants_of_kind :class_declaration root) (\_ -> Cons "class" Nil)

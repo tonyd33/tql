@@ -19,13 +19,13 @@ class A {}
 
 --- core ---
 main = const (
-  concat_map (
-    \x -> concat_map (
+  bind[List] (Cons (Cons 1 Nil) Nil) (
+    \x -> bind[List] (Cons (Cons 2 Nil) (Cons (Cons 3 (Cons 4 Nil)) Nil)) (
       \x -> case x of
         Nil -> Nil
         Cons y cons1 -> case cons1 of
           Nil -> return (Cons x (Cons (Cons y Nil) Nil))
           Cons _ _ -> Nil
-    ) (Cons (Cons 2 Nil) (Cons (Cons 3 (Cons 4 Nil)) Nil))
-  ) (Cons (Cons 1 Nil) Nil)
+    )
+  )
 )

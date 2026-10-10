@@ -1,5 +1,4 @@
-import Data.List (concat_map);
-import Data.Foldable (any);
+import Data.Foldable (any, concat_map);
 
 data Member = Member String String Node;
 

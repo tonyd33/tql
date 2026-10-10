@@ -13,20 +13,15 @@ module Data.Filter (
 
 import Prim (Bool(..));
 import Data.Bool (not);
-import Data.List (concat_map);
 import Control.Applicative (Applicative(..), Alternative(..));
 import Data.Foldable (Foldable(..), to_list, null);
-
--- `Filter a b` is `a -> [b]`.
+import Control.Monad (kleisli);
 
 always :: Applicative f => b -> a -> f b;
 always v x = pure v;
 
 none :: Alternative f => a -> f b;
 none x = empty;
-
-kleisli :: Filter a b -> Filter b c -> Filter a c;
-kleisli p q x = concat_map q (p x);
 
 union :: Alternative f => (a -> f b) -> (a -> f b) -> a -> f b;
 union p q x = alt (p x) (q x);

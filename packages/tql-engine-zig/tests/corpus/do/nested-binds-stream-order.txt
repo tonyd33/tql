@@ -24,4 +24,4 @@ class B { p() {} }
 main :: Node -> [String]
 
 --- core ---
-main = \root -> concat_map (\c -> concat_map (\m -> concat_map (\n -> return (text n)) (field[name] m)) (kleisli (kleisli field[body] children) (of_kind :method_definition) c)) (children_of_kind :class_declaration root)
+main = \root -> bind[List] (children_of_kind :class_declaration root) (\c -> bind[List] (kleisli (kleisli field[body] children) (of_kind :method_definition) c) (\m -> bind[List] (field[name] m) (\n -> return (text n))))

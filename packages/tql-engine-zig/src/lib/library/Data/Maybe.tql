@@ -5,6 +5,7 @@ import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..));
 import Data.Foldable (Foldable(..));
 import Data.Traversable (Traversable(..));
+import Control.Monad (Monad(..));
 
 data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
 
@@ -42,5 +43,12 @@ instance Traversable Maybe where {
   traverse f m = case m of {
     Nothing -> pure Nothing;
     Just x -> map Just $ f x;
+  };
+};
+
+instance Monad Maybe where {
+  bind m f = case m of {
+    Nothing -> Nothing;
+    Just x -> f x;
   };
 };

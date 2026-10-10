@@ -24,10 +24,10 @@ function f() {}
 --- values ---
 ["A"]
 --- simplified ---
-main = \root -> concat_map (
+main = \root -> bind[List] (%descendants_of_kind :class_declaration root) (
   \scrutinee -> case field[name] scrutinee of
     Nil -> Nil
     Cons cons0 cons1 -> case cons1 of
       Nil -> Cons (%text cons0) Nil
       Cons _ _ -> Nil
-) (%descendants_of_kind :class_declaration root)
+)

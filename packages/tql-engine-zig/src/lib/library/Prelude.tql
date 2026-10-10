@@ -7,6 +7,7 @@ module Prelude (
   module Control.Applicative,
   module Data.Foldable,
   module Data.Traversable,
+  module Control.Monad,
   module Data.List,
   module Data.Node,
   module Data.Filter,
@@ -31,6 +32,7 @@ import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..), return, guard);
 import Data.Foldable (Foldable(..));
 import Data.Traversable (Traversable(..), sequence);
+import Control.Monad (Monad(..));
 import Data.List (Sized(..));
 import Data.Node;
 import Data.Filter (always, none, arr, collect, keep, has, first, or_else);

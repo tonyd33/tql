@@ -19,4 +19,4 @@ class A {}
 main :: Node -> [{meta: {k: Kind, n: Int}, name: String}]
 
 --- core ---
-main = \root -> concat_map (\c -> concat_map (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))) (field[name] c)) (children_of_kind :class_declaration root)
+main = \root -> bind[List] (children_of_kind :class_declaration root) (\c -> bind[List] (field[name] c) (\n -> return (record[meta,name] (record[k,n] (kind c) 1) (text n))))

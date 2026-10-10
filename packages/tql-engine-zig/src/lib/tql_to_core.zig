@@ -9,6 +9,7 @@ const link_mod = @import("tql_to_core/link.zig");
 pub const Desugarer = link_mod.Desugarer;
 pub const Import = scope_mod.Import;
 pub const Filter = scope_mod.Filter;
+pub const Exports = scope_mod.Exports;
 
 test {
     std.testing.refAllDecls(link_mod);

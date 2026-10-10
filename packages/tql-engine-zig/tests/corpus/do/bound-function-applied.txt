@@ -23,4 +23,4 @@ main :: Node -> [Kind]
 
 --- core ---
 make_predicate = always (arr kind)
-main = \root -> concat_map (\predicate -> predicate root) (make_predicate root)
+main = \root -> bind[List] (make_predicate root) (\predicate -> predicate root)

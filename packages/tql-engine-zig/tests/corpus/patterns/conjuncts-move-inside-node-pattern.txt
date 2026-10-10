@@ -15,7 +15,7 @@ class A {}
 [["class A {}", "A", "class A {}"]]
 
 --- core ---
-main = \root -> concat_map (
+main = \root -> bind[List] (children root) (
   \x ->
     let view = of_kind :class_declaration x in
     case view of
@@ -31,4 +31,4 @@ main = \root -> concat_map (
                 Nil -> return (Cons (text x) (Cons (text n) (Cons t Nil)))
                 Cons _ _ -> Nil
             Cons _ _ -> Nil
-) (children root)
+)

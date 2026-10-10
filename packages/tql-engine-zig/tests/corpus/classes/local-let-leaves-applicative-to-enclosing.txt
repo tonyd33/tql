@@ -6,7 +6,7 @@ Inside the `let`, nothing fixes the list's element type, but the list's
 other element makes it `Box Int`. Only a top-level group defaults.
 
 --- tql ---
-import Data.List (concat_map);
+import Data.Foldable (concat_map);
 
 data Box a = Box a;
 

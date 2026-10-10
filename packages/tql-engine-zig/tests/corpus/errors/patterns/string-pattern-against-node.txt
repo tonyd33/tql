@@ -9,8 +9,8 @@ main root = do {
 };
 
 --- error ---
-error[type-mismatch]: Expected `String`, found `Node`.
- --> 2:14
+error[type-mismatch]: Expected `Node`, found `String`.
+ --> 2:3
   |
 2 |   "class" <- descendants root;
-  |              ^^^^^^^^^^^^^^^^
+  |   ^^^^^^^

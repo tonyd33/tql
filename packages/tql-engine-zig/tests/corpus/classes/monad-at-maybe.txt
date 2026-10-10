@@ -1,0 +1,30 @@
+title: `bind`, `join`, `kleisli` and `filter` at `Maybe`
+grammar: typescript
+asserts: types, values
+
+--- tql ---
+import Control.Monad (join, kleisli, filter);
+import Data.Int (mod);
+import Data.Maybe (Maybe(..));
+
+half n = if n `mod` 2 = 0 then Just (n / 2) else Nothing;
+
+main root = [
+  bind (Just 4) half,
+  bind (Just 3) half,
+  join $ Just $ half 6,
+  kleisli half half 8,
+  kleisli half half 6,
+  filter (> 1) $ Just 4,
+  filter (> 1) $ Just 1,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"tag":"Just","fields":[2]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[3]},{"tag":"Just","fields":[2]},{"tag":"Nothing","fields":[]},{"tag":"Just","fields":[4]},{"tag":"Nothing","fields":[]}]
+
+--- types ---
+half :: Int -> Maybe Int
+main :: Node -> [Maybe Int]

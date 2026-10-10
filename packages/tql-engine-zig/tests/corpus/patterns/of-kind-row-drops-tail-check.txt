@@ -21,10 +21,10 @@ let x = 1;
 f = \x -> case %is_kind :class_declaration x of
   False -> "other"
   True -> %text x
-main = \x -> concat_map (
+main = \x -> bind[List] (%children x) (
   \x -> Cons (
     case %is_kind :class_declaration x of
       False -> "other"
       True -> %text x
   ) Nil
-) (%children x)
+)

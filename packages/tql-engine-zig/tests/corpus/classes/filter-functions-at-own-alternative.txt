@@ -5,7 +5,7 @@ asserts: types, values
 `Option`'s `alt` takes the first success, so `union` falls back.
 
 --- tql ---
-import Data.List (concat_map);
+import Data.Foldable (concat_map);
 import Data.Filter (union);
 
 data Option a = None | Some a;

@@ -65,7 +65,7 @@ $mConsoleCall = \s -> \k -> \f -> case %is_kind :call_expression s of
                 Cons _ _ -> f
             Cons _ _ -> f
       Cons _ _ -> f
-main = \root -> concat_map (
+main = \root -> bind[List] (%descendants_of_kind :call_expression root) (
   \scrutinee -> case field[function] scrutinee of
     Nil -> Nil
     Cons f cons1 -> case cons1 of
@@ -85,7 +85,7 @@ main = \root -> concat_map (
                 Cons _ _ -> Nil
             Cons _ _ -> Nil
       Cons _ _ -> Nil
-) (%descendants_of_kind :call_expression root)
+)
 
 --- core ---
 $mCallee = \s -> \k -> \f ->
@@ -135,4 +135,4 @@ $mConsoleCall = \s -> \k -> \f -> $mMethod s (
             Nil -> k p
             Cons _ _ -> f
 ) f
-main = \root -> concat_map (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil) (descendants root)
+main = \root -> bind[List] (descendants root) (\scrutinee -> $mConsoleCall scrutinee (\p -> return (text p)) Nil)

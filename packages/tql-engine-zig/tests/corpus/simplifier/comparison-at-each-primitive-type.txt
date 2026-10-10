@@ -27,4 +27,4 @@ class A {}
 before = \a -> \b -> %lt_string a b
 other = \m -> \n -> %ne_node m n
 other_kind = \m -> \n -> %ne_kind (%kind m) (%kind n)
-main = \root -> concat_map (\c -> Cons (Cons (%lt_string "a" "b") (Cons (%lt_string "b" "a") (Cons (%ne_node root c) (Cons (%ne_node c c) (Cons (%ne_kind (%kind root) (%kind c)) (Cons (%ne_kind (%kind c) (%kind c)) Nil)))))) Nil) (%children root)
+main = \root -> bind[List] (%children root) (\c -> Cons (Cons (%lt_string "a" "b") (Cons (%lt_string "b" "a") (Cons (%ne_node root c) (Cons (%ne_node c c) (Cons (%ne_kind (%kind root) (%kind c)) (Cons (%ne_kind (%kind c) (%kind c)) Nil)))))) Nil)

@@ -29,7 +29,7 @@ g(b);
 ["a","b","b"]
 
 --- core ---
-filtered = \root -> concat_map (
+filtered = \root -> bind[List] (descendants root) (
   \scrutinee ->
     let view = of_kind :call_expression scrutinee in
     case view of
@@ -53,8 +53,8 @@ filtered = \root -> concat_map (
                         Cons _ _ -> Nil
                       Cons _ _ -> Nil
                     Cons _ _ -> Nil
-) (descendants root)
-unfiltered = \root -> concat_map (
+)
+unfiltered = \root -> bind[List] (descendants root) (
   \scrutinee ->
     let view = of_kind :call_expression scrutinee in
     case view of
@@ -78,5 +78,5 @@ unfiltered = \root -> concat_map (
                         Cons _ _ -> Nil
                       Cons _ _ -> Nil
                     Cons _ _ -> Nil
-) (descendants root)
+)
 main = union filtered unfiltered

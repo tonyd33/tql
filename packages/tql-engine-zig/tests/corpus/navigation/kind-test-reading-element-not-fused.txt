@@ -18,8 +18,8 @@ class A {}
 ["class A {}", "class", "A", "{}", "{", "}"]
 
 --- simplified ---
-main = \root -> concat_map (
+main = \root -> bind[List] (%descendants root) (
   \n -> case %is_kind (%kind n) n of
     False -> Nil
     True -> Cons (%text n) Nil
-) (%descendants root)
+)

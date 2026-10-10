@@ -17,9 +17,9 @@ class A {}
 ["class A {}"]
 
 --- simplified ---
-names = \xs -> concat_map (
+names = \xs -> bind[List] xs (
   \scrutinee -> case %is_kind :class_declaration scrutinee of
     False -> Nil
     True -> Cons (%text scrutinee) Nil
-) xs
+)
 main = \root -> names (%descendants root)

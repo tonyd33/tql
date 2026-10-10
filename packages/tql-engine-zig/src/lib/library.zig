@@ -27,6 +27,7 @@ pub const modules = [_]load.Named{
     .{ .name = "Control.Applicative", .path = "Control/Applicative.tql", .text = @embedFile("library/Control/Applicative.tql") },
     .{ .name = "Data.Foldable", .path = "Data/Foldable.tql", .text = @embedFile("library/Data/Foldable.tql") },
     .{ .name = "Data.Traversable", .path = "Data/Traversable.tql", .text = @embedFile("library/Data/Traversable.tql") },
+    .{ .name = "Control.Monad", .path = "Control/Monad.tql", .text = @embedFile("library/Control/Monad.tql") },
     .{ .name = "Data.Maybe", .path = "Data/Maybe.tql", .text = @embedFile("library/Data/Maybe.tql") },
     .{ .name = "Data.Node", .path = "Data/Node.tql", .text = @embedFile("library/Data/Node.tql") },
     .{ .name = "Data.Filter", .path = "Data/Filter.tql", .text = @embedFile("library/Data/Filter.tql") },
@@ -59,6 +60,28 @@ pub fn addSources(sources: *diagnostic.Sources) !void {
     for (modules, 0..) |m, i| {
         const id = try sources.add(.{ .name = m.path, .text = m.text });
         std.debug.assert(id == sourceOf(i));
+    }
+}
+
+/// The symbol `source` names in `module`, which exports `exports`. Null
+/// when `module` does not define it.
+fn resolve(env: *const core.env.Env, module: core.ModuleId, exports: *const tql_to_core.Exports, source: core.Known.Source) !?core.SymbolId {
+    switch (source) {
+        .exported => |name| return exports.values.get(name),
+        .list_method => |name| {
+            const method = exports.values.get(name) orelse return null;
+            const m = switch (env.interner.details(method)) {
+                .method => |m| m,
+                else => return error.PreludeInvalid,
+            };
+            const instance = env.classes.instanceFor(m.class, env.datatypes.listId()) orelse return error.PreludeInvalid;
+            return env.classes.instance(instance).methods[m.index];
+        },
+        .list_dictionary => |name| {
+            const class = env.classes.lookup(module, name) orelse return null;
+            const instance = env.classes.instanceFor(class, env.datatypes.listId()) orelse return error.PreludeInvalid;
+            return env.classes.instance(instance).dictionary orelse error.PreludeInvalid;
+        },
     }
 }
 
@@ -103,7 +126,7 @@ pub const Library = struct {
             };
             for (std.enums.values(core.Known)) |k| {
                 if (env.known.get(k) != null) continue;
-                env.known.set(k, desugarer.exports.items[i].values.get(@tagName(k)));
+                env.known.set(k, try resolve(env, id, &desugarer.exports.items[i], k.source()));
             }
         }
         for (env.known.values) |symbol| if (symbol == null) return error.PreludeInvalid;

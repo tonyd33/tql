@@ -43,4 +43,4 @@ describe = \xs ->
             False -> jump alternative
             True -> "xy"
         Cons _ _ -> jump alternative
-main = \root -> concat_map (\a -> Cons (describe (%children_of_kind :identifier a)) Nil) (%descendants_of_kind :arguments root)
+main = \root -> bind[List] (%descendants_of_kind :arguments root) (\a -> Cons (describe (%children_of_kind :identifier a)) Nil)

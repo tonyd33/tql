@@ -22,18 +22,39 @@ pub const ModuleId = enum(u16) {
     pub const prim_name = "Prim";
 };
 
-/// A library definition the engine refers to by its spelling: what sugar
-/// desugars to, and what a rewrite recognises.
+/// A library definition the engine refers to: what sugar desugars to, and
+/// what a rewrite recognises.
 pub const Known = enum {
     eq,
     compare,
     @"and",
     @"or",
-    concat_map,
+    list_bind,
+    list_monad,
     compose,
     kleisli,
     @"union",
     of_kind,
+
+    pub const Source = union(enum) {
+        /// The value a library module exports under this name.
+        exported: []const u8,
+        /// The `List` instance's implementation of the method exported under
+        /// this name.
+        list_method: []const u8,
+        /// The dictionary of the `List` instance of the class declared under
+        /// this name.
+        list_dictionary: []const u8,
+    };
+
+    /// Returns where the library defines the key.
+    pub fn source(self: Known) Source {
+        return switch (self) {
+            .list_bind => .{ .list_method = "bind" },
+            .list_monad => .{ .list_dictionary = "Monad" },
+            else => .{ .exported = @tagName(self) },
+        };
+    }
 };
 
 pub const InsertError = error{Collision} || Allocator.Error;

@@ -26,18 +26,18 @@ main = {} \u {} ->
   let
     t7 = {p@0} \n {x} ->
       let
-        t5 = {} \u {} ->
+        t2 = {p@0,x@1} \u {} -> p@0 x@1
+        t6 = {} \u {} ->
           let
-            t4 = {} \n {x} ->
+            t5 = {} \n {x} ->
               let
-                t2 = {x@0} \u {} -> %string_length# x@0
-                c3 = Nil
+                t3 = {x@0} \u {} -> %string_length# x@0
+                c4 = Nil
               in
-              Cons t2@1 c3@2
+              Cons t3@1 c4@2
           in
-          t4@0
-        t6 = {p@0,x@1} \u {} -> p@0 x@1
+          t5@0
       in
-      concat_map t5@2 t6@3
+      bind[List] t2@2 t6@3
   in
   t7@1

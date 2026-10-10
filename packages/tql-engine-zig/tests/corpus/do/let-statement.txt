@@ -21,10 +21,10 @@ class B {}
 main :: Node -> [String]
 
 --- core ---
-main = \root -> concat_map (
-  \c -> concat_map (
+main = \root -> bind[List] (children_of_kind :class_declaration root) (
+  \c -> bind[List] (field[name] c) (
     \n ->
       let name = text n in
       return name
-  ) (field[name] c)
-) (children_of_kind :class_declaration root)
+  )
+)

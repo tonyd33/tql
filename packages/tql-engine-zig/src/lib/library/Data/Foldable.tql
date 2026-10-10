@@ -7,6 +7,7 @@ module Data.Foldable (
   any,
   all,
   concat,
+  concat_map,
 );
 
 import Prim (List(..), Bool(..));
@@ -46,3 +47,6 @@ all p xs = foldr (\x acc -> and (p x) acc) True xs;
 
 concat :: Foldable t => t [a] -> [a];
 concat xss = foldr append [] xss;
+
+concat_map :: Foldable t => (a -> [b]) -> t a -> [b];
+concat_map f xs = foldr (append . f) [] xs;

@@ -15,7 +15,9 @@ class B {}
 []
 
 --- simplified ---
-main = kleisli %parent (of_kind :class_declaration)
+main =
+  let q = of_kind :class_declaration in
+  \x -> bind[List] (%parent x) q
 
 --- core ---
 main = kleisli parent (of_kind :class_declaration)

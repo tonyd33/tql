@@ -15,7 +15,7 @@ class A {}
 [1]
 
 --- simplified ---
-main = \root -> concat_map (\_ -> Cons 1 Nil) (Cons Unit Nil)
+main = \root -> bind[List] (Cons Unit Nil) (\_ -> Cons 1 Nil)
 
 --- core ---
-main = \root -> concat_map (\_ -> return 1) (guard True)
+main = \root -> bind[List] (guard True) (\_ -> return 1)

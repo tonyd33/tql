@@ -515,11 +515,11 @@ pub const Lowerer = struct {
         return try self.builder.chooseOrder(registry, try self.combinator(.compare, left, right, span), bodies, span);
     }
 
-    /// `concat_map (\name -> body) value`.
+    /// `bind value (\name -> body)`, at the `List` instance.
     pub fn bind(self: *Lowerer, name: core.SymbolId, value: core.Term, body: core.Term, span: diagnostic.Span) Error!core.Term {
         return try self.builder.applyMany(
-            try self.known(.concat_map, span),
-            &.{ try self.builder.lambda(name, body, body.span), value },
+            try self.known(.list_bind, span),
+            &.{ value, try self.builder.lambda(name, body, body.span) },
             span,
         );
     }

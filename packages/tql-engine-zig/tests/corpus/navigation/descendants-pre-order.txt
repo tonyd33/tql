@@ -25,4 +25,4 @@ main :: Node -> [Kind]
 main = kleisli descendants (arr kind)
 
 --- simplified ---
-main = \x -> concat_map (\x -> Cons (%kind x) Nil) (%descendants x)
+main = \x -> bind[List] (%descendants x) (\x -> Cons (%kind x) Nil)

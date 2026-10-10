@@ -19,13 +19,13 @@ class A {}
 
 --- core ---
 main = const (
-  concat_map (
+  bind[List] (Cons "a" (Cons "b" (Cons "a" Nil))) (
     \scrutinee -> case eq scrutinee "a" of
       False -> Nil
-      True -> concat_map (
+      True -> bind[List] (Cons True (Cons False Nil)) (
         \scrutinee -> case scrutinee of
           False -> Nil
           True -> return 1
-      ) (Cons True (Cons False Nil))
-  ) (Cons "a" (Cons "b" (Cons "a" Nil)))
+      )
+  )
 )

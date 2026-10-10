@@ -1,16 +1,13 @@
 module Data.List (
   List(..),
   Sized(..),
-  concat_map,
-  filter,
   take,
   drop,
   head,
   tail,
 );
 
-import Prim (Int, String, List(..), Bool(..), seq);
-import Data.Monoid (Semigroup(..));
+import Prim (Int, String, List(..), seq);
 
 class Sized a where {
   length :: a -> Int;
@@ -28,21 +25,6 @@ instance Sized [a] where {
     };
     acc n _ = n + 1;
   } in foldl_strict acc 0 xs;
-};
-
-concat_map :: (a -> [b]) -> [a] -> [b];
-concat_map f xs = case xs of {
-  Nil -> Nil;
-  Cons h t -> append (f h) $ concat_map f t;
-};
-
-filter :: (a -> Bool) -> [a] -> [a];
-filter p xs = case xs of {
-  Nil -> Nil;
-  Cons h t -> case p h of {
-    False -> filter p t;
-    True -> Cons h $ filter p t;
-  };
 };
 
 take :: Int -> [a] -> [a];
