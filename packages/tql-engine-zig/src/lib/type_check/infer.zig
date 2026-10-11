@@ -338,6 +338,10 @@ pub const Inference = struct {
             try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
         }
 
+        const outer = self.scope.mark();
+        defer self.scope.truncate(outer);
+        if (c.binder) |binder| try self.scope.push(binder, .{ .monomorphic = scrutinee });
+
         var first: ?Branch = null;
         var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
         for (c.alternatives, 0..) |alternative, i| {
@@ -371,12 +375,12 @@ pub const Inference = struct {
             core.sameOptional(default, c.default);
         return .{
             .type = first.?.type,
-            .term = if (unchanged) t else try self.builder.caseWithDefault(
-                elaborated_scrutinee.term,
-                alternatives.copy orelse c.alternatives,
-                default,
-                t.span,
-            ),
+            .term = if (unchanged) t else try self.builder.caseOf(.{
+                .scrutinee = elaborated_scrutinee.term,
+                .binder = c.binder,
+                .alternatives = alternatives.copy orelse c.alternatives,
+                .default = default,
+            }, t.span),
         };
     }
 

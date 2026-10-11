@@ -74,7 +74,8 @@ pub const Analysis = struct {
 /// - a `let` or `letrec` binder whose every occurrence is a call of one
 ///   arity in tail position, and whose value opens with that many lambdas,
 ///   becomes a join point. A recursive group's binders all do, or none;
-/// - a `let` whose binder is dead is dropped, its value unwalked;
+/// - a `let` whose binder is dead is dropped, its value unwalked, and so is
+///   a dead case binder;
 /// - a `letrec` is split into strongly connected components, a component
 ///   nothing live mentions is dropped, and one binding that does not mention
 ///   itself becomes a `let`;
@@ -150,8 +151,18 @@ pub const Analyser = struct {
                     branches = try self.alternative(branches, body.usage);
                     default = body.term;
                 }
+                var binder = case_term.binder;
+                if (binder) |b| {
+                    if (self.drop_dead and !branches.contains(b)) binder = null;
+                    try self.bind(&branches, b);
+                }
                 return .{
-                    .term = try self.builder.caseWithDefault(scrutinee.term, alternatives, default, term.span),
+                    .term = try self.builder.caseOf(.{
+                        .scrutinee = scrutinee.term,
+                        .binder = binder,
+                        .alternatives = alternatives,
+                        .default = default,
+                    }, term.span),
                     .usage = try self.sequence(scrutinee.usage, branches),
                 };
             },

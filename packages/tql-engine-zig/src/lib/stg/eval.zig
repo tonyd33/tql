@@ -542,6 +542,18 @@ pub const Machine = struct {
                     const mark = scope.len();
                     const scrutinee = try self.expression(case_expr.scrutinee, scope);
                     scope.shrink(mark);
+                    if (case_expr.binder) |binder| {
+                        // An atom's thunk now holds the value and is bound
+                        // itself.
+                        const evaluated = switch (case_expr.scrutinee) {
+                            .atom => |atom| try self.resolve(scope.slots(), atom),
+                            else => blk: {
+                                note(.case_binder, @sizeOf(value.Thunk));
+                                break :blk try self.valueThunk(scrutinee);
+                            },
+                        };
+                        try scope.append(self.gpa, evaluated, binder);
+                    }
                     const alternative = case_expr.alternativeFor(scrutinee) orelse {
                         current = case_expr.default orelse return error.TypeError;
                         continue;

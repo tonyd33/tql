@@ -1,0 +1,102 @@
+title: a let-bound scrutinee used in an alternative becomes the case binder
+grammar: typescript
+asserts: simplified, stg, values
+
+--- tql ---
+double :: [Int] -> [Int];
+double xs = case xs of {
+  [] -> [];
+  h : t -> h * 2 : double t;
+};
+f :: [Int] -> Int;
+f xs = let { ys = double xs; } in case ys of {
+  [] -> 0;
+  h : _ -> h + length ys;
+};
+main = pure [f [], f [1, 2, 3]];
+
+--- source ---
+class A {}
+
+--- values ---
+[[0,5]]
+
+--- simplified ---
+double = \xs -> case xs of
+  Nil -> Nil
+  Cons h t -> Cons (op[*] h 2) (double t)
+main =
+  let
+    y = Cons (
+      case double Nil of ys
+        Nil -> 0
+        Cons h _ -> op[+] h (length[List] ys)
+    ) (
+      Cons (
+        case double (Cons 1 (Cons 2 (Cons 3 Nil))) of ys
+          Nil -> 0
+          Cons h _ -> op[+] h (length[List] ys)
+      ) Nil
+    )
+  in
+  \_ -> Cons y Nil
+
+--- stg ---
+double = {} \u {} ->
+  let
+    t3 = {} \n {xs} -> case xs@0 of
+      Nil ->
+        let c0 = Nil in
+        c0@1
+      Cons h t ->
+        let
+          t1 = {h@1} \u {} -> op[*]# h@0 2
+          t2 = {t@2} \u {} -> double t@0
+        in
+        Cons t1@3 t2@4
+  in
+  t3@0
+main = {} \u {} ->
+  let
+    y = {} \u {} ->
+      let
+        t2 = {} \u {} ->
+          let c0 = Nil in
+          case double c0@0 of ys
+            Nil -> 0
+            Cons h _ ->
+              let t1 = {ys@1} \u {} -> length[List] ys@0 in
+              op[+]# h@2 t1@4
+        t10 = {} \u {} ->
+          let
+            t8 = {} \u {} ->
+              let
+                t6 = {} \u {} ->
+                  let
+                    t5 = {} \u {} ->
+                      let
+                        t4 = {} \u {} ->
+                          let c3 = Nil in
+                          Cons 3 c3@0
+                      in
+                      Cons 2 t4@0
+                  in
+                  Cons 1 t5@0
+              in
+              case double t6@0 of ys
+                Nil -> 0
+                Cons h _ ->
+                  let t7 = {ys@1} \u {} -> length[List] ys@0 in
+                  op[+]# h@2 t7@4
+            c9 = Nil
+          in
+          Cons t8@0 c9@1
+      in
+      Cons t2@0 t10@1
+  in
+  let
+    t12 = {y@0} \n {_} ->
+      let c11 = Nil in
+      Cons y@0 c11@2
+  in
+  t12@1

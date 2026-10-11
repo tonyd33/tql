@@ -23,6 +23,8 @@ pub const Options = struct {
     contification: bool = true,
     /// A `case` of a known constructor takes its alternative.
     case_of_known_constructor: bool = true,
+    /// `let x = e in case x of alts` is `case e of x alts`.
+    let_to_case: bool = true,
     /// A saturated call to a function small enough, or marked to always
     /// inline, is replaced by a copy of its body.
     call_site_inline: bool = true,

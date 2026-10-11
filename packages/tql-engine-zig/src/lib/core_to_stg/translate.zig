@@ -314,6 +314,12 @@ pub const Translator = struct {
                 if (case_term.default != null and case_term.alternatives.len > 0) return error.Unsupported;
                 const scrutinee = try self.open(case_term.scrutinee, hoisted);
 
+                // In scope for every alternative and the default, in the slot
+                // the evaluator binds it to.
+                const start = self.scope.items.len;
+                if (case_term.binder) |binder| try self.scope.append(self.gpa, binder);
+                defer self.scope.shrinkRetainingCapacity(start);
+
                 const alternatives = try self.arena.alloc(stg.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |source, *alternative| {
                     if (self.program.env.datatypes.constructorOf(
@@ -337,7 +343,12 @@ pub const Translator = struct {
 
                 const default = if (case_term.default) |body| try self.expression(body) else null;
                 const node = try self.arena.create(stg.Expr.Case);
-                node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives, .default = default };
+                node.* = .{
+                    .scrutinee = scrutinee,
+                    .binder = case_term.binder,
+                    .alternatives = alternatives,
+                    .default = default,
+                };
                 return .{ .case = node };
             },
 

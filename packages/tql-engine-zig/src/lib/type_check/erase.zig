@@ -29,8 +29,9 @@ const Erasure = struct {
         return datatypes.formOf(&self.env.interner, &self.env.datatypes, constructor) == .newtype;
     }
 
-    /// `t` with `C e` as `e`, `C` as the identity, and each `case e of
-    /// { C x -> b }` as `let x = e in b`. Shares every subtree with nothing
+    /// `t` with `C e` as `e`, `C` as the identity, each `case e of
+    /// { C x -> b }` as `let x = e in b`, and each `case e of y { C x -> b }`
+    /// as `let y = e in let x = y in b`. Shares every subtree with nothing
     /// erased.
     fn term(self: *Erasure, t: core.Term) Allocator.Error!core.Term {
         const builder: core.Builder = .{ .allocator = self.env.allocator() };
@@ -42,8 +43,14 @@ const Erasure = struct {
             },
             .apply => |a| if (a.function.kind == .symbol and self.isNewtype(a.function.kind.symbol)) return try self.term(a.argument),
             .case => |c| if (c.alternatives.len > 0 and self.isNewtype(c.alternatives[0].constructor)) {
-                const alternative = c.alternatives[0];
-                return try builder.let(alternative.binders[0], try self.term(c.scrutinee), try self.term(alternative.body), t.span);
+                const field = c.alternatives[0].binders[0];
+                const scrutinee = try self.term(c.scrutinee);
+                const body = try self.term(c.alternatives[0].body);
+                const binder = c.binder orelse return try builder.let(field, scrutinee, body, t.span);
+                return try builder.lets(&.{
+                    .{ .name = binder, .value = scrutinee },
+                    .{ .name = field, .value = builder.symbol(binder, t.span) },
+                }, body, t.span);
             },
             else => {},
         }

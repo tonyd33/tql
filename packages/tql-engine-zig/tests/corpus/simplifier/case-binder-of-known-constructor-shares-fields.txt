@@ -1,0 +1,35 @@
+title: a case binder of a known constructor shares its fields with the alternative's binders
+grammar: typescript
+asserts: simplified, values
+
+`h` and `ys` both read `total xs`, which is computed once.
+
+--- tql ---
+total :: [Int] -> Int;
+total xs = case xs of {
+  [] -> 0;
+  h : t -> h + total t;
+};
+f :: [Int] -> Int;
+f xs = let { ys = [total xs]; } in case ys of {
+  [] -> 0;
+  h : _ -> h + length ys;
+};
+main = pure (f [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[7]
+
+--- simplified ---
+total = \xs -> case xs of
+  Nil -> 0
+  Cons h t -> op[+] h (total t)
+f = \xs ->
+  let h = total xs in
+  op[+] h (length[List] (Cons h Nil))
+main =
+  let y = f (Cons 1 (Cons 2 (Cons 3 Nil))) in
+  \_ -> Cons y Nil

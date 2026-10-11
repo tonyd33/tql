@@ -5,7 +5,7 @@
 //!        | literal
 //!        | \x -> expr
 //!        | expr_1 expr_2
-//!        | case expr of { C x_1 .. x_n -> expr; ...; _ -> expr }
+//!        | case expr of x { C x_1 .. x_n -> expr; ...; _ -> expr }
 //!        | let x = expr_1 in expr_2
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //! ```
@@ -98,6 +98,10 @@ pub const Term = struct {
         return body;
     }
 
+    pub fn isSymbol(t: Term, id: SymbolId) bool {
+        return t.kind == .symbol and t.kind.symbol == id;
+    }
+
     /// The function at the head of an application spine, or the term itself.
     pub fn head(t: Term) Term {
         var result = t;
@@ -175,7 +179,12 @@ pub fn mapChildren(builder: Builder, t: Term, context: anytype, comptime rewrite
             }
             const default = if (c.default) |d| try rewrite(context, d) else null;
             if (alternatives.copy == null and same(scrutinee, c.scrutinee) and sameOptional(default, c.default)) return t;
-            return try builder.caseWithDefault(scrutinee, alternatives.copy orelse c.alternatives, default, t.span);
+            return try builder.caseOf(.{
+                .scrutinee = scrutinee,
+                .binder = c.binder,
+                .alternatives = alternatives.copy orelse c.alternatives,
+                .default = default,
+            }, t.span);
         },
         .let => |l| {
             const value = try rewrite(context, l.value);
@@ -234,6 +243,8 @@ pub const Apply = struct {
 /// constructor, or `default` when none does.
 pub const Case = struct {
     scrutinee: Term,
+    /// Bound to the evaluated scrutinee in every alternative and the default.
+    binder: ?SymbolId = null,
     alternatives: []const Alternative,
     default: ?Term = null,
 
@@ -341,24 +352,18 @@ pub const Builder = struct {
         alternatives: []const Case.Alternative,
         span: diagnostic.Span,
     ) !Term {
-        return try self.caseWithDefault(scrutinee, alternatives, null, span);
+        return try self.caseOf(.{ .scrutinee = scrutinee, .alternatives = alternatives }, span);
     }
 
-    pub fn caseWithDefault(
-        self: Builder,
-        scrutinee: Term,
-        alternatives: []const Case.Alternative,
-        default: ?Term,
-        span: diagnostic.Span,
-    ) !Term {
+    pub fn caseOf(self: Builder, c: Case, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Case);
-        node.* = .{ .scrutinee = scrutinee, .alternatives = alternatives, .default = default };
+        node.* = c;
         return .{ .kind = .{ .case = node }, .span = span };
     }
 
     /// `case scrutinee of { _ -> body }`: evaluate `scrutinee`, then `body`.
     pub fn force(self: Builder, scrutinee: Term, body: Term, span: diagnostic.Span) !Term {
-        return try self.caseWithDefault(scrutinee, &.{}, body, span);
+        return try self.caseOf(.{ .scrutinee = scrutinee, .alternatives = &.{}, .default = body }, span);
     }
 
     /// `case condition of { False -> otherwise; True -> matched }`.
@@ -470,6 +475,8 @@ pub const Printer = struct {
     /// Binders that enter scope together.
     const Group = union(enum) {
         lambda: *const Lambda,
+        /// The case binder, scoping the alternatives and the default.
+        case: *const Case,
         alternative: *const Case.Alternative,
         let: *const Let,
         letrec: *const Letrec,
@@ -478,6 +485,7 @@ pub const Printer = struct {
         pub fn len(g: Group) usize {
             return switch (g) {
                 .lambda, .let => 1,
+                .case => |c| @intFromBool(c.binder != null),
                 .alternative => |a| a.binders.len,
                 .letrec => |l| l.bindings.len,
                 .parameters => |p| p.count,
@@ -487,6 +495,7 @@ pub const Printer = struct {
         pub fn binder(g: Group, i: usize) SymbolId {
             return switch (g) {
                 .lambda => |l| l.parameter,
+                .case => |c| c.binder.?,
                 .alternative => |a| a.binders[i],
                 .let => |l| l.name,
                 .letrec => |l| l.bindings[i].name,
@@ -592,16 +601,7 @@ pub const Printer = struct {
                     try self.writeParenthesized(c.scrutinee, w, indent, scope);
                 }
                 try w.writeAll(" of");
-                for (c.alternatives) |*alternative| {
-                    try print_scope.newline(w, indent + 2);
-                    try w.writeAll(self.interner.spelling(alternative.constructor));
-                    try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
-                }
-                if (c.default) |default| {
-                    try print_scope.newline(w, indent + 2);
-                    try w.writeAll("_ ->");
-                    try self.writeAfterArrow(default, w, indent + 2, scope);
-                }
+                try self.enter(.{ .case = c }, w, indent, scope);
             },
             .let => |l| try self.enter(.{ .let = l }, w, indent, scope),
             .letrec => |l| try self.enter(.{ .letrec = l }, w, indent, scope),
@@ -616,6 +616,7 @@ pub const Printer = struct {
     fn groupCaptures(self: Printer, g: Group, binder: SymbolId, spelling: []const u8, primes: u32, scope: ?*print_scope.Scope) bool {
         return switch (g) {
             .lambda => |l| self.captures(l.body, binder, spelling, primes, scope),
+            .case => |c| self.alternativesCapture(c, binder, spelling, primes, scope),
             .alternative => |a| self.captures(a.body, binder, spelling, primes, scope),
             .let => |l| self.captures(l.body, binder, spelling, primes, scope),
             .letrec => |l| {
@@ -637,14 +638,8 @@ pub const Printer = struct {
             .lambda => |l| self.captures(l.body, binder, spelling, primes, scope),
             .apply => |a| self.captures(a.function, binder, spelling, primes, scope) or
                 self.captures(a.argument, binder, spelling, primes, scope),
-            .case => |c| {
-                if (self.captures(c.scrutinee, binder, spelling, primes, scope)) return true;
-                for (c.alternatives) |alternative| {
-                    if (self.captures(alternative.body, binder, spelling, primes, scope)) return true;
-                }
-                if (c.default) |default| return self.captures(default, binder, spelling, primes, scope);
-                return false;
-            },
+            .case => |c| self.captures(c.scrutinee, binder, spelling, primes, scope) or
+                self.alternativesCapture(c, binder, spelling, primes, scope),
             .let => |l| self.captures(l.value, binder, spelling, primes, scope) or
                 self.captures(l.body, binder, spelling, primes, scope),
             .letrec => |l| {
@@ -656,8 +651,33 @@ pub const Printer = struct {
         };
     }
 
+    /// Whether an alternative or the default of `c` captures, as `captures`.
+    fn alternativesCapture(self: Printer, c: *const Case, binder: SymbolId, spelling: []const u8, primes: u32, scope: ?*print_scope.Scope) bool {
+        for (c.alternatives) |alternative| {
+            if (self.captures(alternative.body, binder, spelling, primes, scope)) return true;
+        }
+        if (c.default) |default| return self.captures(default, binder, spelling, primes, scope);
+        return false;
+    }
+
     fn writeScoped(self: Printer, g: Group, w: *std.Io.Writer, indent: usize, scope: ?*print_scope.Scope) Error!void {
         switch (g) {
+            .case => |c| {
+                if (c.binder) |binder| {
+                    try w.writeByte(' ');
+                    try self.writeName(binder, w, scope);
+                }
+                for (c.alternatives) |*alternative| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll(self.interner.spelling(alternative.constructor));
+                    try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
+                }
+                if (c.default) |default| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll("_ ->");
+                    try self.writeAfterArrow(default, w, indent + 2, scope);
+                }
+            },
             .lambda => |l| {
                 try w.writeByte('\\');
                 try self.writeName(l.parameter, w, scope);

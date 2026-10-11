@@ -7,7 +7,7 @@
 //!        | f a_1 ... a_n
 //!        | C a_1 ... a_n
 //!        | prim a_1 ... a_n
-//!        | case expr of { C x_1 .. x_n -> expr; ... }
+//!        | case expr of x { C x_1 .. x_n -> expr; ... }
 //!        | let x = closure in expr
 //!        | letrec { x = closure; ... } in expr
 //!        | let-no-escape { j {x_1 .. x_n} -> expr; ... } in expr
@@ -141,6 +141,9 @@ pub const Expr = union(enum) {
 
     pub const Case = struct {
         scrutinee: Expr,
+        /// Bound to the evaluated scrutinee, in the slot after the ones the
+        /// `case` started with and before an alternative's binders.
+        binder: ?core.SymbolId = null,
         /// In the datatype's tag order, covering every constructor exactly
         /// once, so the tag indexes this directly. Empty when there is a
         /// default.

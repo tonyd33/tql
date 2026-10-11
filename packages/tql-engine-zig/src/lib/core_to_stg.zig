@@ -52,9 +52,11 @@ const Placement = struct {
             .constructed => |c| for (c.fields) |field| try self.atom(field, scope.items),
             .primitive => |p| for (p.arguments) |argument| try self.atom(argument, scope.items),
             .case => |c| {
-                const mark = scope.items.len;
+                const start = scope.items.len;
                 try self.expr(c.scrutinee, scope);
-                scope.shrinkRetainingCapacity(mark);
+                scope.shrinkRetainingCapacity(start);
+                if (c.binder) |binder| try scope.append(self.gpa, binder);
+                const mark = scope.items.len;
                 for (c.alternatives) |alternative| {
                     try scope.appendSlice(self.gpa, alternative.binders);
                     try self.expr(alternative.body, scope);
