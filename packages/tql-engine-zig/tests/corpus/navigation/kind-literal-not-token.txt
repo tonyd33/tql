@@ -7,8 +7,8 @@ keyword in a type.
 
 --- tql ---
 main = descendants
-  | keep (\n -> kind_name n = "string")
-  | arr (\n -> { text = text n, literal = kind n = :string });
+  | keep (\n -> kind_name n == "string")
+  | arr (\n -> { text = text n, literal = kind n == :string });
 
 --- source ---
 let x: string = "a";

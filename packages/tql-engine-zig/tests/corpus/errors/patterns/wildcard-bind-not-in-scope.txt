@@ -11,7 +11,7 @@ main = const $ do {
 };
 
 --- error ---
-error[unresolved-name]: `_` is not defined
+error[parse]: `_` is a wildcard and has no value
  --> 5:10
   |
 5 |   return _;

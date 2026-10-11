@@ -39,6 +39,6 @@ import Data.Traversable (Traversable(..), sequence);
 import Control.Monad (Monad(..));
 import Control.Arrow;
 import Data.Maybe (Maybe(..));
-import Data.List (Sized(..), head, last);
+import Data.List (Sized(..), foldl', head, last);
 import Data.Node;
 import Data.Filter (Filter(..), run, collect, keep, has, or_else);

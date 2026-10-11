@@ -8,7 +8,7 @@ fold f z xs = case xs of {
   [] -> z;
   h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t);
 };
-main = Filter (\_ -> if fold (\n x -> n + 1) 0 (count 100000) = 100000 then [1] else Nil);
+main = Filter (\_ -> if fold (\n x -> n + 1) 0 (count 100000) == 100000 then [1] else Nil);
 
 --- source ---
 class A {}

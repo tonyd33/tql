@@ -2,7 +2,7 @@ title: a built-in superclass is used inside a method
 grammar: typescript
 asserts: types, values
 
-`Same [a]` compares with `=`, which needs `Eq [a]`, which `Same a` gives
+`Same [a]` compares with `==`, which needs `Eq [a]`, which `Same a` gives
 through its superclass. `alike`'s `Eq a` is implied by its `Same a`.
 
 --- tql ---
@@ -13,14 +13,14 @@ class Eq a => Same a where {
 data Shape = Circle Int | Square Int deriving (Eq);
 
 instance Same Shape where {
-  same a b = a = b;
+  same a b = a == b;
 };
 
 instance Same a => Same [a] where {
-  same xs ys = xs = ys;
+  same xs ys = xs == ys;
 };
 
-alike x = same x x and x = x;
+alike x = same x x and x == x;
 
 main = Filter (\_ -> [same (Circle 1) (Circle 1), same [Circle 1] [Square 1], alike [Square 2]]);
 

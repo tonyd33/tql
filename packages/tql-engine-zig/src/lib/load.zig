@@ -101,19 +101,23 @@ pub const Graph = struct {
     /// Loads everything `entry` imports. Every problem found is reported;
     /// the graph is complete only when `sink` stays empty.
     pub fn visitEntry(self: *Graph, entry: cst.SourceFile, sink: *diagnostic.Sink) !void {
+        if (entry.header) |h| if (library.named(h.name)) |id| {
+            try sink.report(.ambiguous_module, h.span, "`{s}` is found as both this module and `{s}`", .{ h.name, library.modules[@intFromEnum(id)].path });
+        };
         try self.visit(.{ .source = entry, .parsed = null }, sink);
     }
 
     fn visit(self: *Graph, module: Module, sink: *diagnostic.Sink) Error!void {
         try self.path.append(self.gpa, module.name());
         for (module.source.imports) |import| {
-            if (self.onPath(import.module)) |start| {
+            const library_id = library.named(import.module);
+            if (library_id == null) if (self.onPath(import.module)) |start| {
                 try self.reportCycle(start, import, sink);
                 continue;
-            }
+            };
             if (self.seen.contains(import.module)) continue;
             try self.seen.put(self.gpa, import.module, {});
-            if (library.named(import.module)) |id| {
+            if (library_id) |id| {
                 try self.checkUnshadowed(import, id, sink);
                 continue;
             }
@@ -178,7 +182,18 @@ pub const Graph = struct {
         try self.visit(.{ .source = parsed.source_file, .parsed = parsed }, sink);
     }
 
+    /// Reports the cycle `import` closes, or that the entry and the loader
+    /// both give the module it names.
     fn reportCycle(self: *Graph, start: usize, import: cst.Import, sink: *diagnostic.Sink) !void {
+        if (start == 0) switch (self.find(import)) {
+            .found => |source| return try sink.report(
+                .ambiguous_module,
+                import.span,
+                "`{s}` is found as both the entry and `{s}`",
+                .{ import.module, source.name orelse import.module },
+            ),
+            .missing, .failed => {},
+        };
         var chain: std.Io.Writer.Allocating = .init(self.gpa);
         defer chain.deinit();
         for (self.path.items[start..]) |name| try chain.writer.print("`{s}` imports ", .{name.?});

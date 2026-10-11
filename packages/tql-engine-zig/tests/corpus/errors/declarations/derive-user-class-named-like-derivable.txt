@@ -1,0 +1,17 @@
+title: a user class named like a derivable class prints qualified
+grammar: typescript
+asserts: error
+
+--- tql ---
+class Eq a where {
+  same :: a -> a -> Bool;
+};
+data T = A | B deriving (Eq);
+main = pure 1;
+
+--- error ---
+error[invalid-deriving]: `Main.Eq` cannot be derived; only `Prim.Eq`, `Ord` and `Serial` can
+ --> 4:26
+  |
+4 | data T = A | B deriving (Eq);
+  |                          ^^

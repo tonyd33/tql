@@ -3,7 +3,9 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-halves n = (n / 2, n - n / 2);
+import Data.Int (div);
+
+halves n = (n `div` 2, n - n `div` 2);
 
 split n = case n of {
   (halves -> (a, b)) -> a + b * 10;

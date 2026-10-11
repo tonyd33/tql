@@ -1,0 +1,12 @@
+title: a regex reads code points, and its classes are ASCII
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = pure ["é" ~ r"^.$", "٧" ~ r"^\d$", "٧" ~ r"^.$", "É" ~ r"(?i)^é$"];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false,true,true]]

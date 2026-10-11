@@ -1,0 +1,14 @@
+title: a definition naming two parameters alike is an error
+grammar: typescript
+asserts: error
+
+--- tql ---
+f x x = x;
+main = pure (f 1 2);
+
+--- error ---
+error[duplicate-definition]: `x` names two parameters
+ --> 1:5
+  |
+1 | f x x = x;
+  |     ^

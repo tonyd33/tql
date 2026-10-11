@@ -1,13 +1,13 @@
-title: a parameter spelled like a prelude function does not capture the call `=` desugars to
+title: a parameter spelled like a prelude function does not capture the call `==` desugars to
 grammar: typescript
 asserts: core, values
 
-`x = y` desugars to a call of the prelude's `eq`. The parameter `eq` is a
+`x == y` desugars to a call of the prelude's `eq`. The parameter `eq` is a
 different binder, so the desugared call still reaches the prelude function and
 the parameter prints primed.
 
 --- tql ---
-f eq = if eq = 1 then 10 else 20;
+f eq = if eq == 1 then 10 else 20;
 main = Filter (\_ -> [f 1, f 2]);
 
 --- source ---

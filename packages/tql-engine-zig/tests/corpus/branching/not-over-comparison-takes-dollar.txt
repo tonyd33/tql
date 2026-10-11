@@ -2,11 +2,11 @@ title: `not` over a comparison takes `$`
 grammar: typescript
 asserts: core, types, values
 
-`not` is an ordinary function, so `not 1 = 1` would apply it to `1`. `$` hands
+`not` is an ordinary function, so `not 1 == 1` would apply it to `1`. `$` hands
 it the whole comparison.
 
 --- tql ---
-main = pure $ not $ 1 = 1;
+main = pure $ not $ 1 == 1;
 
 --- source ---
 class A {}

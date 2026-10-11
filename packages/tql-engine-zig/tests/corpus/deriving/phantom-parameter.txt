@@ -10,7 +10,7 @@ import Data.Function (const);
 
 data Tagged t = Tagged Int deriving (Eq);
 same :: Tagged (Int -> Int) -> Tagged (Int -> Int) -> Bool;
-same a b = a = b;
+same a b = a == b;
 main = Filter $ const [same (Tagged 1) (Tagged 1), same (Tagged 1) (Tagged 2)];
 
 --- source ---

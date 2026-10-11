@@ -1,0 +1,22 @@
+title: `_` binds nothing in every binding position
+grammar: typescript
+asserts: values
+
+Each `_` is a separate wildcard, so `h _ _` and `\_ _ ->` take two arguments
+without a repeated name, and `_ = 5` defines nothing a name can reach.
+
+--- tql ---
+_ = 5;
+h _ _ = 1;
+f = \_ _ -> 2;
+g = let {
+  _ = 0;
+  y = 4;
+} in y;
+main = pure [h 1 2, f 1 2, g];
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,2,4]]

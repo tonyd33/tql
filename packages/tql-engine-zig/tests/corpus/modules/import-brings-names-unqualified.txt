@@ -8,7 +8,7 @@ module Lists;
 drop_through :: Int -> [Int] -> [Int];
 drop_through x xs = case xs of {
   Nil -> Nil;
-  Cons h t -> if h = x then t else drop_through x t;
+  Cons h t -> if h == x then t else drop_through x t;
 };
 
 --- tql ---

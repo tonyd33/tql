@@ -401,7 +401,7 @@ const Walker = struct {
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const name = try self.dupe(name_node);
+        const name = try self.binder(name_node);
         const params = try self.parameters(node);
 
         const body_node = try self.requiredField(node, "body") orelse return null;
@@ -427,7 +427,7 @@ const Walker = struct {
                     if (std.mem.eql(u8, field, "parameter")) {
                         const child = cursor.node();
                         try collected.append(self.allocator, .{
-                            .name = try self.dupe(child),
+                            .name = try self.binder(child),
                             .span = spanOf(child, self.source_id),
                         });
                     }
@@ -439,9 +439,15 @@ const Walker = struct {
         return collected.toOwnedSlice(self.allocator);
     }
 
+    /// The name `node` binds, or null for `_`, which binds nothing.
+    fn binder(self: *Walker, node: ts.Node) !?cst.Identifier {
+        if (std.mem.eql(u8, textOf(node, self.source), "_")) return null;
+        return try self.dupe(node);
+    }
+
     fn binding(self: *Walker, node: ts.Node) !?cst.Binding {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const name = try self.dupe(name_node);
+        const name = try self.binder(name_node);
         const params = try self.parameters(node);
 
         const value_node = try self.requiredField(node, "value") orelse return null;
@@ -486,7 +492,6 @@ const Walker = struct {
         primitive,
         kind,
         number,
-        boolean,
         string,
         regex,
         field_access,
@@ -511,10 +516,10 @@ const Walker = struct {
         tuple_constructor,
         record,
         parenthesized,
-        of_shape,
+        negation,
     };
 
-    const LiteralKind = enum { number, string, regex, boolean, kind };
+    const LiteralKind = enum { number, string, regex, kind };
 
     fn expression(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Expression {
         const span = spanOf(node, self.source_id);
@@ -522,6 +527,11 @@ const Walker = struct {
 
         if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
             .identifier, .qualified_identifier => {
+                // Reported, and still returned as a name so the enclosing form
+                // reports nothing more. A parse error stops compilation.
+                if (std.mem.eql(u8, textOf(node, self.source), "_")) {
+                    try self.sink.report(.parse, span, "`_` is a wildcard and has no value", .{});
+                }
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
             .primitive => return .{ .kind = .{ .primitive = try self.dupe(node) }, .span = span },
@@ -534,18 +544,17 @@ const Walker = struct {
                 };
                 return .{ .kind = .{ .number = value }, .span = span };
             },
-            .boolean => {
-                const text = textOf(node, self.source);
-                return .{
-                    .kind = .{ .boolean = std.mem.eql(u8, text, "true") },
-                    .span = span,
-                };
-            },
             .string => {
                 const text = textOf(node, self.source);
                 const body = if (text.len >= 2) text[1 .. text.len - 1] else text;
                 switch (try string_literal.decode(self.allocator, body)) {
-                    .bytes => |bytes| return .{ .kind = .{ .string = bytes }, .span = span },
+                    .bytes => |bytes| {
+                        if (!std.unicode.utf8ValidateSlice(bytes)) {
+                            try self.sink.report(.parse, span, "a string literal must be UTF-8", .{});
+                            return null;
+                        }
+                        return .{ .kind = .{ .string = bytes }, .span = span };
+                    },
                     .invalid_escape => |at| {
                         try self.sink.report(
                             .parse,
@@ -587,10 +596,15 @@ const Walker = struct {
             .tuple => return .{ .kind = .{ .tuple = try self.components(cst.Expression, node, expression) orelse return null }, .span = span },
             .tuple_constructor => return .{ .kind = .{ .tuple_constructor = try self.tupleArity(node) orelse return null }, .span = span },
             .record => return self.record(node, span),
-            .of_shape => {
-                const pattern_node = try self.requiredField(node, "pattern") orelse return null;
-                const shape = try self.pattern(pattern_node) orelse return null;
-                return .{ .kind = .{ .of_shape = try self.boxed(shape) }, .span = span };
+            .negation => {
+                const operand = try self.requiredField(node, "operand") orelse return null;
+                try self.sink.report(
+                    .parse,
+                    span,
+                    "TQL has no negation; write `0 - {s}`",
+                    .{textOf(operand, self.source)},
+                );
+                return null;
             },
             .parenthesized => {
                 const inner_node = node.namedChild(0) orelse {
@@ -697,7 +711,7 @@ const Walker = struct {
             .dollar
         else
             .{ .binary = operatorFromSpelling(textOf(op_node, self.source)) orelse {
-                try self.sink.report(.parse, span, "unknown operator", .{});
+                try self.unknownOperator(op_node);
                 return null;
             } };
 
@@ -720,13 +734,27 @@ const Walker = struct {
         };
     }
 
+    fn unknownOperator(self: *Walker, op_node: ts.Node) !void {
+        const span = spanOf(op_node, self.source_id);
+        if (std.mem.eql(u8, textOf(op_node, self.source), "/")) {
+            try self.sink.report(
+                .parse,
+                span,
+                "`/` is not an operator: write ``a `div` b``, which floors, or ``a `quot` b``, which truncates, with `import Data.Int (div, quot);`",
+                .{},
+            );
+        } else {
+            try self.sink.report(.parse, span, "unknown operator", .{});
+        }
+    }
+
     fn binary(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const left_node = try self.requiredField(node, "left") orelse return null;
         const right_node = try self.requiredField(node, "right") orelse return null;
 
         const operator = if (node.childByFieldName("operator")) |op_node|
             operatorFromSpelling(textOf(op_node, self.source)) orelse {
-                try self.sink.report(.parse, span, "unknown operator", .{});
+                try self.unknownOperator(op_node);
                 return null;
             }
         else
@@ -915,7 +943,8 @@ const Walker = struct {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
         if (std.mem.eql(u8, kind, "identifier")) {
-            return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
+            const name = try self.binder(node) orelse return .{ .kind = .wildcard, .span = span };
+            return .{ .kind = .{ .variable = name }, .span = span };
         }
         if (isConstructor(kind)) {
             return .{
@@ -964,9 +993,11 @@ const Walker = struct {
             const name_node = try self.requiredField(node, "name") orelse return null;
             const inner_node = try self.requiredField(node, "pattern") orelse return null;
             const inner = try self.pattern(inner_node) orelse return null;
+            // `_@p` names nothing, so it is `p`.
+            const name = try self.binder(name_node) orelse return inner;
             return .{
                 .kind = .{ .as = try self.boxed(cst.Pattern.As{
-                    .name = try self.dupe(name_node),
+                    .name = name,
                     .name_span = spanOf(name_node, self.source_id),
                     .pattern = inner,
                 }) },
@@ -1006,7 +1037,6 @@ const Walker = struct {
                     .string => |s| .{ .literal = .{ .string = s } },
                     .regex => |r| .{ .literal = .{ .regex = r } },
                     .kind_test => |k| .{ .literal = .{ .kind = k } },
-                    .boolean => |b| .{ .boolean = b },
                     else => unreachable,
                 },
                 .span = span,

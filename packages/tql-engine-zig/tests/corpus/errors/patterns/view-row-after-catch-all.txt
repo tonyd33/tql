@@ -13,7 +13,7 @@ f n = case n of {
 main = const [f 1];
 
 --- error ---
-error[type-mismatch]: `(\x -> x + 1 -> 2)` is never matched
+error[redundant-alternative]: `(\x -> x + 1 -> 2)` is never matched
  --> 5:3
   |
 5 |   (\x -> x + 1 -> 2) -> 0;

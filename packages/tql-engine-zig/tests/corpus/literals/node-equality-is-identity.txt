@@ -12,7 +12,7 @@ The cross product is written out. Operators take scalars, so the pairing is the
 main = do {
   l <- children_of_kind :class_declaration;
   r <- children_of_kind :class_declaration;
-  return $ l = r;
+  return $ l == r;
 };
 
 --- source ---

@@ -25,5 +25,5 @@ try { console.error("d"); } catch (e) { console.error("e"); }
 ["console.error(\"a\")","console.error(\"d\")"]
 --- types ---
 $mMemberCall :: Node -> (Node -> Node -> a) -> a -> a
-$mText :: Node -> (String -> a) -> b -> a
+$mText :: Node -> (String -> a) -> a -> a
 main :: Filter Node String

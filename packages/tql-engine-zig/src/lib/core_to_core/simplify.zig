@@ -40,6 +40,7 @@ const Frame = union(enum) {
 };
 
 const Select = struct {
+    binder: ?core.SymbolId,
     alternatives: []const core.Case.Alternative,
     default: ?core.Term,
     span: diagnostic.Span,
@@ -79,6 +80,8 @@ const Constructed = struct {
 ///   is a lambda, moves to its occurrence;
 /// - a binding whose value is trivial is substituted everywhere;
 /// - a `case` of a known constructor takes its alternative;
+/// - let to case: `let x = e in case x of { p -> b }` is
+///   `case e of x { p -> b }`, when `e` is not a value;
 /// - case of case: `E[case s of { p -> e }]` is `case s of { p -> E[e] }`;
 /// - a join point takes the continuation into its value,
 ///   `E[let j = \x -> u in b]` is `let j = \x -> E[u] in E[b]`, and a jump
@@ -131,7 +134,7 @@ pub const Simplifier = struct {
                 .classes = &env.classes,
                 .primitives = &env.primitives,
                 .known = &env.known,
-                .list = env.datatypes.listId(),
+                .list = core.datatypes.list_id,
                 .nil = env.datatypes.nilConstructor().symbol,
                 .cons = env.datatypes.consConstructor().symbol,
                 .false_ = env.datatypes.boolConstructor(false).symbol,
@@ -231,16 +234,7 @@ pub const Simplifier = struct {
                 }
                 return try self.builder.lets(bindings.items, try self.builder.letrec(group, try self.term(letrec.body, inner), t.span), t.span);
             },
-            .case => |case_term| {
-                const frames = try self.scratch.alloc(Frame, continuation.len + 1);
-                frames[0] = .{ .select = .{
-                    .alternatives = case_term.alternatives,
-                    .default = case_term.default,
-                    .span = t.span,
-                } };
-                @memcpy(frames[1..], continuation);
-                return try self.term(case_term.scrutinee, frames);
-            },
+            .case => |case_term| return try self.term(case_term.scrutinee, try self.selected(case_term.*, case_term.binder, t.span, continuation)),
         }
     }
 
@@ -321,6 +315,7 @@ pub const Simplifier = struct {
             },
             .many, .loop_breaker => {},
         }
+        if (try self.letToCase(name, value, body, continuation)) |forced| return forced;
 
         var bindings: std.ArrayList(core.Letrec.Binding) = .empty;
         const inner = try self.bindingContinuation(name, continuation, &bindings);
@@ -331,6 +326,52 @@ pub const Simplifier = struct {
         if (!try self.bindSimplified(name, occurrence, simplified)) return try self.builder.lets(bindings.items, try self.term(body, inner), span);
         try self.unfold(name, simplified);
         return try self.builder.lets(bindings.items, try self.builder.let(name, simplified, try self.term(body, inner), span), span);
+    }
+
+    /// `case value of name { p -> b }` under `continuation`, simplified, when
+    /// `body` is `case name of { p -> b }`, `name` is not a join point, and
+    /// `value` is not a value.
+    fn letToCase(
+        self: *Simplifier,
+        name: core.SymbolId,
+        value: Substitution,
+        body: core.Term,
+        continuation: []const Frame,
+    ) Error!?core.Term {
+        if (!self.options.let_to_case or self.env.interner.details(name) == .join) return null;
+        const case_term = switch (body.kind) {
+            .case => |c| c,
+            else => return null,
+        };
+        if (case_term.binder != null or !case_term.scrutinee.isSymbol(name)) return null;
+        if (whnf(value.value()) or cost.trivial(value.value())) return null;
+
+        self.changed = true;
+        const frames = try self.selected(case_term.*, name, body.span, continuation);
+        return switch (value) {
+            .suspended => |t| try self.term(t, frames),
+            .done => |t| try self.rebuild(t, frames),
+        };
+    }
+
+    /// A frame selecting among the alternatives of `case_term`, binding
+    /// `binder`, followed by `continuation`.
+    fn selected(
+        self: *Simplifier,
+        case_term: core.Case,
+        binder: ?core.SymbolId,
+        span: diagnostic.Span,
+        continuation: []const Frame,
+    ) Error![]const Frame {
+        const frames = try self.scratch.alloc(Frame, continuation.len + 1);
+        frames[0] = .{ .select = .{
+            .binder = binder,
+            .alternatives = case_term.alternatives,
+            .default = case_term.default,
+            .span = span,
+        } };
+        @memcpy(frames[1..], continuation);
+        return frames;
     }
 
     /// The continuation a binding of `name` scopes over: `continuation`, made
@@ -418,15 +459,25 @@ pub const Simplifier = struct {
             for (instance.alternatives) |alternative| {
                 if (alternative.constructor != known_constructor.constructor) continue;
                 self.changed = true;
-                return try self.take(alternative, known_constructor.fields, rest, span);
+                return try self.take(alternative, instance.binder, known_constructor, rest, span);
             }
         }
         const evaluated = known != null or (self.options.case_of_known_constructor and whnf(scrutinee));
         if (default) |body| {
             if (evaluated) {
                 self.changed = true;
-                return try self.term(body, rest);
+                var kept: std.ArrayList(core.Letrec.Binding) = .empty;
+                if (instance.binder) |b| try self.bindKept(b, scrutinee, &kept);
+                return try self.builder.lets(kept.items, try self.term(body, rest), span);
             }
+        }
+
+        // A binder for a trivial scrutinee is the scrutinee.
+        var binder = instance.binder;
+        if (binder != null and self.options.post_inline and cost.trivial(scrutinee)) {
+            self.changed = true;
+            try self.substitution.put(binder.?, .{ .done = scrutinee });
+            binder = null;
         }
 
         // Case of case, or of an application: `rest` moves into every
@@ -448,7 +499,25 @@ pub const Simplifier = struct {
             };
         }
         const simplified_default = if (default) |body| try self.term(body, inner) else null;
-        return try self.builder.lets(bindings.items, try self.builder.caseWithDefault(scrutinee, alternatives, simplified_default, span), span);
+        return try self.builder.lets(bindings.items, try self.builder.caseOf(.{
+            .scrutinee = scrutinee,
+            .binder = binder,
+            .alternatives = alternatives,
+            .default = simplified_default,
+        }, span), span);
+    }
+
+    /// Bind `name` to `value`, simplified, by substitution when it may be,
+    /// else by a `let` appended to `kept`.
+    fn bindKept(self: *Simplifier, name: core.SymbolId, value: core.Term, kept: *std.ArrayList(core.Letrec.Binding)) Error!void {
+        if (!try self.bindSimplified(name, self.recorded(name), value)) return;
+        try self.keep(name, value, kept);
+    }
+
+    /// Bind `name` to `value`, simplified, by a `let` appended to `kept`.
+    fn keep(self: *Simplifier, name: core.SymbolId, value: core.Term, kept: *std.ArrayList(core.Letrec.Binding)) Error!void {
+        try self.unfold(name, value);
+        try kept.append(self.scratch, .{ .name = name, .value = value });
     }
 
     /// `continuation` made safe to copy into several places, with the
@@ -477,11 +546,12 @@ pub const Simplifier = struct {
                         new.* = .{
                             .constructor = old.constructor,
                             .binders = old.binders,
-                            .body = try self.dupableBody(old.binders, old.body, rest, bindings),
+                            .body = try self.dupableBody(try self.scoped(case_frame.binder, old.binders), old.body, rest, bindings),
                         };
                     }
-                    const default = if (case_frame.default) |body| try self.dupableBody(&.{}, body, rest, bindings) else null;
+                    const default = if (case_frame.default) |body| try self.dupableBody(try self.scoped(case_frame.binder, &.{}), body, rest, bindings) else null;
                     try frames.append(self.scratch, .{ .select = .{
+                        .binder = case_frame.binder,
                         .alternatives = alternatives,
                         .default = default,
                         .span = case_frame.span,
@@ -494,6 +564,16 @@ pub const Simplifier = struct {
             },
         };
         return frames.items;
+    }
+
+    /// The binders in scope in an alternative binding `binders`: the case
+    /// binder, if there is one, then `binders`.
+    fn scoped(self: *Simplifier, binder: ?core.SymbolId, binders: []const core.SymbolId) Error![]const core.SymbolId {
+        const b = binder orelse return binders;
+        const all = try self.scratch.alloc(core.SymbolId, binders.len + 1);
+        all[0] = b;
+        @memcpy(all[1..], binders);
+        return all;
     }
 
     /// An alternative's `body`, under `binders`, simplified under
@@ -521,35 +601,40 @@ pub const Simplifier = struct {
     /// A dupable frame with fresh binders in its alternatives, for one use.
     fn instantiate(self: *Simplifier, frame: Select) Error!Select {
         var renamed: std.AutoHashMapUnmanaged(core.SymbolId, core.SymbolId) = .empty;
+        const binder = if (frame.binder) |b| try self.fresh(b, &renamed) else null;
         const alternatives = try self.builder.slice(core.Case.Alternative, frame.alternatives.len);
-        for (frame.alternatives, alternatives) |old, *new| {
-            if (old.binders.len == 0) {
-                new.* = old;
-                continue;
-            }
-            new.* = try self.copyAlternative(old, &renamed);
-            for (old.binders, new.binders) |binder, renamed_binder| {
-                try self.analyser.table.put(renamed_binder, self.recorded(binder));
-            }
-        }
-        return .{ .alternatives = alternatives, .default = frame.default, .span = frame.span };
+        for (frame.alternatives, alternatives) |old, *new| new.* = try self.copyAlternative(old, &renamed);
+        const default = if (frame.default) |body| try self.copy(body, &renamed) else null;
+        var it = renamed.iterator();
+        while (it.next()) |entry| try self.analyser.table.put(entry.value_ptr.*, self.recorded(entry.key_ptr.*));
+        return .{ .binder = binder, .alternatives = alternatives, .default = default, .span = frame.span };
     }
 
-    /// Take `alternative` with its binders bound to `fields`, under
-    /// `continuation`.
+    /// Take `alternative` of a `case` on `known`, binding `binder`, under
+    /// `continuation`. A live `binder` is bound to the constructor applied to
+    /// the alternative's binders, each bound by a `let` when its field is not
+    /// trivial.
     fn take(
         self: *Simplifier,
         alternative: core.Case.Alternative,
-        fields: []const core.Term,
+        binder: ?core.SymbolId,
+        known: Constructed,
         continuation: []const Frame,
         span: diagnostic.Span,
     ) Error!core.Term {
+        const live = if (binder) |b| self.recorded(b) != .dead else false;
         var kept: std.ArrayList(core.Letrec.Binding) = .empty;
-        for (alternative.binders, fields) |binder, field| {
-            if (!try self.bindSimplified(binder, self.recorded(binder), field)) continue;
-            try self.unfold(binder, field);
-            try kept.append(self.scratch, .{ .name = binder, .value = field });
+        const fields = try self.scratch.alloc(core.Term, known.fields.len);
+        for (alternative.binders, known.fields, fields) |name, field, *shared| {
+            if (live and !cost.trivial(field)) {
+                try self.keep(name, field, &kept);
+                shared.* = self.builder.symbol(name, field.span);
+            } else {
+                try self.bindKept(name, field, &kept);
+                shared.* = field;
+            }
         }
+        if (live) try self.bindKept(binder.?, try self.builder.applyMany(self.builder.symbol(known.constructor, span), fields, span), &kept);
         return try self.builder.lets(kept.items, try self.term(alternative.body, continuation), span);
     }
 
@@ -653,10 +738,16 @@ pub const Simplifier = struct {
             ),
             .case => |case_term| {
                 const scrutinee = try self.copy(case_term.scrutinee, renamed);
+                const binder = if (case_term.binder) |b| try self.fresh(b, renamed) else null;
                 const alternatives = try self.builder.slice(core.Case.Alternative, case_term.alternatives.len);
                 for (case_term.alternatives, alternatives) |old, *new| new.* = try self.copyAlternative(old, renamed);
                 const default = if (case_term.default) |body| try self.copy(body, renamed) else null;
-                return try self.builder.caseWithDefault(scrutinee, alternatives, default, t.span);
+                return try self.builder.caseOf(.{
+                    .scrutinee = scrutinee,
+                    .binder = binder,
+                    .alternatives = alternatives,
+                    .default = default,
+                }, t.span);
             },
             .let => |let| {
                 const value = try self.copy(let.value, renamed);
@@ -806,6 +897,7 @@ fn collectBinders(t: core.Term, out: *std.ArrayList(core.SymbolId)) !void {
         },
         .case => |case_term| {
             try collectBinders(case_term.scrutinee, out);
+            if (case_term.binder) |binder| try out.append(testing.allocator, binder);
             for (case_term.alternatives) |alternative| {
                 try out.appendSlice(testing.allocator, alternative.binders);
                 try collectBinders(alternative.body, out);

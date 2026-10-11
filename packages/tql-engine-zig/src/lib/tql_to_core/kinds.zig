@@ -74,8 +74,8 @@ pub const Group = struct {
     }
 
     /// Solves every kind, defaulting to `Type`, and writes the group's
-    /// declarations to `env` as `module`'s.
-    pub fn commit(self: *const Group, env: *core.env.Env, module: core.ModuleId) Allocator.Error!void {
+    /// declarations to `env`.
+    pub fn commit(self: *const Group, env: *core.env.Env) Allocator.Error!void {
         const inference = &self.inference;
         for (self.datatypes.keys(), self.datatypes.values()) |id, parameters| {
             env.datatypes.setParameters(id, try inference.zonkAll(parameters));
@@ -89,7 +89,7 @@ pub const Group = struct {
             var solved = alias.*;
             solved.parameters = parameters;
             solved.kind = try inference.zonk(alias.kind, .type);
-            try env.datatypes.defineAlias(module, solved);
+            try env.datatypes.defineAlias(solved);
         }
         for (self.classes.keys(), self.classes.values()) |id, kind| {
             env.classes.getMut(id).parameter = try inference.zonk(kind, .type);

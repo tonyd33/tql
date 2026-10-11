@@ -35,6 +35,8 @@ pub const Printer = struct {
     /// Binders that enter scope together.
     const Group = union(enum) {
         closure: *const stg.Closure,
+        /// The case binder, scoping the alternatives and the default.
+        case: *const stg.Expr.Case,
         alternative: *const stg.Alternative,
         let: *const stg.Expr.Let,
         let_no_escape: *const stg.Expr.LetNoEscape,
@@ -43,6 +45,7 @@ pub const Printer = struct {
         pub fn len(g: Group) usize {
             return switch (g) {
                 .closure => |c| c.parameters.len,
+                .case => |c| @intFromBool(c.binder != null),
                 .alternative => |a| a.binders.len,
                 .let => |l| l.bindings.len,
                 .let_no_escape => |l| l.joins.len,
@@ -53,6 +56,7 @@ pub const Printer = struct {
         pub fn binder(g: Group, i: usize) core.SymbolId {
             return switch (g) {
                 .closure => |c| c.parameters[i],
+                .case => |c| c.binder.?,
                 .alternative => |a| a.binders[i],
                 .let => |l| l.bindings[i].binder,
                 .let_no_escape => |l| l.joins[i].binder,
@@ -88,16 +92,7 @@ pub const Printer = struct {
                     try w.writeByte(')');
                 }
                 try w.writeAll(" of");
-                for (c.alternatives) |*alternative| {
-                    try print_scope.newline(w, indent + 2);
-                    try w.writeAll(self.interner.spelling(alternative.constructor));
-                    try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
-                }
-                if (c.default) |default| {
-                    try print_scope.newline(w, indent + 2);
-                    try w.writeAll("_ ->");
-                    try self.writeAfterArrow(default, w, indent + 2, scope);
-                }
+                try self.enter(.{ .case = c }, w, indent, scope);
             },
             .let => |let| try self.enter(.{ .let = let }, w, indent, scope),
             .let_no_escape => |let| try self.enter(.{ .let_no_escape = let }, w, indent, scope),
@@ -156,6 +151,22 @@ pub const Printer = struct {
                 try self.writeParameters(c.parameters, w, scope);
                 try w.writeAll(" ->");
                 try self.writeAfterArrow(c.body, w, indent, scope);
+            },
+            .case => |c| {
+                if (c.binder) |binder| {
+                    try w.writeByte(' ');
+                    try self.writeName(binder, w, scope);
+                }
+                for (c.alternatives) |*alternative| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll(self.interner.spelling(alternative.constructor));
+                    try self.enter(.{ .alternative = alternative }, w, indent + 2, scope);
+                }
+                if (c.default) |default| {
+                    try print_scope.newline(w, indent + 2);
+                    try w.writeAll("_ ->");
+                    try self.writeAfterArrow(default, w, indent + 2, scope);
+                }
             },
             .alternative => |a| {
                 for (a.binders) |binder| {
@@ -239,6 +250,7 @@ pub const Printer = struct {
         const target: Target = .{ .binder = binder, .spelling = spelling, .primes = primes, .scope = scope };
         return switch (g) {
             .closure => |c| self.captures(c.body, target),
+            .case => |c| self.alternativesCapture(c, target),
             .alternative => |a| self.captures(a.body, target),
             .let => |let| {
                 for (let.bindings) |binding| {
@@ -249,6 +261,14 @@ pub const Printer = struct {
             .let_no_escape => |let| self.joinsCapture(let, target),
             .join => |join| self.captures(join.body, target),
         };
+    }
+
+    fn alternativesCapture(self: Printer, c: *const stg.Expr.Case, target: Target) bool {
+        for (c.alternatives) |alternative| {
+            if (self.captures(alternative.body, target)) return true;
+        }
+        if (c.default) |default| return self.captures(default, target);
+        return false;
     }
 
     fn joinsCapture(self: Printer, let: *const stg.Expr.LetNoEscape, target: Target) bool {
@@ -274,14 +294,7 @@ pub const Printer = struct {
                 self.atomsCapture(apply.arguments, target),
             .constructed => |c| self.atomsCapture(c.fields, target),
             .primitive => |p| self.atomsCapture(p.arguments, target),
-            .case => |c| {
-                if (self.captures(c.scrutinee, target)) return true;
-                for (c.alternatives) |alternative| {
-                    if (self.captures(alternative.body, target)) return true;
-                }
-                if (c.default) |default| return self.captures(default, target);
-                return false;
-            },
+            .case => |c| self.captures(c.scrutinee, target) or self.alternativesCapture(c, target),
             .let => |let| {
                 for (let.bindings) |binding| {
                     if (self.allocationCaptures(binding.value, target)) return true;
@@ -323,8 +336,7 @@ pub const Printer = struct {
 
     fn symbolCaptures(self: Printer, id: core.SymbolId, target: Target) bool {
         return id != target.binder and
-            std.mem.eql(u8, self.interner.spelling(id), target.spelling) and
-            print_scope.outerPrimes(self.interner, id, target.scope) == target.primes;
+            print_scope.printsAs(self.interner, id, target.scope, target.spelling, target.primes);
     }
 
     fn writeName(self: Printer, id: core.SymbolId, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {

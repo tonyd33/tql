@@ -10,12 +10,12 @@ import Data.Function (const);
 
 data Shape = Circle Int | Square Int deriving (Eq, Ord);
 main = Filter $ const [
-  Circle 1 = Circle 1,
-  Circle 1 = Square 1,
+  Circle 1 == Circle 1,
+  Circle 1 == Square 1,
   Circle 9 < Square 1,
   Square 1 < Circle 9,
   Circle 1 < Circle 2,
-  compare (Square 2) (Square 2) = EQ
+  compare (Square 2) (Square 2) == EQ
 ];
 
 --- source ---

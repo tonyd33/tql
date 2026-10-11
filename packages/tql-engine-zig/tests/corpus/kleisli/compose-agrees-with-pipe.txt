@@ -14,7 +14,7 @@ composed = run_kleisli (compose (arr kind_name) (compose (Kleisli (run named_chi
 dotted :: Node -> [String];
 dotted = run_kleisli (arr kind_name . Kleisli (run named_children) . Kleisli (run named_children));
 
-main = Filter (\root -> [run piped root = composed root, run piped root = dotted root]);
+main = Filter (\root -> [run piped root == composed root, run piped root == dotted root]);
 
 --- source ---
 class A { b() {} }

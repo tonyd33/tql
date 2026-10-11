@@ -1,20 +1,19 @@
-title: `toint` rejects a value that does not fit int
+title: `toint` gives `Nothing` for a value that does not fit `Int`
 grammar: typescript
 asserts: types, values
 
-`9223372036854775807` is the largest `int`; one more does not fit and yields
-the empty stream rather than overflowing.
+`9223372036854775807` is the largest `Int`; one more does not fit.
 
 --- tql ---
 import Data.Int (toint);
 
-main = Filter (\_ -> ["9223372036854775807", "9223372036854775808"]) | toint;
+main = pure $ map toint ["9223372036854775807", "9223372036854775808"];
 
 --- source ---
 class A {}
 
 --- values ---
-[9223372036854775807]
+[[{"tag":"Just","fields":[9223372036854775807]},{"tag":"Nothing","fields":[]}]]
 
 --- types ---
-main :: Filter Node Int
+main :: Filter Node [Maybe Int]

@@ -265,7 +265,7 @@ pub const Substituter = struct {
 /// Whether `a` and `b` apply the same symbols in the same shape.
 fn equal(a: core.Term, b: core.Term) bool {
     return switch (a.kind) {
-        .symbol => |id| b.kind == .symbol and b.kind.symbol == id,
+        .symbol => |id| b.isSymbol(id),
         .apply => |x| b.kind == .apply and equal(x.function, b.kind.apply.function) and equal(x.argument, b.kind.apply.argument),
         else => false,
     };

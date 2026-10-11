@@ -17,7 +17,6 @@
   "for"
   "as"
   "pattern"
-  "of_shape"
   "class"
   "instance"
   "where"
@@ -30,7 +29,6 @@
 
 (comment) @comment
 
-(boolean) @constant.builtin
 (unit) @constant.builtin
 
 (tuple_constructor) @type

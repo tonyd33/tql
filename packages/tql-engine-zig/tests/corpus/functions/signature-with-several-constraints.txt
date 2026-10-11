@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 pick :: (Eq a, Sized a) => a -> a -> Int;
-pick x y = if x = y then length x else 0;
+pick x y = if x == y then length x else 0;
 main = Filter (\_ -> [pick "ab" "ab", pick "ab" "cd"]);
 
 --- source ---

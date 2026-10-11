@@ -1,6 +1,6 @@
 module Data.Traversable (Traversable(..), sequence);
 
-import Prim (List(..));
+import Prim (List(..), Maybe(..));
 import Data.Function (identity);
 import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..));
@@ -12,6 +12,13 @@ class (Functor t, Foldable t) => Traversable t where {
 
 instance Traversable List where {
   traverse f xs = foldr (\x acc -> ap (map Cons $ f x) acc) (pure Nil) xs;
+};
+
+instance Traversable Maybe where {
+  traverse f m = case m of {
+    Nothing -> pure Nothing;
+    Just x -> map Just $ f x;
+  };
 };
 
 sequence :: (Traversable t, Applicative f) => t (f a) -> f (t a);

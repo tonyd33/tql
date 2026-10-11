@@ -5,7 +5,7 @@ asserts: values
 --- tql ---
 classify n = case n of {
   :call_expression { #function = :identifier {} } -> "plain call";
-  c@:call_expression {} if text c = "console.warn('b')" -> "warn";
+  c@:call_expression {} if text c == "console.warn('b')" -> "warn";
   :call_expression {} -> "method call";
   :class_declaration { #name = x } -> text x;
   _ -> "other";

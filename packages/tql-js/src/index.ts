@@ -66,8 +66,25 @@ export interface QueryStats {
   query_time_ns: number;
 }
 
+export interface Point {
+  row: number;
+  column: number;
+}
+
+/** An `ERROR` node, or a token tree-sitter inserted to recover. */
+export interface TargetSyntaxError {
+  kind: string;
+  missing: boolean;
+  start_byte: number;
+  end_byte: number;
+  start_point: Point;
+  end_point: Point;
+}
+
 export interface QueryResult {
   values: unknown[];
+  /** Empty when the target parsed; otherwise `values` may be incomplete. */
+  syntax_errors: TargetSyntaxError[];
   stats: QueryStats;
 }
 

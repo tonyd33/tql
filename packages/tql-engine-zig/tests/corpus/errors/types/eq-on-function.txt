@@ -8,11 +8,11 @@ main =
     f = \x -> x + 1;
     g = \x -> x + 1;
   }
-  in f = g;
+  in f == g;
 
 --- error ---
 error[unsatisfied-constraint]: `Eq (Int -> Int)` is not satisfied.
  --> 6:6
   |
-6 |   in f = g;
-  |      ^^^^^
+6 |   in f == g;
+  |      ^^^^^^

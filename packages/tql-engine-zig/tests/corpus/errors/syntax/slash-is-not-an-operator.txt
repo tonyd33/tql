@@ -1,0 +1,13 @@
+title: `/` is not an operator
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure (7 / 2);
+
+--- error ---
+error[parse]: `/` is not an operator: write ``a `div` b``, which floors, or ``a `quot` b``, which truncates, with `import Data.Int (div, quot);`
+ --> 1:16
+  |
+1 | main = pure (7 / 2);
+  |                ^

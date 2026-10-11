@@ -2,14 +2,14 @@ title: mixed operand types in a comparison
 grammar: typescript
 asserts: error
 
-`=` compares equal types only.
+`==` compares equal types only.
 
 --- tql ---
-main = 1 = "one";
+main = 1 == "one";
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
- --> 1:12
+ --> 1:13
   |
-1 | main = 1 = "one";
-  |            ^^^^^
+1 | main = 1 == "one";
+  |             ^^^^^

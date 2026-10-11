@@ -7,7 +7,7 @@ data Bool = No | Yes;
 main root = [if Yes then 1 else 2];
 
 --- error ---
-error[type-mismatch]: Expected `Bool`, found `Bool`.
+error[type-mismatch]: Expected `Prim.Bool`, found `Main.Bool`.
  --> 2:17
   |
 2 | main root = [if Yes then 1 else 2];

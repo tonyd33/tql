@@ -20,9 +20,9 @@ fn schemeOf(B: Builder, primop: PrimOp) !types.Scheme {
         .is_named, .is_extra => .{ .type = try B.func(types.node_type, try B.boolType()) },
         .range => .{ .type = try B.func(types.node_type, types.range_type) },
         .string_length => .{ .type = try B.func(types.string_type, types.int_type) },
-        .mod => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
-        .toint => .{ .type = try B.listFunction(types.string_type, types.int_type) },
-        .filename => .{ .type = try B.listFunction(types.node_type, types.string_type) },
+        .div, .mod, .quot, .rem => .{ .type = try B.func(types.int_type, try B.func(types.int_type, types.int_type)) },
+        .toint => .{ .type = try B.func(types.string_type, try B.declared.maybe(B.arena, types.int_type)) },
+        .filename => .{ .type = try B.func(types.node_type, try B.declared.maybe(B.arena, types.string_type)) },
         .parent,
         .ancestors,
         .children,
@@ -58,7 +58,7 @@ const Builder = struct {
 
     /// `input -> [output]`.
     fn listFunction(self: Builder, input: types.Type, output: types.Type) !types.Type {
-        return try types.func(self.arena, input, try self.declared.list(self.arena, output));
+        return try types.func(self.arena, input, try datatypes.list(self.arena, output));
     }
 
     fn boolType(self: Builder) !types.Type {
@@ -79,7 +79,7 @@ pub fn operatorScheme(
             types.string_type,
             try B.func(types.regex_type, try B.boolType()),
         ) },
-        .add, .subtract, .multiply, .divide => .{ .type = try B.func(
+        .add, .subtract, .multiply => .{ .type = try B.func(
             types.int_type,
             try B.func(types.int_type, types.int_type),
         ) },

@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-same x = map (= x) [1, 2];
+same x = map (== x) [1, 2];
 main = Filter (\_ -> same 1);
 
 --- source ---

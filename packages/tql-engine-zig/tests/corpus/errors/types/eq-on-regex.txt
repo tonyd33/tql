@@ -5,11 +5,11 @@ asserts: error
 `regex` has none of `Eq`, `Ord`, or `Serial`.
 
 --- tql ---
-main = r"a" = r"a";
+main = r"a" == r"a";
 
 --- error ---
 error[unsatisfied-constraint]: `Eq Regex` is not satisfied.
  --> 1:8
   |
-1 | main = r"a" = r"a";
-  |        ^^^^^^^^^^^
+1 | main = r"a" == r"a";
+  |        ^^^^^^^^^^^^

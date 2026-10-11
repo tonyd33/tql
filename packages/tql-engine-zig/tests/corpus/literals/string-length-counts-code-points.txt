@@ -1,0 +1,17 @@
+title: `length` of a string counts code points
+grammar: typescript
+asserts: types, values
+
+`"héllo"` is six UTF-8 bytes, and `é` is one code point of them.
+
+--- tql ---
+
+main = Filter (\_ -> ["hello", "héllo", "", "日本"]) | arr length;
+
+--- source ---
+class A {}
+
+--- values ---
+[5,5,0,2]
+--- types ---
+main :: Filter Node Int

@@ -10,7 +10,7 @@ not inlined.
 import Data.Function (compose, identity);
 
 add a b = a + b;
-adder n = if n = 0 then identity else compose (add 1) (adder (n - 1));
+adder n = if n == 0 then identity else compose (add 1) (adder (n - 1));
 main = pure $ adder 1 10;
 
 --- source ---

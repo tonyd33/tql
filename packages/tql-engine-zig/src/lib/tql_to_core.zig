@@ -57,6 +57,7 @@ const Fixture = struct {
         return .{
             .module = .prim,
             .imports = &.{},
+            .visible = &.{},
             .exports = &.{},
             .env = &self.env,
         };

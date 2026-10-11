@@ -22,8 +22,8 @@ instance Labelled String where {
   label s = s;
 };
 
-ping n x y = if n = 0 then [describe x] else pong (n - 1) x y;
-pong n x y = if n = 0 then [label y] else ping (n - 1) x y;
+ping n x y = if n == 0 then [describe x] else pong (n - 1) x y;
+pong n x y = if n == 0 then [label y] else ping (n - 1) x y;
 
 main = Filter (\_ -> append (ping 3 1 "odd") (ping 2 1 "odd"));
 

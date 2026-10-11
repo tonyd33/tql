@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 newtype Name = Name String deriving (Eq, Ord);
 
-main = Filter (\_ -> [Name "a" = Name "a", Name "a" = Name "b", Name "a" < Name "b"]);
+main = Filter (\_ -> [Name "a" == Name "a", Name "a" == Name "b", Name "a" < Name "b"]);
 
 --- source ---
 class A {}

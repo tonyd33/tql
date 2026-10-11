@@ -1,0 +1,21 @@
+title: a prefix minus after an operand is not negation
+grammar: typescript
+asserts: error
+
+A spaced `-` directly before a name is prefix, so `f -x` passes `-x` to `f`
+and is rejected, not read as `f - x`.
+
+--- tql ---
+f y = y;
+x = 1;
+main = Filter (\_ -> [f -x]);
+
+--- source ---
+class A {}
+
+--- error ---
+error[parse]: TQL has no negation; write `0 - x`
+ --> 3:25
+  |
+3 | main = Filter (\_ -> [f -x]);
+  |                         ^^

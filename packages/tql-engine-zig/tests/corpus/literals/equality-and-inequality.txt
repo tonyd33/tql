@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 
-main = Filter (\_ -> [1 = 1, 1 != 1, "a" = "a", "a" = "b"]);
+main = Filter (\_ -> [1 == 1, 1 != 1, "a" == "a", "a" == "b"]);
 
 --- source ---
 class A {}

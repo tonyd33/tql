@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 f b = let { a = 2 * 3 } in if b then a else a + 1;
-main = Filter (\_ -> map f [true, false]);
+main = Filter (\_ -> map f [True, False]);
 
 --- source ---
 class A {}

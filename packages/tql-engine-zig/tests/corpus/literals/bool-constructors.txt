@@ -1,4 +1,4 @@
-title: `true` and `false` are the `Bool` constructors
+title: `True` and `False` print as JSON booleans
 grammar: typescript
 asserts: core, types, values
 
@@ -6,7 +6,7 @@ A list has one element type, so this case lists bools only.
 
 --- tql ---
 
-main = Filter (\_ -> [true, false, true]);
+main = Filter (\_ -> [True, False, True]);
 
 --- source ---
 class A {}

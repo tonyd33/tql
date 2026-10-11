@@ -6,7 +6,7 @@ asserts: types, values
 `x`'s type, which `is_x` does not generalize, so `same_as` carries it.
 
 --- tql ---
-same_as x = let { is_x y = x = y; } in is_x;
+same_as x = let { is_x y = x == y; } in is_x;
 main = Filter (\_ -> [same_as 1 1, same_as 1 2]);
 
 --- source ---

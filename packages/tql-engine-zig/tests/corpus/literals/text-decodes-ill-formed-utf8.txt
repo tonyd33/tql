@@ -1,0 +1,16 @@
+title: `text` decodes an ill-formed UTF-8 sequence to U+FFFD
+grammar: typescript
+asserts: values
+
+The source holds the Latin-1 byte for `Ã©`. Its text is a string with one
+replacement character; `range` still counts the source bytes.
+
+--- tql ---
+import Data.List (length);
+main = descendants_of_kind :string | arr (\n -> (text n, length (text n), (range n).end_byte - (range n).start_byte));
+
+--- source ---
+let s = "café";
+
+--- values ---
+[["\"cafï¿½\"",6,6]]

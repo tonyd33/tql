@@ -11,7 +11,7 @@ describe n = case kind n of {
 main = named_children | arr describe;
 
 --- error ---
-error[type-mismatch]: `_` is not matched
+error[non-exhaustive]: `_` is not matched
  --> 1:14
   |
 1 | describe n = case kind n of {

@@ -7,7 +7,7 @@ row matches. The last row is reached from several paths and is bound once.
 
 --- tql ---
 f xs = case xs of {
-  [a, b] if a = b -> "pair";
+  [a, b] if a == b -> "pair";
   [_, _] -> "two";
   _ -> "other";
 };

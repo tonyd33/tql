@@ -8,12 +8,12 @@ for.
 --- tql ---
 class Eq a => Same a where { same :: a -> a -> Bool; };
 data Op = Op (Int -> Int);
-instance Same Op where { same a b = true; };
+instance Same Op where { same a b = True; };
 main root = [1];
 
 --- error ---
 error[invalid-instance]: `Same Op` needs `Eq Op`
  --> 3:1
   |
-3 | instance Same Op where { same a b = true; };
+3 | instance Same Op where { same a b = True; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

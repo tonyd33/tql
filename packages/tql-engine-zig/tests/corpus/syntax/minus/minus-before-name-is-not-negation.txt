@@ -1,0 +1,20 @@
+title: a prefix minus before a name is not negation
+grammar: typescript
+asserts: error
+
+TQL has no `negate`, so `-x` is rejected rather than read as `x` applied to
+nothing.
+
+--- tql ---
+x = 1;
+main = Filter (\_ -> [-x]);
+
+--- source ---
+class A {}
+
+--- error ---
+error[parse]: TQL has no negation; write `0 - x`
+ --> 2:23
+  |
+2 | main = Filter (\_ -> [-x]);
+  |                       ^^

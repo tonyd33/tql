@@ -18,4 +18,4 @@ main = pure $ case loop of {
 class A {}
 
 --- runtime error ---
-Cycle
+a value depends on itself

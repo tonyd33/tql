@@ -1,0 +1,31 @@
+title: `T(..)` exports the constructors of `T` when a local declaration shares their name
+grammar: typescript
+asserts: values
+
+--- module Base ---
+module Base;
+
+data T = A;
+
+--- module Front ---
+module Front (T(..));
+
+import Base;
+
+data U = A;
+
+--- tql ---
+import Front (T(..));
+
+f :: T -> Int;
+f t = case t of {
+  A -> 7;
+};
+
+main = pure (f A);
+
+--- source ---
+class A {}
+
+--- values ---
+[7]

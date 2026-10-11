@@ -220,15 +220,15 @@ pub const Type = union(enum) {
     const Position = enum { top, arrow_from, argument };
 
     /// Format with metavariables named `a`, `b`, ... in order of first
-    /// appearance. Share one `names` across every type in a message so a
+    /// appearance, and each head `names` qualifies written with its module. Share one `names` across every type in a message so a
     /// metavariable keeps its letter.
-    pub fn named(self: Type, names: *MetaNames) Named {
+    pub fn named(self: Type, names: *MessageNames) Named {
         return .{ .type = self, .names = names };
     }
 
     pub const Named = struct {
         type: Type,
-        names: *MetaNames,
+        names: *MessageNames,
         position: Position = .top,
 
         pub fn format(self: Named, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -237,7 +237,7 @@ pub const Type = union(enum) {
     };
 
     /// `named`, parenthesized as `operand` is.
-    pub fn namedOperand(self: Type, names: *MetaNames) Named {
+    pub fn namedOperand(self: Type, names: *MessageNames) Named {
         return .{ .type = self, .names = names, .position = .argument };
     }
 
@@ -279,11 +279,11 @@ pub const Type = union(enum) {
         }
     }
 
-    fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MetaNames) std.Io.Writer.Error!void {
+    fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MessageNames) std.Io.Writer.Error!void {
         switch (self) {
-            .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
-            .meta => |id| if (if (names) |n| n.index(id) else null) |i| {
-                try w.writeByte('a' + @as(u8, @intCast(i)));
+            .variable => |index| try writeVariable(w, index),
+            .meta => |id| if (if (names) |n| n.metas.index(id) else null) |i| {
+                try writeVariable(w, i);
             } else try w.print("?{d}", .{id}),
             .constructor => |c| {
                 const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c) and !isTupleSugar(c);
@@ -332,8 +332,80 @@ pub const Type = union(enum) {
     }
 };
 
-/// Letters for metavariables within one message.
-pub const MetaNames = Names(Meta);
+/// What every type and class in one message shares.
+pub const MessageNames = struct {
+    metas: Names(Meta) = .{},
+    /// Heads written as `module.Name`.
+    qualified: std.ArrayList(Qualified) = .empty,
+
+    pub const Head = union(enum) {
+        type: datatypes.TypeId,
+        class: classes.ClassId,
+    };
+
+    pub const Qualified = struct {
+        head: Head,
+        module: []const u8,
+    };
+
+    pub fn deinit(self: *MessageNames, gpa: std.mem.Allocator) void {
+        self.qualified.deinit(gpa);
+    }
+
+    pub fn moduleOf(self: *const MessageNames, head: Head) ?[]const u8 {
+        for (self.qualified.items) |q| {
+            if (std.meta.eql(q.head, head)) return q.module;
+        }
+        return null;
+    }
+
+    /// Format class `id`, spelled `spelling`, qualified when this message
+    /// qualifies it.
+    pub fn class(self: *const MessageNames, id: classes.ClassId, spelling: []const u8) ClassName {
+        return .{ .module = self.moduleOf(.{ .class = id }), .spelling = spelling };
+    }
+
+    pub const ClassName = struct {
+        module: ?[]const u8,
+        spelling: []const u8,
+
+        pub fn format(self: ClassName, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            if (self.module) |m| try w.print("{s}.", .{m});
+            try w.writeAll(self.spelling);
+        }
+    };
+};
+
+/// A head a message prints, by identity and spelling.
+pub const Spelled = struct {
+    head: MessageNames.Head,
+    spelling: []const u8,
+};
+
+/// Appends the head of each constructed type in `t`. A head printed as list
+/// or tuple sugar is left out.
+pub fn collectHeads(gpa: std.mem.Allocator, t: Type, out: *std.ArrayList(Spelled)) std.mem.Allocator.Error!void {
+    switch (t) {
+        .variable, .meta => {},
+        .constructor => |c| {
+            if (!isListSugar(c) and !isTupleSugar(c)) try out.append(gpa, .{ .head = .{ .type = c.name }, .spelling = c.spelling });
+            for (c.arguments) |argument| try collectHeads(gpa, argument, out);
+        },
+        .record => |r| {
+            for (r.fields) |f| try collectHeads(gpa, f.type.*, out);
+            if (r.rest) |rest| try collectHeads(gpa, rest.*, out);
+        },
+        .function => |arrow| {
+            try collectHeads(gpa, arrow.from, out);
+            try collectHeads(gpa, arrow.to, out);
+        },
+        .alias => |a| for (a.arguments) |argument| try collectHeads(gpa, argument, out),
+        .application => |a| {
+            try collectHeads(gpa, a.head, out);
+            try collectHeads(gpa, a.argument, out);
+        },
+    }
+}
 
 /// Names for kind metavariables within one message.
 pub const KindNames = Names(KindMeta);
@@ -342,11 +414,11 @@ pub const KindNames = Names(KindMeta);
 /// first appearance.
 fn Names(comptime Id: type) type {
     return struct {
-        seen: [26]Id = undefined,
+        seen: [std.math.maxInt(TypeVar) + 1]Id = undefined,
         len: usize = 0,
 
         /// Returns the index `id` was given, giving it the next one if it has
-        /// none. Null past the 26th.
+        /// none. Null once every `TypeVar` is given.
         fn index(self: *@This(), id: Id) ?usize {
             if (std.mem.indexOfScalar(Id, self.seen[0..self.len], id)) |i| return i;
             if (self.len == self.seen.len) return null;
@@ -357,10 +429,16 @@ fn Names(comptime Id: type) type {
     };
 }
 
+/// Write the `index`th variable name: `a` to `z`, then `a1` to `z1`, `a2`...
+fn writeVariable(w: *std.Io.Writer, index: usize) std.Io.Writer.Error!void {
+    try w.writeByte('a' + @as(u8, @intCast(index % 26)));
+    if (index >= 26) try w.print("{d}", .{index / 26});
+}
+
 fn writeConstructed(
     c: *const Type.Constructed,
     w: *std.Io.Writer,
-    names: ?*MetaNames,
+    names: ?*MessageNames,
 ) std.Io.Writer.Error!void {
     if (isTupleSugar(c)) {
         try w.writeByte('(');
@@ -377,6 +455,7 @@ fn writeConstructed(
         try w.writeByte(']');
         return;
     }
+    if (if (names) |n| n.moduleOf(.{ .type = c.name }) else null) |module| try w.print("{s}.", .{module});
     try w.writeAll(c.spelling);
     for (c.arguments) |argument| {
         try w.writeByte(' ');
@@ -385,7 +464,7 @@ fn writeConstructed(
 }
 
 fn isListSugar(c: *const Type.Constructed) bool {
-    return c.arguments.len == 1 and std.mem.eql(u8, c.spelling, list_spelling);
+    return c.arguments.len == 1 and c.name == datatypes.list_id;
 }
 
 /// Whether `c` is a tuple type at all its components, written `(a, b)`.
@@ -493,7 +572,7 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
-pub const filter_spelling = "Filter";
+pub const maybe_spelling = "Maybe";
 pub const function_spelling = "(->)";
 
 /// The most components a tuple has.
@@ -626,6 +705,12 @@ pub fn arrows(allocator: std.mem.Allocator, froms: []const Type, to: Type) !Type
         result = try func(allocator, froms[i], result);
     }
     return result;
+}
+
+/// Returns the type of a pattern synonym's matcher,
+/// `scrutinee -> (holes[0] -> .. -> holes[n-1] -> result) -> result -> result`.
+pub fn matcher(allocator: std.mem.Allocator, scrutinee: Type, holes: []const Type, result: Type) !Type {
+    return try arrows(allocator, &.{ scrutinee, try arrows(allocator, holes, result), result }, result);
 }
 
 /// `expansion` written as `spelling` at `arguments`. Takes ownership of

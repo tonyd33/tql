@@ -255,7 +255,7 @@ fn addEngineDeps(
     mod.addIncludePath(tree_sitter_tql.path("src"));
     mod.addCSourceFiles(.{
         .root = tree_sitter_tql.path(""),
-        .files = &.{"src/parser.c"},
+        .files = &.{ "src/parser.c", "src/scanner.c" },
         .flags = &.{ "-std=c11", "-fPIC" },
     });
 }

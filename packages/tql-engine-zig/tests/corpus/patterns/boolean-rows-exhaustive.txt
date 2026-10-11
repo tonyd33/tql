@@ -1,14 +1,11 @@
-title: boolean literal patterns cover `Bool` without a catch-all
+title: `True` and `False` rows cover `Bool` without a catch-all
 grammar: typescript
 asserts: core, values
 
-`true` and `false` are the constructors `True` and `False`, so two rows
-are exhaustive.
-
 --- tql ---
-f b = case b of { true -> "yes"; false -> "no"; };
+f b = case b of { True -> "yes"; False -> "no"; };
 
-main = Filter (\_ -> [f true, f false]);
+main = Filter (\_ -> [f True, f False]);
 
 --- source ---
 class A {}

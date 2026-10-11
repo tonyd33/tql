@@ -13,7 +13,7 @@ assignment_in_condition =
 empty_block =
   named_descendants
   | keep (is_kind :compound_statement)
-  | keep ((= 2) . length . run children);
+  | keep ((== 2) . length . run children);
 
 wide_call =
   named_descendants

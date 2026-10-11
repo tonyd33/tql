@@ -42,33 +42,41 @@ const Subject = union(enum) {
     value: []const u8,
     type: []const u8,
     /// A constructor, admitted only through `T(..)` for its type.
-    constructors_of: []const u8,
+    constructor_of: datatypes.TypeId,
     /// A method, admitted by its own name or through `C(..)` for its class.
-    method: struct { name: []const u8, class: []const u8 },
+    method: struct { name: []const u8, class: classes.ClassId },
     synonym: []const u8,
 };
 
-fn admits(filter: Filter, subject: Subject) bool {
+/// Whether `filter`, applied to the exports `from`, admits `subject`.
+fn admits(filter: Filter, subject: Subject, from: *const Exports) bool {
     return switch (filter) {
         .all => true,
-        .only => |items| listed(items, subject),
-        .hiding => |items| !listed(items, subject),
+        .only => |items| listed(items, subject, from),
+        .hiding => |items| !listed(items, subject, from),
     };
 }
 
-fn listed(items: []const cst.Item, subject: Subject) bool {
+fn listed(items: []const cst.Item, subject: Subject, from: *const Exports) bool {
     for (items) |item| {
         const matches = switch (subject) {
             .value => |name| item.kind == .value and std.mem.eql(u8, item.name, name),
             .type => |name| (item.kind == .type or item.kind == .type_and_constructors) and std.mem.eql(u8, item.name, name),
-            .constructors_of => |name| item.kind == .type_and_constructors and std.mem.eql(u8, item.name, name),
+            .constructor_of => |owner| membersOf(item, from, .{ .datatype = owner }),
             .method => |m| (item.kind == .value and std.mem.eql(u8, item.name, m.name)) or
-                (item.kind == .type_and_constructors and std.mem.eql(u8, item.name, m.class)),
+                membersOf(item, from, .{ .class = m.class }),
             .synonym => |name| item.kind == .synonym and std.mem.eql(u8, item.name, name),
         };
         if (matches) return true;
     }
     return false;
+}
+
+/// Whether `item` is `T(..)` for the `T` that `from` exports as `owner`.
+fn membersOf(item: cst.Item, from: *const Exports, owner: TypeName) bool {
+    if (item.kind != .type_and_constructors) return false;
+    const exported = from.types.get(item.name) orelse return false;
+    return std.meta.eql(exported, owner);
 }
 
 /// What a module exports, by spelling. A module may export what it imports.
@@ -94,18 +102,51 @@ pub const Import = struct {
 pub const ModuleScope = struct {
     module: ModuleId,
     imports: []const Import,
+    /// What each of `imports` takes of its module's exports, in order.
+    visible: []const Exports,
     /// What each module linked before this one exports, by `ModuleId`.
     exports: []const Exports,
     /// What names resolve to, and where a tuple type the module writes is
     /// declared.
     env: *core.env.Env,
 
+    /// `module`'s view, taking from each of `imports` what it selects of
+    /// `exports`.
+    pub fn init(
+        arena: std.mem.Allocator,
+        module: ModuleId,
+        imports: []const Import,
+        exports: []const Exports,
+        env: *core.env.Env,
+    ) !ModuleScope {
+        const visible = try arena.alloc(Exports, imports.len);
+        for (imports, visible) |import, *taken| {
+            const from = &exports[@intFromEnum(import.module)];
+            if (import.selects == .all) {
+                taken.* = from.*;
+                continue;
+            }
+            taken.* = .{};
+            var values = from.values.iterator();
+            while (values.next()) |entry| {
+                if (!admits(import.selects, valueSubject(env, entry.value_ptr.*, entry.key_ptr.*), from)) continue;
+                try taken.values.put(arena, entry.key_ptr.*, entry.value_ptr.*);
+            }
+            var types = from.types.iterator();
+            while (types.next()) |entry| {
+                if (!admits(import.selects, .{ .type = entry.key_ptr.* }, from)) continue;
+                try taken.types.put(arena, entry.key_ptr.*, entry.value_ptr.*);
+            }
+        }
+        return .{ .module = module, .imports = imports, .visible = visible, .exports = exports, .env = env };
+    }
+
     pub fn value(self: *const ModuleScope, written: []const u8) Resolved(core.SymbolId) {
-        return self.resolve(core.SymbolId, written, declaredValue, exportedValue, valueSubject);
+        return self.resolve(core.SymbolId, written, declaredValue, takenValue);
     }
 
     pub fn typeNamed(self: *const ModuleScope, written: []const u8) Resolved(TypeName) {
-        return self.resolve(TypeName, written, declaredType, exportedType, typeSubject);
+        return self.resolve(TypeName, written, declaredType, takenType);
     }
 
     fn resolve(
@@ -113,8 +154,7 @@ pub const ModuleScope = struct {
         comptime T: type,
         written: []const u8,
         comptime declared: fn (*const ModuleScope, ModuleId, []const u8) ?T,
-        comptime exported: fn (*const ModuleScope, ModuleId, []const u8) ?T,
-        comptime subjectOf: fn (*const ModuleScope, T, []const u8) Subject,
+        comptime taken: fn (*const Exports, []const u8) ?T,
     ) Resolved(T) {
         const qualifier: ?[]const u8, const name = if (std.mem.cutScalarLast(u8, written, '.')) |cut|
             .{ cut[0], cut[1] }
@@ -126,11 +166,10 @@ pub const ModuleScope = struct {
         }
         var qualified = false;
         var found: ?struct { item: T, module: ModuleId } = null;
-        for (self.imports) |import| {
+        for (self.imports, self.visible) |import, *visible| {
             if (!optionalEql(import.qualifier, qualifier)) continue;
             qualified = true;
-            const item = exported(self, import.module, name) orelse continue;
-            if (!admits(import.selects, subjectOf(self, item, name))) continue;
+            const item = taken(visible, name) orelse continue;
             if (found) |earlier| {
                 if (!std.meta.eql(earlier.item, item)) {
                     return .{ .failed = .{ .ambiguous = .{ earlier.module, import.module } } };
@@ -150,8 +189,8 @@ pub const ModuleScope = struct {
         return self.env.interner.lookup(module, name);
     }
 
-    fn exportedValue(self: *const ModuleScope, module: ModuleId, name: []const u8) ?core.SymbolId {
-        return self.exports[@intFromEnum(module)].values.get(name);
+    fn takenValue(visible: *const Exports, name: []const u8) ?core.SymbolId {
+        return visible.values.get(name);
     }
 
     pub fn declaredType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
@@ -161,22 +200,8 @@ pub const ModuleScope = struct {
         return null;
     }
 
-    fn exportedType(self: *const ModuleScope, module: ModuleId, name: []const u8) ?TypeName {
-        return self.exports[@intFromEnum(module)].types.get(name);
-    }
-
-    fn valueSubject(self: *const ModuleScope, symbol: core.SymbolId, name: []const u8) Subject {
-        switch (self.env.interner.details(symbol)) {
-            .synonym => return .{ .synonym = name },
-            .method => |m| return .{ .method = .{ .name = name, .class = self.env.classes.spelling(m.class) } },
-            else => {},
-        }
-        const owner = datatypes.ownerOf(&self.env.interner, symbol) orelse return .{ .value = name };
-        return .{ .constructors_of = self.env.datatypes.get(owner).name };
-    }
-
-    fn typeSubject(_: *const ModuleScope, _: TypeName, name: []const u8) Subject {
-        return .{ .type = name };
+    fn takenType(visible: *const Exports, name: []const u8) ?TypeName {
+        return visible.types.get(name);
     }
 
     /// Reports why `written` resolved to nothing usable.
@@ -291,65 +316,111 @@ pub const ModuleScope = struct {
     }
 
     /// Builds what this module exports, from its export list. Reports each
-    /// item naming nothing in scope. Returns null when there was one.
+    /// item naming nothing in scope, and each spelling it exports as two
+    /// different things. Returns null when there was one.
     ///
     /// Preconditions:
     /// - Every top-level name of this module is declared.
     pub fn exportsOf(self: *const ModuleScope, arena: std.mem.Allocator, list: Filter, sink: *diagnostic.Sink) !?Exports {
-        var out: Exports = .{};
         const items = switch (list) {
-            .all => {
-                try self.exportOwn(arena, &out);
-                return out;
-            },
+            .all => return try self.ownExports(arena),
             .only, .hiding => |items| items,
         };
-        var ok = true;
-        for (items) |item| ok = try self.exportItem(arena, item, &out, sink) and ok;
-        return if (ok) out else null;
+        const reported = sink.items().len;
+        var out: Exports = .{};
+        for (items) |item| try self.exportItem(arena, item, &out, sink);
+        return if (sink.items().len == reported) out else null;
     }
 
-    fn exportItem(self: *const ModuleScope, arena: std.mem.Allocator, item: cst.Item, out: *Exports, sink: *diagnostic.Sink) !bool {
+    fn exportItem(self: *const ModuleScope, arena: std.mem.Allocator, item: cst.Item, out: *Exports, sink: *diagnostic.Sink) !void {
         switch (item.kind) {
             .value, .synonym => {
-                const symbol = try self.inScope(core.SymbolId, self.value(item.name), item, sink) orelse return false;
-                if (!self.itemNames(item, symbol)) {
-                    try reportUndeclared(item, sink);
-                    return false;
-                }
-                try out.values.put(arena, self.env.interner.spelling(symbol), symbol);
+                const symbol = try self.inScope(core.SymbolId, self.value(item.name), item, sink) orelse return;
+                if (!self.itemNames(item, symbol)) return try reportUndeclared(item, sink);
+                try self.put(core.SymbolId, arena, &out.values, self.env.interner.spelling(symbol), symbol, item.span, sink);
             },
             .type, .type_and_constructors => {
-                const name = try self.inScope(TypeName, self.typeNamed(item.name), item, sink) orelse return false;
+                const name = try self.inScope(TypeName, self.typeNamed(item.name), item, sink) orelse return;
                 if (item.kind == .type_and_constructors) {
-                    _ = try membersNoun(name, item, sink) orelse return false;
+                    _ = try membersNoun(name, item, sink) orelse return;
                     switch (name) {
-                        .datatype => |id| for (self.env.datatypes.get(id).constructors) |c| try self.exportMember(arena, c.symbol, out),
-                        .class => |id| for (self.env.classes.get(id).methods) |m| try self.exportMember(arena, m, out),
+                        .datatype => |id| for (self.env.datatypes.get(id).constructors) |c| {
+                            try self.exportMember(arena, c.symbol, out, item.span, sink);
+                        },
+                        .class => |id| for (self.env.classes.get(id).methods) |m| {
+                            try self.exportMember(arena, m, out, item.span, sink);
+                        },
                         .alias => unreachable,
                     }
                 }
-                try out.types.put(arena, self.typeSpelling(name), name);
+                try self.put(TypeName, arena, &out.types, self.typeSpelling(name), name, item.span, sink);
             },
             .module => {
                 if (std.mem.eql(u8, item.name, self.env.interner.moduleName(self.module))) {
-                    try self.exportOwn(arena, out);
-                    return true;
+                    return try self.merge(arena, out, &try self.ownExports(arena), item.span, sink);
                 }
                 var imported = false;
-                for (self.imports) |import| {
+                for (self.imports, self.visible) |import, *visible| {
                     if (import.qualifier != null) continue;
                     if (!std.mem.eql(u8, self.env.interner.moduleName(import.module), item.name)) continue;
                     imported = true;
-                    try self.exportImported(arena, import, out);
+                    try self.merge(arena, out, visible, item.span, sink);
                 }
                 if (!imported) {
                     try sink.report(.unresolved_name, item.span, "`{s}` is not imported unqualified", .{item.name});
-                    return false;
                 }
             },
         }
-        return true;
+    }
+
+    /// Adds `entity` under `spelling`. Reports a different entity already
+    /// exported under it.
+    fn put(
+        self: *const ModuleScope,
+        comptime T: type,
+        arena: std.mem.Allocator,
+        map: *std.StringArrayHashMapUnmanaged(T),
+        spelling: []const u8,
+        entity: T,
+        span: diagnostic.Span,
+        sink: *diagnostic.Sink,
+    ) !void {
+        const slot = try map.getOrPut(arena, spelling);
+        if (!slot.found_existing) {
+            slot.value_ptr.* = entity;
+            return;
+        }
+        if (std.meta.eql(slot.value_ptr.*, entity)) return;
+        try sink.report(
+            .conflicting_export,
+            span,
+            "`{s}` is exported as both `{s}.{s}` and `{s}.{s}`",
+            .{
+                spelling,
+                self.env.interner.moduleName(self.origin(T, slot.value_ptr.*)),
+                spelling,
+                self.env.interner.moduleName(self.origin(T, entity)),
+                spelling,
+            },
+        );
+    }
+
+    /// The module that declares `entity`.
+    fn origin(self: *const ModuleScope, comptime T: type, entity: T) ModuleId {
+        if (T == core.SymbolId) return self.env.interner.moduleOf(entity).?;
+        return switch (entity) {
+            .datatype => |id| self.env.datatypes.get(id).module,
+            .class => |id| self.env.classes.get(id).name.module.?,
+            .alias => |alias| alias.module,
+        };
+    }
+
+    /// Adds everything `from` holds.
+    fn merge(self: *const ModuleScope, arena: std.mem.Allocator, out: *Exports, from: *const Exports, span: diagnostic.Span, sink: *diagnostic.Sink) !void {
+        var values = from.values.iterator();
+        while (values.next()) |entry| try self.put(core.SymbolId, arena, &out.values, entry.key_ptr.*, entry.value_ptr.*, span, sink);
+        var types = from.types.iterator();
+        while (types.next()) |entry| try self.put(TypeName, arena, &out.types, entry.key_ptr.*, entry.value_ptr.*, span, sink);
     }
 
     /// Returns what a lookup found. Reports a failed or missing one.
@@ -380,16 +451,33 @@ pub const ModuleScope = struct {
         };
     }
 
-    /// Adds `member`, a constructor or method, when it is in scope here.
-    fn exportMember(self: *const ModuleScope, arena: std.mem.Allocator, member: core.SymbolId, out: *Exports) !void {
-        const spelling = self.env.interner.spelling(member);
-        const visible = self.value(spelling);
-        if (visible == .found and visible.found == member) try out.values.put(arena, spelling, member);
+    /// Adds `member`, a constructor or method, when this module declares or
+    /// imports it.
+    fn exportMember(
+        self: *const ModuleScope,
+        arena: std.mem.Allocator,
+        member: core.SymbolId,
+        out: *Exports,
+        span: diagnostic.Span,
+        sink: *diagnostic.Sink,
+    ) !void {
+        if (!self.reaches(member)) return;
+        try self.put(core.SymbolId, arena, &out.values, self.env.interner.spelling(member), member, span, sink);
     }
 
-    /// Adds everything this module declares, its constructors and methods
+    /// Whether this module declares `symbol`, or an import takes it.
+    fn reaches(self: *const ModuleScope, symbol: core.SymbolId) bool {
+        if (self.env.interner.moduleOf(symbol) == self.module) return true;
+        for (self.visible) |*visible| {
+            if (self.holds(visible, symbol)) return true;
+        }
+        return false;
+    }
+
+    /// Everything this module declares, its constructors and methods
     /// included.
-    fn exportOwn(self: *const ModuleScope, arena: std.mem.Allocator, out: *Exports) !void {
+    fn ownExports(self: *const ModuleScope, arena: std.mem.Allocator) !Exports {
+        var out: Exports = .{};
         var symbols = self.env.interner.by_name.iterator();
         while (symbols.next()) |entry| {
             if (entry.key_ptr.module != self.module) continue;
@@ -408,23 +496,19 @@ pub const ModuleScope = struct {
             if (c.name.module != self.module) continue;
             try out.types.put(arena, c.name.name, .{ .class = @enumFromInt(i) });
         }
-    }
-
-    /// Adds every export of `import`'s module that it selects.
-    fn exportImported(self: *const ModuleScope, arena: std.mem.Allocator, import: Import, out: *Exports) !void {
-        const from = &self.exports[@intFromEnum(import.module)];
-        var values = from.values.iterator();
-        while (values.next()) |entry| {
-            if (!admits(import.selects, self.valueSubject(entry.value_ptr.*, entry.key_ptr.*))) continue;
-            try out.values.put(arena, entry.key_ptr.*, entry.value_ptr.*);
-        }
-        var types = from.types.iterator();
-        while (types.next()) |entry| {
-            if (!admits(import.selects, .{ .type = entry.key_ptr.* })) continue;
-            try out.types.put(arena, entry.key_ptr.*, entry.value_ptr.*);
-        }
+        return out;
     }
 };
+
+fn valueSubject(env: *const core.env.Env, symbol: core.SymbolId, name: []const u8) Subject {
+    switch (env.interner.details(symbol)) {
+        .synonym => return .{ .synonym = name },
+        .method => |m| return .{ .method = .{ .name = name, .class = m.class } },
+        else => {},
+    }
+    const owner = datatypes.ownerOf(&env.interner, symbol) orelse return .{ .value = name };
+    return .{ .constructor_of = owner };
+}
 
 fn optionalEql(a: ?[]const u8, b: ?[]const u8) bool {
     if (a == null or b == null) return a == null and b == null;

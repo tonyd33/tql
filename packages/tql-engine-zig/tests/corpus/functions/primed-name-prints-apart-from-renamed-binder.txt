@@ -1,0 +1,17 @@
+title: a primed name prints apart from a binder renamed to avoid capture
+grammar: typescript
+asserts: core, values
+
+--- tql ---
+same x' x = map (`x'` x) [2];
+main = Filter (\_ -> same (==) 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[true]
+
+--- core ---
+same = \x' -> \x -> map (\x'' -> x' x'' x) (Cons 2 Nil)
+main = Filter (\_ -> same (\x -> \y -> eq x y) 2)

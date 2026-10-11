@@ -5,7 +5,7 @@ asserts: core, values
 --- tql ---
 import Data.Foldable (any);
 
-main = descendants_of_kind :call_expression | keep (any ((= "import") . text) . run #function) | arr text;
+main = descendants_of_kind :call_expression | keep (any ((== "import") . text) . run #function) | arr text;
 
 --- source ---
 import("x");

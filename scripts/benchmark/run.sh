@@ -20,7 +20,9 @@ Usage: run.sh --tql TQL [options] [BENCHMARK...]
 A suite is a YAML file listing benchmarks. Each names its query, relative
 to the suite file, the grammar it runs under, and its corpus: a repository,
 a commit, and paths within it ("." is the whole tree). `limit_s`, the
-ceiling on the median summed query time, is optional.
+ceiling on the median summed query time, is optional. A run fails when a
+target file does not parse under the grammar, unless the benchmark sets
+`allow_syntax_errors: true`.
 EOF
 }
 
@@ -67,6 +69,7 @@ run_once() {
     --argjson iteration "$iteration" \
     --argjson wall "$((end - start))" \
     --argjson code "$code" \
+    --argjson allow "$(jq '.allow_syntax_errors // false' <<< "$benchmark")" \
     --argjson stats "${stats:-null}" \
     --rawfile err "$stderr" '
     {
@@ -78,8 +81,8 @@ run_once() {
       exit_code: $code
     }
     + ($stats // {})
-    + if $code == 0 and $stats != null then {}
-      else {error: (if $err == "" then "no stats in output" else $err[-2000:] end)}
+    + if ($code == 0 or ($code == 2 and $allow)) and $stats != null then {}
+      else {error: (if $err != "" then $err[-2000:] elif $stats == null then "no stats in output" elif $code == 2 then "a target file has syntax errors" else "exited \($code)" end)}
       end'
   rm -f "$stdout" "$stderr"
 }

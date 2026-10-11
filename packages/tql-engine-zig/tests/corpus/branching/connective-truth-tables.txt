@@ -6,9 +6,9 @@ asserts: types, values
 import Data.Function (const);
 
 main = Filter $ const [
-  and true true, and true false, and false true, and false false,
-  or true true, or true false, or false true, or false false,
-  not true, not false,
+  and True True, and True False, and False True, and False False,
+  or True True, or True False, or False True, or False False,
+  not True, not False,
 ];
 
 --- source ---

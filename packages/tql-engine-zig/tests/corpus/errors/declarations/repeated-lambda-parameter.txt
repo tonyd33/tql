@@ -1,0 +1,16 @@
+title: a lambda naming two parameters alike is an error
+grammar: typescript
+asserts: error
+
+A nested lambda may still shadow: `\x -> \x -> x` is accepted.
+
+--- tql ---
+f = \x x -> x;
+main = pure (f 1 2);
+
+--- error ---
+error[duplicate-definition]: `x` names two parameters
+ --> 1:8
+  |
+1 | f = \x x -> x;
+  |        ^

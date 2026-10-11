@@ -7,7 +7,7 @@ referenced, so `b`, inferred before `a`, is `Node -> [String]`.
 
 --- tql ---
 a :: Node -> [String];
-a x = if true then [] else b x;
+a x = if True then [] else b x;
 b x = a x;
 main = Filter b;
 

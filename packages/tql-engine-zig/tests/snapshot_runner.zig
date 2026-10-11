@@ -883,9 +883,10 @@ fn evaluate(
         allocator,
         arena.allocator(),
     ) catch |err| switch (err) {
-        error.Cycle, error.DivideByZero, error.StackOverflow => return .{ .failed = err },
+        error.Cycle, error.StackOverflow, error.RegexFailed => return .{ .failed = err },
         else => |e| return e,
     };
+    allocator.free(outcome.syntax_errors);
     return .{ .json = outcome.json };
 }
 
@@ -1045,7 +1046,7 @@ fn runTestCase(
                                 .failed => |e| {
                                     if (!tc.isAsserted(.runtime_error)) return e;
                                     allocator.free(runtime_error_text);
-                                    runtime_error_text = try allocator.dupe(u8, @errorName(e));
+                                    runtime_error_text = try std.fmt.allocPrint(allocator, "{f}", .{tql.Failure{ .err = e }});
                                 },
                             }
 

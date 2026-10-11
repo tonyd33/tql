@@ -1,0 +1,17 @@
+title: a regex that backtracks exponentially still matches
+grammar: typescript
+asserts: values
+
+`(a|aa)+b` splits a run of `a`s in exponentially many ways before the `c`
+fails it. The matcher follows every alternative at once instead, so the
+second alternative is found and `!~` is its negation.
+
+--- tql ---
+s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac";
+main = pure [s ~ r"^(?:(a|aa)+b|a+c)$", s !~ r"^(?:(a|aa)+b|a+c)$", "aac" ~ r"^(?:(a|aa)+b|a+c)$"];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false,true]]

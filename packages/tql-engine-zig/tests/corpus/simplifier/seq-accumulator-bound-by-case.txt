@@ -1,0 +1,66 @@
+title: an accumulator forced by seq and passed on is bound by the case that forces it
+grammar: typescript
+asserts: simplified, stg, values
+
+`z2` is used twice. Inlining it would leave the second use an unforced copy,
+and the chain of thunks a strict fold exists to avoid would return.
+
+--- tql ---
+fold :: (b -> a -> b) -> b -> [a] -> b;
+fold f z xs = case xs of {
+  [] -> z;
+  h : t -> let { z2 = f z h; } in seq z2 (fold f z2 t);
+};
+main = pure (fold (\n x -> n + x) 0 [1, 2, 3]);
+
+--- source ---
+class A {}
+
+--- values ---
+[6]
+
+--- simplified ---
+fold = \f -> \z -> \xs -> case xs of
+  Nil -> z
+  Cons h t -> case f z h of z2
+    _ -> fold f z2 t
+main =
+  let y = fold (\n -> \x -> op[+] n x) 0 (Cons 1 (Cons 2 (Cons 3 Nil))) in
+  \_ -> Cons y Nil
+
+--- stg ---
+fold = {} \u {} ->
+  let
+    t0 = {} \n {f,z,xs} -> case xs@2 of
+      Nil -> z@1
+      Cons h t -> case f@0 z@1 h@3 of z2
+        _ -> fold f@0 z2@5 t@4
+  in
+  t0@0
+main = {} \u {} ->
+  let
+    y = {} \u {} ->
+      let
+        t1 = {} \u {} ->
+          let t0 = {} \n {n,x} -> op[+]# n@0 x@1 in
+          t0@0
+        t5 = {} \u {} ->
+          let
+            t4 = {} \u {} ->
+              let
+                t3 = {} \u {} ->
+                  let c2 = Nil in
+                  Cons 3 c2@0
+              in
+              Cons 2 t3@0
+          in
+          Cons 1 t4@0
+      in
+      fold t1@0 0 t5@1
+  in
+  let
+    t7 = {y@0} \n {_} ->
+      let c6 = Nil in
+      Cons y@0 c6@2
+  in
+  t7@1

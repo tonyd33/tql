@@ -6,7 +6,7 @@ asserts: core, types, values
 to right would yield `false`.
 
 --- tql ---
-main = pure $ true or true and false;
+main = pure $ True or True and False;
 
 --- source ---
 class A {}

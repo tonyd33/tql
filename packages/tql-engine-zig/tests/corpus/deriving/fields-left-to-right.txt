@@ -6,7 +6,7 @@ asserts: values
 import Data.Function (const);
 
 data Pair = Pair Int String deriving (Eq, Ord);
-main = Filter $ const [Pair 1 "b" < Pair 2 "a", Pair 1 "b" < Pair 1 "a", Pair 1 "a" = Pair 1 "a"];
+main = Filter $ const [Pair 1 "b" < Pair 2 "a", Pair 1 "b" < Pair 1 "a", Pair 1 "a" == Pair 1 "a"];
 
 --- source ---
 class A {}

@@ -10,11 +10,11 @@ Functions have no `Eq`, and the list inherits that.
 --- tql ---
 main =
   let { fs = [kind_name, text]; }
-  in fs = fs;
+  in fs == fs;
 
 --- error ---
 error[unsatisfied-constraint]: `Eq (Node -> String)` is not satisfied.
  --> 3:6
   |
-3 |   in fs = fs;
-  |      ^^^^^^^
+3 |   in fs == fs;
+  |      ^^^^^^^^

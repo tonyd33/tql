@@ -9,7 +9,7 @@ asserts: error
 main = empty;
 
 --- error ---
-error[ambiguous-output]: Expected `Node`, found `a`.
+error[ambiguous-output]: `main`'s output `a` is ambiguous: nothing determines its type.
  --> 1:1
   |
 1 | main = empty;

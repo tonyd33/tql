@@ -6,12 +6,12 @@ asserts: error
 import Data.Function (const);
 
 class Eq a => Same a where { same :: a -> a -> Bool; };
-instance Same Regex where { same a b = true; };
+instance Same Regex where { same a b = True; };
 main = const [];
 
 --- error ---
 error[invalid-instance]: `Same Regex` needs `Eq Regex`
  --> 4:1
   |
-4 | instance Same Regex where { same a b = true; };
+4 | instance Same Regex where { same a b = True; };
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

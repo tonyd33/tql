@@ -11,6 +11,12 @@ pub const TypeId = symbols.TypeId;
 /// `(->)`, the function type's constructor short of an argument. At both it
 /// is a `types.Type.function`.
 pub const function_id: TypeId = Registry.Structural.function.id();
+pub const list_id: TypeId = Registry.Structural.list.id();
+
+/// `[element]`.
+pub fn list(arena: Allocator, element: types.Type) !types.Type {
+    return try types.constructed(arena, list_id, types.list_spelling, &.{element});
+}
 
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
@@ -43,6 +49,7 @@ pub const Datatype = struct {
 
 /// `type Named r = {name: String | r};`
 pub const Alias = struct {
+    module: symbols.ModuleId,
     name: []const u8,
     parameters: []const Parameter,
     /// Names parameter `i` as `types.Type.variable` `i`.
@@ -91,7 +98,7 @@ pub const Registry = struct {
 
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// `Prim` declares the primitives, `List`, `Bool` and `Ordering`; these
+    /// `Prim` declares the primitives, `List`, `Bool`, `Ordering` and `Maybe`; these
     /// rows reserve their ids so a primitive scheme can name any of them
     /// before `Prim` is parsed. No source declares `(->)`.
     pub const Structural = struct {
@@ -135,6 +142,12 @@ pub const Registry = struct {
             .constructors = &.{ "LT", "EQ", "GT" },
         };
 
+        pub const maybe: Structural = .{
+            .name = types.maybe_spelling,
+            .parameters = &.{.type},
+            .constructors = &.{ "Nothing", "Just" },
+        };
+
         pub const function: Structural = .{
             .name = types.function_spelling,
             .parameters = &.{ .type, .type },
@@ -152,6 +165,7 @@ pub const Registry = struct {
             Structural.list,
             Structural.boolean,
             Structural.ordering,
+            Structural.maybe,
             Structural.function,
         };
     };
@@ -162,7 +176,7 @@ pub const Registry = struct {
     /// declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
-            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
+            try self.defineAlias(.{ .module = .prim, .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
         }
         for (Structural.all) |s| {
             const id = try self.declare(interner, .prim, s.name, s.parameters, &.{}, .data);
@@ -182,10 +196,6 @@ pub const Registry = struct {
             if (std.mem.eql(u8, s.name, name)) return s;
         }
         return null;
-    }
-
-    pub fn listId(self: *const Registry) TypeId {
-        return self.lookup(.prim, types.list_spelling).?;
     }
 
     pub fn boolId(self: *const Registry) TypeId {
@@ -217,12 +227,26 @@ pub const Registry = struct {
 
     /// `Nil`, tag 0 of `List`.
     pub fn nilConstructor(self: *const Registry) Constructor {
-        return self.get(self.listId()).constructors[0];
+        return self.get(list_id).constructors[0];
+    }
+
+    pub fn maybeId(self: *const Registry) TypeId {
+        return self.lookup(.prim, types.maybe_spelling).?;
+    }
+
+    /// `Nothing`, tag 0 of `Maybe`.
+    pub fn nothingConstructor(self: *const Registry) Constructor {
+        return self.get(self.maybeId()).constructors[0];
+    }
+
+    /// `Just`, tag 1 of `Maybe`, taking its value.
+    pub fn justConstructor(self: *const Registry) Constructor {
+        return self.get(self.maybeId()).constructors[1];
     }
 
     /// `Cons`, tag 1 of `List`, taking a head and a tail.
     pub fn consConstructor(self: *const Registry) Constructor {
-        return self.get(self.listId()).constructors[1];
+        return self.get(list_id).constructors[1];
     }
 
     /// The scheme of `constructor`, of type `id`: its fields curried onto the
@@ -245,14 +269,14 @@ pub const Registry = struct {
         return try types.constructed(arena, id, declared.name, arguments);
     }
 
-    /// `[t]`, for a caller that has the registry.
-    pub fn list(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
-        return try types.constructed(arena, self.listId(), types.list_spelling, &.{element});
-    }
-
     /// `Bool`.
     pub fn boolType(self: *const Registry, arena: Allocator) !types.Type {
         return try types.constructed(arena, self.boolId(), types.bool_spelling, &.{});
+    }
+
+    /// `Maybe element`.
+    pub fn maybe(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
+        return try types.constructed(arena, self.maybeId(), types.maybe_spelling, &.{element});
     }
 
     /// `Ordering`.
@@ -319,10 +343,10 @@ pub const Registry = struct {
     }
 
     /// `alias` and everything it points to must outlive the registry.
-    pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
+    pub fn defineAlias(self: *Registry, alias: Alias) Allocator.Error!void {
         const stored = try self.allocator.create(Alias);
         stored.* = alias;
-        try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, stored);
+        try self.aliases.put(self.allocator, .{ .module = alias.module, .name = alias.name }, stored);
     }
 
     /// The alias `module` declares as `name`.

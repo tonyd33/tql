@@ -5,7 +5,7 @@ asserts: simplified, values
 --- tql ---
 main = do {
   open <- descendants;
-  guard $ text open = "(";
+  guard $ text open == "(";
   token <- descendants | of_kind (kind open);
   return $ text token;
 };

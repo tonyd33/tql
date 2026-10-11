@@ -308,11 +308,9 @@ pub fn translateSynonym(
         matched = arrow.to;
     }
 
-    const result = types.variable_type(@intCast(scheme.variables.len));
-    const continuation = try types.arrows(arena, holes, result);
     return .{
         .variables = try std.mem.concat(arena, types.Kind, &.{ scheme.variables, &.{.type} }),
-        .type = try types.func(arena, matched, try types.func(arena, continuation, try types.func(arena, result, result))),
+        .type = try types.matcher(arena, matched, holes, types.variable_type(@intCast(scheme.variables.len))),
     };
 }
 
@@ -362,6 +360,7 @@ pub fn translateAlias(
     for (vars.items, parameters) |v, *slot| slot.* = .{ .name = try arena.dupe(u8, v.name), .kind = v.kind };
 
     return .{
+        .module = scope.module,
         .name = try arena.dupe(u8, alias.name),
         .parameters = parameters,
         .body = body,
@@ -482,7 +481,7 @@ const Translator = struct {
             return self.kindMismatch(node.span, what, .type, expected);
         }
         return switch (node.kind) {
-            .list => |element| try self.scope.env.datatypes.list(self.arena, try self.type(element.*, .type)),
+            .list => |element| try datatypes.list(self.arena, try self.type(element.*, .type)),
             .function => |f| try types.func(self.arena, try self.type(f.from, .type), try self.type(f.to, .type)),
             .record => |r| try self.record(r, node.span),
             .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
@@ -762,7 +761,7 @@ const Translator = struct {
         if (copies.len > 1) for (copies[0 .. copies.len - 1], copies[1..]) |previous, f| {
             if (!std.mem.eql(u8, previous.label, f.label)) continue;
             try self.sink.report(
-                .type_mismatch,
+                .duplicate_definition,
                 span,
                 "`{s}` labels two fields of one record",
                 .{f.label},

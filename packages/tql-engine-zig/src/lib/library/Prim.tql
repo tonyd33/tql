@@ -16,6 +16,8 @@ data Bool = False | True deriving (Eq, Ord, Serial);
 
 data Ordering = LT | EQ | GT deriving (Eq, Ord);
 
+data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+
 class Eq a where {
   eq :: a -> a -> Bool;
 };
@@ -69,8 +71,50 @@ is_extra = %is_extra;
 range :: Node -> Range;
 range = %range;
 
+div :: Int -> Int -> Int;
+div = %div;
+
 mod :: Int -> Int -> Int;
 mod = %mod;
 
+quot :: Int -> Int -> Int;
+quot = %quot;
+
+rem :: Int -> Int -> Int;
+rem = %rem;
+
 is_kind :: Kind -> Node -> Bool;
 is_kind = %is_kind;
+
+string_length :: String -> Int;
+string_length = %string_length;
+
+toint :: String -> Maybe Int;
+toint = %toint;
+
+filename :: Node -> Maybe String;
+filename = %filename;
+
+parent :: Node -> [Node];
+parent = %parent;
+
+ancestors :: Node -> [Node];
+ancestors = %ancestors;
+
+children :: Node -> [Node];
+children = %children;
+
+named_children :: Node -> [Node];
+named_children = %named_children;
+
+descendants :: Node -> [Node];
+descendants = %descendants;
+
+named_descendants :: Node -> [Node];
+named_descendants = %named_descendants;
+
+children_of_kind :: Kind -> Node -> [Node];
+children_of_kind = %children_of_kind;
+
+descendants_of_kind :: Kind -> Node -> [Node];
+descendants_of_kind = %descendants_of_kind;

@@ -1,18 +1,17 @@
-title: `filename` yields the empty stream when no path is available
+title: `filename` is `Nothing` when no path is available
 grammar: typescript
 asserts: types, values
 
-No `file:` header, so there is no path. Absence is the empty stream, not an
-error and not an empty string.
+No `file:` header, so there is no path.
 
 --- tql ---
-main = filename;
+main = arr filename;
 
 --- source ---
 class A {}
 
 --- values ---
-[]
+[{"tag":"Nothing","fields":[]}]
 
 --- types ---
-main :: Filter Node String
+main :: Filter Node (Maybe String)

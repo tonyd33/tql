@@ -9,11 +9,11 @@ whose fields are of type `f a`.
 data Wrap f a = Wrap (f a);
 
 same :: Eq (f a) => f a -> f a -> Bool;
-same x y = x = y;
+same x y = x == y;
 
 same_wrap w v = case w of {
   Wrap x -> case v of {
-    Wrap y -> x = y;
+    Wrap y -> x == y;
   };
 };
 

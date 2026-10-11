@@ -1,0 +1,24 @@
+title: an axis fused with a kind test forces the kind only at a node
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+bot :: Kind;
+bot = bot;
+
+main = do {
+  n <- descendants_of_kind :number;
+  m <- pure n | descendants | of_kind bot;
+  return (text m);
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+[]
+--- simplified ---
+bot = bot
+main =
+  let p = %descendants_of_kind :number in
+  \x -> bind[List] (p x) (\y -> bind[List] (%descendants_of_kind bot y) (\y -> Cons (%text y) Nil))

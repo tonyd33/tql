@@ -2,15 +2,18 @@ title: `Filter (take 1 . run p)` is a filter's first result, and forces no other
 grammar: typescript
 asserts: types, values
 
-`p` yields `1` and then a division by zero, which `take 1` never forces.
+`p` yields `1` and then `bottom`, which `take 1` never forces.
 `Filter (take 1 . run p)` is the filter of `p`'s first result, which `has`
 and `or_else` take.
 
 --- tql ---
 import Data.List (take);
 
+bottom :: Int;
+bottom = bottom;
+
 p :: Filter Node Int;
-p = Filter (\_ -> [1, 1 / 0]);
+p = Filter (\_ -> [1, bottom]);
 
 main = do {
   root <- identity;
@@ -28,5 +31,6 @@ class A {}
 [[true,false,[1]]]
 
 --- types ---
+bottom :: Int
 p :: Filter Node Int
 main :: Filter Node (Bool, Bool, [Int])

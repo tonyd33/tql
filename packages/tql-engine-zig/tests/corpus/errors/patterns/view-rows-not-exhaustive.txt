@@ -14,7 +14,7 @@ f n = case n of {
 main = children | arr f;
 
 --- error ---
-error[type-mismatch]: `_` is not matched
+error[non-exhaustive]: `_` is not matched
  --> 1:7
   |
 1 | f n = case n of {

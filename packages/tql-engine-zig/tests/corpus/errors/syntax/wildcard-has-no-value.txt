@@ -1,0 +1,14 @@
+title: `_` is not an expression
+grammar: typescript
+asserts: error
+
+--- tql ---
+f = \_ -> _;
+main = pure (f 3);
+
+--- error ---
+error[parse]: `_` is a wildcard and has no value
+ --> 1:11
+  |
+1 | f = \_ -> _;
+  |           ^

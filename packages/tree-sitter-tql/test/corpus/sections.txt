@@ -2,7 +2,7 @@
 a right section takes the operand after the operator
 ========================================
 
-main = (= 1);
+main = (== 1);
 
 ---
 
@@ -16,7 +16,7 @@ main = (= 1);
 a left section takes the operand before the operator
 ========================================
 
-main = (1 =);
+main = (1 ==);
 
 ---
 
@@ -30,7 +30,7 @@ main = (1 =);
 a parenthesized operator is its function
 ========================================
 
-main = (=);
+main = (==);
 
 ---
 
@@ -287,7 +287,7 @@ main = (* a + b);
 an application is a left operand
 ========================================
 
-main = (f x =);
+main = (f x ==);
 
 ---
 
@@ -300,7 +300,7 @@ main = (f x =);
         argument: (identifier)))))
 
 ========================================
-a spaced minus does not start a right section
+a spaced minus starts a right section
 ========================================
 
 main = (- 1);
@@ -310,9 +310,8 @@ main = (- 1);
 (source_file
   (definition
     name: (identifier)
-    body: (operator_name
-      (ERROR
-        (number)))))
+    body: (right_section
+      right: (number))))
 
 ========================================
 a left operand looser than the operator is a syntax error
@@ -330,3 +329,49 @@ main = (a + b *);
         left: (identifier)
         right: (identifier))
       (ERROR))))
+
+========================================
+a bracketed prefix minus is a negation, not a section
+========================================
+
+main = (-x);
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (parenthesized
+      (negation
+        operand: (identifier)))))
+
+========================================
+a prefix minus after an operand is a negation
+========================================
+
+main = f -x;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (application
+      function: (identifier)
+      argument: (negation
+        operand: (identifier)))))
+
+========================================
+a tight minus after an operand subtracts
+========================================
+
+main = x-y;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (additive
+      left: (identifier)
+      right: (identifier))))

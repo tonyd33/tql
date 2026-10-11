@@ -1,0 +1,14 @@
+title: a record literal labels each field once
+grammar: typescript
+asserts: error
+
+--- tql ---
+r = {a = 1, b = 2, a = "x"};
+main = pure (r.a + 1);
+
+--- error ---
+error[duplicate-definition]: `a` labels two fields of one record
+ --> 1:20
+  |
+1 | r = {a = 1, b = 2, a = "x"};
+  |                    ^^^^^^^

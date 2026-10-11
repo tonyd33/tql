@@ -10,7 +10,7 @@ f xs = case (
   let {
     go ys = case ys of {
       [] -> False;
-      h : t -> if h = 3 then True else go t;
+      h : t -> if h == 3 then True else go t;
     };
   } in go xs
 ) of {

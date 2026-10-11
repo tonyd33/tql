@@ -1,0 +1,20 @@
+title: a view whose expression is not a function is reported at the expression
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = do {
+  n <- descendants;
+  (#decorator -> []) <- pure n;
+  return 1;
+};
+
+--- source ---
+class A {}
+
+--- error ---
+error[type-mismatch]: The expression of a view pattern must be a function; found `Filter Node Node`.
+ --> 3:4
+  |
+3 |   (#decorator -> []) <- pure n;
+  |    ^^^^^^^^^^

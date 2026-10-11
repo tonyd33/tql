@@ -209,16 +209,17 @@ pub const ClassConstraint = struct {
 };
 
 pub const Definition = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     parameters: []const Parameter,
     body: Expression,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Definition, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(define {s} (params", .{self.name});
+        try w.print("(define {s} (params", .{self.name orelse "_"});
         for (self.parameters) |p| {
             try w.writeByte(' ');
-            try w.writeAll(p.name);
+            try w.writeAll(p.name orelse "_");
         }
         try w.writeAll(") ");
         try self.body.sexpr(w);
@@ -292,7 +293,7 @@ pub const PatternSynonym = struct {
 
     pub fn sexpr(self: PatternSynonym, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.print("(pattern {s} (params", .{self.name});
-        for (self.parameters) |p| try w.print(" {s}", .{p.name});
+        for (self.parameters) |p| try w.print(" {s}", .{p.name orelse "_"});
         try w.writeAll(") ");
         try self.body.sexpr(w);
         try w.writeByte(')');
@@ -328,22 +329,24 @@ pub const ConstructorDeclaration = struct {
 };
 
 pub const Parameter = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     span: diagnostic.Span = .unknown,
 };
 
 /// A `let` binding, which is a definition without the terminator: `f x = e`.
 pub const Binding = struct {
-    name: Identifier,
+    /// Null for `_`.
+    name: ?Identifier,
     parameters: []const Parameter,
     value: Expression,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Binding, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(bind {s} (params", .{self.name});
+        try w.print("(bind {s} (params", .{self.name orelse "_"});
         for (self.parameters) |p| {
             try w.writeByte(' ');
-            try w.writeAll(p.name);
+            try w.writeAll(p.name orelse "_");
         }
         try w.writeAll(") ");
         try self.value.sexpr(w);
@@ -352,7 +355,6 @@ pub const Binding = struct {
 };
 
 pub const BinaryOperator = enum {
-    divide,
     multiply,
     add,
     subtract,
@@ -374,11 +376,10 @@ pub const BinaryOperator = enum {
 
     pub fn spelling(self: BinaryOperator) []const u8 {
         return switch (self) {
-            .divide => "/",
             .multiply => "*",
             .add => "+",
             .subtract => "-",
-            .eq => "=",
+            .eq => "==",
             .ne => "!=",
             .lt => "<",
             .lte => "<=",
@@ -524,7 +525,6 @@ pub const Expression = struct {
         primitive: Identifier,
         number: i64,
         string: []const u8,
-        boolean: bool,
         regex: []const u8,
         navigation: *Navigation,
         projection: *Projection,
@@ -546,8 +546,6 @@ pub const Expression = struct {
         tuple_constructor: u8,
         record: Record,
         parenthesized: *Expression,
-        /// `of_shape p`: the filter keeping a value `p` matches.
-        of_shape: *Pattern,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -556,7 +554,6 @@ pub const Expression = struct {
             .name, .primitive => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .regex => |r| try w.print("(regex \"{s}\")", .{r}),
             .navigation => |n| {
                 try w.writeAll("(field ");
@@ -634,7 +631,7 @@ pub const Expression = struct {
                 try w.writeAll("(lambda (params");
                 for (l.parameters) |p| {
                     try w.writeByte(' ');
-                    try w.writeAll(p.name);
+                    try w.writeAll(p.name orelse "_");
                 }
                 try w.writeAll(") ");
                 try l.body.sexpr(w);
@@ -676,11 +673,6 @@ pub const Expression = struct {
                     try f.value.sexpr(w);
                     try w.writeByte(')');
                 }
-                try w.writeByte(')');
-            },
-            .of_shape => |p| {
-                try w.writeAll("(of_shape ");
-                try p.sexpr(w);
                 try w.writeByte(')');
             },
             .parenthesized => |e| {
@@ -759,8 +751,10 @@ pub const Pattern = struct {
     span: diagnostic.Span = .unknown,
 
     pub const Kind = union(enum) {
-        /// `x` binds the matched value. `_` binds nothing.
+        /// `x` binds the matched value.
         variable: Identifier,
+        /// `_` matches any value and binds nothing.
+        wildcard,
         constructor: Constructor,
         /// `[p, ...]`; `[]` is the empty list.
         list: []const Pattern,
@@ -774,8 +768,6 @@ pub const Pattern = struct {
         /// `(e -> p)`
         view: *View,
         literal: Literal,
-        /// `true` or `false`.
-        boolean: bool,
         /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
         node: *Node,
     };
@@ -822,7 +814,7 @@ pub const Pattern = struct {
         pattern: Pattern,
     };
 
-    /// Matched by `=` against the value, or by `~` for a regex.
+    /// Matched by `==` against the value, or by `~` for a regex.
     pub const Literal = union(enum) {
         number: i64,
         string: []const u8,
@@ -834,6 +826,7 @@ pub const Pattern = struct {
     pub fn sexpr(self: Pattern, w: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self.kind) {
             .variable => |name| try w.writeAll(name),
+            .wildcard => try w.writeAll("_"),
             .as => |a| {
                 try w.print("(@ {s} ", .{a.name});
                 try a.pattern.sexpr(w);
@@ -859,7 +852,6 @@ pub const Pattern = struct {
                 .regex => |r| try w.print("(regex \"{s}\")", .{r}),
                 .kind => |k| try w.print("(kind {s})", .{k}),
             },
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .node => |n| {
                 try w.writeAll("(node");
                 if (n.kind) |k| try w.print(" (kind {s})", .{k});

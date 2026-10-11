@@ -6,7 +6,7 @@ asserts: types, values
 schemes carry the constraint.
 
 --- tql ---
-f x = if x = x then 1 else g x;
+f x = if x == x then 1 else g x;
 g x = f x;
 main = Filter (\_ -> [g 1, f "s"]);
 

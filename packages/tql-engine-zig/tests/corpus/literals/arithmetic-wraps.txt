@@ -1,0 +1,18 @@
+title: addition, subtraction and multiplication wrap
+grammar: typescript
+asserts: values
+
+`Int` is 64-bit two's complement in every build mode.
+
+--- tql ---
+main = pure [
+  9223372036854775807 + 1,
+  0 - 9223372036854775807 - 2,
+  4611686018427387904 * 2
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[[-9223372036854775808, 9223372036854775807, -9223372036854775808]]

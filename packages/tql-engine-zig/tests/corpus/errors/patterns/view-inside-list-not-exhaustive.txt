@@ -17,7 +17,7 @@ f xs = case xs of {
 main = const [f [1]];
 
 --- error ---
-error[type-mismatch]: `[_]` is not matched
+error[non-exhaustive]: `[_]` is not matched
  --> 3:8
   |
 3 | f xs = case xs of {

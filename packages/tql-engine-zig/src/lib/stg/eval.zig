@@ -47,8 +47,6 @@ inline fn note(site: Site, bytes: usize) void {
 pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A thunk was re-entered while it was still being evaluated.
     Cycle,
-    /// Division or modulo by zero.
-    DivideByZero,
     /// Reached only by a program the type checker should have rejected.
     TypeError,
     /// Evaluation nested deeper than the machine's stack budget.
@@ -56,6 +54,8 @@ pub const Error = Allocator.Error || std.Io.Writer.Error || error{
     /// A local read a slot bound under a different name. Reached only by a
     /// translation bug, and checked only in safe builds.
     MisplacedLocal,
+    /// A regex reached a construct the matcher cannot run, such as `\K`.
+    RegexFailed,
 };
 
 /// Whether each environment slot records the name it was bound under, and
@@ -228,6 +228,9 @@ pub const Machine = struct {
     pub const Target = struct {
         source: []const u8,
         path: ?[]const u8,
+        /// Whether all of `source` is well-formed UTF-8, so a node's text needs
+        /// no decoding.
+        utf8: bool,
     };
 
     pub fn init(
@@ -539,6 +542,18 @@ pub const Machine = struct {
                     const mark = scope.len();
                     const scrutinee = try self.expression(case_expr.scrutinee, scope);
                     scope.shrink(mark);
+                    if (case_expr.binder) |binder| {
+                        // An atom's thunk now holds the value and is bound
+                        // itself.
+                        const evaluated = switch (case_expr.scrutinee) {
+                            .atom => |atom| try self.resolve(scope.slots(), atom),
+                            else => blk: {
+                                note(.case_binder, @sizeOf(value.Thunk));
+                                break :blk try self.valueThunk(scrutinee);
+                            },
+                        };
+                        try scope.append(self.gpa, evaluated, binder);
+                    }
                     const alternative = case_expr.alternativeFor(scrutinee) orelse {
                         current = case_expr.default orelse return error.TypeError;
                         continue;
@@ -780,19 +795,16 @@ pub const Machine = struct {
                 .field => |f| return try self.walk(try self.nodeArgument(arguments), .sibling, .{ .field = f.id }),
             },
             .builtin => |primop| switch (primop) {
-                // Floored: the result takes the divisor's sign.
-                .mod => {
+                inline .div, .mod, .quot, .rem => |p| {
                     if (arguments.len != 2) return error.TypeError;
                     const a, const b = try numbers(try self.force(arguments[0]), try self.force(arguments[1]));
-                    if (b == 0) return error.DivideByZero;
-                    const r = @rem(a, b);
-                    return .{ .number = if (r != 0 and (r < 0) != (b < 0)) r + b else r };
+                    return .{ .number = divide(p, a, b) };
                 },
 
                 .string_length => {
                     if (arguments.len != 1) return error.TypeError;
                     return switch (try self.force(arguments[0])) {
-                        .string => |s| .{ .number = @intCast(s.len) },
+                        .string => |s| .{ .number = @intCast(codePoints(s)) },
                         else => error.TypeError,
                     };
                 },
@@ -801,8 +813,7 @@ pub const Machine = struct {
                 // a scalar rather than a singleton list.
                 .text => {
                     const subject = try self.nodeArgument(arguments);
-                    const target = self.target orelse return error.TypeError;
-                    return .{ .string = target.source[subject.startByte()..subject.endByte()] };
+                    return .{ .string = try self.nodeText(subject) };
                 },
                 .kind => {
                     const subject = try self.nodeArgument(arguments);
@@ -872,15 +883,16 @@ pub const Machine = struct {
                         .string => |s| s,
                         else => return error.TypeError,
                     };
-                    const parsed = parseInt(text) orelse return self.nil();
-                    return self.singleton(try self.valueThunk(.{ .number = parsed }));
+                    const parsed = parseInt(text) orelse return self.nothing();
+                    return self.just(try self.valueThunk(.{ .number = parsed }));
                 },
 
-                // Constant across the query, and it never reads its argument.
+                // The path of the file the node belongs to.
                 .filename => {
-                    const target = self.target orelse return self.nil();
-                    const path = target.path orelse return self.nil();
-                    return self.singleton(try self.valueThunk(.{ .string = path }));
+                    _ = try self.nodeArgument(arguments);
+                    const target = self.target orelse return self.nothing();
+                    const path = target.path orelse return self.nothing();
+                    return self.just(try self.valueThunk(.{ .string = try self.decoded(path) }));
                 },
 
                 // Children and anonymous tokens, document order.
@@ -898,17 +910,34 @@ pub const Machine = struct {
                 .named_descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .named),
 
                 // The `children`/`descendants` walks with the kind test folded
-                // into the advance, so the list holds only matches.
+                // into the advance, so the list holds only matches. The kind
+                // is forced only when the subject has a child.
                 .children_of_kind, .descendants_of_kind => {
-                    const tested = try self.kindTestArguments(arguments);
+                    if (arguments.len != 2) return error.TypeError;
+                    const subject = try self.nodeArgument(arguments[1..]);
+                    if (subject.childCount() == 0) return try self.nil();
                     const move: value.Traversal.Move = if (primop == .descendants_of_kind) .preorder else .sibling;
-                    return try self.walk(tested.subject, move, .{ .kind = tested.kind_id });
+                    return try self.walk(subject, move, .{ .kind = try self.kindArgument(arguments[0]) });
                 },
             },
         }
     }
 
     /// The single node argument of a tree primitive.
+    /// Returns the source `node` spans, as a string.
+    fn nodeText(self: *Machine, node: ts.Node) Error![]const u8 {
+        const target = self.target orelse return error.TypeError;
+        const bytes = target.source[node.startByte()..node.endByte()];
+        return if (target.utf8) bytes else self.decoded(bytes);
+    }
+
+    /// Returns `bytes` with each ill-formed UTF-8 sequence replaced by U+FFFD,
+    /// copied into the arena only when there is one.
+    fn decoded(self: *Machine, bytes: []const u8) Error![]const u8 {
+        if (std.unicode.utf8ValidateSlice(bytes)) return bytes;
+        return std.fmt.allocPrint(self.arena, "{f}", .{std.unicode.fmtUtf8(bytes)});
+    }
+
     fn nodeArgument(self: *Machine, arguments: []const *value.Thunk) Error!ts.Node {
         if (arguments.len != 1) return error.TypeError;
         return switch (try self.force(arguments[0])) {
@@ -917,21 +946,21 @@ pub const Machine = struct {
         };
     }
 
-    /// The kind and node arguments of `is_kind` and the `_of_kind` axes.
+    /// The kind and node arguments of `is_kind`.
     fn kindTestArguments(
         self: *Machine,
         arguments: []const *value.Thunk,
     ) Error!struct { kind_id: u16, subject: ts.Node } {
         if (arguments.len != 2) return error.TypeError;
-        const kind_id = switch (try self.force(arguments[0])) {
+        const kind_id = try self.kindArgument(arguments[0]);
+        return .{ .kind_id = kind_id, .subject = try self.nodeArgument(arguments[1..]) };
+    }
+
+    fn kindArgument(self: *Machine, argument: *value.Thunk) Error!u16 {
+        return switch (try self.force(argument)) {
             .kind => |k| k.id,
-            else => return error.TypeError,
+            else => error.TypeError,
         };
-        const subject = switch (try self.force(arguments[1])) {
-            .node => |n| n.inner,
-            else => return error.TypeError,
-        };
-        return .{ .kind_id = kind_id, .subject = subject };
     }
 
     /// Resolve a constructor's field atoms into a value.
@@ -1010,6 +1039,16 @@ pub const Machine = struct {
         return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
     }
 
+    fn nothing(self: *Machine) value.Value {
+        const c = self.program.structural.nothing;
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+    }
+
+    fn just(self: *Machine, field: *value.Thunk) value.Value {
+        const c = self.program.structural.just;
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{field}) };
+    }
+
     fn nilThunk(self: *Machine) Error!*value.Thunk {
         return self.program.nil;
     }
@@ -1074,6 +1113,39 @@ pub const Machine = struct {
         return .{ a, b };
     }
 
+    /// Returns the number of code points in `s`, which is well-formed UTF-8.
+    fn codePoints(s: []const u8) usize {
+        var n: usize = 0;
+        for (s) |b| {
+            if (b & 0xC0 != 0x80) n += 1;
+        }
+        return n;
+    }
+
+    /// Returns the quotient or remainder `primop` names. `div` and `mod`
+    /// floor, `quot` and `rem` truncate, and each pair satisfies
+    /// `q * b + r == a` for every `a` and `b`: a zero divisor gives quotient
+    /// 0 and remainder `a`, and the least `Int` divided by `-1` wraps.
+    fn divide(comptime primop: core.PrimOp, a: i64, b: i64) i64 {
+        if (b == 0) return switch (primop) {
+            .div, .quot => 0,
+            .mod, .rem => a,
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+        if (b == -1) return switch (primop) {
+            .div, .quot => 0 -% a,
+            .mod, .rem => 0,
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+        return switch (primop) {
+            .div => @divFloor(a, b),
+            .mod => a - @divFloor(a, b) * b,
+            .quot => @divTrunc(a, b),
+            .rem => @rem(a, b),
+            else => @compileError("not a division: " ++ @tagName(primop)),
+        };
+    }
+
     /// The order of two `Int`s or two `String`s, the primitive types with
     /// `Ord` instances.
     fn ordering(left: value.Value, right: value.Value) Error!std.math.Order {
@@ -1124,26 +1196,16 @@ pub const Machine = struct {
         switch (scalar) {
             .add => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a + b };
+                return .{ .number = a +% b };
             },
             .subtract => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a - b };
+                return .{ .number = a -% b };
             },
             .multiply => {
                 const a, const b = try numbers(left, right);
-                return .{ .number = a * b };
+                return .{ .number = a *% b };
             },
-            // Division by zero is undefined until the language has a Maybe.
-            // A scalar operator has no way to yield nothing, so the old
-            // "empty stream" answer stopped being expressible when division
-            // became a scalar.
-            .divide => {
-                const a, const b = try numbers(left, right);
-                if (b == 0) return error.DivideByZero;
-                return .{ .number = @divTrunc(a, b) };
-            },
-
             .match, .not_match => {
                 const haystack = switch (left) {
                     .string => |s| s,
@@ -1153,8 +1215,8 @@ pub const Machine = struct {
                     .regex => |r| r,
                     else => return error.TypeError,
                 };
-                if (self.match_data == null) self.match_data = try pcre2.MatchData.create();
-                const hit = pattern.compiled.isMatch(haystack, &self.match_data.?);
+                if (self.match_data == null) self.match_data = try pcre2.MatchData.create(self.gpa);
+                const hit = try pattern.compiled.isMatch(haystack, &self.match_data.?);
                 return try self.boolValue(if (scalar == .match) hit else !hit);
             },
         }
@@ -1325,13 +1387,12 @@ pub const Machine = struct {
                 }
             },
             .node => |n| {
-                const target = self.target orelse return error.TypeError;
                 const inner = n.inner;
                 try jws.beginObject();
                 try jws.objectField("kind");
                 try jws.write(inner.kind());
                 try jws.objectField("text");
-                try jws.write(target.source[inner.startByte()..inner.endByte()]);
+                try jws.write(try self.nodeText(inner));
                 try writeLocation(rangeOf(inner), jws);
                 try jws.endObject();
             },

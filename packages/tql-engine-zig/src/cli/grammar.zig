@@ -9,8 +9,6 @@ const printUsage = goz.printUsage;
 
 const subcmds = .{
     .list = .{ .aliases = &[_][]const u8{"ls"}, .description = "List installed grammars" },
-    .add = .{ .description = "Install grammars" },
-    .remove = .{ .aliases = &[_][]const u8{"rm"}, .description = "Remove grammars" },
 };
 
 pub const command = .{
@@ -18,13 +16,9 @@ pub const command = .{
     .description = "Manage grammars",
     .opts = .{
         .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
-        .install_dir = Opt{ .names = .{ .long = "install-dir" }, .has_arg = .required_argument, .meta = "dir", .description = "Grammar install directory" },
     },
     .subcmds = subcmds,
     .subcmd_label = "SUBCOMMAND",
-    .positionals = &[_]goz.Positional{
-        .{ .name = "grammar", .required = false, .variadic = true },
-    },
 };
 
 pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
@@ -35,7 +29,6 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     var tokenizer = goz.ArgTokenizer(command.opts).init(iter, &arg_diagnostic);
 
     var show_help = false;
-    var install_dir: ?[]const u8 = null;
     var positionals: std.ArrayList([]const u8) = .empty;
     defer positionals.deinit(gpa);
 
@@ -44,9 +37,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
             .flag => |f| switch (f) {
                 .help => show_help = true,
             },
-            .named_arg => |kv| switch (kv.field) {
-                .install_dir => install_dir = kv.value,
-            },
+            .named_arg => |kv| switch (kv.field) {},
             .positional => |p| try positionals.append(gpa, p),
         }
     }
@@ -59,8 +50,6 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     switch (goz.SubcmdResolver(subcmds).match(positionals.items[0])) {
         .subcmd => |s| switch (s) {
             .list => return list(ctx),
-            .add => {}, // TODO: install grammars
-            .remove => {}, // TODO: remove grammars
         },
         .unknown => |w| {
             try stderr.print("Error: unknown grammar subcommand '{s}'\n", .{w});
@@ -68,8 +57,6 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
             return .invalid_args;
         },
     }
-
-    return .success;
 }
 
 fn list(ctx: *const Context) !ExitCode {

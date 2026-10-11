@@ -5,13 +5,13 @@ asserts: types, values
 --- tql ---
 import Data.Int (toint);
 
-main = Filter (\_ -> ["42", "-7"]) | toint;
+main = pure $ map toint ["42", "-7"];
 
 --- source ---
 class A {}
 
 --- values ---
-[42, -7]
+[[{"tag":"Just","fields":[42]},{"tag":"Just","fields":[-7]}]]
 
 --- types ---
-main :: Filter Node Int
+main :: Filter Node [Maybe Int]

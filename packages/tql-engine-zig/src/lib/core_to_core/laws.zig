@@ -318,11 +318,12 @@ pub const Laws = struct {
         if (!isSymbol(failed.body, self.nil) and !self.isListMethod(failed.body, .empty)) return null;
         const passed = alternativeFor(matched.alternatives, self.true_) orelse return null;
 
+        const body = if (matched.binder) |b| try self.builder.let(b, self.builder.symbol(self.true_, passed.body.span), passed.body, passed.body.span) else passed.body;
         return try self.builder.applyMany(
             self.builder.symbol(call.function.kind.symbol, span),
             &.{
                 try self.builder.applyMany(self.builder.symbol(fused, walk.function.span), &.{ tested.kind, walk.argument }, walked.span),
-                try self.builder.lambda(s, passed.body, argument.span),
+                try self.builder.lambda(s, body, argument.span),
             },
             span,
         );
@@ -380,9 +381,7 @@ fn operandOf(head: core.SymbolId, t: core.Term) ?core.Term {
     return a.argument;
 }
 
-fn isSymbol(t: core.Term, id: core.SymbolId) bool {
-    return t.kind == .symbol and t.kind.symbol == id;
-}
+const isSymbol = core.Term.isSymbol;
 
 /// The alternative for `constructor`, if there is one.
 fn alternativeFor(alternatives: []const core.Case.Alternative, constructor: core.SymbolId) ?core.Case.Alternative {

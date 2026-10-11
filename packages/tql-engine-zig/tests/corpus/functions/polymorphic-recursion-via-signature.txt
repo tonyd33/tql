@@ -8,7 +8,7 @@ occurs-check failure.
 
 --- tql ---
 nest :: Int -> a -> Int;
-nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];
+nest n x = if n == 0 then 0 else 1 + nest (n - 1) [x];
 main = pure (nest 3 1);
 
 --- source ---

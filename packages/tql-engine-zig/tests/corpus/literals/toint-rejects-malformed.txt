@@ -1,4 +1,4 @@
-title: `toint` rejects non-integer strings with the empty stream
+title: `toint` gives `Nothing` for a non-integer string
 grammar: typescript
 asserts: types, values
 
@@ -8,13 +8,13 @@ an internal space, and the empty string. None is an error.
 --- tql ---
 import Data.Int (toint);
 
-main = Filter (\_ -> ["abc", "1.5", "+3", "1 2", ""]) | toint;
+main = pure $ map toint ["abc", "1.5", "+3", "1 2", ""];
 
 --- source ---
 class A {}
 
 --- values ---
-[]
+[[{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]]
 
 --- types ---
-main :: Filter Node Int
+main :: Filter Node [Maybe Int]

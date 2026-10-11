@@ -7,7 +7,7 @@ Both arguments are records with `name` and the same other fields.
 --- tql ---
 
 same :: Eq r => {name: String | r} -> {name: String | r} -> Bool;
-same a b = a = b;
+same a b = a == b;
 main = pure $ same {name = "a", n = 1} {name = "a", n = 1};
 
 --- source ---

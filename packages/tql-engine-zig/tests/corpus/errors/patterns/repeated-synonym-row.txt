@@ -14,7 +14,7 @@ size xs = case xs of {
 main root = [size [1]];
 
 --- error ---
-error[type-mismatch]: `Pair a _` is never matched
+error[redundant-alternative]: `Pair a _` is never matched
  --> 5:3
   |
 5 |   Pair a _ -> a;

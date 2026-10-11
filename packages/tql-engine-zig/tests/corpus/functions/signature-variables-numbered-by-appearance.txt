@@ -7,7 +7,7 @@ names `y` first. The context keeps the order it was written in.
 
 --- tql ---
 pick :: (Eq y, Ord x) => x -> y -> x;
-pick x y = if y = y then (if x < x then x else x) else x;
+pick x y = if y == y then (if x < x then x else x) else x;
 main = pure (pick 1 "s");
 
 --- source ---

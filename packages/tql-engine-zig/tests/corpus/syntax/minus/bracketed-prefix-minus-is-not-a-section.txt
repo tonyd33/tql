@@ -1,0 +1,19 @@
+title: a bracketed prefix minus is not a section
+grammar: typescript
+asserts: error
+
+`(-x)` is prefix minus, rejected; `(- x)` is the right section.
+
+--- tql ---
+x = 1;
+main = Filter (\_ -> map (-x) [1]);
+
+--- source ---
+class A {}
+
+--- error ---
+error[parse]: TQL has no negation; write `0 - x`
+ --> 2:27
+  |
+2 | main = Filter (\_ -> map (-x) [1]);
+  |                           ^^

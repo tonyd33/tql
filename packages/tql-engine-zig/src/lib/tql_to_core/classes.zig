@@ -325,19 +325,23 @@ pub const Linker = struct {
         defer self.gpa.free(defined);
         @memset(defined, null);
         for (declared.methods) |*definition| {
+            const name = definition.name orelse {
+                try self.sink.report(.invalid_instance, definition.span, "`_` is not a method of `{s}`", .{class.name.name});
+                return error.BadAnnotation;
+            };
             const index = for (class.methods, 0..) |method, i| {
-                if (std.mem.eql(u8, self.env.interner.spelling(method), definition.name)) break i;
+                if (std.mem.eql(u8, self.env.interner.spelling(method), name)) break i;
             } else {
                 try self.sink.report(
                     .invalid_instance,
                     definition.span,
                     "`{s}` is not a method of `{s}`",
-                    .{ definition.name, class.name.name },
+                    .{ name, class.name.name },
                 );
                 return error.BadAnnotation;
             };
             if (defined[index] != null) {
-                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{definition.name});
+                try self.sink.report(.duplicate_definition, definition.span, "`{s}` is defined more than once", .{name});
                 return error.BadAnnotation;
             }
             defined[index] = definition;
@@ -452,17 +456,23 @@ pub const Linker = struct {
             try self.sink.report(.invalid_deriving, derived.span, "`{s}` is derived more than once", .{derived.class});
             return error.BadAnnotation;
         }
-        switch (class_id) {
-            .eq, .ord, .serial => {},
-            else => {
-                try self.sink.report(
-                    .invalid_deriving,
-                    derived.span,
-                    "`{s}` cannot be derived; only `Eq`, `Ord` and `Serial` can",
-                    .{derived.class},
-                );
-                return error.BadAnnotation;
-            },
+        if (std.mem.indexOfScalar(classes.ClassId, &classes.derivable, class_id) == null) {
+            const shown = .{class_id} ++ classes.derivable;
+            var names = try self.env.messageNames(self.gpa, &.{}, &shown);
+            defer names.deinit(self.gpa);
+            const registry = &self.env.classes;
+            try self.sink.report(
+                .invalid_deriving,
+                derived.span,
+                "`{f}` cannot be derived; only `{f}`, `{f}` and `{f}` can",
+                .{
+                    names.class(class_id, registry.spelling(class_id)),
+                    names.class(.eq, registry.spelling(.eq)),
+                    names.class(.ord, registry.spelling(.ord)),
+                    names.class(.serial, registry.spelling(.serial)),
+                },
+            );
+            return error.BadAnnotation;
         }
         if (declared.representation != null and self.env.classes.evidenceOf(class_id) == .dictionary) {
             try self.sink.report(
@@ -497,7 +507,7 @@ pub const Linker = struct {
     /// Appends the method of each instance tuple type `id` was declared
     /// with that has one.
     pub fn deriveTuple(self: *Linker, id: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
-        for ([_]classes.ClassId{ .eq, .ord, .serial }) |class_id| {
+        for (classes.derivable) |class_id| {
             const instance = self.env.classes.instanceFor(class_id, id).?;
             if (self.env.classes.instance(instance).methods.len > 0) try out.append(self.gpa, try self.generate(instance, id));
         }
@@ -521,11 +531,14 @@ pub const Linker = struct {
                         leaves.clearRetainingCapacity();
                         const view = Bound{};
                         if (try classes.reduce(&self.env.classes, instance.class, field, view, Leaves{ .gpa = self.gpa, .out = &leaves })) |culprit| {
+                            var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
+                            defer names.deinit(self.gpa);
+                            const class = self.env.classes.spelling(instance.class);
                             try self.sink.report(.unsatisfied_constraint, written_field.span, "`{s} {f}` needs `{s} {f}`", .{
-                                self.env.classes.spelling(instance.class),
-                                instance.type.operand(),
-                                self.env.classes.spelling(instance.class),
-                                culprit.operand(),
+                                class,
+                                instance.type.namedOperand(&names),
+                                class,
+                                culprit.namedOperand(&names),
                             });
                             p.failed = true;
                             self.failed = true;
@@ -533,15 +546,17 @@ pub const Linker = struct {
                         }
                         for (leaves.items) |leaf| {
                             if (leaf.type != .variable) {
+                                var names = try self.env.messageNames(self.gpa, &.{ instance.type, leaf.type }, &.{ instance.class, leaf.class });
+                                defer names.deinit(self.gpa);
                                 try self.sink.report(
                                     .invalid_deriving,
                                     written_field.span,
-                                    "`{s} {f}` needs `{s} {f}`, but a derived instance can only require a class of a type variable",
+                                    "`{f} {f}` needs `{f} {f}`, but a derived instance can only require a class of a type variable",
                                     .{
-                                        self.env.classes.spelling(instance.class),
-                                        instance.type.operand(),
-                                        self.env.classes.spelling(leaf.class),
-                                        leaf.type.operand(),
+                                        names.class(instance.class, self.env.classes.spelling(instance.class)),
+                                        instance.type.namedOperand(&names),
+                                        names.class(leaf.class, self.env.classes.spelling(leaf.class)),
+                                        leaf.type.namedOperand(&names),
                                     },
                                 );
                                 p.failed = true;
@@ -638,15 +653,17 @@ pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagno
         for (class.superclasses) |super| {
             const needed = try unmet(gpa, env, instance, super) orelse continue;
             ok = false;
+            var names = try env.messageNames(gpa, &.{ instance.type, needed.type }, &.{ instance.class, needed.class });
+            defer names.deinit(gpa);
             try sink.report(
                 .invalid_instance,
                 instance.span,
-                "`{s} {f}` needs `{s} {f}`",
+                "`{f} {f}` needs `{f} {f}`",
                 .{
-                    class.name.name,
-                    instance.type.operand(),
-                    env.classes.spelling(needed.class),
-                    needed.type.operand(),
+                    names.class(instance.class, class.name.name),
+                    instance.type.namedOperand(&names),
+                    names.class(needed.class, env.classes.spelling(needed.class)),
+                    needed.type.namedOperand(&names),
                 },
             );
         }

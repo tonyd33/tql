@@ -5,11 +5,11 @@ asserts: error
 Nothing fixes the element type, so no instance of `Eq` can be chosen.
 
 --- tql ---
-main = pure ([] = []);
+main = pure ([] == []);
 
 --- error ---
 error[ambiguous-constraint]: `Eq [a]` is ambiguous: nothing determines its type.
  --> 1:14
   |
-1 | main = pure ([] = []);
-  |              ^^^^^^^
+1 | main = pure ([] == []);
+  |              ^^^^^^^^

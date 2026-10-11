@@ -1,6 +1,6 @@
 module Control.Applicative (Applicative(..), Alternative(..), return, guard);
 
-import Prim (List(..), Bool(..));
+import Prim (List(..), Bool(..), Maybe(..));
 import Data.Monoid (Semigroup(..));
 import Data.Functor (Functor(..));
 
@@ -30,6 +30,22 @@ instance Applicative List where {
 instance Alternative List where {
   empty = Nil;
   alt = append;
+};
+
+instance Applicative Maybe where {
+  pure = Just;
+  ap mf mx = case mf of {
+    Nothing -> Nothing;
+    Just f -> map f mx;
+  };
+};
+
+instance Alternative Maybe where {
+  empty = Nothing;
+  alt l r = case l of {
+    Nothing -> r;
+    Just _ -> l;
+  };
 };
 
 return :: Applicative f => a -> f a;

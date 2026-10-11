@@ -17,6 +17,15 @@ pub const Error = error{DesugarFailed} || std.mem.Allocator.Error;
 
 const Synthesized = core.Synthesized;
 
+/// Whether `name` is already bound by one of `earlier`. `_` never repeats.
+fn repeats(earlier: []const resolve.Scope.Entry, name: ?[]const u8) bool {
+    const n = name orelse return false;
+    for (earlier) |entry| {
+        if (std.mem.eql(u8, entry.name orelse continue, n)) return true;
+    }
+    return false;
+}
+
 pub const Lowerer = struct {
     /// Where symbols are interned and synthesized ones get their schemes.
     env: *core.env.Env,
@@ -201,9 +210,13 @@ pub const Lowerer = struct {
 
         const entries = try self.builder.slice(resolve.Scope.Entry, parameters.len);
         for (parameters, 0..) |p, i| {
+            if (repeats(entries[0..i], p.name)) {
+                try self.sink.report(.duplicate_definition, p.span, "`{s}` names two parameters", .{p.name.?});
+                return error.DesugarFailed;
+            }
             entries[i] = .{
                 .name = p.name,
-                .symbol = try self.env.interner.fresh(p.name),
+                .symbol = try self.env.interner.fresh(p.name orelse "_"),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };
@@ -222,9 +235,6 @@ pub const Lowerer = struct {
             // Literal payloads are duped: the CST they point into is freed
             // before the Core program is used.
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
-            // A boolean is a nullary constructor, not a literal, so `case` on
-            // one is uniform with `case` on any other declared type.
-            .boolean => |b| return self.builder.symbol(self.scope.env.datatypes.boolConstructor(b).symbol, e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -232,13 +242,21 @@ pub const Lowerer = struct {
             // Compiled here only to reject a malformed pattern as a compile
             // error rather than a runtime failure. Core keeps the pattern.
             .regex => |r| {
-                var compiled = pcre2.Regex.compile(r) catch {
-                    try self.sink.report(
-                        .invalid_regex,
-                        e.span,
-                        "`{s}` is not a valid regular expression",
-                        .{r},
-                    );
+                var compiled = pcre2.Regex.compile(r) catch |err| {
+                    switch (err) {
+                        error.InvalidPattern => try self.sink.report(
+                            .invalid_regex,
+                            e.span,
+                            "`{s}` is not a valid regular expression",
+                            .{r},
+                        ),
+                        error.Backreference => try self.sink.report(
+                            .invalid_regex,
+                            e.span,
+                            "`{s}` uses a backreference, which tql regexes do not support",
+                            .{r},
+                        ),
+                    }
                     return error.DesugarFailed;
                 };
                 compiled.deinit();
@@ -247,11 +265,6 @@ pub const Lowerer = struct {
 
             // Parentheses are grouping only; the CST keeps them, Core does not.
             .parenthesized => |inner| return try self.expression(inner.*, scope),
-
-            .of_shape => {
-                try self.sink.report(.parse, e.span, "`of_shape` is not supported yet", .{});
-                return error.DesugarFailed;
-            },
 
             .name => |name| {
                 if (scope) |s| {
@@ -268,6 +281,10 @@ pub const Lowerer = struct {
             },
 
             .primitive => |name| {
+                if (self.scope.module != .prim) {
+                    try self.sink.report(.unresolved_name, e.span, "`{s}` is not defined outside `Prim`", .{name});
+                    return error.DesugarFailed;
+                }
                 const primitive = self.env.interner.lookup(null, name) orelse {
                     try self.sink.report(.unresolved_name, e.span, "`{s}` is not defined", .{name});
                     return error.DesugarFailed;
@@ -545,11 +562,18 @@ pub const Lowerer = struct {
     fn record(self: *Lowerer, r: cst.Record, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {
         const order = try self.builder.slice(u32, r.fields.len);
         for (order, 0..) |*slot, i| slot.* = @intCast(i);
-        std.mem.sortUnstable(u32, order, r.fields, struct {
+        // Stable, so a repeated label's later field follows its earlier one.
+        std.mem.sort(u32, order, r.fields, struct {
             fn lt(fields: []const cst.RecordField, a: u32, b: u32) bool {
                 return std.mem.order(u8, fields[a].name, fields[b].name) == .lt;
             }
         }.lt);
+        if (order.len > 1) for (order[0 .. order.len - 1], order[1..]) |previous, i| {
+            const field = r.fields[i];
+            if (!std.mem.eql(u8, r.fields[previous].name, field.name)) continue;
+            try self.sink.report(.duplicate_definition, field.span, "`{s}` labels two fields of one record", .{field.name});
+            return error.DesugarFailed;
+        };
 
         const labels = try self.builder.slice([]const u8, r.fields.len);
         const arguments = try self.builder.slice(core.Term, r.fields.len);
@@ -596,9 +620,13 @@ pub const Lowerer = struct {
     ) Error!Group {
         const entries = try self.builder.slice(resolve.Scope.Entry, bindings.len);
         for (bindings, 0..) |b, i| {
+            if (repeats(entries[0..i], b.name)) {
+                try self.sink.report(.duplicate_definition, b.span, "`{s}` is defined more than once", .{b.name.?});
+                return error.DesugarFailed;
+            }
             entries[i] = .{
                 .name = b.name,
-                .symbol = try self.env.interner.fresh(b.name),
+                .symbol = try self.env.interner.fresh(b.name orelse "_"),
             };
         }
         const inner: resolve.Scope = .{ .parent = scope, .names = entries };

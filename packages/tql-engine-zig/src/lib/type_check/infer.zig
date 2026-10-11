@@ -22,9 +22,12 @@ pub const Failure = struct {
         mismatch: unify.Mismatch,
         violation: constraints.Violation,
         over_application: types.Type,
+        not_a_function: types.Type,
+        view_not_function: types.Type,
         unbound: core.SymbolId,
         too_many_variables: usize,
         ambiguous: types.TypeClassConstraint,
+        ambiguous_output: types.Type,
     };
 };
 
@@ -274,7 +277,15 @@ pub const Inference = struct {
         const result = try self.subst.fresh(.type);
         switch (try unify.unify(self.subst, callee, try types.func(self.subst.arena, parameter, result))) {
             .unified => {},
-            .mismatch => return self.fail(
+            .mismatch => if (app.view) return self.fail(
+                .type_mismatch,
+                app.function.span,
+                .{ .view_not_function = self.subst.resolve(callee) },
+            ) else if (app.function.kind != .apply) return self.fail(
+                .type_mismatch,
+                app.function.span,
+                .{ .not_a_function = self.subst.resolve(callee) },
+            ) else return self.fail(
                 .over_application,
                 app.argument.span,
                 .{ .over_application = self.subst.resolve(callee) },
@@ -294,7 +305,12 @@ pub const Inference = struct {
         const unchanged = core.same(function.term, app.function) and core.same(operand.term, app.argument);
         return .{
             .type = result,
-            .term = if (unchanged) t else try self.builder.apply(function.term, operand.term, t.span),
+            .term = if (unchanged) t else blk: {
+                var rebuilt = app;
+                rebuilt.function = function.term;
+                rebuilt.argument = operand.term;
+                break :blk try self.builder.application(rebuilt, t.span);
+            },
         };
     }
 
@@ -321,6 +337,10 @@ pub const Inference = struct {
             const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
             try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
         }
+
+        const outer = self.scope.mark();
+        defer self.scope.truncate(outer);
+        if (c.binder) |binder| try self.scope.push(binder, .{ .monomorphic = scrutinee });
 
         var first: ?Branch = null;
         var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
@@ -355,12 +375,12 @@ pub const Inference = struct {
             core.sameOptional(default, c.default);
         return .{
             .type = first.?.type,
-            .term = if (unchanged) t else try self.builder.caseWithDefault(
-                elaborated_scrutinee.term,
-                alternatives.copy orelse c.alternatives,
-                default,
-                t.span,
-            ),
+            .term = if (unchanged) t else try self.builder.caseOf(.{
+                .scrutinee = elaborated_scrutinee.term,
+                .binder = c.binder,
+                .alternatives = alternatives.copy orelse c.alternatives,
+                .default = default,
+            }, t.span),
         };
     }
 
@@ -397,7 +417,7 @@ pub const Inference = struct {
         };
 
         var generalized: [1]Generalized = undefined;
-        try self.generalizeGroup(&.{elaborated_value.type}, &.{l.value.span}, false, &generalized);
+        try self.generalizeGroup(&.{elaborated_value.type}, &.{l.value.span}, &generalized);
         const bound = try self.parameters(frame, generalized[0].dictionaries);
 
         const mark = self.scope.mark();
@@ -490,7 +510,10 @@ pub const Inference = struct {
     ) Error!void {
         const placeholders = try self.gpa.alloc(types.Type, bindings.len);
         defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh(.type);
+        for (bindings, placeholders) |b, *p| p.* = switch (self.env.interner.details(b.name)) {
+            .matcher => |m| try self.matcherShape(m.arity),
+            else => try self.subst.fresh(.type),
+        };
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -518,10 +541,17 @@ pub const Inference = struct {
         // Generalize against the environment *outside* the group, so the
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
-        try self.generalizeGroup(placeholders, spans, enclosing == null, out);
+        try self.generalizeGroup(placeholders, spans, out);
         for (bindings, out) |b, g| {
             if (g.dictionaries.len > 0) try self.evidence.parameters.put(b.name, g.dictionaries);
         }
+    }
+
+    /// A matcher's type of `arity` holes, each variable fresh.
+    fn matcherShape(self: *Inference, arity: u32) Error!types.Type {
+        const holes = try self.subst.arena.alloc(types.Type, arity);
+        for (holes) |*hole| hole.* = try self.subst.fresh(.type);
+        return try types.matcher(self.subst.arena, try self.subst.fresh(.type), holes, try self.subst.fresh(.type));
     }
 
     /// One member's generalization.
@@ -547,8 +577,6 @@ pub const Inference = struct {
     /// metavariables it mentions. A residual on a metavariable no member
     /// quantifies is still owed by an enclosing scope.
     ///
-    /// A top-level group first defaults what nothing can determine.
-    ///
     /// Preconditions:
     /// - `spans.len == group.len`
     /// - `out.len == group.len`
@@ -556,7 +584,6 @@ pub const Inference = struct {
         self: *Inference,
         group: []const types.Type,
         spans: []const diagnostic.Span,
-        top_level: bool,
         out: []Generalized,
     ) Error!void {
         try self.recheck();
@@ -591,13 +618,16 @@ pub const Inference = struct {
         }
         bounds[group.len] = quantified.items.len;
 
-        if (top_level) try self.defaultAmbiguous(quantified.items);
-
         var taken: std.ArrayList(constraints.Constraint) = .empty;
         defer taken.deinit(self.gpa);
         try self.undecided.partitionByMetas(self.subst, quantified.items, &taken, self.gpa);
 
-        const context = try self.groupContext(taken.items, quantified.items);
+        var known: std.ArrayList(types.Meta) = .empty;
+        defer known.deinit(self.gpa);
+        try known.appendSlice(self.gpa, quantified.items);
+        try known.appendSlice(self.gpa, env.items);
+
+        const context = try self.groupContext(taken.items, quantified.items, known.items);
         defer self.gpa.free(context);
 
         // A scheme's constraints drop their origin span: the scheme outlives
@@ -640,33 +670,6 @@ pub const Inference = struct {
         }
     }
 
-    /// Binds to `List` each metavariable of `List`'s kind that an undecided
-    /// constraint mentions and `kept` lacks, when no constraint mentioning it
-    /// fails at `List`, then rechecks the undecided constraints.
-    fn defaultAmbiguous(self: *Inference, kept: []const types.Meta) Error!void {
-        const list = try types.constructed(self.subst.arena, self.subst.datatypes.listId(), types.list_spelling, &.{});
-        const kind = try unify.kindOf(self.subst, list);
-
-        var free: std.ArrayList(types.Meta) = .empty;
-        defer free.deinit(self.gpa);
-        for (self.undecided.all()) |c| try self.subst.freeMetas(c.type, &free);
-
-        var bound = false;
-        for (free.items) |id| {
-            if (std.mem.indexOfScalar(types.Meta, kept, id) != null) continue;
-            if (!self.subst.kindOf(id).eql(kind)) continue;
-            const holds = for (self.undecided.all()) |c| {
-                if (!try self.subst.mentionsAny(c.type, &.{id})) continue;
-                const at_list = try self.subst.assigned(c.type, id, list);
-                if (try constraints.entails(self.subst, c.class, at_list) == .fails) break false;
-            } else true;
-            if (!holds) continue;
-            self.subst.bind(id, list);
-            bound = true;
-        }
-        if (bound) try self.recheck();
-    }
-
     /// Re-decides the undecided constraints, failing at the first that no
     /// longer holds.
     fn recheck(self: *Inference) Error!void {
@@ -679,11 +682,13 @@ pub const Inference = struct {
     /// evidence in head-normal form, mentioning one of `quantified`, without
     /// duplicates or constraints another's superclasses imply, in order of
     /// first appearance. Residuals mentioning none go back to `undecided`.
-    /// The caller owns the result.
+    /// Fails on a constraint, or a residual, that mentions a metavariable
+    /// outside `known`. The caller owns the result.
     fn groupContext(
         self: *Inference,
         taken: []const constraints.Constraint,
         quantified: []const types.Meta,
+        known: []const types.Meta,
     ) Error![]types.TypeClassConstraint {
         var context: std.ArrayList(types.TypeClassConstraint) = .empty;
         errdefer context.deinit(self.gpa);
@@ -691,7 +696,10 @@ pub const Inference = struct {
         defer residuals.deinit(self.gpa);
 
         for (taken) |c| {
-            if (self.env.classes.evidenceOf(c.class) != .dictionary) continue;
+            if (self.env.classes.evidenceOf(c.class) != .dictionary) {
+                if (!try self.subst.within(c.type, known)) return self.failAmbiguous(c.class, c.type, c.origin);
+                continue;
+            }
             residuals.clearRetainingCapacity();
             if (try constraints.reduce(self.subst, c.class, c.type, &residuals, self.gpa)) |culprit| {
                 return self.fail(.unsatisfied_constraint, c.origin, .{ .violation = .{
@@ -701,6 +709,7 @@ pub const Inference = struct {
                 } });
             }
             for (residuals.items) |r| {
+                if (!try self.subst.within(r.type, known)) return self.failAmbiguous(r.class, r.type, c.origin);
                 if (!try self.subst.mentionsAny(r.type, quantified)) {
                     _ = try self.undecided.require(self.subst, r.class, r.type, c.origin);
                     continue;
@@ -793,13 +802,17 @@ pub const Inference = struct {
         try self.rejectAmbiguous();
     }
 
-    /// Fails on a constraint with dictionary evidence still undecided once a
-    /// top-level component is generalized.
+    /// Fails on a constraint still undecided once a top-level component is
+    /// generalized.
     fn rejectAmbiguous(self: *Inference) Error!void {
-        for (self.undecided.all()) |c| {
-            if (self.env.classes.evidenceOf(c.class) != .dictionary) continue;
-            return self.fail(.ambiguous_constraint, c.origin, .{ .ambiguous = .{ .class = c.class, .type = c.type } });
-        }
+        const undecided = self.undecided.all();
+        if (undecided.len == 0) return;
+        const c = undecided[0];
+        return self.failAmbiguous(c.class, c.type, c.origin);
+    }
+
+    fn failAmbiguous(self: *Inference, class: classes.ClassId, t: types.Type, origin: diagnostic.Span) Error {
+        return self.fail(.ambiguous_constraint, origin, .{ .ambiguous = .{ .class = class, .type = t } });
     }
 
     /// Every component in order. The whole program's inference.
@@ -935,7 +948,7 @@ pub const Inference = struct {
     /// `Filter input output`.
     fn filter(self: *Inference, input: types.Type, output: types.Type) Error!types.Type {
         const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Filter).?).?;
-        return try types.constructed(self.subst.arena, id, types.filter_spelling, &.{ input, output });
+        return try types.constructed(self.subst.arena, id, self.env.datatypes.get(id).name, &.{ input, output });
     }
 
     /// The `tau` of `Filter Node tau` once `t` is unified with it, failing at
@@ -958,8 +971,6 @@ pub const Inference = struct {
         // 1. `Filter Node tau`
         const output = try self.mainOutput(instantiated.type, span);
 
-        try self.defaultAmbiguous(&.{});
-
         // 2. `Serial tau`
         if (try self.undecided.require(self.subst, .serial, output, span)) |v| {
             return self.fail(.unsatisfied_constraint, span, .{ .violation = v });
@@ -973,15 +984,8 @@ pub const Inference = struct {
         defer free.deinit(self.gpa);
         try self.subst.freeMetas(settled, &free);
 
-        if (free.items.len > 0 or self.undecided.all().len > 0) {
-            return self.fail(.ambiguous_output, span, .{
-                .mismatch = .{
-                    .reason = .incompatible,
-                    .expected = types.node_type,
-                    .found = try self.subst.resolveDeep(output),
-                },
-            });
-        }
+        if (free.items.len > 0) return self.fail(.ambiguous_output, span, .{ .ambiguous_output = settled });
+        try self.rejectAmbiguous();
 
         try self.inferred.put(id, .{
             .type = try self.filter(types.node_type, settled),
@@ -1137,35 +1141,47 @@ pub fn check(
             var buf: std.Io.Writer.Allocating = .init(sink.allocator);
             defer buf.deinit();
 
-            var names: types.MetaNames = .{};
+            const env = &program.env;
             switch (failure.detail) {
                 .mismatch => |m| {
                     const expected = try subst.resolveDeep(m.expected);
                     const found = try subst.resolveDeep(m.found);
-                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{
-                        expected.named(&names),
-                        found.named(&names),
-                    });
+                    var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{ expected.named(&names), found.named(&names) });
                 },
-                .violation => |v| try buf.writer.print(
-                    "`{s} {f}` is not satisfied.",
-                    .{ program.env.classes.spelling(v.class), (try subst.resolveDeep(v.type)).namedOperand(&names) },
-                ),
-                .over_application => |t| try buf.writer.print(
-                    "`{f}` has no argument left to take.",
-                    .{(try subst.resolveDeep(t)).named(&names)},
-                ),
+                .violation => |v| {
+                    const t = try subst.resolveDeep(v.type);
+                    var names = try env.messageNames(gpa, &.{t}, &.{v.class});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("`{f} {f}` is not satisfied.", .{ names.class(v.class, env.classes.spelling(v.class)), t.namedOperand(&names) });
+                },
+                .ambiguous => |c| {
+                    const t = try subst.resolveDeep(c.type);
+                    var names = try env.messageNames(gpa, &.{t}, &.{c.class});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("`{f} {f}` is ambiguous: nothing determines its type.", .{ names.class(c.class, env.classes.spelling(c.class)), t.namedOperand(&names) });
+                },
+                inline .over_application, .view_not_function, .not_a_function, .ambiguous_output => |shown, tag| {
+                    const t = try subst.resolveDeep(shown);
+                    var names = try env.messageNames(gpa, &.{t}, &.{});
+                    defer names.deinit(gpa);
+                    const message = switch (tag) {
+                        .over_application => "`{f}` has no argument left to take.",
+                        .view_not_function => "The expression of a view pattern must be a function; found `{f}`.",
+                        .not_a_function => "`{f}` is not a function.",
+                        .ambiguous_output => "`main`'s output `{f}` is ambiguous: nothing determines its type.",
+                        else => comptime unreachable,
+                    };
+                    try buf.writer.print(message, .{t.named(&names)});
+                },
                 .unbound => |id| try buf.writer.print(
                     "`{s}` is not defined.",
-                    .{program.env.interner.spelling(id)},
+                    .{env.interner.spelling(id)},
                 ),
                 .too_many_variables => |n| try buf.writer.print(
                     "The type has {d} variables, more than the {d} a scheme can quantify.",
                     .{ n, std.math.maxInt(types.TypeVar) },
-                ),
-                .ambiguous => |c| try buf.writer.print(
-                    "`{s} {f}` is ambiguous: nothing determines its type.",
-                    .{ program.env.classes.spelling(c.class), (try subst.resolveDeep(c.type)).namedOperand(&names) },
                 ),
             }
 

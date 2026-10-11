@@ -1,0 +1,14 @@
+title: a user type named `List` prints by name, not as list sugar
+grammar: typescript
+asserts: error
+
+--- tql ---
+data List a = L a;
+main = pure (case [1] of { L x -> x });
+
+--- error ---
+error[type-mismatch]: Expected `List a`, found `[Int]`.
+ --> 2:19
+  |
+2 | main = pure (case [1] of { L x -> x });
+  |                   ^^^

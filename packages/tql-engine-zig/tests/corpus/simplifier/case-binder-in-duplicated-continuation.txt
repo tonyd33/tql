@@ -1,0 +1,39 @@
+title: a case binder is passed to the join point its alternative becomes
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+double :: [Int] -> [Int];
+double xs = case xs of {
+  [] -> [];
+  h : t -> h * 2 : double t;
+};
+pick :: [Int] -> [Int] -> Int;
+pick xs ys = let { zs = case xs of { [] -> ys; _ : _ -> double xs; }; } in case zs of {
+  [] -> 0;
+  h : _ -> h + length zs + pick [] [];
+};
+main = pure [pick [] [5, 6], pick [1, 2] [], pick [] []];
+
+--- source ---
+class A {}
+
+--- values ---
+[[7,4,0]]
+
+--- simplified ---
+double = \xs -> case xs of
+  Nil -> Nil
+  Cons h t -> Cons (op[*] h 2) (double t)
+pick = \xs -> \ys ->
+  join j zs h _ = op[+] (op[+] h (length[List] zs)) (pick Nil Nil) in
+  case xs of
+    Nil -> case ys of
+      Nil -> 0
+      Cons h _ -> jump j ys h _
+    Cons _ _ -> case double xs of zs
+      Nil -> 0
+      Cons h _ -> jump j zs h _
+main =
+  let y = Cons (pick Nil (Cons 5 (Cons 6 Nil))) (Cons (pick (Cons 1 (Cons 2 Nil)) Nil) (Cons (pick Nil Nil) Nil)) in
+  \_ -> Cons y Nil

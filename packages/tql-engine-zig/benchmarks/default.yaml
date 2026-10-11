@@ -5,6 +5,7 @@ benchmarks:
     repository: https://github.com/torvalds/linux.git
     commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
     paths: [.]
+    allow_syntax_errors: true
     limit_s: 65
 
   - name: axes
@@ -13,6 +14,7 @@ benchmarks:
     repository: https://github.com/torvalds/linux.git
     commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
     paths: [kernel, mm, fs]
+    allow_syntax_errors: true
 
   - name: evaluation
     query: Evaluation.tql
@@ -20,6 +22,7 @@ benchmarks:
     repository: https://github.com/torvalds/linux.git
     commit: 24d479d26b25bce5faea3ddd9fa8f3a6c3129ea7
     paths: [kernel, mm, fs]
+    allow_syntax_errors: true
 
   - name: leaves
     query: Leaves.tql
@@ -34,6 +37,7 @@ benchmarks:
     repository: https://github.com/facebook/react.git
     commit: d75b0697a605e874fc1af56d7e1bf6c4b41a4f78
     paths: [packages]
+    allow_syntax_errors: true
 
   - name: no-dupe-keys
     query: NoDupeKeys.tql
@@ -48,6 +52,7 @@ benchmarks:
     repository: https://github.com/babel/babel.git
     commit: c2e6b0701a09805b7f084fd01b088840e336dc99
     paths: [packages]
+    allow_syntax_errors: true
 
   - name: no-unused-vars
     query: NoUnusedVars.tql
@@ -62,6 +67,7 @@ benchmarks:
     repository: https://github.com/facebook/react.git
     commit: d75b0697a605e874fc1af56d7e1bf6c4b41a4f78
     paths: [packages/react/src]
+    allow_syntax_errors: true
 
   - name: enclosing-function
     query: EnclosingFunction.tql

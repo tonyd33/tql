@@ -7,7 +7,7 @@ constraint is left for the signature to carry.
 
 --- tql ---
 same :: Int -> Int -> Bool;
-same x y = x = y;
+same x y = x == y;
 main = Filter (\_ -> [same 1 1, same 1 2]);
 
 --- source ---

@@ -32,6 +32,9 @@ pub fn anyMention(term: core.Term, context: anytype, comptime visit: anytype) Vi
         },
         .case => |case_term| {
             if (try anyMention(case_term.scrutinee, context, visit)) return true;
+            if (case_term.binder) |binder| {
+                if (try visit(context, binder, .binder)) return true;
+            }
             for (case_term.alternatives) |alternative| {
                 for (alternative.binders) |binder| {
                     if (try visit(context, binder, .binder)) return true;
