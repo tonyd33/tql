@@ -6,7 +6,7 @@ asserts: error
 import Data.Function (const);
 
 data T = T Int deriving (Eq);
-instance Eq T where { eq a b = true; };
+instance Eq T where { eq a b = True; };
 main = const [];
 
 --- error ---

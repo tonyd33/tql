@@ -8,7 +8,7 @@ fixture pins the laziness obligation, not the truth table.
 
 --- tql ---
 loop x = loop x;
-main = pure $ false and loop 0;
+main = pure $ False and loop 0;
 
 --- source ---
 class A {}

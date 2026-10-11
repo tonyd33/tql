@@ -525,7 +525,6 @@ pub const Expression = struct {
         primitive: Identifier,
         number: i64,
         string: []const u8,
-        boolean: bool,
         regex: []const u8,
         navigation: *Navigation,
         projection: *Projection,
@@ -547,8 +546,6 @@ pub const Expression = struct {
         tuple_constructor: u8,
         record: Record,
         parenthesized: *Expression,
-        /// `of_shape p`: the filter keeping a value `p` matches.
-        of_shape: *Pattern,
     };
 
     pub fn sexpr(self: Expression, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -557,7 +554,6 @@ pub const Expression = struct {
             .name, .primitive => |n| try w.print("{s}", .{n}),
             .number => |n| try w.print("{d}", .{n}),
             .string => |s| try w.print("(string \"{f}\")", .{string_literal.fmt(s)}),
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .regex => |r| try w.print("(regex \"{s}\")", .{r}),
             .navigation => |n| {
                 try w.writeAll("(field ");
@@ -679,11 +675,6 @@ pub const Expression = struct {
                 }
                 try w.writeByte(')');
             },
-            .of_shape => |p| {
-                try w.writeAll("(of_shape ");
-                try p.sexpr(w);
-                try w.writeByte(')');
-            },
             .parenthesized => |e| {
                 try w.writeAll("(paren ");
                 try e.sexpr(w);
@@ -777,8 +768,6 @@ pub const Pattern = struct {
         /// `(e -> p)`
         view: *View,
         literal: Literal,
-        /// `true` or `false`.
-        boolean: bool,
         /// `:k { #f = p, .. }`, or `{ #f = p, .. }` with no kind.
         node: *Node,
     };
@@ -863,7 +852,6 @@ pub const Pattern = struct {
                 .regex => |r| try w.print("(regex \"{s}\")", .{r}),
                 .kind => |k| try w.print("(kind {s})", .{k}),
             },
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .node => |n| {
                 try w.writeAll("(node");
                 if (n.kind) |k| try w.print(" (kind {s})", .{k});

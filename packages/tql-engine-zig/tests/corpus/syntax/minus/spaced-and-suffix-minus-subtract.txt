@@ -1,0 +1,15 @@
+title: a spaced or suffix minus subtracts
+grammar: typescript
+asserts: tql_tree, values
+
+--- tql ---
+main = Filter (\_ -> [5 - 1, 5- 1]);
+
+--- source ---
+class A {}
+
+--- tql tree ---
+(source_file (define main (params) (apply Filter (paren (lambda (params _) (list (- 5 1) (- 5 1)))))))
+
+--- values ---
+[4,4]

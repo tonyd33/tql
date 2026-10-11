@@ -5,7 +5,7 @@ asserts: core, values
 --- tql ---
 main = Filter (\_ -> do {
   "a" <- ["a", "b", "a"];
-  true <- [true, false];
+  True <- [True, False];
   return 1;
 });
 

@@ -1,0 +1,14 @@
+title: dollar application binds tighter than pipe
+grammar: typescript
+asserts: tql_tree
+
+`|` is the loosest operator, so a stage takes its argument with `$`.
+
+--- tql ---
+main a f p = a | f $ p | f $ p;
+
+--- source ---
+class A {}
+
+--- tql tree ---
+(source_file (define main (params a f p) (| (| a (apply f p)) (apply f p))))

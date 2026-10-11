@@ -1,0 +1,12 @@
+title: then binds tighter than pipe
+grammar: typescript
+asserts: tql_tree
+
+--- tql ---
+main a b f = a >> b | f;
+
+--- source ---
+class A {}
+
+--- tql tree ---
+(source_file (define main (params a b f) (| (>> a b) f)))

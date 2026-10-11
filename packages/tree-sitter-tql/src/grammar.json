@@ -385,7 +385,7 @@
         "members": [
           {
             "type": "PATTERN",
-            "value": "[A-Z][a-zA-Z0-9_]*"
+            "value": "[A-Z][a-zA-Z0-9_']*"
           },
           {
             "type": "REPEAT",
@@ -398,7 +398,7 @@
                 },
                 {
                   "type": "PATTERN",
-                  "value": "[A-Z][a-zA-Z0-9_]*"
+                  "value": "[A-Z][a-zA-Z0-9_']*"
                 }
               ]
             }
@@ -413,7 +413,7 @@
         "members": [
           {
             "type": "PATTERN",
-            "value": "[A-Z][a-zA-Z0-9_]*"
+            "value": "[A-Z][a-zA-Z0-9_']*"
           },
           {
             "type": "REPEAT",
@@ -426,7 +426,7 @@
                 },
                 {
                   "type": "PATTERN",
-                  "value": "[A-Z][a-zA-Z0-9_]*"
+                  "value": "[A-Z][a-zA-Z0-9_']*"
                 }
               ]
             }
@@ -437,7 +437,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "[a-z_][a-zA-Z0-9_]*"
+            "value": "[a-z_][a-zA-Z0-9_']*"
           }
         ]
       }
@@ -449,7 +449,7 @@
         "members": [
           {
             "type": "PATTERN",
-            "value": "[A-Z][a-zA-Z0-9_]*"
+            "value": "[A-Z][a-zA-Z0-9_']*"
           },
           {
             "type": "REPEAT1",
@@ -462,7 +462,7 @@
                 },
                 {
                   "type": "PATTERN",
-                  "value": "[A-Z][a-zA-Z0-9_]*"
+                  "value": "[A-Z][a-zA-Z0-9_']*"
                 }
               ]
             }
@@ -1248,7 +1248,7 @@
     },
     "dollar_application": {
       "type": "PREC_RIGHT",
-      "value": 1,
+      "value": 2,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1277,7 +1277,7 @@
     },
     "then": {
       "type": "PREC_LEFT",
-      "value": 2,
+      "value": 3,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1335,7 +1335,7 @@
     },
     "pipe": {
       "type": "PREC_LEFT",
-      "value": 3,
+      "value": 1,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1560,8 +1560,8 @@
                   "value": "+"
                 },
                 {
-                  "type": "STRING",
-                  "value": "-"
+                  "type": "SYMBOL",
+                  "name": "_minus_operator"
                 }
               ]
             }
@@ -1572,6 +1572,45 @@
             "content": {
               "type": "SYMBOL",
               "name": "_expression"
+            }
+          }
+        ]
+      }
+    },
+    "_minus_operator": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_attached_minus"
+          },
+          "named": false,
+          "value": "-"
+        },
+        {
+          "type": "STRING",
+          "value": "-"
+        }
+      ]
+    },
+    "negation": {
+      "type": "PREC",
+      "value": 15,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "_prefix_minus"
+          },
+          {
+            "type": "FIELD",
+            "name": "operand",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_primary"
             }
           }
         ]
@@ -1763,7 +1802,7 @@
       "type": "IMMEDIATE_TOKEN",
       "content": {
         "type": "PATTERN",
-        "value": "[a-z_][a-zA-Z0-9_]*"
+        "value": "[a-z_][a-zA-Z0-9_']*"
       }
     },
     "navigation": {
@@ -2420,10 +2459,6 @@
           "name": "regex"
         },
         {
-          "type": "SYMBOL",
-          "name": "boolean"
-        },
-        {
           "type": "PREC",
           "value": -1,
           "content": {
@@ -2714,23 +2749,6 @@
         }
       ]
     },
-    "of_shape": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "of_shape"
-        },
-        {
-          "type": "FIELD",
-          "name": "pattern",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_atomic_pattern"
-          }
-        }
-      ]
-    },
     "if_expression": {
       "type": "PREC_RIGHT",
       "value": 0,
@@ -2821,6 +2839,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "negation"
+        },
+        {
+          "type": "SYMBOL",
           "name": "kind"
         },
         {
@@ -2838,10 +2860,6 @@
         {
           "type": "SYMBOL",
           "name": "string"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "boolean"
         },
         {
           "type": "SYMBOL",
@@ -2905,10 +2923,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "of_shape"
-        },
-        {
-          "type": "SYMBOL",
           "name": "qualified_identifier"
         },
         {
@@ -2944,7 +2958,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "[a-z_][a-zA-Z0-9_]*"
+            "value": "[a-z_][a-zA-Z0-9_']*"
           }
         ]
       }
@@ -2960,7 +2974,7 @@
           },
           {
             "type": "PATTERN",
-            "value": "[A-Z][a-zA-Z0-9_]*"
+            "value": "[A-Z][a-zA-Z0-9_']*"
           }
         ]
       }
@@ -3073,8 +3087,8 @@
           "name": "_cons_operator"
         },
         {
-          "type": "STRING",
-          "value": "-"
+          "type": "SYMBOL",
+          "name": "_minus_operator"
         }
       ]
     },
@@ -3088,6 +3102,10 @@
         {
           "type": "STRING",
           "value": ":"
+        },
+        {
+          "type": "STRING",
+          "value": "-"
         }
       ]
     },
@@ -3854,7 +3872,7 @@
     },
     "type_identifier": {
       "type": "PATTERN",
-      "value": "[A-Z][a-zA-Z0-9_]*"
+      "value": "[A-Z][a-zA-Z0-9_']*"
     },
     "_type_variable": {
       "type": "ALIAS",
@@ -3867,7 +3885,7 @@
     },
     "identifier": {
       "type": "PATTERN",
-      "value": "[a-z_][a-zA-Z0-9_]*"
+      "value": "[a-z_][a-zA-Z0-9_']*"
     },
     "number": {
       "type": "TOKEN",
@@ -3933,19 +3951,6 @@
           }
         ]
       }
-    },
-    "boolean": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "true"
-        },
-        {
-          "type": "STRING",
-          "value": "false"
-        }
-      ]
     },
     "regex": {
       "type": "TOKEN",
@@ -4022,7 +4027,20 @@
     ]
   ],
   "precedences": [],
-  "externals": [],
+  "externals": [
+    {
+      "type": "SYMBOL",
+      "name": "_attached_minus"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_prefix_minus"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_error_sentinel"
+    }
+  ],
   "inline": [
     "_constructor"
   ],

@@ -266,7 +266,7 @@ fn boundVariables(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.
         .list, .tuple => |elements| for (elements) |element| try boundVariables(allocator, element, out),
         .view => |v| try boundVariables(allocator, v.pattern, out),
         .node => |n| for (n.fields) |f| try boundVariables(allocator, f.pattern, out),
-        .literal, .boolean => {},
+        .literal => {},
     }
 }
 
@@ -382,9 +382,9 @@ fn linear(lowerer: *Lowerer, pattern: Pattern, seen: *std.ArrayList([]const u8))
     }
 }
 
-/// Resolve the names `pattern` uses, and rewrite list, cons and boolean
-/// patterns as constructor patterns, node patterns as views, and as-patterns
-/// and conjunctions as `all`. Rejects a pattern naming an unknown
+/// Resolve the names `pattern` uses, and rewrite list and cons patterns as
+/// constructor patterns, node patterns as views, and as-patterns and
+/// conjunctions as `all`. Rejects a pattern naming an unknown
 /// constructor or kind, giving a constructor the wrong number of arguments,
 /// or holding a malformed regex.
 fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
@@ -397,7 +397,6 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
             _ = try lowerer.expression(literalExpression(literal, span), null);
             return .{ .kind = .{ .literal = literal }, .span = span };
         },
-        .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, span),
         .constructor => |c| {
             const kind: Pattern.Kind = if (try synonymNamed(lowerer, c, span)) |symbol| blk: {
                 const matcher = lowerer.env.interner.details(symbol).synonym.matcher;
@@ -432,7 +431,7 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
             return constructorPattern(try lowerer.tupleConstructor(@intCast(components.len)), try expandAll(lowerer, components), span);
         },
         .list => |elements| {
-            var spine = builtinPattern(lowerer, .nil, &.{}, span);
+            var spine = nilPattern(lowerer, span);
             var i = elements.len;
             while (i > 0) {
                 i -= 1;
@@ -532,7 +531,7 @@ fn view(lowerer: *Lowerer, function: core.Term, element: Pattern, yields_self: b
     const boxed = try lowerer.builder.allocator.create(Pattern.View);
     boxed.* = .{
         .function = .{ .lowered = function },
-        .pattern = try cell(lowerer, element, builtinPattern(lowerer, .nil, &.{}, span), span),
+        .pattern = try cell(lowerer, element, nilPattern(lowerer, span), span),
         .yields_self = yields_self,
     };
     return .{ .kind = .{ .view = boxed }, .span = span };
@@ -542,26 +541,15 @@ fn cell(lowerer: *Lowerer, head: Pattern, tail: Pattern, span: diagnostic.Span) 
     const arguments = try lowerer.builder.slice(Pattern, 2);
     arguments[0] = head;
     arguments[1] = tail;
-    return builtinPattern(lowerer, .cons, arguments, span);
+    return constructorPattern(lowerer.scope.env.datatypes.consConstructor().symbol, arguments, span);
 }
 
-const Builtin = enum { nil, cons, false, true };
-
-fn builtinPattern(lowerer: *Lowerer, which: Builtin, arguments: []const Pattern, span: diagnostic.Span) Pattern {
-    return constructorPattern(builtinConstructor(&lowerer.scope.env.datatypes, which).symbol, arguments, span);
+fn nilPattern(lowerer: *Lowerer, span: diagnostic.Span) Pattern {
+    return constructorPattern(lowerer.scope.env.datatypes.nilConstructor().symbol, &.{}, span);
 }
 
 fn constructorPattern(symbol: core.SymbolId, arguments: []const Pattern, span: diagnostic.Span) Pattern {
     return .{ .kind = .{ .constructor = .{ .symbol = symbol, .arguments = arguments } }, .span = span };
-}
-
-fn builtinConstructor(registry: *const datatypes.Registry, which: Builtin) datatypes.Constructor {
-    return switch (which) {
-        .nil => registry.nilConstructor(),
-        .cons => registry.consConstructor(),
-        .false => registry.boolConstructor(false),
-        .true => registry.boolConstructor(true),
-    };
 }
 
 /// The literal as the expression it is compared with.
@@ -1413,7 +1401,6 @@ const Written = struct {
                 .regex => |r| try w.print("r\"{s}\"", .{r}),
                 .kind => |k| try w.print(":{s}", .{k}),
             },
-            .boolean => |b| try w.writeAll(if (b) "true" else "false"),
             .node => |n| {
                 if (n.kind) |k| try w.print(":{s} ", .{k});
                 if (n.fields.len == 0) return w.writeAll("{}");
@@ -1434,7 +1421,7 @@ const Written = struct {
             .conjunction => .conjunction,
             .cons => .cons,
             .constructor => |c| if (c.arguments.len > 0) .application else .atom,
-            .variable, .wildcard, .list, .tuple, .as, .view, .literal, .boolean, .node => .atom,
+            .variable, .wildcard, .list, .tuple, .as, .view, .literal, .node => .atom,
         };
     }
 };

@@ -1,0 +1,18 @@
+title: a spaced minus sections like any operator
+grammar: typescript
+asserts: tql_tree, values
+
+Negative literals are decided by the lexer, so a loose `-` is the
+subtraction operator and `(- 1)` is its right section.
+
+--- tql ---
+main = Filter (\_ -> map (- 1) [5]);
+
+--- source ---
+class A {}
+
+--- tql tree ---
+(source_file (define main (params) (apply Filter (paren (lambda (params _) (apply (apply map (section - _ 1)) (list 5)))))))
+
+--- values ---
+[4]

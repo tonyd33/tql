@@ -11,7 +11,7 @@ Both `<|>` operands yield `Bool`, since `<|>` requires a single element type.
 main = children | of_kind :class_declaration
   | #name
   | arr (\n -> text n == "A")
-  <|> pure false
+  <|> pure False
 ;
 
 --- source ---

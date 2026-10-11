@@ -16,10 +16,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -100,11 +96,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -200,10 +196,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -284,11 +276,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -381,10 +373,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -465,11 +453,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -551,10 +539,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -635,11 +619,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -730,10 +714,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -833,10 +813,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "conjunction_pattern",
             "named": true
           },
@@ -904,10 +880,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -991,11 +963,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -1103,10 +1075,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -1187,11 +1155,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -1278,11 +1246,6 @@
     }
   },
   {
-    "type": "boolean",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "case_alternative",
     "named": true,
     "fields": {
@@ -1296,10 +1259,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -1383,11 +1342,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -1469,10 +1428,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -1553,11 +1508,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -1632,10 +1587,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -1715,10 +1666,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -1799,11 +1746,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -1977,10 +1924,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -2061,11 +2004,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -2185,10 +2128,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -2269,11 +2208,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -2361,10 +2300,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -2445,11 +2380,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -2531,10 +2466,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -2615,11 +2546,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -2703,10 +2634,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "conjunction_pattern",
             "named": true
           },
@@ -2770,10 +2697,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -2846,10 +2769,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -2933,11 +2852,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -3019,10 +2938,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -3103,11 +3018,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -3191,10 +3106,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "constructor_pattern",
             "named": true
           },
@@ -3250,10 +3161,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -3384,10 +3291,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -3562,10 +3465,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -3646,11 +3545,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -3778,10 +3677,6 @@
           "named": true
         },
         {
-          "type": "boolean",
-          "named": true
-        },
-        {
           "type": "case_expression",
           "named": true
         },
@@ -3866,11 +3761,11 @@
           "named": true
         },
         {
-          "type": "number",
+          "type": "negation",
           "named": true
         },
         {
-          "type": "of_shape",
+          "type": "number",
           "named": true
         },
         {
@@ -3957,10 +3852,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -4041,11 +3932,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -4127,10 +4018,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -4211,11 +4098,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -4313,10 +4200,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -4397,11 +4280,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -4492,10 +4375,6 @@
         "types": [
           {
             "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -4690,10 +4569,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -4774,11 +4649,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -4860,10 +4735,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -4944,11 +4815,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -5030,10 +4901,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -5114,11 +4981,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -5274,10 +5141,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -5358,11 +5221,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -5444,10 +5307,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -5528,11 +5387,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -5767,10 +5626,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -5851,11 +5706,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -5969,10 +5824,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -6053,11 +5904,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -6245,10 +6096,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -6329,11 +6176,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -6441,10 +6288,6 @@
           "named": true
         },
         {
-          "type": "boolean",
-          "named": true
-        },
-        {
           "type": "case_expression",
           "named": true
         },
@@ -6525,11 +6368,11 @@
           "named": true
         },
         {
-          "type": "number",
+          "type": "negation",
           "named": true
         },
         {
-          "type": "of_shape",
+          "type": "number",
           "named": true
         },
         {
@@ -6609,10 +6452,6 @@
       "types": [
         {
           "type": "as_pattern",
-          "named": true
-        },
-        {
-          "type": "boolean",
           "named": true
         },
         {
@@ -6750,10 +6589,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -6834,11 +6669,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -6920,10 +6755,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7004,11 +6835,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -7096,10 +6927,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7180,11 +7007,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -7266,10 +7093,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7350,11 +7173,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -7478,10 +7301,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7562,11 +7381,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -7662,10 +7481,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7746,11 +7561,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -7848,10 +7663,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -7932,11 +7743,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -8008,6 +7819,118 @@
     }
   },
   {
+    "type": "negation",
+    "named": true,
+    "fields": {
+      "operand": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_navigation",
+            "named": true
+          },
+          {
+            "type": "left_section",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "negation",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "operator_name",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "primitive",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "right_section",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "tuple",
+            "named": true
+          },
+          {
+            "type": "tuple_constructor",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "unit",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "node_pattern",
     "named": true,
     "fields": {
@@ -8027,78 +7950,6 @@
         "types": [
           {
             "type": "kind",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "of_shape",
-    "named": true,
-    "fields": {
-      "pattern": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "as_pattern",
-            "named": true
-          },
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "kind",
-            "named": true
-          },
-          {
-            "type": "list_pattern",
-            "named": true
-          },
-          {
-            "type": "node_pattern",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_pattern",
-            "named": true
-          },
-          {
-            "type": "qualified_type_identifier",
-            "named": true
-          },
-          {
-            "type": "regex",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "tuple_pattern",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
-            "named": true
-          },
-          {
-            "type": "unit",
-            "named": true
-          },
-          {
-            "type": "view_pattern",
             "named": true
           }
         ]
@@ -8218,10 +8069,6 @@
           "named": true
         },
         {
-          "type": "boolean",
-          "named": true
-        },
-        {
           "type": "case_expression",
           "named": true
         },
@@ -8302,11 +8149,11 @@
           "named": true
         },
         {
-          "type": "number",
+          "type": "negation",
           "named": true
         },
         {
-          "type": "of_shape",
+          "type": "number",
           "named": true
         },
         {
@@ -8386,10 +8233,6 @@
       "types": [
         {
           "type": "as_pattern",
-          "named": true
-        },
-        {
-          "type": "boolean",
           "named": true
         },
         {
@@ -8613,10 +8456,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "conjunction_pattern",
             "named": true
           },
@@ -8690,10 +8529,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -8777,11 +8612,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -8863,10 +8698,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -8947,11 +8778,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -9064,10 +8895,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -9148,11 +8975,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -9348,6 +9175,10 @@
             "named": false
           },
           {
+            "type": "-",
+            "named": false
+          },
+          {
             "type": ".",
             "named": false
           },
@@ -9419,10 +9250,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -9506,11 +9333,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -9743,10 +9570,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -9827,11 +9650,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -9913,10 +9736,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -9997,11 +9816,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -10089,10 +9908,6 @@
           "named": true
         },
         {
-          "type": "boolean",
-          "named": true
-        },
-        {
           "type": "case_expression",
           "named": true
         },
@@ -10173,11 +9988,11 @@
           "named": true
         },
         {
-          "type": "number",
+          "type": "negation",
           "named": true
         },
         {
-          "type": "of_shape",
+          "type": "number",
           "named": true
         },
         {
@@ -10262,10 +10077,6 @@
       "types": [
         {
           "type": "as_pattern",
-          "named": true
-        },
-        {
-          "type": "boolean",
           "named": true
         },
         {
@@ -10567,10 +10378,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -10651,11 +10458,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -10737,10 +10544,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "case_expression",
             "named": true
           },
@@ -10821,11 +10624,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -10914,10 +10717,6 @@
             "named": true
           },
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
             "type": "conjunction_pattern",
             "named": true
           },
@@ -10985,10 +10784,6 @@
           },
           {
             "type": "application",
-            "named": true
-          },
-          {
-            "type": "boolean",
             "named": true
           },
           {
@@ -11072,11 +10867,11 @@
             "named": true
           },
           {
-            "type": "number",
+            "type": "negation",
             "named": true
           },
           {
-            "type": "of_shape",
+            "type": "number",
             "named": true
           },
           {
@@ -11317,10 +11112,6 @@
     "named": false
   },
   {
-    "type": "false",
-    "named": false
-  },
-  {
     "type": "field_name",
     "named": true
   },
@@ -11381,10 +11172,6 @@
     "named": false
   },
   {
-    "type": "of_shape",
-    "named": false
-  },
-  {
     "type": "or",
     "named": false
   },
@@ -11418,10 +11205,6 @@
   },
   {
     "type": "then",
-    "named": false
-  },
-  {
-    "type": "true",
     "named": false
   },
   {

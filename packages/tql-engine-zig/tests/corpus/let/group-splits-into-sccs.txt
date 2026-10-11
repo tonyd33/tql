@@ -10,8 +10,8 @@ innermost.
 main =
   let {
     answer = [is_even four, is_odd four];
-    is_even n = if n == 0 then true else is_odd (n - 1);
-    is_odd n = if n == 0 then false else is_even (n - 1);
+    is_even n = if n == 0 then True else is_odd (n - 1);
+    is_odd n = if n == 0 then False else is_even (n - 1);
     four = 4;
   }
   in Filter (\_ -> answer);

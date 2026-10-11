@@ -1,6 +1,7 @@
 module Data.List (
   List(..),
   Sized(..),
+  foldl',
   filter,
   zip,
   unzip,
@@ -26,13 +27,13 @@ instance Sized String where {
 };
 
 instance Sized [a] where {
-  length xs = let {
-    foldl_strict f z ys = case ys of {
-      Nil -> z;
-      Cons h t -> let { z2 = f z h; } in seq z2 $ foldl_strict f z2 t;
-    };
-    acc n _ = n + 1;
-  } in foldl_strict acc 0 xs;
+  length xs = foldl' (\n _ -> n + 1) 0 xs;
+};
+
+foldl' :: (b -> a -> b) -> b -> [a] -> b;
+foldl' f z xs = case xs of {
+  Nil -> z;
+  Cons h t -> let { z' = f z h; } in seq z' $ foldl' f z' t;
 };
 
 filter :: (a -> Bool) -> [a] -> [a];

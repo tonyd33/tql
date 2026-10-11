@@ -46,9 +46,9 @@ main root = do {
 --                      ^ property
   guard $ not (has is_alloc fn) and start (range fn) >= 0;
 --                              ^ keyword
-  return if true then { name = text name, line = line } else { name = "", line = 0 };
+  return if True then { name = text name, line = line } else { name = "", line = 0 };
 --       ^ keyword
---          ^ constant.builtin
+--          ^ type
 --               ^ keyword
 --                      ^ property
 --                                                                    ^ string
@@ -77,5 +77,5 @@ pattern Callee c <- :call_expression { #function = c };
 --      ^ type
 --             ^ variable.parameter
 
-arrows = descendants | of_shape :arrow_function {};
---                     ^ keyword
+arrows = descendants | keep (is_kind :arrow_function);
+--                                   ^ type

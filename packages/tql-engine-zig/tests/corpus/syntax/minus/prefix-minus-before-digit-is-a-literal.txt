@@ -1,0 +1,19 @@
+title: a prefix minus before a digit is a negative literal
+grammar: typescript
+asserts: tql_tree, values
+
+A `-` after whitespace or an opening bracket, directly before a digit, starts
+a negative literal, so `f -1 2` passes `-1` as the first argument.
+
+--- tql ---
+f x y = x + y;
+main = Filter (\_ -> [-1, f -1 2, (-1)]);
+
+--- source ---
+class A {}
+
+--- tql tree ---
+(source_file (define f (params x y) (+ x y)) (define main (params) (apply Filter (paren (lambda (params _) (list -1 (apply (apply f -1) 2) (paren -1)))))))
+
+--- values ---
+[-1,1,-1]

@@ -142,7 +142,7 @@ main = do { (#name -> [(text -> r"^on")]) <- xs; 1 };
 literal patterns
 ================================================================================
 
-main = do { [true, "s", r"re", -1, :comment, _] <- xs; 1 };
+main = do { [True, "s", r"re", -1, :comment, _] <- xs; 1 };
 
 ---
 
@@ -152,7 +152,8 @@ main = do { [true, "s", r"re", -1, :comment, _] <- xs; 1 };
     body: (do_expression
       (bind_statement
         pattern: (list_pattern
-          (boolean)
+          (constructor_pattern
+            constructor: (type_identifier))
           (string)
           (regex)
           (number)
@@ -890,71 +891,3 @@ pattern x = x;
     name: (identifier)
     parameter: (identifier)
     body: (identifier)))
-
-================================================================================
-of_shape takes an atomic pattern
-================================================================================
-
-main = of_shape :arrow_function {};
-
----
-
-(source_file
-  (definition
-    name: (identifier)
-    body: (of_shape
-      pattern: (node_pattern
-        kind: (kind)))))
-
-================================================================================
-of_shape takes a parenthesized synonym application
-================================================================================
-
-main = of_shape (MemberCall (Text "console") _);
-
----
-
-(source_file
-  (definition
-    name: (identifier)
-    body: (of_shape
-      pattern: (parenthesized_pattern
-        (constructor_pattern
-          constructor: (type_identifier)
-          argument: (parenthesized_pattern
-            (constructor_pattern
-              constructor: (type_identifier)
-              argument: (string)))
-          argument: (identifier))))))
-
-================================================================================
-of_shape in a pipeline
-================================================================================
-
-main = descendants | of_shape Arrow;
-
----
-
-(source_file
-  (definition
-    name: (identifier)
-    body: (pipe
-      left: (identifier)
-      right: (of_shape
-        pattern: (type_identifier)))))
-
-================================================================================
-of_shape applied to an argument applies the filter
-================================================================================
-
-main = of_shape PromiseAll outer;
-
----
-
-(source_file
-  (definition
-    name: (identifier)
-    body: (application
-      function: (of_shape
-        pattern: (type_identifier))
-      argument: (identifier))))

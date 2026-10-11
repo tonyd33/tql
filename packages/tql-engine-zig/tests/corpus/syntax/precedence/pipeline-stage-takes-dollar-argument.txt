@@ -1,0 +1,12 @@
+title: a pipeline stage takes its argument with dollar
+grammar: c
+asserts: values
+
+--- tql ---
+main = named_descendants | keep $ is_kind :argument_list | keep $ (>= 6) . length . run named_children | parent | arr text;
+
+--- source ---
+int main(void) { f(1, 2, 3, 4, 5, 6); g(1); return 0; }
+
+--- values ---
+["f(1, 2, 3, 4, 5, 6)"]

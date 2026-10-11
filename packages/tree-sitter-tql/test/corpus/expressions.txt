@@ -73,7 +73,7 @@ main = c.name;
 literals
 ========================================
 
-main = 42 <|> "text" <|> true <|> false <|> r"^A";
+main = 42 <|> "text" <|> True <|> False <|> r"^A";
 
 ---
 
@@ -86,8 +86,8 @@ main = 42 <|> "text" <|> true <|> false <|> r"^A";
           left: (union
             left: (number)
             right: (string))
-          right: (boolean))
-        right: (boolean))
+          right: (type_identifier))
+        right: (type_identifier))
       right: (regex))))
 
 ========================================
@@ -180,7 +180,7 @@ main = { k = kind, t = text };
 a conditional
 ========================================
 
-main = if true then 1 else 2;
+main = if True then 1 else 2;
 
 ---
 
@@ -188,7 +188,7 @@ main = if true then 1 else 2;
   (definition
     name: (identifier)
     body: (if_expression
-      condition: (boolean)
+      condition: (type_identifier)
       consequence: (number)
       alternative: (number))))
 

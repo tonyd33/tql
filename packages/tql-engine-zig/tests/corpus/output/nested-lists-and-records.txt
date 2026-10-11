@@ -8,7 +8,7 @@ class_record = do {
   methods <- collect (#body | children | of_kind :method_definition | #name | arr text);
   return { name = text n, methods = methods };
 };
-main = collect $ children | of_kind :class_declaration | class_record;
+main = collect (children | of_kind :class_declaration | class_record);
 
 --- source ---
 class A { m() {} }

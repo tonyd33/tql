@@ -6,7 +6,7 @@ asserts: error
 
 --- tql ---
 a :: Node -> [String];
-a x = if true then [] else b x;
+a x = if True then [] else b x;
 b x = a x;
 main = pure (length (b 1));
 
