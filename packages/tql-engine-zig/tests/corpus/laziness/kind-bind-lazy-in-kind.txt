@@ -1,0 +1,24 @@
+title: a bind fused with a kind test forces the kind only at a node
+grammar: typescript
+asserts: simplified, values
+
+--- tql ---
+bot :: Kind;
+bot = bot;
+
+main = do {
+  n <- descendants_of_kind :number;
+  m <- pure n | descendants;
+  if is_kind bot m then return (text m) else empty;
+};
+
+--- source ---
+let x = 1;
+
+--- values ---
+[]
+--- simplified ---
+bot = bot
+main =
+  let p = %descendants_of_kind :number in
+  \x -> bind[List] (p x) (\y -> bind[List] (%descendants_of_kind bot y) (\y -> Cons (%text y) Nil))

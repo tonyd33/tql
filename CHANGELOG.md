@@ -115,6 +115,7 @@
 
 ### Bug Fixes
 
+- `descendants | of_kind k` forces `k` only when there is a descendant.
 - A regex match never gives up: `~` no longer reads a pattern that backtracks too much as no match, nor `!~` as a match.
 - `Int` arithmetic wraps in every build mode: `9223372036854775807 + 1` is `-9223372036854775808`. It panicked in a debug build, and the least `Int` divided by `-1` killed the process.
 - A signature types every use of its definition, including from the definitions it calls: with `a :: Node -> [String]; a x = b x; b x = a x;`, `b` is `Node -> [String]`.
