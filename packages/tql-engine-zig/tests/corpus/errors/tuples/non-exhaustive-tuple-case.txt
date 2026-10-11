@@ -11,7 +11,7 @@ f p = case p of {
 main root = [f (False, False)];
 
 --- error ---
-error[type-mismatch]: `(False, False)` is not matched
+error[non-exhaustive]: `(False, False)` is not matched
  --> 1:7
   |
 1 | f p = case p of {

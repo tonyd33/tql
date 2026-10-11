@@ -1,0 +1,26 @@
+title: a case on a list literal notes that its length is not checked
+grammar: typescript
+asserts: error
+
+--- tql ---
+data P = P Int;
+
+f x y = case [x, y] of {
+  [P a, P b] -> a + b;
+};
+
+main = pure (f (P 1) (P 2));
+
+--- source ---
+class A {}
+
+--- error ---
+error[non-exhaustive]: `[]` is not matched; a list literal's length is not checked
+ --> 3:9
+  |
+3 | f x y = case [x, y] of {
+  |         ^^^^^^^^^^^^^^^^
+4 |   [P a, P b] -> a + b;
+  |   ^^^^^^^^^^^^^^^^^^^^
+5 | };
+  | ^

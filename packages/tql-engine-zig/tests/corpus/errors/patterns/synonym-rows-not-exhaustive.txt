@@ -14,7 +14,7 @@ size xs = case xs of {
 main root = [size [1]];
 
 --- error ---
-error[type-mismatch]: `_` is not matched
+error[non-exhaustive]: `_` is not matched
  --> 4:11
   |
 4 | size xs = case xs of {

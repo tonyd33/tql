@@ -32,10 +32,11 @@
 - A `String` is always UTF-8 text. `text` and `filename` replace each ill-formed byte sequence with U+FFFD, so a Latin-1 file's text outputs as a JSON string, not an array of bytes; `range` still gives the source bytes. `length` of a string counts code points: `length "héllo"` is 5, not 6. A string literal that is not UTF-8 is a parse error.
 - `_` is a wildcard in every binding position and never a value: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression is a parse error. `\_ -> _` returned its argument.
 - A name bound twice in one `let` group, one lambda or one definition's parameters is a `duplicate-definition` error: `\x x -> x` and `let { y = 5; y = 6; }` took the last binder. A nested lambda or a later `do` bind may still shadow.
-- A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run with `RegexFailed`.
+- A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run.
 - `|` is the loosest operator, so a stage takes its argument with `$`: `named_children | keep $ is_kind :argument_list | parent`. Bracket a pipeline passed with `$`: `collect (children | arr text)`.
 - A `-` directly after an operand subtracts, and one directly before an operand is a negation, which TQL does not have: `x-1` is `x - 1`, and `f -x` is an error.
 - The `true` and `false` literals are removed: write `True` and `False`.
+- A missing `case` alternative is a `non-exhaustive` error, and an alternative never reached is a `redundant-alternative` error.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
 ### New Features
@@ -61,11 +62,12 @@
 - A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n == 0 then 0 else 1 + nest (n - 1) [x];`.
 - Kinds compare with `==` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
 - `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
-- Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
+- Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(run #decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
 - Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
 - Added literal patterns: a number, string or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
 - Added guards to `case` alternatives: in `[a, b] if a == b -> 1`, a false guard tries the alternatives after it.
 - Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants;` binds each method call.
+- Added pattern synonyms: `pattern Text s <- (text -> s);` names a pattern, and `Text "eval"` matches a node whose text is `eval`.
 - Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };`.
 - Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value.
 - `Eq`, `Ord` and `Sized` are prelude classes: `class Eq a where { eq :: a -> a -> Bool; };`, `class Eq a => Ord a where { compare :: a -> a -> Ordering; };` and `class Sized a where { length :: a -> Int; };`. A written instance is what `==`, `<` and `length` call at its type: `instance Eq Name where { eq a b = ...; };`. `!=` is `not (eq a b)` and `<`, `<=`, `>`, `>=` are read off `compare`. Known types compile to the same comparisons as before.
@@ -100,6 +102,7 @@
 - `(->)` is the function type's constructor in types: `instance Mappable ((->) r)` is an instance at functions from `r`. An instance head may also be a function type over two variables: `instance Combine b => Combine (a -> b)`.
 - The prelude exports `Maybe(..)`, `head` and `last`.
 - `Filter` is a `Functor`, `Applicative`, `Alternative` and `Monad` in its output, and a `Category`, `Arrow`, `ArrowZero` and `ArrowPlus`, as `Kleisli List` is. `arr` is `Arrow`'s method, and the prelude exports `Control.Arrow`, `Filter(..)` and `run`.
+- `tql query` reads standard input for the target `-`: `cat a.ts | tql query -g typescript 'main = pure 1;' -`.
 
 ### Improvements
 
@@ -107,8 +110,8 @@
 - A type variable in an alias body that is not one of the alias's parameters is reported at the variable, not the whole body.
 - `Int String` reports that `Int` takes no type arguments. It was reported as `Int` not being a type.
 - Queries are simplified before they run: a binding used once moves to its use, a small function applied to all its arguments is inlined, and a `case` of a known constructor takes its alternative.
-- A `do` bind over `children`, `named_children`, `descendants` or `named_descendants` whose pattern tests a kind, such as `:k { .. }` or `(of_kind :k -> [n])`, walks only nodes of that kind, as `descendants_of_kind :k` does.
-- A query that allocates more than 4 GiB on one file stops on that file with `OutOfMemory`, and the run continues with the next. Such a query could exhaust the machine's memory.
+- A `do` bind over `children`, `named_children`, `descendants` or `named_descendants` whose pattern tests a kind, such as `:k { .. }` or `(run (of_kind :k) -> [n])`, walks only nodes of that kind, as `descendants_of_kind :k` does.
+- A query that allocates more than 4 GiB on one file stops on that file, and the run continues with the next. Such a query could exhaust the machine's memory.
 - The library is compiled once per engine, and once per loaded wasm module in `tql-js` and the playground: compiling a later query starts from it.
 - A constraint `main` cannot satisfy is reported where it is raised: in `main = arr (\x -> x < x);` the `Ord Node` error points at `x < x`.
 - A function given only some of its arguments is inlined when one of them is a constructor, a lambda or a class dictionary: `main = pure 1` compiles to `\x -> [1]`.
@@ -116,6 +119,11 @@
 - A `do` bind over a one-element list is the rest of the block applied to the element: `y <- pure x | p;` costs what `y <- run p x;` does.
 - A function passed a named recursive function is inlined as if passed a lambda: `concat` over lists compiles to a loop calling `append`.
 - A function every call passes the same class instance takes that instance in place of a dictionary parameter, so its methods are selected at compile time: `any` over lists compiles to a loop, and a local function using `length` calls the list's `length` directly.
+- A runtime failure says what happened, such as `recursion exceeded the stack` or `a value depends on itself`, and `--format json` gives it as `message`.
+- A `main` whose output type nothing determines reports `` `main`'s output `[a]` is ambiguous``.
+- A view pattern whose expression is not a function, such as `(#decorator -> [])`, is reported at the expression.
+- Applying a value that is not a function reports it at the value: `children c` gives `` `Filter Node Node` is not a function``.
+- A non-exhaustive `case` on a list literal notes that the literal's length is not checked.
 
 ### Bug Fixes
 
@@ -133,6 +141,11 @@
 - The empty record `{}` can be used as a value: `main = pure {};` gives `[{}]`. It failed with `Unsupported`.
 - An unsatisfied constraint names its type variables as a type mismatch does: `` `Eq (a -> a)` is not satisfied``.
 - `of_shape` is an ordinary name: `of_shape = 1;` defines it.
+- A constraint on a type variable that neither a definition's type nor its scope mentions is an `ambiguous-constraint` error at the definition: `test xs = eqf xs empty;` with `eqf :: Eq (f b) => f a -> f b -> Bool`.
+- An ambiguous `Serial` constraint is reported where it arises: `g = f [];` with `f :: Serial a => a -> Int`.
+- Type variables after `z` print as `a1`, `b1` and so on, so a signature may have 255 of them.
+- `tql query` with no target files or an empty path is an error, and a missing file reports `no such file or directory`.
+- A directory target with an unreadable subdirectory reports that subdirectory and queries every other file under it.
 
 ## 0.3.1 (2026-10-03)
 

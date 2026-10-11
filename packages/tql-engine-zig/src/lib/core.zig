@@ -226,6 +226,8 @@ pub const Lambda = struct {
 pub const Apply = struct {
     function: Term,
     argument: Term,
+    /// Whether this applies a view pattern's expression to the matched value.
+    view: bool = false,
 };
 
 /// Evaluates the scrutinee to WHNF, then takes the alternative naming its
@@ -306,8 +308,12 @@ pub const Builder = struct {
     }
 
     pub fn apply(self: Builder, function: Term, argument: Term, span: diagnostic.Span) !Term {
+        return self.application(.{ .function = function, .argument = argument }, span);
+    }
+
+    pub fn application(self: Builder, a: Apply, span: diagnostic.Span) !Term {
         const node = try self.allocator.create(Apply);
-        node.* = .{ .function = function, .argument = argument };
+        node.* = a;
         return .{ .kind = .{ .apply = node }, .span = span };
     }
 

@@ -1,0 +1,21 @@
+title: an ambiguous `Serial` constraint is reported where it arises
+grammar: typescript
+asserts: error
+
+--- tql ---
+f :: Serial a => a -> Int;
+f x = 1;
+
+g = f [];
+
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[ambiguous-constraint]: `Serial [a]` is ambiguous: nothing determines its type.
+ --> 4:5
+  |
+4 | g = f [];
+  |     ^

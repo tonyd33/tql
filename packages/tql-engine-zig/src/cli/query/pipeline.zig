@@ -13,13 +13,19 @@ pub const OutputFormat = enum {
     locations,
 };
 
+/// A file or directory to query, or standard input's contents.
+pub const Target = union(enum) {
+    path: []const u8,
+    stdin: []const u8,
+};
+
 pub const Config = struct {
     query: []const u8,
     /// The file `query` was read from, or null for an inline query.
     query_path: ?[]const u8,
     /// Where `import A.B` looks for `A/B.tql`, in order.
     module_roots: []const []const u8,
-    query_target_paths: []const []const u8,
+    targets: []const Target,
     format: OutputFormat,
     grammar: *const Grammar,
     workers: usize = 1,
@@ -76,6 +82,8 @@ const PathEntry = struct {
     /// made through it.
     arena: *std.heap.ArenaAllocator,
     path: []const u8,
+    /// Standard input's contents for the `-` target, read in place of `path`.
+    contents: ?[]const u8 = null,
 };
 
 const PathQueue = tql.ds.BlockingQueue(PathEntry);
@@ -151,7 +159,7 @@ const Progress = struct {
 
 const SharedContext = struct {
     compiled: *const tql.CompiledQuery,
-    paths: []const []const u8,
+    targets: []const Target,
     allocator: std.mem.Allocator,
     result_queue: *ResultQueue,
     path_queue: *PathQueue,
@@ -161,17 +169,26 @@ const SharedContext = struct {
     format: OutputFormat,
 };
 
-/// A fresh arena holding a copy of `path`.
-fn ownPath(ctx: *SharedContext, path: []const u8) !PathEntry {
+/// A fresh arena holding `segments` joined as one path.
+fn ownPath(ctx: *SharedContext, segments: []const []const u8) !PathEntry {
     const arena = try ctx.allocator.create(std.heap.ArenaAllocator);
     errdefer ctx.allocator.destroy(arena);
     arena.* = std.heap.ArenaAllocator.init(ctx.allocator);
     errdefer arena.deinit();
-    return .{ .arena = arena, .path = try arena.allocator().dupe(u8, path) };
+    return .{ .arena = arena, .path = try std.fs.path.join(arena.allocator(), segments) };
 }
 
-fn pushFile(ctx: *SharedContext, path: []const u8) !void {
-    const entry = try ownPath(ctx, path);
+fn pushFile(ctx: *SharedContext, segments: []const []const u8) !void {
+    try pushEntry(ctx, try ownPath(ctx, segments));
+}
+
+fn pushStdin(ctx: *SharedContext, contents: []const u8) !void {
+    var entry = try ownPath(ctx, &.{"<stdin>"});
+    entry.contents = contents;
+    try pushEntry(ctx, entry);
+}
+
+fn pushEntry(ctx: *SharedContext, entry: PathEntry) !void {
     errdefer {
         entry.arena.deinit();
         ctx.allocator.destroy(entry.arena);
@@ -184,8 +201,8 @@ fn pushFile(ctx: *SharedContext, path: []const u8) !void {
 ///
 /// Preconditions:
 /// - the path queue is still open, so the result queue is too
-fn pushFailure(ctx: *SharedContext, path: []const u8, err: anyerror) !void {
-    const entry = try ownPath(ctx, path);
+fn pushFailure(ctx: *SharedContext, segments: []const []const u8, err: anyerror) !void {
+    const entry = try ownPath(ctx, segments);
     _ = ctx.progress.total.fetchAdd(1, .monotonic);
     _ = ctx.progress.done.fetchAdd(1, .monotonic);
     const result = failedResult(ctx, entry, err);
@@ -208,6 +225,8 @@ fn failedResult(ctx: *SharedContext, entry: PathEntry, err: anyerror) FileResult
     };
 }
 
+/// Queue every file under the directory `path` the grammar reads. A
+/// subdirectory that cannot be read is reported, and the walk goes on.
 fn walkPush(ctx: *SharedContext, path: []const u8) !void {
     const abs = try std.Io.Dir.cwd().realPathFileAlloc(ctx.io, path, ctx.allocator);
     defer ctx.allocator.free(abs);
@@ -216,16 +235,21 @@ fn walkPush(ctx: *SharedContext, path: []const u8) !void {
     });
     defer root_dir.close(ctx.io);
 
-    var walker = try root_dir.walk(ctx.allocator);
+    var walker = try root_dir.walkSelectively(ctx.allocator);
     defer walker.deinit();
-    while (try walker.next(ctx.io)) |entry| {
-        if (entry.kind == .file and ctx.*.grammar.matchesFileName(entry.basename)) {
-            const joined = try std.fs.path.join(
-                ctx.*.allocator,
-                &[_][]const u8{ path, entry.path },
-            );
-            defer ctx.*.allocator.free(joined);
-            try pushFile(ctx, joined);
+    while (true) {
+        // A failed directory is popped, so the next call continues past it.
+        const entry = walker.next(ctx.io) catch |err| switch (err) {
+            error.OutOfMemory => |e| return e,
+            else => {
+                try pushFailure(ctx, &.{path}, err);
+                continue;
+            },
+        } orelse break;
+        switch (entry.kind) {
+            .directory => walker.enter(ctx.io, entry) catch |err| try pushFailure(ctx, &.{ path, entry.path }, err),
+            .file => if (ctx.grammar.matchesFileName(entry.basename)) try pushFile(ctx, &.{ path, entry.path }),
+            else => {},
         }
     }
 }
@@ -236,12 +260,13 @@ fn walkerThread(ctx: *SharedContext) !void {
     defer ctx.path_queue.close() catch {};
     defer ctx.progress.done_walk.store(true, .release);
 
-    for (ctx.paths) |path| {
-        walkPush(ctx, path) catch |err| switch (err) {
-            error.NotDir => try pushFile(ctx, path),
-            else => try pushFailure(ctx, path, err),
-        };
-    }
+    for (ctx.targets) |target| switch (target) {
+        .stdin => |contents| try pushStdin(ctx, contents),
+        .path => |path| walkPush(ctx, path) catch |err| switch (err) {
+            error.NotDir => try pushFile(ctx, &.{path}),
+            else => try pushFailure(ctx, &.{path}, err),
+        },
+    };
 }
 
 fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr) !void {
@@ -250,7 +275,7 @@ fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr
         if (result.failure) |err| {
             try stderr.lock.lock(ctx.io);
             defer stderr.lock.unlock(ctx.io);
-            try stderr.writer.print("{s}: error: {t}\n", .{ result.filename, err });
+            try stderr.writer.print("{s}: error: {f}\n", .{ result.filename, common.TargetFailure{ .err = err } });
             try stderr.writer.flush();
             continue;
         }
@@ -303,6 +328,10 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
             try writeFilename(jws, ctx.allocator, result.filename);
             try jws.objectField("error");
             try jws.write(@errorName(err));
+            try jws.objectField("message");
+            const message = try std.fmt.allocPrint(ctx.allocator, "{f}", .{common.TargetFailure{ .err = err }});
+            defer ctx.allocator.free(message);
+            try jws.write(message);
             try jws.endObject();
             continue;
         }
@@ -414,29 +443,36 @@ fn workerThread(ctx: *SharedContext) !void {
     }
 }
 
+/// Map the file at `path` read-only. Empty for an empty file.
+fn mapFile(io: std.Io, path: []const u8) ![]align(std.heap.page_size_min) const u8 {
+    const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+    defer file.close(io);
+    const stat = try file.stat(io);
+    if (stat.size == 0) return &.{};
+    return std.posix.mmap(
+        null,
+        stat.size,
+        .{ .READ = true },
+        .{ .TYPE = .PRIVATE },
+        file.handle,
+        0,
+    );
+}
+
 /// Read and run one target, rendering its outputs into the entry's arena.
 fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
     const read_start = std.Io.Timestamp.now(ctx.io, .real);
-    const query_target: []align(std.heap.page_size_min) const u8 = blk: {
-        const file = try std.Io.Dir.cwd().openFile(ctx.io, entry.path, .{});
-        defer file.close(ctx.io);
-        const stat = try file.stat(ctx.io);
-        if (stat.size == 0) break :blk &[_]u8{};
-        break :blk try std.posix.mmap(
-            null,
-            stat.size,
-            .{ .READ = true },
-            .{ .TYPE = .PRIVATE },
-            file.handle,
-            0,
-        );
-    };
+    const mapped: []align(std.heap.page_size_min) const u8 = if (entry.contents != null) &.{} else try mapFile(ctx.io, entry.path);
     const read_time = read_start.untilNow(ctx.io, .real);
-    defer if (query_target.len > 0) std.posix.munmap(query_target);
+    defer if (mapped.len > 0) std.posix.munmap(mapped);
+    const target: []const u8, const target_path: ?[]const u8 = if (entry.contents) |contents|
+        .{ contents, null }
+    else
+        .{ mapped, entry.path };
 
     const run_result = try ctx.compiled.run(
-        query_target,
-        entry.path,
+        target,
+        target_path,
         entry.arena.allocator(),
         scratch,
     );
@@ -488,7 +524,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
     var progress = Progress{};
     var ctx = SharedContext{
         .compiled = &compiled,
-        .paths = config.query_target_paths,
+        .targets = config.targets,
         .allocator = allocator,
         .result_queue = &result_queue,
         .path_queue = &path_queue,

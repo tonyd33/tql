@@ -1,0 +1,32 @@
+title: `{ #f = p }` abbreviates `(run #f -> [p])`
+grammar: typescript
+asserts: simplified
+
+--- tql ---
+sugar = Filter (\n -> case n of {
+  { #function = f } -> [f];
+  _ -> [];
+});
+
+written = Filter (\n -> case n of {
+  (run #function -> [f]) -> [f];
+  _ -> [];
+});
+
+main = descendants | (sugar <|> written);
+
+--- source ---
+a.b();
+
+--- simplified ---
+sugar = \n -> case field[function] n of
+  Nil -> Nil
+  Cons f cons1 -> case cons1 of
+    Nil -> Cons f Nil
+    Cons _ _ -> Nil
+written = \n -> case field[function] n of
+  Nil -> Nil
+  Cons f cons1 -> case cons1 of
+    Nil -> Cons f Nil
+    Cons _ _ -> Nil
+main = \x -> bind[List] (%descendants x) (\x -> append[List] (sugar x) (written x))

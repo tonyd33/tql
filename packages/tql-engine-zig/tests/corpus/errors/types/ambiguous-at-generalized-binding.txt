@@ -1,0 +1,21 @@
+title: a constraint over a variable outside the type is ambiguous at its binding
+grammar: typescript
+asserts: error
+
+--- tql ---
+eqf :: Eq (f b) => f a -> f b -> Bool;
+eqf x y = True;
+
+test xs = eqf xs empty;
+
+main = pure 1;
+
+--- source ---
+class A {}
+
+--- error ---
+error[ambiguous-constraint]: `Eq (a b)` is ambiguous: nothing determines its type.
+ --> 4:11
+  |
+4 | test xs = eqf xs empty;
+  |           ^^^

@@ -12,7 +12,7 @@ f xs = case xs of {
 main = pure (f [1]);
 
 --- error ---
-error[type-mismatch]: `[a]` is never matched
+error[redundant-alternative]: `[a]` is never matched
  --> 3:3
   |
 3 |   [a] -> a;

@@ -103,8 +103,9 @@ const Function = union(enum) {
 
 /// What a match does when no row matches.
 const NoMatch = union(enum) {
-    /// Report the value that falls through.
-    report,
+    /// Report the value that falls through. A scrutinee written as a list
+    /// literal adds that its length is not checked.
+    report: struct { list_literal: bool },
     /// Yield this term.
     fallthrough: core.Term,
 };
@@ -119,7 +120,7 @@ pub fn caseOf(
     const scrutinee = try lowerer.expression(c.scrutinee, scope);
 
     if (c.alternatives.len == 0) {
-        try lowerer.sink.report(.type_mismatch, span, "a case has no alternatives", .{});
+        try lowerer.sink.report(.non_exhaustive, span, "a case has no alternatives", .{});
         return error.DesugarFailed;
     }
 
@@ -137,7 +138,9 @@ pub fn caseOf(
         .symbol => |s| s,
         else => try lowerer.env.interner.fresh("scrutinee"),
     };
-    return try lower(lowerer, arms, scope, span, root, scrutinee, .report);
+    return try lower(lowerer, arms, scope, span, root, scrutinee, .{ .report = .{
+        .list_literal = c.scrutinee.kind == .list,
+    } });
 }
 
 /// Lower `pattern <- value; rest`. A result of `value` the pattern does not
@@ -307,7 +310,7 @@ fn lower(
     for (arms, matcher.uses) |arm, uses| {
         if (uses > 0) continue;
         try lowerer.sink.report(
-            .type_mismatch,
+            .redundant_alternative,
             arm.written.span,
             "`{f}` is never matched",
             .{Written{ .pattern = arm.written }},
@@ -833,12 +836,16 @@ const Matcher = struct {
     fn compile(self: *Matcher, rows: []const Row) Error!*const Tree {
         const b = self.lowerer.builder;
         if (rows.len == 0) {
-            if (self.no_match != .report) return try self.node(.fail);
+            const report = switch (self.no_match) {
+                .report => |r| r,
+                .fallthrough => return try self.node(.fail),
+            };
+            const note = if (report.list_literal) "; a list literal's length is not checked" else "";
             try self.lowerer.sink.report(
-                .type_mismatch,
+                .non_exhaustive,
                 self.span,
-                "`{f}` is not matched",
-                .{Witness{ .matcher = self, .occurrence = self.root, .nested = false }},
+                "`{f}` is not matched{s}",
+                .{ Witness{ .matcher = self, .occurrence = self.root, .nested = false }, note },
             );
             return error.DesugarFailed;
         }
@@ -1211,11 +1218,11 @@ const Emitter = struct {
                     .written => |e| try self.lowerer.expression(e, &inner),
                     .lowered => |term| term,
                 };
-                const value = try b.apply(
-                    function,
-                    self.occurrence(v.occurrence, v.span),
-                    v.span,
-                );
+                const value = try b.application(.{
+                    .function = function,
+                    .argument = self.occurrence(v.occurrence, v.span),
+                    .view = true,
+                }, v.span);
                 return try b.let(v.symbol, value, try self.emit(v.tree), v.span);
             },
             .literal => |l| {

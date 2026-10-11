@@ -98,3 +98,16 @@ pub fn reportDiagnostics(
         try d.render(stderr, engine.sourceOf(d.span.source, .{ .name = path, .text = source }));
     }
 }
+
+/// Why a target failed, written for a user.
+pub const TargetFailure = struct {
+    err: anyerror,
+
+    pub fn format(self: TargetFailure, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.writeAll(switch (self.err) {
+            error.FileNotFound => "no such file or directory",
+            error.AccessDenied, error.PermissionDenied => "permission denied",
+            else => return tql.Failure.format(.{ .err = self.err }, w),
+        });
+    }
+};

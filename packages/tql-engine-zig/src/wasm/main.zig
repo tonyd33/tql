@@ -79,7 +79,7 @@ fn finishErr(buf: *std.Io.Writer.Allocating, out: *Result, msg: []const u8) void
 }
 
 /// Report `err` with every diagnostic the compilation collected, one per
-/// line. Falls back to the error's name when there are none.
+/// line. Falls back to describing `err` when there are none.
 fn finishDiagnostics(
     buf: *std.Io.Writer.Allocating,
     out: *Result,
@@ -87,8 +87,8 @@ fn finishDiagnostics(
     sink: *const tql.diagnostic.Sink,
     err: anyerror,
 ) void {
-    if (sink.items().len == 0) return finishErr(buf, out, @errorName(err));
     buf.clearRetainingCapacity();
+    if (sink.items().len == 0) buf.writer.print("{f}", .{tql.Failure{ .err = err }}) catch return fail(buf, out);
     for (sink.items(), 0..) |d, i| {
         if (i > 0) buf.writer.writeByte('\n') catch return fail(buf, out);
         if (engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name) |name| {
