@@ -35,7 +35,7 @@ pair = do {
 
 shorthand n = Member (text n) "init" n;
 
-is_proto_setter = has $ #key | keep (not . is_kind :computed_property_name) | key_name | keep (== "__proto__");
+is_proto_setter = has (#key | keep (not . is_kind :computed_property_name) | key_name | keep (== "__proto__"));
 
 member =
   (of_kind :pair | keep (not . is_proto_setter) | pair)

@@ -235,9 +235,6 @@ pub const Lowerer = struct {
             // Literal payloads are duped: the CST they point into is freed
             // before the Core program is used.
             .number => |n| return self.builder.literal(.{ .number = n }, e.span),
-            // A boolean is a nullary constructor, not a literal, so `case` on
-            // one is uniform with `case` on any other declared type.
-            .boolean => |b| return self.builder.symbol(self.scope.env.datatypes.boolConstructor(b).symbol, e.span),
             .string => |s| return self.builder.literal(
                 .{ .string = try self.builder.dupe(s) },
                 e.span,
@@ -268,11 +265,6 @@ pub const Lowerer = struct {
 
             // Parentheses are grouping only; the CST keeps them, Core does not.
             .parenthesized => |inner| return try self.expression(inner.*, scope),
-
-            .of_shape => {
-                try self.sink.report(.parse, e.span, "`of_shape` is not supported yet", .{});
-                return error.DesugarFailed;
-            },
 
             .name => |name| {
                 if (scope) |s| {

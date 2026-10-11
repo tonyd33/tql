@@ -25,7 +25,7 @@ breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((=
 
 label_broken l = any (breaks_to l) l#label;
 
-is_true = has $ statements | of_kind :true;
+is_true = has (statements | of_kind :true);
 
 infinite n =
   (is_kind :while_statement n and has (#condition | keep is_true) n)
@@ -76,15 +76,15 @@ unreachable_after xs = case xs of {
 
 is_field m = kind_name m == "field_definition" or kind_name m == "public_field_definition";
 
-calls_super = has $ descendants_of_kind :call_expression | #function | of_kind :super;
+calls_super = has (descendants_of_kind :call_expression | #function | of_kind :super);
 
 is_token s t = not (is_named t) and kind_name t == s;
 
-is_static = has $ children | keep (is_token "static");
+is_static = has (children | keep (is_token "static"));
 
 skips_field m = not (is_field m) or is_static m;
 
-is_constructor = has $ #name | keep ((== "constructor") . text);
+is_constructor = has (#name | keep ((== "constructor") . text));
 
 unreachable_fields = do {
   children_of_kind :class_heritage;

@@ -4,7 +4,7 @@ asserts: values
 
 --- tql ---
 data Name = Name String;
-instance Eq Name where { eq a b = true; };
+instance Eq Name where { eq a b = True; };
 instance Ord Name where { compare a b = GT; };
 main = Filter (\_ -> [Name "a" == Name "b", Name "a" != Name "b", Name "a" < Name "b", Name "a" > Name "b"]);
 

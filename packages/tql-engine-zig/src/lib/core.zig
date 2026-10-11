@@ -626,9 +626,7 @@ pub const Printer = struct {
     /// `t`, that prints as `spelling` with `primes` primes.
     fn captures(self: Printer, t: Term, binder: SymbolId, spelling: []const u8, primes: u32, scope: ?*print_scope.Scope) bool {
         return switch (t.kind) {
-            .symbol => |id| id != binder and
-                std.mem.eql(u8, self.interner.spelling(id), spelling) and
-                print_scope.outerPrimes(self.interner, id, scope) == primes,
+            .symbol => |id| id != binder and print_scope.printsAs(self.interner, id, scope, spelling, primes),
             .literal => false,
             .lambda => |l| self.captures(l.body, binder, spelling, primes, scope),
             .apply => |a| self.captures(a.function, binder, spelling, primes, scope) or

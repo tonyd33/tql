@@ -492,7 +492,6 @@ const Walker = struct {
         primitive,
         kind,
         number,
-        boolean,
         string,
         regex,
         field_access,
@@ -517,10 +516,10 @@ const Walker = struct {
         tuple_constructor,
         record,
         parenthesized,
-        of_shape,
+        negation,
     };
 
-    const LiteralKind = enum { number, string, regex, boolean, kind };
+    const LiteralKind = enum { number, string, regex, kind };
 
     fn expression(self: *Walker, node: ts.Node) (error{OutOfMemory})!?cst.Expression {
         const span = spanOf(node, self.source_id);
@@ -544,13 +543,6 @@ const Walker = struct {
                     return null;
                 };
                 return .{ .kind = .{ .number = value }, .span = span };
-            },
-            .boolean => {
-                const text = textOf(node, self.source);
-                return .{
-                    .kind = .{ .boolean = std.mem.eql(u8, text, "true") },
-                    .span = span,
-                };
             },
             .string => {
                 const text = textOf(node, self.source);
@@ -604,10 +596,15 @@ const Walker = struct {
             .tuple => return .{ .kind = .{ .tuple = try self.components(cst.Expression, node, expression) orelse return null }, .span = span },
             .tuple_constructor => return .{ .kind = .{ .tuple_constructor = try self.tupleArity(node) orelse return null }, .span = span },
             .record => return self.record(node, span),
-            .of_shape => {
-                const pattern_node = try self.requiredField(node, "pattern") orelse return null;
-                const shape = try self.pattern(pattern_node) orelse return null;
-                return .{ .kind = .{ .of_shape = try self.boxed(shape) }, .span = span };
+            .negation => {
+                const operand = try self.requiredField(node, "operand") orelse return null;
+                try self.sink.report(
+                    .parse,
+                    span,
+                    "TQL has no negation; write `0 - {s}`",
+                    .{textOf(operand, self.source)},
+                );
+                return null;
             },
             .parenthesized => {
                 const inner_node = node.namedChild(0) orelse {
@@ -1040,7 +1037,6 @@ const Walker = struct {
                     .string => |s| .{ .literal = .{ .string = s } },
                     .regex => |r| .{ .literal = .{ .regex = r } },
                     .kind_test => |k| .{ .literal = .{ .kind = k } },
-                    .boolean => |b| .{ .boolean = b },
                     else => unreachable,
                 },
                 .span = span,

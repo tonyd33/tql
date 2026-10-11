@@ -33,6 +33,9 @@
 - `_` is a wildcard in every binding position and never a value: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression is a parse error. `\_ -> _` returned its argument.
 - A name bound twice in one `let` group, one lambda or one definition's parameters is a `duplicate-definition` error: `\x x -> x` and `let { y = 5; y = 6; }` took the last binder. A nested lambda or a later `do` bind may still shadow.
 - A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run with `RegexFailed`.
+- `|` is the loosest operator, so a stage takes its argument with `$`: `named_children | keep $ is_kind :argument_list | parent`. Bracket a pipeline passed with `$`: `collect (children | arr text)`.
+- A `-` directly after an operand subtracts, and one directly before an operand is a negation, which TQL does not have: `x-1` is `x - 1`, and `f -x` is an error.
+- The `true` and `false` literals are removed: write `True` and `False`.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
 ### New Features
@@ -60,7 +63,7 @@
 - `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
 - Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
 - Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
-- Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
+- Added literal patterns: a number, string or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
 - Added guards to `case` alternatives: in `[a, b] if a == b -> 1`, a false guard tries the alternatives after it.
 - Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants;` binds each method call.
 - Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };`.
@@ -71,6 +74,9 @@
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
 - Every primitive is a `Prim` definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in `Prim`, and `data X = %Int;` is accepted only for the built-in types.
 - Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
+- Added `foldl' :: (b -> a -> b) -> b -> [a] -> b`, a left fold that evaluates its accumulator at each step.
+- Names may contain `'` after their first character: `foldl'`, `x''`.
+- `(- 1)` is the right section of subtraction, `\x -> x - 1`.
 - `module M` in an export list re-exports what the module imports from `M`, and an export list may name an imported value or type.
 - `T(..)` in an import list is accepted for a type with no constructors, such as `Int`, whatever the export list says.
 - A type variable may be applied to types, and a declared type may be left short of its last arguments: `data Wrap f a = Wrap (f a);` holds a `Wrap Maybe Int` or a `Wrap (Either String) Int`. Kinds are inferred.
@@ -126,6 +132,7 @@
 - A record literal that repeats a label, as in `{a = 1, a = "x"}`, is a `duplicate-definition` error.
 - The empty record `{}` can be used as a value: `main = pure {};` gives `[{}]`. It failed with `Unsupported`.
 - An unsatisfied constraint names its type variables as a type mismatch does: `` `Eq (a -> a)` is not satisfied``.
+- `of_shape` is an ordinary name: `of_shape = 1;` defines it.
 
 ## 0.3.1 (2026-10-03)
 

@@ -1,5 +1,6 @@
 //! Binder names for printing. A binder prints with primes appended when its
-//! scope references another symbol of the same printed name.
+//! scope references another symbol of the same printed name, primes in a
+//! spelling included.
 
 const std = @import("std");
 const symbols = @import("symbols.zig");
@@ -58,6 +59,16 @@ pub fn outerPrimes(interner: *const symbols.Interner, id: SymbolId, scope: ?*Sco
         if (n.symbol == id) return n.primes;
     }
     return if (interner.isGlobal(id)) 0 else null;
+}
+
+/// Whether `id`, referenced in `scope`, prints as `spelling` followed by
+/// `primes` primes.
+pub fn printsAs(interner: *const symbols.Interner, id: SymbolId, scope: ?*Scope, spelling: []const u8, primes: u32) bool {
+    const own = outerPrimes(interner, id, scope) orelse return false;
+    const name = interner.spelling(id);
+    const a = std.mem.trimEnd(u8, name, "'");
+    const b = std.mem.trimEnd(u8, spelling, "'");
+    return std.mem.eql(u8, a, b) and name.len - a.len + own == spelling.len - b.len + primes;
 }
 
 pub fn writeName(interner: *const symbols.Interner, id: SymbolId, w: *std.Io.Writer, scope: ?*Scope) Error!void {

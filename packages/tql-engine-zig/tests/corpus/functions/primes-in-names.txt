@@ -1,0 +1,14 @@
+title: a name may end in primes
+grammar: typescript
+asserts: values
+
+--- tql ---
+f' x = x + 1;
+f'' x = f' (f' x);
+main = Filter (\_ -> [f'' 1]);
+
+--- source ---
+class A {}
+
+--- values ---
+[3]

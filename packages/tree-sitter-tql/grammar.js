@@ -7,14 +7,14 @@
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
-const UPPER_NAME = /[A-Z][a-zA-Z0-9_]*/;
-const LOWER_NAME = /[a-z_][a-zA-Z0-9_]*/;
+const UPPER_NAME = /[A-Z][a-zA-Z0-9_']*/;
+const LOWER_NAME = /[a-z_][a-zA-Z0-9_']*/;
 
 const PREC = {
-  dollar: 1,
+  pipe: 1,
+  dollar: 2,
   // biome-ignore lint/suspicious/noThenProperty: false positive
-  then: 2,
-  pipe: 3,
+  then: 3,
   union: 4,
   or: 5,
   and: 6,
@@ -32,6 +32,8 @@ module.exports = grammar({
   name: "tql",
 
   extras: $ => [/\s/, $.comment],
+
+  externals: $ => [$._attached_minus, $._prefix_minus, $._error_sentinel],
 
   word: $ => $.identifier,
 
@@ -325,10 +327,18 @@ module.exports = grammar({
         PREC.add,
         seq(
           field("left", $._expression),
-          field("operator", choice("+", "-")),
+          field("operator", choice("+", $._minus_operator)),
           field("right", $._expression),
         ),
       ),
+
+    // `x-1` and `x - 1` subtract; `x -1` applies `x` to `-1`.
+    _minus_operator: $ => choice(alias($._attached_minus, "-"), "-"),
+
+    // A prefix `-` before a name or bracket. The walk rejects it: TQL has no
+    // negation.
+    negation: $ =>
+      prec(PREC.field + 1, seq($._prefix_minus, field("operand", $._primary))),
 
     multiplicative: $ =>
       prec.left(
@@ -377,7 +387,7 @@ module.exports = grammar({
         ),
       ),
 
-    field_name: _ => token.immediate(/[a-z_][a-zA-Z0-9_]*/),
+    field_name: _ => token.immediate(LOWER_NAME),
 
     navigation: $ =>
       prec.left(
@@ -483,7 +493,6 @@ module.exports = grammar({
         $.number,
         $.string,
         $.regex,
-        $.boolean,
         // `C :k { .. }` applies `C` to one node pattern.
         prec(-1, $.kind),
         $.node_pattern,
@@ -525,8 +534,6 @@ module.exports = grammar({
     tuple_pattern: $ =>
       seq("(", $._pattern, repeat1(seq(",", $._pattern)), ")"),
 
-    of_shape: $ => seq("of_shape", field("pattern", $._atomic_pattern)),
-
     if_expression: $ =>
       prec.right(
         seq(
@@ -552,12 +559,12 @@ module.exports = grammar({
     _primary: $ =>
       choice(
         $.leading_navigation,
+        $.negation,
         $.kind,
         $.primitive,
         $.identifier,
         $.number,
         $.string,
-        $.boolean,
         $.regex,
         $.list,
         $.record,
@@ -573,7 +580,6 @@ module.exports = grammar({
         $.do_expression,
         $.if_expression,
         $.case_expression,
-        $.of_shape,
         $.qualified_identifier,
         $._constructor,
       ),
@@ -607,11 +613,10 @@ module.exports = grammar({
     _bare_section_operator: $ => choice($._section_operator, ":", "-"),
 
     _left_section_operator: $ =>
-      choice($._section_operator, $._cons_operator, "-"),
+      choice($._section_operator, $._cons_operator, $._minus_operator),
 
-    // `(- 1)` must not be a function beside the number `(-1)`. An attached
-    // `:` valid after `(` outranks the kind token in `(:xs)`.
-    _right_section_operator: $ => choice($._section_operator, ":"),
+    // An attached `:` valid after `(` outranks the kind token in `(:xs)`.
+    _right_section_operator: $ => choice($._section_operator, ":", "-"),
 
     _section_operator: $ =>
       choice(
@@ -742,8 +747,6 @@ module.exports = grammar({
     number: _ => token(seq(optional("-"), /[0-9]+/)),
 
     string: _ => token(seq('"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
-
-    boolean: _ => choice("true", "false"),
 
     regex: _ => token(seq('r"', repeat(choice(/[^"\\]/, seq("\\", /./))), '"')),
   },

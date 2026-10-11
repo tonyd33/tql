@@ -323,8 +323,7 @@ pub const Printer = struct {
 
     fn symbolCaptures(self: Printer, id: core.SymbolId, target: Target) bool {
         return id != target.binder and
-            std.mem.eql(u8, self.interner.spelling(id), target.spelling) and
-            print_scope.outerPrimes(self.interner, id, target.scope) == target.primes;
+            print_scope.printsAs(self.interner, id, target.scope, target.spelling, target.primes);
     }
 
     fn writeName(self: Printer, id: core.SymbolId, w: *std.Io.Writer, scope: ?*print_scope.Scope) Error!void {

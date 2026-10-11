@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-is_class n = case kind n of { :class_declaration -> true; _ -> false; };
+is_class n = case kind n of { :class_declaration -> True; _ -> False; };
 
 main = named_children | arr is_class;
 

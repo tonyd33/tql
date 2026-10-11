@@ -53,8 +53,8 @@ main root = (children | is_kind :class_declaration) root;
 several declarations in sequence
 ========================================
 
-is_even n = if n == 0 then true else is_odd (n - 1);
-is_odd n = if n == 0 then false else is_even (n - 1);
+is_even n = if n == 0 then True else is_odd (n - 1);
+is_odd n = if n == 0 then False else is_even (n - 1);
 main = is_even 4;
 
 ---
@@ -67,7 +67,7 @@ main = is_even 4;
       condition: (comparison
         left: (identifier)
         right: (number))
-      consequence: (boolean)
+      consequence: (type_identifier)
       alternative: (application
         function: (identifier)
         argument: (parenthesized
@@ -81,7 +81,7 @@ main = is_even 4;
       condition: (comparison
         left: (identifier)
         right: (number))
-      consequence: (boolean)
+      consequence: (type_identifier)
       alternative: (application
         function: (identifier)
         argument: (parenthesized

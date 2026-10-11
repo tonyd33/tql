@@ -104,7 +104,7 @@ main = not a == b;
 not binds tighter than and
 ========================================
 
-main = not false and false;
+main = not False and False;
 
 ---
 
@@ -114,8 +114,8 @@ main = not false and false;
     body: (logical_and
       left: (application
         function: (identifier)
-        argument: (boolean))
-      right: (boolean))))
+        argument: (type_identifier))
+      right: (type_identifier))))
 
 ========================================
 not applies like any function
@@ -170,7 +170,7 @@ main = arr not;
 and binds tighter than or
 ========================================
 
-main = false and true or true;
+main = False and True or True;
 
 ---
 
@@ -179,9 +179,9 @@ main = false and true or true;
     name: (identifier)
     body: (logical_or
       left: (logical_and
-        left: (boolean)
-        right: (boolean))
-      right: (boolean))))
+        left: (type_identifier)
+        right: (type_identifier))
+      right: (type_identifier))))
 
 ========================================
 or binds tighter than pipe
@@ -457,7 +457,7 @@ main = guard p >> a <|> b;
         right: (identifier)))))
 
 ========================================
-pipe binds tighter than then
+then binds tighter than pipe
 ========================================
 
 main = a >> b | f;
@@ -467,11 +467,11 @@ main = a >> b | f;
 (source_file
   (definition
     name: (identifier)
-    body: (then
-      left: (identifier)
-      right: (pipe
+    body: (pipe
+      left: (then
         left: (identifier)
-        right: (identifier)))))
+        right: (identifier))
+      right: (identifier))))
 
 ========================================
 then binds tighter than dollar application
