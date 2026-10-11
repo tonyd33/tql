@@ -1,10 +1,11 @@
 module Data.Int (Int, div, mod, quot, rem, subtract, toint);
 
 import Prim (Int, String, div, mod, quot, rem);
+import Prim (toint) as P;
 import Data.Filter (Filter(..));
 
 subtract :: Int -> Int -> Int;
 subtract x y = y - x;
 
 toint :: Filter String Int;
-toint = Filter %toint;
+toint = Filter P.toint;

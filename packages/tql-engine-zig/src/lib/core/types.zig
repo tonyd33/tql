@@ -628,6 +628,12 @@ pub fn arrows(allocator: std.mem.Allocator, froms: []const Type, to: Type) !Type
     return result;
 }
 
+/// Returns the type of a pattern synonym's matcher,
+/// `scrutinee -> (holes[0] -> .. -> holes[n-1] -> result) -> result -> result`.
+pub fn matcher(allocator: std.mem.Allocator, scrutinee: Type, holes: []const Type, result: Type) !Type {
+    return try arrows(allocator, &.{ scrutinee, try arrows(allocator, holes, result), result }, result);
+}
+
 /// `expansion` written as `spelling` at `arguments`. Takes ownership of
 /// `arguments`.
 pub fn aliased(

@@ -1,0 +1,27 @@
+title: an export list exporting two things under one name is a conflict
+grammar: typescript
+asserts: error
+
+--- module Base ---
+module Base;
+
+x = 1;
+
+--- module Front ---
+module Front (module Front, module Base);
+
+import Base;
+
+x = 100;
+
+--- tql ---
+import Front;
+
+main = pure x;
+
+--- error ---
+error[conflicting-export]: `x` is exported as both `Front.x` and `Base.x`
+ --> Front:1:29
+  |
+1 | module Front (module Front, module Base);
+  |                             ^^^^^^^^^^^

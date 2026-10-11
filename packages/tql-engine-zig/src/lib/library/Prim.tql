@@ -83,3 +83,36 @@ rem = %rem;
 
 is_kind :: Kind -> Node -> Bool;
 is_kind = %is_kind;
+
+string_length :: String -> Int;
+string_length = %string_length;
+
+toint :: String -> [Int];
+toint = %toint;
+
+filename :: Node -> [String];
+filename = %filename;
+
+parent :: Node -> [Node];
+parent = %parent;
+
+ancestors :: Node -> [Node];
+ancestors = %ancestors;
+
+children :: Node -> [Node];
+children = %children;
+
+named_children :: Node -> [Node];
+named_children = %named_children;
+
+descendants :: Node -> [Node];
+descendants = %descendants;
+
+named_descendants :: Node -> [Node];
+named_descendants = %named_descendants;
+
+children_of_kind :: Kind -> Node -> [Node];
+children_of_kind = %children_of_kind;
+
+descendants_of_kind :: Kind -> Node -> [Node];
+descendants_of_kind = %descendants_of_kind;

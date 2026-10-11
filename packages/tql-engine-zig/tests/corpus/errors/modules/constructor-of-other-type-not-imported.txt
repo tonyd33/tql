@@ -1,0 +1,34 @@
+title: `T(..)` imports the constructors of the exported `T` only
+grammar: typescript
+asserts: error
+
+--- module Left ---
+module Left;
+
+data T = A;
+
+--- module Right ---
+module Right;
+
+data T = B;
+
+--- module Front ---
+module Front (T(..), module Left);
+
+import Left hiding (T);
+import Right (T(..));
+
+--- tql ---
+import Front (T(..));
+
+f :: T -> Int;
+f t = 0;
+
+main = pure (f A);
+
+--- error ---
+error[unresolved-name]: `A` is not a constructor
+ --> 6:16
+  |
+6 | main = pure (f A);
+  |                ^

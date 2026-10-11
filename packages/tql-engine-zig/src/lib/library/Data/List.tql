@@ -13,6 +13,7 @@ module Data.List (
 );
 
 import Prim (Int, String, List(..), Bool(..), seq);
+import Prim (string_length) as P;
 import Data.Tuple (fst, snd);
 import Data.Maybe (Maybe(..));
 
@@ -21,7 +22,7 @@ class Sized a where {
 };
 
 instance Sized String where {
-  length = %string_length;
+  length = P.string_length;
 };
 
 instance Sized [a] where {

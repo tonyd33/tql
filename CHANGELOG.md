@@ -14,7 +14,6 @@
 - Equality is `==`: write `a == b` and `(== 1)` for `a = b` and `(= 1)`. `=` in an expression is a syntax error. `!=` is unchanged.
 - `kind` returns a `Kind`, not a `String`: write `kind n == :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
 - `_ <- e` no longer puts `_` in scope.
-- A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
 - `%` is no longer an operator. Write ``a `mod` b`` or `mod a b` for `a % b`. `mod` takes the divisor's sign: `mod (-7) 3` is `2`, where `-7 % 3` was `-1`.
 - `/` is no longer an operator. Write ``a `div` b``, which floors, or ``a `quot` b``, which truncates as `/` did, with `import Data.Int (div, quot);`.
@@ -70,7 +69,7 @@
 - Added `deriving (Eq, Ord, Serial)` on a `data` declaration.
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
-- Every primitive is a `Prim` definition with a signature, such as `text :: Node -> String; text = %text;`. A primitive's `%` name resolves in any module, and `data X = %Int;` is accepted only for the built-in types.
+- Every primitive is a `Prim` definition with a signature, such as `text :: Node -> String; text = %text;`. A `%` name resolves only in `Prim`, and `data X = %Int;` is accepted only for the built-in types.
 - Added `seq :: a -> b -> b`, which evaluates its first argument before returning its second.
 - `module M` in an export list re-exports what the module imports from `M`, and an export list may name an imported value or type.
 - `T(..)` in an import list is accepted for a type with no constructors, such as `Int`, whatever the export list says.
@@ -81,7 +80,6 @@
 - Added the `Functor` class, whose method is `map`.
 - Added the `Applicative` class, with `pure :: a -> f a` and `ap :: f (a -> b) -> f a -> f b`. `return` is `pure`.
 - Added the `Alternative` class, with `empty :: f a` and `alt :: f a -> f a -> f a`. `guard` and `<|>` work at any `Alternative`, not only lists.
-- A type constructor variable that nothing determines is a list when a list satisfies its constraints: `count x = length (pure x)` is `a -> Int`.
 - Added the `Semigroup` and `Monoid` classes, with `append :: a -> a -> a` and `mempty :: a`, at lists, `Unit` and `Ordering`.
 - Added the `Foldable` class, whose method is `foldr`, and `fold_map`, `fold` and `to_list` in `Data.Foldable`. `null`, `any`, `all` and `concat` work at any `Foldable`, not only lists.
 - Added the `Traversable` class, whose method is `traverse`, and `sequence`: `sequence [[1, 2], [3, 4]]` is `[[1, 3], [1, 4], [2, 3], [2, 4]]`.
@@ -115,6 +113,8 @@
 
 ### Bug Fixes
 
+- An export list that exports two things under one name is a `conflicting-export` error, as `module M (module M, module P);` is when both declare `x`.
+- `T(..)` in an import or export list names the constructors of that `T`, not every constructor spelled like one of them.
 - `descendants | of_kind k` forces `k` only when there is a descendant.
 - A regex match never gives up: `~` no longer reads a pattern that backtracks too much as no match, nor `!~` as a match.
 - `Int` arithmetic wraps in every build mode: `9223372036854775807 + 1` is `-9223372036854775808`. It panicked in a debug build, and the least `Int` divided by `-1` killed the process.

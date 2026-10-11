@@ -122,13 +122,12 @@ pub fn caseOf(
         try lowerer.sink.report(.type_mismatch, span, "a case has no alternatives", .{});
         return error.DesugarFailed;
     }
-    for (c.alternatives) |alternative| try check(lowerer, alternative.pattern, scope);
 
     const arms = try lowerer.builder.slice(Arm, c.alternatives.len);
     for (c.alternatives, arms) |alternative, *arm| {
         arm.* = .{
             .written = alternative.pattern,
-            .pattern = try expand(lowerer, alternative.pattern),
+            .pattern = try kernel(lowerer, alternative.pattern),
             .guard = alternative.guard,
             .body = .{ .expression = alternative.body },
         };
@@ -150,8 +149,7 @@ pub fn bind(
     scope: ?*const resolve.Scope,
 ) Error!core.Term {
     const b = lowerer.builder;
-    try check(lowerer, statement.pattern, scope);
-    const pattern = try expand(lowerer, statement.pattern);
+    const pattern = try kernel(lowerer, statement.pattern);
 
     const value = try lowerer.expression(statement.value, scope);
     const root = try lowerer.env.interner.fresh(binderName(pattern));
@@ -171,7 +169,6 @@ pub fn bind(
 pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!core.Term {
     const b = lowerer.builder;
     const names = try checkParameters(lowerer, synonym);
-    try check(lowerer, synonym.body, null);
 
     const span = synonym.span;
     const s = try lowerer.env.interner.fresh("s");
@@ -180,7 +177,7 @@ pub fn matcherOf(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error!co
 
     const arms = try b.dupeSlice(Arm, &.{.{
         .written = synonym.body,
-        .pattern = try expand(lowerer, synonym.body),
+        .pattern = try kernel(lowerer, synonym.body),
         .guard = null,
         .body = .{ .holes = .{ .continuation = k, .names = names, .span = synonym.body.span } },
     }});
@@ -358,37 +355,81 @@ fn lower(
     return try b.lets(bindings.items, term, span);
 }
 
+/// `pattern` expanded. Rejects one binding a variable twice.
+fn kernel(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
+    const expanded = try expand(lowerer, pattern);
+    var seen: std.ArrayList([]const u8) = .empty;
+    defer seen.deinit(lowerer.builder.allocator);
+    try linear(lowerer, expanded, &seen);
+    return expanded;
+}
+
+fn linear(lowerer: *Lowerer, pattern: Pattern, seen: *std.ArrayList([]const u8)) Error!void {
+    switch (pattern.kind) {
+        .variable => |name| {
+            for (seen.items) |earlier| {
+                if (!std.mem.eql(u8, earlier, name)) continue;
+                try lowerer.sink.report(.duplicate_definition, pattern.span, "`{s}` is bound twice in one pattern", .{name});
+                return error.DesugarFailed;
+            }
+            try seen.append(lowerer.builder.allocator, name);
+        },
+        .wildcard, .literal => {},
+        .constructor => |c| for (c.arguments) |argument| try linear(lowerer, argument, seen),
+        .synonym => |s| for (s.arguments) |argument| try linear(lowerer, argument, seen),
+        .view => |v| try linear(lowerer, v.pattern, seen),
+        .all => |patterns| for (patterns) |p| try linear(lowerer, p, seen),
+    }
+}
+
 /// Resolve the names `pattern` uses, and rewrite list, cons and boolean
 /// patterns as constructor patterns, node patterns as views, and as-patterns
-/// and conjunctions as `all`.
-///
-/// Preconditions:
-/// - `check` accepted `pattern`.
+/// and conjunctions as `all`. Rejects a pattern naming an unknown
+/// constructor or kind, giving a constructor the wrong number of arguments,
+/// or holding a malformed regex.
 fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
     const b = lowerer.builder;
     const span = pattern.span;
     switch (pattern.kind) {
         .variable => |name| return .{ .kind = .{ .variable = name }, .span = span },
         .wildcard => return .{ .kind = .wildcard, .span = span },
-        .literal => |literal| return .{ .kind = .{ .literal = literal }, .span = span },
+        .literal => |literal| {
+            _ = try lowerer.expression(literalExpression(literal, span), null);
+            return .{ .kind = .{ .literal = literal }, .span = span };
+        },
         .boolean => |value| return builtinPattern(lowerer, if (value) .true else .false, &.{}, span),
         .constructor => |c| {
-            const arguments = try b.slice(Pattern, c.arguments.len);
-            for (c.arguments, arguments) |argument, *out| out.* = try expand(lowerer, argument);
-            const symbol = lowerer.scope.value(c.name).found;
-            return .{
-                .kind = switch (lowerer.env.interner.details(symbol)) {
-                    .synonym => |s| .{ .synonym = .{ .symbol = symbol, .matcher = s.matcher, .arguments = arguments } },
-                    else => .{ .constructor = .{ .symbol = symbol, .arguments = arguments } },
-                },
-                .span = span,
+            const kind: Pattern.Kind = if (try synonymNamed(lowerer, c, span)) |symbol| blk: {
+                const matcher = lowerer.env.interner.details(symbol).synonym.matcher;
+                const arity = lowerer.env.interner.details(matcher).matcher.arity;
+                if (c.arguments.len != arity) {
+                    try lowerer.sink.report(
+                        .type_mismatch,
+                        span,
+                        "`{s}` takes {d} argument(s), given {d}",
+                        .{ c.name, arity, c.arguments.len },
+                    );
+                    return error.DesugarFailed;
+                }
+                break :blk .{ .synonym = .{ .symbol = symbol, .matcher = matcher, .arguments = try expandAll(lowerer, c.arguments) } };
+            } else blk: {
+                const constructor = try constructorNamed(lowerer, c, span);
+                if (c.arguments.len != constructor.fields.len) {
+                    try lowerer.sink.report(
+                        .type_mismatch,
+                        span,
+                        "`{s}` binds {d} field(s), given {d}",
+                        .{ c.name, constructor.fields.len, c.arguments.len },
+                    );
+                    return error.DesugarFailed;
+                }
+                break :blk .{ .constructor = .{ .symbol = constructor.symbol, .arguments = try expandAll(lowerer, c.arguments) } };
             };
+            return .{ .kind = kind, .span = span };
         },
         .cons => |c| return try cell(lowerer, try expand(lowerer, c.head), try expand(lowerer, c.tail), span),
         .tuple => |components| {
-            const arguments = try b.slice(Pattern, components.len);
-            for (components, arguments) |component, *out| out.* = try expand(lowerer, component);
-            return constructorPattern(try lowerer.tupleConstructor(@intCast(components.len)), arguments, span);
+            return constructorPattern(try lowerer.tupleConstructor(@intCast(components.len)), try expandAll(lowerer, components), span);
         },
         .list => |elements| {
             var spine = builtinPattern(lowerer, .nil, &.{}, span);
@@ -415,6 +456,12 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
             return try conjoin(lowerer, conjuncts.items, span);
         },
     }
+}
+
+fn expandAll(lowerer: *Lowerer, patterns: []const cst.Pattern) Error![]const Pattern {
+    const out = try lowerer.builder.slice(Pattern, patterns.len);
+    for (patterns, out) |pattern, *slot| slot.* = try expand(lowerer, pattern);
+    return out;
 }
 
 /// Append the patterns `pattern` matches against its one value, with each
@@ -555,116 +602,6 @@ fn binderName(pattern: Pattern) []const u8 {
     };
 }
 
-/// Reject a pattern naming an unknown constructor or kind, giving a
-/// constructor the wrong number of arguments, holding a malformed regex,
-/// binding one variable twice, naming one value twice, or binding a variable
-/// nested in it that shadows a local in `scope`.
-fn check(lowerer: *Lowerer, pattern: cst.Pattern, scope: ?*const resolve.Scope) Error!void {
-    var checker: Checker = .{ .lowerer = lowerer, .scope = scope };
-    defer checker.seen.deinit(lowerer.builder.allocator);
-    try checker.visit(pattern, true);
-}
-
-const Checker = struct {
-    lowerer: *Lowerer,
-    scope: ?*const resolve.Scope,
-    seen: std.ArrayList([]const u8) = .empty,
-
-    /// `whole` is set while `pattern` matches the whole bound value.
-    fn visit(self: *Checker, pattern: cst.Pattern, whole: bool) Error!void {
-        switch (pattern.kind) {
-            .variable => |name| try self.variable(name, pattern.span, whole),
-            .wildcard => {},
-            .as, .conjunction => {
-                var conjuncts: std.ArrayList(cst.Pattern) = .empty;
-                try flatten(self.lowerer.builder.allocator, pattern, &conjuncts);
-                var names: usize = 0;
-                for (conjuncts.items) |conjunct| switch (conjunct.kind) {
-                    .variable => names += 1,
-                    else => {},
-                };
-                if (names > 1) {
-                    try self.lowerer.sink.report(
-                        .duplicate_definition,
-                        pattern.span,
-                        "`{f}` binds one value twice",
-                        .{Written{ .pattern = pattern }},
-                    );
-                    return error.DesugarFailed;
-                }
-                for (conjuncts.items) |conjunct| try self.visit(conjunct, whole);
-            },
-            .view => |v| try self.visit(v.pattern, false),
-            .constructor => |c| {
-                if (try synonymNamed(self.lowerer, c, pattern.span)) |arity| {
-                    if (c.arguments.len != arity) {
-                        try self.lowerer.sink.report(
-                            .type_mismatch,
-                            pattern.span,
-                            "`{s}` takes {d} argument(s), given {d}",
-                            .{ c.name, arity, c.arguments.len },
-                        );
-                        return error.DesugarFailed;
-                    }
-                    for (c.arguments) |argument| try self.visit(argument, false);
-                    return;
-                }
-                const constructor = try constructorNamed(self.lowerer, c, pattern.span);
-                if (c.arguments.len != constructor.fields.len) {
-                    try self.lowerer.sink.report(
-                        .type_mismatch,
-                        pattern.span,
-                        "`{s}` binds {d} field(s), given {d}",
-                        .{ c.name, constructor.fields.len, c.arguments.len },
-                    );
-                    return error.DesugarFailed;
-                }
-                for (c.arguments) |argument| try self.visit(argument, false);
-            },
-            .list => |elements| for (elements) |element| try self.visit(element, false),
-            .tuple => |components| for (components) |component| try self.visit(component, false),
-            .cons => |c| {
-                try self.visit(c.head, false);
-                try self.visit(c.tail, false);
-            },
-            .literal => |literal| _ = try self.lowerer.expression(literalExpression(literal, pattern.span), null),
-            .boolean => {},
-            .node => |n| {
-                if (n.kind) |kind| _ = try self.lowerer.expression(.{ .kind = .{ .kind_test = kind }, .span = n.kind_span }, null);
-                for (n.fields) |f| {
-                    _ = try self.lowerer.fieldFunction(f.name, f.name_span);
-                    try self.visit(f.pattern, false);
-                }
-            },
-        }
-    }
-
-    fn variable(self: *Checker, name: []const u8, span: diagnostic.Span, whole: bool) Error!void {
-        for (self.seen.items) |earlier| {
-            if (!std.mem.eql(u8, earlier, name)) continue;
-            try self.lowerer.sink.report(
-                .duplicate_definition,
-                span,
-                "`{s}` is bound twice in one pattern",
-                .{name},
-            );
-            return error.DesugarFailed;
-        }
-        try self.seen.append(self.lowerer.builder.allocator, name);
-
-        if (whole) return;
-        const scope = self.scope orelse return;
-        if (scope.lookup(name) == null) return;
-        try self.lowerer.sink.report(
-            .shadowed_local,
-            span,
-            "`{s}` in a pattern would shadow the local `{s}`; bind another name and compare after the bind",
-            .{ name, name },
-        );
-        return error.DesugarFailed;
-    }
-};
-
 fn constructorNamed(
     lowerer: *Lowerer,
     c: cst.Pattern.Constructor,
@@ -677,13 +614,10 @@ fn constructorNamed(
     return error.DesugarFailed;
 }
 
-/// The arity of the pattern synonym `c` names, or null when it names none.
-fn synonymNamed(lowerer: *Lowerer, c: cst.Pattern.Constructor, span: diagnostic.Span) Error!?u32 {
+/// The pattern synonym `c` names, or null when it names none.
+fn synonymNamed(lowerer: *Lowerer, c: cst.Pattern.Constructor, span: diagnostic.Span) Error!?core.SymbolId {
     const id = try lowerer.resolveGlobal(c.name, span) orelse return null;
-    return switch (lowerer.env.interner.details(id)) {
-        .synonym => |s| s.arity,
-        else => null,
-    };
+    return if (lowerer.env.interner.details(id) == .synonym) id else null;
 }
 
 /// An alternative bound once as a function of its pattern variables.

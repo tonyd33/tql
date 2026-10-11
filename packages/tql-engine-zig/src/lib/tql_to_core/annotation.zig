@@ -308,11 +308,9 @@ pub fn translateSynonym(
         matched = arrow.to;
     }
 
-    const result = types.variable_type(@intCast(scheme.variables.len));
-    const continuation = try types.arrows(arena, holes, result);
     return .{
         .variables = try std.mem.concat(arena, types.Kind, &.{ scheme.variables, &.{.type} }),
-        .type = try types.func(arena, matched, try types.func(arena, continuation, try types.func(arena, result, result))),
+        .type = try types.matcher(arena, matched, holes, types.variable_type(@intCast(scheme.variables.len))),
     };
 }
 
@@ -362,6 +360,7 @@ pub fn translateAlias(
     for (vars.items, parameters) |v, *slot| slot.* = .{ .name = try arena.dupe(u8, v.name), .kind = v.kind };
 
     return .{
+        .module = scope.module,
         .name = try arena.dupe(u8, alias.name),
         .parameters = parameters,
         .body = body,

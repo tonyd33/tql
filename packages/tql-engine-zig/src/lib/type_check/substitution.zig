@@ -15,13 +15,10 @@ const Leaf = union(enum) {
     /// Replaces each metavariable listed with the bound variable at its
     /// index.
     bound: []const types.Meta,
-    /// Replaces one metavariable with a type.
-    assigned: struct { meta: types.Meta, type: types.Type },
 
     fn replace(self: Leaf, head: types.Type) types.Type {
         switch (self) {
             .resolved => {},
-            .assigned => |a| if (head == .meta and head.meta == a.meta) return a.type,
             .bound => |metas| if (head == .meta) {
                 if (std.mem.indexOfScalar(types.Meta, metas, head.meta)) |index| return .{ .variable = @intCast(index) };
             },
@@ -268,12 +265,6 @@ pub const Substitution = struct {
     pub fn abstractOver(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!?types.Type {
         if (!try self.within(t, metas)) return null;
         return try self.rewrite(t, .{ .bound = metas });
-    }
-
-    /// `t` with metavariable `id` replaced by `by`, as if `id` were bound to
-    /// it. The substitution is unchanged.
-    pub fn assigned(self: *Substitution, t: types.Type, id: types.Meta, by: types.Type) Allocator.Error!types.Type {
-        return try self.rewrite(t, .{ .assigned = .{ .meta = id, .type = by } });
     }
 
     /// Whether `t` has any of `metas` free.
