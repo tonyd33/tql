@@ -198,29 +198,33 @@ let
 
   tql-playground = mkPlayground { };
 
-  package_groups = {
-    essential = with pkgs; [
-      git
-      jq
-      go-task
-      wasmtime
-      python3
-      yq-go
-      bun
-    ];
-    query_languages = with pkgs; [
-      semgrep
-      ast-grep
-      gritql
-    ];
-  };
+  gritql = pkgs.callPackage ./nix/gritql.nix { };
+  ruleguard = pkgs.callPackage ./nix/ruleguard.nix { };
+  fixit = pkgs.python3Packages.callPackage ./nix/fixit.nix { };
+
 in
 {
-  # https://devenv.sh/overlays/
-  overlays = [ (import ./overlays/gritql.nix) ];
-
   # https://devenv.sh/packages/
-  packages = lib.flatten (lib.attrValues package_groups);
+  packages = [
+    pkgs.git
+    pkgs.jq
+    pkgs.go-task
+    pkgs.wasmtime
+    pkgs.yq-go
+    pkgs.bun
+    pkgs.semgrep
+    pkgs.ast-grep
+    gritql
+    pkgs.tree-sitter
+    pkgs.weggli
+    pkgs.coccinelle
+    pkgs.pmd
+    pkgs.clang-tools
+    pkgs.hlint
+    ruleguard
+    pkgs.ruby
+    (pkgs.python3.withPackages (_: [ fixit ]))
+  ];
 
   # https://devenv.sh/outputs/
   outputs = {
