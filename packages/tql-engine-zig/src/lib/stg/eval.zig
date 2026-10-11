@@ -897,11 +897,14 @@ pub const Machine = struct {
                 .named_descendants => return try self.walk(try self.nodeArgument(arguments), .preorder, .named),
 
                 // The `children`/`descendants` walks with the kind test folded
-                // into the advance, so the list holds only matches.
+                // into the advance, so the list holds only matches. The kind
+                // is forced only when the subject has a child.
                 .children_of_kind, .descendants_of_kind => {
-                    const tested = try self.kindTestArguments(arguments);
+                    if (arguments.len != 2) return error.TypeError;
+                    const subject = try self.nodeArgument(arguments[1..]);
+                    if (subject.childCount() == 0) return try self.nil();
                     const move: value.Traversal.Move = if (primop == .descendants_of_kind) .preorder else .sibling;
-                    return try self.walk(tested.subject, move, .{ .kind = tested.kind_id });
+                    return try self.walk(subject, move, .{ .kind = try self.kindArgument(arguments[0]) });
                 },
             },
         }
@@ -930,21 +933,21 @@ pub const Machine = struct {
         };
     }
 
-    /// The kind and node arguments of `is_kind` and the `_of_kind` axes.
+    /// The kind and node arguments of `is_kind`.
     fn kindTestArguments(
         self: *Machine,
         arguments: []const *value.Thunk,
     ) Error!struct { kind_id: u16, subject: ts.Node } {
         if (arguments.len != 2) return error.TypeError;
-        const kind_id = switch (try self.force(arguments[0])) {
+        const kind_id = try self.kindArgument(arguments[0]);
+        return .{ .kind_id = kind_id, .subject = try self.nodeArgument(arguments[1..]) };
+    }
+
+    fn kindArgument(self: *Machine, argument: *value.Thunk) Error!u16 {
+        return switch (try self.force(argument)) {
             .kind => |k| k.id,
-            else => return error.TypeError,
+            else => error.TypeError,
         };
-        const subject = switch (try self.force(arguments[1])) {
-            .node => |n| n.inner,
-            else => return error.TypeError,
-        };
-        return .{ .kind_id = kind_id, .subject = subject };
     }
 
     /// Resolve a constructor's field atoms into a value.
