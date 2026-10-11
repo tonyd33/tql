@@ -70,7 +70,7 @@ main = 2 + 3 * 4;
 addition binds tighter than comparison
 ========================================
 
-main = 1 + 1 = 2;
+main = 1 + 1 == 2;
 
 ---
 
@@ -87,7 +87,7 @@ main = 1 + 1 = 2;
 not is a function, so it binds tighter than comparison
 ========================================
 
-main = not a = b;
+main = not a == b;
 
 ---
 
@@ -830,7 +830,7 @@ main = a + 1 : xs;
 cons binds tighter than comparison
 ========================================
 
-main = a : xs = ys;
+main = a : xs == ys;
 
 ---
 

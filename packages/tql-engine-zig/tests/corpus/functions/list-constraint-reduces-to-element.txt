@@ -6,7 +6,7 @@ Comparing two lists raises `Eq [a]`, which holds when `Eq a` does.
 
 --- tql ---
 same :: Eq a => [a] -> [a] -> Int;
-same x y = if x = y then 1 else 0;
+same x y = if x == y then 1 else 0;
 main = Filter (\_ -> [same [1] [1], same [1] [2]]);
 
 --- source ---

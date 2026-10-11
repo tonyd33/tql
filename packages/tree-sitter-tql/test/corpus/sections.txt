@@ -2,7 +2,7 @@
 a right section takes the operand after the operator
 ========================================
 
-main = (= 1);
+main = (== 1);
 
 ---
 
@@ -16,7 +16,7 @@ main = (= 1);
 a left section takes the operand before the operator
 ========================================
 
-main = (1 =);
+main = (1 ==);
 
 ---
 
@@ -30,7 +30,7 @@ main = (1 =);
 a parenthesized operator is its function
 ========================================
 
-main = (=);
+main = (==);
 
 ---
 
@@ -287,7 +287,7 @@ main = (* a + b);
 an application is a left operand
 ========================================
 
-main = (f x =);
+main = (f x ==);
 
 ---
 

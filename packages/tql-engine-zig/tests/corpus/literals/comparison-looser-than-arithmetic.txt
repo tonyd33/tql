@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, types, values
 
 --- tql ---
-main = pure $ 1 + 1 = 2;
+main = pure $ 1 + 1 == 2;
 
 --- source ---
 class A {}

@@ -11,7 +11,7 @@ import Data.Function (const);
 data P = P Int Int deriving (Eq);
 boom :: Int;
 boom = boom;
-main = Filter $ const [P 1 boom = P 2 boom];
+main = Filter $ const [P 1 boom == P 2 boom];
 
 --- source ---
 class A {}

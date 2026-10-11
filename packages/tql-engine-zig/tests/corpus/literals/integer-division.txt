@@ -2,7 +2,7 @@ title: div and mod floor, quot and rem truncate, and every pair is defined
 grammar: typescript
 asserts: values
 
-Each pair satisfies `q * b + r = a` for every `a` and `b`. A zero divisor
+Each pair satisfies `q * b + r == a` for every `a` and `b`. A zero divisor
 gives quotient 0 and remainder `a`, and the least `Int` divided by `-1`
 wraps to itself with remainder 0.
 

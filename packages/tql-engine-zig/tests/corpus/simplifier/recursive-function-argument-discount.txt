@@ -11,7 +11,7 @@ combine :: (Int -> Int -> Int) -> Int;
 combine k = k 1 2 + k 3 4;
 
 count :: Int -> Int -> Int;
-count n acc = if n = 0 then acc else count (n - 1) (acc + 1);
+count n acc = if n == 0 then acc else count (n - 1) (acc + 1);
 
 main = Filter (\_ -> [combine count]);
 

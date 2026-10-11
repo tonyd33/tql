@@ -2,6 +2,6 @@ import Data.Foldable (any);
 
 function_kinds = [:function_declaration, :function_expression, :arrow_function, :method_definition, :generator_function, :generator_function_declaration];
 
-is_function n = any (= kind n) function_kinds;
+is_function n = any (== kind n) function_kinds;
 
 main = descendants_of_kind :identifier | keep (not . has (ancestors | keep is_function)) | arr text;

@@ -9,7 +9,7 @@ newtype Down = Down Int;
 
 instance Eq Down where {
   eq a b = case (a, b) of {
-    (Down x, Down y) -> x = y;
+    (Down x, Down y) -> x == y;
   };
 };
 
@@ -19,7 +19,7 @@ instance Ord Down where {
   };
 };
 
-main = Filter (\_ -> [1 < 2, Down 1 < Down 2, Down 1 = Down 1]);
+main = Filter (\_ -> [1 < 2, Down 1 < Down 2, Down 1 == Down 1]);
 
 --- source ---
 class A {}

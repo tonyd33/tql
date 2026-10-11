@@ -11,7 +11,7 @@ main =
     x = { a = 1, b = 2 };
     y = { b = 2, a = 1 };
   }
-  in pure (x = y);
+  in pure (x == y);
 
 --- source ---
 class A {}

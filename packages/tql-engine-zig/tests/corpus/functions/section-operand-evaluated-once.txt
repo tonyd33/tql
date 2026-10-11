@@ -4,7 +4,7 @@ asserts: core, values
 
 --- tql ---
 inc x = x + 1;
-main = Filter (\_ -> map (= inc 1) [2, 3]);
+main = Filter (\_ -> map (== inc 1) [2, 3]);
 
 --- source ---
 class A {}

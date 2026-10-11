@@ -13,7 +13,7 @@ main =
     ab = ["a", "b"];
     a = ["a"];
   }
-  in Filter $ const [ab = ab, a = ab, [1, 2] = [2, 1]];
+  in Filter $ const [ab == ab, a == ab, [1, 2] == [2, 1]];
 
 --- source ---
 class A {}

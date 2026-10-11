@@ -6,7 +6,7 @@
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
 
-  let query = $state(`int_type = #type | arr text | keep (\\t -> t = "int");
+  let query = $state(`int_type = #type | arr text | keep (\\t -> t == "int");
 
 int_params =
   #declarator

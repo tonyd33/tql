@@ -6,7 +6,7 @@ asserts: error
 import Prelude hiding (Eq);
 
 same :: Eq a => a -> a -> Bool;
-same x y = x = y;
+same x y = x == y;
 
 main root = [same 1 1];
 

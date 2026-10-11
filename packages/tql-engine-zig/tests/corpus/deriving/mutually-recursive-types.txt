@@ -7,7 +7,7 @@ import Data.Function (const);
 
 data A = A B | Stop deriving (Eq);
 data B = B A deriving (Eq);
-main = Filter $ const [A (B Stop) = A (B Stop), A (B Stop) = Stop];
+main = Filter $ const [A (B Stop) == A (B Stop), A (B Stop) == Stop];
 
 --- source ---
 class A {}

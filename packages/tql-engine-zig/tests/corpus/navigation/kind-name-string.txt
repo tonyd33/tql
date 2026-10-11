@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 main = descendants_of_kind :binary_expression
   | children
-  | arr (\n -> { name = kind_name n, matches = kind_name n = "&&" });
+  | arr (\n -> { name = kind_name n, matches = kind_name n == "&&" });
 
 --- source ---
 x = a && b;

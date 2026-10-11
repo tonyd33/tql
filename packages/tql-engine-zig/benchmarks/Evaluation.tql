@@ -16,7 +16,7 @@ depth n = 1 + max_of 0 (map depth (run named_children n));
 insert x xs = case xs of {
   [] -> [x];
   h : t ->
-    if x = h then xs
+    if x == h then xs
     else if x < h then x : xs
     else case insert x t of { [] -> [h]; r -> h : r; };
 };

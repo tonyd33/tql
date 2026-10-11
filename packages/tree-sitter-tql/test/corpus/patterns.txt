@@ -265,7 +265,7 @@ main = do { (\n -> n -> m) <- xs; m };
 a section is a view
 ================================================================================
 
-main = do { ((= 1) -> True) <- xs; 1 };
+main = do { ((== 1) -> True) <- xs; 1 };
 
 ---
 
@@ -440,7 +440,7 @@ main = case x of { y if a -> if b then 1 else 2; _ -> 0 };
 a guard reads a conjunction's bindings
 ================================================================================
 
-main = case n of { (f -> x) & (g -> y) if x = y -> 1; _ -> 0 };
+main = case n of { (f -> x) & (g -> y) if x == y -> 1; _ -> 0 };
 
 ---
 
@@ -681,7 +681,7 @@ main = case x of { Pair :identifier :string { #fragment = f } -> 1; _ -> 0 };
 a node pattern is a case alternative with a guard
 ================================================================================
 
-main = case n of { :identifier { #name = x } if text x = "a" -> 1; _ -> 0 };
+main = case n of { :identifier { #name = x } if text x == "a" -> 1; _ -> 0 };
 
 ---
 

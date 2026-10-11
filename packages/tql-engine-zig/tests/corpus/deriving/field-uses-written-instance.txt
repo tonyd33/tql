@@ -11,7 +11,7 @@ import Data.Function (const);
 data Name = Name String;
 instance Eq Name where { eq a b = true; };
 data Person = Person Name Int deriving (Eq);
-main = Filter $ const [Person (Name "a") 1 = Person (Name "b") 1];
+main = Filter $ const [Person (Name "a") 1 == Person (Name "b") 1];
 
 --- source ---
 class A {}
