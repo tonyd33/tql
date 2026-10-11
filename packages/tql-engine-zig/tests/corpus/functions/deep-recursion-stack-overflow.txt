@@ -1,4 +1,4 @@
-title: recursion deeper than the stack budget stops with StackOverflow
+title: recursion deeper than the stack budget stops the run
 grammar: typescript
 asserts: runtime_error
 
@@ -13,4 +13,4 @@ main = pure (sum 1000000);
 class A {}
 
 --- runtime error ---
-StackOverflow
+recursion exceeded the stack

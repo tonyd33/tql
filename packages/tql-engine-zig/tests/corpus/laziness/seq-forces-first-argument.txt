@@ -12,4 +12,4 @@ main = Filter (\_ -> if seq bottom 1 == 1 then [1] else [2]);
 class A {}
 
 --- runtime error ---
-Cycle
+a value depends on itself

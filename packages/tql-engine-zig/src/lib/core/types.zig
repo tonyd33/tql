@@ -281,9 +281,9 @@ pub const Type = union(enum) {
 
     fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MetaNames) std.Io.Writer.Error!void {
         switch (self) {
-            .variable => |index| try w.writeByte('a' + @as(u8, @intCast(index))),
+            .variable => |index| try writeVariable(w, index),
             .meta => |id| if (if (names) |n| n.index(id) else null) |i| {
-                try w.writeByte('a' + @as(u8, @intCast(i)));
+                try writeVariable(w, i);
             } else try w.print("?{d}", .{id}),
             .constructor => |c| {
                 const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c) and !isTupleSugar(c);
@@ -342,11 +342,11 @@ pub const KindNames = Names(KindMeta);
 /// first appearance.
 fn Names(comptime Id: type) type {
     return struct {
-        seen: [26]Id = undefined,
+        seen: [std.math.maxInt(TypeVar) + 1]Id = undefined,
         len: usize = 0,
 
         /// Returns the index `id` was given, giving it the next one if it has
-        /// none. Null past the 26th.
+        /// none. Null once every `TypeVar` is given.
         fn index(self: *@This(), id: Id) ?usize {
             if (std.mem.indexOfScalar(Id, self.seen[0..self.len], id)) |i| return i;
             if (self.len == self.seen.len) return null;
@@ -355,6 +355,12 @@ fn Names(comptime Id: type) type {
             return self.len - 1;
         }
     };
+}
+
+/// Write the `index`th variable name: `a` to `z`, then `a1` to `z1`, `a2`...
+fn writeVariable(w: *std.Io.Writer, index: usize) std.Io.Writer.Error!void {
+    try w.writeByte('a' + @as(u8, @intCast(index % 26)));
+    if (index >= 26) try w.print("{d}", .{index / 26});
 }
 
 fn writeConstructed(

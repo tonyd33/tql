@@ -137,7 +137,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
             failed = true;
             switch (format) {
                 .text => {
-                    try stderr.print("{s}: error: {t}\n", .{ path, err });
+                    try stderr.print("{s}: error: {f}\n", .{ path, common.TargetFailure{ .err = err } });
                     try stderr.flush();
                 },
                 .json => {
@@ -146,6 +146,10 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
                     try jws.write(path);
                     try jws.objectField("error");
                     try jws.write(@errorName(err));
+                    try jws.objectField("message");
+                    const message = try std.fmt.allocPrint(gpa, "{f}", .{common.TargetFailure{ .err = err }});
+                    defer gpa.free(message);
+                    try jws.write(message);
                     try jws.endObject();
                 },
             }

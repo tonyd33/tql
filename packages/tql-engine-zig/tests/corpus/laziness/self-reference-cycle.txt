@@ -18,4 +18,4 @@ loop :: Filter Node String
 main :: Filter Node String
 
 --- runtime error ---
-Cycle
+a value depends on itself

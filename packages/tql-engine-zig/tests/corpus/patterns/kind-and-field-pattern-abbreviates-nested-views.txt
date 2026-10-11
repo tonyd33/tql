@@ -1,0 +1,36 @@
+title: `:k { #f = p }` abbreviates `(run (of_kind :k) -> [{ #f = p }])`
+grammar: typescript
+asserts: simplified
+
+--- tql ---
+sugar = Filter (\n -> case n of {
+  :call_expression { #function = f } -> [f];
+  _ -> [];
+});
+
+written = Filter (\n -> case n of {
+  (run (of_kind :call_expression) -> [{ #function = f }]) -> [f];
+  _ -> [];
+});
+
+main = descendants | (sugar <|> written);
+
+--- source ---
+a.b();
+
+--- simplified ---
+sugar = \n -> case %is_kind :call_expression n of
+  False -> Nil
+  True -> case field[function] n of
+    Nil -> Nil
+    Cons f cons1 -> case cons1 of
+      Nil -> Cons f Nil
+      Cons _ _ -> Nil
+written = \n -> case %is_kind :call_expression n of
+  False -> Nil
+  True -> case field[function] n of
+    Nil -> Nil
+    Cons f cons1 -> case cons1 of
+      Nil -> Cons f Nil
+      Cons _ _ -> Nil
+main = \x -> bind[List] (%descendants x) (\x -> append[List] (sugar x) (written x))

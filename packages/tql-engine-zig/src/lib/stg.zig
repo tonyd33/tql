@@ -29,6 +29,7 @@ pub const Printer = print.Printer;
 
 /// The evaluator.
 pub const Machine = eval.Machine;
+pub const Error = eval.Error;
 
 /// Allocation counters by call site. Profiling only.
 pub const Site = eval.Site;

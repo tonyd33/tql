@@ -11,8 +11,8 @@ main = pure (count 1);
 class A {}
 
 --- error ---
-error[ambiguous-constraint]: `Applicative a` is ambiguous: nothing determines its type.
- --> 1:19
+error[ambiguous-constraint]: `Sized (a b)` is ambiguous: nothing determines its type.
+ --> 1:11
   |
 1 | count x = length (pure x);
-  |                   ^^^^
+  |           ^^^^^^

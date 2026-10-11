@@ -12,7 +12,7 @@ const printUsage = goz.printUsage;
 pub const command = .{
     .name = "tql query",
     .aliases = &[_][]const u8{"run"},
-    .description = "Run a query against files",
+    .description = "Run a query against files; - reads standard input",
     .opts = .{
         .help = Opt{ .names = .{ .long = "help", .short = 'h' }, .description = "Show this help" },
         .from_file = Opt{ .names = .{ .long = "from-file", .short = 'f' }, .has_arg = .required_argument, .meta = "file", .description = "Load query from file" },
@@ -89,11 +89,32 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     };
     defer gpa.free(query);
 
-    // IMPROVE: read stdin if files.len = 0
     const files: []const []const u8 = if (from_file != null)
         positionals.items
     else
         positionals.items[1..];
+
+    if (targetsProblem(files)) |problem| {
+        try stderr.print("Error: {s}\n", .{problem});
+        return .invalid_args;
+    }
+    var stdin: ?[]u8 = null;
+    defer if (stdin) |contents| gpa.free(contents);
+    const targets = try gpa.alloc(pipeline.Target, files.len);
+    defer gpa.free(targets);
+    for (files, targets) |path, *target| {
+        if (!std.mem.eql(u8, path, "-")) {
+            target.* = .{ .path = path };
+            continue;
+        }
+        var buffer: [4096]u8 = undefined;
+        var reader = std.Io.File.stdin().readerStreaming(ctx.io, &buffer);
+        stdin = reader.interface.allocRemaining(gpa, .unlimited) catch |err| {
+            try stderr.print("Error: cannot read standard input: {t}\n", .{err});
+            return .runtime_error;
+        };
+        target.* = .{ .stdin = stdin.? };
+    }
 
     const grammar_resolved = grammar orelse {
         try stderr.print("Error: --grammar is required\n", .{});
@@ -108,7 +129,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         .query = query,
         .query_path = from_file,
         .module_roots = module_roots,
-        .query_target_paths = files,
+        .targets = targets,
         .format = format,
         .grammar = grammar_resolved,
         .workers = workers,
@@ -119,6 +140,27 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     };
 }
 
+/// What is wrong with `files` as the target paths, if anything. `-` names
+/// standard input.
+fn targetsProblem(files: []const []const u8) ?[]const u8 {
+    if (files.len == 0) return "no target files; pass a path, or - for standard input";
+    var reads_stdin = false;
+    for (files) |path| {
+        if (path.len == 0) return "a target path is empty";
+        if (!std.mem.eql(u8, path, "-")) continue;
+        if (reads_stdin) return "- is given more than once";
+        reads_stdin = true;
+    }
+    return null;
+}
+
 test {
     _ = pipeline;
+}
+
+test "target paths are checked before the run" {
+    try std.testing.expectEqualStrings("no target files; pass a path, or - for standard input", targetsProblem(&.{}).?);
+    try std.testing.expectEqualStrings("a target path is empty", targetsProblem(&.{ "a.ts", "" }).?);
+    try std.testing.expectEqualStrings("- is given more than once", targetsProblem(&.{ "-", "a.ts", "-" }).?);
+    try std.testing.expectEqual(null, targetsProblem(&.{ "-", "a.ts" }));
 }

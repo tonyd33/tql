@@ -14,7 +14,7 @@ f n = case n of {
 main = const [f 1];
 
 --- error ---
-error[type-mismatch]: `1` is never matched
+error[redundant-alternative]: `1` is never matched
  --> 5:3
   |
 5 |   1 -> "uno";

@@ -13,7 +13,7 @@ describe c = case c of {
 main root = [describe (Code 0)];
 
 --- error ---
-error[type-mismatch]: `Code _` is not matched
+error[non-exhaustive]: `Code _` is not matched
  --> 4:14
   |
 4 | describe c = case c of {

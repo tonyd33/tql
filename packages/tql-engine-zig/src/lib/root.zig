@@ -290,7 +290,7 @@ pub const CompiledQuery = struct {
         target_path: ?[]const u8,
         result_allocator: Allocator,
         scratch: Allocator,
-    ) !RunOutcome {
+    ) RunError!RunOutcome {
         const source_parser = ts.Parser.create();
         defer source_parser.destroy();
         try source_parser.setLanguage(self.grammar.language);
@@ -315,7 +315,7 @@ pub const CompiledQuery = struct {
         target_path: ?[]const u8,
         result_allocator: Allocator,
         scratch: Allocator,
-    ) !RunOutcome {
+    ) RunError!RunOutcome {
         const query_start = std.Io.Timestamp.now(self.io, .real);
 
         var machine = try stg.Machine.init(scratch, self.allocator, &self.translated);
@@ -400,6 +400,8 @@ fn syntaxErrors(allocator: Allocator, root: ts.Node) ![]const SyntaxError {
     return errors.toOwnedSlice(allocator);
 }
 
+pub const RunError = stg.Error || error{ TargetParseFailed, IncompatibleLanguage, MissingEntry };
+
 /// One target's results: the outputs as a JSON array, and what it cost.
 pub const RunOutcome = struct {
     json: []const u8,
@@ -409,6 +411,28 @@ pub const RunOutcome = struct {
     syntax_errors: []const SyntaxError,
     parse_time: std.Io.Duration,
     query_time: std.Io.Duration,
+};
+
+/// Why running a target failed, written for a user. An error outside
+/// `RunError` writes its name.
+pub const Failure = struct {
+    err: anyerror,
+
+    pub fn format(self: Failure, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        const err = inline for (@typeInfo(RunError).error_set.?) |e| {
+            if (self.err == @field(anyerror, e.name)) break @field(RunError, e.name);
+        } else return w.writeAll(@errorName(self.err));
+        try w.writeAll(switch (err) {
+            error.StackOverflow => "recursion exceeded the stack",
+            error.Cycle => "a value depends on itself",
+            error.OutOfMemory => "the query exceeded its memory limit",
+            error.RegexFailed => "a regex reached a construct the matcher cannot run",
+            error.TargetParseFailed => "tree-sitter could not parse the target",
+            error.IncompatibleLanguage => "the grammar was built for another tree-sitter version",
+            error.WriteFailed => "the output could not be written",
+            error.TypeError, error.MisplacedLocal, error.MissingEntry => return w.print("internal error: {t}", .{err}),
+        });
+    }
 };
 
 test {
