@@ -871,15 +871,16 @@ pub const Machine = struct {
                         .string => |s| s,
                         else => return error.TypeError,
                     };
-                    const parsed = parseInt(text) orelse return self.nil();
-                    return self.singleton(try self.valueThunk(.{ .number = parsed }));
+                    const parsed = parseInt(text) orelse return self.nothing();
+                    return self.just(try self.valueThunk(.{ .number = parsed }));
                 },
 
-                // Constant across the query, and it never reads its argument.
+                // The path of the file the node belongs to.
                 .filename => {
-                    const target = self.target orelse return self.nil();
-                    const path = target.path orelse return self.nil();
-                    return self.singleton(try self.valueThunk(.{ .string = try self.decoded(path) }));
+                    _ = try self.nodeArgument(arguments);
+                    const target = self.target orelse return self.nothing();
+                    const path = target.path orelse return self.nothing();
+                    return self.just(try self.valueThunk(.{ .string = try self.decoded(path) }));
                 },
 
                 // Children and anonymous tokens, document order.
@@ -1024,6 +1025,16 @@ pub const Machine = struct {
     fn nil(self: *Machine) Error!value.Value {
         const c = self.program.structural.nil;
         return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+    }
+
+    fn nothing(self: *Machine) value.Value {
+        const c = self.program.structural.nothing;
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{}) };
+    }
+
+    fn just(self: *Machine, field: *value.Thunk) value.Value {
+        const c = self.program.structural.just;
+        return .{ .constructed = value.Constructed.init(c.symbol, c.tag, &.{field}) };
     }
 
     fn nilThunk(self: *Machine) Error!*value.Thunk {

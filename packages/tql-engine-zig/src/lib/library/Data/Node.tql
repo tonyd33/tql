@@ -23,11 +23,8 @@ module Data.Node (
 );
 
 import Prim;
-import Prim (filename, parent, ancestors, children, named_children, descendants, named_descendants, children_of_kind, descendants_of_kind) as P;
+import Prim (parent, ancestors, children, named_children, descendants, named_descendants, children_of_kind, descendants_of_kind) as P;
 import Data.Filter (Filter(..));
-
-filename :: Filter Node String;
-filename = Filter P.filename;
 
 parent :: Filter Node Node;
 parent = Filter P.parent;

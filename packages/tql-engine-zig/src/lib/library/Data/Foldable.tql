@@ -10,7 +10,7 @@ module Data.Foldable (
   concat_map,
 );
 
-import Prim (List(..), Bool(..));
+import Prim (List(..), Bool(..), Maybe(..));
 import Data.Bool (and, or);
 import Data.Monoid (Semigroup(..), Monoid(..));
 
@@ -25,6 +25,13 @@ instance Foldable List where {
       Cons h t -> f h $ go t;
     };
   } in go;
+};
+
+instance Foldable Maybe where {
+  foldr f z m = case m of {
+    Nothing -> z;
+    Just x -> f x z;
+  };
 };
 
 fold_map :: (Foldable t, Monoid m) => (a -> m) -> t a -> m;

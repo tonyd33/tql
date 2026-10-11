@@ -1,4 +1,4 @@
-title: `filename` yields the queried file path
+title: `filename` is the queried file's path
 grammar: typescript
 asserts: types, values
 file: src/service.ts
@@ -7,13 +7,13 @@ The `file:` header supplies the path as metadata; the parsed text still comes
 from `--- source ---`.
 
 --- tql ---
-main = filename;
+main = arr filename;
 
 --- source ---
 class A {}
 
 --- values ---
-["src/service.ts"]
+[{"tag":"Just","fields":["src/service.ts"]}]
 
 --- types ---
-main :: Filter Node String
+main :: Filter Node (Maybe String)

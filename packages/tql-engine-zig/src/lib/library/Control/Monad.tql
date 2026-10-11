@@ -1,6 +1,6 @@
 module Control.Monad (Monad(..), join, kleisli, mfilter);
 
-import Prim (List(..), Bool(..));
+import Prim (List(..), Bool(..), Maybe(..));
 import Data.Function (identity);
 import Data.Monoid (Semigroup(..));
 import Control.Applicative (Applicative(..), Alternative(..));
@@ -13,6 +13,13 @@ instance Monad List where {
   bind xs f = case xs of {
     Nil -> Nil;
     Cons h t -> append (f h) $ bind t f;
+  };
+};
+
+instance Monad Maybe where {
+  bind m f = case m of {
+    Nothing -> Nothing;
+    Just x -> f x;
   };
 };
 

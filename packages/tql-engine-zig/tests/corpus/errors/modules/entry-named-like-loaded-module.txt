@@ -1,0 +1,24 @@
+title: an import of the entry's name that a module file also has is ambiguous
+grammar: typescript
+asserts: error
+
+--- module A ---
+module A;
+a = 1;
+
+--- module B ---
+module B;
+import A;
+b = 2;
+
+--- tql ---
+module A;
+import B;
+main = pure b;
+
+--- error ---
+error[ambiguous-module]: `A` is found as both the entry and `A`
+ --> B:2:1
+  |
+2 | import A;
+  | ^^^^^^^^^

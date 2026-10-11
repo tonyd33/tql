@@ -25,7 +25,7 @@
 - `Unit` is replaced by `()`, the empty tuple: write `()` for the value, the pattern and the type. `guard` returns `f ()`, and the `Data.Unit` module is gone.
 - The filter `first` is removed, so `Arrow` can take the name. A step after `|` runs once per result, so a filter's first result is a list function composed after it: write `Filter (take 1 . run p)` for `first p`, and `take 1 $ run p x` for `first p x`, with `import Data.List (take);`. `head . run p` gives the first result as a `Maybe`.
 - `head`, `tail` and the new `last` and `init` return a `Maybe`: `head [] = Nothing`, `tail [1, 2] = Just [2]`. Write `take 1 xs` and `drop 1 xs` for the old list results.
-- `Filter a b` is a `newtype` over `a -> [b]`, and a filter is no longer a function. Apply one with `run p x`, and make one from a function with `Filter (\x -> ...)`. The axes, `of_kind`, `filename`, `toint` and `#f` are filters; `x#f` is still the list of `x`'s children in field `f`.
+- `Filter a b` is a `newtype` over `a -> [b]`, and a filter is no longer a function. Apply one with `run p x`, and make one from a function with `Filter (\x -> ...)`. The axes, `of_kind` and `#f` are filters; `x#f` is still the list of `x`'s children in field `f`.
 - `main` is a `Filter Node t`. `main root = do { x <- descendants root; ... };` becomes `main = do { x <- descendants; ... };`: a `do` over `Filter Node` gives every statement the root, `root <- identity;` names it, and `y <- pure x | p;` binds `p`'s results at `x`. `main root = [v];` becomes `main = pure v;`, and a signature `main :: Node -> [Int]` becomes `main :: Filter Node Int`.
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
@@ -36,6 +36,8 @@
 - `|` is the loosest operator, so a stage takes its argument with `$`: `named_children | keep $ is_kind :argument_list | parent`. Bracket a pipeline passed with `$`: `collect (children | arr text)`.
 - A `-` directly after an operand subtracts, and one directly before an operand is a negation, which TQL does not have: `x-1` is `x - 1`, and `f -x` is an error.
 - The `true` and `false` literals are removed: write `True` and `False`.
+- `toint :: String -> Maybe Int` and `filename :: Node -> Maybe String` are functions, not filters: write `Just path <- arr filename;` for `path <- filename;`, and `Filter (to_list . toint . text)` for `arr text | toint`.
+- `tql grammar add`, `remove` and `--install-dir` are removed; they did nothing.
 - A missing `case` alternative is a `non-exhaustive` error, and an alternative never reached is a `redundant-alternative` error.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
@@ -146,6 +148,7 @@
 - Type variables after `z` print as `a1`, `b1` and so on, so a signature may have 255 of them.
 - `tql query` with no target files or an empty path is an error, and a missing file reports `no such file or directory`.
 - A directory target with an unreadable subdirectory reports that subdirectory and queries every other file under it.
+- An entry headed with a library module's name, such as `module Data.Maybe;`, is an `ambiguous-module` error, not a false `import-cycle`, and so is an import of the entry's name that a module file also has.
 
 ## 0.3.1 (2026-10-03)
 

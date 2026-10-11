@@ -499,6 +499,7 @@ pub fn store(allocator: std.mem.Allocator, t: Type) !*const Type {
 pub const list_spelling = "List";
 pub const bool_spelling = "Bool";
 pub const ordering_spelling = "Ordering";
+pub const maybe_spelling = "Maybe";
 pub const filter_spelling = "Filter";
 pub const function_spelling = "(->)";
 

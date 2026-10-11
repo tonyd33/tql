@@ -92,7 +92,7 @@ pub const Registry = struct {
 
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// `Prim` declares the primitives, `List`, `Bool` and `Ordering`; these
+    /// `Prim` declares the primitives, `List`, `Bool`, `Ordering` and `Maybe`; these
     /// rows reserve their ids so a primitive scheme can name any of them
     /// before `Prim` is parsed. No source declares `(->)`.
     pub const Structural = struct {
@@ -136,6 +136,12 @@ pub const Registry = struct {
             .constructors = &.{ "LT", "EQ", "GT" },
         };
 
+        pub const maybe: Structural = .{
+            .name = types.maybe_spelling,
+            .parameters = &.{.type},
+            .constructors = &.{ "Nothing", "Just" },
+        };
+
         pub const function: Structural = .{
             .name = types.function_spelling,
             .parameters = &.{ .type, .type },
@@ -153,6 +159,7 @@ pub const Registry = struct {
             Structural.list,
             Structural.boolean,
             Structural.ordering,
+            Structural.maybe,
             Structural.function,
         };
     };
@@ -221,6 +228,20 @@ pub const Registry = struct {
         return self.get(self.listId()).constructors[0];
     }
 
+    pub fn maybeId(self: *const Registry) TypeId {
+        return self.lookup(.prim, types.maybe_spelling).?;
+    }
+
+    /// `Nothing`, tag 0 of `Maybe`.
+    pub fn nothingConstructor(self: *const Registry) Constructor {
+        return self.get(self.maybeId()).constructors[0];
+    }
+
+    /// `Just`, tag 1 of `Maybe`, taking its value.
+    pub fn justConstructor(self: *const Registry) Constructor {
+        return self.get(self.maybeId()).constructors[1];
+    }
+
     /// `Cons`, tag 1 of `List`, taking a head and a tail.
     pub fn consConstructor(self: *const Registry) Constructor {
         return self.get(self.listId()).constructors[1];
@@ -254,6 +275,11 @@ pub const Registry = struct {
     /// `Bool`.
     pub fn boolType(self: *const Registry, arena: Allocator) !types.Type {
         return try types.constructed(arena, self.boolId(), types.bool_spelling, &.{});
+    }
+
+    /// `Maybe element`.
+    pub fn maybe(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
+        return try types.constructed(arena, self.maybeId(), types.maybe_spelling, &.{element});
     }
 
     /// `Ordering`.

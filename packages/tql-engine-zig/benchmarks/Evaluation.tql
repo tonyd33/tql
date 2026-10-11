@@ -1,6 +1,6 @@
 import Data.Int (toint);
 import Data.List (take);
-import Data.Foldable (null, concat_map);
+import Data.Foldable (null, concat_map, to_list);
 
 data Size = Small | Medium | Large Int;
 
@@ -30,7 +30,7 @@ large s = case s of { Large v -> [v]; _ -> []; };
 
 called = descendants_of_kind :call_expression | #function | of_kind :identifier | arr text;
 
-numbers = descendants_of_kind :number_literal | arr text | toint;
+numbers = descendants_of_kind :number_literal | Filter (to_list . toint . text);
 
 main = do {
   f <- descendants_of_kind :function_definition;

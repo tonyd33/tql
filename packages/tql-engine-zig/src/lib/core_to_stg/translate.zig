@@ -700,6 +700,8 @@ pub fn translate(
             .lt = builtin(registry.orderingConstructor(.lt)),
             .eq = builtin(registry.orderingConstructor(.eq)),
             .gt = builtin(registry.orderingConstructor(.gt)),
+            .nothing = builtin(registry.nothingConstructor()),
+            .just = builtin(registry.justConstructor()),
         },
         .spellings = spellings,
         .tuples = tuples,

@@ -1,0 +1,22 @@
+title: an entry named like a library module is ambiguous, not a cycle
+grammar: typescript
+asserts: error
+
+`A` imports the library's `Data.Maybe`.
+
+--- module A ---
+module A;
+import Data.Maybe;
+a = 1;
+
+--- tql ---
+module Data.Maybe;
+import A;
+main = pure a;
+
+--- error ---
+error[ambiguous-module]: `Data.Maybe` is found as both this module and `Data/Maybe.tql`
+ --> 1:1
+  |
+1 | module Data.Maybe;
+  | ^^^^^^^^^^^^^^^^^^

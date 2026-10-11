@@ -194,7 +194,7 @@ pub const Builtin = struct {
     tag: u32,
 };
 
-/// The constructors of `List`, `Bool` and `Ordering`, which primitives build
+/// The constructors of `List`, `Bool`, `Ordering` and `Maybe`, which primitives build
 /// directly and serialization encodes specially.
 pub const Structural = struct {
     nil: Builtin,
@@ -204,6 +204,8 @@ pub const Structural = struct {
     lt: Builtin,
     eq: Builtin,
     gt: Builtin,
+    nothing: Builtin,
+    just: Builtin,
 
     pub fn boolean(self: Structural, b: bool) Builtin {
         return if (b) self.true_ else self.false_;

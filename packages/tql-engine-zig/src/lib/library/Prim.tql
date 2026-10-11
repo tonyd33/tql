@@ -16,6 +16,8 @@ data Bool = False | True deriving (Eq, Ord, Serial);
 
 data Ordering = LT | EQ | GT deriving (Eq, Ord);
 
+data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+
 class Eq a where {
   eq :: a -> a -> Bool;
 };
@@ -87,10 +89,10 @@ is_kind = %is_kind;
 string_length :: String -> Int;
 string_length = %string_length;
 
-toint :: String -> [Int];
+toint :: String -> Maybe Int;
 toint = %toint;
 
-filename :: Node -> [String];
+filename :: Node -> Maybe String;
 filename = %filename;
 
 parent :: Node -> [Node];
