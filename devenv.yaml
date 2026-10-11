@@ -14,3 +14,6 @@ inputs:
 
 imports:
 - editorenv/integrations/devenv
+nixpkgs:
+  permitted_unfree_packages:
+  - codeql
