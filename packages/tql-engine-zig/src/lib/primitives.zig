@@ -58,7 +58,7 @@ const Builder = struct {
 
     /// `input -> [output]`.
     fn listFunction(self: Builder, input: types.Type, output: types.Type) !types.Type {
-        return try types.func(self.arena, input, try self.declared.list(self.arena, output));
+        return try types.func(self.arena, input, try datatypes.list(self.arena, output));
     }
 
     fn boolType(self: Builder) !types.Type {

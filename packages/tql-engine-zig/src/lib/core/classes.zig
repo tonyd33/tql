@@ -18,6 +18,9 @@ pub const ClassId = enum(u16) {
 /// An instance of one link, in the order instances were declared.
 pub const InstanceId = enum(u32) { _ };
 
+/// The classes `deriving` accepts.
+pub const derivable = [_]ClassId{ .eq, .ord, .serial };
+
 /// How a class's constraint is discharged at run time.
 pub const Evidence = enum {
     /// Handled by the machine on the value. No dictionary exists.

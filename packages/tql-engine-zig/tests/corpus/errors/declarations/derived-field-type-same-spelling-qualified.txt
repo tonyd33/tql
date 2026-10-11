@@ -1,0 +1,19 @@
+title: a derived instance's missing field instance qualifies a type sharing its spelling
+grammar: typescript
+asserts: error
+
+--- module Other ---
+module Other (T(..));
+data T = T;
+
+--- tql ---
+import Other as O;
+data T = T O.T deriving (Eq);
+main = pure 1;
+
+--- error ---
+error[unsatisfied-constraint]: `Eq Main.T` needs `Eq Other.T`
+ --> 2:12
+  |
+2 | data T = T O.T deriving (Eq);
+  |            ^^^

@@ -481,7 +481,7 @@ const Translator = struct {
             return self.kindMismatch(node.span, what, .type, expected);
         }
         return switch (node.kind) {
-            .list => |element| try self.scope.env.datatypes.list(self.arena, try self.type(element.*, .type)),
+            .list => |element| try datatypes.list(self.arena, try self.type(element.*, .type)),
             .function => |f| try types.func(self.arena, try self.type(f.from, .type), try self.type(f.to, .type)),
             .record => |r| try self.record(r, node.span),
             .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,

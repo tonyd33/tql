@@ -29,12 +29,12 @@ pub fn declareStructural(e: *core.env.Env) !void {
     const element = types.variable_type(0);
     const self_ref = try types.constructed(
         arena,
-        registry.listId(),
+        datatypes.list_id,
         types.list_spelling,
         &.{element},
     );
     const cons_fields = try arena.dupe(types.Type, &.{ element, self_ref });
-    try e.setConstructors(registry.listId(), try arena.dupe(datatypes.Constructor, &.{
+    try e.setConstructors(datatypes.list_id, try arena.dupe(datatypes.Constructor, &.{
         .{ .symbol = try interner.intern(.prim, "Nil", .vanilla), .tag = 0, .fields = &.{} },
         .{ .symbol = try interner.intern(.prim, "Cons", .vanilla), .tag = 1, .fields = cons_fields },
     }));

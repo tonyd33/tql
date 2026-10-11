@@ -1,0 +1,23 @@
+title: two types with one spelling print qualified by module
+grammar: typescript
+asserts: error
+
+--- module Other ---
+module Other;
+data Maybe a = Just a | Nothing;
+
+--- tql ---
+import Other as O;
+f :: Maybe Int -> Int;
+f m = case m of {
+  Just n -> n;
+  Nothing -> 0;
+};
+main = pure $ f (O.Just 1);
+
+--- error ---
+error[type-mismatch]: Expected `Prim.Maybe Int`, found `Other.Maybe Int`.
+ --> 7:18
+  |
+7 | main = pure $ f (O.Just 1);
+  |                  ^^^^^^^^

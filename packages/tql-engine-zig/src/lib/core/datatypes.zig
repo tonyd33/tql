@@ -11,6 +11,12 @@ pub const TypeId = symbols.TypeId;
 /// `(->)`, the function type's constructor short of an argument. At both it
 /// is a `types.Type.function`.
 pub const function_id: TypeId = Registry.Structural.function.id();
+pub const list_id: TypeId = Registry.Structural.list.id();
+
+/// `[element]`.
+pub fn list(arena: Allocator, element: types.Type) !types.Type {
+    return try types.constructed(arena, list_id, types.list_spelling, &.{element});
+}
 
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
@@ -192,10 +198,6 @@ pub const Registry = struct {
         return null;
     }
 
-    pub fn listId(self: *const Registry) TypeId {
-        return self.lookup(.prim, types.list_spelling).?;
-    }
-
     pub fn boolId(self: *const Registry) TypeId {
         return self.lookup(.prim, types.bool_spelling).?;
     }
@@ -225,7 +227,7 @@ pub const Registry = struct {
 
     /// `Nil`, tag 0 of `List`.
     pub fn nilConstructor(self: *const Registry) Constructor {
-        return self.get(self.listId()).constructors[0];
+        return self.get(list_id).constructors[0];
     }
 
     pub fn maybeId(self: *const Registry) TypeId {
@@ -244,7 +246,7 @@ pub const Registry = struct {
 
     /// `Cons`, tag 1 of `List`, taking a head and a tail.
     pub fn consConstructor(self: *const Registry) Constructor {
-        return self.get(self.listId()).constructors[1];
+        return self.get(list_id).constructors[1];
     }
 
     /// The scheme of `constructor`, of type `id`: its fields curried onto the
@@ -265,11 +267,6 @@ pub const Registry = struct {
         const arguments = try arena.alloc(types.Type, declared.parameters.len);
         for (arguments, 0..) |*argument, i| argument.* = types.variable_type(@intCast(i));
         return try types.constructed(arena, id, declared.name, arguments);
-    }
-
-    /// `[t]`, for a caller that has the registry.
-    pub fn list(self: *const Registry, arena: Allocator, element: types.Type) !types.Type {
-        return try types.constructed(arena, self.listId(), types.list_spelling, &.{element});
     }
 
     /// `Bool`.

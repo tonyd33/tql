@@ -944,7 +944,7 @@ pub const Inference = struct {
     /// `Filter input output`.
     fn filter(self: *Inference, input: types.Type, output: types.Type) Error!types.Type {
         const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Filter).?).?;
-        return try types.constructed(self.subst.arena, id, types.filter_spelling, &.{ input, output });
+        return try types.constructed(self.subst.arena, id, self.env.datatypes.get(id).name, &.{ input, output });
     }
 
     /// The `tau` of `Filter Node tau` once `t` is unified with it, failing at
@@ -1137,47 +1137,47 @@ pub fn check(
             var buf: std.Io.Writer.Allocating = .init(sink.allocator);
             defer buf.deinit();
 
-            var names: types.MetaNames = .{};
+            const env = &program.env;
             switch (failure.detail) {
                 .mismatch => |m| {
                     const expected = try subst.resolveDeep(m.expected);
                     const found = try subst.resolveDeep(m.found);
-                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{
-                        expected.named(&names),
-                        found.named(&names),
-                    });
+                    var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("Expected `{f}`, found `{f}`.", .{ expected.named(&names), found.named(&names) });
                 },
-                .violation => |v| try buf.writer.print(
-                    "`{s} {f}` is not satisfied.",
-                    .{ program.env.classes.spelling(v.class), (try subst.resolveDeep(v.type)).namedOperand(&names) },
-                ),
-                .over_application => |t| try buf.writer.print(
-                    "`{f}` has no argument left to take.",
-                    .{(try subst.resolveDeep(t)).named(&names)},
-                ),
-                .view_not_function => |t| try buf.writer.print(
-                    "The expression of a view pattern must be a function; found `{f}`.",
-                    .{(try subst.resolveDeep(t)).named(&names)},
-                ),
-                .not_a_function => |t| try buf.writer.print(
-                    "`{f}` is not a function.",
-                    .{(try subst.resolveDeep(t)).named(&names)},
-                ),
+                .violation => |v| {
+                    const t = try subst.resolveDeep(v.type);
+                    var names = try env.messageNames(gpa, &.{t}, &.{v.class});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("`{f} {f}` is not satisfied.", .{ names.class(v.class, env.classes.spelling(v.class)), t.namedOperand(&names) });
+                },
+                .ambiguous => |c| {
+                    const t = try subst.resolveDeep(c.type);
+                    var names = try env.messageNames(gpa, &.{t}, &.{c.class});
+                    defer names.deinit(gpa);
+                    try buf.writer.print("`{f} {f}` is ambiguous: nothing determines its type.", .{ names.class(c.class, env.classes.spelling(c.class)), t.namedOperand(&names) });
+                },
+                inline .over_application, .view_not_function, .not_a_function, .ambiguous_output => |shown, tag| {
+                    const t = try subst.resolveDeep(shown);
+                    var names = try env.messageNames(gpa, &.{t}, &.{});
+                    defer names.deinit(gpa);
+                    const message = switch (tag) {
+                        .over_application => "`{f}` has no argument left to take.",
+                        .view_not_function => "The expression of a view pattern must be a function; found `{f}`.",
+                        .not_a_function => "`{f}` is not a function.",
+                        .ambiguous_output => "`main`'s output `{f}` is ambiguous: nothing determines its type.",
+                        else => comptime unreachable,
+                    };
+                    try buf.writer.print(message, .{t.named(&names)});
+                },
                 .unbound => |id| try buf.writer.print(
                     "`{s}` is not defined.",
-                    .{program.env.interner.spelling(id)},
+                    .{env.interner.spelling(id)},
                 ),
                 .too_many_variables => |n| try buf.writer.print(
                     "The type has {d} variables, more than the {d} a scheme can quantify.",
                     .{ n, std.math.maxInt(types.TypeVar) },
-                ),
-                .ambiguous => |c| try buf.writer.print(
-                    "`{s} {f}` is ambiguous: nothing determines its type.",
-                    .{ program.env.classes.spelling(c.class), (try subst.resolveDeep(c.type)).namedOperand(&names) },
-                ),
-                .ambiguous_output => |t| try buf.writer.print(
-                    "`main`'s output `{f}` is ambiguous: nothing determines its type.",
-                    .{(try subst.resolveDeep(t)).named(&names)},
                 ),
             }
 

@@ -148,6 +148,7 @@
 - Type variables after `z` print as `a1`, `b1` and so on, so a signature may have 255 of them.
 - `tql query` with no target files or an empty path is an error, and a missing file reports `no such file or directory`.
 - A directory target with an unreadable subdirectory reports that subdirectory and queries every other file under it.
+- A type error names two types or classes with the same spelling by module, as in ``Expected `Prim.Maybe Int`, found `Other.Maybe Int` ``, and a user type named `List` prints as `List a`, not `[a]`.
 - An entry headed with a library module's name, such as `module Data.Maybe;`, is an `ambiguous-module` error, not a false `import-cycle`, and so is an import of the entry's name that a module file also has.
 
 ## 0.3.1 (2026-10-03)

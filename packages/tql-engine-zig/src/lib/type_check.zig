@@ -72,7 +72,7 @@ test "occurs check sees through a solved metavariable" {
 
     const a = try t.subst.fresh(.type);
     const b = try t.subst.fresh(.type);
-    t.subst.bind(b.meta, try t.subst.datatypes.list(t.subst.arena, a));
+    t.subst.bind(b.meta, try core.datatypes.list(t.subst.arena, a));
 
     // `a` is not syntactically in `b`, but it is once `b` is resolved.
     try std.testing.expect(t.subst.occurs(a.meta, b));

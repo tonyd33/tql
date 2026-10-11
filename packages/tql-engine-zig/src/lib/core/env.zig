@@ -109,6 +109,32 @@ pub const Env = struct {
         return self.schemes.get(id);
     }
 
+    /// Names for one message printing `ts` and `cs`, qualifying each head
+    /// whose spelling a different head of its namespace shares.
+    pub fn messageNames(self: *const Env, gpa: Allocator, ts: []const types.Type, cs: []const classes.ClassId) Allocator.Error!types.MessageNames {
+        var heads: std.ArrayList(types.Spelled) = .empty;
+        defer heads.deinit(gpa);
+        for (ts) |t| try types.collectHeads(gpa, t, &heads);
+        for (cs) |c| try heads.append(gpa, .{ .head = .{ .class = c }, .spelling = self.classes.spelling(c) });
+
+        var names: types.MessageNames = .{};
+        errdefer names.deinit(gpa);
+        for (heads.items) |h| {
+            const clashes = for (heads.items) |other| {
+                if (std.meta.activeTag(other.head) == std.meta.activeTag(h.head) and
+                    !std.meta.eql(other.head, h.head) and
+                    std.mem.eql(u8, other.spelling, h.spelling)) break true;
+            } else false;
+            if (!clashes or names.moduleOf(h.head) != null) continue;
+            const module = switch (h.head) {
+                .type => |id| self.datatypes.get(id).module,
+                .class => |id| self.classes.get(id).name.module.?,
+            };
+            try names.qualified.append(gpa, .{ .head = h.head, .module = self.interner.moduleName(module) });
+        }
+        return names;
+    }
+
     pub fn setScheme(self: *Env, id: symbols.SymbolId, scheme: types.Scheme) Allocator.Error!void {
         try self.schemes.put(id, scheme);
     }
@@ -142,7 +168,7 @@ pub const Env = struct {
             .fields = fields,
         }}));
 
-        for ([_]classes.ClassId{ .eq, .ord, .serial }) |class| {
+        for (classes.derivable) |class| {
             const context = try scratch.alloc(classes.Requirement, arity);
             for (context, 0..) |*requirement, i| requirement.* = .{ .class = class, .variable = @intCast(i) };
             _ = try self.declareInstance(.{

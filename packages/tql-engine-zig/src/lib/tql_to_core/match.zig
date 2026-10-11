@@ -1315,7 +1315,7 @@ const Witness = struct {
 
     fn isList(self: Witness, step: Step) bool {
         const lowerer = self.matcher.lowerer;
-        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == lowerer.scope.env.datatypes.listId();
+        return datatypes.ownerOf(&lowerer.env.interner, step.constructor) == datatypes.list_id;
     }
 
     fn isTuple(self: Witness, step: Step) bool {
