@@ -10,7 +10,7 @@ f x = 1;
 main = const [];
 
 --- error ---
-error[type-mismatch]: `a` labels two fields of one record
+error[duplicate-definition]: `a` labels two fields of one record
  --> 3:6
   |
 3 | f :: {a: Int, a: String} -> Int;

@@ -762,7 +762,7 @@ const Translator = struct {
         if (copies.len > 1) for (copies[0 .. copies.len - 1], copies[1..]) |previous, f| {
             if (!std.mem.eql(u8, previous.label, f.label)) continue;
             try self.sink.report(
-                .type_mismatch,
+                .duplicate_definition,
                 span,
                 "`{s}` labels two fields of one record",
                 .{f.label},
