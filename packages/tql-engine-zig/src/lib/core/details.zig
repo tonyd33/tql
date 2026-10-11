@@ -233,8 +233,11 @@ pub const Details = union(enum) {
     synthesized: Synthesized,
     /// A data constructor, at its position in the datatype that declares it.
     constructor: struct { owner: symbols.TypeId, tag: u32 },
-    /// A pattern synonym of `arity` parameters, matched by calling `matcher`.
-    synonym: struct { arity: u32, matcher: symbols.SymbolId },
+    /// A pattern synonym, matched by calling `matcher`.
+    synonym: struct { matcher: symbols.SymbolId },
+    /// A pattern synonym's matcher `\s k f -> ..`, whose `k` takes `arity`
+    /// arguments.
+    matcher: struct { arity: u32 },
     /// Method `index` of `class`.
     method: struct { class: classes.ClassId, index: u32 },
     /// Method `index` of `instance`'s class, as `instance` implements it.

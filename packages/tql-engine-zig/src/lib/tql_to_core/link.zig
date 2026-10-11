@@ -352,12 +352,7 @@ pub const Desugarer = struct {
         const builder = core.Builder{ .allocator = self.env.?.allocator() };
         const interner = &self.env.?.interner;
         const tuples_before = self.env.?.tuples;
-        const scope: ModuleScope = .{
-            .module = module,
-            .imports = imports,
-            .exports = self.exports.items,
-            .env = &self.env.?,
-        };
+        const scope = try ModuleScope.init(self.env.?.allocator(), module, imports, self.exports.items, &self.env.?);
 
         // The module's datatypes, aliases and classes are kinded together:
         // each parameter's kind is what their bodies, fields and methods need
@@ -368,7 +363,7 @@ pub const Desugarer = struct {
         try class_linker.declareClasses(source);
         try self.declareTypes(&scope, source, &group, sink);
         try class_linker.declareMembers(source, &group);
-        try group.commit(&self.env.?, module);
+        try group.commit(&self.env.?);
         var methods: std.ArrayList(classes_mod.Method) = .empty;
         defer methods.deinit(self.allocator);
         try class_linker.declareInstances(source, &methods);

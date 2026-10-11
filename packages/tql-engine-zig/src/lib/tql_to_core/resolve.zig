@@ -158,11 +158,8 @@ fn intern(interner: *core.Interner, module: core.ModuleId, decl: *const cst.Decl
             if (interner.lookup(module, s.name) != null) return error.Collision;
             const spelling = try std.fmt.allocPrint(interner.allocator, "$m{s}", .{s.name});
             defer interner.allocator.free(spelling);
-            const matcher = try interner.intern(module, spelling, .vanilla);
-            const pattern = try interner.intern(module, s.name, .{ .synonym = .{
-                .arity = @intCast(s.parameters.len),
-                .matcher = matcher,
-            } });
+            const matcher = try interner.intern(module, spelling, .{ .matcher = .{ .arity = @intCast(s.parameters.len) } });
+            const pattern = try interner.intern(module, s.name, .{ .synonym = .{ .matcher = matcher } });
             return .{
                 .name = s.name,
                 .symbol = matcher,

@@ -1,0 +1,13 @@
+title: a `%` name outside `Prim` is unresolved
+grammar: typescript
+asserts: error
+
+--- tql ---
+main = pure (%ne_int 1 2);
+
+--- error ---
+error[unresolved-name]: `%ne_int` is not defined outside `Prim`
+ --> 1:14
+  |
+1 | main = pure (%ne_int 1 2);
+  |              ^^^^^^^

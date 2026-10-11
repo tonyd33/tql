@@ -16,5 +16,5 @@ let x = 1;
 --- values ---
 ["lexical_declaration"]
 --- types ---
-$mId :: a -> (a -> b) -> c -> b
+$mId :: a -> (a -> b) -> b -> b
 main :: Filter Node String

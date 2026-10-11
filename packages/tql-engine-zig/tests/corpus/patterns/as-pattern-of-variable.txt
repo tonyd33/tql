@@ -1,0 +1,15 @@
+title: an as-pattern of a variable binds both names to the value
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = Filter (\_ -> do {
+  x@y <- [1, 2];
+  return (x + y);
+});
+
+--- source ---
+class A {}
+
+--- values ---
+[2,4]

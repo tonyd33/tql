@@ -8,6 +8,7 @@ stops at 0 despite the infinite source.
 --- tql ---
 import Data.Foldable (any);
 
+from :: Int -> [Int];
 from n = pure n <|> from (n + 1);
 main = pure $ any (== 0) (from 0);
 
@@ -18,5 +19,5 @@ class A {}
 [true]
 
 --- types ---
-from :: Alternative a => Int -> a Int
+from :: Int -> [Int]
 main :: Filter Node Bool

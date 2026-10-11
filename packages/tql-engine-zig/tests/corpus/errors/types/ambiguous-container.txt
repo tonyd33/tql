@@ -1,0 +1,18 @@
+title: a container nothing determines is ambiguous
+grammar: typescript
+asserts: error
+
+--- tql ---
+count x = length (pure x);
+
+main = pure (count 1);
+
+--- source ---
+class A {}
+
+--- error ---
+error[ambiguous-constraint]: `Applicative a` is ambiguous: nothing determines its type.
+ --> 1:19
+  |
+1 | count x = length (pure x);
+  |                   ^^^^

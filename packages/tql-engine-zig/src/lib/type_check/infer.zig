@@ -397,7 +397,7 @@ pub const Inference = struct {
         };
 
         var generalized: [1]Generalized = undefined;
-        try self.generalizeGroup(&.{elaborated_value.type}, &.{l.value.span}, false, &generalized);
+        try self.generalizeGroup(&.{elaborated_value.type}, &.{l.value.span}, &generalized);
         const bound = try self.parameters(frame, generalized[0].dictionaries);
 
         const mark = self.scope.mark();
@@ -490,7 +490,10 @@ pub const Inference = struct {
     ) Error!void {
         const placeholders = try self.gpa.alloc(types.Type, bindings.len);
         defer self.gpa.free(placeholders);
-        for (placeholders) |*p| p.* = try self.subst.fresh(.type);
+        for (bindings, placeholders) |b, *p| p.* = switch (self.env.interner.details(b.name)) {
+            .matcher => |m| try self.matcherShape(m.arity),
+            else => try self.subst.fresh(.type),
+        };
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
@@ -518,10 +521,17 @@ pub const Inference = struct {
         // Generalize against the environment *outside* the group, so the
         // placeholders being dropped is what lets them be quantified.
         self.scope.truncate(mark);
-        try self.generalizeGroup(placeholders, spans, enclosing == null, out);
+        try self.generalizeGroup(placeholders, spans, out);
         for (bindings, out) |b, g| {
             if (g.dictionaries.len > 0) try self.evidence.parameters.put(b.name, g.dictionaries);
         }
+    }
+
+    /// A matcher's type of `arity` holes, each variable fresh.
+    fn matcherShape(self: *Inference, arity: u32) Error!types.Type {
+        const holes = try self.subst.arena.alloc(types.Type, arity);
+        for (holes) |*hole| hole.* = try self.subst.fresh(.type);
+        return try types.matcher(self.subst.arena, try self.subst.fresh(.type), holes, try self.subst.fresh(.type));
     }
 
     /// One member's generalization.
@@ -547,8 +557,6 @@ pub const Inference = struct {
     /// metavariables it mentions. A residual on a metavariable no member
     /// quantifies is still owed by an enclosing scope.
     ///
-    /// A top-level group first defaults what nothing can determine.
-    ///
     /// Preconditions:
     /// - `spans.len == group.len`
     /// - `out.len == group.len`
@@ -556,7 +564,6 @@ pub const Inference = struct {
         self: *Inference,
         group: []const types.Type,
         spans: []const diagnostic.Span,
-        top_level: bool,
         out: []Generalized,
     ) Error!void {
         try self.recheck();
@@ -590,8 +597,6 @@ pub const Inference = struct {
             }
         }
         bounds[group.len] = quantified.items.len;
-
-        if (top_level) try self.defaultAmbiguous(quantified.items);
 
         var taken: std.ArrayList(constraints.Constraint) = .empty;
         defer taken.deinit(self.gpa);
@@ -638,33 +643,6 @@ pub const Inference = struct {
                 .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, context),
             };
         }
-    }
-
-    /// Binds to `List` each metavariable of `List`'s kind that an undecided
-    /// constraint mentions and `kept` lacks, when no constraint mentioning it
-    /// fails at `List`, then rechecks the undecided constraints.
-    fn defaultAmbiguous(self: *Inference, kept: []const types.Meta) Error!void {
-        const list = try types.constructed(self.subst.arena, self.subst.datatypes.listId(), types.list_spelling, &.{});
-        const kind = try unify.kindOf(self.subst, list);
-
-        var free: std.ArrayList(types.Meta) = .empty;
-        defer free.deinit(self.gpa);
-        for (self.undecided.all()) |c| try self.subst.freeMetas(c.type, &free);
-
-        var bound = false;
-        for (free.items) |id| {
-            if (std.mem.indexOfScalar(types.Meta, kept, id) != null) continue;
-            if (!self.subst.kindOf(id).eql(kind)) continue;
-            const holds = for (self.undecided.all()) |c| {
-                if (!try self.subst.mentionsAny(c.type, &.{id})) continue;
-                const at_list = try self.subst.assigned(c.type, id, list);
-                if (try constraints.entails(self.subst, c.class, at_list) == .fails) break false;
-            } else true;
-            if (!holds) continue;
-            self.subst.bind(id, list);
-            bound = true;
-        }
-        if (bound) try self.recheck();
     }
 
     /// Re-decides the undecided constraints, failing at the first that no
@@ -957,8 +935,6 @@ pub const Inference = struct {
 
         // 1. `Filter Node tau`
         const output = try self.mainOutput(instantiated.type, span);
-
-        try self.defaultAmbiguous(&.{});
 
         // 2. `Serial tau`
         if (try self.undecided.require(self.subst, .serial, output, span)) |v| {

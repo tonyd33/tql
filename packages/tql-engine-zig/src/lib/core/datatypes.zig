@@ -43,6 +43,7 @@ pub const Datatype = struct {
 
 /// `type Named r = {name: String | r};`
 pub const Alias = struct {
+    module: symbols.ModuleId,
     name: []const u8,
     parameters: []const Parameter,
     /// Names parameter `i` as `types.Type.variable` `i`.
@@ -162,7 +163,7 @@ pub const Registry = struct {
     /// declarations fill the constructors in.
     pub fn reserveBuiltins(self: *Registry, interner: *symbols.Interner) !void {
         for ([_]types.Type{ types.range_type, types.point_type }) |t| {
-            try self.defineAlias(.prim, .{ .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
+            try self.defineAlias(.{ .module = .prim, .name = t.alias.spelling, .parameters = &.{}, .body = t.alias.expansion, .kind = .type });
         }
         for (Structural.all) |s| {
             const id = try self.declare(interner, .prim, s.name, s.parameters, &.{}, .data);
@@ -319,10 +320,10 @@ pub const Registry = struct {
     }
 
     /// `alias` and everything it points to must outlive the registry.
-    pub fn defineAlias(self: *Registry, module: symbols.ModuleId, alias: Alias) Allocator.Error!void {
+    pub fn defineAlias(self: *Registry, alias: Alias) Allocator.Error!void {
         const stored = try self.allocator.create(Alias);
         stored.* = alias;
-        try self.aliases.put(self.allocator, .{ .module = module, .name = alias.name }, stored);
+        try self.aliases.put(self.allocator, .{ .module = alias.module, .name = alias.name }, stored);
     }
 
     /// The alias `module` declares as `name`.
