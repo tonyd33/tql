@@ -1,4 +1,46 @@
 //! Lowering: checked Core to STG terms.
+//!
+//! ## Why the machine computes what Core means
+//!
+//! `core.zig` gives a term a meaning, and `stg/eval.zig` gives rules for
+//! running one. Nothing so far says the two agree. If they didn't, every
+//! argument the simplifier makes about meaning would be about a program
+//! nobody runs.
+//!
+//! There are two gaps to close. First, translation must not change the
+//! meaning. Read an STG term back as Core by forgetting its annotations: a
+//! closure's free variable list, the grouping of a call's arguments, and the
+//! difference between `let-no-escape` and `let`. Then translation keeps the
+//! meaning when every step it takes is an equation of Core, and each one is:
+//!
+//! - Atomizing an argument turns `f e` into `let t = e in f t`. With `t`
+//!   fresh, both mean `[[f]] env ([[e]] env)`.
+//! - Collecting a spine turns `((f a) b) c` into one call of three
+//!   arguments. Partial and Exact apply them in the same order as one at a
+//!   time.
+//! - A constructor or primitive used as a value becomes its wrapper, `C` to
+//!   `\f_1 .. f_n -> C f_1 .. f_n`. That's eta expansion, which holds here
+//!   because `C` is a value. See Lifted functions in `core.zig`.
+//! - A join point becomes `let-no-escape`, which means what the `let` did.
+//!
+//! Second, the rules must compute the meaning. Launchbury proved his natural
+//! semantics correct with respect to a denotational semantics like the one
+//! in `core.zig`: if a term evaluates to a value, that value is its meaning.
+//! Adequacy, the converse, that a term whose meaning isn't `_|_` does
+//! evaluate, had a gap in his proof that Breitner closed.
+//!
+//! Note that both proofs are for Launchbury's language, which is smaller
+//! than ours: no constructors, no `case`, no primitives, and no eval/apply.
+//! The extensions are the standard ones, and we rely on the results carrying
+//! over rather than on a proof for this machine. Note also the one place the
+//! machine falls short of the meaning on purpose: it can run out of stack.
+//!
+//! ## References
+//!
+//! - John Launchbury. "A natural semantics for lazy evaluation". POPL 1993,
+//!   pp. 144-154.
+//! - Joachim Breitner. "The adequacy of Launchbury's natural semantics for
+//!   lazy evaluation". Journal of Functional Programming 28, 2018.
 
 const translate_mod = @import("core_to_stg/translate.zig");
 

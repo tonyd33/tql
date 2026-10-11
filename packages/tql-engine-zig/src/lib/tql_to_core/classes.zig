@@ -2,6 +2,21 @@
 //!
 //! Each written instance method becomes an ordinary definition, annotated
 //! with the class method's scheme at the instance head.
+//!
+//! A class is, at run time, a datatype of its dictionaries. Consider
+//!
+//! ```tql
+//! class Eq a => Ord a where {
+//!   compare :: a -> a -> Ordering;
+//! };
+//! ```
+//!
+//! Its dictionaries are built by `dict[Ord]`, with one field for the `Eq`
+//! dictionary and one per method. `compare` selects its field, and
+//! `super[Ord,Eq]` selects the `Eq` one. An instance is a global holding its
+//! dictionary, a function of its context's dictionaries when it has a
+//! context. Inference decides which dictionary each use passes. See Classes
+//! in `type_check.zig`.
 
 const std = @import("std");
 const core = @import("../core.zig");

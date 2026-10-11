@@ -1,8 +1,7 @@
 //! Which symbols a Core term mentions.
 //!
-//! Every binder is globally unique, interned once by resolution, so two
-//! binders never share a SymbolId and a bound name cannot shadow another. No
-//! walk here tracks scope.
+//! Each symbol is bound at most once, so a bound name cannot shadow another
+//! and no walk here tracks scope. See Binders in `core.zig`.
 
 const std = @import("std");
 const core = @import("../core.zig");

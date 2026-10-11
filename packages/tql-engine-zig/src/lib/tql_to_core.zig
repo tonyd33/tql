@@ -1,5 +1,53 @@
-//! Module for converting surface TQL syntax to Core, a lower-level
-//! lambda-style language.
+//! Desugaring: TQL source to Core.
+//!
+//! ## What a query means
+//!
+//! TQL has no semantics of its own. A query means what the Core it desugars
+//! to means, and `core.zig` says what that is. So this pass is where each
+//! piece of surface syntax gets its meaning, the way the Haskell Report
+//! defines `do` and list comprehensions by translation into a smaller
+//! kernel.
+//!
+//! The translations, read left to right:
+//!
+//! ```
+//! \x y -> e                  \x -> \y -> e
+//! f x y = e                  f = \x -> \y -> e
+//! if c then t else f         case c of { False -> f; True -> t }
+//! [e_1, .., e_n]             Cons e_1 (.. (Cons e_n Nil) ..)
+//! e_1 : e_2                  Cons e_1 e_2
+//! (e_1, .., e_n)             the n-tuple constructor applied to e_1 .. e_n
+//! {l_1 = e_1, ..}            record[l_1,..] e_1 ..      (labels sorted)
+//! e.l                        select[l] e
+//! _.l                        select[l]
+//! p | q                      compose_flipped p q
+//! p . q                      compose p q
+//! p <|> q                    alt p q
+//! e_1 >> e_2                 bind e_1 (\_ -> e_2)
+//! e_1 == e_2                 eq e_1 e_2
+//! e_1 != e_2                 case eq e_1 e_2 of { False -> True; True -> False }
+//! e_1 < e_2                  case compare e_1 e_2 of { LT -> True; EQ -> False; GT -> False }
+//! e_1 + e_2                  op[+] e_1 e_2
+//! #f                         Filter field[f]
+//! e#f                        field[f] e
+//! (op e)                     \x -> x op e
+//! do { x <- e; s; r }        bind e (\x -> do { s; r })
+//! do { e; s; r }             bind e (\_ -> do { s; r })
+//! let { b; .. } in e         a let or letrec per binding group of b ..
+//! case e of { alts }         see match.zig
+//! ```
+//!
+//! The other comparisons follow `<`, with the alternatives answering as the
+//! comparison does. `bind`, `compose` and the rest are whatever the library
+//! defines them as, found by what they are rather than by name, so a query
+//! that shadows `bind` doesn't change what `do` means.
+//!
+//! A `do` bind whose pattern can fail yields `empty` for each value it
+//! doesn't match, so `Just x <- e` skips the `Nothing`s.
+//!
+//! Note that a section binds a compound operand outside its lambda, so
+//! `(op f x)` evaluates `f x` at most once, however often the section is
+//! called.
 
 const annotation = @import("tql_to_core/annotation.zig");
 const desugar = @import("tql_to_core/desugar.zig");

@@ -110,9 +110,8 @@ pub fn synthesizedScheme(
 
 /// `record[l_1,...,l_n] : t_1 -> ... -> t_n -> {l_1: t_1, ..., l_n: t_n}`.
 ///
-/// The one scheme whose *shape* depends on its symbol's metadata rather than
-/// its identity, so it is constructed per symbol with no table row. Quantifies
-/// one variable per field.
+/// Built per symbol, since its shape depends on the labels. Quantifies one
+/// variable per field.
 fn recordScheme(arena: Allocator, labels: []const []const u8) SchemeError!types.Scheme {
     if (labels.len > max_record_fields) return error.TooManyRecordFields;
 

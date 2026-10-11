@@ -27,8 +27,7 @@ pub const Failure = union(enum) {
     unknown_qualifier: []const u8,
 };
 
-/// A name in the type namespace: a datatype, an alias, a primitive, or a
-/// class.
+/// A name in the type namespace: a datatype, an alias, or a class.
 pub const TypeName = union(enum) {
     datatype: datatypes.TypeId,
     alias: *const datatypes.Alias,

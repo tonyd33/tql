@@ -63,14 +63,6 @@ pub const Kind = union(enum) {
         };
     }
 
-    /// How many arrows `t` is written with before its result.
-    pub fn arrowCount(t: Type) usize {
-        var count: usize = 0;
-        var walk = t;
-        while (walk == .function) : (walk = walk.function.to) count += 1;
-        return count;
-    }
-
     /// Returns `froms[0] -> .. -> froms[n-1] -> to`.
     pub fn arrows(allocator: std.mem.Allocator, froms: []const Kind, to: Kind) std.mem.Allocator.Error!Kind {
         var result = to;
@@ -220,8 +212,9 @@ pub const Type = union(enum) {
     const Position = enum { top, arrow_from, argument };
 
     /// Format with metavariables named `a`, `b`, ... in order of first
-    /// appearance, and each head `names` qualifies written with its module. Share one `names` across every type in a message so a
-    /// metavariable keeps its letter.
+    /// appearance, writing each head `names` qualifies with its module. Share
+    /// one `names` across every type in a message so a metavariable keeps its
+    /// letter.
     pub fn named(self: Type, names: *MessageNames) Named {
         return .{ .type = self, .names = names };
     }

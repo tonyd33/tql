@@ -1,4 +1,20 @@
-//! By convention, root.zig is the root source file when making a library.
+//! The TQL engine: compiles a query and runs it over a parsed file.
+//!
+//! A query goes through these stages, in order, each with its own preamble:
+//!
+//! - `parse.zig`: query source to the typed CST in `lang/cst.zig`.
+//! - `load.zig` and `library.zig`: the modules the query imports, the
+//!   library's compiled once and shared.
+//! - `tql_to_core.zig`: desugaring to Core, which is where a query gets its
+//!   meaning.
+//! - `type_check.zig`: inference, dictionary passing, and newtype erasure.
+//! - `core_to_core.zig`: the simplifier.
+//! - `core_to_stg.zig`: lowering to the terms the machine runs.
+//! - `stg/eval.zig`: the machine, which applies `main` to the target's root
+//!   node and serializes what it returns.
+//!
+//! `core.zig` says what a Core term means, and every stage after desugaring
+//! is held to it. Start there.
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const build_options = @import("build_options");

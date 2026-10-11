@@ -1,4 +1,17 @@
 //! Strongly connected components of a reference graph.
+//!
+//! Several passes need to know which definitions refer to each other.
+//! Inference generalizes one component at a time (see Binding groups in
+//! `type_check.zig`), desugaring splits a `let` into a `let` or `letrec`
+//! per component, and occurrence analysis splits a `letrec` the same way
+//! before choosing loop breakers. Tarjan's algorithm finds them all in one
+//! depth-first walk, and hands them back callees first, which is the order
+//! every one of those passes wants.
+//!
+//! ## References
+//!
+//! - Robert Tarjan. "Depth-first search and linear graph algorithms". SIAM
+//!   Journal on Computing 1(2), 1972, pp. 146-160.
 
 const std = @import("std");
 

@@ -1,18 +1,84 @@
 //! Core-to-Core simplification of a checked program.
 //!
-//! A simplifier run iterates until no rewrite fires or its iterations run
-//! out. Each iteration drops the definitions `main` does not reach, analyses
-//! every binder's occurrences, then simplifies every definition in one
-//! traversal. After a run, each dictionary every call of a function passes
-//! the same is substituted, and if one was, another run follows, for a
-//! bounded number of rounds. Each phase runs this: first holding back from
-//! inlining the functions a law matches on, then not.
+//! Desugared Core is written for clarity, not speed. Consider
 //!
-//! Every rewrite is an equation of the call-by-need lambda calculus or a law
-//! of the language, so skipping this pass changes no observable result, and
-//! the corpus is run both ways.
+//! ```tql
+//! main = do {
+//!   guard True;
+//!   return 1;
+//! };
+//! ```
+//!
+//! which desugars to `bind (guard True) (\_ -> return 1)`: a call to the list
+//! monad's `bind`, through a dictionary, of a `guard` that builds a
+//! one-element list only for `bind` to take it apart again. The simplifier
+//! turns it into
+//!
+//! ```
+//! main = \x -> Cons 1 Nil
+//! ```
+//!
+//! by inlining `bind`, `guard` and `return`, then cleaning up after them.
+//! Almost every query gets the same treatment, because the library writes
+//! queries as compositions of small functions and dictionaries.
+//!
+//! ## What a rewrite may do
+//!
+//! Every rewrite here must keep the meaning of the term it rewrites, `_|_`
+//! included (see Meaning in `core.zig`), and must not duplicate work (see
+//! Meaning and cost). Skipping this pass therefore changes no observable
+//! result, and the corpus runs every query both ways.
+//!
+//! The rewrites come in two kinds. Most are equations of the calculus, such
+//! as beta reduction or a `case` of a known constructor, and hold for every
+//! term. The laws in `laws.zig` are different: `bind (Cons e Nil) f = f e`
+//! holds because of what the list monad's `bind` means, not because of how
+//! Core works, so each one carries side conditions the calculus doesn't need
+//! to state.
+//!
+//! ## Iterations
+//!
+//! One rewrite tends to expose another: inlining `guard True` above leaves a
+//! `case True of`, which a second look takes the alternative of. So a run
+//! iterates until no rewrite fires. Each iteration drops the definitions
+//! `main` doesn't reach, analyses every binder's occurrences, then simplifies
+//! every definition in one traversal.
+//!
+//! Nothing guarantees a fixed point comes quickly, though, so a run stops
+//! after `max_iterations` either way. That's safe, since every iteration's
+//! output means what its input did. It may just be slower than it could be.
+//!
+//! ## Phases
+//!
+//! You might wonder why there are two phases. A law matches on the names of
+//! library functions, such as `bind` or `of_kind`, and inlining one of them
+//! destroys what the law would have matched. Consider
+//!
+//! ```tql
+//! main = children | of_kind :class_declaration;
+//! ```
+//!
+//! Inline `of_kind` first and we're left with a lambda testing each child's
+//! kind. Fire the law first and we get `%children_of_kind
+//! :class_declaration`, which never builds the list of children at all. So
+//! the first phase inlines every function except those a law matches on,
+//! giving the laws their chance, and the second inlines everything.
+//!
+//! Within each phase, after a run, each dictionary every call of a function
+//! passes the same is substituted into the function's body. That turns calls
+//! through the dictionary into calls of known methods, which the next run can
+//! inline, so a run follows each substitution, for a bounded number of
+//! rounds.
 //!
 //! Runs after inference, so a rewrite may assume its input type-checked.
+//!
+//! ## References
+//!
+//! - Simon Peyton Jones and Andre Santos. "A transformation-based optimiser
+//!   for Haskell". Science of Computer Programming 32(1-3), 1998, pp. 3-47.
+//! - Simon Peyton Jones and Simon Marlow. "Secrets of the Glasgow Haskell
+//!   Compiler inliner". Journal of Functional Programming 12(4-5), 2002,
+//!   pp. 393-434.
 
 const std = @import("std");
 const core = @import("core.zig");
