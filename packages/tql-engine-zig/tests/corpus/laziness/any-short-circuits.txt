@@ -9,7 +9,7 @@ stops at 0 despite the infinite source.
 import Data.Foldable (any);
 
 from n = pure n <|> from (n + 1);
-main = pure $ any (= 0) (from 0);
+main = pure $ any (== 0) (from 0);
 
 --- source ---
 class A {}

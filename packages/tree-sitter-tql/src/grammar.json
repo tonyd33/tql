@@ -1442,7 +1442,7 @@
               "members": [
                 {
                   "type": "STRING",
-                  "value": "="
+                  "value": "=="
                 },
                 {
                   "type": "STRING",
@@ -3120,7 +3120,7 @@
         },
         {
           "type": "STRING",
-          "value": "="
+          "value": "=="
         },
         {
           "type": "STRING",

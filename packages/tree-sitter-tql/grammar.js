@@ -298,7 +298,10 @@ module.exports = grammar({
         PREC.cmp,
         seq(
           field("left", $._expression),
-          field("operator", choice("=", "!=", "<", "<=", ">", ">=", "~", "!~")),
+          field(
+            "operator",
+            choice("==", "!=", "<", "<=", ">", ">=", "~", "!~"),
+          ),
           field("right", $._expression),
         ),
       ),
@@ -618,7 +621,7 @@ module.exports = grammar({
         "<|>",
         "or",
         "and",
-        "=",
+        "==",
         "!=",
         "<",
         "<=",

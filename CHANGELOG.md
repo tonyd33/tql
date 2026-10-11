@@ -11,7 +11,8 @@
 - `range` returns a record.
 - `<|>` binds tighter than `|`: `a <|> b | f` is `(a <|> b) | f`.
 - Datatypes are declared with `data`: `data Bool = False | True;`.
-- `kind` returns a `Kind`, not a `String`: write `kind n = :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
+- Equality is `==`: write `a == b` and `(== 1)` for `a = b` and `(= 1)`. `=` in an expression is a syntax error. `!=` is unchanged.
+- `kind` returns a `Kind`, not a `String`: write `kind n == :comment` for `kind n = "comment"`, and `kind_name n` where a string is needed, such as an anonymous token's spelling. A kind compared this way is checked against the grammar.
 - `_ <- e` no longer puts `_` in scope.
 - A variable inside a `case` pattern may not shadow a local: in `f x xs = case xs of { [x] -> x; _ -> 0; };` the `x` in `[x]` is a `shadowed-local` error. A variable naming the whole value, as in `case e of { x -> x; }`, still may.
 - A declared type no longer has `Eq` implicitly. Add `deriving (Eq)`: `data Shape = Circle Int deriving (Eq);`.
@@ -44,9 +45,9 @@
 - Added open record types to signatures: `{name: String | r}` is any record with a `name` field.
 - Added type aliases: `type Named r = {name: String | r};`. `Range` and `Point` are aliases now.
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
-- Added operator sections: `(= 1)` is `\x -> x = 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
+- Added operator sections: `(== 1)` is `\x -> x == 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.
 - Added `subtract`.
-- Added `div`, `quot` and `rem` to `Data.Int`. `div` and `mod` floor, `quot` and `rem` truncate, and each pair satisfies `q * b + r = a` for every `a` and `b`.
+- Added `div`, `quot` and `rem` to `Data.Int`. `div` and `mod` floor, `quot` and `rem` truncate, and each pair satisfies `q * b + r == a` for every `a` and `b`.
 - A query may define a name or declare a type the prelude has.
 - Added modules: `module A.B (x, T(..));` names a module and its exports, and `import A.B;`, `import A.B (x);`, `import A.B hiding (x);` and `import A.B as Q;` bring them into scope. `Q.x` names an export of the import qualified as `Q`. `import Prelude hiding (x);` replaces the implicit prelude import.
 - `tql query` finds `import A.B` as `A/B.tql` in the query file's directory, then each `-I dir`, then each directory in `TQL_PATH`.
@@ -55,17 +56,17 @@
 - The built-in types `Int`, `String`, `Regex`, `Node`, `Kind`, `Range` and `Point` are prelude exports: `import Prelude hiding (Int)` and `P.Int` work, and a module may declare its own `Int`.
 - Added `kind_name :: Node -> String`, a node's kind as a string. An anonymous token's is its spelling.
 - Added `is_extra :: Node -> Bool`, true for a grammar's extras such as comments: `named_children | keep (not . is_extra)` drops comments.
-- A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n = 0 then 0 else 1 + nest (n - 1) [x];`.
-- Kinds compare with `=` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
+- A function with a signature may call itself at another type: `nest :: Int -> a -> Int; nest n x = if n == 0 then 0 else 1 + nest (n - 1) [x];`.
+- Kinds compare with `==` and `!=`, and a `Kind` outputs as its name: `main = pure :comment;` yields `["comment"]`.
 - `do` binds take the same patterns as `case`: `[a, b] <- xs;` binds each two-element list in `xs` and skips the others.
 - Added view patterns: `(e -> p)` matches `p` against `e` applied to the value, so `(#decorator -> [])` matches a node with no decorator. A view may use variables bound to its left in the same pattern.
 - Added as-patterns `x@p` and conjunctions `p & q`, which match both sides against one value.
 - Added literal patterns: a number, string, `true`, `false` or kind `:k` matches a value equal to it, and a regex `r"..."` matches a string it matches. `case kind n of { :class_declaration -> 1; _ -> 0; }` dispatches on a node's kind.
-- Added guards to `case` alternatives: in `[a, b] if a = b -> 1`, a false guard tries the alternatives after it.
+- Added guards to `case` alternatives: in `[a, b] if a == b -> 1`, a false guard tries the alternatives after it.
 - Added node patterns: `:k { #f = p }` matches a node of kind `k` whose field `f` holds one node matching `p`, `:k {}` matches any node of kind `k`, and `{ #f = p }` any node with the field. `call@:call_expression { #function = :member_expression {} } <- descendants;` binds each method call.
 - Added classes and instances: `class Eq a => Describe a where { describe :: a -> String; };`.
 - Classes share the type namespace: `C(..)` in an export or import list brings a class's methods, `C` alone brings only the class, and a method may be listed alone as a value.
-- `Eq`, `Ord` and `Sized` are prelude classes: `class Eq a where { eq :: a -> a -> Bool; };`, `class Eq a => Ord a where { compare :: a -> a -> Ordering; };` and `class Sized a where { length :: a -> Int; };`. A written instance is what `=`, `<` and `length` call at its type: `instance Eq Name where { eq a b = ...; };`. `!=` is `not (eq a b)` and `<`, `<=`, `>`, `>=` are read off `compare`. Known types compile to the same comparisons as before.
+- `Eq`, `Ord` and `Sized` are prelude classes: `class Eq a where { eq :: a -> a -> Bool; };`, `class Eq a => Ord a where { compare :: a -> a -> Ordering; };` and `class Sized a where { length :: a -> Int; };`. A written instance is what `==`, `<` and `length` call at its type: `instance Eq Name where { eq a b = ...; };`. `!=` is `not (eq a b)` and `<`, `<=`, `>`, `>=` are read off `compare`. Known types compile to the same comparisons as before.
 - Added `deriving (Eq, Ord, Serial)` on a `data` declaration.
 - A declared type that derives `Serial` outputs as JSON, every constructor as `{"tag": "Just", "fields": [1]}` and a nullary one as `{"tag": "Nothing", "fields": []}`.
 - Added `Ordering`, with `LT`, `EQ` and `GT`, and `Ord` on `Bool` and lists: `False < True`, and lists compare lexicographically, `[1] < [1, 0]`.
@@ -120,7 +121,7 @@
 - A function bound in a `let` group can be used at different types by the other bindings in the group: `let { me x = x; a = me 1; b = me "s"; }` type-checks.
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 - `main`'s constraints are checked at the type it runs at: `main = arr (\x -> x < x);` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
-- `=` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
+- `==` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
 - The empty record `{}` can be used as a value: `main = pure {};` gives `[{}]`. It failed with `Unsupported`.
 - An unsatisfied constraint names its type variables as a type mismatch does: `` `Eq (a -> a)` is not satisfied``.
 

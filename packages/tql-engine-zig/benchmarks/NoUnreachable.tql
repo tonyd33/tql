@@ -7,7 +7,7 @@ function_kinds = [:function_declaration, :function_expression, :arrow_function, 
 
 loop_kinds = [:while_statement, :do_statement, :for_statement, :for_in_statement];
 
-is_one_of ks n = any (= kind n) ks;
+is_one_of ks n = any (== kind n) ks;
 
 is_breakable n = is_one_of loop_kinds n or is_kind :switch_statement n;
 
@@ -17,9 +17,9 @@ unlabeled = keep (not . has #label);
 
 jump_target = Filter (take 1 . run (ancestors | keep is_jump_target));
 
-exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (= n)) n;
+exited_by k n = has (descendants_of_kind k | unlabeled | jump_target | keep (== n)) n;
 
-breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((= text name) . text)) l;
+breaks_to l name = has (descendants_of_kind :break_statement | #label | keep ((== text name) . text)) l;
 
 label_broken l = any (breaks_to l) l#label;
 
@@ -72,17 +72,17 @@ unreachable_after xs = case xs of {
   s : rest -> if abrupt s then run_starts hoisted False rest else unreachable_after rest;
 };
 
-is_field m = kind_name m = "field_definition" or kind_name m = "public_field_definition";
+is_field m = kind_name m == "field_definition" or kind_name m == "public_field_definition";
 
 calls_super = has $ descendants_of_kind :call_expression | #function | of_kind :super;
 
-is_token s t = not (is_named t) and kind_name t = s;
+is_token s t = not (is_named t) and kind_name t == s;
 
 is_static = has $ children | keep (is_token "static");
 
 skips_field m = not (is_field m) or is_static m;
 
-is_constructor = has $ #name | keep ((= "constructor") . text);
+is_constructor = has $ #name | keep ((== "constructor") . text);
 
 unreachable_fields = do {
   children_of_kind :class_heritage;

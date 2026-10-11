@@ -276,7 +276,7 @@ main = children | is_kind :class_declaration | do { m <- #body; m };
 an expression statement
 ========================================
 
-main = do { c <- x; guard $ c = c; c };
+main = do { c <- x; guard $ c == c; c };
 
 ---
 

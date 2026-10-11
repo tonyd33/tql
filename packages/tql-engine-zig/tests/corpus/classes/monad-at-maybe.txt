@@ -7,7 +7,7 @@ import Control.Monad (join, kleisli, mfilter);
 import Data.Int (div, mod);
 import Data.Maybe (Maybe(..));
 
-half n = if n `mod` 2 = 0 then Just (n `div` 2) else Nothing;
+half n = if n `mod` 2 == 0 then Just (n `div` 2) else Nothing;
 
 main = Filter (\_ -> [
   bind (Just 4) half,

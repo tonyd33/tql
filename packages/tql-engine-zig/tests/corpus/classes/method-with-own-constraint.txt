@@ -18,7 +18,7 @@ class Labelled a where {
 data Pair = Pair Int Int;
 
 instance Container Pair where {
-  holds p x y = x = y;
+  holds p x y = x == y;
 };
 
 instance Labelled Int where {

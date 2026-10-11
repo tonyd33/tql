@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 
-same_name a b = a.name = b.name;
+same_name a b = a.name == b.name;
 main = pure $ same_name {name = 1, k = 2} {name = 1, j = "x"};
 
 --- source ---

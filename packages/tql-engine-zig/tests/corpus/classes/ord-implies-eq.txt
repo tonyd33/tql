@@ -1,13 +1,13 @@
-title: `Ord` gives `=` through its superclass
+title: `Ord` gives `==` through its superclass
 grammar: typescript
 asserts: types, values
 
-`within` asks only for `Ord a`, and its `=` needs `Eq a`, which `Ord a`
+`within` asks only for `Ord a`, and its `==` needs `Eq a`, which `Ord a`
 implies.
 
 --- tql ---
 within :: Ord a => a -> a -> a -> Bool;
-within lo hi x = lo <= x and x = x and x <= hi;
+within lo hi x = lo <= x and x == x and x <= hi;
 main = Filter (\_ -> [within 1 3 2, within "a" "b" "c"]);
 
 --- source ---

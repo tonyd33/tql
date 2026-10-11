@@ -6,7 +6,7 @@ asserts: values
 data Name = Name String;
 instance Eq Name where { eq a b = true; };
 instance Ord Name where { compare a b = GT; };
-main = Filter (\_ -> [Name "a" = Name "b", Name "a" != Name "b", Name "a" < Name "b", Name "a" > Name "b"]);
+main = Filter (\_ -> [Name "a" == Name "b", Name "a" != Name "b", Name "a" < Name "b", Name "a" > Name "b"]);
 
 --- source ---
 class A {}

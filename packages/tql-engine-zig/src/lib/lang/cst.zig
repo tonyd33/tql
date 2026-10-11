@@ -379,7 +379,7 @@ pub const BinaryOperator = enum {
             .multiply => "*",
             .add => "+",
             .subtract => "-",
-            .eq => "=",
+            .eq => "==",
             .ne => "!=",
             .lt => "<",
             .lte => "<=",
@@ -825,7 +825,7 @@ pub const Pattern = struct {
         pattern: Pattern,
     };
 
-    /// Matched by `=` against the value, or by `~` for a regex.
+    /// Matched by `==` against the value, or by `~` for a regex.
     pub const Literal = union(enum) {
         number: i64,
         string: []const u8,

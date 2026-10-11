@@ -2,7 +2,7 @@ title: a class entails a superclass two links up
 grammar: typescript
 asserts: types, values
 
-`Twin a` gives `Same a`, which gives `Eq a`, so `f` compares with `=` under
+`Twin a` gives `Same a`, which gives `Eq a`, so `f` compares with `==` under
 `Twin a` alone.
 
 --- tql ---
@@ -15,7 +15,7 @@ class Same a => Twin a where {
 };
 
 instance Same Int where {
-  same x y = x = y;
+  same x y = x == y;
 };
 
 instance Twin Int where {
@@ -23,7 +23,7 @@ instance Twin Int where {
 };
 
 f :: Twin a => a -> Bool;
-f x = x = x;
+f x = x == x;
 
 main = pure (f 1);
 

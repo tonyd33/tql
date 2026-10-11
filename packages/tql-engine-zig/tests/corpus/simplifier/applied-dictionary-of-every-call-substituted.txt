@@ -7,7 +7,7 @@ In `same`, the method selects from it as from any known instance.
 
 --- tql ---
 same :: Eq a => a -> a -> a -> Bool;
-same x y z = x = y and y = z and x = z;
+same x y z = x == y and y == z and x == z;
 
 main = Filter (\_ -> [same [1] [1] [1], same [1] [2] [1]]);
 

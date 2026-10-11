@@ -6,7 +6,7 @@ asserts: values
 import Data.Function (const);
 
 data Maybe a = Nothing | Just a deriving (Eq, Ord);
-main = Filter $ const [Just 1 < Just 2, Nothing < Just 0, Just [1] = Just [1], Just (Just 1) > Just Nothing];
+main = Filter $ const [Just 1 < Just 2, Nothing < Just 0, Just [1] == Just [1], Just (Just 1) > Just Nothing];
 
 --- source ---
 class A {}

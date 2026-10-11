@@ -6,7 +6,7 @@ asserts: types, values, simplified
 import Data.Int (div, mod);
 import Data.Maybe (Maybe(..));
 
-half n = if n `mod` 2 = 0 then Just (n `div` 2) else Nothing;
+half n = if n `mod` 2 == 0 then Just (n `div` 2) else Nothing;
 
 main = Filter (\_ -> [traverse half [2, 4], traverse half [2, 3]]);
 

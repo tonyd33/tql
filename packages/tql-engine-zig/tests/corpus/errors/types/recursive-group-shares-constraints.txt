@@ -6,7 +6,7 @@ asserts: error
 carry `Eq a` too. Calling `g` at `Regex` is refused just as calling `f` is.
 
 --- tql ---
-f x = if x = x then 1 else g x;
+f x = if x == x then 1 else g x;
 g x = f x;
 main = pure (g r"a");
 

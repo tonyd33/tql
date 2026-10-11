@@ -2,7 +2,7 @@ import Data.Foldable (any, concat_map);
 
 data Member = Member String String Node;
 
-is_accessor t = not (is_named t) and (kind_name t = "get" or kind_name t = "set");
+is_accessor t = not (is_named t) and (kind_name t == "get" or kind_name t == "set");
 
 accessor = or_else (children | keep is_accessor | arr kind_name) $ pure "init";
 
@@ -33,7 +33,7 @@ pair = do {
 
 shorthand n = Member (text n) "init" n;
 
-is_proto_setter = has $ #key | keep (not . is_kind :computed_property_name) | key_name | keep (= "__proto__");
+is_proto_setter = has $ #key | keep (not . is_kind :computed_property_name) | key_name | keep (== "__proto__");
 
 member =
   (of_kind :pair | keep (not . is_proto_setter) | pair)
@@ -42,7 +42,7 @@ member =
 
 clashes x y = case x of {
   Member n a _ -> case y of {
-    Member n2 b _ -> n = n2 and (a = "init" or b = "init" or a = b);
+    Member n2 b _ -> n == n2 and (a == "init" or b == "init" or a == b);
   };
 };
 

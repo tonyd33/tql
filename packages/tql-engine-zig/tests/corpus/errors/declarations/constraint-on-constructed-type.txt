@@ -7,7 +7,7 @@ import Data.Function (const);
 
 data Maybe a = Nothing | Just a deriving (Eq);
 f :: Eq (Maybe a) => Maybe a -> Bool;
-f x = x = x;
+f x = x == x;
 main = const [];
 
 --- error ---

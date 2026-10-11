@@ -1098,7 +1098,7 @@ pub const Machine = struct {
 
     /// Returns the quotient or remainder `primop` names. `div` and `mod`
     /// floor, `quot` and `rem` truncate, and each pair satisfies
-    /// `q * b + r = a` for every `a` and `b`: a zero divisor gives quotient
+    /// `q * b + r == a` for every `a` and `b`: a zero divisor gives quotient
     /// 0 and remainder `a`, and the least `Int` divided by `-1` wraps.
     fn divide(comptime primop: core.PrimOp, a: i64, b: i64) i64 {
         if (b == 0) return switch (primop) {
