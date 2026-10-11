@@ -216,7 +216,6 @@ in
     pkgs.ast-grep
     gritql
     pkgs.tree-sitter
-    pkgs.codeql
     pkgs.weggli
     pkgs.coccinelle
     pkgs.pmd
