@@ -566,11 +566,18 @@ pub const Lowerer = struct {
     fn record(self: *Lowerer, r: cst.Record, span: diagnostic.Span, scope: ?*const resolve.Scope) Error!core.Term {
         const order = try self.builder.slice(u32, r.fields.len);
         for (order, 0..) |*slot, i| slot.* = @intCast(i);
-        std.mem.sortUnstable(u32, order, r.fields, struct {
+        // Stable, so a repeated label's later field follows its earlier one.
+        std.mem.sort(u32, order, r.fields, struct {
             fn lt(fields: []const cst.RecordField, a: u32, b: u32) bool {
                 return std.mem.order(u8, fields[a].name, fields[b].name) == .lt;
             }
         }.lt);
+        if (order.len > 1) for (order[0 .. order.len - 1], order[1..]) |previous, i| {
+            const field = r.fields[i];
+            if (!std.mem.eql(u8, r.fields[previous].name, field.name)) continue;
+            try self.sink.report(.duplicate_definition, field.span, "`{s}` labels two fields of one record", .{field.name});
+            return error.DesugarFailed;
+        };
 
         const labels = try self.builder.slice([]const u8, r.fields.len);
         const arguments = try self.builder.slice(core.Term, r.fields.len);

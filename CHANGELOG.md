@@ -122,6 +122,7 @@
 - `children_of_kind` and `descendants_of_kind` given an anonymous token's kind, such as `kind open` for a `(`, yield those tokens. They yielded nothing, and so did `descendants root | of_kind (kind open)`.
 - `main`'s constraints are checked at the type it runs at: `main = arr (\x -> x < x);` is an `unsatisfied-constraint` error, since `Node` has no `Ord`. It was accepted.
 - `==` on a declared type holding a function, as in `data F = F (Int -> Int);`, is a compile error. It failed with `TypeError` when it ran.
+- A record literal that repeats a label, as in `{a = 1, a = "x"}`, is a `duplicate-definition` error.
 - The empty record `{}` can be used as a value: `main = pure {};` gives `[{}]`. It failed with `Unsupported`.
 - An unsatisfied constraint names its type variables as a type mismatch does: `` `Eq (a -> a)` is not satisfied``.
 
