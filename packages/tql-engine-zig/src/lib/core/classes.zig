@@ -21,6 +21,11 @@ pub const InstanceId = enum(u32) { _ };
 /// The classes `deriving` accepts.
 pub const derivable = [_]ClassId{ .eq, .ord, .serial };
 
+/// Whether a record has an instance of `class` when each of its fields does.
+pub fn coversRecords(class: ClassId) bool {
+    return class == .eq or class == .serial;
+}
+
 /// How a class's constraint is discharged at run time.
 pub const Evidence = enum {
     /// Handled by the machine on the value. No dictionary exists.
@@ -259,6 +264,28 @@ pub const Registry = struct {
     }
 };
 
+/// A `reduce` sink that keeps no leaf, for asking only whether a constraint
+/// is refuted.
+pub fn Discard(comptime E: type) type {
+    return struct {
+        pub const Error = E;
+
+        pub fn leaf(_: @This(), _: ClassId, _: types.Type) E!void {}
+    };
+}
+
+/// A `reduce` view of types over bound variables, with no metavariables to
+/// follow.
+pub const Bound = struct {
+    pub fn resolve(_: Bound, t: types.Type) types.Type {
+        return t;
+    }
+
+    pub fn normalize(_: Bound, t: types.Type) error{}!types.Type {
+        return types.unalias(t);
+    }
+};
+
 /// How many variables an instance head of type `t` is over.
 pub fn parameterCount(t: types.Type) u8 {
     const c = types.asApplied(t) orelse return 0;
@@ -271,11 +298,13 @@ pub fn parameterCount(t: types.Type) u8 {
 /// `view` supplies:
 /// - `resolve(t) Type`: `t` with every solved metavariable at its head
 ///   followed
-/// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head
-///   and rebuilding an application whose head is solved
+/// - `normalize(t) !Type`: `resolve`, also stripping every alias at the head,
+///   rebuilding an application whose head is solved, and following a
+///   record's row to the end
 ///
 /// `sink` supplies `leaf(class, t) !void`, for a constraint on a
-/// metavariable or bound variable, or one applied to types.
+/// metavariable or bound variable, on one applied to types, or on an open
+/// record whose known fields are not refuted.
 ///
 /// Returns the first refuted part of `t`, if any, written as `t` writes it.
 pub fn reduce(
@@ -299,16 +328,27 @@ pub fn reduce(
                 if (try reduce(registry, needed.class, argument, view, sink)) |culprit| return culprit;
             }
         },
-        .record => |r| switch (class) {
-            // A row holds when every field it comes to have does.
-            .eq, .serial => {
-                for (r.fields) |f| {
-                    if (try reduce(registry, class, f.type.*, view, sink)) |culprit| return culprit;
-                }
-                if (r.rest) |rest| return try reduce(registry, class, rest.*, view, sink);
-            },
-            else => return written,
+        .record => |r| {
+            if (!coversRecords(class)) return written;
+            if (r.rest == null) return try reduceFields(registry, class, r.fields, view, sink);
+            // An open record's known fields can refute it, and the rest is
+            // decided once its row is.
+            if (try reduceFields(registry, class, r.fields, view, Discard(@TypeOf(sink).Error){})) |culprit| return culprit;
+            try sink.leaf(class, expanded);
         },
+    }
+    return null;
+}
+
+fn reduceFields(
+    registry: *const Registry,
+    class: ClassId,
+    fields: []const types.Type.Field,
+    view: anytype,
+    sink: anytype,
+) @TypeOf(sink).Error!?types.Type {
+    for (fields) |f| {
+        if (try reduce(registry, class, f.type.*, view, sink)) |culprit| return culprit;
     }
     return null;
 }

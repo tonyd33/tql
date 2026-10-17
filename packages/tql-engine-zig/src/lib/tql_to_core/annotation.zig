@@ -669,8 +669,7 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
-    /// Translates `c`, whose type must have its class parameter's kind, or be
-    /// a row where the class ranges over `Type`.
+    /// Translates `c`, whose type must have its class parameter's kind.
     ///
     /// Preconditions:
     /// - The signature's type is already translated, so every variable it
@@ -682,22 +681,26 @@ const Translator = struct {
         self.variables = .seen;
         defer self.variables = outer;
 
-        // A row satisfies a class over `Type` when every field does.
-        if (c.variableName()) |name| {
-            const index = try self.binder(name, null, c.type.span);
-            const kind = self.vars.items[index].kind;
-            if (self.group.inference.resolve(kind) == .row and self.group.inference.unify(parameter, .type)) {
-                return .{ .class = class, .type = .{ .variable = index } };
-            }
-        }
         const t = try self.type(c.type, parameter);
+        const env = self.scope.env;
+        if (try classes.reduce(&env.classes, class, t, classes.Bound{}, classes.Discard(error{}){})) |culprit| {
+            var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
+            defer names.deinit(self.gpa);
+            try self.sink.report(.unsatisfied_constraint, c.span, "`{f} {f}` is never satisfied", .{
+                names.class(class, env.classes.spelling(class)),
+                culprit.namedOperand(&names),
+            });
+            return error.BadAnnotation;
+        }
+        const expanded = types.unalias(t);
+        if (expanded == .record and expanded.record.rest != null) return .{ .class = class, .type = t };
         var head = t;
         while (head == .application) head = head.application.head;
         if (head != .variable) {
             try self.sink.report(
                 .invalid_class,
                 c.type.span,
-                "a constraint must be on a type variable, or one applied to types",
+                "a constraint must be on a type variable, one applied to types, or an open record",
                 .{},
             );
             return error.BadAnnotation;

@@ -140,6 +140,18 @@ pub const Linker = struct {
         }
         // Once the methods have kinded every class.
         for (registered.items) |r| try self.superclassKinds(r, group);
+        // Once superclasses have unified every class's kind.
+        for (registered.items) |r| {
+            if (group.inference.resolve(group.classes.get(r.id).?) == .row) {
+                try self.sink.report(
+                    .invalid_class,
+                    r.declared.span,
+                    "`{s}`, the parameter of `{s}`, is a row; a class ranges over types",
+                    .{ r.declared.parameter, r.declared.name },
+                );
+                self.failed = true;
+            }
+        }
     }
 
     fn superclasses(self: *Linker, declared: *const cst.ClassDeclaration) annotation.Error![]const classes.ClassId {
@@ -540,7 +552,7 @@ pub const Linker = struct {
                 fields: for (self.env.datatypes.get(p.datatype).constructors, p.declared.constructors) |constructor, written| {
                     for (constructor.fields, written.fields) |field, written_field| {
                         leaves.clearRetainingCapacity();
-                        const view = Bound{};
+                        const view = classes.Bound{};
                         if (try classes.reduce(&self.env.classes, instance.class, field, view, Leaves{ .gpa = self.gpa, .out = &leaves })) |culprit| {
                             var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
                             defer names.deinit(self.gpa);
@@ -687,7 +699,7 @@ pub fn checkSuperclasses(gpa: Allocator, env: *const core.env.Env, sink: *diagno
 fn unmet(gpa: Allocator, env: *const core.env.Env, instance: classes.Instance, super: classes.ClassId) Error!?types.TypeClassConstraint {
     var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
     defer leaves.deinit(gpa);
-    if (try classes.reduce(&env.classes, super, instance.type, Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
+    if (try classes.reduce(&env.classes, super, instance.type, classes.Bound{}, Leaves{ .gpa = gpa, .out = &leaves })) |culprit| {
         return .{ .class = super, .type = culprit };
     }
     for (leaves.items) |leaf| {
@@ -804,19 +816,6 @@ const Derivation = struct {
             if (argument != .variable or argument.variable != i) return false;
         }
         return true;
-    }
-};
-
-/// Types over bound variables, with no metavariables to follow.
-const Bound = struct {
-    pub fn resolve(_: Bound, t: types.Type) types.Type {
-        return t;
-    }
-
-    pub fn normalize(_: Bound, t: types.Type) error{}!types.Type {
-        var current = t;
-        while (current == .alias) current = current.alias.expansion;
-        return current;
     }
 };
 

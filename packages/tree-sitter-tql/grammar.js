@@ -220,7 +220,10 @@ module.exports = grammar({
     class_constraint: $ =>
       seq(
         field("class", $.type_identifier),
-        field("type", choice($._type_variable, $.parenthesized_type)),
+        field(
+          "type",
+          choice($._type_variable, $.parenthesized_type, $.record_type),
+        ),
       ),
 
     definition: $ =>

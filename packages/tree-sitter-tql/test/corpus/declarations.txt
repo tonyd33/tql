@@ -182,6 +182,33 @@ f :: (Eq (m a), Show a) => m a -> Bool;
       to: (type_identifier))))
 
 ========================================
+a constraint on an open record
+========================================
+
+f :: Eq {name: String | r} => {name: String | r} -> Bool;
+
+---
+
+(source_file
+  (signature
+    name: (identifier)
+    context: (context
+      (class_constraint
+        class: (type_identifier)
+        type: (record_type
+          (record_type_field
+            name: (identifier)
+            type: (type_identifier))
+          row: (type_variable))))
+    type: (function_type
+      from: (record_type
+        (record_type_field
+          name: (identifier)
+          type: (type_identifier))
+        row: (type_variable))
+      to: (type_identifier))))
+
+========================================
 a signature with several constraints
 ========================================
 

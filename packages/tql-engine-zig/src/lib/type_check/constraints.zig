@@ -30,9 +30,9 @@ pub fn entails(subst: *Substitution, class: classes.ClassId, t: types.Type) std.
     return if (undecided) .deferred else .holds;
 }
 
-/// A constraint in head-normal form: on a metavariable, or on one applied to
-/// types. On a row's metavariable, it holds when it holds of every field the
-/// row comes to have.
+/// A constraint in head-normal form: on a metavariable, on one applied to
+/// types, or on an open record, which holds once its row is known and every
+/// field has the class.
 pub const Residual = struct {
     class: classes.ClassId,
     type: types.Type,

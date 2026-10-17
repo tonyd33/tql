@@ -131,10 +131,11 @@ pub const Substitution = struct {
     }
 
     /// `expand`, also rebuilding an application whose head is solved as its
-    /// head's solution at its argument. An `.application` in the result has
-    /// an unsolved head.
+    /// head's solution at its argument, and following a record's row to the
+    /// end. An `.application` in the result has an unsolved head.
     pub fn normalize(self: *Substitution, t: types.Type) Allocator.Error!types.Type {
         const head = self.expand(t);
+        if (head == .record) return .{ .record = try self.flatten(head.record) };
         if (head != .application) return head;
         const applied = try self.normalize(head.application.head);
         if (std.meta.eql(applied, head.application.head)) return head;

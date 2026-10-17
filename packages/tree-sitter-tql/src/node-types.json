@@ -1950,6 +1950,10 @@
             "named": true
           },
           {
+            "type": "record_type",
+            "named": true
+          },
+          {
             "type": "type_variable",
             "named": true
           },

@@ -572,7 +572,7 @@ pub const Inference = struct {
     /// member whose own metavariables it mentions.
     ///
     /// Constraints with dictionary evidence are the group's one context: each
-    /// is reduced through instances to constraints on bare metavariables,
+    /// is reduced through instances to constraints in head-normal form,
     /// exact duplicates and those a superclass of another implies are
     /// dropped, and every member takes what remains, quantifying the
     /// metavariables it mentions. A residual on a metavariable no member

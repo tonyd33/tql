@@ -50,7 +50,7 @@
 - Added `a >> b` for sequencing, as a `do` expression statement.
 - Added list patterns `[]` and `[a, b]`, and cons `h : t` in patterns and expressions. `x:xs` is cons; `:k` after whitespace is still a kind.
 - Added record field access: `r.start_byte` reads a field, and `(.start_byte)`, with no space after the dot, is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
-- Added open record types to signatures: `{name: String | r}` is any record with a `name` field.
+- Added open record types to signatures: `{name: String | r}` is any record with a `name` field. `Eq {name: String | r} =>` compares two of them.
 - Added type aliases: `type Named r = {name: String | r};`. `Range` and `Point` are aliases now.
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
 - Added operator sections: `(== 1)` is `\x -> x == 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.

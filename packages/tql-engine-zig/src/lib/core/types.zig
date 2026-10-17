@@ -643,6 +643,13 @@ pub fn asApplied(t: Type) ?Applied {
     };
 }
 
+/// `t` with every alias at its head stripped.
+pub fn unalias(t: Type) Type {
+    var current = t;
+    while (current == .alias) current = current.alias.expansion;
+    return current;
+}
+
 /// The arrow `t` is, looking through aliases.
 pub fn arrowOf(t: Type) ?*const Type.Arrow {
     return switch (t) {
