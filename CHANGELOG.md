@@ -2,8 +2,13 @@
 
 ## 0.4.1 (unreleased)
 
+### Improvements
+
+- `tql inspect` marks supertypes, as in `:_pattern (supertype)`, and its JSON gives each kind a `supertype` flag.
+
 ### Bug Fixes
 
+- A supertype's subtypes, in `tql inspect` and the `supertype-kind` error, are each kind once, with nested supertypes expanded and tokens quoted, as in `"_"` under rust's `:_pattern`.
 - Unifying a type with an alias that mentions it only in an unused parameter, as in `retag x x` with `retag :: t -> Tagged t -> Int`, no longer crashes the checker.
 
 ## 0.4.0 (2026-10-17)

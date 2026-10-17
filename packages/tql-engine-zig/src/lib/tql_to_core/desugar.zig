@@ -10,6 +10,7 @@ const resolve = @import("resolve.zig");
 const ModuleScope = @import("scope.zig").ModuleScope;
 const match = @import("match.zig");
 const pcre2 = @import("../regex.zig");
+const kinds = @import("../lang/kinds.zig");
 const datatypes = core.datatypes;
 const types = core.types;
 
@@ -128,8 +129,7 @@ pub const Lowerer = struct {
     /// the only way to write a kind.
     fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const language = try self.grammar("kind", name, span);
-        const id = language.idForNodeKind(name, true);
-        if (id == 0) {
+        const id = kinds.resolve(language, name) orelse {
             try self.sink.report(
                 .unknown_kind,
                 span,
@@ -137,13 +137,13 @@ pub const Lowerer = struct {
                 .{name},
             );
             return error.DesugarFailed;
-        }
+        };
         if (language.nodeKindIsSupertype(id)) {
             try self.sink.report(
                 .supertype_kind,
                 span,
                 "`{s}` is a supertype, so no node has this kind{f}",
-                .{ name, SubtypeList{ .language = language, .supertype = id } },
+                .{ name, SubtypeList{ .language = language, .subtypes = try kinds.subtypes(self.builder.allocator, language, id) } },
             );
             return error.DesugarFailed;
         }
@@ -157,15 +157,14 @@ pub const Lowerer = struct {
     /// grammar does not record them.
     const SubtypeList = struct {
         language: *const ts.Language,
-        supertype: u16,
+        subtypes: []const u16,
 
         pub fn format(self: SubtypeList, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            const subtypes = self.language.subtypesForSupertype(self.supertype);
-            if (subtypes.len == 0) return;
+            if (self.subtypes.len == 0) return;
             try w.writeAll("; use one of its subtypes:");
-            for (subtypes, 0..) |subtype, i| {
+            for (self.subtypes, 0..) |subtype, i| {
                 const separator = if (i == 0) " " else ", ";
-                try w.print("{s}`{s}`", .{ separator, self.language.nodeKindForId(subtype) orelse "?" });
+                try w.print("{s}`{f}`", .{ separator, kinds.spelled(self.language, subtype) });
             }
         }
     };
