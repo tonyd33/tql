@@ -38,6 +38,7 @@
 - The `true` and `false` literals are removed: write `True` and `False`.
 - `toint :: String -> Maybe Int` and `filename :: Node -> Maybe String` are functions, not filters: write `Just path <- arr filename;` for `path <- filename;`, and `Filter (to_list . toint . text)` for `arr text | toint`.
 - `tql grammar add`, `remove` and `--install-dir` are removed; they did nothing.
+- `tql query --format locations` is removed; it printed what `--format json` does.
 - A missing `case` alternative is a `non-exhaustive` error, and an alternative never reached is a `redundant-alternative` error.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 

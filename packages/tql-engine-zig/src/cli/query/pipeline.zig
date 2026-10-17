@@ -10,7 +10,6 @@ pub const OutputFormat = enum {
     // IMPROVE: actually implement these
     text,
     json,
-    locations,
 };
 
 /// A file or directory to query, or standard input's contents.
@@ -539,7 +538,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = switch (config.format) {
         .text => try std.Thread.spawn(.{}, writerThreadText, .{ &ctx, stdout, &shared_stderr }),
-        .json, .locations => try std.Thread.spawn(.{}, writerThreadJson, .{ &ctx, &jws }),
+        .json => try std.Thread.spawn(.{}, writerThreadJson, .{ &ctx, &jws }),
     };
     const progress_thread = if (config.progress) try std.Thread.spawn(.{}, progressThread, .{ io, &progress, &progress_stop, &shared_stderr }) else null;
     var workers = try allocator.alloc(std.Thread, config.workers);
