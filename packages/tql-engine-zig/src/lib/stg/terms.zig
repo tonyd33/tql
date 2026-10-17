@@ -1,4 +1,4 @@
-//! The STG-shaped term language the evaluator runs.
+//! The STG language: Core, made explicit enough for the machine to run.
 //!
 //! ```
 //! atom ::= var | literal
@@ -17,15 +17,49 @@
 //!           | CON(C, a_1 .. a_n)
 //! ```
 //!
-//! Core is what the type checker validated; this is what the evaluator walks.
-//! It adds two annotations inference never needed: a closure's free
-//! variables, and the arity of every application.
+//! An STG term means what the Core it came from means. What changes is that
+//! every operational question Core leaves open has an answer written into
+//! the term, so the machine never has to work one out.
 //!
-//! A binder is the SymbolId resolution interned for it. The evaluator looks it
-//! up in an environment; nothing here assigns frame slots.
+//! ## Allocation is explicit
 //!
-//! Arguments are atoms. A compound argument is let-bound to a thunk before it
-//! is passed, so `Cons h (append t ys)` cannot be spelled.
+//! Consider the Core term `f (g x)`. Evaluating it allocates a thunk for
+//! `g x`, but nothing in the term says so. In STG an argument is an atom,
+//! a variable or a literal, so the same call is spelled
+//!
+//! ```
+//! let t = {g, x} \u {} -> g x in f t
+//! ```
+//!
+//! and now every `let` is an allocation and nothing else is. `Cons h (append
+//! t ys)` can't be spelled at all.
+//!
+//! A closure lists its free variables. Allocating one copies what they're
+//! bound to, so the closure outlives the scope it was written in, and the
+//! machine never has to find them.
+//!
+//! ## Calls and jumps
+//!
+//! Core applies one argument at a time. Here a call carries its whole
+//! argument list, so the machine can compare it against the callee's arity
+//! once. See Eval/apply in `eval.zig`.
+//!
+//! A join point is no longer a `let` with a promise attached: it's bound by
+//! `let-no-escape` and entered by `jump`, so the machine can tell at a glance
+//! that nothing is allocated for it.
+//!
+//! ## Environments
+//!
+//! A closure's body runs in an environment laid out as its captures, in the
+//! order of its free variable list, then its frame: parameters, then each
+//! binder as it comes into scope. A local is an offset into it, fixed by
+//! translation, so reading one is an index rather than a search.
+//!
+//! That only works if the machine pushes binders in exactly the order
+//! translation numbered them. A `let` pushes its binders, a `case` pushes
+//! its binder and then the alternative's, and a jump drops back to the depth
+//! where its join point was bound before pushing its arguments. The comments
+//! on `Local`, `Expr.Case` and `Join` state where each slot goes.
 
 const std = @import("std");
 const core = @import("../core.zig");

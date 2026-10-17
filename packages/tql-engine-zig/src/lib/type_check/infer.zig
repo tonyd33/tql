@@ -314,11 +314,12 @@ pub const Inference = struct {
         };
     }
 
-    /// (T-If)        Gamma |- e_c : bool
-    ///               Gamma |- e_t : tau
-    ///               Gamma |- e_f : tau
-    ///               --------------------------------------------
-    ///               Gamma |- if e_c then e_t else e_f : tau
+    /// (T-Case)      Gamma |- e : T tau_1 .. tau_m
+    ///               C_i : sigma_i_1 -> .. -> sigma_i_k -> T a_1 .. a_m
+    ///               Gamma, b : T tau_1 .. tau_m, xs_i : [a := tau] sigma_i |- e_i : tau
+    ///               Gamma, b : T tau_1 .. tau_m |- e_0 : tau
+    ///               ------------------------------------------------------------
+    ///               Gamma |- case e of b { C_i xs_i -> e_i; _ -> e_0 } : tau
     fn caseOf(self: *Inference, c: core.Case, t: core.Term) Error!Elaborated {
         const elaborated_scrutinee = try self.elaborate(c.scrutinee);
         const scrutinee = elaborated_scrutinee.type;
@@ -741,7 +742,7 @@ pub const Inference = struct {
     /// is a component of its own, and every use of it, its own included, is
     /// at the signature.
     ///
-    /// `desugar.Program.components` is already in dependency order, so a callee's
+    /// `core.Program.components` is already in dependency order, so a callee's
     /// scheme is generalized before its caller's body is inferred. The library
     /// arrives in earlier components than user code and needs no special case.
     pub fn component(

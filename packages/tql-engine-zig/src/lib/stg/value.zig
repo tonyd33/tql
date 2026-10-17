@@ -3,8 +3,9 @@
 //! Every heap cell is a Thunk. Forcing one runs it at most once and memoizes
 //! the result. Globals, letrec bindings and constructor fields are all thunks.
 //!
-//! Entering an `evaluating` thunk is a divergence the language specifies. The
-//! black hole reports it instead of hanging.
+//! An `evaluating` thunk is the black hole of Rules in `eval.zig`. Entering
+//! one means the program diverges, and the machine reports it instead of
+//! hanging.
 //!
 //! Nothing is collected during a run: thunks live in one arena freed when the
 //! run ends, so a query producing a long lazy list peaks at the whole list.

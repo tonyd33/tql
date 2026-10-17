@@ -7,8 +7,8 @@
 //! - Spine collection: Core applies one argument at a time, and a call site
 //!   here carries its whole argument list.
 //!
-//! Binders are globally unique, interned once by resolution, so a name means
-//! one binder wherever it appears and nothing here handles shadowing.
+//! Each symbol is bound at most once, so a name means one binder wherever it
+//! appears and nothing here handles shadowing. See Binders in `core.zig`.
 
 const std = @import("std");
 const core = @import("../core.zig");
@@ -87,7 +87,6 @@ pub const Translator = struct {
         self.joins.deinit(self.gpa);
     }
 
-    /// What `name` denotes if it is synthesized, copied into the program.
     /// `operation`, with a synthesized payload copied into the program.
     fn owned(self: *Translator, operation: core.Operation) Error!core.Operation {
         const source = switch (operation) {
@@ -658,7 +657,7 @@ pub const Translator = struct {
 /// Translate a checked program into the STG-shaped term language.
 ///
 /// The returned Program owns its arena and is deinitialized independently of
-/// the desugar.Program it came from.
+/// the `core.Program` it came from.
 pub fn translate(
     gpa: Allocator,
     program: *core.Program,

@@ -42,7 +42,8 @@ pub const Known = enum {
 
 pub const InsertError = error{Collision} || Allocator.Error;
 
-/// A name as some module declares it. A synthesized symbol has no module.
+/// A name as some module declares it. A synthesized symbol, primitive or
+/// pseudo has no module.
 pub const QualifiedName = struct {
     module: ?ModuleId,
     name: []const u8,
@@ -70,7 +71,8 @@ pub const QualifiedName = struct {
 pub const Symbol = struct {
     spelling: []const u8,
     details: Details,
-    /// The module that declares it. Null for a local or a synthesized symbol.
+    /// The module that declares it. Null for a local, a synthesized symbol, a
+    /// primitive or a pseudo.
     module: ?ModuleId = null,
 };
 
@@ -211,9 +213,8 @@ pub const Interner = struct {
         });
     }
 
-    /// Returns the existing synthesized symbol for a spelling, or interns it.
-    /// Identical synthesis requests must yield one symbol. (e.g. `{a=1,b=2}`
-    /// and `{b=2,a=1}` share a `record[a,b]`)
+    /// Returns the existing module-less symbol for a spelling, or interns it.
+    /// Identical requests must yield one symbol.
     pub fn internOrGet(
         self: *Interner,
         spelling_text: []const u8,

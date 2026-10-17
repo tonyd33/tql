@@ -1,5 +1,83 @@
 //! One simplifying traversal of a definition: top down, carrying a
 //! substitution and the continuation of the term being simplified.
+//!
+//! ## Continuations
+//!
+//! Consider simplifying
+//!
+//! ```tql
+//! case (case s of { A -> e1; B -> e2 }) of { C -> r1; D -> r2 }
+//! ```
+//!
+//! Simplify the inner `case` on its own and we learn nothing: `e1` might be
+//! `C`, but the outer `case` is out of sight. So the traversal carries the
+//! continuation, what the surrounding term will do with the one being
+//! simplified, as a stack of frames. Here the inner `case` is simplified
+//! under a `select` frame holding `{ C -> r1; D -> r2 }`. When it reaches
+//! `e1`, the frame comes along, and if `e1` is `C`, the frame takes `r1` on
+//! the spot. That's case of case, and it falls out of the traversal rather
+//! than being a separate rewrite.
+//!
+//! Application works the same way. `(\x -> b) a` reaches the lambda with an
+//! `apply` frame for `a` on top, and beta is just binding `x` to the frame's
+//! operand. A `let` met under frames moves them into its body, which is let
+//! floating.
+//!
+//! ## Duplicating continuations
+//!
+//! Case of case copies the outer continuation into every alternative of the
+//! inner `case`. Well, if the continuation is large and the inner `case` has
+//! many alternatives, the code grows multiplicatively. So before a
+//! continuation goes into several places it's made dupable: each
+//! alternative of its `case` frame is simplified once, then bound to a new
+//! join point, and what gets copied is a jump.
+//!
+//! ```tql
+//! let j = \x -> big x in
+//! case s of { A -> j e1; B -> j e2 }
+//! ```
+//!
+//! A join point costs nothing at run time, since a jump allocates nothing,
+//! so this is free where a function would not be. That's the simplifier's
+//! main use for them.
+//!
+//! ## Inlining
+//!
+//! A binding can be inlined three ways, following GHC's inliner:
+//!
+//! - Before its value is simplified, when it's used once. The value is
+//!   simplified once, at its occurrence, in the context it ends up in.
+//! - After its value is simplified, when the value is trivial, at every
+//!   occurrence.
+//! - At a call, when the function's unfolding is small enough, or its
+//!   arguments make it smaller. See `cost.zig`.
+//!
+//! "Used once" is subtler than it looks. Consider
+//!
+//! ```tql
+//! let x = expensive in map (\y -> x + y) ys
+//! ```
+//!
+//! `x` occurs once, but inside a lambda that runs once per element, so
+//! moving `expensive` there duplicates work. Unless the value is itself a
+//! lambda: copying a lambda copies a value, not a computation. Likewise an
+//! occurrence in each of two `case` alternatives is not once, since moving
+//! the value into both duplicates its code. Occurrence analysis records both
+//! facts for every binder.
+//!
+//! Inlining a recursive function into its own body never ends, so
+//! occurrence analysis picks loop breakers, which are never inlined. See
+//! Loop breakers in `occurrence.zig`.
+//!
+//! ## References
+//!
+//! - Simon Peyton Jones and Andre Santos. "A transformation-based optimiser
+//!   for Haskell". Science of Computer Programming 32(1-3), 1998, pp. 3-47.
+//! - Simon Peyton Jones and Simon Marlow. "Secrets of the Glasgow Haskell
+//!   Compiler inliner". Journal of Functional Programming 12(4-5), 2002,
+//!   pp. 393-434.
+//! - Luke Maurer, Paul Downen, Zena M. Ariola and Simon Peyton Jones.
+//!   "Compiling without continuations". PLDI 2017, pp. 482-494.
 
 const std = @import("std");
 const core = @import("../core.zig");

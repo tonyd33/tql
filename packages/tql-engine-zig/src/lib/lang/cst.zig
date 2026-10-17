@@ -99,7 +99,7 @@ pub const Item = struct {
     pub const Kind = enum { value, type, type_and_constructors, synonym, module };
 };
 
-/// `name :: type;` or `name p1 p2 = body;`.
+/// A top-level declaration.
 pub const Declaration = union(enum) {
     signature: Signature,
     definition: Definition,
@@ -188,7 +188,8 @@ fn sexprContext(w: *std.Io.Writer, context: []const ClassConstraint) std.Io.Writ
     try w.writeByte(')');
 }
 
-/// `Sized a` in a signature's context.
+/// `Sized a` in a signature's context, a class's superclasses, or an
+/// instance's context.
 pub const ClassConstraint = struct {
     class: Identifier,
     /// A type variable, or one applied to types.
@@ -745,7 +746,8 @@ pub const Case = struct {
     };
 };
 
-/// The left side of a `case` alternative or a `do` bind.
+/// The left side of a `case` alternative or a `do` bind, or a pattern
+/// synonym's body.
 pub const Pattern = struct {
     kind: Kind,
     span: diagnostic.Span = .unknown,

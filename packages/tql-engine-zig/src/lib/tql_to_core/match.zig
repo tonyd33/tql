@@ -1,20 +1,61 @@
 //! Patterns to flat Core `case`, for `case` alternatives and `do` binds.
 //!
-//! Compiles to a decision tree. A row is the patterns its alternative still
-//! has to match, each against an occurrence, in the order they are written,
-//! and the first remaining row decides the next step. A constructor test
-//! splits over every constructor of the occurrence's datatype, so each Core
-//! `case` it emits is exhaustive. A view binds its expression applied to the
-//! occurrence and matches the result in place of the view. A literal tests
-//! equality, and a failed test drops only the row it came from. A pattern
-//! synonym calls its matcher, matches its arguments against the values the
-//! matcher hands back, and like a literal drops only its own row on failure. A
-//! constructor no row covers is reported with the value that falls through,
-//! and an alternative that no path reaches is reported as never matched.
+//! Core's `case` only looks at one constructor, one level deep. A written
+//! `case` nests patterns, mixes in literals, views and pattern synonyms, and
+//! tries its alternatives in order. This compiles the one into the other, as
+//! a decision tree.
 //!
-//! An alternative reached from one path is lowered in place. One reached from
-//! several is bound once, as a function of its pattern variables, and each
-//! path applies it.
+//! ## Rows and the order of tests
+//!
+//! A row is the patterns its alternative still has to match, each against an
+//! occurrence, a part of the scrutinee, in the order they are written. The
+//! first remaining row decides the next step, by its first pattern.
+//!
+//! You might wonder why the first row, when a cleverer choice of column
+//! often gives a smaller tree. The answer is laziness: the order of tests is
+//! the order things are forced, and so part of the meaning. Consider, with
+//! `bot` diverging,
+//!
+//! ```tql
+//! case (bot, True) of { (True, False) -> 1; (_, True) -> 2; (_, False) -> 3; }
+//! ```
+//!
+//! The first row tests the first component, so this is `_|_`. Swap the first
+//! two alternatives and the first row tests the second component instead,
+//! matches, and gives `2` without ever forcing `bot`. That's the order
+//! Haskell specifies, and testing in any other order would change which
+//! queries diverge.
+//!
+//! ## The steps
+//!
+//! A constructor test splits over every constructor of the occurrence's
+//! datatype, so each Core `case` it emits is exhaustive. A view binds its
+//! expression applied to the occurrence and matches the result in place of
+//! the view. A literal tests equality, and a failed test drops only the row
+//! it came from. A pattern synonym calls its matcher, matches its arguments
+//! against the values the matcher hands back, and like a literal drops only
+//! its own row on failure.
+//!
+//! A constructor no row covers is reported with the value that falls
+//! through, and an alternative that no path reaches is reported as never
+//! matched.
+//!
+//! ## Sharing alternatives
+//!
+//! A decision tree can reach one alternative along several paths. Copying
+//! its body onto each would multiply code, so an alternative reached from
+//! one path is lowered in place, and one reached from several is bound once,
+//! as a function of its pattern variables, which each path applies. Every
+//! path applies it in tail position, so contification can make it a join
+//! point.
+//!
+//! ## References
+//!
+//! - Luc Maranget. "Compiling pattern matching to good decision trees".
+//!   ML Workshop 2008, pp. 35-46.
+//! - Philip Wadler. "Efficient compilation of pattern-matching". In Simon
+//!   L. Peyton Jones, The Implementation of Functional Programming
+//!   Languages, Prentice-Hall, 1987.
 
 const std = @import("std");
 const core = @import("../core.zig");

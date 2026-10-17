@@ -1,11 +1,162 @@
-//! Graph reduction over the STG-shaped term language: force a thunk by running
-//! its body, memoize the result, dispatch a `case` on the scrutinee's tag.
+//! The STG machine: runs the terms of `terms.zig` by graph reduction.
 //!
-//! Calls are eval/apply. The caller reads the callee's arity and decides
-//! whether the call is saturated, over-applied, or partial.
+//! ## Why a second semantics
 //!
-//! Everything allocates in one arena owned by the Machine and freed with it.
-//! Nothing is collected during a run.
+//! `core.zig` says what a term means, and on purpose says nothing about how
+//! often anything is evaluated. Consider
+//!
+//! ```tql
+//! let x = expensive in x + x
+//! ```
+//!
+//! Evaluating `expensive` once or twice gives the same meaning, but only once
+//! is call-by-need, and a query over a large tree can't afford the other.
+//! So the machine needs rules that talk about sharing, and those are
+//! Launchbury's natural semantics: evaluation threads a heap, and the first
+//! time a thunk is demanded, its cell is overwritten with its value.
+//!
+//! ## Rules
+//!
+//! Let a heap `H` map addresses to cells, and an environment `E` map the names
+//! in scope to addresses. A cell holds one of
+//!
+//! - a thunk `(c, as)`: closure code `c`, with `as` the addresses its free
+//!   variables were bound to when it was allocated;
+//! - a value, which for a function is `fun(c, as, ps)`, with `ps` the
+//!   arguments a partial application has already supplied;
+//! - a black hole `#`, a thunk whose evaluation is under way.
+//!
+//! Write `H, E |- e ==> H', v` for "in heap `H` and environment `E`, `e`
+//! evaluates to the value `v`, leaving heap `H'`". Then:
+//!
+//! ```
+//!           H(E x) = v
+//! (Value)   ------------------
+//!           H, E |- x ==> H, v
+//!
+//!           H(E x) = (c, as)    H[E x := #], [fv c := as] |- body c ==> H', v
+//! (Force)   ---------------------------------------------------------------
+//!           H, E |- x ==> H'[E x := v], v
+//!
+//!           a fresh    H[a := (c, E (fv c))], E[x := a] |- e ==> H', v
+//! (Let)     -------------------------------------------------------
+//!           H, E |- let x = c in e ==> H', v
+//!
+//!           a_i fresh    E' = E[x_i := a_i]
+//!           H[a_i := (c_i, E' (fv c_i))], E' |- e ==> H', v
+//! (Letrec)  ------------------------------------------------
+//!           H, E |- letrec { x_i = c_i } in e ==> H', v
+//!
+//! (Con)     H, E |- C x_1 .. x_n ==> H, C (E x_1) .. (E x_n)
+//!
+//!           H, E |- e ==> H1, C_k as    H2, E[b := a, xs_k := as] |- e_k ==> H', v
+//! (Case)    ----------------------------------------------------------------
+//!           H, E |- case e of b { ..; C_k xs_k -> e_k; .. } ==> H', v
+//!
+//!           H, E |- f ==> H1, fun(c, as, ps)    |ps| + n < arity c
+//! (Partial) ---------------------------------------------------------------
+//!           H, E |- f x_1 .. x_n ==> H1, fun(c, as, ps (E x_1) .. (E x_n))
+//!
+//!           H, E |- f ==> H1, fun(c, as, ps)    |ps| + n = arity c
+//!           H1, [fv c := as, params c := ps (E x_1) .. (E x_n)] |- body c ==> H', v
+//! (Exact)   ---------------------------------------------------------------------
+//!           H, E |- f x_1 .. x_n ==> H', v
+//! ```
+//!
+//! A few things these leave implicit. A `case` with a default takes it for
+//! any value that matches no alternative, binding only `b`. The case binder's
+//! address `a` is the scrutinee's own when the scrutinee is a variable,
+//! since Force has just overwritten that cell with the value; otherwise `H2`
+//! is `H1` with a fresh `a` holding it. An over-applied call is Exact on as
+//! many arguments as the function takes, and the value that returns is
+//! applied to the rest. A `let` binding a constructor allocates the value
+//! itself, not a thunk for it. A primitive forces its arguments by Value and Force,
+//! as many as its `PrimOp` says, and returns what its `PrimOp` says.
+//!
+//! Note the conclusion of Force: the cell is overwritten with `v`. That's all
+//! there is to call-by-need. A second demand for `x` finds a value and takes
+//! Value instead.
+//!
+//! Note also that no rule applies when `H(E x)` is a black hole. Getting
+//! there means evaluating `x` needs the value of `x`, so it diverges, and its
+//! meaning is `_|_`. The machine reports `error.Cycle` rather than hanging.
+//!
+//! These are Launchbury's rules with two changes. They use environments
+//! instead of substitution, which is how the machine represents scope, and
+//! application is eval/apply.
+//!
+//! ## Eval/apply
+//!
+//! Consider `f x y` where `f`'s closure takes one parameter and returns a
+//! function. Who decides what to do with `y`? Under push/enter, the arguments
+//! go on a stack and `f` takes what it needs. Under eval/apply, which is
+//! what Partial and Exact describe, the caller evaluates `f`, reads its
+//! arity, and decides: here, call `f x`, then apply the result to `y`. Marlow
+//! and Peyton Jones built both in GHC and found push/enter's expected speed
+//! advantage didn't hold up, while eval/apply was much simpler to implement.
+//!
+//! ## Join points
+//!
+//! `let-no-escape` binds a join point in the environment, not the heap:
+//!
+//! ```
+//!           H, E[j := (ys, e_j, E)] |- e ==> H', v
+//! (Join)    ---------------------------------------------
+//!           H, E |- let-no-escape { j ys -> e_j } in e ==> H', v
+//!
+//!           E j = (ys, e_j, E_j)    H, E_j[ys := E x_i] |- e_j ==> H', v
+//! (Jump)    ----------------------------------------------------------
+//!           H, E |- jump j x_1 .. x_n ==> H', v
+//! ```
+//!
+//! Nothing is allocated, and since a jump only ever appears in tail position,
+//! nothing is pushed either: the machine drops the environment back to what
+//! it was where `j` was bound, appends the arguments, and carries on with
+//! `e_j`.
+//!
+//! ## From rules to a machine
+//!
+//! The rules read directly as a recursive evaluator, one native call per
+//! premise. Well, that evaluator overflows its stack on a long list, because
+//! a function walking the list makes one call per element and every call
+//! sits inside the last. Most premises are in tail position, though: the
+//! body in Let, Letrec, Case, Exact and Jump is the last thing evaluated, and
+//! its value is the conclusion's.
+//!
+//! So `expression` runs tail premises as iterations of one loop, and what a
+//! conclusion still owes afterwards goes on a frame. Force owes the update of
+//! its cell, an `update` frame. An over-applied call owes the application of
+//! its result to the remaining arguments, an `apply` frame. When the loop
+//! produces a value, it settles the frames it pushed, innermost first.
+//!
+//! What still recurses is a premise that evaluates something and then
+//! continues: a `case` scrutinee, a callee, a primitive's arguments. The
+//! native stack grows with how deeply those nest, not with how long a list
+//! is, and `checkStack` turns running out of it into `error.StackOverflow`.
+//!
+//! ## Memory
+//!
+//! Everything allocates in one arena owned by the `Machine` and freed with
+//! it. Nothing is collected during a run.
+//!
+//! You might wonder why there's no garbage collector. Simply put, freeing
+//! the whole arena when the run ends was the simplest thing that worked, and
+//! a collector hasn't been written yet. The cost is real, though: a query
+//! producing a long lazy list peaks at the whole list, even though each cell
+//! is dead once it's been serialized. Collecting during a run needs
+//! reference counting or tracing, since thunks are mutable and can refer to
+//! each other in cycles. It's planned as a future improvement.
+//!
+//! ## References
+//!
+//! - John Launchbury. "A natural semantics for lazy evaluation". POPL 1993,
+//!   pp. 144-154.
+//! - Simon L. Peyton Jones. "Implementing lazy functional languages on stock
+//!   hardware: the Spineless Tagless G-machine". Journal of Functional
+//!   Programming 2(2), 1992, pp. 127-202.
+//! - Simon Marlow and Simon Peyton Jones. "Making a fast curry: push/enter
+//!   vs. eval/apply for higher-order languages". Journal of Functional
+//!   Programming 16(4-5), 2006, pp. 415-449.
 
 const std = @import("std");
 const ts = @import("tree-sitter");
@@ -409,17 +560,7 @@ pub const Machine = struct {
         return try self.expression(code.body, &env);
     }
 
-    /// Evaluate a term to WHNF.
-    ///
-    /// Tail positions loop rather than recurse: `let` and `case` bodies, and
-    /// a call's body, all become the next term this loop runs. An
-    /// over-applied call enters its callee here too, and leaves an `apply`
-    /// frame to supply the rest once the body produces a function. The native
-    /// stack then grows with a term's nesting rather than with the length of
-    /// a list a filter chain walks.
-    ///
-    /// A `case` scrutinee is the one sub-term evaluated by recursion, and it
-    /// is what bounds the depth.
+    /// Evaluate a term to WHNF. See From rules to a machine.
     fn expression(
         self: *Machine,
         expr: stg.Expr,
@@ -562,9 +703,8 @@ pub const Machine = struct {
                     if (alternative.binders.len != constructed.len) return error.TypeError;
 
                     // The binders stay in scope for the body, which this loop
-                    // runs next. Dropping them afterwards is what the
-                    // recursive form did; binders are globally unique, so
-                    // leaving them costs space and shadows nothing.
+                    // runs next. Binders are unique, so leaving them in costs
+                    // space and shadows nothing.
                     //
                     // Read through the local copy: inline fields live in the
                     // value itself, so a slice of it must not outlive this

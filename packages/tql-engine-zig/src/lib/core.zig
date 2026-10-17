@@ -1,4 +1,5 @@
-//! Core terms.
+//! Core: the small lazy language every pass between desugaring and STG reads
+//! and writes.
 //!
 //! ```
 //! expr ::= symbol
@@ -9,6 +10,162 @@
 //!        | let x = expr_1 in expr_2
 //!        | letrec { x_1 = expr_1; ...; x_i = expr_i; } in expr_N
 //! ```
+//!
+//! Desugaring turns a TQL program into Core, and from then on the program is
+//! its Core. Inference checks it and adds dictionary arguments, erasure
+//! removes newtypes, the simplifier rewrites it, and STG translation lowers it
+//! for the machine.
+//!
+//! Terms carry no types. Every pass after inference may assume its input is
+//! well typed, so a `case` never meets a constructor of another type and a
+//! call never meets a value that isn't a function.
+//!
+//! ## Meaning
+//!
+//! The simplifier rewrites terms constantly, and each rewrite must leave the
+//! program's answer alone. Consider
+//!
+//! ```tql
+//! let x = f y in case x of { Nil -> 0; Cons h t -> length x }
+//! ```
+//!
+//! which the simplifier turns into
+//!
+//! ```tql
+//! case f y of x { Nil -> 0; Cons h t -> length x }
+//! ```
+//!
+//! Is that allowed? The first allocates a thunk for `f y` and forces it
+//! later, while the second evaluates `f y` straight away, so they certainly
+//! don't run the same way. What we want is that
+//! they give the same answer, and to say that, we need a meaning for a term
+//! that doesn't depend on how it runs. A rewrite is then correct when both
+//! sides mean the same thing.
+//!
+//! Core is lazy, so a term can diverge without taking the program down with
+//! it. Let `_|_` (pronounced "bottom") be the meaning of a diverging term, and
+//! let `D` be the values with `_|_` added below all of them:
+//!
+//! ```
+//! D = lift V
+//! V = Int + String + Regex + Node + Kind
+//!   + C D_1 .. D_n         a constructor of n fields, for each C
+//!   + Label ~> D           a record, finitely many labels
+//!   + [D -> D]             a continuous function
+//! ```
+//!
+//! Note that a field is an element of `D`, not `V`. That's what lets
+//! `Cons h _|_` be a value: it only diverges if something looks at its tail.
+//! `up v` is the value `v` as an element of `D`.
+//!
+//! A term's meaning depends on what its free symbols mean, so let `[[e]] env`
+//! be the meaning of `e` in an environment `env` mapping each symbol to an
+//! element of `D`:
+//!
+//! ```
+//! [[x]] env                       = env x
+//! [[lit]] env                     = up lit
+//! [[\x -> e]] env                 = up (\d -> [[e]] env[x := d])
+//! [[e1 e2]] env                   = f ([[e2]] env)      if [[e1]] env = up f
+//!                                 = _|_                 otherwise
+//! [[let x = e1 in e2]] env        = [[e2]] env[x := [[e1]] env]
+//! [[letrec { x_i = e_i } in e]] env
+//!                                 = [[e]] env'
+//!     where env' = env[x_i := [[e_i]] env'], the least fixed point
+//! [[case e of b { C_i xs_i -> e_i; _ -> e_0 }]] env
+//!                                 = _|_                 if d = _|_
+//!                                 = [[e_i]] env[b := d, xs_i := ds]
+//!                                                       if d = up (C_i ds)
+//!                                 = [[e_0]] env[b := d] otherwise
+//!     where d = [[e]] env
+//! ```
+//!
+//! Back to the example. On the left, `x` is bound to `[[f y]] env` and the
+//! `case` examines it. On the right, the `case` examines `[[f y]] env` and
+//! its binder binds `x` to the result. Both sides mean the same thing in
+//! every environment, so the rewrite is sound.
+//!
+//! Note that an application doesn't evaluate its argument, and a `case`
+//! evaluates only its scrutinee. In `case xs of { Cons h t -> 0 }`, neither
+//! `h` nor `t` is ever examined.
+//!
+//! Globals are bound by the least `env0` satisfying every definition at once.
+//! A constructor of `n` fields means
+//! `up (\d_1 -> .. up (\d_n -> up (C d_1 .. d_n)) ..)`, and a primitive means
+//! the function its `PrimOp` describes.
+//!
+//! `main` is a `Filter Node t`, which erasure has turned into a function from
+//! a node to a list. Run on a file, the program means `[[main]] env0 root`:
+//! the query's results, in order. Printing a result forces all of it, so a
+//! `_|_` anywhere inside one makes the whole run `_|_`.
+//!
+//! ## Lifted functions
+//!
+//! You might wonder why `[D -> D]` is lifted at all. Applying `\x -> _|_` to
+//! anything gives `_|_`, so it's tempting to say it simply means `_|_`. Well,
+//! `seq`, which is `case a of { _ -> b }`, can tell the two apart: the lambda
+//! is already a value, so `seq (\x -> _|_) 1` is `1`, while `seq _|_ 1` is
+//! `_|_`. So functions are lifted along with every other value, as in
+//! Abramsky's lazy lambda calculus.
+//!
+//! This costs us eta. `\x -> f x` and `f` differ when `f` is `_|_`: the first
+//! is a value and the second isn't. With `loop = loop`,
+//!
+//! ```tql
+//! seq (\x -> loop x) 1    -- 1
+//! seq loop 1              -- _|_
+//! ```
+//!
+//! So a rewrite may eta reduce only where it knows `f` is a value.
+//!
+//! ## Meaning and cost
+//!
+//! `let x = e in x + x` and `e + e` mean the same thing, but the first
+//! evaluates `e` once and the second twice. The meaning can't see the
+//! difference, so on its own it isn't enough for the simplifier. Consider
+//! inlining `x` into the lambda in
+//!
+//! ```tql
+//! let x = expensive in map (\y -> x + y) ys
+//! ```
+//!
+//! The result means the same thing, but now `expensive` runs once per
+//! element of `ys` instead of once in total. So a rewrite must keep the
+//! meaning and also not duplicate work. Sharing is stated by the
+//! STG machine's operational semantics in `stg/eval.zig`, after Launchbury.
+//!
+//! Similarly, a run can fail for want of stack even where the meaning is
+//! defined. That's a limit of the machine, and no pass needs to preserve it.
+//!
+//! ## Join points
+//!
+//! A `let` or `letrec` binder whose details are `join(n)` is a join point.
+//! Note that the grammar above has no construct for it. That's fine, because
+//! a join point means exactly what the same `let` would. The difference is in how the
+//! machine runs it: as a jump, without allocating a closure. The rules that
+//! make that possible, checked by `core/lint.zig`, are about the machine,
+//! which is why none of the equations above mention them.
+//!
+//! ## Binders
+//!
+//! Bind each symbol at most once in the program. A pass that copies a term,
+//! such as the simplifier inlining a function body twice, must give the copy
+//! fresh binders.
+//!
+//! Why? Consider substituting `y` for `x` in `\y -> x`. Done naively, we get
+//! `\y -> y`, and the free `y` has been captured by the lambda. The usual cure
+//! is to rename binders on the way down, which means tracking which symbols
+//! are in scope. When every symbol is bound once, the free `y` and the
+//! lambda's `y` can't be the same symbol in the first place, so substitution
+//! never captures and doesn't need to track scopes.
+//!
+//! ## References
+//!
+//! - Samson Abramsky. "The lazy lambda calculus". In David Turner (ed.),
+//!   Research Topics in Functional Programming, Addison-Wesley, 1990,
+//!   pp. 65-116.
+//! - John Launchbury. "A natural semantics for lazy evaluation". POPL 1993,
+//!   pp. 144-154.
 
 const std = @import("std");
 const diagnostic = @import("diagnostic.zig");
@@ -262,6 +419,7 @@ pub const Let = struct {
     body: Term,
 };
 
+/// Every `name` is in scope in every `value` and in `body`.
 pub const Letrec = struct {
     bindings: []const Binding,
     body: Term,

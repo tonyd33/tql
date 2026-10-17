@@ -1,4 +1,30 @@
 //! Rewrites the language's meaning justifies and the calculus does not.
+//!
+//! Consider `bind (Cons e Nil) f`. Nothing about Core says it equals `f e`.
+//! That's true because of what the list monad's `bind` means, and the
+//! simplifier would only find it by inlining `bind` and reducing. A law
+//! states it directly. Some laws reach rewrites inlining never could:
+//! `children | of_kind k` becomes `%children_of_kind k`, a primitive no
+//! amount of inlining produces.
+//!
+//! ## Laws and bottom
+//!
+//! A law must hold for every argument, `_|_` included. That's easy to get
+//! wrong, because the two sides of a law rarely force the same things.
+//! Consider
+//!
+//! ```tql
+//! main = pure n | descendants | of_kind k
+//! ```
+//!
+//! where `n` has no descendants and `k` diverges. Unfused, `of_kind k` is
+//! never applied, so `k` is never forced and the query is empty. Fused into
+//! `%descendants_of_kind k n`, it is `_|_` if the primitive forces `k` up
+//! front. The law holds only because the fused axis forces `k` after it
+//! finds a node, which is what its `PrimOp` says.
+//!
+//! So a law's side conditions are as much about what it may force as about
+//! the shape it matches.
 
 const std = @import("std");
 const core = @import("../core.zig");

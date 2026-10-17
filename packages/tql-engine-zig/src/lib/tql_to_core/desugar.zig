@@ -125,7 +125,7 @@ pub const Lowerer = struct {
     }
 
     /// Resolve a `:k` literal against the target grammar. These literals are
-    /// the only source of kind values.
+    /// the only way to write a kind.
     fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const language = try self.grammar("kind", name, span);
         const id = language.idForNodeKind(name, true);
@@ -170,8 +170,6 @@ pub const Lowerer = struct {
         }
     };
 
-    /// Interns a synthesized symbol under its bracketed spelling and records
-    /// what it was generated from.
     /// The synthesized symbol spelled by `spelling_format`, interned with its
     /// scheme on first use. Reports at `span` a record too wide to type.
     fn synthesize(

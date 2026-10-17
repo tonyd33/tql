@@ -84,8 +84,8 @@ pub const Grammars = struct {
     }
 };
 
-/// Print every diagnostic a compilation collected, one per line, with the
-/// source line it points at.
+/// Print every diagnostic a compilation collected, with an excerpt of the
+/// source it points at, separated by blank lines.
 pub fn reportDiagnostics(
     engine: *const tql.Engine,
     sink: *const tql.diagnostic.Sink,

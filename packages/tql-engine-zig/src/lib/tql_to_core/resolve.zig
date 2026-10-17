@@ -9,8 +9,9 @@ const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const core = @import("../core.zig");
 
-/// A lexical scope chain. Each frame is one binding construct: lambda
-/// parameters, a `let` group, a `do` bind, or a `do`-local `let` group.
+/// A lexical scope chain. Each frame is one binding construct, such as a
+/// lambda's or definition's parameters, a `let` group, or the variables a
+/// pattern binds.
 pub const Scope = struct {
     parent: ?*const Scope,
     names: []const Entry,

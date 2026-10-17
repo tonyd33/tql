@@ -1,4 +1,16 @@
 //! What inlining a term costs.
+//!
+//! Size alone is a poor guide. Consider
+//!
+//! ```tql
+//! f m = case m of { Nothing -> 0; Just x -> big x }
+//! ```
+//!
+//! called as `f Nothing`. `f` is too big to copy everywhere, but copied here
+//! its `case` takes the `Nothing` alternative and `big x` vanishes. So
+//! `measure` also returns a discount, the nodes the call's known arguments
+//! would remove, and a call inlines when its size, less the discount, is
+//! under the threshold. GHC's inliner weighs arguments the same way.
 
 const std = @import("std");
 const core = @import("../core.zig");

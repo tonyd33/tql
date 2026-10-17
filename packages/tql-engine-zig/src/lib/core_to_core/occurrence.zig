@@ -1,7 +1,45 @@
 //! Occurrence analysis: how often, and where, each binder is used, and which
 //! bindings break the cycles of recursive groups.
 //!
-//! Every binder is a unique symbol, so the table needs no scopes.
+//! The simplifier decides what to inline from what this records. See
+//! Inlining in `simplify.zig`. Each symbol is bound at most once, so the
+//! table needs no scopes.
+//!
+//! ## Loop breakers
+//!
+//! Consider
+//!
+//! ```tql
+//! letrec { f = \x -> g x; g = \y -> f y } in f 1
+//! ```
+//!
+//! Inline `g` into `f` and `f` calls itself. Inline `f` into that and it
+//! still does, forever. Every cycle of references in a recursive group needs
+//! one binding that is never inlined, its loop breaker, and then everything
+//! else in the group may be. Picking a breaker is a choice, so we pick the
+//! one whose inlining is worth least, by `breakerScore`, and keep picking
+//! until no cycle is left.
+//!
+//! The same goes for the program's definitions, which form one big
+//! recursive group.
+//!
+//! ## Contification
+//!
+//! A `let` binder that is only ever tail-called, always with the same number
+//! of arguments, never needs a closure: every call can be a jump. Consider
+//!
+//! ```tql
+//! let k = \x -> f x x in case s of { A -> k 1; B -> k 2 }
+//! ```
+//!
+//! Both calls of `k` are the last thing their alternative does, so `k`
+//! becomes a join point of arity one. Besides saving the allocation, a join
+//! point lets a continuation flow into its body. See Duplicating
+//! continuations in `simplify.zig`.
+//!
+//! A recursive group becomes join points together or not at all. A member
+//! that stayed a function would call the others from inside its closure,
+//! which is not a tail position of the scope binding them.
 
 const std = @import("std");
 const core = @import("../core.zig");

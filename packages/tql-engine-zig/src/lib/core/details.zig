@@ -7,7 +7,11 @@ const types = @import("types.zig");
 
 /// A scalar operator, named by an `op[...]` symbol. Desugaring synthesizes
 /// one for each arithmetic and matching operator.
+///
+/// Arithmetic is on 64-bit two's complement and wraps.
 pub const Scalar = enum {
+    /// `s ~ r`: whether `r` matches anywhere in `s`. A construct the matcher
+    /// cannot run, such as `\K`, diverges.
     match,
     not_match,
     add,
@@ -76,27 +80,50 @@ pub const Comparison = enum {
 };
 
 /// The machine operation a primitive denotes.
+///
+/// Each is total and strict in every argument unless its doc says otherwise.
+/// The comparisons order `Int` numerically and `String` by bytes, which for
+/// UTF-8 is code point order. Two nodes are equal when they are one node of
+/// one tree, and two kinds when they are one grammar symbol.
 pub const PrimOp = enum {
+    /// The source the node spans, each ill-formed UTF-8 sequence replaced by
+    /// U+FFFD.
     text,
     kind,
     kind_name,
     is_named,
     is_extra,
+    /// The node's start and end, as a record.
     range,
+    /// Counts code points.
     string_length,
+    /// `div` and `mod` floor, `quot` and `rem` truncate, and each pair
+    /// satisfies `q * b + r == a`. A zero divisor gives quotient 0 and
+    /// remainder `a`.
     div,
     mod,
     quot,
     rem,
+    /// `Just` the decimal integer the string spells, with an optional leading
+    /// `-`, or `Nothing` when it spells none or one out of range.
     toint,
+    /// `Just` the path of the file the node belongs to, or `Nothing` for a
+    /// source with no path.
     filename,
+    /// `[p]`, or `[]` at the root.
     parent,
+    /// Proper ancestors, nearest first.
     ancestors,
+    /// Children and anonymous tokens, in document order.
     children,
     named_children,
+    /// Proper descendants and anonymous tokens, in pre-order.
     descendants,
     named_descendants,
+    /// `children_of_kind k n`: the named children of kind `k`. `[]` when `n`
+    /// has no children, without forcing `k`.
     children_of_kind,
+    /// As `children_of_kind`, over proper descendants in pre-order.
     descendants_of_kind,
     is_kind,
     eq_int,
@@ -200,15 +227,17 @@ pub const Pseudo = enum {
 /// What a synthesized symbol denotes. The payload is resolved during
 /// desugaring and is unrecoverable from the spelling afterwards.
 pub const Synthesized = union(enum) {
-    /// `field[l]`, carrying the resolved grammar field ID.
+    /// `field[l]`, carrying the resolved grammar field ID: the node's
+    /// children under the field, named or anonymous, in document order.
     field: struct { name: []const u8, id: u16 },
     /// `op[+]` and friends.
     operator: Scalar,
     /// `record[l,...]`, labels in normalized order. The scheme is n-ary
     /// in the field count, so inference builds it from these rather than
-    /// reading one off a table.
+    /// reading one off a table. Fields are not forced.
     record: []const []const u8,
-    /// `select[l]`, reading the record field labelled `l`.
+    /// `select[l]`, reading the record field labelled `l`. Forces the
+    /// record, then that field and no other.
     select: []const u8,
 };
 

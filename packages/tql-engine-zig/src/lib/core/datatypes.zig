@@ -8,8 +8,8 @@ const Allocator = std.mem.Allocator;
 
 pub const TypeId = symbols.TypeId;
 
-/// `(->)`, the function type's constructor short of an argument. At both it
-/// is a `types.Type.function`.
+/// `(->)`, the function type's constructor short of an argument. At both
+/// arguments it is a `types.Type.function`.
 pub const function_id: TypeId = Registry.Structural.function.id();
 pub const list_id: TypeId = Registry.Structural.list.id();
 
@@ -366,7 +366,6 @@ pub const Registry = struct {
     }
 };
 
-/// The datatype declaring `constructor`, when the symbol is one.
 /// The form of the datatype `constructor` builds, or null for a symbol that
 /// is not a constructor.
 pub fn formOf(interner: *const symbols.Interner, registry: *const Registry, constructor: symbols.SymbolId) ?Datatype.Form {

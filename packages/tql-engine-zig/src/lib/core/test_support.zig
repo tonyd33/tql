@@ -9,8 +9,8 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-/// An environment holding `List`, `Bool` and `Ordering` with their
-/// constructors, and nothing else. The caller owns it.
+/// An environment holding the built-in types and classes, and no library.
+/// The caller owns it.
 pub fn env(gpa: Allocator) !core.env.Env {
     var e = try core.env.Env.init(gpa);
     errdefer e.deinit();
