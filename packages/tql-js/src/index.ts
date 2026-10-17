@@ -71,14 +71,17 @@ export interface Point {
   column: number;
 }
 
-/** An `ERROR` node, or a token tree-sitter inserted to recover. */
-export interface TargetSyntaxError {
-  kind: string;
-  missing: boolean;
+export interface Span {
   start_byte: number;
   end_byte: number;
   start_point: Point;
   end_point: Point;
+}
+
+/** An `ERROR` node, or a token tree-sitter inserted to recover. */
+export interface TargetSyntaxError extends Span {
+  kind: string;
+  missing: boolean;
 }
 
 export interface QueryResult {
@@ -88,10 +91,46 @@ export interface QueryResult {
   stats: QueryStats;
 }
 
+/** A reason the query was rejected before it ran. */
+export interface Diagnostic {
+  category: string;
+  message: string;
+  /** The imported module the span is in, or null for the query itself. */
+  module: string | null;
+  /** Null when no source range corresponds to the diagnostic. */
+  span: Span | null;
+}
+
+export type FailureCategory =
+  | "stack-overflow"
+  | "cyclic-value"
+  | "memory-limit"
+  | "regex-failed"
+  | "target-parse-failed"
+  | "incompatible-grammar"
+  | "unreadable-target"
+  | "output-failed"
+  | "internal";
+
+/** Why a run stopped. */
+export interface Failure {
+  category: FailureCategory;
+  message: string;
+}
+
+export type Failed = { kind: "failed"; failure: Failure };
+
+export type QueryOutcome =
+  | { kind: "ok"; result: QueryResult }
+  | { kind: "rejected"; diagnostics: Diagnostic[] }
+  | Failed;
+
+export type TreeOutcome = { kind: "ok"; rows: TreeRow[] } | Failed;
+
 export interface Engine {
-  query(args: QueryArgs): QueryResult;
+  query(args: QueryArgs): QueryOutcome;
   loadGrammar(name: string): Promise<Grammar>;
-  parseTree(grammar: Grammar, target: string): TreeRow[];
+  parseTree(grammar: Grammar, target: string): TreeOutcome;
 }
 
 export interface Grammar {
@@ -272,7 +311,7 @@ class TqlEngine implements Engine {
     private readonly grammarSource?: (name: string) => CompileOptions,
   ) {}
 
-  query(args: QueryArgs): QueryResult {
+  query(args: QueryArgs): QueryOutcome {
     const { exp } = this;
     const grammarName = this.writeStr(args.grammar.name);
     const query = this.writeStr(args.querySource);
@@ -298,21 +337,7 @@ class TqlEngine implements Engine {
         modules.len,
         outPtr,
       );
-      const view = new DataView(exp.memory.buffer, outPtr, RESULT_SIZE);
-      const status = view.getInt32(0, true);
-      const dataPtr = view.getUint32(4, true);
-      const dataLen = view.getUint32(8, true);
-
-      if (dataLen === 0 && status !== 0) {
-        throw new Error("tql_run_dynamic failed");
-      }
-
-      const bytes = new Uint8Array(exp.memory.buffer, dataPtr, dataLen).slice();
-      exp.tql_free(dataPtr, dataLen);
-      const text = this.decoder.decode(bytes);
-
-      if (status !== 0) throw new Error(text);
-      return JSON.parse(text) as QueryResult;
+      return this.readReply(outPtr) as QueryOutcome;
     } finally {
       for (const input of inputs) exp.tql_free(input.ptr, input.len);
       exp.tql_free(outPtr, RESULT_SIZE);
@@ -337,7 +362,7 @@ class TqlEngine implements Engine {
     return p;
   }
 
-  parseTree(grammar: Grammar, target: string): TreeRow[] {
+  parseTree(grammar: Grammar, target: string): TreeOutcome {
     const { exp } = this;
     const t = this.writeStr(target);
     const outPtr = exp.tql_alloc(RESULT_SIZE);
@@ -347,7 +372,7 @@ class TqlEngine implements Engine {
     }
     try {
       exp.tql_parse_tree(grammar.ptr, t.ptr, t.len, outPtr);
-      return JSON.parse(this.readResult(outPtr)) as TreeRow[];
+      return this.readReply(outPtr) as TreeOutcome;
     } finally {
       exp.tql_free(t.ptr, t.len);
       exp.tql_free(outPtr, RESULT_SIZE);
@@ -402,18 +427,18 @@ class TqlEngine implements Engine {
     return { name, ptr };
   }
 
-  private readResult(outPtr: number): string {
+  /** The JSON reply an engine call wrote. Throws when it could not write one. */
+  private readReply(outPtr: number): unknown {
     const { exp } = this;
     const view = new DataView(exp.memory.buffer, outPtr, RESULT_SIZE);
     const status = view.getInt32(0, true);
     const dataPtr = view.getUint32(4, true);
     const dataLen = view.getUint32(8, true);
-    if (dataLen === 0 && status !== 0) throw new Error("engine call failed");
+    if (status !== 0)
+      throw new Error("engine call failed to allocate its reply");
     const bytes = new Uint8Array(exp.memory.buffer, dataPtr, dataLen).slice();
     exp.tql_free(dataPtr, dataLen);
-    const text = this.decoder.decode(bytes);
-    if (status !== 0) throw new Error(text);
-    return text;
+    return JSON.parse(this.decoder.decode(bytes));
   }
 
   private writeStr(s: string): { ptr: number; len: number } {

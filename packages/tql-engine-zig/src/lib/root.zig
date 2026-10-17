@@ -429,25 +429,87 @@ pub const RunOutcome = struct {
     query_time: std.Io.Duration,
 };
 
-/// Why running a target failed, written for a user. An error outside
-/// `RunError` writes its name.
-pub const Failure = struct {
-    err: anyerror,
+/// Why reading or running a target failed. Hosts write `name()` for
+/// programs and `message()` for a reader.
+pub const Failure = union(enum) {
+    stack_overflow,
+    cyclic_value,
+    memory_limit,
+    regex_failed,
+    target_parse_failed,
+    incompatible_grammar,
+    /// The error from opening or reading the target.
+    unreadable_target: anyerror,
+    output_failed,
+    /// A bug in the engine, or a host passing it malformed input.
+    internal: anyerror,
 
-    pub fn format(self: Failure, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        const err = inline for (@typeInfo(RunError).error_set.?) |e| {
-            if (self.err == @field(anyerror, e.name)) break @field(RunError, e.name);
-        } else return w.writeAll(@errorName(self.err));
-        try w.writeAll(switch (err) {
-            error.StackOverflow => "recursion exceeded the stack",
-            error.Cycle => "a value depends on itself",
-            error.OutOfMemory => "the query exceeded its memory limit",
-            error.RegexFailed => "a regex reached a construct the matcher cannot run",
-            error.TargetParseFailed => "tree-sitter could not parse the target",
-            error.IncompatibleLanguage => "the grammar was built for another tree-sitter version",
-            error.WriteFailed => "the output could not be written",
-            error.TypeError, error.MisplacedLocal, error.MissingEntry => return w.print("internal error: {t}", .{err}),
-        });
+    pub fn ofRun(err: RunError) Failure {
+        return switch (err) {
+            error.StackOverflow => .stack_overflow,
+            error.Cycle => .cyclic_value,
+            error.OutOfMemory => .memory_limit,
+            error.RegexFailed => .regex_failed,
+            error.TargetParseFailed => .target_parse_failed,
+            error.IncompatibleLanguage => .incompatible_grammar,
+            error.WriteFailed => .output_failed,
+            error.TypeError, error.MisplacedLocal, error.MissingEntry => .{ .internal = err },
+        };
+    }
+
+    /// `err` as `ofRun` categorizes it, or `internal` outside `RunError`.
+    pub fn ofAny(err: anyerror) Failure {
+        inline for (@typeInfo(RunError).error_set.?) |e| {
+            if (err == @field(anyerror, e.name)) return ofRun(@field(RunError, e.name));
+        }
+        return .{ .internal = err };
+    }
+
+    pub fn name(self: Failure) []const u8 {
+        return switch (self) {
+            .stack_overflow => "stack-overflow",
+            .cyclic_value => "cyclic-value",
+            .memory_limit => "memory-limit",
+            .regex_failed => "regex-failed",
+            .target_parse_failed => "target-parse-failed",
+            .incompatible_grammar => "incompatible-grammar",
+            .unreadable_target => "unreadable-target",
+            .output_failed => "output-failed",
+            .internal => "internal",
+        };
+    }
+
+    pub fn message(self: Failure) []const u8 {
+        return switch (self) {
+            .stack_overflow => "recursion exceeded the stack",
+            .cyclic_value => "a value depends on itself",
+            .memory_limit => "the query exceeded its memory limit",
+            .regex_failed => "a regex reached a construct the matcher cannot run",
+            .target_parse_failed => "tree-sitter could not parse the target",
+            .incompatible_grammar => "the grammar was built for another tree-sitter version",
+            .unreadable_target => |err| readProblem(err),
+            .output_failed => "the output could not be written",
+            .internal => |err| @errorName(err),
+        };
+    }
+
+    /// Write `error[name]: message`.
+    pub fn render(self: Failure, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        try w.print("error[{s}]: {s}", .{ self.name(), self.message() });
+    }
+
+    /// Why a file could not be read, for a reader.
+    pub fn readProblem(err: anyerror) []const u8 {
+        return switch (err) {
+            error.FileNotFound => "no such file or directory",
+            error.AccessDenied, error.PermissionDenied => "permission denied",
+            error.IsDir => "is a directory",
+            else => "the file could not be read",
+        };
+    }
+
+    pub fn jsonStringify(self: Failure, jws: anytype) !void {
+        try jws.write(.{ .category = self.name(), .message = self.message() });
     }
 };
 

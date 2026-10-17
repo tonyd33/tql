@@ -134,7 +134,7 @@ const FileResult = struct {
     syntax_errors: []const tql.SyntaxError = &.{},
     stats: FileStats,
     /// Why the file produced no outputs, when reading or running it failed.
-    failure: ?anyerror = null,
+    failure: ?tql.Failure = null,
 
     fn deinit(self: FileResult) void {
         self.arena.deinit();
@@ -204,14 +204,14 @@ fn pushFailure(ctx: *SharedContext, segments: []const []const u8, err: anyerror)
     const entry = try ownPath(ctx, segments);
     _ = ctx.progress.total.fetchAdd(1, .monotonic);
     _ = ctx.progress.done.fetchAdd(1, .monotonic);
-    const result = failedResult(ctx, entry, err);
+    const result = failedResult(ctx, entry, .{ .unreadable_target = err });
     ctx.result_queue.push(result) catch |push_err| {
         result.deinit();
         return push_err;
     };
 }
 
-fn failedResult(ctx: *SharedContext, entry: PathEntry, err: anyerror) FileResult {
+fn failedResult(ctx: *SharedContext, entry: PathEntry, failure: tql.Failure) FileResult {
     _ = ctx.progress.failed.fetchAdd(1, .monotonic);
     return .{
         .arena = entry.arena,
@@ -220,7 +220,7 @@ fn failedResult(ctx: *SharedContext, entry: PathEntry, err: anyerror) FileResult
         .values = "",
         .count = 0,
         .stats = .{},
-        .failure = err,
+        .failure = failure,
     };
 }
 
@@ -271,10 +271,10 @@ fn walkerThread(ctx: *SharedContext) !void {
 fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr) !void {
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        if (result.failure) |err| {
+        if (result.failure) |failure| {
             try stderr.lock.lock(ctx.io);
             defer stderr.lock.unlock(ctx.io);
-            try stderr.writer.print("{s}: error: {f}\n", .{ result.filename, common.TargetFailure{ .err = err } });
+            try common.reportFailure(stderr.writer, result.filename, failure);
             try stderr.writer.flush();
             continue;
         }
@@ -321,16 +321,12 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     try jws.beginArray();
     while (try ctx.result_queue.pop()) |result| {
         defer result.deinit();
-        if (result.failure) |err| {
+        if (result.failure) |failure| {
             try jws.beginObject();
             try jws.objectField("file");
             try writeFilename(jws, ctx.allocator, result.filename);
-            try jws.objectField("error");
-            try jws.write(@errorName(err));
-            try jws.objectField("message");
-            const message = try std.fmt.allocPrint(ctx.allocator, "{f}", .{common.TargetFailure{ .err = err }});
-            defer ctx.allocator.free(message);
-            try jws.write(message);
+            try jws.objectField("failure");
+            try jws.write(failure);
             try jws.endObject();
             continue;
         }
@@ -429,9 +425,7 @@ fn workerThread(ctx: *SharedContext) !void {
             _ = ctx.progress.done.fetchAdd(1, .monotonic);
         }
 
-        // A file that cannot be read or run is reported and skipped.
-        const result = queryFile(ctx, entry, budget.allocator()) catch |err|
-            failedResult(ctx, entry, err);
+        const result = queryFile(ctx, entry, budget.allocator());
         if (result.count > 0) _ = ctx.progress.matched.fetchAdd(1, .monotonic);
         if (result.syntax_errors.len > 0) _ = ctx.progress.unparsed.fetchAdd(1, .monotonic);
 
@@ -458,10 +452,12 @@ fn mapFile(io: std.Io, path: []const u8) ![]align(std.heap.page_size_min) const 
     );
 }
 
-/// Read and run one target, rendering its outputs into the entry's arena.
-fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) !FileResult {
+/// Read and run one target, rendering its outputs into the entry's arena. A
+/// file that cannot be read or run is a failed result.
+fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) FileResult {
     const read_start = std.Io.Timestamp.now(ctx.io, .real);
-    const mapped: []align(std.heap.page_size_min) const u8 = if (entry.contents != null) &.{} else try mapFile(ctx.io, entry.path);
+    const mapped: []align(std.heap.page_size_min) const u8 = if (entry.contents != null) &.{} else mapFile(ctx.io, entry.path) catch |err|
+        return failedResult(ctx, entry, .{ .unreadable_target = err });
     const read_time = read_start.untilNow(ctx.io, .real);
     defer if (mapped.len > 0) std.posix.munmap(mapped);
     const target: []const u8, const target_path: ?[]const u8 = if (entry.contents) |contents|
@@ -469,12 +465,12 @@ fn queryFile(ctx: *SharedContext, entry: PathEntry, scratch: std.mem.Allocator) 
     else
         .{ mapped, entry.path };
 
-    const run_result = try ctx.compiled.run(
+    const run_result = ctx.compiled.run(
         target,
         target_path,
         entry.arena.allocator(),
         scratch,
-    );
+    ) catch |err| return failedResult(ctx, entry, .ofRun(err));
 
     return .{
         .arena = entry.arena,
@@ -511,7 +507,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
         try common.reportDiagnostics(&engine, &sink, config.query, config.query_path, stderr);
-        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
+        if (!sink.hasErrors()) try common.reportFailure(stderr, config.query_path, .ofAny(err));
         return .compilation_error;
     };
     defer compiled.deinit();

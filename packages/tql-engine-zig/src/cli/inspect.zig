@@ -133,27 +133,22 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     for (files.items) |path| {
         var arena = std.heap.ArenaAllocator.init(gpa);
         defer arena.deinit();
-        target.inspect(arena.allocator(), path) catch |err| {
-            failed = true;
-            switch (format) {
-                .text => {
-                    try stderr.print("{s}: error: {f}\n", .{ path, common.TargetFailure{ .err = err } });
-                    try stderr.flush();
-                },
-                .json => {
-                    try jws.beginObject();
-                    try jws.objectField("file");
-                    try jws.write(path);
-                    try jws.objectField("error");
-                    try jws.write(@errorName(err));
-                    try jws.objectField("message");
-                    const message = try std.fmt.allocPrint(gpa, "{f}", .{common.TargetFailure{ .err = err }});
-                    defer gpa.free(message);
-                    try jws.write(message);
-                    try jws.endObject();
-                },
-            }
-        };
+        const failure = (target.inspect(arena.allocator(), path) catch |err| tql.Failure.ofAny(err)) orelse continue;
+        failed = true;
+        switch (format) {
+            .text => {
+                try common.reportFailure(stderr, path, failure);
+                try stderr.flush();
+            },
+            .json => {
+                try jws.beginObject();
+                try jws.objectField("file");
+                try jws.write(path);
+                try jws.objectField("failure");
+                try jws.write(failure);
+                try jws.endObject();
+            },
+        }
     }
     if (format == .json) {
         try jws.endArray();
@@ -175,9 +170,14 @@ const InspectTarget = struct {
     jws: *std.json.Stringify,
     written: bool = false,
 
-    fn inspect(self: *InspectTarget, arena: std.mem.Allocator, path: []const u8) !void {
-        const source = try std.Io.Dir.cwd().readFileAlloc(self.io, path, arena, .unlimited);
-        const tree = self.parser.parseString(source, null) orelse return error.SourceParseFailed;
+    /// Write the tree of the file at `path`, or return why it could not be
+    /// read or parsed.
+    fn inspect(self: *InspectTarget, arena: std.mem.Allocator, path: []const u8) !?tql.Failure {
+        const source = std.Io.Dir.cwd().readFileAlloc(self.io, path, arena, .unlimited) catch |err| switch (err) {
+            error.OutOfMemory => |e| return e,
+            else => return .{ .unreadable_target = err },
+        };
+        const tree = self.parser.parseString(source, null) orelse return .target_parse_failed;
         defer tree.destroy();
 
         var rows: std.ArrayList(tql.inspect.Row) = .empty;
@@ -223,5 +223,6 @@ const InspectTarget = struct {
                 try self.jws.endObject();
             },
         }
+        return null;
     }
 };

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { EditorView } from "codemirror";
   import { EditorSelection } from "@codemirror/state";
-  import { type QueryResult, type TreeRow, type Grammar } from "tql";
+  import { type Diagnostic, type QueryResult, type TreeRow, type Grammar } from "tql";
   import { engine, loadLanguage, availableGrammars } from "$lib/boot";
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
@@ -62,25 +62,42 @@ int main(int argc, char **argv) {
     });
   });
 
-  const tree = $derived.by<TreeRow[] | null>(() =>
-    loaded ? engine.parseTree(loaded, target) : null,
-  );
+  const tree = $derived.by<TreeRow[] | null>(() => {
+    if (!loaded) return null;
+    const outcome = engine.parseTree(loaded, target);
+    return outcome.kind === "ok" ? outcome.rows : null;
+  });
 
   let result = $state<QueryResult | null>(null);
   let error = $state<string | null>(null);
   function run() {
     if (!loaded) return;
-    try {
-      result = engine.query({
-        querySource: query,
-        queryTarget: target,
-        grammar: loaded,
-      });
-      error = null;
-    } catch (e) {
-      result = null;
-      error = e instanceof Error ? e.message : String(e);
+    const outcome = engine.query({
+      querySource: query,
+      queryTarget: target,
+      grammar: loaded,
+    });
+    switch (outcome.kind) {
+      case "ok":
+        result = outcome.result;
+        error = null;
+        break;
+      case "rejected":
+        result = null;
+        error = outcome.diagnostics.map(describe).join("\n");
+        break;
+      case "failed":
+        result = null;
+        error = `error[${outcome.failure.category}]: ${outcome.failure.message}`;
+        break;
     }
+  }
+
+  function describe(d: Diagnostic): string {
+    const header = `error[${d.category}]: ${d.message}`;
+    if (d.span === null) return header;
+    const at = `${d.span.start_point.row + 1}:${d.span.start_point.column + 1}`;
+    return `${d.module === null ? at : `${d.module}:${at}`}: ${header}`;
   }
 </script>
 

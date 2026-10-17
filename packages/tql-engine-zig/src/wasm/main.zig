@@ -5,6 +5,9 @@ const gpa = std.heap.wasm_allocator;
 
 pub fn main() void {}
 
+/// What a call wrote. Status 0 is a JSON reply `{"kind": ..}`: "ok" with
+/// the call's value, "rejected" with the query's diagnostics, or "failed"
+/// with a failure. Status 1 is no reply, for want of memory to write one.
 const Result = extern struct {
     status: i32,
     ptr: [*]u8,
@@ -30,80 +33,61 @@ export fn tql_free(ptr: [*]u8, len: usize) void {
 /// Compiled by the first run and kept for every later one.
 var shared_library: ?tql.Library = null;
 
-fn runImpl(
-    engine: *tql.Engine,
-    grammar: *const tql.Grammar,
-    query_source: []const u8,
-    query_target: []const u8,
-    buf: *std.Io.Writer.Allocating,
-    sink: *tql.diagnostic.Sink,
-) !void {
-    var compiled = try engine.compileQuery(query_source, grammar, sink);
-    defer compiled.deinit();
-
-    var arena = std.heap.ArenaAllocator.init(gpa);
-    defer arena.deinit();
-
-    const run_result = try compiled.run(
-        query_target,
-        null,
-        arena.allocator(),
-        arena.allocator(),
-    );
-
-    var jws: std.json.Stringify = .{ .writer = &buf.writer };
+fn writeRun(w: *std.Io.Writer, compiled: *const tql.CompiledQuery, run: tql.RunOutcome) !void {
+    var jws: std.json.Stringify = .{ .writer = w };
+    try jws.beginObject();
+    try jws.objectField("kind");
+    try jws.write("ok");
+    try jws.objectField("result");
     try jws.beginObject();
     try jws.objectField("values");
     try jws.beginWriteRaw();
-    try jws.writer.writeAll(run_result.json);
+    try jws.writer.writeAll(run.json);
     jws.endWriteRaw();
     try jws.objectField("syntax_errors");
-    try jws.write(run_result.syntax_errors);
+    try jws.write(run.syntax_errors);
     try jws.objectField("stats");
+    try jws.write(.{
+        .compile = compiled.times,
+        .parse_time_ns = run.parse_time.nanoseconds,
+        .query_time_ns = run.query_time.nanoseconds,
+    });
+    try jws.endObject();
+    try jws.endObject();
+}
+
+fn writeRejected(w: *std.Io.Writer, engine: *const tql.Engine, sink: *const tql.diagnostic.Sink) !void {
+    var jws: std.json.Stringify = .{ .writer = w };
     try jws.beginObject();
-    try jws.objectField("compile");
-    try jws.write(compiled.times);
-    try jws.objectField("parse_time_ns");
-    try jws.write(run_result.parse_time.nanoseconds);
-    try jws.objectField("query_time_ns");
-    try jws.write(run_result.query_time.nanoseconds);
-    try jws.endObject();
+    try jws.objectField("kind");
+    try jws.write("rejected");
+    try jws.objectField("diagnostics");
+    try jws.beginArray();
+    for (sink.items()) |d| try jws.write(.{
+        .category = d.category.name(),
+        .message = d.message,
+        .module = engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name,
+        .span = if (d.span.isUnknown()) null else d.span,
+    });
+    try jws.endArray();
     try jws.endObject();
 }
 
-fn finishErr(buf: *std.Io.Writer.Allocating, out: *Result, msg: []const u8) void {
-    buf.clearRetainingCapacity();
-    buf.writer.writeAll(msg) catch return fail(buf, out);
+fn reply(buf: *std.Io.Writer.Allocating, out: *Result) void {
     const slice = buf.toOwnedSlice() catch return fail(buf, out);
-    out.* = .{ .status = 1, .ptr = slice.ptr, .len = slice.len };
-}
-
-/// Report `err` with every diagnostic the compilation collected, one per
-/// line. Falls back to describing `err` when there are none.
-fn finishDiagnostics(
-    buf: *std.Io.Writer.Allocating,
-    out: *Result,
-    engine: *const tql.Engine,
-    sink: *const tql.diagnostic.Sink,
-    err: anyerror,
-) void {
-    buf.clearRetainingCapacity();
-    if (sink.items().len == 0) buf.writer.print("{f}", .{tql.Failure{ .err = err }}) catch return fail(buf, out);
-    for (sink.items(), 0..) |d, i| {
-        if (i > 0) buf.writer.writeByte('\n') catch return fail(buf, out);
-        if (engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name) |name| {
-            buf.writer.print("{s}:", .{name}) catch return fail(buf, out);
-        }
-        buf.writer.print("{f}: {s}: {s}", .{ d.span, d.category.name(), d.message }) catch
-            return fail(buf, out);
-    }
-    const slice = buf.toOwnedSlice() catch return fail(buf, out);
-    out.* = .{ .status = 1, .ptr = slice.ptr, .len = slice.len };
+    out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
 }
 
 fn fail(buf: *std.Io.Writer.Allocating, out: *Result) void {
     buf.deinit();
-    out.* = .{ .status = 2, .ptr = undefined, .len = 0 };
+    out.* = .{ .status = 1, .ptr = undefined, .len = 0 };
+}
+
+fn finishFailure(buf: *std.Io.Writer.Allocating, out: *Result, failure: tql.Failure) void {
+    buf.clearRetainingCapacity();
+    var jws: std.json.Stringify = .{ .writer = &buf.writer };
+    jws.write(.{ .kind = "failed", .failure = failure }) catch return fail(buf, out);
+    reply(buf, out);
 }
 
 /// Serves the modules a caller passed as one JSON object of name to source.
@@ -138,7 +122,7 @@ export fn tql_run_dynamic(
 ) void {
     var buf = std.Io.Writer.Allocating.init(gpa);
 
-    if (language_ptr == 0) return finishErr(&buf, out, "null language pointer");
+    if (language_ptr == 0) return finishFailure(&buf, out, .{ .internal = error.NullLanguagePointer });
     const language: *const tql.ts.Language = @ptrFromInt(language_ptr);
     const grammar = tql.Grammar{
         .name = grammar_name_ptr[0..grammar_name_len],
@@ -151,7 +135,7 @@ export fn tql_run_dynamic(
         gpa,
         modules_ptr[0..modules_len],
         .{},
-    ) catch |err| return finishErr(&buf, out, @errorName(err));
+    ) catch |err| return finishFailure(&buf, out, .{ .internal = err });
     defer modules.deinit();
     var served: JsonModules = .{ .map = modules.value };
 
@@ -159,7 +143,7 @@ export fn tql_run_dynamic(
     var engine = tql.Engine.init(.{
         .allocator = gpa,
         .io = single_threaded.io(),
-    }) catch |err| return finishErr(&buf, out, @errorName(err));
+    }) catch |err| return finishFailure(&buf, out, .ofAny(err));
     defer engine.deinit();
     engine.loader = served.loader();
 
@@ -167,16 +151,23 @@ export fn tql_run_dynamic(
     defer sink.deinit();
 
     if (shared_library == null) {
-        shared_library = tql.Library.init(gpa, &sink) catch |err| return finishErr(&buf, out, @errorName(err));
+        shared_library = tql.Library.init(gpa, &sink) catch |err| return finishFailure(&buf, out, .ofAny(err));
     }
     engine.library = &shared_library.?;
 
-    runImpl(&engine, &grammar, query_ptr[0..query_len], target_ptr[0..target_len], &buf, &sink) catch |err| {
-        return finishDiagnostics(&buf, out, &engine, &sink, err);
+    var compiled = engine.compileQuery(query_ptr[0..query_len], &grammar, &sink) catch |err| {
+        if (sink.items().len == 0) return finishFailure(&buf, out, .ofAny(err));
+        writeRejected(&buf.writer, &engine, &sink) catch return fail(&buf, out);
+        return reply(&buf, out);
     };
+    defer compiled.deinit();
 
-    const slice = buf.toOwnedSlice() catch return fail(&buf, out);
-    out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
+    var arena = std.heap.ArenaAllocator.init(gpa);
+    defer arena.deinit();
+    const run = compiled.run(target_ptr[0..target_len], null, arena.allocator(), arena.allocator()) catch |err|
+        return finishFailure(&buf, out, .ofRun(err));
+    writeRun(&buf.writer, &compiled, run) catch return fail(&buf, out);
+    reply(&buf, out);
 }
 
 export fn tql_parse_tree(
@@ -187,33 +178,30 @@ export fn tql_parse_tree(
 ) void {
     var buf = std.Io.Writer.Allocating.init(gpa);
 
-    if (language_ptr == 0) return finishErr(&buf, out, "null language pointer");
+    if (language_ptr == 0) return finishFailure(&buf, out, .{ .internal = error.NullLanguagePointer });
     const language: *const tql.ts.Language = @ptrFromInt(language_ptr);
 
-    parseTreeImpl(language, target_ptr[0..target_len], &buf) catch |err| {
-        return finishErr(&buf, out, @errorName(err));
-    };
-
-    const slice = buf.toOwnedSlice() catch return fail(&buf, out);
-    out.* = .{ .status = 0, .ptr = slice.ptr, .len = slice.len };
-}
-
-fn parseTreeImpl(
-    language: *const tql.ts.Language,
-    target: []const u8,
-    buf: *std.Io.Writer.Allocating,
-) !void {
     const parser = tql.ts.Parser.create();
     defer parser.destroy();
-    try parser.setLanguage(language);
-
-    const tree = parser.parseString(target, null) orelse return error.SourceParseFailed;
+    parser.setLanguage(language) catch return finishFailure(&buf, out, .incompatible_grammar);
+    const target = target_ptr[0..target_len];
+    const tree = parser.parseString(target, null) orelse return finishFailure(&buf, out, .target_parse_failed);
     defer tree.destroy();
 
+    writeTree(&buf.writer, tree.rootNode(), target) catch return fail(&buf, out);
+    reply(&buf, out);
+}
+
+fn writeTree(w: *std.Io.Writer, root: tql.ts.Node, target: []const u8) !void {
     var rows: std.ArrayList(tql.inspect.Row) = .empty;
     defer rows.deinit(gpa);
-    try tql.inspect.collect(gpa, &rows, tree.rootNode(), target, .{});
+    try tql.inspect.collect(gpa, &rows, root, target, .{});
 
-    var jws: std.json.Stringify = .{ .writer = &buf.writer };
+    var jws: std.json.Stringify = .{ .writer = w };
+    try jws.beginObject();
+    try jws.objectField("kind");
+    try jws.write("ok");
+    try jws.objectField("rows");
     try tql.inspect.writeJson(rows.items, &jws);
+    try jws.endObject();
 }

@@ -18,4 +18,4 @@ main = pure $ case loop of {
 class A {}
 
 --- runtime error ---
-a value depends on itself
+error[cyclic-value]: a value depends on itself

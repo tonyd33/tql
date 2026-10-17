@@ -47,7 +47,7 @@ pub fn loadQuery(
 ) !?[]u8 {
     if (from_file) |path| {
         return FileLoader.readQueryFile(io, gpa, path) catch |err| {
-            try stderr.print("Error: cannot read query file '{s}': {t}\n", .{ path, err });
+            try stderr.print("Error: cannot read query file '{s}': {s}\n", .{ path, tql.Failure.readProblem(err) });
             return null;
         };
     }
@@ -78,7 +78,10 @@ pub const Grammars = struct {
     /// not found.
     pub fn get(self: *Grammars, name: []const u8, stderr: *std.Io.Writer) !?*const tql.Grammar {
         return self.registry.get(name) catch |err| {
-            try stderr.print("Error: grammar '{s}' not found: {t}\n", .{ name, err });
+            try stderr.print("Error: grammar '{s}' {s}\n", .{ name, switch (err) {
+                error.GrammarNotFound => "not found",
+                else => "could not be loaded",
+            } });
             return null;
         };
     }
@@ -99,15 +102,10 @@ pub fn reportDiagnostics(
     }
 }
 
-/// Why a target failed, written for a user.
-pub const TargetFailure = struct {
-    err: anyerror,
-
-    pub fn format(self: TargetFailure, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.writeAll(switch (self.err) {
-            error.FileNotFound => "no such file or directory",
-            error.AccessDenied, error.PermissionDenied => "permission denied",
-            else => return tql.Failure.format(.{ .err = self.err }, w),
-        });
-    }
-};
+/// Write `path: error[category]: message` for `failure`, without the path
+/// when there is none.
+pub fn reportFailure(w: *std.Io.Writer, path: ?[]const u8, failure: tql.Failure) std.Io.Writer.Error!void {
+    if (path) |p| try w.print("{s}: ", .{p});
+    try failure.render(w);
+    try w.writeByte('\n');
+}
