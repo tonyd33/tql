@@ -302,17 +302,20 @@ pub const Lowerer = struct {
                 return try self.builder.apply(field, try self.expression(subject, scope), e.span);
             },
 
-            // `_.l` is the bare `select[l]`, and `_.l.m` a lambda reading
+            .projection => |p| return try self.builder.apply(
+                try self.select(p.label, e.span),
+                try self.expression(p.record, scope),
+                e.span,
+            ),
+
+            // `(.l)` is the bare `select[l]`, and `(.l.m)` a lambda reading
             // through both.
-            .projection => |p| {
-                if (p.record == null) return try self.select(p.label, e.span);
-                if (!isSection(e)) return try self.projections(e, null, scope);
+            .selector => |labels| {
+                if (labels.len == 1) return try self.select(labels[0], e.span);
                 const parameter = try self.env.interner.fresh("_");
-                return try self.builder.lambda(
-                    parameter,
-                    try self.projections(e, self.builder.symbol(parameter, e.span), scope),
-                    e.span,
-                );
+                var read = self.builder.symbol(parameter, e.span);
+                for (labels) |label| read = try self.builder.apply(try self.select(label, e.span), read, e.span);
+                return try self.builder.lambda(parameter, read, e.span);
             },
 
             .apply => |a| return try self.builder.apply(
@@ -380,30 +383,6 @@ pub const Lowerer = struct {
 
     fn select(self: *Lowerer, label: []const u8, span: diagnostic.Span) Error!core.Term {
         return self.builder.symbol(try primitives.selectSymbol(self.env, label), span);
-    }
-
-    /// Whether `e` is a projection chain starting at `_`.
-    fn isSection(e: cst.Expression) bool {
-        var current = e;
-        while (current.kind == .projection) {
-            current = current.kind.projection.record orelse return true;
-        }
-        return false;
-    }
-
-    /// The chain of projections `e`, read from `hole` in place of `_`.
-    fn projections(
-        self: *Lowerer,
-        e: cst.Expression,
-        hole: ?core.Term,
-        scope: ?*const resolve.Scope,
-    ) Error!core.Term {
-        const p = e.kind.projection;
-        const subject = if (p.record) |r| switch (r.kind) {
-            .projection => try self.projections(r, hole, scope),
-            else => try self.expression(r, scope),
-        } else hole.?;
-        return try self.builder.apply(try self.select(p.label, e.span), subject, e.span);
     }
 
     /// `(op)` is `\x y -> x op y`, `(e op)` is `\y -> e op y` and `(op e)` is

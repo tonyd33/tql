@@ -235,6 +235,6 @@ instance Semigroup () where { append _ _ = (); };
     (unit)
     (definition
       (identifier)
-      (identifier)
-      (identifier)
+      (wildcard)
+      (wildcard)
       (unit))))

@@ -19,7 +19,8 @@
 //! (e_1, .., e_n)             the n-tuple constructor applied to e_1 .. e_n
 //! {l_1 = e_1, ..}            record[l_1,..] e_1 ..      (labels sorted)
 //! e.l                        select[l] e
-//! _.l                        select[l]
+//! (.l)                       select[l]
+//! (.l_1.l_2)                 \x -> select[l_2] (select[l_1] x)
 //! p | q                      compose_flipped p q
 //! p . q                      compose p q
 //! p <|> q                    alt p q

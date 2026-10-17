@@ -30,7 +30,7 @@
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
 - A `String` is always UTF-8 text. `text` and `filename` replace each ill-formed byte sequence with U+FFFD, so a Latin-1 file's text outputs as a JSON string, not an array of bytes; `range` still gives the source bytes. `length` of a string counts code points: `length "héllo"` is 5, not 6. A string literal that is not UTF-8 is a parse error.
-- `_` is a wildcard in every binding position and never a value: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression is a parse error. `\_ -> _` returned its argument.
+- `_` is a wildcard in patterns and value binders only: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression, a type, a declaration, type parameter or record label is a parse error. `\_ -> _` returned its argument.
 - A name bound twice in one `let` group, one lambda or one definition's parameters is a `duplicate-definition` error: `\x x -> x` and `let { y = 5; y = 6; }` took the last binder. A nested lambda or a later `do` bind may still shadow.
 - A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run.
 - `|` is the loosest operator, so a stage takes its argument with `$`: `named_children | keep $ is_kind :argument_list | parent`. Bracket a pipeline passed with `$`: `collect (children | arr text)`.
@@ -47,7 +47,7 @@
 - Added `f . g` for function composition.
 - Added `a >> b` for sequencing, as a `do` expression statement.
 - Added list patterns `[]` and `[a, b]`, and cons `h : t` in patterns and expressions. `x:xs` is cons; `:k` after whitespace is still a kind.
-- Added record field access: `r.start_byte` reads a field, and `_.start_byte` is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
+- Added record field access: `r.start_byte` reads a field, and `(.start_byte)`, with no space after the dot, is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
 - Added open record types to signatures: `{name: String | r}` is any record with a `name` field.
 - Added type aliases: `type Named r = {name: String | r};`. `Range` and `Point` are aliases now.
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.

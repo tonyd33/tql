@@ -1,0 +1,70 @@
+title: `_` is no type, declaration, parameter or label
+grammar: typescript
+asserts: error
+
+--- tql ---
+_ :: Int;
+_ = 1;
+class C _ where {};
+data T _ = T;
+type K _ = Int;
+r = {_ = 1};
+s :: {_: Int} -> Int;
+f :: _ -> Int;
+g :: {x: Int | _} -> Int;
+main = pure 1;
+
+--- error ---
+error[parse]: `_` is a wildcard and cannot name a signature
+ --> 1:1
+  |
+1 | _ :: Int;
+  | ^
+
+error[parse]: `_` is a wildcard and cannot name a definition
+ --> 2:1
+  |
+2 | _ = 1;
+  | ^
+
+error[parse]: `_` is a wildcard and cannot name a type parameter
+ --> 3:9
+  |
+3 | class C _ where {};
+  |         ^
+
+error[parse]: `_` is a wildcard and cannot name a type parameter
+ --> 4:8
+  |
+4 | data T _ = T;
+  |        ^
+
+error[parse]: `_` is a wildcard and cannot name a type parameter
+ --> 5:8
+  |
+5 | type K _ = Int;
+  |        ^
+
+error[parse]: `_` is a wildcard and cannot name a record label
+ --> 6:6
+  |
+6 | r = {_ = 1};
+  |      ^
+
+error[parse]: `_` is a wildcard and cannot name a record label
+ --> 7:7
+  |
+7 | s :: {_: Int} -> Int;
+  |       ^
+
+error[parse]: type wildcards are not supported
+ --> 8:6
+  |
+8 | f :: _ -> Int;
+  |      ^
+
+error[parse]: type wildcards are not supported
+ --> 9:16
+  |
+9 | g :: {x: Int | _} -> Int;
+  |                ^

@@ -8,7 +8,7 @@ start :: {start_byte: Int | r} -> Int;
 -- <- function
 --        ^ property
 --                          ^ type
-start = _.start_byte;
+start = (.start_byte);
 --        ^ property
 
 is_alloc :: Filter Node Node;

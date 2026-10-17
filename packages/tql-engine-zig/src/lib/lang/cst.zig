@@ -210,14 +210,13 @@ pub const ClassConstraint = struct {
 };
 
 pub const Definition = struct {
-    /// Null for `_`.
-    name: ?Identifier,
+    name: Identifier,
     parameters: []const Parameter,
     body: Expression,
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: Definition, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("(define {s} (params", .{self.name orelse "_"});
+        try w.print("(define {s} (params", .{self.name});
         for (self.parameters) |p| {
             try w.writeByte(' ');
             try w.writeAll(p.name orelse "_");
@@ -434,8 +433,7 @@ pub const Navigation = struct {
 
 /// `r.label`, reading a record field.
 pub const Projection = struct {
-    /// Absent for the section `_.label`, a function of the record.
-    record: ?Expression,
+    record: Expression,
     label: Identifier,
 };
 
@@ -529,6 +527,8 @@ pub const Expression = struct {
         regex: []const u8,
         navigation: *Navigation,
         projection: *Projection,
+        /// `(.l_1.l_2)`, the function reading through each label in turn.
+        selector: []const Identifier,
         apply: *Apply,
         binary: *Binary,
         section: *Section,
@@ -567,12 +567,13 @@ pub const Expression = struct {
             },
             .projection => |p| {
                 try w.writeAll("(select ");
-                if (p.record) |r| {
-                    try r.sexpr(w);
-                } else {
-                    try w.writeAll("_");
-                }
+                try p.record.sexpr(w);
                 try w.print(" {s})", .{p.label});
+            },
+            .selector => |labels| {
+                try w.writeAll("(selector");
+                for (labels) |label| try w.print(" {s}", .{label});
+                try w.writeByte(')');
             },
             .apply => |a| {
                 try w.writeAll("(apply ");

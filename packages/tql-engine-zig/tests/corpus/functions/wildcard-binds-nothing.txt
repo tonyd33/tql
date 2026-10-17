@@ -3,10 +3,9 @@ grammar: typescript
 asserts: values
 
 Each `_` is a separate wildcard, so `h _ _` and `\_ _ ->` take two arguments
-without a repeated name, and `_ = 5` defines nothing a name can reach.
+without a repeated name.
 
 --- tql ---
-_ = 5;
 h _ _ = 1;
 f = \_ _ -> 2;
 g = let {

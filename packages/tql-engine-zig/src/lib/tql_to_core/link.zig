@@ -568,13 +568,13 @@ fn checkSynonymCycles(
             var others: std.Io.Writer.Allocating = .init(allocator);
             for (members) |other| {
                 if (other == member) continue;
-                try others.writer.print(", through `{s}`", .{declarations[other].name orelse "_"});
+                try others.writer.print(", through `{s}`", .{declarations[other].name});
             }
             try sink.report(
                 .cyclic_synonym,
                 declarations[member].span(),
                 "`{s}` is defined in terms of itself{s}",
-                .{ declarations[member].name orelse "_", others.written() },
+                .{ declarations[member].name, others.written() },
             );
         }
     }

@@ -669,10 +669,10 @@ main = f.name . g;
       right: (identifier))))
 
 ========================================
-an underscore section composes
+a field selector composes
 ========================================
 
-main = f . _.name;
+main = f . (.name);
 
 ---
 
@@ -681,25 +681,22 @@ main = f . _.name;
     name: (identifier)
     body: (composition
       left: (identifier)
-      right: (field_access
-        record: (identifier)
+      right: (field_selector
         field: (field_name)))))
 
 ========================================
-an underscore section chains
+a field selector chains
 ========================================
 
-main = _.start_point.row;
+main = (.start_point.row);
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (field_access
-      record: (field_access
-        record: (identifier)
-        field: (field_name))
+    body: (field_selector
+      field: (field_name)
       field: (field_name))))
 
 ========================================
@@ -772,7 +769,7 @@ main = case xs of { a : b : t -> a; _ -> 0 };
             tail: (identifier)))
         body: (identifier))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
