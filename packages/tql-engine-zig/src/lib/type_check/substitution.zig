@@ -31,9 +31,16 @@ const Leaf = union(enum) {
 const Rewriter = struct {
     subst: *Substitution,
     leaf: Leaf,
+    /// Expands every alias whose arguments mention this metavariable.
+    unalias: ?types.Meta,
 
     pub fn head(self: Rewriter, t: types.Type) types.Type {
-        return self.subst.resolve(t);
+        var current = self.subst.resolve(t);
+        const id = self.unalias orelse return current;
+        while (current == .alias and self.subst.occurs(id, current)) {
+            current = self.subst.resolve(current.alias.expansion);
+        }
+        return current;
     }
 
     pub fn record(self: Rewriter, r: types.Type.Record) Allocator.Error!types.Type.Record {
@@ -53,6 +60,9 @@ pub const Substitution = struct {
     /// The declared classes and instances, for deciding a constraint.
     classes: *const classes.Registry,
     /// Indexed by `Meta`. `null` means unsolved.
+    ///
+    /// Invariants:
+    /// - No solution reaches its own metavariable, alias arguments included.
     solutions: std.ArrayList(?types.Type),
     /// Indexed by `Meta`.
     kinds: std.ArrayList(types.Kind),
@@ -97,7 +107,7 @@ pub const Substitution = struct {
     ///
     /// Preconditions:
     /// - `id` is unsolved.
-    /// - The occurs check has passed for `id` in `t`.
+    /// - `id` does not occur in `t`, alias arguments included.
     pub fn bind(self: *Substitution, id: types.Meta, t: types.Type) void {
         self.solutions.items[id] = t;
     }
@@ -169,27 +179,28 @@ pub const Substitution = struct {
     /// `resolve`, applied through the whole tree. Returns `t` itself when
     /// nothing changed, so a fully-solved type costs no allocation.
     pub fn resolveDeep(self: *Substitution, t: types.Type) !types.Type {
-        return self.rewrite(t, .resolved);
+        return self.rewrite(t, .resolved, null);
     }
 
     /// `t` with each metavariable and bound variable replaced by
-    /// `leaf.replace` of it, resolving every node first.
+    /// `leaf.replace` of it, resolving every node first, and expanding every
+    /// alias whose arguments mention `unalias`.
     ///
-    /// Allocates in the arena only along a path where a leaf changed, and
+    /// Allocates in the arena only along a path where a node changed, and
     /// returns `t` itself when none did.
-    fn rewrite(self: *Substitution, t: types.Type, leaf: Leaf) Allocator.Error!types.Type {
-        return try types.rewrite(self.arena, t, Rewriter{ .subst = self, .leaf = leaf });
+    fn rewrite(self: *Substitution, t: types.Type, leaf: Leaf, unalias: ?types.Meta) Allocator.Error!types.Type {
+        return try types.rewrite(self.arena, t, Rewriter{ .subst = self, .leaf = leaf, .unalias = unalias });
     }
 
-    /// Whether `id` occurs anywhere in `t`. Binding a metavariable to a type
-    /// containing it would build an infinite type, so unification checks this
-    /// before every bind.
+    /// Whether `id` occurs in `t`, alias arguments included.
     pub fn occurs(self: *Substitution, id: types.Meta, t: types.Type) bool {
-        const head = self.expand(t);
+        const head = self.resolve(t);
         return switch (head) {
             .meta => |other| other == id,
             .variable => false,
-            .alias => unreachable,
+            .alias => |a| for (a.arguments) |argument| {
+                if (self.occurs(id, argument)) break true;
+            } else false,
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
             } else false,
@@ -199,6 +210,16 @@ pub const Substitution = struct {
             .function => |arrow| self.occurs(id, arrow.from) or self.occurs(id, arrow.to),
             .application => |a| self.occurs(id, a.head) or self.occurs(id, a.argument),
         };
+    }
+
+    /// `t` with every alias whose arguments mention `id` replaced by its
+    /// expansion, or null when `id` occurs in `t` even so. Binding a
+    /// metavariable to a type containing it would build an infinite type, so
+    /// unification checks this before every bind.
+    pub fn occursCheck(self: *Substitution, id: types.Meta, t: types.Type) Allocator.Error!?types.Type {
+        if (!self.occurs(id, t)) return t;
+        const expanded = try self.rewrite(t, .resolved, id);
+        return if (self.occurs(id, expanded)) null else expanded;
     }
 
     /// Collects the unsolved metavariables of `t` into `out`, in first-seen
@@ -265,7 +286,7 @@ pub const Substitution = struct {
     /// or null when `t` has a free metavariable `metas` lacks.
     pub fn abstractOver(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!?types.Type {
         if (!try self.within(t, metas)) return null;
-        return try self.rewrite(t, .{ .bound = metas });
+        return try self.rewrite(t, .{ .bound = metas }, null);
     }
 
     /// Whether `t` has any of `metas` free.
@@ -301,7 +322,7 @@ pub const Substitution = struct {
 
         const bound = try self.arena.alloc(types.TypeClassConstraint, constraint_list.len);
         for (constraint_list, bound) |c, *slot| {
-            slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, .{ .bound = metas }) };
+            slot.* = .{ .class = c.class, .type = try self.rewrite(c.type, .{ .bound = metas }, null) };
         }
 
         const variables = try self.arena.alloc(types.Kind, metas.len);
@@ -309,7 +330,7 @@ pub const Substitution = struct {
         return .{
             .variables = variables,
             .constraints = bound,
-            .type = try self.rewrite(t, .{ .bound = metas }),
+            .type = try self.rewrite(t, .{ .bound = metas }, null),
         };
     }
 };
