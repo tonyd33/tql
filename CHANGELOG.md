@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+### Bug Fixes
+
+- Unifying a type with an alias that mentions it only in an unused parameter, as in `retag x x` with `retag :: t -> Tagged t -> Int`, no longer crashes the checker.
+
 ## 0.4.0 (2026-10-17)
 
 ### Breaking Changes
