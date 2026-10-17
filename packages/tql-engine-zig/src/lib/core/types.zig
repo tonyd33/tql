@@ -643,6 +643,42 @@ pub fn asApplied(t: Type) ?Applied {
     };
 }
 
+/// Whether bound variable `index` appears in `t`, with its aliases expanded.
+pub fn mentions(t: Type, index: TypeVar) bool {
+    return switch (t) {
+        .variable => |v| v == index,
+        .meta => false,
+        .constructor => |c| for (c.arguments) |argument| {
+            if (mentions(argument, index)) break true;
+        } else false,
+        .record => |r| for (r.fields) |f| {
+            if (mentions(f.type.*, index)) break true;
+        } else if (r.rest) |rest| mentions(rest.*, index) else false,
+        .function => |arrow| mentions(arrow.from, index) or mentions(arrow.to, index),
+        .alias => |a| mentions(a.expansion, index),
+        .application => |a| mentions(a.head, index) or mentions(a.argument, index),
+    };
+}
+
+pub const Ambiguity = struct {
+    /// Its index in the scheme's constraints.
+    constraint: usize,
+    variable: TypeVar,
+};
+
+/// A constraint of `scheme` on a variable its type does not mention, with
+/// its aliases expanded. See Ambiguity in type_check.zig.
+pub fn ambiguity(scheme: Scheme) ?Ambiguity {
+    for (0..scheme.variables.len) |v| {
+        const index: TypeVar = @intCast(v);
+        if (mentions(scheme.type, index)) continue;
+        for (scheme.constraints, 0..) |c, i| {
+            if (mentions(c.type, index)) return .{ .constraint = i, .variable = index };
+        }
+    }
+    return null;
+}
+
 /// `t` with every alias at its head stripped.
 pub fn unalias(t: Type) Type {
     var current = t;

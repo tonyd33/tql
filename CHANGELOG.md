@@ -41,6 +41,7 @@
 - `tql query --format locations` is removed; it printed what `--format json` does.
 - A file that cannot be read or run is reported with a category: `a.ts: error[stack-overflow]: recursion exceeded the stack`, and `{"file": "a.ts", "failure": {"category": "stack-overflow", "message": "..."}}` under `--format json`.
 - tql-js `query` and `parseTree` return `{kind: "ok"}`, `{kind: "rejected", diagnostics}` or `{kind: "failed", failure}` and no longer throw for a rejected query or a failed run.
+- A scheme constraining a variable its type does not determine is an `ambiguous-constraint` error where it is defined, used or not: `f :: Eq b => Int -> Int`, or `g y = f (head []);` in a recursive group with `f x = x == x;`.
 - A missing `case` alternative is a `non-exhaustive` error, and an alternative never reached is a `redundant-alternative` error.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 

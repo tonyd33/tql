@@ -578,6 +578,9 @@ pub const Inference = struct {
     /// metavariables it mentions. A residual on a metavariable no member
     /// quantifies is still owed by an enclosing scope.
     ///
+    /// Fails on a member whose type does not mention a metavariable its
+    /// context quantifies. See Ambiguity in type_check.zig.
+    ///
     /// Preconditions:
     /// - `spans.len == group.len`
     /// - `out.len == group.len`
@@ -658,13 +661,18 @@ pub const Inference = struct {
                 if (try self.implied(c, context)) continue;
                 try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
             }
+            const scheme = self.subst.quantify(t, own.items, bare.items) catch |err| switch (err) {
+                error.TooManyVariables => return self.fail(.limit, span, .{
+                    .too_many_variables = own.items.len,
+                }),
+                error.OutOfMemory => |e| return e,
+            };
+            if (types.ambiguity(scheme)) |found| {
+                const c = scheme.constraints[found.constraint];
+                return self.failAmbiguous(c.class, c.type, span);
+            }
             member.* = .{
-                .scheme = self.subst.quantify(t, own.items, bare.items) catch |err| switch (err) {
-                    error.TooManyVariables => return self.fail(.limit, span, .{
-                        .too_many_variables = own.items.len,
-                    }),
-                    error.OutOfMemory => |e| return e,
-                },
+                .scheme = scheme,
                 .metas = try self.builder.dupeSlice(types.Meta, own.items),
                 .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, context),
             };

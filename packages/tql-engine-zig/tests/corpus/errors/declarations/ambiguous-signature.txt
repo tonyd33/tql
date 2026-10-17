@@ -1,0 +1,47 @@
+title: a written context may constrain only a variable its type determines
+grammar: typescript
+asserts: error
+
+No use could fix `b`: in `f` it is absent, in `g` the alias drops it, in `m`
+only `a` is the class's, and the instance's head is `T a`.
+
+--- tql ---
+type Const a b = a;
+
+f :: Eq b => a -> a;
+f x = x;
+g :: Eq b => Const Int b -> Int;
+g x = x;
+class C a where {
+  m :: Eq b => a -> Int;
+};
+data T a = T a;
+instance Eq b => Eq (T a) where {
+  eq x y = True;
+};
+main = pure 1;
+
+--- error ---
+error[ambiguous-constraint]: `b` is constrained, but the type does not determine it
+ --> 8:8
+  |
+8 |   m :: Eq b => a -> Int;
+  |        ^^^^
+
+error[ambiguous-constraint]: `b` is constrained, but the type does not determine it
+  --> 11:10
+   |
+11 | instance Eq b => Eq (T a) where {
+   |          ^^^^
+
+error[ambiguous-constraint]: `b` is constrained, but the type does not determine it
+ --> 3:6
+  |
+3 | f :: Eq b => a -> a;
+  |      ^^^^
+
+error[ambiguous-constraint]: `b` is constrained, but the type does not determine it
+ --> 5:6
+  |
+5 | g :: Eq b => Const Int b -> Int;
+  |      ^^^^

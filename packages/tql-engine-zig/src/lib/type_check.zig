@@ -57,6 +57,41 @@
 //! serializes `main`'s output itself, so it's checked like any other class
 //! but has no dictionary.
 //!
+//! ## Ambiguity
+//!
+//! A scheme is ambiguous when a constraint mentions a variable its type
+//! doesn't. Consider
+//!
+//! ```tql
+//! f x = if x == x then True else g 1;
+//! g y = f (head []);
+//! ```
+//!
+//! `f` and `g` are one group, so each is monomorphic inside it. `g` calls
+//! `f (head [])`, which makes `f`'s argument `Maybe e`, and `x == x` needs
+//! `Eq e`. Generalized, `f :: Eq e => Maybe e -> Bool` is fine. But every
+//! member takes the group's context, so `g :: Eq e => Int -> Bool`. A caller
+//! of `g` passes an `Int` and gets a `Bool`, and nothing it writes says what
+//! `e` is, so no call can pick the dictionary. Reject `g` where it is
+//! defined, not at its first use, which may be in another module or never.
+//!
+//! GHC gives each binder only the constraints its own type reaches, which
+//! would leave `Eq e` out of `g`. That doesn't save `g`: its body still calls
+//! `f` at `Maybe e`, so it still needs an `Eq e`, and now nothing passes one.
+//! The error moves instead of going away, and the two choices accept the same
+//! programs. A definition
+//! with a signature is a component of its own (see Binding groups), so every
+//! member of a group is monomorphic in it, and the group's dictionaries flow
+//! through every member: each constraint the group raises is one every
+//! member's evaluation depends on. So the group shares one context, and each
+//! member's final scheme is checked.
+//!
+//! The check reads a type with its aliases expanded. With
+//! `type Const a b = a`, `Eq b => Const Int b -> Int` mentions `b` only where
+//! the expansion drops it, so it is ambiguous as well. Every scheme goes
+//! through the same check: inferred, written in a signature or a method's,
+//! and an instance's context against its head.
+//!
 //! ## main
 //!
 //! `main` gets three checks beyond its own inference. Its type must be
@@ -93,6 +128,9 @@
 //! - Philip Wadler and Stephen Blott. "How to make ad-hoc polymorphism less
 //!   ad hoc". POPL 1989, pp. 60-76.
 //! - Mark P. Jones. "Typing Haskell in Haskell". Haskell Workshop, 1999.
+//! - Simon Marlow (editor). "Haskell 2010 Language Report", 2010, section
+//!   4.3.4, "Ambiguous Types, and Defaults for Overloaded Numeric
+//!   Operations".
 
 const constraints = @import("type_check/constraints.zig");
 const erase = @import("type_check/erase.zig");
