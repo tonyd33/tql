@@ -28,7 +28,7 @@ pub fn loader(self: *FileLoader) tql.Loader {
 
 fn load(context: *anyopaque, name: []const u8) tql.load.Loaded {
     const self: *FileLoader = @ptrCast(@alignCast(context));
-    return self.find(name) catch |err| .{ .failed = @errorName(err) };
+    return self.find(name) catch |err| .{ .failed = tql.Failure.readProblem(err) };
 }
 
 fn find(self: *FileLoader, name: []const u8) !tql.load.Loaded {
@@ -45,7 +45,7 @@ fn find(self: *FileLoader, name: []const u8) !tql.load.Loaded {
                 error.FileNotFound, error.NotDir => continue,
                 else => {
                     self.failure.clearRetainingCapacity();
-                    try self.failure.print(self.gpa, "`{s}`: {t}", .{ path, err });
+                    try self.failure.print(self.gpa, "`{s}`: {s}", .{ path, tql.Failure.readProblem(err) });
                     return .{ .failed = self.failure.items };
                 },
             }

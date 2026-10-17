@@ -114,18 +114,7 @@ fn translateSignature(
 
     const leading: usize = if (method_of != null) 1 else 0;
     const context = try arena.alloc(types.TypeClassConstraint, leading + signature.context.len);
-    if (method_of) |m| {
-        if (!mentions(translated, 0)) {
-            try sink.report(
-                .invalid_class,
-                signature.span,
-                "`{s}` does not mention `{s}`, the parameter of `{s}`",
-                .{ signature.name, m.parameter, m.name },
-            );
-            return error.BadAnnotation;
-        }
-        context[0] = .{ .class = m.class, .type = types.variable_type(0) };
-    }
+    if (method_of) |m| context[0] = .{ .class = m.class, .type = types.variable_type(0) };
     for (signature.context, context[leading..]) |c, *slot| {
         if (method_of) |m| if (std.mem.eql(u8, c.variableName() orelse "", m.parameter)) {
             try sink.report(
@@ -139,28 +128,29 @@ fn translateSignature(
         slot.* = try t.constraint(c);
     }
 
-    return .{
+    const scheme: types.Scheme = .{
         .variables = try t.variableKinds(),
         .constraints = context,
         .type = translated,
     };
+    // See Ambiguity in type_check.zig.
+    if (types.ambiguity(scheme)) |found| {
+        if (found.constraint < leading) {
+            const m = method_of.?;
+            try sink.report(
+                .invalid_class,
+                signature.span,
+                "`{s}` does not mention `{s}`, the parameter of `{s}`",
+                .{ signature.name, m.parameter, m.name },
+            );
+        } else try reportUndetermined(sink, signature.context[found.constraint - leading].span, vars.items[found.variable].name);
+        return error.BadAnnotation;
+    }
+    return scheme;
 }
 
-/// Whether bound variable `index` appears in `t`.
-fn mentions(t: types.Type, index: types.TypeVar) bool {
-    return switch (t) {
-        .variable => |v| v == index,
-        .meta => false,
-        .constructor => |c| for (c.arguments) |argument| {
-            if (mentions(argument, index)) break true;
-        } else false,
-        .record => |r| for (r.fields) |f| {
-            if (mentions(f.type.*, index)) break true;
-        } else if (r.rest) |rest| mentions(rest.*, index) else false,
-        .function => |arrow| mentions(arrow.from, index) or mentions(arrow.to, index),
-        .alias => |a| mentions(a.expansion, index),
-        .application => |a| mentions(a.head, index) or mentions(a.argument, index),
-    };
+fn reportUndetermined(sink: *diagnostic.Sink, span: diagnostic.Span, variable: []const u8) Error!void {
+    try sink.report(.ambiguous_constraint, span, "`{s}` is constrained, but the type does not determine it", .{variable});
 }
 
 /// An instance's head and context, translated.
@@ -235,14 +225,21 @@ pub fn translateInstance(
         .meta => unreachable,
     }
 
+    const constraints = try arena.alloc(types.TypeClassConstraint, declared.context.len);
     const context = try arena.alloc(classes.Requirement, declared.context.len);
-    for (declared.context, context) |c, *slot| {
-        const translated = try t.constraint(c);
+    for (declared.context, constraints, context) |c, *translated, *slot| {
+        translated.* = try t.constraint(c);
         if (translated.type != .variable) {
             try sink.report(.invalid_instance, c.span, "an instance context may only constrain type variables", .{});
             return error.BadAnnotation;
         }
         slot.* = .{ .class = translated.class, .variable = translated.type.variable };
+    }
+    // See Ambiguity in type_check.zig.
+    const scheme: types.Scheme = .{ .variables = try t.variableKinds(), .constraints = constraints, .type = head_type };
+    if (types.ambiguity(scheme)) |found| {
+        try reportUndetermined(sink, declared.context[found.constraint].span, vars.items[found.variable].name);
+        return error.BadAnnotation;
     }
     return .{ .type = head_type, .context = context };
 }
@@ -429,8 +426,6 @@ const Translator = struct {
         free,
         /// Only the parameters of the named declaration are in scope.
         parameters_of: []const u8,
-        /// Only the variables already seen are in scope.
-        seen,
     },
 
     /// Bring `parameters` into scope as variables `0..` and admit no others.
@@ -669,35 +664,30 @@ const Translator = struct {
         return error.BadAnnotation;
     }
 
-    /// Translates `c`, whose type must have its class parameter's kind, or be
-    /// a row where the class ranges over `Type`.
-    ///
-    /// Preconditions:
-    /// - The signature's type is already translated, so every variable it
-    ///   binds has its `forall` position.
+    /// Translates `c`, whose type must have its class parameter's kind.
     fn constraint(self: *Translator, c: cst.ClassConstraint) Error!types.TypeClassConstraint {
         const class = try resolveClass(self.scope, c.class, c.span, self.sink);
         const parameter = self.classKind(class);
-        const outer = self.variables;
-        self.variables = .seen;
-        defer self.variables = outer;
-
-        // A row satisfies a class over `Type` when every field does.
-        if (c.variableName()) |name| {
-            const index = try self.binder(name, null, c.type.span);
-            const kind = self.vars.items[index].kind;
-            if (self.group.inference.resolve(kind) == .row and self.group.inference.unify(parameter, .type)) {
-                return .{ .class = class, .type = .{ .variable = index } };
-            }
-        }
         const t = try self.type(c.type, parameter);
+        const env = self.scope.env;
+        if (try classes.reduce(&env.classes, class, t, classes.Bound{}, classes.Discard(error{}){})) |culprit| {
+            var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
+            defer names.deinit(self.gpa);
+            try self.sink.report(.unsatisfied_constraint, c.span, "`{f} {f}` is never satisfied", .{
+                names.class(class, env.classes.spelling(class)),
+                culprit.namedOperand(&names),
+            });
+            return error.BadAnnotation;
+        }
+        const expanded = types.unalias(t);
+        if (expanded == .record and expanded.record.rest != null) return .{ .class = class, .type = t };
         var head = t;
         while (head == .application) head = head.application.head;
         if (head != .variable) {
             try self.sink.report(
                 .invalid_class,
                 c.type.span,
-                "a constraint must be on a type variable, or one applied to types",
+                "a constraint must be on a type variable, one applied to types, or an open record",
                 .{},
             );
             return error.BadAnnotation;
@@ -729,10 +719,6 @@ const Translator = struct {
             .free => {},
             .parameters_of => |owner| {
                 try self.sink.report(.unresolved_name, span, "`{s}` is not a parameter of `{s}`", .{ name, owner });
-                return error.BadAnnotation;
-            },
-            .seen => {
-                try self.sink.report(.unresolved_name, span, "`{s}` is constrained but does not appear in the type", .{name});
                 return error.BadAnnotation;
             },
         }

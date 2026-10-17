@@ -820,7 +820,7 @@ fn describeDiagnostics(
 const Run = union(enum) {
     json: []const u8,
     /// Evaluation stopped with a runtime error.
-    failed: anyerror,
+    failed: tql.RunError,
 
     fn deinit(self: Run, allocator: std.mem.Allocator) void {
         switch (self) {
@@ -1046,7 +1046,10 @@ fn runTestCase(
                                 .failed => |e| {
                                     if (!tc.isAsserted(.runtime_error)) return e;
                                     allocator.free(runtime_error_text);
-                                    runtime_error_text = try std.fmt.allocPrint(allocator, "{f}", .{tql.Failure{ .err = e }});
+                                    var rendered: std.Io.Writer.Allocating = .init(allocator);
+                                    errdefer rendered.deinit();
+                                    try tql.Failure.ofRun(e).render(&rendered.writer);
+                                    runtime_error_text = try rendered.toOwnedSlice();
                                 },
                             }
 

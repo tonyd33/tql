@@ -44,6 +44,7 @@
 (leading_navigation field: (_) @attribute)
 (field_pattern name: (_) @attribute)
 (field_access field: (_) @property)
+(field_selector field: (_) @property)
 (record_field name: (_) @property)
 (record_type_field name: (_) @property)
 

@@ -36,8 +36,7 @@ pub const Scope = struct {
 /// A collected top-level declaration: its name, the symbol of the definition
 /// it binds, and what it is.
 pub const Declaration = struct {
-    /// Null for a definition of `_`, which no name reaches.
-    name: ?[]const u8,
+    name: []const u8,
     /// A value's own symbol, or a pattern synonym's matcher.
     symbol: core.SymbolId,
     kind: Kind,
@@ -73,7 +72,7 @@ pub const Declarations = struct {
 
     fn find(self: *Declarations, name: []const u8) ?*Declaration {
         for (self.items.items) |*d| {
-            if (std.mem.eql(u8, d.name orelse continue, name)) return d;
+            if (std.mem.eql(u8, d.name, name)) return d;
         }
         return null;
     }
@@ -101,14 +100,14 @@ pub fn collect(
             else => continue,
         };
 
-        if (name) |n| if (declarations.find(n)) |_| {
-            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{n});
+        if (declarations.find(name)) |_| {
+            try sink.report(.duplicate_definition, span, "`{s}` is defined more than once", .{name});
             continue;
-        };
+        }
 
         const declaration = intern(interner, module, decl) catch |err| switch (err) {
             error.Collision => {
-                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name orelse "_"});
+                try sink.report(.symbol_collision, span, "`{s}` collides with an existing symbol", .{name});
                 continue;
             },
             else => |e| return e,
@@ -152,7 +151,7 @@ fn intern(interner: *core.Interner, module: core.ModuleId, decl: *const cst.Decl
     switch (decl.*) {
         .definition => |*d| return .{
             .name = d.name,
-            .symbol = if (d.name) |name| try interner.intern(module, name, .vanilla) else try interner.fresh("_"),
+            .symbol = try interner.intern(module, d.name, .vanilla),
             .kind = .{ .value = .{ .definition = d } },
         },
         .pattern_synonym => |*s| {

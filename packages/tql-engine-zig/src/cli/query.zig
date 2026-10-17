@@ -110,7 +110,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         var buffer: [4096]u8 = undefined;
         var reader = std.Io.File.stdin().readerStreaming(ctx.io, &buffer);
         stdin = reader.interface.allocRemaining(gpa, .unlimited) catch |err| {
-            try stderr.print("Error: cannot read standard input: {t}\n", .{err});
+            try stderr.print("Error: cannot read standard input: {s}\n", .{tql.Failure.readProblem(err)});
             return .runtime_error;
         };
         target.* = .{ .stdin = stdin.? };
@@ -135,7 +135,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         .workers = workers,
         .progress = progress,
     }) catch |err| {
-        try stderr.print("Error: {}\n", .{err});
+        try common.reportFailure(stderr, null, .ofAny(err));
         return .runtime_error;
     };
 }

@@ -30,7 +30,7 @@
 - `|` composes left to right in any `Category`, so both sides are filters: a lambda after `|` is written `Filter (\x -> ...)`. `<|>` is `Alternative`'s `alt`.
 - `none` is removed: write `empty`. `collect`, `keep`, `has` and `or_else` take filters.
 - A `String` is always UTF-8 text. `text` and `filename` replace each ill-formed byte sequence with U+FFFD, so a Latin-1 file's text outputs as a JSON string, not an array of bytes; `range` still gives the source bytes. `length` of a string counts code points: `length "héllo"` is 5, not 6. A string literal that is not UTF-8 is a parse error.
-- `_` is a wildcard in every binding position and never a value: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression is a parse error. `\_ -> _` returned its argument.
+- `_` is a wildcard in patterns and value binders only: `\_ _ -> 1`, `h _ _ = 1` and `let { _ = e; }` bind nothing, and `_` as an expression, a type, a declaration, type parameter or record label is a parse error. `\_ -> _` returned its argument.
 - A name bound twice in one `let` group, one lambda or one definition's parameters is a `duplicate-definition` error: `\x x -> x` and `let { y = 5; y = 6; }` took the last binder. A nested lambda or a later `do` bind may still shadow.
 - A regex reads UTF-8 code points: `.` matches `é`, and an ill-formed byte sequence in the subject reads as U+FFFD. `\d`, `\w` and `\s` stay ASCII, and `(?i)` folds case beyond ASCII. The syntax is PCRE2's, without backreferences, which are now an `invalid-regex` error, or `\C`. `\K` and backtracking verbs such as `(*PRUNE)` stop the run.
 - `|` is the loosest operator, so a stage takes its argument with `$`: `named_children | keep $ is_kind :argument_list | parent`. Bracket a pipeline passed with `$`: `collect (children | arr text)`.
@@ -38,6 +38,10 @@
 - The `true` and `false` literals are removed: write `True` and `False`.
 - `toint :: String -> Maybe Int` and `filename :: Node -> Maybe String` are functions, not filters: write `Just path <- arr filename;` for `path <- filename;`, and `Filter (to_list . toint . text)` for `arr text | toint`.
 - `tql grammar add`, `remove` and `--install-dir` are removed; they did nothing.
+- `tql query --format locations` is removed; it printed what `--format json` does.
+- A file that cannot be read or run is reported with a category: `a.ts: error[stack-overflow]: recursion exceeded the stack`, and `{"file": "a.ts", "failure": {"category": "stack-overflow", "message": "..."}}` under `--format json`.
+- tql-js `query` and `parseTree` return `{kind: "ok"}`, `{kind: "rejected", diagnostics}` or `{kind: "failed", failure}` and no longer throw for a rejected query or a failed run.
+- A scheme constraining a variable its type does not determine is an `ambiguous-constraint` error where it is defined, used or not: `f :: Eq b => Int -> Int`, or `g y = f (head []);` in a recursive group with `f x = x == x;`.
 - A missing `case` alternative is a `non-exhaustive` error, and an alternative never reached is a `redundant-alternative` error.
 - `tql query` warns about a target file that does not parse under the grammar, and exits 2 when no file failed outright. Findings from such a file come from tree-sitter's error recovery and may be incomplete. `--format=json` lists each file's `syntax_errors`, an `ERROR` node or a token recovery inserted, with its location.
 
@@ -46,8 +50,8 @@
 - Added `f . g` for function composition.
 - Added `a >> b` for sequencing, as a `do` expression statement.
 - Added list patterns `[]` and `[a, b]`, and cons `h : t` in patterns and expressions. `x:xs` is cons; `:k` after whitespace is still a kind.
-- Added record field access: `r.start_byte` reads a field, and `_.start_byte` is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
-- Added open record types to signatures: `{name: String | r}` is any record with a `name` field.
+- Added record field access: `r.start_byte` reads a field, and `(.start_byte)`, with no space after the dot, is the function that does. `(range a).start_byte < (range b).start_byte` compares document order.
+- Added open record types to signatures: `{name: String | r}` is any record with a `name` field. `Eq {name: String | r} =>` compares two of them.
 - Added type aliases: `type Named r = {name: String | r};`. `Range` and `Point` are aliases now.
 - Added backtick infix application: ``8 `mod` 5`` is `mod 8 5`, and ``a `Pair` b`` is `Pair a b`.
 - Added operator sections: `(== 1)` is `\x -> x == 1`, `(10 -)` is `\y -> 10 - y`, and `(+)` is `\x y -> x + y`.

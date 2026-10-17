@@ -11,18 +11,17 @@ main = .;
     (identifier)))
 
 ========================================
-an underscore section reads a field
+a field selector reads a field
 ========================================
 
-main = _.name;
+main = (.name);
 
 ---
 
 (source_file
   (definition
     name: (identifier)
-    body: (field_access
-      record: (identifier)
+    body: (field_selector
       field: (field_name))))
 
 ========================================
@@ -336,7 +335,7 @@ main = case xs of { Cons _ t -> t; ys -> ys };
       (case_alternative
         pattern: (constructor_pattern
           constructor: (type_identifier)
-          argument: (identifier)
+          argument: (wildcard)
           argument: (identifier))
         body: (identifier))
       (case_alternative
@@ -366,7 +365,7 @@ main = case p of { Mk True x -> x; Mk False _ -> 0 };
         pattern: (constructor_pattern
           constructor: (type_identifier)
           argument: (type_identifier)
-          argument: (identifier))
+          argument: (wildcard))
         body: (number)))))
 
 ========================================
@@ -429,7 +428,7 @@ main = case xs of { [] -> 0; _ -> 1 };
         pattern: (list_pattern)
         body: (number))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
@@ -451,7 +450,7 @@ main = case xs of { [a, b,] -> a; _ -> 0 };
           (identifier))
         body: (identifier))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
@@ -472,10 +471,10 @@ main = case xs of { [Just a, _] -> a; _ -> 0 };
           (constructor_pattern
             constructor: (type_identifier)
             argument: (identifier))
-          (identifier))
+          (wildcard))
         body: (identifier))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
@@ -498,7 +497,7 @@ main = case m of { Just [a] -> a; _ -> 0 };
             (identifier)))
         body: (identifier))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
@@ -566,7 +565,7 @@ main = case xs of { Just a : t -> a; _ -> 0 };
           tail: (identifier))
         body: (identifier))
       (case_alternative
-        pattern: (identifier)
+        pattern: (wildcard)
         body: (number)))))
 
 ========================================
@@ -746,7 +745,6 @@ backticks around an expression are a syntax error
 main = a `(f x)` b;
 
 ---
-
 
 (source_file
   (definition

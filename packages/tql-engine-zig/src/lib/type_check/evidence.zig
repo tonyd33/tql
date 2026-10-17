@@ -119,16 +119,20 @@ pub const Resolver = struct {
         span: diagnostic.Span,
     ) Error!core.Term {
         const target = try self.subst.normalize(t);
+        if (target == .record and !classes.coversRecords(class)) return self.fail(.unsatisfied, class, t, span);
+        const leaf = switch (target) {
+            .meta, .variable, .application => true,
+            .record => |r| r.rest != null,
+            else => false,
+        };
+        if (leaf) {
+            if (try self.given(class, target, at, span)) |found| return found;
+            return self.fail(.ambiguous, class, t, span);
+        }
         switch (target) {
-            .meta, .variable, .application => {
-                if (try self.given(class, target, at, span)) |found| return found;
-                return self.fail(.ambiguous, class, t, span);
-            },
             .constructor, .function => {},
-            .record => |r| {
-                if (class != .eq) return self.fail(.unsatisfied, class, t, span);
-                return try self.recordDictionary(r, at, span);
-            },
+            // `Eq`, the one dictionary class records have.
+            .record => |r| return try self.recordDictionary(r.fields, at, span),
             else => return self.fail(.unsatisfied, class, t, span),
         }
 
@@ -145,26 +149,20 @@ pub const Resolver = struct {
         return result;
     }
 
-    /// `dict[Eq] (\x y -> ...)`, comparing the fields of `r` through their own
-    /// dictionaries, then its rest through the rest's.
-    ///
-    /// A dictionary for a row compares that row's labels only, on any record
-    /// that has them.
-    fn recordDictionary(self: *Resolver, r: types.Type.Record, at: ?u32, span: diagnostic.Span) Error!core.Term {
+    /// `dict[Eq] (\x y -> ...)`, comparing a closed record's `fields` through
+    /// their own dictionaries.
+    fn recordDictionary(self: *Resolver, fields: []const types.Type.Field, at: ?u32, span: diagnostic.Span) Error!core.Term {
         const b = self.builder;
         const eq = self.registry.get(.eq);
         const declared = &self.env.datatypes;
         const x = try self.env.interner.fresh("x");
         const y = try self.env.interner.fresh("y");
 
-        var result: ?core.Term = if (r.rest) |rest|
-            try self.compared(eq.methods[0], try self.resolve(.eq, rest.*, at, span), b.symbol(x, span), b.symbol(y, span), span)
-        else
-            null;
-        var i = r.fields.len;
+        var result: ?core.Term = null;
+        var i = fields.len;
         while (i > 0) {
             i -= 1;
-            const f = r.fields[i];
+            const f = fields[i];
             const select = try primitives.selectSymbol(self.env, f.label);
             const pair = try self.compared(
                 eq.methods[0],

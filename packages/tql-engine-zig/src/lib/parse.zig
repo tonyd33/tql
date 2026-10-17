@@ -111,6 +111,10 @@ fn isConstructor(kind: []const u8) bool {
     return std.mem.eql(u8, kind, "type_identifier") or std.mem.eql(u8, kind, "qualified_type_identifier");
 }
 
+fn isWildcard(node: ts.Node) bool {
+    return std.mem.eql(u8, node.grammarKind(), "wildcard");
+}
+
 fn textOf(node: ts.Node, source: []const u8) []const u8 {
     return source[node.startByte()..node.endByte()];
 }
@@ -327,7 +331,7 @@ const Walker = struct {
     fn signature(self: *Walker, node: ts.Node) !?cst.Signature {
         const name_node = try self.requiredField(node, "name") orelse return null;
         const type_node = try self.requiredField(node, "type") orelse return null;
-        const name = try self.dupe(name_node);
+        const name = try self.declaredName(name_node, "signature") orelse return null;
         const constraints = if (node.childByFieldName("context")) |c|
             try self.context(c) orelse return null
         else
@@ -372,7 +376,7 @@ const Walker = struct {
 
         return .{
             .name = try self.dupe(name_node),
-            .parameter = try self.dupe(parameter_node),
+            .parameter = try self.typeParameter(parameter_node) orelse return null,
             .superclasses = superclasses,
             .methods = methods,
             .span = spanOf(node, self.source_id),
@@ -401,7 +405,7 @@ const Walker = struct {
 
     fn definition(self: *Walker, node: ts.Node) !?cst.Definition {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const name = try self.binder(name_node);
+        const name = try self.declaredName(name_node, "definition") orelse return null;
         const params = try self.parameters(node);
 
         const body_node = try self.requiredField(node, "body") orelse return null;
@@ -441,8 +445,22 @@ const Walker = struct {
 
     /// The name `node` binds, or null for `_`, which binds nothing.
     fn binder(self: *Walker, node: ts.Node) !?cst.Identifier {
-        if (std.mem.eql(u8, textOf(node, self.source), "_")) return null;
+        if (isWildcard(node)) return null;
         return try self.dupe(node);
+    }
+
+    /// The name `node` declares, or null after reporting `_` as the name of
+    /// a `what`.
+    fn declaredName(self: *Walker, node: ts.Node, comptime what: []const u8) !?cst.Identifier {
+        if (isWildcard(node)) {
+            try self.sink.report(.parse, spanOf(node, self.source_id), "`_` is a wildcard and cannot name a " ++ what, .{});
+            return null;
+        }
+        return try self.dupe(node);
+    }
+
+    fn typeParameter(self: *Walker, node: ts.Node) !?cst.Identifier {
+        return self.declaredName(node, "type parameter");
     }
 
     fn binding(self: *Walker, node: ts.Node) !?cst.Binding {
@@ -489,12 +507,14 @@ const Walker = struct {
     const ExpressionKind = enum {
         identifier,
         qualified_identifier,
+        wildcard,
         primitive,
         kind,
         number,
         string,
         regex,
         field_access,
+        field_selector,
         navigation,
         leading_navigation,
         application,
@@ -526,12 +546,11 @@ const Walker = struct {
         const kind = node.grammarKind();
 
         if (std.meta.stringToEnum(ExpressionKind, kind)) |known| switch (known) {
-            .identifier, .qualified_identifier => {
+            .identifier, .qualified_identifier => return .{ .kind = .{ .name = try self.dupe(node) }, .span = span },
+            .wildcard => {
                 // Reported, and still returned as a name so the enclosing form
                 // reports nothing more. A parse error stops compilation.
-                if (std.mem.eql(u8, textOf(node, self.source), "_")) {
-                    try self.sink.report(.parse, span, "`_` is a wildcard and has no value", .{});
-                }
+                try self.sink.report(.parse, span, "`_` is a wildcard and has no value", .{});
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
             .primitive => return .{ .kind = .{ .primitive = try self.dupe(node) }, .span = span },
@@ -576,6 +595,7 @@ const Walker = struct {
                 };
             },
             .field_access => return self.projection(node, span),
+            .field_selector => return self.selector(node, span),
             .navigation, .leading_navigation => return self.navigation(node, span),
             .application, .dollar_application => return self.application(node, span),
             .infix_application => return self.infixApplication(node, span),
@@ -630,14 +650,10 @@ const Walker = struct {
         return null;
     }
 
-    /// `r.l`, or the section `_.l`.
     fn projection(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const record_node = try self.requiredField(node, "record") orelse return null;
-        const subject: ?cst.Expression = if (std.mem.eql(u8, textOf(record_node, self.source), "_"))
-            null
-        else
-            try self.expression(record_node) orelse return null;
         const label_node = try self.requiredField(node, "field") orelse return null;
+        const subject = try self.expression(record_node) orelse return null;
         return .{
             .kind = .{ .projection = try self.boxed(cst.Projection{
                 .record = subject,
@@ -645,6 +661,11 @@ const Walker = struct {
             }) },
             .span = span,
         };
+    }
+
+    fn selector(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
+        const labels = try self.fieldChildren(cst.Identifier, node, "field", identifier) orelse return null;
+        return .{ .kind = .{ .selector = labels }, .span = span };
     }
 
     /// `n#f`, or a leading `#f` with no `node` child.
@@ -793,7 +814,7 @@ const Walker = struct {
                 if (cursor.fieldName()) |field| {
                     const child = cursor.node();
                     if (std.mem.eql(u8, field, "parameter")) {
-                        try params.append(self.allocator, try self.dupe(child));
+                        try params.append(self.allocator, try self.typeParameter(child) orelse return null);
                     } else if (std.mem.eql(u8, field, "constructor")) {
                         if (try self.constructorDeclaration(child)) |c| {
                             try constructors.append(self.allocator, c);
@@ -850,7 +871,7 @@ const Walker = struct {
         const name_node = try self.requiredField(node, "name") orelse return null;
         const type_node = try self.requiredField(node, "type") orelse return null;
         const name = try self.dupe(name_node);
-        const params = try self.fieldChildren(cst.Identifier, node, "parameter", identifier) orelse return null;
+        const params = try self.fieldChildren(cst.Identifier, node, "parameter", typeParameter) orelse return null;
 
         const ty = try self.typeExpr(type_node) orelse return null;
         return .{
@@ -942,10 +963,8 @@ const Walker = struct {
     fn pattern(self: *Walker, node: ts.Node) error{OutOfMemory}!?cst.Pattern {
         const span = spanOf(node, self.source_id);
         const kind = node.grammarKind();
-        if (std.mem.eql(u8, kind, "identifier")) {
-            const name = try self.binder(node) orelse return .{ .kind = .wildcard, .span = span };
-            return .{ .kind = .{ .variable = name }, .span = span };
-        }
+        if (isWildcard(node)) return .{ .kind = .wildcard, .span = span };
+        if (std.mem.eql(u8, kind, "identifier")) return .{ .kind = .{ .variable = try self.dupe(node) }, .span = span };
         if (isConstructor(kind)) {
             return .{
                 .kind = .{ .constructor = .{ .name = try self.dupe(node), .arguments = &.{} } },
@@ -1273,22 +1292,7 @@ const Walker = struct {
             while (true) {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "record_field")) {
-                    const name_node = try self.requiredField(child, "name") orelse {
-                        if (!cursor.gotoNextSibling()) break;
-                        continue;
-                    };
-                    const value_node = try self.requiredField(child, "value") orelse {
-                        if (!cursor.gotoNextSibling()) break;
-                        continue;
-                    };
-                    const name = try self.dupe(name_node);
-                    if (try self.expression(value_node)) |value| {
-                        try fields.append(self.allocator, .{
-                            .name = name,
-                            .value = value,
-                            .span = spanOf(child, self.source_id),
-                        });
-                    }
+                    if (try self.recordField(child)) |field| try fields.append(self.allocator, field);
                 }
                 if (!cursor.gotoNextSibling()) break;
             }
@@ -1298,6 +1302,35 @@ const Walker = struct {
             .kind = .{ .record = .{ .fields = try fields.toOwnedSlice(self.allocator) } },
             .span = span,
         };
+    }
+
+    fn recordField(self: *Walker, node: ts.Node) !?cst.RecordField {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const value_node = try self.requiredField(node, "value") orelse return null;
+        return .{
+            .name = try self.declaredName(name_node, "record label") orelse return null,
+            .value = try self.expression(value_node) orelse return null,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    fn recordTypeField(self: *Walker, node: ts.Node) !?cst.TypeField {
+        const name_node = try self.requiredField(node, "name") orelse return null;
+        const type_node = try self.requiredField(node, "type") orelse return null;
+        return .{
+            .name = try self.declaredName(name_node, "record label") orelse return null,
+            .type = try self.typeExpr(type_node) orelse return null,
+            .span = spanOf(node, self.source_id),
+        };
+    }
+
+    /// A type variable's name, or null after reporting a type wildcard.
+    fn typeVariable(self: *Walker, node: ts.Node) !?cst.Identifier {
+        if (isWildcard(node)) {
+            try self.sink.report(.parse, spanOf(node, self.source_id), "type wildcards are not supported", .{});
+            return null;
+        }
+        return try self.dupe(node);
     }
 
     fn isBuiltinConstructor(node: ts.Node) bool {
@@ -1313,7 +1346,7 @@ const Walker = struct {
 
     fn typeApplication(self: *Walker, node: ts.Node, span: Span) (error{OutOfMemory})!?cst.Type {
         const head: cst.TypeApplication.Head = if (node.childByFieldName("variable")) |variable|
-            .{ .variable = try self.dupe(variable) }
+            .{ .variable = try self.typeVariable(variable) orelse return null }
         else head: {
             const constructor = try self.requiredField(node, "constructor") orelse return null;
             if (isBuiltinConstructor(constructor)) break :head .{ .builtin = try self.builtinConstructor(constructor) orelse return null };
@@ -1343,9 +1376,9 @@ const Walker = struct {
         if (std.mem.eql(u8, kind, "type_application")) {
             return self.typeApplication(node, span);
         }
-        if (std.mem.eql(u8, kind, "type_variable")) {
+        if (std.mem.eql(u8, kind, "type_variable") or isWildcard(node)) {
             return cst.Type{
-                .kind = .{ .variable = try self.dupe(node) },
+                .kind = .{ .variable = try self.typeVariable(node) orelse return null },
                 .span = span,
             };
         }
@@ -1402,28 +1435,13 @@ const Walker = struct {
                 while (true) {
                     const child = cursor.node();
                     if (std.mem.eql(u8, child.grammarKind(), "record_type_field")) {
-                        const name_node = try self.requiredField(child, "name") orelse {
-                            if (!cursor.gotoNextSibling()) break;
-                            continue;
-                        };
-                        const type_node = try self.requiredField(child, "type") orelse {
-                            if (!cursor.gotoNextSibling()) break;
-                            continue;
-                        };
-                        const name = try self.dupe(name_node);
-                        if (try self.typeExpr(type_node)) |ty| {
-                            try fields.append(self.allocator, .{
-                                .name = name,
-                                .type = ty,
-                                .span = spanOf(child, self.source_id),
-                            });
-                        }
+                        if (try self.recordTypeField(child)) |field| try fields.append(self.allocator, field);
                     }
                     if (!cursor.gotoNextSibling()) break;
                 }
             }
 
-            const row = if (node.childByFieldName("row")) |row_node| try self.dupe(row_node) else null;
+            const row = if (node.childByFieldName("row")) |row_node| try self.typeVariable(row_node) orelse return null else null;
             return cst.Type{
                 .kind = .{ .record = .{
                     .fields = try fields.toOwnedSlice(self.allocator),

@@ -68,10 +68,10 @@ main = (~ r"a");
       right: (regex))))
 
 ========================================
-a composition right section needs no space
+a composition right section has a space after the dot
 ========================================
 
-main = (.f);
+main = (. f);
 
 ---
 

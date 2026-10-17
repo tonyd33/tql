@@ -12,4 +12,4 @@ main = pure $ "ab" ~ r"a\Kb";
 class A {}
 
 --- runtime error ---
-a regex reached a construct the matcher cannot run
+error[regex-failed]: a regex reached a construct the matcher cannot run

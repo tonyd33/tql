@@ -8,7 +8,7 @@
 // @ts-check
 
 const UPPER_NAME = /[A-Z][a-zA-Z0-9_']*/;
-const LOWER_NAME = /[a-z_][a-zA-Z0-9_']*/;
+const LOWER_NAME = /[a-z][a-zA-Z0-9_']*|_[a-zA-Z0-9_']+/;
 
 const PREC = {
   pipe: 1,
@@ -199,7 +199,7 @@ module.exports = grammar({
 
     signature: $ =>
       seq(
-        field("name", value_name($)),
+        field("name", $._declared_name),
         "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
@@ -220,13 +220,16 @@ module.exports = grammar({
     class_constraint: $ =>
       seq(
         field("class", $.type_identifier),
-        field("type", choice($._type_variable, $.parenthesized_type)),
+        field(
+          "type",
+          choice($._type_variable, $.parenthesized_type, $.record_type),
+        ),
       ),
 
     definition: $ =>
       seq(
-        field("name", value_name($)),
-        repeat(field("parameter", $.identifier)),
+        field("name", $._declared_name),
+        repeat(field("parameter", $._binder)),
         "=",
         field("body", $._expression),
         ";",
@@ -389,6 +392,15 @@ module.exports = grammar({
 
     field_name: _ => token.immediate(LOWER_NAME),
 
+    // `(.l)` reads a field and `(. f)` is a composition section.
+    field_selector: $ =>
+      seq(
+        "(",
+        ".",
+        sep1(field("field", $.field_name), token.immediate(".")),
+        ")",
+      ),
+
     navigation: $ =>
       prec.left(
         PREC.field,
@@ -415,8 +427,8 @@ module.exports = grammar({
 
     binding: $ =>
       seq(
-        field("name", $.identifier),
-        repeat(field("parameter", $.identifier)),
+        field("name", $._binder),
+        repeat(field("parameter", $._binder)),
         "=",
         field("value", $._expression),
       ),
@@ -484,6 +496,7 @@ module.exports = grammar({
     _simple_pattern: $ =>
       choice(
         $.identifier,
+        $.wildcard,
         $.list_pattern,
         $.unit,
         $.tuple_pattern,
@@ -515,7 +528,7 @@ module.exports = grammar({
 
     as_pattern: $ =>
       seq(
-        field("name", $.identifier),
+        field("name", $._binder),
         token.immediate("@"),
         field("pattern", $._atomic_pattern),
       ),
@@ -550,7 +563,7 @@ module.exports = grammar({
       prec.right(
         seq(
           "\\",
-          repeat1(field("parameter", $.identifier)),
+          repeat1(field("parameter", $._binder)),
           "->",
           field("body", $._expression),
         ),
@@ -563,6 +576,7 @@ module.exports = grammar({
         $.kind,
         $.primitive,
         $.identifier,
+        $.wildcard,
         $.number,
         $.string,
         $.regex,
@@ -572,6 +586,7 @@ module.exports = grammar({
         $.tuple,
         $.tuple_constructor,
         $.parenthesized,
+        $.field_selector,
         $.operator_name,
         $.left_section,
         $.right_section,
@@ -672,7 +687,7 @@ module.exports = grammar({
     record: $ => seq("{", optional(sep_trailing($.record_field, ",")), "}"),
 
     record_field: $ =>
-      seq(field("name", $.identifier), "=", field("value", $._expression)),
+      seq(field("name", $._binder), "=", field("value", $._expression)),
 
     _type: $ => choice($.function_type, $._type_atom),
 
@@ -730,7 +745,7 @@ module.exports = grammar({
       ),
 
     record_type_field: $ =>
-      seq(field("name", $.identifier), ":", field("type", $._type)),
+      seq(field("name", $._binder), ":", field("type", $._type)),
 
     parenthesized_type: $ => seq("(", $._type, ")"),
 
@@ -740,9 +755,17 @@ module.exports = grammar({
     type_identifier: _ => UPPER_NAME,
 
     // Must be the word token, so keywords are not type variables.
-    _type_variable: $ => alias($.identifier, $.type_variable),
+    _type_variable: $ =>
+      choice(alias($.identifier, $.type_variable), $.wildcard),
 
     identifier: _ => LOWER_NAME,
+
+    // Binds nothing in a pattern or binder; an error anywhere else.
+    wildcard: _ => "_",
+
+    _binder: $ => choice($.identifier, $.wildcard),
+
+    _declared_name: $ => choice(value_name($), $.wildcard),
 
     number: _ => token(seq(optional("-"), /[0-9]+/)),
 

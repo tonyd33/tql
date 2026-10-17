@@ -78,6 +78,20 @@ pub const Span = struct {
         .end_point = .{ .row = 0, .column = 0 },
     };
 
+    pub fn isUnknown(self: Span) bool {
+        return std.meta.eql(self, unknown);
+    }
+
+    /// Write the offsets and points, without the source.
+    pub fn jsonStringify(self: Span, jws: anytype) !void {
+        try jws.write(.{
+            .start_byte = self.start_byte,
+            .end_byte = self.end_byte,
+            .start_point = self.start_point,
+            .end_point = self.end_point,
+        });
+    }
+
     /// The `line:col-line:col` form the error fixtures are written in.
     pub fn format(self: Span, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try self.start_point.format(w);
@@ -214,7 +228,7 @@ pub const Diagnostic = struct {
         source: Source,
     ) std.Io.Writer.Error!void {
         try w.print("error[{s}]: {s}\n", .{ self.category.name(), self.message });
-        if (std.meta.eql(self.span, Span.unknown)) return;
+        if (self.span.isUnknown()) return;
 
         const start = self.span.start_point;
         var end = self.span.end_point;

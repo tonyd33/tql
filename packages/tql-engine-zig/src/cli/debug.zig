@@ -110,7 +110,7 @@ fn dumpInstructions(
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
         try common.reportDiagnostics(&engine, &sink, query, from_file, stderr);
-        if (!sink.hasErrors()) try stderr.print("Error: {}\n", .{err});
+        if (!sink.hasErrors()) try common.reportFailure(stderr, from_file, .ofAny(err));
         return .compilation_error;
     };
     defer compiled.deinit();

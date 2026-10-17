@@ -1,0 +1,20 @@
+title: an open record's constraint is inferred on the record
+grammar: typescript
+asserts: types, values
+
+`a == b` needs `Eq` of the whole record, which is decided where `same` is
+called and the row is known.
+
+--- tql ---
+same a b = a.name == "a" and a == b;
+main = pure [same {name = "a", n = 1} {name = "a", n = 1}, same {name = "a", n = 1} {name = "a", n = 2}];
+
+--- source ---
+class A {}
+
+--- values ---
+[[true,false]]
+
+--- types ---
+same :: Eq {name: String | a} => {name: String | a} -> {name: String | a} -> Bool
+main :: Filter Node [Bool]

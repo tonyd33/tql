@@ -572,11 +572,14 @@ pub const Inference = struct {
     /// member whose own metavariables it mentions.
     ///
     /// Constraints with dictionary evidence are the group's one context: each
-    /// is reduced through instances to constraints on bare metavariables,
+    /// is reduced through instances to constraints in head-normal form,
     /// exact duplicates and those a superclass of another implies are
     /// dropped, and every member takes what remains, quantifying the
     /// metavariables it mentions. A residual on a metavariable no member
     /// quantifies is still owed by an enclosing scope.
+    ///
+    /// Fails on a member whose type does not mention a metavariable its
+    /// context quantifies. See Ambiguity in type_check.zig.
     ///
     /// Preconditions:
     /// - `spans.len == group.len`
@@ -658,13 +661,18 @@ pub const Inference = struct {
                 if (try self.implied(c, context)) continue;
                 try bare.append(self.gpa, .{ .class = c.class, .type = c.type });
             }
+            const scheme = self.subst.quantify(t, own.items, bare.items) catch |err| switch (err) {
+                error.TooManyVariables => return self.fail(.limit, span, .{
+                    .too_many_variables = own.items.len,
+                }),
+                error.OutOfMemory => |e| return e,
+            };
+            if (types.ambiguity(scheme)) |found| {
+                const c = scheme.constraints[found.constraint];
+                return self.failAmbiguous(c.class, c.type, span);
+            }
             member.* = .{
-                .scheme = self.subst.quantify(t, own.items, bare.items) catch |err| switch (err) {
-                    error.TooManyVariables => return self.fail(.limit, span, .{
-                        .too_many_variables = own.items.len,
-                    }),
-                    error.OutOfMemory => |e| return e,
-                },
+                .scheme = scheme,
                 .metas = try self.builder.dupeSlice(types.Meta, own.items),
                 .dictionaries = try self.builder.dupeSlice(types.TypeClassConstraint, context),
             };

@@ -1,0 +1,20 @@
+title: a class parameter is not a row
+grammar: typescript
+asserts: error
+
+--- tql ---
+class HasX r where {
+  getx :: {x: Int | r} -> Int;
+};
+main = pure 1;
+
+--- error ---
+error[invalid-class]: `r`, the parameter of `HasX`, is a row; a class ranges over types
+ --> 1:1
+  |
+1 | class HasX r where {
+  | ^^^^^^^^^^^^^^^^^^^^
+2 |   getx :: {x: Int | r} -> Int;
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 | };
+  | ^^
