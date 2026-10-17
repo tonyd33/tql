@@ -3,6 +3,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const string_literal = @import("lang/string_literal.zig");
+const kinds = @import("lang/kinds.zig");
 
 /// One printed node.
 pub const Row = struct {
@@ -95,7 +96,7 @@ pub fn collectMatching(
     starts: *std.ArrayList(usize),
     root: ts.Node,
     source: []const u8,
-    kinds: []const u16,
+    wanted: []const u16,
     options: Options,
 ) std.mem.Allocator.Error!void {
     const language = root.getLanguage();
@@ -105,8 +106,8 @@ pub fn collectMatching(
     var depth: usize = 0;
     while (true) {
         const node = cursor.node();
-        for (kinds) |kind| {
-            if (!kindMatches(language, kind, node.kindId())) continue;
+        for (wanted) |kind| {
+            if (!kinds.matches(language, kind, node.kindId())) continue;
             try starts.append(gpa, rows.items.len);
             try collect(gpa, rows, node, source, options);
             break;
@@ -178,11 +179,7 @@ fn writePoint(p: ts.Point, widths: Widths, w: *std.Io.Writer) std.Io.Writer.Erro
 }
 
 fn writeNodeKind(named: bool, kind: []const u8, w: *std.Io.Writer) std.Io.Writer.Error!void {
-    if (named) {
-        try w.print(":{s}", .{kind});
-    } else {
-        try w.print("\"{f}\"", .{string_literal.fmt(kind)});
-    }
+    try w.print("{f}", .{kinds.Spelled{ .named = named, .name = kind }});
 }
 
 /// Write the rows as a JSON array of objects. Positions are zero-based.
@@ -223,103 +220,65 @@ pub fn writeJson(rows: []const Row, jws: *std.json.Stringify) std.Io.Writer.Erro
     try jws.endArray();
 }
 
-/// Returns whether `id` is a kind a query can name as `:k`: a named node
-/// kind, or a supertype.
-pub fn isNamedKind(language: *const ts.Language, id: u16) bool {
-    if (language.nodeKindIsSupertype(id)) return true;
-    return language.nodeKindIsNamed(id) and language.nodeKindIsVisible(id);
-}
+pub const WriteError = std.mem.Allocator.Error || std.Io.Writer.Error;
 
-/// Returns the ids of every kind a query can name, sorted by name, one id
-/// per name. Caller owns the slice.
-pub fn namedKinds(gpa: std.mem.Allocator, language: *const ts.Language) std.mem.Allocator.Error![]u16 {
-    var ids: std.ArrayList(u16) = .empty;
-    errdefer ids.deinit(gpa);
-    var id: u16 = 1;
-    while (id < language.nodeKindCount()) : (id += 1) {
-        if (isNamedKind(language, id)) try ids.append(gpa, id);
-    }
-    std.mem.sort(u16, ids.items, language, lessByName);
-
-    var kept: usize = 0;
-    for (ids.items) |candidate| {
-        if (kept > 0 and std.mem.eql(u8, kindName(language, ids.items[kept - 1]), kindName(language, candidate))) continue;
-        ids.items[kept] = candidate;
-        kept += 1;
-    }
-    ids.shrinkRetainingCapacity(kept);
-    return ids.toOwnedSlice(gpa);
-}
-
-fn kindName(language: *const ts.Language, id: u16) []const u8 {
-    return language.nodeKindForId(id) orelse "";
-}
-
-fn lessByName(language: *const ts.Language, a: u16, b: u16) bool {
-    const order = std.mem.order(u8, kindName(language, a), kindName(language, b));
-    return order == .lt or (order == .eq and a < b);
-}
-
-/// Returns whether `id` is `kind`, or a subtype of it through any chain of
-/// supertypes.
-pub fn kindMatches(language: *const ts.Language, kind: u16, id: u16) bool {
-    if (id == kind) return true;
-    if (!language.nodeKindIsSupertype(kind)) return false;
-    for (language.subtypesForSupertype(kind)) |subtype| {
-        if (kindMatches(language, subtype, id)) return true;
-    }
-    return false;
-}
-
-/// Write each kind in `ids` on its own line, a supertype followed by its
-/// subtypes indented beneath it.
-pub fn writeKindList(language: *const ts.Language, ids: []const u16, w: *std.Io.Writer) std.Io.Writer.Error!void {
+/// Write each kind in `ids` on its own line, a supertype marked and followed
+/// by its subtypes indented beneath it.
+pub fn writeKindList(gpa: std.mem.Allocator, language: *const ts.Language, ids: []const u16, w: *std.Io.Writer) WriteError!void {
     for (ids) |id| {
-        try w.print(":{s}\n", .{kindName(language, id)});
-        if (!language.nodeKindIsSupertype(id)) continue;
-        for (language.subtypesForSupertype(id)) |subtype| {
-            try w.print("  :{s}\n", .{kindName(language, subtype)});
-        }
+        try writeKindHeader(language, id, w);
+        const covered = try kinds.subtypes(gpa, language, id);
+        defer gpa.free(covered);
+        for (covered) |subtype| try w.print("  {f}\n", .{kinds.spelled(language, subtype)});
     }
 }
 
-/// Write what the loaded grammar records about one kind: the supertypes it
-/// belongs to, and a supertype's subtypes.
-pub fn writeKind(language: *const ts.Language, id: u16, w: *std.Io.Writer) std.Io.Writer.Error!void {
-    try w.print(":{s}\n", .{kindName(language, id)});
+fn writeKindHeader(language: *const ts.Language, id: u16, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    try w.print("{f}", .{kinds.spelled(language, id)});
+    if (language.nodeKindIsSupertype(id)) try w.writeAll(" (supertype)");
+    try w.writeByte('\n');
+}
+
+/// Write what the loaded grammar records about one kind: the supertypes that
+/// cover it, and a supertype's subtypes.
+pub fn writeKind(gpa: std.mem.Allocator, language: *const ts.Language, id: u16, w: *std.Io.Writer) WriteError!void {
+    try writeKindHeader(language, id, w);
 
     var label: []const u8 = "supertypes";
     for (language.supertypes()) |supertype| {
-        if (std.mem.indexOfScalar(u16, language.subtypesForSupertype(supertype), id) == null) continue;
-        try w.print("  {s:<12}:{s}\n", .{ label, kindName(language, supertype) });
+        if (!kinds.covers(language, supertype, id)) continue;
+        try w.print("  {s:<12}{f}\n", .{ label, kinds.spelled(language, supertype) });
         label = "";
     }
 
+    const covered = try kinds.subtypes(gpa, language, id);
+    defer gpa.free(covered);
     label = "subtypes";
-    if (language.nodeKindIsSupertype(id)) for (language.subtypesForSupertype(id)) |subtype| {
-        try w.print("  {s:<12}:{s}\n", .{ label, kindName(language, subtype) });
+    for (covered) |subtype| {
+        try w.print("  {s:<12}{f}\n", .{ label, kinds.spelled(language, subtype) });
         label = "";
-    };
+    }
 }
 
-/// Write one kind as a JSON object: its name, the supertypes it belongs to,
-/// and its subtypes if it is a supertype.
-pub fn writeKindJson(language: *const ts.Language, id: u16, jws: *std.json.Stringify) std.Io.Writer.Error!void {
+/// Write one kind as a JSON object: its name, whether it is a supertype, the
+/// supertypes that cover it, and its subtypes if it is a supertype.
+pub fn writeKindJson(gpa: std.mem.Allocator, language: *const ts.Language, id: u16, jws: *std.json.Stringify) WriteError!void {
     try jws.beginObject();
     try jws.objectField("kind");
-    try jws.write(kindName(language, id));
+    try jws.write(kinds.name(language, id));
+    try jws.objectField("supertype");
+    try jws.write(language.nodeKindIsSupertype(id));
     try jws.objectField("supertypes");
     try jws.beginArray();
     for (language.supertypes()) |supertype| {
-        if (std.mem.indexOfScalar(u16, language.subtypesForSupertype(supertype), id) == null) continue;
-        try jws.write(kindName(language, supertype));
+        if (kinds.covers(language, supertype, id)) try jws.write(kinds.name(language, supertype));
     }
     try jws.endArray();
     try jws.objectField("subtypes");
     try jws.beginArray();
-    if (language.nodeKindIsSupertype(id)) for (language.subtypesForSupertype(id)) |subtype| {
-        try jws.write(kindName(language, subtype));
-    };
+    const covered = try kinds.subtypes(gpa, language, id);
+    defer gpa.free(covered);
+    for (covered) |subtype| try jws.write(kinds.name(language, subtype));
     try jws.endArray();
     try jws.endObject();
 }
@@ -343,8 +302,8 @@ test "matching collects each subtree of a kind, nested ones again" {
     defer rows.deinit(gpa);
     var starts: std.ArrayList(usize) = .empty;
     defer starts.deinit(gpa);
-    const kinds = [_]u16{l.idForNodeKind("class_declaration", true)};
-    try collectMatching(gpa, &rows, &starts, tree.rootNode(), source, &kinds, .{ .named_only = true });
+    const wanted = [_]u16{l.idForNodeKind("class_declaration", true)};
+    try collectMatching(gpa, &rows, &starts, tree.rootNode(), source, &wanted, .{ .named_only = true });
 
     try std.testing.expectEqual(2, starts.items.len);
     try std.testing.expectEqualStrings("class_declaration", rows.items[starts.items[0]].kind);
@@ -534,13 +493,13 @@ test "kind list is sorted, deduplicated, and nests subtypes" {
 
     var out: std.Io.Writer.Allocating = .init(gpa);
     defer out.deinit();
-    const ids = try namedKinds(gpa, g.language);
+    const ids = try kinds.named(gpa, g.language);
     defer gpa.free(ids);
-    try writeKindList(g.language, ids, &out.writer);
+    try writeKindList(gpa, g.language, ids, &out.writer);
     const listed = out.written();
 
-    try std.testing.expect(std.mem.indexOf(u8, listed, ":expression_statement\n") != null);
-    try std.testing.expect(std.mem.indexOf(u8, listed, ":expression\n  :") != null);
+    try std.testing.expect(std.mem.indexOf(u8, listed, ":expression_statement (supertype)\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, listed, ":expression (supertype)\n  :") != null);
     try std.testing.expect(std.mem.indexOf(u8, listed, "\"") == null);
     try std.testing.expectEqual(1, std.mem.count(u8, listed, "\n:identifier\n"));
 }
@@ -553,30 +512,17 @@ test "a kind shows its supertypes, and a supertype its subtypes" {
 
     var out: std.Io.Writer.Allocating = .init(gpa);
     defer out.deinit();
-    try writeKind(g.language, g.language.idForNodeKind("binary_operator", true), &out.writer);
+    try writeKind(gpa, g.language, g.language.idForNodeKind("binary_operator", true), &out.writer);
     try std.testing.expectEqualStrings(
         \\:binary_operator
-        \\  supertypes  :primary_expression
+        \\  supertypes  :expression
+        \\              :expression_statement
+        \\              :primary_expression
         \\
     , out.written());
 
     out.clearRetainingCapacity();
-    try writeKind(g.language, g.language.idForNodeKind("expression", true), &out.writer);
-    try std.testing.expect(std.mem.startsWith(u8, out.written(), ":expression\n"));
-    try std.testing.expect(std.mem.indexOf(u8, out.written(), "\n  subtypes    :as_pattern\n              :boolean_operator\n") != null);
-}
-
-test "a supertype matches its subtypes" {
-    const gpa = std.testing.allocator;
-    var grammars = Registry.init(gpa, &.{});
-    defer grammars.deinit();
-    const l = (try grammars.get("python")).language;
-
-    const expression = l.idForNodeKind("expression", true);
-    const comparison = l.idForNodeKind("comparison_operator", true);
-    const identifier = l.idForNodeKind("identifier", true);
-    try std.testing.expect(kindMatches(l, expression, comparison));
-    try std.testing.expect(kindMatches(l, expression, l.idForNodeKind("binary_operator", true)));
-    try std.testing.expect(kindMatches(l, identifier, identifier));
-    try std.testing.expect(!kindMatches(l, comparison, expression));
+    try writeKind(gpa, g.language, g.language.idForNodeKind("expression", true), &out.writer);
+    try std.testing.expect(std.mem.startsWith(u8, out.written(), ":expression (supertype)\n"));
+    try std.testing.expect(std.mem.indexOf(u8, out.written(), "\n  subtypes    :as_pattern\n              :attribute\n") != null);
 }
