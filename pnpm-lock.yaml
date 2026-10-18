@@ -32,6 +32,9 @@ importers:
       '@codemirror/lang-rust':
         specifier: ^6.0.2
         version: 6.0.2
+      '@codemirror/lint':
+        specifier: ^6.9.6
+        version: 6.9.6
       '@codemirror/state':
         specifier: ^6.6.0
         version: 6.6.0

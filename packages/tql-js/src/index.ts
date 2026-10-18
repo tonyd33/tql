@@ -91,10 +91,16 @@ export interface QueryResult {
   stats: QueryStats;
 }
 
+/** A run of a diagnostic's message: plain text, or quoted code. */
+export type MessagePart = { text: string } | { code: string };
+
 /** A reason the query was rejected before it ran. */
 export interface Diagnostic {
   category: string;
+  /** The message as plain text, with code in backticks. For display only. */
   message: string;
+  /** The message, in order. */
+  parts: MessagePart[];
   /** The imported module the span is in, or null for the query itself. */
   module: string | null;
   /** Null when no source range corresponds to the diagnostic. */

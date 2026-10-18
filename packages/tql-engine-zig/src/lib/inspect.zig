@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const ts = @import("tree-sitter");
+const location = @import("location.zig");
 const string_literal = @import("lang/string_literal.zig");
 const kinds = @import("lang/kinds.zig");
 const utf8 = @import("utf8.zig");
@@ -16,10 +17,7 @@ pub const Row = struct {
     named: bool,
     missing: bool,
     is_error: bool,
-    start_byte: u32,
-    end_byte: u32,
-    start_point: ts.Point,
-    end_point: ts.Point,
+    range: location.Range,
     /// The node's source text, set only when no row is printed beneath it.
     text: ?[]const u8,
 };
@@ -61,10 +59,7 @@ pub fn collect(
             .named = node.isNamed(),
             .missing = node.isMissing(),
             .is_error = node.isError(),
-            .start_byte = node.startByte(),
-            .end_byte = node.endByte(),
-            .start_point = node.startPoint(),
-            .end_point = node.endPoint(),
+            .range = .ofNode(node),
             .text = null,
         });
 
@@ -83,7 +78,7 @@ pub fn collect(
     const added = rows.items[first..];
     for (added, 0..) |*row, i| {
         const leaf = i + 1 == added.len or added[i + 1].depth <= row.depth;
-        if (leaf) row.text = source[row.start_byte..row.end_byte];
+        if (leaf) row.text = source[row.range.start_byte..row.range.end_byte];
     }
 }
 
@@ -134,8 +129,8 @@ pub const Widths = struct {
     pub fn of(rows: []const Row) Widths {
         var w: Widths = .{};
         for (rows) |r| {
-            w.row = @max(w.row, digits(r.start_point.row + 1), digits(r.end_point.row + 1));
-            w.column = @max(w.column, digits(r.start_point.column + 1), digits(r.end_point.column + 1));
+            w.row = @max(w.row, digits(r.range.start_point.row + 1), digits(r.range.end_point.row + 1));
+            w.column = @max(w.column, digits(r.range.start_point.column + 1), digits(r.range.end_point.column + 1));
         }
         return w;
     }
@@ -149,9 +144,9 @@ fn digits(n: u32) usize {
 /// and the node in TQL syntax, followed by its text when it is a leaf.
 pub fn writeText(rows: []const Row, widths: Widths, w: *std.Io.Writer) std.Io.Writer.Error!void {
     for (rows) |r| {
-        try writePoint(r.start_point, widths, w);
+        try writePoint(r.range.start_point, widths, w);
         try w.writeAll(" - ");
-        try writePoint(r.end_point, widths, w);
+        try writePoint(r.range.end_point, widths, w);
         try w.writeAll("  ");
         try w.splatByteAll(' ', 2 * @as(usize, r.depth));
         if (r.field) |f| try w.print("#{s} ", .{f});
@@ -170,7 +165,7 @@ pub fn writeText(rows: []const Row, widths: Widths, w: *std.Io.Writer) std.Io.Wr
     }
 }
 
-fn writePoint(p: ts.Point, widths: Widths, w: *std.Io.Writer) std.Io.Writer.Error!void {
+fn writePoint(p: location.Point, widths: Widths, w: *std.Io.Writer) std.Io.Writer.Error!void {
     try w.print("{[row]d:>[rw]}:{[col]d:<[cw]}", .{
         .row = p.row + 1,
         .rw = widths.row,
@@ -201,17 +196,17 @@ pub fn writeJson(rows: []const Row, jws: *std.json.Stringify) std.Io.Writer.Erro
         try jws.objectField("isError");
         try jws.write(r.is_error);
         try jws.objectField("startIndex");
-        try jws.write(r.start_byte);
+        try jws.write(r.range.start_byte);
         try jws.objectField("endIndex");
-        try jws.write(r.end_byte);
+        try jws.write(r.range.end_byte);
         try jws.objectField("startRow");
-        try jws.write(r.start_point.row);
+        try jws.write(r.range.start_point.row);
         try jws.objectField("startCol");
-        try jws.write(r.start_point.column);
+        try jws.write(r.range.start_point.column);
         try jws.objectField("endRow");
-        try jws.write(r.end_point.row);
+        try jws.write(r.range.end_point.row);
         try jws.objectField("endCol");
-        try jws.write(r.end_point.column);
+        try jws.write(r.range.end_point.column);
         if (r.text) |t| {
             try jws.objectField("text");
             try jws.write(utf8.Lossy{ .bytes = t });

@@ -69,12 +69,17 @@ fn writeRejected(w: *std.Io.Writer, engine: *const tql.Engine, sink: *const tql.
     try jws.write("rejected");
     try jws.objectField("diagnostics");
     try jws.beginArray();
-    for (sink.items()) |d| try jws.write(.{
-        .category = d.category.name(),
-        .message = d.message,
-        .module = engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name,
-        .span = if (d.span.isUnknown()) null else d.span,
-    });
+    for (sink.items()) |d| {
+        const message = try std.fmt.allocPrint(gpa, "{f}", .{d.message()});
+        defer gpa.free(message);
+        try jws.write(.{
+            .category = d.category.name(),
+            .message = message,
+            .parts = d.parts,
+            .module = engine.sourceOf(d.span.source, .{ .name = null, .text = "" }).name,
+            .span = d.span,
+        });
+    }
     try jws.endArray();
     try jws.endObject();
 }
