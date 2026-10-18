@@ -12,10 +12,17 @@ pub const TypeId = symbols.TypeId;
 /// arguments it is a `types.Type.function`.
 pub const function_id: TypeId = Registry.Structural.function.id();
 pub const list_id: TypeId = Registry.Structural.list.id();
+/// `Record`, a record type at its one argument, a row.
+pub const record_id: TypeId = Registry.Structural.record.id();
 
 /// `[element]`.
 pub fn list(arena: Allocator, element: types.Type) !types.Type {
     return try types.constructed(arena, list_id, types.list_spelling, &.{element});
+}
+
+/// `Record` at `row`.
+pub fn record(arena: Allocator, row: types.Type.Row) !types.Type {
+    return try types.constructed(arena, record_id, types.record_spelling, &.{.{ .row = row }});
 }
 
 /// The constructors of `Json`, by tag.
@@ -103,7 +110,8 @@ pub const Registry = struct {
     ///
     /// `Prim` declares the primitives, `List`, `Bool`, `Ordering`, `Maybe` and
     /// `Json`; these rows reserve their ids so a primitive scheme can name
-    /// any of them before `Prim` is parsed. No source declares `(->)`.
+    /// any of them before `Prim` is parsed. No source declares `(->)` or
+    /// `Record`.
     pub const Structural = struct {
         name: []const u8,
         parameters: []const types.Kind,
@@ -163,6 +171,12 @@ pub const Registry = struct {
             .declared = false,
         };
 
+        pub const record: Structural = .{
+            .name = types.record_spelling,
+            .parameters = &.{.row},
+            .declared = false,
+        };
+
         /// The primitives come first, in `Primitive` order, so each takes the id
         /// `Primitive.id` names.
         pub const all: []const Structural = &.{
@@ -177,6 +191,7 @@ pub const Registry = struct {
             Structural.maybe,
             Structural.json,
             Structural.function,
+            Structural.record,
         };
     };
 

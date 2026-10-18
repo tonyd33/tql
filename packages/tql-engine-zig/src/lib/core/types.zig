@@ -53,8 +53,8 @@ pub const Primitive = enum(u32) {
     }
 };
 
-/// The type of a type: `Type` for one with values, `Row` for the fields after
-/// `|` in an open record, and `k -> k` for a constructor short of arguments.
+/// The type of a type: `Type` for one with values, `Row` for a record's
+/// fields, and `k -> k` for a constructor short of arguments.
 pub const Kind = union(enum) {
     type,
     row,
@@ -141,7 +141,9 @@ pub const Type = union(enum) {
     /// A declared algebraic data type at its arguments. `[a]` is `List` at
     /// one argument and `Bool` is a nullary one.
     constructor: *const Constructed,
-    record: Record,
+    /// The argument of `Record`: `(l: t, ...)`, or `(l: t, ... | r)` when
+    /// `tail` stands for further fields. Of kind `Row`.
+    row: Row,
     function: *const Arrow,
     /// A type written through an alias: `Range`, or `Named r`. Transparent
     /// to unification and classes, which see only `expansion`.
@@ -161,16 +163,13 @@ pub const Type = union(enum) {
         arguments: []const Type,
     };
 
-    /// `{l: t, ...}`, or `{l: t, ... | r}` when `rest` stands for further
-    /// fields.
-    ///
     /// Invariants:
     /// - `fields` are sorted by label.
-    /// - `rest` is a metavariable, skolem or bound variable, or resolves to
-    ///   another record whose fields extend these.
-    pub const Record = struct {
+    /// - `tail` is a metavariable, skolem or bound variable, or resolves to
+    ///   another row whose fields extend these.
+    pub const Row = struct {
         fields: []const Field,
-        rest: ?*const Type = null,
+        tail: ?*const Type = null,
     };
 
     pub const Field = struct {
@@ -259,13 +258,13 @@ pub const Type = union(enum) {
                 node.* = .{ .name = c.name, .spelling = c.spelling, .arguments = arguments };
                 return .{ .constructor = node };
             },
-            .record => |r| {
+            .row => |r| {
                 const copies = try allocator.alloc(Field, r.fields.len);
                 for (r.fields, copies) |f, *copy| {
                     copy.* = .{ .label = f.label, .type = try store(allocator, try f.type.clone(allocator)) };
                 }
-                const rest = if (r.rest) |t| try store(allocator, try t.clone(allocator)) else null;
-                return .{ .record = .{ .fields = copies, .rest = rest } };
+                const tail = if (r.tail) |t| try store(allocator, try t.clone(allocator)) else null;
+                return .{ .row = .{ .fields = copies, .tail = tail } };
             },
             .function => |arrow| return try func(
                 allocator,
@@ -293,23 +292,15 @@ pub const Type = union(enum) {
                 try writeVariable(w, i);
             } else try w.print("?{d}", .{id}),
             .constructor => |c| {
-                const parenthesize = position == .argument and c.arguments.len > 0 and !isListSugar(c) and !isTupleSugar(c);
+                const parenthesize = position == .argument and c.arguments.len > 0 and !isSugar(c);
                 if (parenthesize) try w.writeByte('(');
                 try writeConstructed(c, w, names);
                 if (parenthesize) try w.writeByte(')');
             },
-            .record => |r| {
-                try w.writeByte('{');
-                for (r.fields, 0..) |f, i| {
-                    if (i > 0) try w.writeAll(", ");
-                    try w.print("{s}: ", .{f.label});
-                    try f.type.write(w, .top, names);
-                }
-                if (r.rest) |rest| {
-                    try w.writeAll(if (r.fields.len > 0) " | " else "| ");
-                    try rest.write(w, .top, names);
-                }
-                try w.writeByte('}');
+            .row => |r| {
+                try w.writeByte('(');
+                try writeFields(r, w, names);
+                try w.writeByte(')');
             },
             .function => |arrow| {
                 if (position != .top) try w.writeByte('(');
@@ -389,18 +380,18 @@ pub const Spelled = struct {
     spelling: []const u8,
 };
 
-/// Appends the head of each constructed type in `t`. A head printed as list
-/// or tuple sugar is left out.
+/// Appends the head of each constructed type in `t`. A head printed as
+/// list, tuple or record sugar is left out.
 pub fn collectHeads(gpa: std.mem.Allocator, t: Type, out: *std.ArrayList(Spelled)) std.mem.Allocator.Error!void {
     switch (t) {
         .variable, .meta, .skolem => {},
         .constructor => |c| {
-            if (!isListSugar(c) and !isTupleSugar(c)) try out.append(gpa, .{ .head = .{ .type = c.name }, .spelling = c.spelling });
+            if (!isSugar(c)) try out.append(gpa, .{ .head = .{ .type = c.name }, .spelling = c.spelling });
             for (c.arguments) |argument| try collectHeads(gpa, argument, out);
         },
-        .record => |r| {
+        .row => |r| {
             for (r.fields) |f| try collectHeads(gpa, f.type.*, out);
-            if (r.rest) |rest| try collectHeads(gpa, rest.*, out);
+            if (r.tail) |tail| try collectHeads(gpa, tail.*, out);
         },
         .function => |arrow| {
             try collectHeads(gpa, arrow.from, out);
@@ -470,12 +461,43 @@ fn writeConstructed(
         try w.writeByte(']');
         return;
     }
+    if (isRecordSugar(c)) {
+        try w.writeByte('{');
+        switch (c.arguments[0]) {
+            .row => |r| try writeFields(r, w, names),
+            else => |tail| try writeFields(.{ .fields = &.{}, .tail = &tail }, w, names),
+        }
+        try w.writeByte('}');
+        return;
+    }
     if (if (names) |n| n.moduleOf(.{ .type = c.name }) else null) |module| try w.print("{s}.", .{module});
     try w.writeAll(c.spelling);
     for (c.arguments) |argument| {
         try w.writeByte(' ');
         try argument.write(w, .argument, names);
     }
+}
+
+/// Write `l: t, ... | r` without brackets.
+fn writeFields(r: Type.Row, w: *std.Io.Writer, names: ?*MessageNames) std.Io.Writer.Error!void {
+    for (r.fields, 0..) |f, i| {
+        if (i > 0) try w.writeAll(", ");
+        try w.print("{s}: ", .{f.label});
+        try f.type.write(w, .top, names);
+    }
+    if (r.tail) |tail| {
+        try w.writeAll(if (r.fields.len > 0) " | " else "| ");
+        try tail.write(w, .top, names);
+    }
+}
+
+/// Whether `c` prints with brackets of its own and no head.
+fn isSugar(c: *const Type.Constructed) bool {
+    return isListSugar(c) or isTupleSugar(c) or isRecordSugar(c);
+}
+
+fn isRecordSugar(c: *const Type.Constructed) bool {
+    return c.arguments.len == 1 and c.name == datatypes.record_id;
 }
 
 fn isListSugar(c: *const Type.Constructed) bool {
@@ -545,28 +567,46 @@ pub const node_type = primitiveType(.Node);
 pub const kind_type = primitiveType(.Kind);
 
 fn primitiveType(comptime p: Primitive) Type {
-    const head: Type.Constructed = .{ .name = p.id(), .spelling = p.spelling(), .arguments = &.{} };
+    return constant(p.id(), p.spelling(), &.{});
+}
+
+/// A declared type at its arguments, built at compile time.
+fn constant(comptime name: datatypes.TypeId, comptime spelling: []const u8, comptime arguments: []const Type) Type {
+    const head: Type.Constructed = .{ .name = name, .spelling = spelling, .arguments = arguments };
     return .{ .constructor = &head };
 }
 
 /// The fields of `Point`, a position in the queried file.
-pub const point_record: Type = .{ .record = .{ .fields = &.{
+pub const point_row: Type.Row = .{ .fields = &.{
     .{ .label = "column", .type = &int_type },
     .{ .label = "row", .type = &int_type },
-} } };
+} };
 
-pub const point_type: Type = .{ .alias = &.{ .spelling = "Point", .arguments = &.{}, .expansion = point_record } };
+pub const point_type: Type = .{ .alias = &.{ .spelling = "Point", .arguments = &.{}, .expansion = recordType(point_row) } };
 
 /// The fields of `Range`, what `range` returns. Starts are inclusive and ends
 /// exclusive.
-pub const range_record: Type = .{ .record = .{ .fields = &.{
+pub const range_row: Type.Row = .{ .fields = &.{
     .{ .label = "end_byte", .type = &int_type },
     .{ .label = "end_point", .type = &point_type },
     .{ .label = "start_byte", .type = &int_type },
     .{ .label = "start_point", .type = &point_type },
-} } };
+} };
 
-pub const range_type: Type = .{ .alias = &.{ .spelling = "Range", .arguments = &.{}, .expansion = range_record } };
+fn recordType(comptime row: Type.Row) Type {
+    return constant(datatypes.record_id, record_spelling, &.{.{ .row = row }});
+}
+
+/// The argument of `t` when `t` is `Record` at one, looking through aliases.
+/// Unresolved: a metavariable argument is returned as it is.
+pub fn recordArgument(t: Type) ?Type {
+    return switch (unalias(t)) {
+        .constructor => |c| if (isRecordSugar(c)) c.arguments[0] else null,
+        else => null,
+    };
+}
+
+pub const range_type: Type = .{ .alias = &.{ .spelling = "Range", .arguments = &.{}, .expansion = recordType(range_row) } };
 
 pub fn variable_type(index: TypeVar) Type {
     return .{ .variable = index };
@@ -590,6 +630,7 @@ pub const ordering_spelling = "Ordering";
 pub const maybe_spelling = "Maybe";
 pub const json_spelling = "Json";
 pub const function_spelling = "(->)";
+pub const record_spelling = "Record";
 
 /// The most components a tuple has.
 pub const max_tuple_arity = std.math.maxInt(TypeVar);
@@ -674,9 +715,9 @@ pub fn mentions(t: Type, index: TypeVar) bool {
         .constructor => |c| for (c.arguments) |argument| {
             if (mentions(argument, index)) break true;
         } else false,
-        .record => |r| for (r.fields) |f| {
+        .row => |r| for (r.fields) |f| {
             if (mentions(f.type.*, index)) break true;
-        } else if (r.rest) |rest| mentions(rest.*, index) else false,
+        } else if (r.tail) |tail| mentions(tail.*, index) else false,
         .function => |arrow| mentions(arrow.from, index) or mentions(arrow.to, index),
         .alias => |a| mentions(a.expansion, index),
         .application => |a| mentions(a.head, index) or mentions(a.argument, index),
@@ -737,7 +778,7 @@ pub fn apply(allocator: std.mem.Allocator, head: Type, argument: Type) std.mem.A
             node.* = .{ .head = head, .argument = argument };
             return .{ .application = node };
         },
-        .function, .record => unreachable,
+        .function, .row => unreachable,
     }
 }
 
@@ -798,14 +839,14 @@ pub fn eql(a: Type, b: Type) bool {
         .constructor => |c| c.name == b.constructor.name and allEql(c.arguments, b.constructor.arguments),
         .function => |arrow| eql(arrow.from, b.function.from) and eql(arrow.to, b.function.to),
         .application => |x| eql(x.head, b.application.head) and eql(x.argument, b.application.argument),
-        .record => |r| {
-            const other = b.record;
+        .row => |r| {
+            const other = b.row;
             if (r.fields.len != other.fields.len) return false;
             for (r.fields, other.fields) |f, g| {
                 if (!std.mem.eql(u8, f.label, g.label) or !eql(f.type.*, g.type.*)) return false;
             }
-            const rest = r.rest orelse return other.rest == null;
-            return if (other.rest) |o| eql(rest.*, o.*) else false;
+            const tail = r.tail orelse return other.tail == null;
+            return if (other.tail) |o| eql(tail.*, o.*) else false;
         },
         .alias => unreachable,
     };
@@ -834,7 +875,7 @@ const Arguments = struct {
         return t;
     }
 
-    fn record(_: Arguments, r: Type.Record) std.mem.Allocator.Error!Type.Record {
+    fn row(_: Arguments, r: Type.Row) std.mem.Allocator.Error!Type.Row {
         return r;
     }
 
@@ -855,7 +896,7 @@ const Arguments = struct {
 ///
 /// `context` supplies:
 /// - `head(t) Type`: the node to walk in place of `t`, called on every node
-/// - `record(r) !Type.Record`: the fields to walk in place of record `r`
+/// - `row(r) !Type.Row`: the fields to walk in place of row `r`
 /// - `replace(t) Type`: what a variable or metavariable becomes
 pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.Allocator.Error!Type {
     const head = context.head(t);
@@ -866,8 +907,8 @@ pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.
             const changed = try rewriteAll(allocator, c.arguments, context) orelse return head;
             return try constructed(allocator, c.name, c.spelling, changed);
         },
-        .record => |written| {
-            const r = try context.record(written);
+        .row => |written| {
+            const r = try context.row(written);
             var copies: ?[]Type.Field = null;
             for (r.fields, 0..) |f, i| {
                 const rewritten = try rewrite(allocator, f.type.*, context);
@@ -880,14 +921,14 @@ pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.
                     copies = slots;
                 }
             }
-            var rest = r.rest;
-            if (r.rest) |row| {
-                const rewritten = try rewrite(allocator, row.*, context);
-                if (!std.meta.eql(rewritten, row.*)) rest = try store(allocator, rewritten);
+            var tail = r.tail;
+            if (r.tail) |old| {
+                const rewritten = try rewrite(allocator, old.*, context);
+                if (!std.meta.eql(rewritten, old.*)) tail = try store(allocator, rewritten);
             }
-            const result: Type.Record = .{ .fields = copies orelse r.fields, .rest = rest };
+            const result: Type.Row = .{ .fields = copies orelse r.fields, .tail = tail };
             if (std.meta.eql(result, written)) return head;
-            return .{ .record = result };
+            return .{ .row = result };
         },
         .function => |arrow| {
             const from = try rewrite(allocator, arrow.from, context);

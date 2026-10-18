@@ -27,7 +27,7 @@ const Leaf = union(enum) {
     }
 };
 
-/// Resolves every node and flattens every record as the rewrite reaches it.
+/// Resolves every node and flattens every row as the rewrite reaches it.
 const Rewriter = struct {
     subst: *Substitution,
     leaf: Leaf,
@@ -43,7 +43,7 @@ const Rewriter = struct {
         return current;
     }
 
-    pub fn record(self: Rewriter, r: types.Type.Record) Allocator.Error!types.Type.Record {
+    pub fn row(self: Rewriter, r: types.Type.Row) Allocator.Error!types.Type.Row {
         return try self.subst.flatten(r);
     }
 
@@ -130,9 +130,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.promote(argument, level)) |k| return k;
             },
-            .record => |r| {
+            .row => |r| {
                 for (r.fields) |f| if (self.promote(f.type.*, level)) |k| return k;
-                if (r.rest) |rest| return self.promote(rest.*, level);
+                if (r.tail) |tail| return self.promote(tail.*, level);
             },
             .function => |arrow| return self.promote(arrow.from, level) orelse self.promote(arrow.to, level),
             .application => |a| return self.promote(a.head, level) orelse self.promote(a.argument, level),
@@ -172,9 +172,9 @@ pub const Substitution = struct {
             },
             .variable, .skolem => {},
             .constructor => |c| for (c.arguments) |argument| self.poison(argument),
-            .record => |r| {
+            .row => |r| {
                 for (r.fields) |f| self.poison(f.type.*);
-                if (r.rest) |rest| self.poison(rest.*);
+                if (r.tail) |tail| self.poison(tail.*);
             },
             .function => |arrow| {
                 self.poison(arrow.from);
@@ -201,9 +201,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.isPoisoned(argument)) break true;
             } else false,
-            .record => |r| for (r.fields) |f| {
+            .row => |r| for (r.fields) |f| {
                 if (self.isPoisoned(f.type.*)) break true;
-            } else if (r.rest) |rest| self.isPoisoned(rest.*) else false,
+            } else if (r.tail) |tail| self.isPoisoned(tail.*) else false,
             .function => |arrow| self.isPoisoned(arrow.from) or self.isPoisoned(arrow.to),
             .application => |a| self.isPoisoned(a.head) or self.isPoisoned(a.argument),
             .alias => |a| for (a.arguments) |argument| {
@@ -243,36 +243,36 @@ pub const Substitution = struct {
     }
 
     /// `expand`, also rebuilding an application whose head is solved as its
-    /// head's solution at its argument, and following a record's row to the
-    /// end. An `.application` in the result has an unsolved head.
+    /// head's solution at its argument, and following a row to its end. An
+    /// `.application` in the result has an unsolved head.
     pub fn normalize(self: *Substitution, t: types.Type) Allocator.Error!types.Type {
         const head = self.expand(t);
-        if (head == .record) return .{ .record = try self.flatten(head.record) };
+        if (head == .row) return .{ .row = try self.flatten(head.row) };
         if (head != .application) return head;
         const applied = try self.normalize(head.application.head);
         if (std.meta.eql(applied, head.application.head)) return head;
         return try types.apply(self.arena, applied, head.application.argument);
     }
 
-    /// `r` with its row followed to the end: every field reachable through
-    /// `rest`, sorted by label, and a `rest` that is null, an unsolved
-    /// metavariable or a bound variable.
+    /// `r` followed to its end: every field reachable through `tail`, sorted
+    /// by label, and a `tail` that is null, an unsolved metavariable or a
+    /// bound variable.
     ///
-    /// Shallow in the field types. Returns `r` itself when its row is already
-    /// at the end.
-    pub fn flatten(self: *Substitution, r: types.Type.Record) Allocator.Error!types.Type.Record {
+    /// Shallow in the field types. Returns `r` itself when it is already at
+    /// its end.
+    pub fn flatten(self: *Substitution, r: types.Type.Row) Allocator.Error!types.Type.Row {
         var fields = r.fields;
-        var rest = r.rest orelse return r;
+        var tail = r.tail orelse return r;
         while (true) {
-            const head = self.expand(rest.*);
+            const head = self.expand(tail.*);
             switch (head) {
-                .record => |more| {
+                .row => |more| {
                     fields = try mergeFields(self.arena, fields, more.fields);
-                    rest = more.rest orelse return .{ .fields = fields };
+                    tail = more.tail orelse return .{ .fields = fields };
                 },
                 else => {
-                    if (fields.ptr == r.fields.ptr and std.meta.eql(head, r.rest.?.*)) return r;
-                    return .{ .fields = fields, .rest = try types.store(self.arena, head) };
+                    if (fields.ptr == r.fields.ptr and std.meta.eql(head, r.tail.?.*)) return r;
+                    return .{ .fields = fields, .tail = try types.store(self.arena, head) };
                 },
             }
         }
@@ -306,9 +306,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
             } else false,
-            .record => |r| for (r.fields) |f| {
+            .row => |r| for (r.fields) |f| {
                 if (self.occurs(id, f.type.*)) break true;
-            } else if (r.rest) |rest| self.occurs(id, rest.*) else false,
+            } else if (r.tail) |tail| self.occurs(id, tail.*) else false,
             .function => |arrow| self.occurs(id, arrow.from) or self.occurs(id, arrow.to),
             .application => |a| self.occurs(id, a.head) or self.occurs(id, a.argument),
         };
@@ -335,9 +335,9 @@ pub const Substitution = struct {
             },
             .variable, .skolem => {},
             .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
-            .record => |r| {
+            .row => |r| {
                 for (r.fields) |f| try self.freeMetas(f.type.*, out);
-                if (r.rest) |rest| try self.freeMetas(rest.*, out);
+                if (r.tail) |tail| try self.freeMetas(tail.*, out);
             },
             .function => |arrow| {
                 try self.freeMetas(arrow.from, out);
@@ -399,9 +399,9 @@ pub const Substitution = struct {
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.mentionsSkolemFrom(argument, level)) break true;
             } else false,
-            .record => |r| for (r.fields) |f| {
+            .row => |r| for (r.fields) |f| {
                 if (self.mentionsSkolemFrom(f.type.*, level)) break true;
-            } else if (r.rest) |rest| self.mentionsSkolemFrom(rest.*, level) else false,
+            } else if (r.tail) |tail| self.mentionsSkolemFrom(tail.*, level) else false,
             .function => |arrow| self.mentionsSkolemFrom(arrow.from, level) or self.mentionsSkolemFrom(arrow.to, level),
             .application => |a| self.mentionsSkolemFrom(a.head, level) or self.mentionsSkolemFrom(a.argument, level),
             .alias => |a| self.mentionsSkolemFrom(a.expansion, level),

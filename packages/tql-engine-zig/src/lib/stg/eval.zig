@@ -1161,14 +1161,14 @@ pub const Machine = struct {
             .{ .number = r.start_point.row },
         };
         for (thunks, values) |*thunk, v| thunk.* = value.Thunk.value(v);
-        labelFields(fields[0..4], core.types.range_record, thunks[0..4]);
-        labelFields(end_point, core.types.point_record, thunks[4..6]);
-        labelFields(start_point, core.types.point_record, thunks[6..8]);
+        labelFields(fields[0..4], core.types.range_row, thunks[0..4]);
+        labelFields(end_point, core.types.point_row, thunks[4..6]);
+        labelFields(start_point, core.types.point_row, thunks[6..8]);
         return .{ .record = fields[0..4] };
     }
 
-    fn labelFields(fields: []value.Field, t: core.types.Type, thunks: []value.Thunk) void {
-        for (fields, t.record.fields, thunks) |*field, typed, *thunk| {
+    fn labelFields(fields: []value.Field, row: core.types.Type.Row, thunks: []value.Thunk) void {
+        for (fields, row.fields, thunks) |*field, typed, *thunk| {
             field.* = .{ .label = typed.label, .thunk = thunk };
         }
     }
