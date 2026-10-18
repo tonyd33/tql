@@ -284,7 +284,7 @@ pub fn solve(
     const written = view.resolve(t);
     const expanded = try view.normalize(written);
     switch (expanded) {
-        .meta, .variable, .application => {},
+        .meta, .variable, .skolem, .application => {},
         .alias => unreachable,
         .constructor, .function => {
             const c = types.asApplied(expanded).?;

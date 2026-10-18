@@ -3,6 +3,7 @@
 const std = @import("std");
 const classes = @import("classes.zig");
 const datatypes = @import("datatypes.zig");
+const symbols = @import("symbols.zig");
 
 /// A type variable, identified by its binding position in the enclosing
 /// scheme's `forall`.
@@ -10,6 +11,17 @@ pub const TypeVar = u8;
 
 /// An unknown standing for a type not yet determined.
 pub const Meta = u32;
+
+/// A rigid type variable: a signature's variable inside the body checked
+/// against it. Equal only to itself.
+pub const Skolem = struct {
+    spelling: []const u8,
+    kind: Kind,
+    /// The level of the implication that binds it.
+    level: u32,
+    /// The definition whose signature binds it.
+    binder: symbols.SymbolId,
+};
 
 /// A type the machine represents directly. `Prim` declares each as
 /// `data Int = %Int;`.
@@ -125,6 +137,7 @@ pub const KindMeta = u32;
 pub const Type = union(enum) {
     variable: TypeVar,
     meta: Meta,
+    skolem: *const Skolem,
     /// A declared algebraic data type at its arguments. `[a]` is `List` at
     /// one argument and `Bool` is a nullary one.
     constructor: *const Constructed,
@@ -153,8 +166,8 @@ pub const Type = union(enum) {
     ///
     /// Invariants:
     /// - `fields` are sorted by label.
-    /// - `rest` is a metavariable or bound variable, or resolves to another
-    ///   record whose fields extend these.
+    /// - `rest` is a metavariable, skolem or bound variable, or resolves to
+    ///   another record whose fields extend these.
     pub const Record = struct {
         fields: []const Field,
         rest: ?*const Type = null,
@@ -238,7 +251,7 @@ pub const Type = union(enum) {
     /// shared, not copied.
     pub fn clone(self: Type, allocator: std.mem.Allocator) std.mem.Allocator.Error!Type {
         switch (self) {
-            .variable, .meta => return self,
+            .variable, .meta, .skolem => return self,
             .constructor => |c| {
                 const arguments = try allocator.alloc(Type, c.arguments.len);
                 for (c.arguments, arguments) |argument, *copy| copy.* = try argument.clone(allocator);
@@ -275,6 +288,7 @@ pub const Type = union(enum) {
     fn write(self: Type, w: *std.Io.Writer, position: Position, names: ?*MessageNames) std.Io.Writer.Error!void {
         switch (self) {
             .variable => |index| try writeVariable(w, index),
+            .skolem => |k| try w.writeAll(k.spelling),
             .meta => |id| if (if (names) |n| n.metas.index(id) else null) |i| {
                 try writeVariable(w, i);
             } else try w.print("?{d}", .{id}),
@@ -379,7 +393,7 @@ pub const Spelled = struct {
 /// or tuple sugar is left out.
 pub fn collectHeads(gpa: std.mem.Allocator, t: Type, out: *std.ArrayList(Spelled)) std.mem.Allocator.Error!void {
     switch (t) {
-        .variable, .meta => {},
+        .variable, .meta, .skolem => {},
         .constructor => |c| {
             if (!isListSugar(c) and !isTupleSugar(c)) try out.append(gpa, .{ .head = .{ .type = c.name }, .spelling = c.spelling });
             for (c.arguments) |argument| try collectHeads(gpa, argument, out);
@@ -420,6 +434,14 @@ fn Names(comptime Id: type) type {
             return self.len - 1;
         }
     };
+}
+
+/// The `index`th variable name, as `writeVariable` writes it.
+pub fn variableSpelling(allocator: std.mem.Allocator, index: usize) std.mem.Allocator.Error![]const u8 {
+    var buffer: [16]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buffer);
+    writeVariable(&w, index) catch unreachable;
+    return try allocator.dupe(u8, w.buffered());
 }
 
 /// Write the `index`th variable name: `a` to `z`, then `a1` to `z1`, `a2`...
@@ -647,7 +669,7 @@ pub fn asApplied(t: Type) ?Applied {
 pub fn mentions(t: Type, index: TypeVar) bool {
     return switch (t) {
         .variable => |v| v == index,
-        .meta => false,
+        .meta, .skolem => false,
         .constructor => |c| for (c.arguments) |argument| {
             if (mentions(argument, index)) break true;
         } else false,
@@ -709,7 +731,7 @@ pub fn apply(allocator: std.mem.Allocator, head: Type, argument: Type) std.mem.A
             return try constructedOwning(allocator, c.name, c.spelling, arguments);
         },
         .alias => |a| return try apply(allocator, a.expansion, argument),
-        .variable, .meta, .application => {
+        .variable, .meta, .skolem, .application => {
             const node = try allocator.create(Type.Application);
             node.* = .{ .head = head, .argument = argument };
             return .{ .application = node };
@@ -771,6 +793,7 @@ pub fn eql(a: Type, b: Type) bool {
     return switch (a) {
         .variable => |v| v == b.variable,
         .meta => |id| id == b.meta,
+        .skolem => |k| k == b.skolem,
         .constructor => |c| c.name == b.constructor.name and allEql(c.arguments, b.constructor.arguments),
         .function => |arrow| eql(arrow.from, b.function.from) and eql(arrow.to, b.function.to),
         .application => |x| eql(x.head, b.application.head) and eql(x.argument, b.application.argument),
@@ -837,6 +860,7 @@ pub fn rewrite(allocator: std.mem.Allocator, t: Type, context: anytype) std.mem.
     const head = context.head(t);
     switch (head) {
         .variable, .meta => return context.replace(head),
+        .skolem => return head,
         .constructor => |c| {
             const changed = try rewriteAll(allocator, c.arguments, context) orelse return head;
             return try constructed(allocator, c.name, c.spelling, changed);

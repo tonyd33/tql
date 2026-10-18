@@ -14,14 +14,20 @@ main = pure 1;
 class A {}
 
 --- error ---
-error[signature-mismatch]: Expected `Int`, found `String`.
- --> 1:1
-  |
-1 | f :: Int -> Int;
-  | ^^^^^^^^^^^^^^^^
-
 error[unsatisfied-constraint]: `Eq (a -> a)` is not satisfied.
  --> 2:10
   |
 2 | f x = if (\y -> y) == (\z -> z) then "a" else "b";
   |          ^^^^^^^^^^^^^^^^^^^^^^
+
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 2:38
+  |
+2 | f x = if (\y -> y) == (\z -> z) then "a" else "b";
+  |                                      ^^^
+
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 2:47
+  |
+2 | f x = if (\y -> y) == (\z -> z) then "a" else "b";
+  |                                               ^^^

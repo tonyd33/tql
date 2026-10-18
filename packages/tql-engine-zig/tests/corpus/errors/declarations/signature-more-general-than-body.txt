@@ -11,8 +11,8 @@ f = kind;
 main = arr f;
 
 --- error ---
-error[signature-mismatch]: Expected `Node`, found `Kind`.
- --> 1:1
+error[type-mismatch]: Expected `a`, found `Node`. `a` is rigid, bound by the signature of `f`.
+ --> 2:5
   |
-1 | f :: a -> a;
-  | ^^^^^^^^^^^^
+2 | f = kind;
+  |     ^^^^

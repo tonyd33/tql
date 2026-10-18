@@ -57,6 +57,10 @@ type variable from an outer level may not be unified with it.
 `ty(l)` is `Int`, `String`, `Regex` or `Kind`. Literals are not overloaded.
 Every other expression form is typed by its translation.
 
+An application `f e1 ... en ⇐ τ` unifies `f`'s result with `τ` before it
+checks the arguments, so each `ei` is checked against a parameter the
+context has fixed.
+
 ### Annotations
 
 ```
@@ -85,10 +89,22 @@ with `β̄` fresh.
 `Gen` quantifies the type variables of the group's level that no outer
 type mentions, with the context [Solving](#solving) gives it. The members
 of a group share one context. The [generalisation](04-declarations.md#generalisation)
-rules restrict which variables `Gen` may quantify: for a top-level
-binding without parameters or signature, and for a local binding that
-mentions an enclosing variable, it quantifies none of the constrained
-ones, and their constraints float to the enclosing scope.
+rules restrict `Gen`: for a top-level group with a binding written
+without parameters, it quantifies none of the constrained variables, which
+move to the outer level, and their constraints float to the enclosing
+scope. A local group that mentions an enclosing variable is not
+generalised.
+
+A group takes its dictionaries once. Its members are monomorphic copies
+in a `letrec` inside the abstraction, and a recursive use reaches the
+copy, passing no dictionary:
+
+```
+f = \d -> let ev = ... in letrec { f' = ... f' ... } in f'
+```
+
+A group of several members builds `\k -> k f1' ... fn'`, and each member
+applies it to the selector of its own copy.
 
 ## Entailment
 
@@ -176,3 +192,8 @@ program is reported, except one that follows from another. An error
 poisons the types it is about, and what their variables are unified with.
 A use of an undefined name, or of a binding whose type is poisoned, has a
 poisoned type. An error about a poisoned type is not reported.
+
+Under a signature, a type that does not fit a rigid variable is
+`type-mismatch` at the expression, naming the variable and its signature.
+A class wanted on rigid variables that the signature's context does not
+entail is `signature-mismatch` at the expression that raised it.

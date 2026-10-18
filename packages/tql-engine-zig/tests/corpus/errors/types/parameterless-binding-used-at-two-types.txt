@@ -1,0 +1,21 @@
+title: a binding without parameters cannot be used at two constrained types
+grammar: typescript
+asserts: error
+
+`one` takes one type from its uses, and they disagree (Declarations:
+Generalisation).
+
+--- tql ---
+one = pure 1;
+main = Filter (\_ -> one);
+other = (one :: Maybe Int);
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Maybe`, found `List`.
+ --> 3:10
+  |
+3 | other = (one :: Maybe Int);
+  |          ^^^

@@ -43,9 +43,12 @@ pub const Solved = struct {
     evidence: core.SymbolId,
 };
 
-/// One generalized body.
+/// One generalized body: an implication, whose givens hold where its
+/// wanteds are solved.
 pub const Frame = struct {
     parent: ?u32,
+    /// Its level. A skolem at this level or deeper is one of its own.
+    level: u32,
     givens: std.ArrayList(Given) = .empty,
     /// Raised here or floated in from a frame inside, and not yet solved.
     wanteds: std.ArrayList(Wanted) = .empty,
@@ -54,8 +57,8 @@ pub const Frame = struct {
     /// Each constraint solved here with dictionary evidence, its type
     /// settled, and its evidence variable.
     solved: std.ArrayList(Solved) = .empty,
-    /// The signature the body is checked against, if any.
-    signature: ?diagnostic.Span = null,
+    /// The definition whose signature the body is checked against, if any.
+    signature: ?core.SymbolId = null,
     /// The instance whose superclasses are solved here, if any.
     instance: ?classes.InstanceId = null,
 };
@@ -66,7 +69,7 @@ pub const Table = struct {
 
     pub fn init(gpa: Allocator) Allocator.Error!Table {
         var table: Table = .{ .gpa = gpa };
-        _ = try table.frame(null);
+        _ = try table.frame(null, 0);
         return table;
     }
 
@@ -80,8 +83,8 @@ pub const Table = struct {
         self.frames.deinit(self.gpa);
     }
 
-    pub fn frame(self: *Table, parent: ?u32) Allocator.Error!u32 {
-        try self.frames.append(self.gpa, .{ .parent = parent });
+    pub fn frame(self: *Table, parent: ?u32, level: u32) Allocator.Error!u32 {
+        try self.frames.append(self.gpa, .{ .parent = parent, .level = level });
         return @intCast(self.frames.items.len - 1);
     }
 

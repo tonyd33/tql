@@ -338,3 +338,29 @@ main = { };
   (definition
     name: (identifier)
     body: (record)))
+
+========================================
+a let group with a signature
+========================================
+
+main = let { f :: Int -> Int; f x = x } in f 1;
+
+---
+
+(source_file
+  (definition
+    name: (identifier)
+    body: (let_expression
+      bindings: (binding_group
+        (signature
+          name: (identifier)
+          type: (function_type
+            from: (type_identifier)
+            to: (type_identifier)))
+        (binding
+          name: (identifier)
+          parameter: (identifier)
+          value: (identifier)))
+      body: (application
+        function: (identifier)
+        argument: (number)))))

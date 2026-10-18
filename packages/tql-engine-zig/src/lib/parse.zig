@@ -330,8 +330,14 @@ const Walker = struct {
 
     fn signature(self: *Walker, node: ts.Node) !?cst.Signature {
         const name_node = try self.requiredField(node, "name") orelse return null;
-        const type_node = try self.requiredField(node, "type") orelse return null;
         const name = try self.declaredName(name_node, "signature") orelse return null;
+        return try self.signatureOf(node, name);
+    }
+
+    /// The signature of `name` written by `node`'s `context` and `type`
+    /// fields.
+    fn signatureOf(self: *Walker, node: ts.Node, name: cst.Identifier) !?cst.Signature {
+        const type_node = try self.requiredField(node, "type") orelse return null;
         const constraints = if (node.childByFieldName("context")) |c|
             try self.context(c) orelse return null
         else
@@ -479,14 +485,15 @@ const Walker = struct {
         };
     }
 
-    /// The bindings of a `binding_group`, or the single binding of an unbraced
-    /// `do`-local `let`.
-    fn bindings(self: *Walker, node: ts.Node) ![]const cst.Binding {
+    /// The bindings and signatures of a `binding_group`, or the single
+    /// binding of an unbraced `do`-local `let`.
+    fn bindings(self: *Walker, node: ts.Node) !cst.BindingGroup {
         var collected: std.ArrayList(cst.Binding) = .empty;
+        var signatures: std.ArrayList(cst.Signature) = .empty;
 
         if (std.mem.eql(u8, node.grammarKind(), "binding")) {
             if (try self.binding(node)) |b| try collected.append(self.allocator, b);
-            return collected.toOwnedSlice(self.allocator);
+            return .{ .bindings = try collected.toOwnedSlice(self.allocator) };
         }
 
         var cursor = node.walk();
@@ -496,12 +503,17 @@ const Walker = struct {
                 const child = cursor.node();
                 if (std.mem.eql(u8, child.grammarKind(), "binding")) {
                     if (try self.binding(child)) |b| try collected.append(self.allocator, b);
+                } else if (std.mem.eql(u8, child.grammarKind(), "signature")) {
+                    if (try self.signature(child)) |sig| try signatures.append(self.allocator, sig);
                 }
                 if (!cursor.gotoNextSibling()) break;
             }
         }
 
-        return collected.toOwnedSlice(self.allocator);
+        return .{
+            .bindings = try collected.toOwnedSlice(self.allocator),
+            .signatures = try signatures.toOwnedSlice(self.allocator),
+        };
     }
 
     const ExpressionKind = enum {
@@ -536,6 +548,7 @@ const Walker = struct {
         tuple_constructor,
         record,
         parenthesized,
+        annotated,
         negation,
     };
 
@@ -634,6 +647,17 @@ const Walker = struct {
                 const inner = try self.expression(inner_node) orelse return null;
                 return .{
                     .kind = .{ .parenthesized = try self.boxed(inner) },
+                    .span = span,
+                };
+            },
+            .annotated => {
+                const inner_node = try self.requiredField(node, "expression") orelse return null;
+                const inner = try self.expression(inner_node) orelse return null;
+                return .{
+                    .kind = .{ .annotated = try self.boxed(cst.Annotated{
+                        .expression = inner,
+                        .signature = try self.signatureOf(node, "") orelse return null,
+                    }) },
                     .span = span,
                 };
             },
@@ -1138,12 +1162,12 @@ const Walker = struct {
 
     fn letExpr(self: *Walker, node: ts.Node, span: Span) !?cst.Expression {
         const group_node = try self.requiredField(node, "bindings") orelse return null;
-        const binding_list = try self.bindings(group_node);
+        const group = try self.bindings(group_node);
         const body_node = try self.requiredField(node, "body") orelse return null;
         const body = try self.expression(body_node) orelse return null;
         return .{
             .kind = .{ .let = try self.boxed(cst.Let{
-                .bindings = binding_list,
+                .group = group,
                 .body = body,
             }) },
             .span = span,
@@ -1172,7 +1196,7 @@ const Walker = struct {
             } else if (std.mem.eql(u8, kind, "let_statement")) {
                 const group_node = try self.requiredField(child, "bindings") orelse continue;
                 try statements.append(self.allocator, .{ .let = .{
-                    .bindings = try self.bindings(group_node),
+                    .group = try self.bindings(group_node),
                     .span = spanOf(child, self.source_id),
                 } });
             } else if (try self.expression(child)) |value| {

@@ -12,6 +12,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -200,6 +204,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -373,6 +381,258 @@
     "fields": {}
   },
   {
+    "type": "annotated",
+    "named": true,
+    "fields": {
+      "context": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "context",
+            "named": true
+          }
+        ]
+      },
+      "expression": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
+            "named": true
+          },
+          {
+            "type": "application",
+            "named": true
+          },
+          {
+            "type": "case_expression",
+            "named": true
+          },
+          {
+            "type": "comparison",
+            "named": true
+          },
+          {
+            "type": "composition",
+            "named": true
+          },
+          {
+            "type": "cons",
+            "named": true
+          },
+          {
+            "type": "do_expression",
+            "named": true
+          },
+          {
+            "type": "dollar_application",
+            "named": true
+          },
+          {
+            "type": "field_access",
+            "named": true
+          },
+          {
+            "type": "field_selector",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "if_expression",
+            "named": true
+          },
+          {
+            "type": "infix_application",
+            "named": true
+          },
+          {
+            "type": "kind",
+            "named": true
+          },
+          {
+            "type": "lambda",
+            "named": true
+          },
+          {
+            "type": "leading_navigation",
+            "named": true
+          },
+          {
+            "type": "left_section",
+            "named": true
+          },
+          {
+            "type": "let_expression",
+            "named": true
+          },
+          {
+            "type": "list",
+            "named": true
+          },
+          {
+            "type": "logical_and",
+            "named": true
+          },
+          {
+            "type": "logical_or",
+            "named": true
+          },
+          {
+            "type": "multiplicative",
+            "named": true
+          },
+          {
+            "type": "navigation",
+            "named": true
+          },
+          {
+            "type": "negation",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "operator_name",
+            "named": true
+          },
+          {
+            "type": "parenthesized",
+            "named": true
+          },
+          {
+            "type": "pipe",
+            "named": true
+          },
+          {
+            "type": "primitive",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "record",
+            "named": true
+          },
+          {
+            "type": "regex",
+            "named": true
+          },
+          {
+            "type": "right_section",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "then",
+            "named": true
+          },
+          {
+            "type": "tuple",
+            "named": true
+          },
+          {
+            "type": "tuple_constructor",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "union",
+            "named": true
+          },
+          {
+            "type": "unit",
+            "named": true
+          },
+          {
+            "type": "wildcard",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "function_constructor",
+            "named": true
+          },
+          {
+            "type": "function_type",
+            "named": true
+          },
+          {
+            "type": "list_type",
+            "named": true
+          },
+          {
+            "type": "parenthesized_type",
+            "named": true
+          },
+          {
+            "type": "qualified_type_identifier",
+            "named": true
+          },
+          {
+            "type": "record_type",
+            "named": true
+          },
+          {
+            "type": "tuple_constructor",
+            "named": true
+          },
+          {
+            "type": "tuple_type",
+            "named": true
+          },
+          {
+            "type": "type_application",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_variable",
+            "named": true
+          },
+          {
+            "type": "unit",
+            "named": true
+          },
+          {
+            "type": "wildcard",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "application",
     "named": true,
     "fields": {
@@ -382,6 +642,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -556,6 +820,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -923,6 +1191,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -1131,6 +1403,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -1309,6 +1585,10 @@
         {
           "type": "binding",
           "named": true
+        },
+        {
+          "type": "signature",
+          "named": true
         }
       ]
     }
@@ -1323,6 +1603,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -1497,6 +1781,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -1747,6 +2035,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -2028,6 +2320,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -2240,6 +2536,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -2420,6 +2720,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -2591,6 +2895,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -2916,6 +3224,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -3087,6 +3399,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -3645,6 +3961,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -3869,6 +4189,10 @@
           "named": true
         },
         {
+          "type": "annotated",
+          "named": true
+        },
+        {
           "type": "application",
           "named": true
         },
@@ -4056,6 +4380,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -4227,6 +4555,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -4417,6 +4749,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -4825,6 +5161,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -4999,6 +5339,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -5170,6 +5514,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -5421,6 +5769,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -5592,6 +5944,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -5926,6 +6282,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -6133,6 +6493,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -6416,6 +6780,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -6613,6 +6981,10 @@
       "types": [
         {
           "type": "additive",
+          "named": true
+        },
+        {
+          "type": "annotated",
           "named": true
         },
         {
@@ -6933,6 +7305,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -7104,6 +7480,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -7287,6 +7667,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -7458,6 +7842,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -7677,6 +8065,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -7862,6 +8254,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -8055,6 +8451,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -8230,6 +8630,10 @@
         "multiple": false,
         "required": true,
         "types": [
+          {
+            "type": "annotated",
+            "named": true
+          },
           {
             "type": "case_expression",
             "named": true
@@ -8474,6 +8878,10 @@
       "types": [
         {
           "type": "additive",
+          "named": true
+        },
+        {
+          "type": "annotated",
           "named": true
         },
         {
@@ -8964,6 +9372,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -9135,6 +9547,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -9344,6 +9760,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -9725,6 +10145,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -10058,6 +10482,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -10229,6 +10657,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -10409,6 +10841,10 @@
       "types": [
         {
           "type": "additive",
+          "named": true
+        },
+        {
+          "type": "annotated",
           "named": true
         },
         {
@@ -10914,6 +11350,10 @@
             "named": true
           },
           {
+            "type": "annotated",
+            "named": true
+          },
+          {
             "type": "application",
             "named": true
           },
@@ -11085,6 +11525,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {
@@ -11340,6 +11784,10 @@
         "types": [
           {
             "type": "additive",
+            "named": true
+          },
+          {
+            "type": "annotated",
             "named": true
           },
           {

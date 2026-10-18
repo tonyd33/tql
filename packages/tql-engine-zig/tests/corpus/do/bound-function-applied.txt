@@ -19,7 +19,7 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate :: (Applicative a, Arrow b) => a (b Node Kind)
+make_predicate :: Filter Node (Filter Node Kind)
 main :: Filter Node Kind
 
 --- core ---

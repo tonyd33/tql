@@ -410,7 +410,12 @@ pub const Desugarer = struct {
                 else => |e| return e,
             };
 
-            definitions[i] = .{ .symbol = d.symbol, .body = body, .span = d.span() };
+            definitions[i] = .{
+                .symbol = d.symbol,
+                .body = body,
+                .span = d.span(),
+                .simple = d.kind == .value and d.kind.value.definition.parameters.len == 0,
+            };
             edges[i] = try self.references(builder, body);
             if (d.kind == .synonym) try self.env.?.markAlwaysInline(d.symbol);
         }
@@ -430,14 +435,14 @@ pub const Desugarer = struct {
                     break :blk .{ signature.span, annotation.translateSynonym(builder.allocator, self.allocator, signature, arity, &scope, sink) };
                 },
             };
-            const scheme = translated catch |err| switch (err) {
+            const declared = translated catch |err| switch (err) {
                 error.BadAnnotation => {
                     failed = true;
                     continue;
                 },
                 else => |e| return e,
             };
-            try self.env.?.annotate(d.symbol, .{ .scheme = scheme, .span = span });
+            try self.env.?.annotate(d.symbol, .{ .scheme = declared.scheme, .span = span, .names = declared.names });
         }
 
         for (self.env.?.tuples, tuples_before) |now, before| {

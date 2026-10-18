@@ -1,5 +1,6 @@
-//! Algorithm W over Core, with a mutable substitution. Inference elaborates:
-//! each term is rebuilt with dictionary passing made explicit.
+//! Bidirectional inference over Core, with a mutable substitution.
+//! Inference elaborates: each term is rebuilt with dictionary passing made
+//! explicit.
 
 const std = @import("std");
 const core = @import("../core.zig");
@@ -21,6 +22,12 @@ pub const Failure = struct {
         mismatch: unify.Mismatch,
         /// A constraint no instance satisfies.
         violation: types.TypeClassConstraint,
+        /// A constraint on a signature's variables its context does not
+        /// give.
+        not_given: struct {
+            needed: types.TypeClassConstraint,
+            binder: core.SymbolId,
+        },
         over_application: types.Type,
         not_a_function: types.Type,
         view_not_function: types.Type,
@@ -112,6 +119,9 @@ pub const Inference = struct {
     /// Each top-level definition's elaborated body, where it differs from
     /// the written one.
     elaborated: core.SymbolTable(core.Term),
+    /// The value each recursive group of several top-level definitions with
+    /// dictionaries selects its members from.
+    shared: std.ArrayList(core.Definition) = .empty,
     /// Each instance's dictionary, as `finish` builds it.
     instances: std.ArrayList(evidence.Instance) = .empty,
     /// The evidence `main` is applied to.
@@ -138,6 +148,7 @@ pub const Inference = struct {
 
     pub fn deinit(self: *Inference) void {
         self.instances.deinit(self.gpa);
+        self.shared.deinit(self.gpa);
         self.failed.deinit(self.gpa);
         self.failures.deinit(self.gpa);
         self.elaborated.deinit();
@@ -154,16 +165,26 @@ pub const Inference = struct {
         term: core.Term,
     };
 
-    pub fn elaborate(self: *Inference, t: core.Term) Error!Elaborated {
+    /// Infers `t`'s type, or checks `t` against `expected` when it is
+    /// given. A checked term reports a mismatch at the subterm that
+    /// disagrees, and its type is `expected`. See Checking in
+    /// type_check.zig.
+    pub fn elaborate(self: *Inference, t: core.Term, expected: ?types.Type) Error!Elaborated {
         return switch (t.kind) {
-            .symbol => |id| try self.variable(id, t.span),
-            .literal => |lit| .{ .type = self.literal(lit), .term = t },
-            .lambda => |lam| try self.lambda(lam.*, t),
-            .apply => |app| try self.application(app.*, t),
-            .case => |c| try self.caseOf(c.*, t),
-            .let => |l| try self.let(l.*, t),
-            .letrec => |l| try self.letrec(l.*, t),
+            .symbol => |id| try self.subsume(try self.variable(id, t.span), expected, t.span),
+            .literal => |lit| try self.subsume(.{ .type = self.literal(lit), .term = t }, expected, t.span),
+            .lambda => |lam| try self.lambda(lam.*, t, expected),
+            .apply => try self.application(t, expected),
+            .case => |c| try self.caseOf(c.*, t, expected),
+            .let => |l| try self.let(l.*, t, expected),
+            .letrec => |l| try self.letrec(l.*, t, expected),
         };
+    }
+
+    /// (T-Sub)   `inferred` checked against `expected`, reported at `span`.
+    fn subsume(self: *Inference, inferred: Elaborated, expected: ?types.Type, span: diagnostic.Span) Error!Elaborated {
+        if (expected) |want| try self.expect(inferred.type, want, span);
+        return inferred;
     }
 
     const Instantiated = struct {
@@ -263,6 +284,33 @@ pub const Inference = struct {
         return .{ .type = try self.poisoned(), .term = self.builder.symbol(id, span) };
     }
 
+    /// A new implication, a child of the current frame, at the current
+    /// level. Its body is elaborated by `elaborateIn` before the level is
+    /// left.
+    fn implication(self: *Inference) Error!u32 {
+        return try self.evidence.frame(self.frame, self.subst.level);
+    }
+
+    /// Elaborates `t` against `expected` in frame `at`.
+    fn elaborateIn(self: *Inference, at: u32, t: core.Term, expected: ?types.Type) Error!Elaborated {
+        const enclosing = self.frame;
+        defer self.frame = enclosing;
+        self.frame = at;
+        return try self.elaborate(t, expected);
+    }
+
+    /// Whether `t` reads a variable bound by an enclosing lambda, `case`
+    /// alternative or join point, or by a binding that was not generalized.
+    fn mentionsMonomorphic(self: *Inference, t: core.Term) bool {
+        return core.free.anyMention(t, self, isMonomorphicUse) catch |err| switch (err) {};
+    }
+
+    fn isMonomorphicUse(self: *Inference, symbol: core.SymbolId, role: core.free.Role) error{}!bool {
+        if (role != .use) return false;
+        const binding = self.scope.lookup(symbol) orelse return false;
+        return binding == .monomorphic;
+    }
+
     /// A fresh poisoned metavariable.
     fn poisoned(self: *Inference) Error!types.Type {
         const t = try self.subst.fresh(.type);
@@ -277,105 +325,184 @@ pub const Inference = struct {
         try self.scope.push(name, .{ .scheme = g.scheme });
     }
 
-    /// (T-Lam)       Gamma, x : alpha |- e : tau
+    /// (T-Abs<=)     Gamma, x : tau_1 |- e <= tau_2
     ///               ------------------------------
-    ///               Gamma |- \x -> e : alpha -> tau
-    fn lambda(self: *Inference, lam: core.Lambda, t: core.Term) Error!Elaborated {
-        const parameter = try self.subst.fresh(.type);
+    ///               Gamma |- \x -> e <= tau_1 -> tau_2
+    ///
+    /// (T-Abs=>)     Gamma, x : alpha |- e => tau
+    ///               ------------------------------
+    ///               Gamma |- \x -> e => alpha -> tau
+    ///
+    /// A lambda checked against a metavariable first makes it an arrow of
+    /// fresh metavariables. Against any other type that is not an arrow, the
+    /// lambda is inferred and the two types compared.
+    fn lambda(self: *Inference, lam: core.Lambda, t: core.Term, expected: ?types.Type) Error!Elaborated {
+        var parameter: types.Type = undefined;
+        var result: ?types.Type = null;
+        if (expected) |want| switch (self.subst.expand(want)) {
+            .function => |arrow| {
+                parameter = arrow.from;
+                result = arrow.to;
+            },
+            .meta => {
+                parameter = try self.subst.fresh(.type);
+                result = try self.subst.fresh(.type);
+                try self.expect(try types.func(self.subst.arena, parameter, result.?), want, t.span);
+            },
+            else => return try self.subsume(try self.lambda(lam, t, null), want, t.span),
+        } else parameter = try self.subst.fresh(.type);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
         try self.scope.push(lam.parameter, .{ .monomorphic = parameter });
 
-        const body = try self.elaborate(lam.body);
+        const body = try self.elaborate(lam.body, result);
         return .{
-            .type = try types.func(self.subst.arena, parameter, body.type),
+            .type = expected orelse try types.func(self.subst.arena, parameter, body.type),
             .term = if (core.same(body.term, lam.body)) t else try self.builder.lambda(lam.parameter, body.term, t.span),
         };
     }
 
-    /// (T-App)       Gamma |- e_1 : tau_1 -> tau_2
-    ///               Gamma |- e_2 : tau_1
-    ///               -------------------------------------------------------
-    ///               Gamma |- e_1 e_2 : tau_2
-    fn application(self: *Inference, app: core.Apply, t: core.Term) Error!Elaborated {
-        const function = try self.elaborate(app.function);
-        const operand = try self.elaborate(app.argument);
-        const callee = function.type;
-        const argument = operand.type;
+    /// (T-App)       Gamma |- e_1 => tau_1      alpha, beta fresh
+    ///               tau_1 ~ alpha -> beta      Gamma |- e_2 <= alpha
+    ///               -------------------------------------------------
+    ///               Gamma |- e_1 e_2 => beta
+    ///
+    /// over a whole spine `f e_1 .. e_n`: `f` is inferred and its type
+    /// split into `n` parameters and a result. A checked application
+    /// compares the result with what is expected before checking the
+    /// arguments against the parameters, so an argument is checked against
+    /// a parameter the context has already fixed.
+    fn application(self: *Inference, t: core.Term, expected: ?types.Type) Error!Elaborated {
+        const nodes = try self.gpa.alloc(core.Term, t.spineLength());
+        defer self.gpa.free(nodes);
+        t.applications(nodes);
+        const froms = try self.gpa.alloc(types.Type, nodes.len);
+        defer self.gpa.free(froms);
 
-        const parameter = try self.subst.fresh(.type);
-        const result = try self.subst.fresh(.type);
-        const arrow = try types.func(self.subst.arena, parameter, result);
-        switch (try unify.unify(self.subst, callee, arrow)) {
-            .unified => switch (try unify.unify(self.subst, parameter, argument)) {
-                .unified => {},
-                .mismatch => |m| try self.reportAbout(.type_mismatch, app.argument.span, .{ .mismatch = m }, &.{ arrow, argument }),
-            },
-            .mismatch => if (app.view) try self.reportAbout(
-                .type_mismatch,
-                app.function.span,
-                .{ .view_not_function = self.subst.resolve(callee) },
-                &.{ callee, arrow, argument },
-            ) else if (app.function.kind != .apply) try self.reportAbout(
-                .type_mismatch,
-                app.function.span,
-                .{ .not_a_function = self.subst.resolve(callee) },
-                &.{ callee, arrow, argument },
-            ) else try self.reportAbout(
-                // This isn't and can never be a function. Therefore we're
-                // over applying.
-                .over_application,
-                app.argument.span,
-                .{ .over_application = self.subst.resolve(callee) },
-                &.{ callee, arrow, argument },
-            ),
-        }
+        const head_term = nodes[0].kind.apply.function;
+        const head = try self.elaborate(head_term, null);
+        // The arguments the callee's type takes, up to the first it cannot.
+        var callee = head.type;
+        const taken = for (nodes, froms, 0..) |node, *parameter, i| {
+            switch (self.subst.expand(callee)) {
+                .function => |arrow| {
+                    parameter.* = arrow.from;
+                    callee = arrow.to;
+                    continue;
+                },
+                else => {},
+            }
+            parameter.* = try self.subst.fresh(.type);
+            const result = try self.subst.fresh(.type);
+            const arrow = try types.func(self.subst.arena, parameter.*, result);
+            switch (try unify.unify(self.subst, callee, arrow)) {
+                .unified => callee = result,
+                .mismatch => {
+                    try self.notAFunction(node.kind.apply.*, callee, arrow);
+                    break i;
+                },
+            }
+        } else nodes.len;
 
-        const unchanged = core.same(function.term, app.function) and core.same(operand.term, app.argument);
-        return .{
-            .type = result,
-            .term = if (unchanged) t else blk: {
-                var rebuilt = app;
-                rebuilt.function = function.term;
-                rebuilt.argument = operand.term;
-                break :blk try self.builder.application(rebuilt, t.span);
-            },
+        // An application its callee cannot take has a made-up type.
+        const result = if (taken < nodes.len) blk: {
+            const made_up = expected orelse try self.poisoned();
+            self.subst.poison(made_up);
+            break :blk made_up;
+        } else blk: {
+            if (expected) |want| try self.expect(callee, want, t.span);
+            break :blk expected orelse callee;
         };
+        var function = head.term;
+        for (nodes, 0..) |node, i| {
+            const app = node.kind.apply.*;
+            const argument = try self.elaborate(app.argument, if (i < taken) froms[i] else null);
+            if (core.same(function, app.function) and core.same(argument.term, app.argument)) {
+                function = node;
+                continue;
+            }
+            var rebuilt = app;
+            rebuilt.function = function;
+            rebuilt.argument = argument.term;
+            function = try self.builder.application(rebuilt, node.span);
+        }
+        return .{ .type = result, .term = function };
+    }
+
+    /// Reports `app`'s function, of type `callee`, as one that cannot take
+    /// its argument, `callee` having failed to unify with `arrow`.
+    fn notAFunction(self: *Inference, app: core.Apply, callee: types.Type, arrow: types.Type) Error!void {
+        if (app.view) return try self.reportAbout(
+            .type_mismatch,
+            app.function.span,
+            .{ .view_not_function = self.subst.resolve(callee) },
+            &.{ callee, arrow },
+        );
+        if (app.function.kind != .apply) return try self.reportAbout(
+            .type_mismatch,
+            app.function.span,
+            .{ .not_a_function = self.subst.resolve(callee) },
+            &.{ callee, arrow },
+        );
+        // This isn't and can never be a function. Therefore we're over
+        // applying.
+        try self.reportAbout(
+            .over_application,
+            app.argument.span,
+            .{ .over_application = self.subst.resolve(callee) },
+            &.{ callee, arrow },
+        );
     }
 
     /// (T-Case)      Gamma |- e : T tau_1 .. tau_m
     ///               C_i : sigma_i_1 -> .. -> sigma_i_k -> T a_1 .. a_m
-    ///               Gamma, b : T tau_1 .. tau_m, xs_i : [a := tau] sigma_i |- e_i : tau
-    ///               Gamma, b : T tau_1 .. tau_m |- e_0 : tau
+    ///               Gamma, b : T tau_1 .. tau_m, xs_i : [a := tau] sigma_i |- e_i <= tau
+    ///               Gamma, b : T tau_1 .. tau_m |- e_0 <= tau
     ///               ------------------------------------------------------------
-    ///               Gamma |- case e of b { C_i xs_i -> e_i; _ -> e_0 } : tau
-    fn caseOf(self: *Inference, c: core.Case, t: core.Term) Error!Elaborated {
-        const elaborated_scrutinee = try self.elaborate(c.scrutinee);
-        const scrutinee = elaborated_scrutinee.type;
+    ///               Gamma |- case e of b { C_i xs_i -> e_i; _ -> e_0 } <= tau
+    ///
+    /// An inferred `case` is checked against a fresh metavariable. Branches
+    /// are checked in source order, so of two that disagree the later one is
+    /// blamed.
+    fn caseOf(self: *Inference, c: core.Case, t: core.Term, expected: ?types.Type) Error!Elaborated {
+        const result = expected orelse try self.subst.fresh(.type);
 
         // The alternatives name their constructors statically, so the datatype
-        // is known without resolving the scrutinee. Unifying against it at
-        // fresh arguments is what lets `case xs of ...` fix `xs`'s type rather
-        // than requiring it to be fixed already. A `case` with only a default
+        // is known without inferring the scrutinee, and the scrutinee is
+        // checked against it at fresh arguments. A `case` with only a default
         // leaves the scrutinee's type free.
         var arguments: []types.Type = &.{};
+        var scrutinee_type: ?types.Type = null;
         if (c.alternatives.len > 0) {
             const owner = core.datatypes.ownerOf(&self.env.interner, c.alternatives[0].constructor).?;
             const declared = self.env.datatypes.get(owner);
             arguments = try self.subst.arena.alloc(types.Type, declared.parameters.len);
             for (arguments, declared.parameters) |*argument, kind| argument.* = try self.subst.fresh(kind);
-            const scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
-            try self.expect(scrutinee, scrutinee_type, c.scrutinee.span);
+            scrutinee_type = try types.constructed(self.subst.arena, owner, declared.name, arguments);
         }
+        const elaborated_scrutinee = try self.elaborate(c.scrutinee, scrutinee_type);
+        const scrutinee = elaborated_scrutinee.type;
 
         const outer = self.scope.mark();
         defer self.scope.truncate(outer);
         if (c.binder) |binder| try self.scope.push(binder, .{ .monomorphic = scrutinee });
 
-        var first: ?Branch = null;
+        // Each alternative's index, and the default's as `c.alternatives.len`,
+        // in source order.
+        const order = try self.gpa.alloc(usize, c.alternatives.len + @intFromBool(c.default != null));
+        defer self.gpa.free(order);
+        for (order, 0..) |*slot, i| slot.* = i;
+        std.mem.sort(usize, order, c, inBranchOrder);
+
         var alternatives: core.Rebuilt(core.Case.Alternative) = .{ .original = c.alternatives };
-        for (c.alternatives, 0..) |alternative, i| {
+        var default = c.default;
+        for (order) |i| {
+            if (i == c.alternatives.len) {
+                default = (try self.elaborate(c.default.?, result)).term;
+                continue;
+            }
+            const alternative = c.alternatives[i];
             const mark = self.scope.mark();
             defer self.scope.truncate(mark);
 
@@ -385,27 +512,19 @@ pub const Inference = struct {
                 try self.scope.push(binder, .{ .monomorphic = at });
             }
 
-            const elaborated_body = try self.elaborate(alternative.body);
+            const elaborated_body = try self.elaborate(alternative.body, result);
             try alternatives.set(self.builder, i, .{
                 .constructor = alternative.constructor,
                 .binders = alternative.binders,
                 .body = elaborated_body.term,
             }, !core.same(elaborated_body.term, alternative.body));
-            try self.joinBranch(&first, elaborated_body.type, alternative.body.span);
-        }
-
-        var default = c.default;
-        if (c.default) |body| {
-            const elaborated_default = try self.elaborate(body);
-            default = elaborated_default.term;
-            try self.joinBranch(&first, elaborated_default.type, body.span);
         }
 
         const unchanged = alternatives.copy == null and
             core.same(elaborated_scrutinee.term, c.scrutinee) and
             core.sameOptional(default, c.default);
         return .{
-            .type = first.?.type,
+            .type = result,
             .term = if (unchanged) t else try self.builder.caseOf(.{
                 .scrutinee = elaborated_scrutinee.term,
                 .binder = c.binder,
@@ -415,110 +534,151 @@ pub const Inference = struct {
         };
     }
 
-    const Branch = struct { type: types.Type, span: diagnostic.Span };
-
-    /// Unify a `case` branch's type with the first branch's, or record it as
-    /// the first.
-    fn joinBranch(self: *Inference, first: *?Branch, body: types.Type, span: diagnostic.Span) Error!void {
-        if (first.*) |f| {
-            // Alternatives are checked in constructor order. Of two that
-            // disagree, blame the one later in the source.
-            if (span.start_byte >= f.span.start_byte) {
-                try self.expect(body, f.type, span);
-            } else {
-                try self.expect(f.type, body, f.span);
-            }
-        } else {
-            first.* = .{ .type = body, .span = span };
-        }
+    fn inBranchOrder(c: core.Case, a: usize, b: usize) bool {
+        return branchStart(c, a) < branchStart(c, b);
     }
 
-    /// (T-Let)       Gamma |- e_1 : tau_1      sigma = Gen(Gamma, tau_1)
-    ///               Gamma, x : sigma |- e_2 : tau_2
+    fn branchStart(c: core.Case, i: usize) u32 {
+        return if (i == c.alternatives.len) c.default.?.span.start_byte else c.alternatives[i].body.span.start_byte;
+    }
+
+    /// (T-Let)       Gamma |- e_1 => tau_1      sigma = Gen(Gamma, tau_1)
+    ///               Gamma, x : sigma |- e_2 <= tau_2
     ///               ------------------------------------------------
-    ///               Gamma |- let x = e_1 in e_2 : tau_2
-    fn let(self: *Inference, l: core.Let, t: core.Term) Error!Elaborated {
-        if (self.env.interner.details(l.name).joinArity()) |arity| return try self.joinPoint(l, t, arity);
-        const frame = try self.evidence.frame(self.frame);
-        const elaborated_value = blk: {
-            const enclosing = self.frame;
-            defer self.frame = enclosing;
-            self.frame = frame;
-            break :blk try self.elaborate(l.value);
-        };
-
-        var generalized: [1]Generalized = undefined;
-        const quantified = try self.generalizeGroup(&.{elaborated_value.type}, &.{l.value.span}, &.{frame}, &generalized);
-        const bound = try self.parameters(frame, generalized[0].context);
-        try self.solve(frame, quantified);
-
+    ///               Gamma |- let x = e_1 in e_2 <= tau_2
+    ///
+    /// A binding with a signature is checked against it, by T-Sig. One
+    /// that is not closed is not generalized. See Local bindings in
+    /// type_check.zig.
+    fn let(self: *Inference, l: core.Let, t: core.Term, expected: ?types.Type) Error!Elaborated {
+        if (self.env.interner.details(l.name).joinArity()) |arity| return try self.joinPoint(l, t, arity, expected);
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
-        try self.bindGeneralized(l.name, generalized[0]);
-        const body = try self.elaborate(l.body);
-
-        const new_value = try self.builder.abstract(bound, try self.evidence.wrap(self.builder, frame, elaborated_value.term));
-        const unchanged = core.same(new_value, l.value) and core.same(body.term, l.body);
+        const value = if (self.env.annotationOf(l.name)) |declared| try self.signed(l.name, declared, l.value) else blk: {
+            var out: [1]core.Term = undefined;
+            _ = try self.localGroup(&.{.{ .name = l.name, .value = l.value }}, false, &out);
+            break :blk out[0];
+        };
+        const body = try self.elaborate(l.body, expected);
+        const unchanged = core.same(value, l.value) and core.same(body.term, l.body);
         return .{
             .type = body.type,
-            .term = if (unchanged) t else try self.builder.let(l.name, new_value, body.term, t.span),
+            .term = if (unchanged) t else try self.builder.let(l.name, value, body.term, t.span),
         };
     }
 
-    /// (T-LetJoin)   Gamma |- \x_1 .. x_n -> u : tau_1 -> .. -> tau_n -> tau
-    ///               Gamma, j : tau_1 -> .. -> tau_n -> tau |- e : tau
+    /// (T-LetJoin)   Gamma |- \x_1 .. x_n -> u <= tau_1 -> .. -> tau_n -> tau
+    ///               Gamma, j : tau_1 -> .. -> tau_n -> tau |- e <= tau
     ///               ------------------------------------------------
-    ///               Gamma |- let j = \x_1 .. x_n -> u in e : tau      (j is join(n))
+    ///               Gamma |- let j = \x_1 .. x_n -> u in e <= tau      (j is join(n))
     ///
-    /// `j` is monomorphic. Its value is elaborated in the enclosing frame.
-    fn joinPoint(self: *Inference, l: core.Let, t: core.Term, arity: u32) Error!Elaborated {
-        const value = try self.elaborate(l.value);
-        var result = value.type;
-        for (0..arity) |_| result = self.subst.expand(result).function.to;
+    /// `j` is monomorphic, with `tau_i` fresh. Its value is elaborated in the
+    /// enclosing frame.
+    fn joinPoint(self: *Inference, l: core.Let, t: core.Term, arity: u32, expected: ?types.Type) Error!Elaborated {
+        const result = expected orelse try self.subst.fresh(.type);
+        const froms = try self.subst.arena.alloc(types.Type, arity);
+        for (froms) |*from| from.* = try self.subst.fresh(.type);
+        const join_type = try types.arrows(self.subst.arena, froms, result);
+        const value = try self.elaborate(l.value, join_type);
 
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
-        try self.scope.push(l.name, .{ .monomorphic = value.type });
-        const body = try self.elaborate(l.body);
-        try self.expect(body.type, result, l.body.span);
+        try self.scope.push(l.name, .{ .monomorphic = join_type });
+        const body = try self.elaborate(l.body, result);
 
         const unchanged = core.same(value.term, l.value) and core.same(body.term, l.body);
         return .{
-            .type = body.type,
+            .type = result,
             .term = if (unchanged) t else try self.builder.let(l.name, value.term, body.term, t.span),
         };
     }
 
-    /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i : tau_i       (each i)
-    ///               alpha_i unifies with tau_i
-    ///               sigma_i = Gen(Gamma, tau_i)                (each i)
-    ///               Gamma, x_i : sigma_i |- body : result
+    /// (T-LetRec)    Gamma, x_i : alpha_i |- e_i <= alpha_i      (each i)
+    ///               sigma_i = Gen(Gamma, alpha_i)              (each i)
+    ///               Gamma, x_i : sigma_i |- body <= result
     ///               ------------------------------------------------------
-    ///               Gamma |- letrec {x_i = e_i} in body : result
-    fn letrec(self: *Inference, l: core.Letrec, t: core.Term) Error!Elaborated {
+    ///               Gamma |- letrec {x_i = e_i} in body <= result
+    ///
+    /// The members without a signature are inferred one dependency group
+    /// at a time, a use of a signed member being no dependency, then each
+    /// signed member is checked against its signature. A group with a member
+    /// that is not closed is not generalized. See Local bindings in
+    /// type_check.zig.
+    fn letrec(self: *Inference, l: core.Letrec, t: core.Term, expected: ?types.Type) Error!Elaborated {
         const mark = self.scope.mark();
         defer self.scope.truncate(mark);
 
-        var group = try Group.init(self.gpa, l.bindings.len);
-        defer group.deinit(self.gpa);
-        for (l.bindings, group.spans()) |b, *span| span.* = b.value.span;
-        const quantified = try self.inferGroup(l.bindings, &group);
+        const values = try self.builder.slice(core.Term, l.bindings.len);
+        var shared: std.ArrayList(core.Letrec.Binding) = .empty;
+        defer shared.deinit(self.gpa);
 
-        for (group.generalized(), group.frames(), group.bound()) |g, frame, *slot| slot.* = try self.parameters(frame, g.context);
-        for (group.frames()) |f| try self.solve(f, quantified);
-
-        var bindings: core.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
-        for (l.bindings, group.generalized(), 0..) |b, g, i| {
-            const abstracted = try self.close(&group, i, l.bindings);
-            try bindings.set(self.builder, i, .{ .name = b.name, .value = abstracted }, !core.same(abstracted, b.value));
-            try self.bindGeneralized(b.name, g);
+        var unsigned: std.ArrayList(u32) = .empty;
+        defer unsigned.deinit(self.gpa);
+        var inferred: std.ArrayList(core.Letrec.Binding) = .empty;
+        defer inferred.deinit(self.gpa);
+        for (l.bindings, 0..) |b, i| {
+            if (self.env.annotationOf(b.name) != null) continue;
+            try unsigned.append(self.gpa, @intCast(i));
+            try inferred.append(self.gpa, b);
         }
-        const body = try self.elaborate(l.body);
-        const unchanged = bindings.copy == null and core.same(body.term, l.body);
-        return .{
-            .type = body.type,
-            .term = if (unchanged) t else try self.builder.letrec(bindings.copy orelse l.bindings, body.term, t.span),
-        };
+        const edges = try core.free.references(self.gpa, inferred.items);
+        defer {
+            for (edges) |e| self.gpa.free(e);
+            self.gpa.free(edges);
+        }
+        var found = try core.components.stronglyConnectedComponents(self.gpa, edges);
+        defer found.deinit();
+
+        for (found.groups) |members| {
+            const bindings = try self.gpa.alloc(core.Letrec.Binding, members.len);
+            defer self.gpa.free(bindings);
+            const out = try self.gpa.alloc(core.Term, members.len);
+            defer self.gpa.free(out);
+            for (members, bindings) |k, *b| b.* = inferred.items[k];
+            const recursive = core.components.cyclic(members, edges);
+            if (try self.localGroup(bindings, recursive, out)) |binding| try shared.append(self.gpa, binding);
+            for (members, out) |k, value| values[unsigned.items[k]] = value;
+        }
+        for (l.bindings, values) |b, *value| {
+            const declared = self.env.annotationOf(b.name) orelse continue;
+            value.* = try self.signed(b.name, declared, b.value);
+        }
+
+        const body = try self.elaborate(l.body, expected);
+        var bindings: core.Rebuilt(core.Letrec.Binding) = .{ .original = l.bindings };
+        for (l.bindings, values, 0..) |b, value, i| {
+            try bindings.set(self.builder, i, .{ .name = b.name, .value = value }, !core.same(value, b.value));
+        }
+        const unchanged = bindings.copy == null and shared.items.len == 0 and core.same(body.term, l.body);
+        if (unchanged) return .{ .type = body.type, .term = t };
+        const rebuilt = try std.mem.concat(self.builder.allocator, core.Letrec.Binding, &.{ bindings.copy orelse l.bindings, shared.items });
+        return .{ .type = body.type, .term = try self.builder.letrec(rebuilt, body.term, t.span) };
+    }
+
+    /// Infers `bindings`, one local group, writing each member's elaborated
+    /// value to `out` and leaving each in scope. `recursive` says whether a
+    /// member reads one of the group. Returns the binding the members select
+    /// from, when there is one.
+    fn localGroup(self: *Inference, bindings: []const core.Letrec.Binding, recursive: bool, out: []core.Term) Error!?core.Letrec.Binding {
+        for (bindings) |b| {
+            if (self.mentionsMonomorphic(b.value)) break;
+        } else {
+            var group = try Group.init(self.gpa, bindings.len);
+            defer group.deinit(self.gpa);
+            for (bindings, group.spans()) |b, *span| span.* = b.value.span;
+            const quantified = try self.inferGroup(bindings, false, &group);
+            const shared = try self.close(&group, bindings, quantified, recursive, out);
+            for (bindings, group.generalized()) |b, g| try self.bindGeneralized(b.name, g);
+            return shared;
+        }
+
+        const placeholders = try self.subst.arena.alloc(types.Type, bindings.len);
+        for (bindings, placeholders) |b, *p| {
+            p.* = try self.subst.fresh(.type);
+            try self.scope.push(b.name, .{ .monomorphic = p.* });
+        }
+        for (bindings, placeholders, out) |b, p, *value| value.* = (try self.elaborate(b.value, p)).term;
+        return null;
     }
 
     /// Each member of a group being inferred, by field.
@@ -533,8 +693,6 @@ pub const Inference = struct {
             frame: u32,
             /// Its elaborated body.
             value: core.Term,
-            /// Its dictionary parameters.
-            bound: []const core.SymbolId,
         };
 
         fn init(gpa: Allocator, len: usize) Allocator.Error!Group {
@@ -562,19 +720,92 @@ pub const Inference = struct {
         fn values(self: *Group) []core.Term {
             return self.members.items(.value);
         }
-
-        fn bound(self: *Group) [][]const core.SymbolId {
-            return self.members.items(.bound);
-        }
     };
 
-    /// Member `i` of `group`: its body, with each use of a member of
-    /// `recursive` applied to its dictionaries, under the evidence its frame
-    /// solved, abstracted over its dictionary parameters.
-    fn close(self: *Inference, group: *Group, i: usize, recursive: []const core.Letrec.Binding) Error!core.Term {
-        const dictionaries = group.bound()[i];
-        const translated = try self.recursiveUses(recursive, dictionaries, group.values()[i]);
-        return try self.builder.abstract(dictionaries, try self.evidence.wrap(self.builder, group.frames()[i], translated));
+    /// Binds the group's context as the givens of every member's frame, one
+    /// dictionary parameter per constraint shared by all of them. Returns
+    /// those parameters.
+    fn bindContext(self: *Inference, group: *Group) Error![]const core.SymbolId {
+        const frames = group.frames();
+        const dictionaries = try self.parameters(frames[0], group.generalized()[0].context);
+        for (frames[1..]) |f| {
+            for (self.evidence.get(frames[0]).givens.items) |g| try self.evidence.give(f, g);
+        }
+        return dictionaries;
+    }
+
+    /// Solves the wanteds of `group`, whose bindings are `bindings` and
+    /// which quantifies `quantified`, under its context, and writes to `out`
+    /// each member abstracted over the group's dictionaries. `recursive`
+    /// says whether a member reads one of the group. Returns the binding the
+    /// members select from, when there is one. See Recursive groups in
+    /// type_check.zig.
+    fn close(
+        self: *Inference,
+        group: *Group,
+        bindings: []const core.Letrec.Binding,
+        quantified: []const types.Meta,
+        recursive: bool,
+        out: []core.Term,
+    ) Error!?core.Letrec.Binding {
+        const dictionaries = try self.bindContext(group);
+        const frames = group.frames();
+        for (frames) |f| try self.solve(f, quantified);
+        const values = group.values();
+        if (dictionaries.len == 0 or !recursive) {
+            for (out, values, frames) |*slot, value, frame| {
+                slot.* = try self.builder.abstract(dictionaries, try self.evidence.wrap(self.builder, frame, value));
+            }
+            return null;
+        }
+
+        // Each member's monomorphic copy, its recursive uses renamed to the
+        // copies.
+        var copies: evidence.Replacements = .empty;
+        defer copies.deinit(self.gpa);
+        const inner = try self.builder.slice(core.Letrec.Binding, bindings.len);
+        for (bindings, inner) |b, *copy| {
+            copy.name = try self.env.interner.fresh(self.env.interner.spelling(b.name));
+            try copies.put(self.gpa, b.name, self.builder.symbol(copy.name, b.value.span));
+        }
+        for (inner, values) |*copy, value| copy.value = try evidence.substitute(self.builder, value, &copies);
+
+        const span = bindings[0].value.span;
+        if (inner.len == 1) {
+            out[0] = try self.abstractGroup(dictionaries, frames, inner, self.builder.symbol(inner[0].name, span));
+            return null;
+        }
+
+        const k = try self.env.interner.fresh("k");
+        var tuple = self.builder.symbol(k, span);
+        for (inner) |copy| tuple = try self.builder.apply(tuple, self.builder.symbol(copy.name, span), span);
+        const group_value = try self.abstractGroup(dictionaries, frames, inner, try self.builder.lambda(k, tuple, span));
+
+        const name = try self.env.interner.fresh("group");
+        for (out, 0..) |*slot, i| {
+            const received = try self.builder.slice(core.SymbolId, dictionaries.len);
+            for (received) |*d| d.* = try self.env.interner.fresh("d");
+            const components = try self.builder.slice(core.SymbolId, inner.len);
+            for (components) |*field| field.* = try self.env.interner.fresh("_");
+            const select = try self.builder.abstract(components, self.builder.symbol(components[i], span));
+            var applied = self.builder.symbol(name, span);
+            for (received) |d| applied = try self.builder.apply(applied, self.builder.symbol(d, span), span);
+            slot.* = try self.builder.abstract(received, try self.builder.apply(applied, select, span));
+        }
+        return .{ .name = name, .value = group_value };
+    }
+
+    /// `\dictionaries -> lets(frames) letrec inner in result`.
+    fn abstractGroup(
+        self: *Inference,
+        dictionaries: []const core.SymbolId,
+        frames: []const u32,
+        inner: []const core.Letrec.Binding,
+        result: core.Term,
+    ) Error!core.Term {
+        var body = try self.builder.letrec(inner, result, result.span);
+        for (frames) |frame| body = try self.evidence.wrap(self.builder, frame, body);
+        return try self.builder.abstract(dictionaries, body);
     }
 
     /// Infer a group of mutually recursive bindings and generalize them
@@ -585,44 +816,42 @@ pub const Inference = struct {
     fn inferGroup(
         self: *Inference,
         bindings: []const core.Letrec.Binding,
+        restricted: bool,
         group: *Group,
     ) Error![]const types.Meta {
         const spans = group.spans();
         const frames = group.frames();
         const placeholders = try self.gpa.alloc(types.Type, bindings.len);
         defer self.gpa.free(placeholders);
-        for (bindings, placeholders) |b, *p| p.* = switch (self.env.interner.details(b.name)) {
-            .matcher => |m| try self.matcherShape(m.arity),
-            else => try self.subst.fresh(.type),
-        };
 
-        const mark = self.scope.mark();
-        defer self.scope.truncate(mark);
-        for (bindings, placeholders) |b, p| {
-            try self.scope.push(b.name, .{ .member = p });
+        {
+            self.subst.level += 1;
+            defer self.subst.level -= 1;
+            for (bindings, placeholders) |b, *p| p.* = switch (self.env.interner.details(b.name)) {
+                .matcher => |m| try self.matcherShape(m.arity),
+                else => try self.subst.fresh(.type),
+            };
+
+            const mark = self.scope.mark();
+            defer self.scope.truncate(mark);
+            for (bindings, placeholders) |b, p| {
+                try self.scope.push(b.name, .{ .member = p });
+            }
+
+            // Each body is checked against its placeholder.
+            for (bindings, placeholders, frames, group.values()) |b, p, *frame, *value| {
+                frame.* = try self.implication();
+                value.* = (try self.elaborateIn(frame.*, b.value, p)).term;
+            }
+
+            // `main` is checked at `Filter Node tau` before it generalizes, so
+            // it quantifies over nothing that type determines.
+            for (bindings, placeholders, spans) |b, p, span| {
+                if (b.name == self.entry) _ = try self.mainOutput(p, span);
+            }
         }
 
-        // Each inferred body must unify with its placeholder.
-        const enclosing = self.frame;
-        defer self.frame = enclosing;
-        for (bindings, placeholders, frames, group.values()) |b, p, *frame, *value| {
-            frame.* = try self.evidence.frame(enclosing);
-            self.frame = frame.*;
-            const inferred = try self.elaborate(b.value);
-            try self.expect(inferred.type, p, b.value.span);
-            value.* = inferred.term;
-        }
-
-        // `main` is checked at `Filter Node tau` before it generalizes, so it
-        // quantifies over nothing that type determines.
-        for (bindings, placeholders, spans) |b, p, span| {
-            if (b.name == self.entry) _ = try self.mainOutput(p, span);
-        }
-
-        // Generalize against the environment *outside* the group, so the
-        // placeholders being dropped is what lets them be quantified.
-        self.scope.truncate(mark);
-        return try self.generalizeGroup(placeholders, spans, frames, group.generalized());
+        return try self.generalizeGroup(placeholders, spans, frames, restricted, group.generalized());
     }
 
     /// A matcher's type of `arity` holes, each variable fresh.
@@ -635,8 +864,6 @@ pub const Inference = struct {
     /// One member's generalization.
     pub const Generalized = struct {
         scheme: types.Scheme,
-        /// The metavariables the scheme's bound variables were, in order.
-        metas: []const types.Meta,
         /// The group's context, over those metavariables.
         context: []const types.TypeClassConstraint,
         /// Whether its type was poisoned before it was generalized.
@@ -646,8 +873,8 @@ pub const Inference = struct {
     /// `Gen(Gamma, tau_i)` for every member of a group checked together,
     /// whose wanteds are those of `frames`.
     ///
-    /// Each member quantifies the metavariables free in its own type but not
-    /// in the environment.
+    /// Each member quantifies the metavariables free in its own type and
+    /// deeper than the current level. See Levels in type_check.zig.
     ///
     /// The group has one context: each wanted is reduced through instances
     /// to its residuals, and the context is those mentioning a quantified
@@ -655,6 +882,12 @@ pub const Inference = struct {
     /// implies. Every member takes the whole context, quantifying the
     /// metavariables it mentions. The wanteds are solved under it by
     /// `solve`, once the caller has bound it as givens.
+    ///
+    /// A `restricted` group, one with a member written without parameters,
+    /// quantifies none of the metavariables its context mentions. They move
+    /// to the current level, so the group's uses fix them, and their wanteds
+    /// float to the enclosing frame. See Monomorphism restriction in
+    /// type_check.zig.
     ///
     /// Reports a member whose type does not mention a metavariable its
     /// context quantifies. See Ambiguity in type_check.zig.
@@ -669,46 +902,26 @@ pub const Inference = struct {
         group: []const types.Type,
         spans: []const diagnostic.Span,
         frames: []const u32,
+        restricted: bool,
         out: []Generalized,
     ) Error![]const types.Meta {
-        var env: std.ArrayList(types.Meta) = .empty;
-        defer env.deinit(self.gpa);
-        for (self.scope.entries.items) |e| switch (e.binding) {
-            .monomorphic, .member => |m| try self.subst.freeMetas(m, &env),
-            // A scheme's own quantified variables are bound, not free; only
-            // what its constraints still mention could be.
-            .scheme => {},
-        };
-
-        // Every member's quantified metavariables, laid end to end. Member
-        // `i`'s are `quantified[bounds[i]..bounds[i + 1]]`.
         var quantified: std.ArrayList(types.Meta) = .empty;
         defer quantified.deinit(self.gpa);
         const bounds = try self.gpa.alloc(usize, group.len + 1);
         defer self.gpa.free(bounds);
+        try self.collectQuantified(group, &quantified, bounds);
+
+        const residuals = try self.groupContext(frames, quantified.items);
+        defer self.gpa.free(residuals);
+        var context: []const types.TypeClassConstraint = residuals;
+        if (restricted and residuals.len > 0) {
+            for (residuals) |c| _ = self.subst.promote(c.type, self.subst.level);
+            try self.collectQuantified(group, &quantified, bounds);
+            context = &.{};
+        }
 
         var free: std.ArrayList(types.Meta) = .empty;
         defer free.deinit(self.gpa);
-        for (group, 0..) |t, i| {
-            bounds[i] = quantified.items.len;
-            free.clearRetainingCapacity();
-            try self.subst.freeMetas(t, &free);
-            for (free.items) |id| {
-                for (env.items) |bound| {
-                    if (id == bound) break;
-                } else try quantified.append(self.gpa, id);
-            }
-        }
-        bounds[group.len] = quantified.items.len;
-
-        var known: std.ArrayList(types.Meta) = .empty;
-        defer known.deinit(self.gpa);
-        try known.appendSlice(self.gpa, quantified.items);
-        try known.appendSlice(self.gpa, env.items);
-
-        const context = try self.groupContext(frames, quantified.items, known.items);
-        defer self.gpa.free(context);
-
         var own: std.ArrayList(types.Meta) = .empty;
         defer own.deinit(self.gpa);
         for (group, spans, out, 0..) |t, span, *member, i| {
@@ -739,7 +952,6 @@ pub const Inference = struct {
             }
             member.* = .{
                 .scheme = scheme,
-                .metas = try self.builder.dupeSlice(types.Meta, own.items),
                 .context = try self.builder.dupeSlice(types.TypeClassConstraint, context),
                 .poisoned = self.subst.isPoisoned(t),
             };
@@ -752,14 +964,14 @@ pub const Inference = struct {
     /// another's superclasses imply, in order of first appearance. The
     /// caller owns the result.
     ///
-    /// Reports a residual that mentions a metavariable outside `known` as
-    /// ambiguous at its origin: no type of the group or its environment
-    /// mentions it, so nothing can determine it.
+    /// Reports a residual as ambiguous at its origin when it mentions a
+    /// metavariable deeper than the current level and outside `quantified`:
+    /// no type of the group or its environment mentions it, so nothing can
+    /// determine it.
     fn groupContext(
         self: *Inference,
         frames: []const u32,
         quantified: []const types.Meta,
-        known: []const types.Meta,
     ) Error![]types.TypeClassConstraint {
         var context: std.ArrayList(types.TypeClassConstraint) = .empty;
         errdefer context.deinit(self.gpa);
@@ -772,7 +984,7 @@ pub const Inference = struct {
                 // A refuted wanted is reported when it is solved.
                 _ = try classes.solve(self.gpa, &self.env.classes, w.class, w.type, self.subst, &.{}, classes.Check{ .collect = .{ .gpa = self.gpa, .out = &residuals } });
                 for (residuals.items) |r| {
-                    if (!try self.subst.within(r.type, known)) {
+                    if (try self.undetermined(r.type, quantified)) {
                         try self.report(.ambiguous_constraint, w.origin, .{ .ambiguous = r });
                         continue;
                     }
@@ -789,25 +1001,38 @@ pub const Inference = struct {
         return try context.toOwnedSlice(self.gpa);
     }
 
-    /// `body`, a member of the group `bindings`, with each use of a member
-    /// applied to `dictionaries`, the member's own dictionary parameters.
-    /// Every member takes the group's context in one order, so a recursive
-    /// use passes the dictionaries it was given.
-    fn recursiveUses(
-        self: *Inference,
-        bindings: []const core.Letrec.Binding,
-        dictionaries: []const core.SymbolId,
-        body: core.Term,
-    ) Error!core.Term {
-        if (dictionaries.len == 0 or bindings.len == 0) return body;
-        var uses: evidence.Replacements = .empty;
-        defer uses.deinit(self.gpa);
-        const arguments = try self.builder.slice(core.Term, dictionaries.len);
-        for (dictionaries, arguments) |d, *argument| argument.* = self.builder.symbol(d, body.span);
-        for (bindings) |b| {
-            try uses.put(self.gpa, b.name, try self.builder.applyMany(self.builder.symbol(b.name, body.span), arguments, body.span));
+    /// Whether `t` mentions a metavariable deeper than the current level
+    /// that is not one of `quantified`.
+    fn undetermined(self: *Inference, t: types.Type, quantified: []const types.Meta) Error!bool {
+        var deeper: std.ArrayList(types.Meta) = .empty;
+        defer deeper.deinit(self.gpa);
+        try self.deeperMetas(t, &deeper);
+        for (deeper.items) |id| {
+            if (std.mem.indexOfScalar(types.Meta, quantified, id) == null) return true;
         }
-        return try evidence.substitute(self.builder, body, &uses);
+        return false;
+    }
+
+    /// Lays end to end in `quantified` the metavariables each of `group`
+    /// quantifies: member `i`'s are `quantified[bounds[i]..bounds[i + 1]]`.
+    fn collectQuantified(self: *Inference, group: []const types.Type, quantified: *std.ArrayList(types.Meta), bounds: []usize) Error!void {
+        quantified.clearRetainingCapacity();
+        for (group, 0..) |t, i| {
+            bounds[i] = quantified.items.len;
+            try self.deeperMetas(t, quantified);
+        }
+        bounds[group.len] = quantified.items.len;
+    }
+
+    /// Appends to `out` each metavariable free in `t` and deeper than the
+    /// current level, whether or not `out` already holds it.
+    fn deeperMetas(self: *Inference, t: types.Type, out: *std.ArrayList(types.Meta)) Error!void {
+        var free: std.ArrayList(types.Meta) = .empty;
+        defer free.deinit(self.gpa);
+        try self.subst.freeMetas(t, &free);
+        for (free.items) |id| {
+            if (self.subst.levelOf(id) > self.subst.level) try out.append(self.gpa, id);
+        }
     }
 
     /// Solves the wanteds of frame `at` against the givens in scope, binding
@@ -840,10 +1065,12 @@ pub const Inference = struct {
     }
 
     /// The frame enclosing `at`, when a wanted on `t` floats there: it
-    /// mentions none of `quantified`.
+    /// mentions none of `quantified` and none of `at`'s skolems.
     fn floatsTo(self: *Inference, at: u32, t: types.Type, quantified: []const types.Meta) Error!?u32 {
-        const parent = self.evidence.get(at).parent orelse return null;
+        const frame = self.evidence.get(at);
+        const parent = frame.parent orelse return null;
         if (try self.subst.mentionsAny(t, quantified)) return null;
+        if (self.subst.mentionsSkolemFrom(t, frame.level)) return null;
         return parent;
     }
 
@@ -886,7 +1113,9 @@ pub const Inference = struct {
             });
         }
         if (refuted) return try self.report(.unsatisfied_constraint, w.origin, .{ .violation = needed });
-        if (frame.signature) |span| return try self.report(.signature_mismatch, span, .{ .violation = needed });
+        if (frame.signature) |binder| if (self.subst.mentionsSkolemFrom(needed.type, frame.level)) {
+            return try self.report(.signature_mismatch, w.origin, .{ .not_given = .{ .needed = needed, .binder = binder } });
+        };
         try self.report(.ambiguous_constraint, w.origin, .{ .ambiguous = needed });
     }
 
@@ -896,9 +1125,9 @@ pub const Inference = struct {
     ///
     /// T-LetRec at top level: placeholders, bodies, unify, generalize
     /// together. Mutual recursion works because every member is in scope
-    /// monomorphically while any body is checked. A member with a signature
-    /// is a component of its own, and every use of it, its own included, is
-    /// at the signature.
+    /// monomorphically while any body is checked. A definition with a
+    /// signature is a component of its own, checked by T-Sig, and every use
+    /// of it, its own included, is at the signature.
     ///
     /// `core.Program.components` is already in dependency order, so a callee's
     /// scheme is generalized before its caller's body is inferred. The library
@@ -910,6 +1139,15 @@ pub const Inference = struct {
         definitions: []const core.Definition,
         members: []const u32,
     ) Error!void {
+        if (members.len == 1) {
+            const definition = definitions[members[0]];
+            if (self.env.annotationOf(definition.symbol)) |declared| {
+                try self.inferred.put(definition.symbol, declared.scheme);
+                const elaborated = try self.signed(definition.symbol, declared, definition.body);
+                if (!core.same(elaborated, definition.body)) try self.elaborated.put(definition.symbol, elaborated);
+                return;
+            }
+        }
 
         // A component is inferred as one letrec of its definitions.
         const bindings = try self.gpa.alloc(core.Letrec.Binding, members.len);
@@ -921,47 +1159,61 @@ pub const Inference = struct {
             binding.* = .{ .name = definition.symbol, .value = definition.body };
             span.* = definition.span;
         }
-        var quantified = try self.inferGroup(bindings, &group);
+        var restricted = false;
+        for (members) |index| restricted = restricted or definitions[index].simple;
+        const quantified = try self.inferGroup(bindings, restricted, &group);
 
-        for (members, group.generalized(), group.frames(), group.bound()) |index, g, frame, *slot| {
+        for (members, group.generalized()) |index, g| {
             const symbol = definitions[index].symbol;
-
-            // A written signature is checked against the inferred scheme, and
-            // an accepted one becomes what is exported. Its context is the
-            // body's givens, in its written order.
-            if (self.env.annotationOf(symbol)) |declared| {
-                try self.inferred.put(symbol, declared.scheme);
-                self.evidence.get(frame).signature = declared.span;
-                // A body its signature doesn't match is solved under its own
-                // context, so its other errors are still found.
-                const representatives = try self.checkAnnotation(g, declared.scheme, declared.span) orelse {
-                    self.evidence.get(frame).signature = null;
-                    slot.* = try self.parameters(frame, g.context);
-                    continue;
-                };
-                const metas = try self.subst.arena.alloc(types.Type, representatives.len);
-                for (representatives, metas) |id, *meta| meta.* = .{ .meta = id };
-                const context = try self.subst.arena.alloc(types.TypeClassConstraint, declared.scheme.constraints.len);
-                for (declared.scheme.constraints, context) |c, *constraint| {
-                    constraint.* = .{ .class = c.class, .type = try self.subst.instantiateWith(c.type, metas) };
-                }
-                slot.* = try self.parameters(frame, context);
-                quantified = representatives;
-            } else {
-                try self.inferred.put(symbol, g.scheme);
-                if (g.poisoned) try self.failed.put(self.gpa, symbol, {});
-                slot.* = try self.parameters(frame, g.context);
-            }
+            try self.inferred.put(symbol, g.scheme);
+            if (g.poisoned) try self.failed.put(self.gpa, symbol, {});
         }
-        for (group.frames()) |f| try self.solve(f, quantified);
-
-        for (members, 0..) |index, i| {
+        const recursive = members.len > 1 or core.free.occurs(bindings[0].value, bindings[0].name);
+        const closed = try self.builder.slice(core.Term, members.len);
+        if (try self.close(&group, bindings, quantified, recursive, closed)) |shared| {
+            const first = definitions[members[0]];
+            self.env.interner.globalize(shared.name, self.env.interner.moduleOf(first.symbol).?);
+            try self.shared.append(self.gpa, .{ .symbol = shared.name, .body = shared.value, .span = first.span });
+        }
+        for (members, closed) |index, elaborated| {
             const definition = definitions[index];
-            // A signed member is used at its signature, its own body included.
-            const recursive = if (self.env.annotationOf(definition.symbol) == null) bindings else &.{};
-            const elaborated = try self.close(&group, i, recursive);
             if (!core.same(elaborated, definition.body)) try self.elaborated.put(definition.symbol, elaborated);
         }
+    }
+
+    /// (T-Sig)   sigma = forall a_bar. Q => tau      a_bar fresh rigid
+    ///           Gamma |- e <= tau  ~>  W
+    ///           ----------------------------------
+    ///           Gamma |- (f :: sigma; f = e)  ~>  forall a_bar. (Q => W)
+    ///
+    /// Checks `value` against `declared`, `binder`'s signature, in an
+    /// implication one level deeper whose skolems are the signature's
+    /// variables and whose givens are its context. Returns the elaborated
+    /// value, abstracted over the context's dictionaries.
+    fn signed(self: *Inference, binder: core.SymbolId, declared: core.env.Env.Annotation, value: core.Term) Error!core.Term {
+        const frame, const term, const bound = blk: {
+            self.subst.level += 1;
+            defer self.subst.level -= 1;
+            const frame = try self.implication();
+            self.evidence.get(frame).signature = binder;
+
+            const scheme = declared.scheme;
+            const skolems = try self.subst.arena.alloc(types.Type, scheme.variables.len);
+            for (skolems, scheme.variables, 0..) |*skolem, kind, i| {
+                const spelling = if (i < declared.names.len) declared.names[i] else try types.variableSpelling(self.subst.arena, i);
+                skolem.* = try self.subst.skolem(spelling, kind, binder);
+            }
+            const context = try self.subst.arena.alloc(types.TypeClassConstraint, scheme.constraints.len);
+            for (scheme.constraints, context) |c, *slot| {
+                slot.* = .{ .class = c.class, .type = try self.subst.instantiateWith(c.type, skolems) };
+            }
+            const bound = try self.parameters(frame, context);
+
+            const body = try self.elaborateIn(frame, value, try self.subst.instantiateWith(scheme.type, skolems));
+            break :blk .{ frame, body.term, bound };
+        };
+        try self.solve(frame, &.{});
+        return try self.builder.abstract(bound, try self.evidence.wrap(self.builder, frame, term));
     }
 
     /// Every component in order. The whole program's inference.
@@ -996,7 +1248,7 @@ pub const Inference = struct {
             if (instance.dictionary == null) continue;
             const id: classes.InstanceId = @enumFromInt(i);
             const class = registry.get(instance.class);
-            const frame = try self.evidence.frame(null);
+            const frame = try self.evidence.frame(null, 0);
             self.evidence.get(frame).instance = id;
 
             const context = try self.subst.arena.alloc(types.TypeClassConstraint, instance.context.len);
@@ -1019,71 +1271,6 @@ pub const Inference = struct {
     /// The generalized scheme of a definition, once its component is done.
     pub fn schemeOf(self: *const Inference, id: core.SymbolId) ?types.Scheme {
         return self.inferred.get(id);
-    }
-
-    /// Checks the inferred scheme against a written signature.
-    ///
-    /// The declared type must be an *instance* of the inferred one: a
-    /// signature may be more specific than the body supports. Binds each
-    /// metavariable the inferred scheme quantified to what the signature
-    /// makes of it, so the body's wanteds are over the signature's
-    /// variables, and solving them against its context checks it.
-    ///
-    /// Returns the metavariable standing for each declared variable, or
-    /// null when the signature does not match.
-    fn checkAnnotation(
-        self: *Inference,
-        generalized: Generalized,
-        declared: types.Scheme,
-        span: diagnostic.Span,
-    ) Error!?[]const types.Meta {
-        const inferred = generalized.scheme;
-        const before = self.subst.count();
-        const rigid = try self.subst.instantiate(declared);
-        const after = self.subst.count();
-
-        const flexible = try self.subst.instantiate(inferred);
-
-        switch (try unify.unify(self.subst, rigid.type, flexible.type)) {
-            .unified => {},
-            .mismatch => |m| {
-                try self.report(.signature_mismatch, span, .{ .mismatch = m });
-                return null;
-            },
-        }
-
-        // What each declared variable resolved to. Each must still be an
-        // unsolved metavariable, and no two may have become the same one.
-        const representatives = try self.subst.arena.alloc(types.Meta, after - before);
-        for (representatives, 0..) |*slot, i| {
-            const id: types.Meta = @intCast(before + i);
-            const resolved = self.subst.expand(.{ .meta = id });
-            const still_arbitrary = resolved == .meta and
-                (resolved.meta == id or resolved.meta >= after) and
-                std.mem.indexOfScalar(types.Meta, representatives[0..i], resolved.meta) == null;
-            if (!still_arbitrary) {
-                try self.report(.signature_mismatch, span, .{
-                    .mismatch = .{
-                        .reason = .incompatible,
-                        .expected = declared.type,
-                        .found = inferred.type,
-                    },
-                });
-                return null;
-            }
-            slot.* = resolved.meta;
-        }
-
-        for (generalized.metas, flexible.metas) |meta, instance| {
-            switch (try unify.unify(self.subst, .{ .meta = meta }, instance)) {
-                .unified => {},
-                .mismatch => |m| {
-                    try self.report(.signature_mismatch, span, .{ .mismatch = m });
-                    return null;
-                },
-            }
-        }
-        return representatives;
     }
 
     /// `Filter input output`.
@@ -1160,6 +1347,7 @@ pub const Inference = struct {
             definitions.appendAssumeCapacity(.{ .symbol = d.symbol, .body = body, .span = d.span });
         }
         if (entry) |e| try definitions.append(self.gpa, e);
+        try definitions.appendSlice(self.gpa, self.shared.items);
         const module = self.env.interner.moduleOf(linked.entry).?;
         for (self.evidence.get(evidence.top).bindings.items) |b| {
             self.env.interner.globalize(b.name, module);
@@ -1209,6 +1397,7 @@ pub const Inference = struct {
         switch (detail) {
             .mismatch => |m| try self.reportAbout(category, span, detail, &.{ m.expected, m.found }),
             .violation, .ambiguous => |c| try self.reportAbout(category, span, detail, &.{c.type}),
+            .not_given => |n| try self.reportAbout(category, span, detail, &.{n.needed.type}),
             .superclass => |sc| try self.reportAbout(category, span, detail, &.{sc.needed.type}),
             .over_application, .not_a_function, .view_not_function, .ambiguous_output => |t| try self.reportAbout(category, span, detail, &.{t}),
             .unbound, .too_many_variables => try self.reportAbout(category, span, detail, &.{}),
@@ -1271,7 +1460,10 @@ pub fn check(
     try program.env.schemes.reserve(found.entries.items.len);
     var it = found.iterator();
     while (it.next()) |entry| {
-        try program.env.setScheme(entry.id, try entry.value.clone(program.env.allocator()));
+        // A restricted binding's scheme mentions the metavariables its uses
+        // fixed.
+        const settled = try subst.resolveScheme(entry.value);
+        try program.env.setScheme(entry.id, try settled.clone(program.env.allocator()));
     }
 }
 
@@ -1297,12 +1489,23 @@ fn render(
             var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
             defer names.deinit(gpa);
             try buf.writer.print("Expected `{f}`, found `{f}`.", .{ expected.named(&names), found.named(&names) });
+            if (m.skolem) |k| try buf.writer.print(" `{s}` is rigid, bound by the signature of `{s}`.", .{ k.spelling, env.interner.spelling(k.binder) });
         },
         .violation => |v| {
             const t = try subst.resolveDeep(v.type);
             var names = try env.messageNames(gpa, &.{t}, &.{v.class});
             defer names.deinit(gpa);
             try buf.writer.print("`{f} {f}` is not satisfied.", .{ names.class(v.class, env.classes.spelling(v.class)), t.namedOperand(&names) });
+        },
+        .not_given => |n| {
+            const t = try subst.resolveDeep(n.needed.type);
+            var names = try env.messageNames(gpa, &.{t}, &.{n.needed.class});
+            defer names.deinit(gpa);
+            try buf.writer.print("`{f} {f}` is needed, but the signature of `{s}` does not give it.", .{
+                names.class(n.needed.class, env.classes.spelling(n.needed.class)),
+                t.namedOperand(&names),
+                env.interner.spelling(n.binder),
+            });
         },
         .ambiguous => |c| {
             const t = try subst.resolveDeep(c.type);

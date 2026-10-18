@@ -63,8 +63,13 @@ pub const Substitution = struct {
     ///
     /// Invariants:
     /// - No solution reaches its own metavariable, alias arguments included.
+    /// - No solution mentions a metavariable or skolem deeper than its own
+    ///   metavariable's level.
     metas: std.MultiArrayList(Entry),
     gpa: Allocator,
+    /// The level of the implication being inferred. A metavariable made now
+    /// is at this level. See Levels in type_check.zig.
+    level: u32 = 0,
 
     const Entry = struct {
         /// `null` means unsolved.
@@ -73,6 +78,9 @@ pub const Substitution = struct {
         /// Whether the metavariable stands in a type an error was reported
         /// on.
         poisoned: bool,
+        /// The level it was made at, or the shallowest level of a
+        /// metavariable whose solution has since mentioned it.
+        level: u32,
     };
 
     pub fn init(
@@ -91,16 +99,53 @@ pub const Substitution = struct {
     /// A metavariable of kind `kind` no type mentions yet.
     pub fn fresh(self: *Substitution, kind: types.Kind) !types.Type {
         const id: types.Meta = @intCast(self.metas.len);
-        try self.metas.append(self.gpa, .{ .solution = null, .kind = kind, .poisoned = false });
+        try self.metas.append(self.gpa, .{ .solution = null, .kind = kind, .poisoned = false, .level = self.level });
         return .{ .meta = id };
+    }
+
+    /// A rigid variable of the implication at the current level, bound by
+    /// `binder`'s signature.
+    pub fn skolem(self: *Substitution, spelling: []const u8, kind: types.Kind, binder: core.SymbolId) Allocator.Error!types.Type {
+        const node = try self.arena.create(types.Skolem);
+        node.* = .{ .spelling = spelling, .kind = kind, .level = self.level, .binder = binder };
+        return .{ .skolem = node };
+    }
+
+    pub fn levelOf(self: *const Substitution, id: types.Meta) u32 {
+        return self.metas.items(.level)[id];
+    }
+
+    /// Lowers every unsolved metavariable of `t` deeper than `level` to it.
+    /// Returns a skolem of `t` deeper than `level`, which a metavariable at
+    /// `level` cannot be bound to a type mentioning, or null.
+    pub fn promote(self: *Substitution, t: types.Type, level: u32) ?*const types.Skolem {
+        switch (self.resolve(t)) {
+            .meta => |id| {
+                const levels = self.metas.items(.level);
+                if (levels[id] > level) levels[id] = level;
+                return null;
+            },
+            .skolem => |k| return if (k.level > level) k else null,
+            .variable => return null,
+            .constructor => |c| for (c.arguments) |argument| {
+                if (self.promote(argument, level)) |k| return k;
+            },
+            .record => |r| {
+                for (r.fields) |f| if (self.promote(f.type.*, level)) |k| return k;
+                if (r.rest) |rest| return self.promote(rest.*, level);
+            },
+            .function => |arrow| return self.promote(arrow.from, level) orelse self.promote(arrow.to, level),
+            .application => |a| return self.promote(a.head, level) orelse self.promote(a.argument, level),
+            .alias => |a| {
+                for (a.arguments) |argument| if (self.promote(argument, level)) |k| return k;
+                return self.promote(a.expansion, level);
+            },
+        }
+        return null;
     }
 
     pub fn kindOf(self: *const Substitution, id: types.Meta) types.Kind {
         return self.metas.items(.kind)[id];
-    }
-
-    pub fn count(self: *const Substitution) usize {
-        return self.metas.len;
     }
 
     /// What `id` is solved to, or null if it is still unknown.
@@ -125,7 +170,7 @@ pub const Substitution = struct {
                 self.metas.items(.poisoned)[id] = true;
                 if (self.metas.items(.solution)[id]) |solution| self.poison(solution);
             },
-            .variable => {},
+            .variable, .skolem => {},
             .constructor => |c| for (c.arguments) |argument| self.poison(argument),
             .record => |r| {
                 for (r.fields) |f| self.poison(f.type.*);
@@ -152,7 +197,7 @@ pub const Substitution = struct {
         return switch (t) {
             .meta => |id| self.metas.items(.poisoned)[id] or
                 if (self.metas.items(.solution)[id]) |solution| self.isPoisoned(solution) else false,
-            .variable => false,
+            .variable, .skolem => false,
             .constructor => |c| for (c.arguments) |argument| {
                 if (self.isPoisoned(argument)) break true;
             } else false,
@@ -254,7 +299,7 @@ pub const Substitution = struct {
         const head = self.resolve(t);
         return switch (head) {
             .meta => |other| other == id,
-            .variable => false,
+            .variable, .skolem => false,
             .alias => |a| for (a.arguments) |argument| {
                 if (self.occurs(id, argument)) break true;
             } else false,
@@ -288,7 +333,7 @@ pub const Substitution = struct {
                 if (std.mem.indexOfScalar(types.Meta, out.items, id) != null) return;
                 try out.append(self.gpa, id);
             },
-            .variable => {},
+            .variable, .skolem => {},
             .constructor => |c| for (c.arguments) |argument| try self.freeMetas(argument, out),
             .record => |r| {
                 for (r.fields) |f| try self.freeMetas(f.type.*, out);
@@ -339,11 +384,28 @@ pub const Substitution = struct {
         return types.substitute(self.arena, t, metas);
     }
 
-    /// `t` with each of `metas` replaced by the bound variable at its index,
-    /// or null when `t` has a free metavariable `metas` lacks.
-    pub fn abstractOver(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!?types.Type {
-        if (!try self.within(t, metas)) return null;
-        return try self.rewrite(t, .{ .bound = metas }, null);
+    /// `scheme` with `resolveDeep` applied to its type and constraints.
+    pub fn resolveScheme(self: *Substitution, scheme: types.Scheme) Allocator.Error!types.Scheme {
+        const constraints = try self.arena.alloc(types.TypeClassConstraint, scheme.constraints.len);
+        for (scheme.constraints, constraints) |c, *slot| slot.* = .{ .class = c.class, .type = try self.resolveDeep(c.type) };
+        return .{ .variables = scheme.variables, .constraints = constraints, .type = try self.resolveDeep(scheme.type) };
+    }
+
+    /// Whether `t` mentions a skolem at `level` or deeper.
+    pub fn mentionsSkolemFrom(self: *Substitution, t: types.Type, level: u32) bool {
+        return switch (self.resolve(t)) {
+            .skolem => |k| k.level >= level,
+            .meta, .variable => false,
+            .constructor => |c| for (c.arguments) |argument| {
+                if (self.mentionsSkolemFrom(argument, level)) break true;
+            } else false,
+            .record => |r| for (r.fields) |f| {
+                if (self.mentionsSkolemFrom(f.type.*, level)) break true;
+            } else if (r.rest) |rest| self.mentionsSkolemFrom(rest.*, level) else false,
+            .function => |arrow| self.mentionsSkolemFrom(arrow.from, level) or self.mentionsSkolemFrom(arrow.to, level),
+            .application => |a| self.mentionsSkolemFrom(a.head, level) or self.mentionsSkolemFrom(a.argument, level),
+            .alias => |a| self.mentionsSkolemFrom(a.expansion, level),
+        };
     }
 
     /// Whether `t` has any of `metas` free.
@@ -353,15 +415,6 @@ pub const Substitution = struct {
         try self.freeMetas(t, &free);
         for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) != null) return true;
         return false;
-    }
-
-    /// Whether every free metavariable of `t` is one of `metas`.
-    pub fn within(self: *Substitution, t: types.Type, metas: []const types.Meta) Allocator.Error!bool {
-        var free: std.ArrayList(types.Meta) = .empty;
-        defer free.deinit(self.gpa);
-        try self.freeMetas(t, &free);
-        for (free.items) |id| if (std.mem.indexOfScalar(types.Meta, metas, id) == null) return false;
-        return true;
     }
 
     /// The inverse of `instantiate`: turns the given free metavariables into

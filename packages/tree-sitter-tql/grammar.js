@@ -109,7 +109,7 @@ module.exports = grammar({
 
     _declaration: $ =>
       choice(
-        $.signature,
+        seq($.signature, ";"),
         $.definition,
         $.data_declaration,
         $.type_alias,
@@ -127,7 +127,7 @@ module.exports = grammar({
         field("parameter", $._type_variable),
         "where",
         "{",
-        repeat(field("method", $.signature)),
+        repeat(seq(field("method", $.signature), ";")),
         "}",
         ";",
       ),
@@ -203,7 +203,6 @@ module.exports = grammar({
         "::",
         optional(seq(field("context", $.context), "=>")),
         field("type", $._type),
-        ";",
       ),
 
     context: $ =>
@@ -423,7 +422,8 @@ module.exports = grammar({
         ),
       ),
 
-    binding_group: $ => seq("{", sep_trailing($.binding, ";"), "}"),
+    binding_group: $ =>
+      seq("{", sep_trailing(choice($.binding, $.signature), ";"), "}"),
 
     binding: $ =>
       seq(
@@ -586,6 +586,7 @@ module.exports = grammar({
         $.tuple,
         $.tuple_constructor,
         $.parenthesized,
+        $.annotated,
         $.field_selector,
         $.operator_name,
         $.left_section,
@@ -667,6 +668,17 @@ module.exports = grammar({
       ),
 
     parenthesized: $ => seq("(", $._expression, ")"),
+
+    // `(e :: t)` checks `e` against `t`.
+    annotated: $ =>
+      seq(
+        "(",
+        field("expression", $._expression),
+        "::",
+        optional(seq(field("context", $.context), "=>")),
+        field("type", $._type),
+        ")",
+      ),
 
     // `()` is the unit value, pattern and type.
     unit: _ => seq("(", ")"),

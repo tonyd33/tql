@@ -16,7 +16,7 @@ main = Filter sums;
 
 --- error ---
 error[type-mismatch]: Expected `List`, found `Maybe`.
- --> 5:3
+ --> 5:8
   |
 5 |   y <- Just 2;
-  |   ^^^^^^^^^^^
+  |        ^^^^^^

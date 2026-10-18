@@ -2,9 +2,19 @@
 
 ## 0.5.0 (unreleased)
 
+### Breaking Changes
+
+- A top-level binding without parameters or a signature takes one type from its uses where its type is constrained: with `one = pure 1; main = one;`, `one` is `Filter Node Int`. Give it a signature to use it at two types.
+- A local binding that mentions a variable of an enclosing lambda, `case` alternative or `do` bind is not generalised: `f x = let { pair y = { a = x, b = y }; } in { p = pair 1, q = pair "s" }` is an error. Give it a local signature.
+
+### New Features
+
+- Added local signatures, `let { g :: a -> a; g x = x; } in g 1`, and type annotations, `([] :: [Int]) == []`.
+
 ### Improvements
 
 - The checker reports every independent type error, not only the first: `f x = 1 + "a"; g = "b" + 2;` reports both mismatches. An error that follows from an earlier one is not reported, and an ambiguous constraint names what is left undetermined: `Eq a`, not `Eq [a]`.
+- A body that disagrees with its signature is reported at the subterm: `f :: Int -> Int; f x = "s";` points at `"s"`. A type that does not fit a signature's variable names the variable as rigid, and a constraint the signature's context lacks is reported where it is needed.
 
 ## 0.4.1 (unreleased)
 

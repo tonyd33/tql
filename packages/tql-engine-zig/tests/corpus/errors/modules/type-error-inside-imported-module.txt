@@ -8,7 +8,7 @@ broken x = x + "a";
 
 --- tql ---
 import Broken;
-main root = [broken 1];
+main = pure (broken 1);
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.

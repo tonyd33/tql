@@ -1,0 +1,15 @@
+title: an annotation fixes an otherwise undetermined type
+grammar: typescript
+asserts: values
+
+`[] == []` alone is ambiguous: nothing says what the lists hold. The
+annotation fixes it (Static semantics: Annotations).
+
+--- tql ---
+main = pure (([] :: [Int]) == []);
+
+--- source ---
+f(x);
+
+--- values ---
+[true]

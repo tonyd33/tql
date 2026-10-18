@@ -1,0 +1,27 @@
+title: a body that disagrees with its signature is reported at the subterm
+grammar: typescript
+asserts: error
+
+The body is checked against `Int -> Int`, so `return_string z` is checked
+against `Int`, and the mismatch is reported there, not at the signature
+(Static semantics: Bindings, T-Sig).
+
+--- tql ---
+f :: Int -> Int;
+f x = do {
+  let y = x + 1;
+  let z = y + 2;
+  return_string z;
+};
+return_string z = "s";
+main = pure (f 1);
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `Int`, found `String`.
+ --> 5:3
+  |
+5 |   return_string z;
+  |   ^^^^^^^^^^^^^^^

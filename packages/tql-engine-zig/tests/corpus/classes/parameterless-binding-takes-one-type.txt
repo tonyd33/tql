@@ -1,0 +1,21 @@
+title: a binding without parameters takes one type from its uses
+grammar: typescript
+asserts: types, values
+
+`one` has no parameters and no signature, so it is not generalized over
+its constrained variable. Its use fixes it at `Filter Node`, and it is
+computed once (Declarations: Generalisation).
+
+--- tql ---
+one = pure 1;
+main = one;
+
+--- source ---
+f(x);
+
+--- values ---
+[1]
+
+--- types ---
+one :: Filter Node Int
+main :: Filter Node Int

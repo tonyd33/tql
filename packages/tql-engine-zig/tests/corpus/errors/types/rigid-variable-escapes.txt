@@ -1,0 +1,23 @@
+title: a rigid variable cannot escape its signature
+grammar: typescript
+asserts: error
+
+`g`'s signature says it returns any `b`, but its body returns `x`, whose
+type is fixed outside `g` (Static semantics: Judgements).
+
+--- tql ---
+f x = let {
+  g :: b -> b;
+  g y = x;
+} in g 1;
+main = pure (f 0);
+
+--- source ---
+f(x);
+
+--- error ---
+error[type-mismatch]: Expected `b`, found `a`. `b` is rigid, bound by the signature of `g`.
+ --> 3:9
+  |
+3 |   g y = x;
+  |         ^
