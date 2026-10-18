@@ -1,0 +1,20 @@
+title: `is_missing`, `is_error` and `has_error` tell recovered nodes from real ones
+grammar: c
+asserts: types, values
+
+tree-sitter inserts the `;` that `int x = 1` lacks, as a missing node with
+no text. `has_error` holds for every node above it.
+
+--- tql ---
+main = descendants
+  | keep (\n -> kind_name n == ";" or has_error n)
+  | arr (\n -> { kind = kind_name n, text = text n, missing = is_missing n, error = is_error n, has = has_error n });
+
+--- source ---
+int main() { int x = 1 return x; }
+
+--- values ---
+[{"error":false,"has":true,"kind":"function_definition","missing":false,"text":"int main() { int x = 1 return x; }"},{"error":false,"has":true,"kind":"compound_statement","missing":false,"text":"{ int x = 1 return x; }"},{"error":false,"has":true,"kind":"declaration","missing":false,"text":"int x = 1"},{"error":false,"has":true,"kind":";","missing":true,"text":""},{"error":false,"has":false,"kind":";","missing":false,"text":";"}]
+
+--- types ---
+main :: Filter Node {error: Bool, has: Bool, kind: String, missing: Bool, text: String}

@@ -1,0 +1,21 @@
+title: the outputs before a runtime error are kept
+grammar: typescript
+asserts: values, runtime_error
+
+Outputs are written as they are produced. The second fails partway, after
+its `a` field; it is dropped whole, the first is kept, and the third is
+never reached.
+
+--- tql ---
+bot :: Int;
+bot = bot;
+
+main = pure {a = 1, b = 2} <|> pure {a = 1, b = bot} <|> pure {a = 3, b = 3};
+
+--- source ---
+class A {}
+
+--- values ---
+[{"a":1,"b":2}]
+--- runtime error ---
+error[cyclic-value]: a value depends on itself

@@ -11,7 +11,7 @@ const types = @import("types.zig");
 /// Arithmetic is on 64-bit two's complement and wraps.
 pub const Scalar = enum {
     /// `s ~ r`: whether `r` matches anywhere in `s`. A construct the matcher
-    /// cannot run, such as `\K`, diverges.
+    /// cannot run, a recursion that consumes nothing first, diverges.
     match,
     not_match,
     add,
@@ -93,6 +93,14 @@ pub const PrimOp = enum {
     kind_name,
     is_named,
     is_extra,
+    /// An `ERROR` node: source tree-sitter skipped to recover from a parse
+    /// error.
+    is_error,
+    /// A token tree-sitter inserted to recover from a parse error. It spans
+    /// no source.
+    is_missing,
+    /// Whether the node is, or contains, an `ERROR` or missing node.
+    has_error,
     /// The node's start and end, as a record.
     range,
     /// Counts code points.

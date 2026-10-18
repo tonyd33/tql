@@ -118,7 +118,8 @@ export interface Failure {
   message: string;
 }
 
-export type Failed = { kind: "failed"; failure: Failure };
+/** `result` holds the outputs before the failure, when the query ran. */
+export type Failed = { kind: "failed"; failure: Failure; result?: QueryResult };
 
 export type QueryOutcome =
   | { kind: "ok"; result: QueryResult }

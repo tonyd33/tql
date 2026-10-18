@@ -4,6 +4,7 @@ const std = @import("std");
 const ts = @import("tree-sitter");
 const string_literal = @import("lang/string_literal.zig");
 const kinds = @import("lang/kinds.zig");
+const utf8 = @import("utf8.zig");
 
 /// One printed node.
 pub const Row = struct {
@@ -213,7 +214,7 @@ pub fn writeJson(rows: []const Row, jws: *std.json.Stringify) std.Io.Writer.Erro
         try jws.write(r.end_point.column);
         if (r.text) |t| {
             try jws.objectField("text");
-            try jws.write(t);
+            try jws.write(utf8.Lossy{ .bytes = t });
         }
         try jws.endObject();
     }
@@ -483,6 +484,30 @@ test "json carries text on leaves only" {
     try std.testing.expectEqualStrings(
         \\[{"depth":0,"fieldName":null,"type":"module","isNamed":true,"isMissing":false,"isError":false,"startIndex":0,"endIndex":2,"startRow":0,"startCol":0,"endRow":1,"endCol":0},{"depth":1,"fieldName":null,"type":"identifier","isNamed":true,"isMissing":false,"isError":false,"startIndex":0,"endIndex":1,"startRow":0,"startCol":0,"endRow":0,"endCol":1,"text":"a"}]
     , out.written());
+}
+
+test "json text is read as UTF-8" {
+    const gpa = std.testing.allocator;
+    var grammars = Registry.init(gpa, &.{});
+    defer grammars.deinit();
+    const g = try grammars.get("python");
+
+    const source = "\"caf\xe9\"\n";
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    try parser.setLanguage(g.language);
+    const tree = parser.parseString(source, null).?;
+    defer tree.destroy();
+
+    var rows: std.ArrayList(Row) = .empty;
+    defer rows.deinit(gpa);
+    try collect(gpa, &rows, tree.rootNode(), source, .{});
+
+    var out: std.Io.Writer.Allocating = .init(gpa);
+    defer out.deinit();
+    var jws: std.json.Stringify = .{ .writer = &out.writer };
+    try writeJson(rows.items, &jws);
+    try std.testing.expect(std.mem.indexOf(u8, out.written(), "\"text\":\"caf\u{FFFD}\"") != null);
 }
 
 test "kind list is sorted, deduplicated, and nests subtypes" {

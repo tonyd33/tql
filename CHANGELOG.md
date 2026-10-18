@@ -6,10 +6,18 @@
 
 - `tql inspect` marks supertypes, as in `:_pattern (supertype)`, and its JSON gives each kind a `supertype` flag.
 
+### New Features
+
+- `is_error`, `is_missing` and `has_error` test the nodes tree-sitter's error recovery made: `descendants | keep is_missing` finds an inserted `;`, and `keep (\n -> not (has_error n))` keeps only a file that parsed.
+
 ### Bug Fixes
 
 - A supertype's subtypes, in `tql inspect` and the `supertype-kind` error, are each kind once, with nested supertypes expanded and tokens quoted, as in `"_"` under rust's `:_pattern`.
 - Unifying a type with an alias that mentions it only in an unused parameter, as in `retag x x` with `retag :: t -> Tagged t -> Int`, no longer crashes the checker.
+- A runtime error keeps the outputs before it: `main = pure 1 <|> pure bot;` prints `a.ts: [1]`, then the error. `--format=json` gives the file both `values` and `failure`, and the playground shows both.
+- `tql inspect --format json` and the playground tree write a node's text and a path as a string, with each ill-formed UTF-8 sequence read as U+FFFD: `"text":"caf�"`.
+- `\K`, backtracking verbs such as `(*PRUNE)`, script runs and `(*UCP)` are `invalid-regex` errors: `r"a\Kb|b"` is rejected at compile time.
+- An inferred `Serial` context is reduced through instances, as `Eq`'s is: `f x = s [x]` infers `Serial a => a -> Int`, and `f x = s (P, x)` infers `Serial b => b -> Int`.
 
 ## 0.4.0 (2026-10-17)
 

@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
         error = outcome.diagnostics.map(describe).join("\n");
         break;
       case "failed":
-        result = null;
+        result = outcome.result ?? null;
         error = `error[${outcome.failure.category}]: ${outcome.failure.message}`;
         break;
     }
@@ -139,10 +139,11 @@ int main(int argc, char **argv) {
   <section class="panel panel-output">
     <header>Output</header>
     <div class="panel-body">
+      {#if result}
+        <pre>{JSON.stringify(result, null, 2)}</pre>
+      {/if}
       {#if error}
         <pre class="error">{error}</pre>
-      {:else}
-        <pre>{result ? JSON.stringify(result, null, 2) : ""}</pre>
       {/if}
     </div>
   </section>

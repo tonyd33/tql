@@ -39,6 +39,7 @@ pub const stg = @import("stg.zig");
 
 pub const inspect = @import("inspect.zig");
 pub const kinds = @import("lang/kinds.zig");
+pub const utf8 = @import("utf8.zig");
 
 const grammar = @import("lang/grammar.zig");
 const string_literal = @import("lang/string_literal.zig");
@@ -348,26 +349,54 @@ pub const CompiledQuery = struct {
 
         const root = try scratch.create(stg.Thunk);
         root.* = stg.Thunk.value(.{ .node = .{ .inner = tree.rootNode() } });
-        const outputs = try machine.apply(try machine.force(entry), &.{root});
 
         // Serialized here, while the tree is alive. A node value borrows it,
         // so it cannot outlive this call.
         var w: std.Io.Writer.Allocating = .init(result_allocator);
         errdefer w.deinit();
-        var jws = std.json.Stringify{ .writer = &w.writer };
-        const count = try machine.serializeList(outputs, &jws);
+        var count: usize = 0;
+        try w.writer.writeByte('[');
+        const stopped: ?Failure = if (writeOutputs(&machine, entry, root, &w, &count)) null else |err| .ofRun(err);
+        try w.writer.writeByte(']');
 
         const query_time = query_start.untilNow(self.io, .real);
 
         return .{
             .json = try w.toOwnedSlice(),
             .count = count,
+            .failure = stopped,
             .syntax_errors = try syntaxErrors(result_allocator, tree.rootNode()),
             .parse_time = .zero,
             .query_time = query_time,
         };
     }
 };
+
+/// Write each output of `entry` applied to `root` to `w` as the elements of
+/// a JSON array, without its brackets, counting them in `count`.
+///
+/// An element whose evaluation fails partway is cut from `w`, so on an error
+/// `w` holds every output before the failing one, each whole.
+fn writeOutputs(
+    machine: *stg.Machine,
+    entry: *stg.Thunk,
+    root: *stg.Thunk,
+    w: *std.Io.Writer.Allocating,
+    count: *usize,
+) stg.Error!void {
+    var current = try machine.apply(try machine.force(entry), &.{root});
+    while (try machine.uncons(current)) |cell| {
+        {
+            const mark = w.written().len;
+            errdefer w.shrinkRetainingCapacity(mark);
+            if (count.* > 0) try w.writer.writeByte(',');
+            var jws: std.json.Stringify = .{ .writer = &w.writer };
+            try machine.serialize(try machine.force(cell.head), &jws);
+        }
+        count.* += 1;
+        current = try machine.force(cell.tail);
+    }
+}
 
 /// Where tree-sitter recovered from a target that does not parse: an `ERROR`
 /// node, or a token it inserted. The location fields are a node's.
@@ -421,8 +450,12 @@ pub const RunError = stg.Error || error{ TargetParseFailed, IncompatibleLanguage
 
 /// One target's results: the outputs as a JSON array, and what it cost.
 pub const RunOutcome = struct {
+    /// Every output when `failure` is null. Otherwise those before the one
+    /// whose evaluation failed.
     json: []const u8,
     count: usize,
+    /// Why evaluation stopped before the last output.
+    failure: ?Failure = null,
     /// Empty when the target parsed. Otherwise the outputs come from the tree
     /// tree-sitter recovered, and may miss or misread what these cover.
     syntax_errors: []const SyntaxError,
@@ -518,6 +551,7 @@ test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
     refAllDecls(pcre2);
+    refAllDecls(utf8);
     refAllDecls(cst);
     refAllDecls(diagnostic);
     refAllDecls(parse);
