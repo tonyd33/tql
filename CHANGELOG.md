@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+### Bug Fixes
+
+- An inferred `Serial` context is reduced through instances, as `Eq`'s is: `f x = s [x]` infers `Serial a => a -> Int`, and `f x = s (P, x)` is no longer ambiguous.
+
 ## 0.4.0 (2026-10-17)
 
 ### Breaking Changes
