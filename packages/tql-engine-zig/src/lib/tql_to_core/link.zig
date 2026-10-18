@@ -123,28 +123,18 @@ pub const Desugarer = struct {
             const reserved = if (existing) |id| self.env.?.datatypes.get(id).reserved else false;
 
             if (taken != null and !reserved) {
-                try sink.report(
-                    .duplicate_definition,
-                    declared.span,
-                    "`{s}` is declared more than once",
-                    .{declared.name},
-                );
+                try sink.report(.duplicate_definition, declared.span, .{ diagnostic.code(declared.name), " is declared more than once" });
                 continue;
             }
             if (reserved) {
                 const s = datatypes.Registry.structuralNamed(declared.name).?;
                 if (!conforms(s, declared.*)) {
-                    try self.reportNonconforming(s, declared.*, sink);
+                    try reportNonconforming(s, declared.*, sink);
                     continue;
                 }
                 self.env.?.datatypes.claim(existing.?);
             } else if (declared.representation) |r| {
-                try sink.report(
-                    .type_mismatch,
-                    r.span,
-                    "`{s}` is not a built-in type, so it cannot be represented as `{s}`",
-                    .{ declared.name, r.name },
-                );
+                try sink.report(.type_mismatch, r.span, .{ diagnostic.code(declared.name), " is not a built-in type, so it cannot be represented as ", diagnostic.code(r.name) });
                 continue;
             }
 
@@ -166,12 +156,7 @@ pub const Desugarer = struct {
             for (declared.constructors, constructors, 0..) |written, *out, tag| {
                 const symbol = interner.intern(scope.module, written.name, .vanilla) catch |err| switch (err) {
                     error.Collision => {
-                        try sink.report(
-                            .symbol_collision,
-                            written.span,
-                            "`{s}` collides with an existing symbol",
-                            .{written.name},
-                        );
+                        try sink.report(.symbol_collision, written.span, .{ diagnostic.code(written.name), " collides with an existing symbol" });
                         failed = true;
                         continue;
                     },
@@ -214,12 +199,7 @@ pub const Desugarer = struct {
                 if (std.mem.eql(u8, earlier.name, alias.name)) break true;
             } else false;
             if (repeated or scope.declaredType(scope.module, alias.name) != null) {
-                try sink.report(
-                    .duplicate_definition,
-                    alias.span,
-                    "`{s}` is declared more than once",
-                    .{alias.name},
-                );
+                try sink.report(.duplicate_definition, alias.span, .{ diagnostic.code(alias.name), " is declared more than once" });
                 continue;
             }
             try aliases.append(self.allocator, alias);
@@ -248,12 +228,7 @@ pub const Desugarer = struct {
             .declared => return true,
             .failed => return false,
             .visiting => {
-                try sink.report(
-                    .cyclic_alias,
-                    aliases[i].span,
-                    "`{s}` is defined in terms of itself",
-                    .{aliases[i].name},
-                );
+                try sink.report(.cyclic_alias, aliases[i].span, .{ diagnostic.code(aliases[i].name), " is defined in terms of itself" });
                 states[i] = .failed;
                 return false;
             },
@@ -310,25 +285,19 @@ pub const Desugarer = struct {
         return true;
     }
 
-    fn reportNonconforming(self: *Desugarer, s: datatypes.Registry.Structural, declared: cst.DataDeclaration, sink: *diagnostic.Sink) !void {
+    fn reportNonconforming(s: datatypes.Registry.Structural, declared: cst.DataDeclaration, sink: *diagnostic.Sink) !void {
         if (s.representation) |p| {
-            try sink.report(
-                .type_mismatch,
-                declared.span,
-                "`{s}` is represented by the machine and must be declared as `data {s} = %{s};`",
-                .{ declared.name, p.spelling(), p.spelling() },
-            );
+            try sink.report(.type_mismatch, declared.span, .{ diagnostic.code(declared.name), " is represented by the machine and must be declared as ", diagnostic.code(.{ "data ", p.spelling(), " = %", p.spelling(), ";" }) });
             return;
         }
-        const spelled = try std.mem.join(self.allocator, "`, `", s.constructors);
-        defer self.allocator.free(spelled);
-        try sink.report(
-            .type_mismatch,
-            declared.span,
-            "`{s}` is built directly by the evaluator and must declare {d} " ++
-                "parameter(s) and the constructors `{s}` in that order",
-            .{ declared.name, s.parameters.len, spelled },
-        );
+        var message: diagnostic.Message = .init(sink.allocator);
+        defer message.deinit();
+        try message.append(.{ diagnostic.code(declared.name), " is built directly by the evaluator and must declare ", s.parameters.len, " parameter(s) and the constructors " });
+        for (s.constructors, 0..) |constructor, i| {
+            try message.append(.{ if (i == 0) "" else ", ", diagnostic.code(constructor) });
+        }
+        try message.append(.{" in that order"});
+        try sink.add(.type_mismatch, declared.span, &message);
     }
 
     /// Declares a module for `add`. The library's modules are declared
@@ -489,7 +458,7 @@ pub const Desugarer = struct {
         const builder = core.Builder{ .allocator = env.allocator() };
         const module = self.entry_module;
         const main = env.interner.lookup(module, "main") orelse {
-            try sink.report(.missing_main, entry_span, "no `main` definition", .{});
+            try sink.report(.missing_main, entry_span, .{ "no ", diagnostic.code("main"), " definition" });
             return error.LinkFailed;
         };
         const span = if (self.linked.get(main)) |i| self.definitions.items[i].span else entry_span;
@@ -586,17 +555,14 @@ fn checkSynonymCycles(
         if (!core.components.cyclic(members, edges)) continue;
         ok = false;
         for (members) |member| {
-            var others: std.Io.Writer.Allocating = .init(allocator);
+            var message: diagnostic.Message = .init(sink.allocator);
+            defer message.deinit();
+            try message.append(.{ diagnostic.code(declarations[member].name), " is defined in terms of itself" });
             for (members) |other| {
                 if (other == member) continue;
-                try others.writer.print(", through `{s}`", .{declarations[other].name});
+                try message.append(.{ ", through ", diagnostic.code(declarations[other].name) });
             }
-            try sink.report(
-                .cyclic_synonym,
-                declarations[member].span(),
-                "`{s}` is defined in terms of itself{s}",
-                .{ declarations[member].name, others.written() },
-            );
+            try sink.add(.cyclic_synonym, declarations[member].span(), &message);
         }
     }
     return ok;

@@ -534,7 +534,7 @@ pub const Inference = struct {
     }
 
     fn branchStart(c: core.Case, i: usize) u32 {
-        return if (i == c.alternatives.len) c.default.?.span.start_byte else c.alternatives[i].body.span.start_byte;
+        return startByte(if (i == c.alternatives.len) c.default.?.span else c.alternatives[i].body.span);
     }
 
     /// (T-Let)       Gamma |- e_1 => tau_1      sigma = Gen(Gamma, tau_1)
@@ -1400,7 +1400,12 @@ pub fn check(
 
 fn inSourceOrder(_: void, a: Failure, b: Failure) bool {
     if (a.span.source != b.span.source) return @intFromEnum(a.span.source) < @intFromEnum(b.span.source);
-    return a.span.start_byte < b.span.start_byte;
+    return startByte(a.span) < startByte(b.span);
+}
+
+/// The span's first byte, or 0 when it has no range.
+fn startByte(span: diagnostic.Span) u32 {
+    return if (span.range) |r| r.start_byte else 0;
 }
 
 fn render(
@@ -1410,8 +1415,8 @@ fn render(
     failure: Failure,
     sink: *diagnostic.Sink,
 ) !void {
-    var buf: std.Io.Writer.Allocating = .init(sink.allocator);
-    defer buf.deinit();
+    var message: diagnostic.Message = .init(sink.allocator);
+    defer message.deinit();
 
     switch (failure.detail) {
         .mismatch => |m| {
@@ -1419,64 +1424,49 @@ fn render(
             const found = try subst.resolveDeep(m.found);
             var names = try env.messageNames(gpa, &.{ expected, found }, &.{});
             defer names.deinit(gpa);
-            try buf.writer.print("Expected `{f}`, found `{f}`.", .{ expected.named(&names), found.named(&names) });
-            if (m.skolem) |k| try buf.writer.print(" `{s}` is rigid, bound by the signature of `{s}`.", .{ k.spelling, env.interner.spelling(k.binder) });
+            try message.append(.{ "Expected ", diagnostic.code(expected.named(&names)), ", found ", diagnostic.code(found.named(&names)), "." });
+            if (m.skolem) |k| try message.append(.{ " ", diagnostic.code(k.spelling), " is rigid, bound by the signature of ", diagnostic.code(env.interner.spelling(k.binder)), "." });
         },
         .violation => |v| {
             const t = try subst.resolveDeep(v.type);
             var names = try env.messageNames(gpa, &.{t}, &.{v.class});
             defer names.deinit(gpa);
-            try buf.writer.print("`{f} {f}` is not satisfied.", .{ names.class(v.class, env.classes.spelling(v.class)), t.namedOperand(&names) });
+            try message.append(.{ diagnostic.code(.{ names.class(v.class, env.classes.spelling(v.class)), " ", t.namedOperand(&names) }), " is not satisfied." });
         },
         .not_given => |n| {
             const t = try subst.resolveDeep(n.needed.type);
             var names = try env.messageNames(gpa, &.{t}, &.{n.needed.class});
             defer names.deinit(gpa);
-            try buf.writer.print("`{f} {f}` is needed, but the signature of `{s}` does not give it.", .{
-                names.class(n.needed.class, env.classes.spelling(n.needed.class)),
-                t.namedOperand(&names),
-                env.interner.spelling(n.binder),
-            });
+            try message.append(.{ diagnostic.code(.{ names.class(n.needed.class, env.classes.spelling(n.needed.class)), " ", t.namedOperand(&names) }), " is needed, but the signature of ", diagnostic.code(env.interner.spelling(n.binder)), " does not give it." });
         },
         .ambiguous => |c| {
             const t = try subst.resolveDeep(c.type);
             var names = try env.messageNames(gpa, &.{t}, &.{c.class});
             defer names.deinit(gpa);
-            try buf.writer.print("`{f} {f}` is ambiguous: nothing determines its type.", .{ names.class(c.class, env.classes.spelling(c.class)), t.namedOperand(&names) });
+            try message.append(.{ diagnostic.code(.{ names.class(c.class, env.classes.spelling(c.class)), " ", t.namedOperand(&names) }), " is ambiguous: nothing determines its type." });
         },
         .superclass => |s| {
             const instance = env.classes.instance(s.instance);
             const needed = try subst.resolveDeep(s.needed.type);
             var names = try env.messageNames(gpa, &.{ instance.type, needed }, &.{ instance.class, s.needed.class });
             defer names.deinit(gpa);
-            try buf.writer.print("`{f} {f}` needs `{f} {f}`", .{
-                names.class(instance.class, env.classes.spelling(instance.class)),
-                instance.type.namedOperand(&names),
-                names.class(s.needed.class, env.classes.spelling(s.needed.class)),
-                needed.namedOperand(&names),
-            });
+            try message.append(.{ diagnostic.code(.{ names.class(instance.class, env.classes.spelling(instance.class)), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(s.needed.class, env.classes.spelling(s.needed.class)), " ", needed.namedOperand(&names) }) });
         },
         inline .over_application, .view_not_function, .not_a_function => |shown, tag| {
             const t = try subst.resolveDeep(shown);
             var names = try env.messageNames(gpa, &.{t}, &.{});
             defer names.deinit(gpa);
-            const message = switch (tag) {
-                .over_application => "`{f}` has no argument left to take.",
-                .view_not_function => "The expression of a view pattern must be a function; found `{f}`.",
-                .not_a_function => "`{f}` is not a function.",
+            const shown_code = diagnostic.code(t.named(&names));
+            try message.append(switch (tag) {
+                .over_application => .{ shown_code, " has no argument left to take." },
+                .view_not_function => .{ "The expression of a view pattern must be a function; found ", shown_code, "." },
+                .not_a_function => .{ shown_code, " is not a function." },
                 else => comptime unreachable,
-            };
-            try buf.writer.print(message, .{t.named(&names)});
+            });
         },
-        .unbound => |id| try buf.writer.print(
-            "`{s}` is not defined.",
-            .{env.interner.spelling(id)},
-        ),
-        .too_many_variables => |n| try buf.writer.print(
-            "The type has {d} variables, more than the {d} a scheme can quantify.",
-            .{ n, std.math.maxInt(types.TypeVar) },
-        ),
+        .unbound => |id| try message.append(.{ diagnostic.code(env.interner.spelling(id)), " is not defined." }),
+        .too_many_variables => |n| try message.append(.{ "The type has ", n, " variables, more than the ", std.math.maxInt(types.TypeVar), " a scheme can quantify." }),
     }
 
-    try sink.report(failure.category, failure.span, "{s}", .{buf.written()});
+    try sink.add(failure.category, failure.span, &message);
 }

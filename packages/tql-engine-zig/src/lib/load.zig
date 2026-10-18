@@ -102,7 +102,7 @@ pub const Graph = struct {
     /// the graph is complete only when `sink` stays empty.
     pub fn visitEntry(self: *Graph, entry: cst.SourceFile, sink: *diagnostic.Sink) !void {
         if (entry.header) |h| if (library.named(h.name)) |id| {
-            try sink.report(.ambiguous_module, h.span, "`{s}` is found as both this module and `{s}`", .{ h.name, library.modules[@intFromEnum(id)].path });
+            try sink.report(.ambiguous_module, h.span, .{ diagnostic.code(h.name), " is found as both this module and ", diagnostic.code(library.modules[@intFromEnum(id)].path) });
         };
         try self.visit(.{ .source = entry, .parsed = null }, sink);
     }
@@ -132,12 +132,7 @@ pub const Graph = struct {
         switch (self.find(import)) {
             .missing => {},
             .failed => |reason| try reportUnreadable(import, reason, sink),
-            .found => |source| try sink.report(
-                .ambiguous_module,
-                import.span,
-                "`{s}` is found as both `{s}` and `{s}`",
-                .{ import.module, source.name orelse import.module, library.modules[@intFromEnum(id)].path },
-            ),
+            .found => |source| try sink.report(.ambiguous_module, import.span, .{ diagnostic.code(import.module), " is found as both ", diagnostic.code(source.name orelse import.module), " and ", diagnostic.code(library.modules[@intFromEnum(id)].path) }),
         }
     }
 
@@ -147,12 +142,12 @@ pub const Graph = struct {
     }
 
     fn reportUnreadable(import: cst.Import, reason: []const u8, sink: *diagnostic.Sink) !void {
-        try sink.report(.unreadable_module, import.span, "`{s}` cannot be read: {s}", .{ import.module, reason });
+        try sink.report(.unreadable_module, import.span, .{ diagnostic.code(import.module), " cannot be read: ", reason });
     }
 
     fn load(self: *Graph, import: cst.Import, sink: *diagnostic.Sink) Error!void {
         const source = switch (self.find(import)) {
-            .missing => return try sink.report(.unresolved_module, import.span, "no module is named `{s}`", .{import.module}),
+            .missing => return try sink.report(.unresolved_module, import.span, .{ "no module is named ", diagnostic.code(import.module) }),
             .failed => |reason| return try reportUnreadable(import, reason, sink),
             .found => |source| source,
         };
@@ -163,20 +158,10 @@ pub const Graph = struct {
 
         if (parsed.hasErrors()) return try sink.extend(parsed.diagnostics);
         const header = parsed.source_file.header orelse {
-            return try sink.report(
-                .module_name_mismatch,
-                import.span,
-                "`{s}` has no `module {s};` header",
-                .{ import.module, import.module },
-            );
+            return try sink.report(.module_name_mismatch, import.span, .{ diagnostic.code(import.module), " has no ", diagnostic.code(.{ "module ", import.module, ";" }), " header" });
         };
         if (!std.mem.eql(u8, header.name, import.module)) {
-            return try sink.report(
-                .module_name_mismatch,
-                header.span,
-                "this module is imported as `{s}`",
-                .{import.module},
-            );
+            return try sink.report(.module_name_mismatch, header.span, .{ "this module is imported as ", diagnostic.code(import.module) });
         }
         owned = false;
         try self.visit(.{ .source = parsed.source_file, .parsed = parsed }, sink);
@@ -186,19 +171,15 @@ pub const Graph = struct {
     /// both give the module it names.
     fn reportCycle(self: *Graph, start: usize, import: cst.Import, sink: *diagnostic.Sink) !void {
         if (start == 0) switch (self.find(import)) {
-            .found => |source| return try sink.report(
-                .ambiguous_module,
-                import.span,
-                "`{s}` is found as both the entry and `{s}`",
-                .{ import.module, source.name orelse import.module },
-            ),
+            .found => |source| return try sink.report(.ambiguous_module, import.span, .{ diagnostic.code(import.module), " is found as both the entry and ", diagnostic.code(source.name orelse import.module) }),
             .missing, .failed => {},
         };
-        var chain: std.Io.Writer.Allocating = .init(self.gpa);
-        defer chain.deinit();
-        for (self.path.items[start..]) |name| try chain.writer.print("`{s}` imports ", .{name.?});
-        try chain.writer.print("`{s}`", .{import.module});
-        try sink.report(.import_cycle, import.span, "imports form a cycle: {s}", .{chain.written()});
+        var message: diagnostic.Message = .init(sink.allocator);
+        defer message.deinit();
+        try message.append(.{"imports form a cycle: "});
+        for (self.path.items[start..]) |name| try message.append(.{ diagnostic.code(name.?), " imports " });
+        try message.append(.{diagnostic.code(import.module)});
+        try sink.add(.import_cycle, import.span, &message);
     }
 
     fn onPath(self: *const Graph, name: []const u8) ?usize {
@@ -216,12 +197,7 @@ pub const Graph = struct {
         const entry = self.order.items[self.order.items.len - 1];
         if (entry.grammars()) |declared| {
             if (!contains(declared, g.name)) {
-                try sink.report(
-                    .grammar_mismatch,
-                    entry.source.header.?.span,
-                    "this query is not written for `{s}`",
-                    .{g.name},
-                );
+                try sink.report(.grammar_mismatch, entry.source.header.?.span, .{ "this query is not written for ", diagnostic.code(g.name) });
             }
         }
         const run = [1][]const u8{g.name};
@@ -231,12 +207,7 @@ pub const Graph = struct {
                 const imported = self.named(import.module) orelse continue;
                 const provided = imported.grammars() orelse continue;
                 const wanted = written_for orelse {
-                    try sink.report(
-                        .grammar_mismatch,
-                        import.span,
-                        "`{s}` has a `for` clause, so a module without one cannot import it",
-                        .{import.module},
-                    );
+                    try sink.report(.grammar_mismatch, import.span, .{ diagnostic.code(import.module), " has a ", diagnostic.code("for"), " clause, so a module without one cannot import it" });
                     continue;
                 };
                 for (wanted) |grammar_name| {
@@ -256,12 +227,7 @@ pub const Graph = struct {
     }
 
     fn reportUnwritten(import: cst.Import, wanted: []const u8, sink: *diagnostic.Sink) !void {
-        try sink.report(
-            .grammar_mismatch,
-            import.span,
-            "`{s}` is not written for `{s}`",
-            .{ import.module, wanted },
-        );
+        try sink.report(.grammar_mismatch, import.span, .{ diagnostic.code(import.module), " is not written for ", diagnostic.code(wanted) });
     }
 
     fn named(self: *const Graph, name: []const u8) ?Module {

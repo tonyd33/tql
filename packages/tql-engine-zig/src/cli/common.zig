@@ -7,7 +7,7 @@ pub const Context = struct {
     io: std.Io,
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
-    stderr: *std.Io.Writer,
+    stderr: std.Io.Terminal,
     environ_map: *const std.process.Environ.Map,
 };
 
@@ -94,18 +94,18 @@ pub fn reportDiagnostics(
     sink: *const tql.diagnostic.Sink,
     source: []const u8,
     path: ?[]const u8,
-    stderr: *std.Io.Writer,
+    stderr: std.Io.Terminal,
 ) !void {
     for (sink.items(), 0..) |d, i| {
-        if (i > 0) try stderr.writeByte('\n');
+        if (i > 0) try stderr.writer.writeByte('\n');
         try d.render(stderr, engine.sourceOf(d.span.source, .{ .name = path, .text = source }));
     }
 }
 
 /// Write `path: error[category]: message` for `failure`, without the path
 /// when there is none.
-pub fn reportFailure(w: *std.Io.Writer, path: ?[]const u8, failure: tql.Failure) std.Io.Writer.Error!void {
-    if (path) |p| try w.print("{s}: ", .{p});
-    try failure.render(w);
-    try w.writeByte('\n');
+pub fn reportFailure(t: std.Io.Terminal, path: ?[]const u8, failure: tql.Failure) std.Io.Terminal.SetColorError!void {
+    if (path) |p| try t.writer.print("{s}: ", .{p});
+    try failure.render(t);
+    try t.writer.writeByte('\n');
 }

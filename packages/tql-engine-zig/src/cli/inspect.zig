@@ -28,7 +28,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     const io = ctx.io;
     const gpa = ctx.gpa;
     const stdout = ctx.stdout;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var grammars = try common.Grammars.init(gpa, ctx.environ_map);
     defer grammars.deinit(gpa);
@@ -80,7 +80,11 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     for (kind_names.items) |raw| {
         const name = if (std.mem.startsWith(u8, raw, ":")) raw[1..] else raw;
         const id = tql.kinds.resolve(language, name) orelse {
-            try stderr.print("error[unknown-kind]: `{s}` is not a node kind in this grammar\n", .{name});
+            try tql.diagnostic.writeHeadline(ctx.stderr, tql.diagnostic.Category.unknown_kind.name(), &.{
+                .{ .code = name },
+                .{ .text = " is not a node kind in this grammar" },
+            });
+            try stderr.writeByte('\n');
             return .invalid_args;
         };
         try kinds.append(gpa, id);
@@ -136,7 +140,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         failed = true;
         switch (format) {
             .text => {
-                try common.reportFailure(stderr, path, failure);
+                try common.reportFailure(ctx.stderr, path, failure);
                 try stderr.flush();
             },
             .json => {
@@ -196,8 +200,7 @@ const InspectTarget = struct {
                     if (self.written) try self.stdout.writeByte('\n');
                     self.written = true;
                     if (self.kinds.len > 0) {
-                        const p = rows.items[start].start_point;
-                        try self.stdout.print("{s}:{d}:{d}\n", .{ path, p.row + 1, p.column + 1 });
+                        try self.stdout.print("{s}:{f}\n", .{ path, rows.items[start].range.start_point });
                     } else if (self.headed) {
                         try self.stdout.print("{s}\n", .{path});
                     }

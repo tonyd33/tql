@@ -57,7 +57,7 @@ pub const Lowerer = struct {
     /// holds. Missing only when its module was not linked beneath this one.
     pub fn known(self: *Lowerer, which: core.Known, span: diagnostic.Span) Error!core.Term {
         const id = self.env.known.get(which) orelse {
-            try self.sink.report(.unresolved_name, span, "`{s}` is not defined", .{@tagName(which)});
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(@tagName(which)), " is not defined" });
             return error.DesugarFailed;
         };
         return self.builder.symbol(id, span);
@@ -98,15 +98,15 @@ pub const Lowerer = struct {
         span: diagnostic.Span,
     ) Error!core.Term {
         const id = try self.resolveGlobal(name, span) orelse {
-            try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is not a constructor" });
             return error.DesugarFailed;
         };
         if (self.env.interner.details(id) == .synonym) {
-            try self.sink.report(.unresolved_name, span, "`{s}` is a pattern synonym, which matches but does not build", .{name});
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is a pattern synonym, which matches but does not build" });
             return error.DesugarFailed;
         }
         if (datatypes.ownerOf(&self.env.interner, id) == null) {
-            try self.sink.report(.unresolved_name, span, "`{s}` is not a constructor", .{name});
+            try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is not a constructor" });
             return error.DesugarFailed;
         }
         return self.builder.symbol(id, span);
@@ -116,12 +116,7 @@ pub const Lowerer = struct {
     /// module has none, and naming one there is reported.
     fn grammar(self: *Lowerer, comptime what: []const u8, name: []const u8, span: diagnostic.Span) Error!*const ts.Language {
         return self.language orelse {
-            try self.sink.report(
-                .grammar_mismatch,
-                span,
-                "this module has no `for` clause, so it cannot name the " ++ what ++ " `{s}`",
-                .{name},
-            );
+            try self.sink.report(.grammar_mismatch, span, .{ "this module has no ", diagnostic.code("for"), " clause, so it cannot name the " ++ what ++ " ", diagnostic.code(name) });
             return error.DesugarFailed;
         };
     }
@@ -131,21 +126,20 @@ pub const Lowerer = struct {
     fn kindLiteral(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const language = try self.grammar("kind", name, span);
         const id = kinds.resolve(language, name) orelse {
-            try self.sink.report(
-                .unknown_kind,
-                span,
-                "`{s}` is not a node kind in this grammar",
-                .{name},
-            );
+            try self.sink.report(.unknown_kind, span, .{ diagnostic.code(name), " is not a node kind in this grammar" });
             return error.DesugarFailed;
         };
         if (language.nodeKindIsSupertype(id)) {
-            try self.sink.report(
-                .supertype_kind,
-                span,
-                "`{s}` is a supertype, so no node has this kind{f}",
-                .{ name, SubtypeList{ .language = language, .subtypes = try kinds.subtypes(self.builder.allocator, language, id) } },
-            );
+            var message: diagnostic.Message = .init(self.sink.allocator);
+            defer message.deinit();
+            try message.append(.{ diagnostic.code(name), " is a supertype, so no node has this kind" });
+            const subtypes = try kinds.subtypes(self.builder.allocator, language, id);
+            if (subtypes.len > 0) try message.append(.{"; use one of its subtypes:"});
+            for (subtypes, 0..) |subtype, i| {
+                const separator = if (i == 0) " " else ", ";
+                try message.append(.{ separator, diagnostic.code(kinds.spelled(language, subtype)) });
+            }
+            try self.sink.add(.supertype_kind, span, &message);
             return error.DesugarFailed;
         }
         return self.builder.literal(
@@ -153,22 +147,6 @@ pub const Lowerer = struct {
             span,
         );
     }
-
-    /// Formats as `; use one of its subtypes: ...`, or nothing when the
-    /// grammar does not record them.
-    const SubtypeList = struct {
-        language: *const ts.Language,
-        subtypes: []const u16,
-
-        pub fn format(self: SubtypeList, w: *std.Io.Writer) std.Io.Writer.Error!void {
-            if (self.subtypes.len == 0) return;
-            try w.writeAll("; use one of its subtypes:");
-            for (self.subtypes, 0..) |subtype, i| {
-                const separator = if (i == 0) " " else ", ";
-                try w.print("{s}`{f}`", .{ separator, kinds.spelled(self.language, subtype) });
-            }
-        }
-    };
 
     /// The synthesized symbol spelled by `spelling_format`, interned with its
     /// scheme on first use. Reports at `span` a record too wide to type.
@@ -183,12 +161,7 @@ pub const Lowerer = struct {
         const spelling = try self.builder.print(spelling_format, spelling_args);
         return primitives.synthesizedSymbol(self.env, spelling, what) catch |err| switch (err) {
             error.TooManyRecordFields => {
-                try self.sink.report(
-                    .type_mismatch,
-                    span,
-                    "a record has more fields than the type system can index",
-                    .{},
-                );
+                try self.sink.report(.type_mismatch, span, .{"a record has more fields than the type system can index"});
                 return error.DesugarFailed;
             },
             error.OutOfMemory => |e| return e,
@@ -209,7 +182,7 @@ pub const Lowerer = struct {
         const entries = try self.builder.slice(resolve.Scope.Entry, parameters.len);
         for (parameters, 0..) |p, i| {
             if (repeats(entries[0..i], p.name)) {
-                try self.sink.report(.duplicate_definition, p.span, "`{s}` names two parameters", .{p.name.?});
+                try self.sink.report(.duplicate_definition, p.span, .{ diagnostic.code(p.name.?), " names two parameters" });
                 return error.DesugarFailed;
             }
             entries[i] = .{
@@ -242,24 +215,9 @@ pub const Lowerer = struct {
             .regex => |r| {
                 var compiled = pcre2.Regex.compile(r) catch |err| {
                     switch (err) {
-                        error.InvalidPattern => try self.sink.report(
-                            .invalid_regex,
-                            e.span,
-                            "`{s}` is not a valid regular expression",
-                            .{r},
-                        ),
-                        error.Backreference => try self.sink.report(
-                            .invalid_regex,
-                            e.span,
-                            "`{s}` uses a backreference, which tql regexes do not support",
-                            .{r},
-                        ),
-                        error.Unsupported => try self.sink.report(
-                            .invalid_regex,
-                            e.span,
-                            "`{s}` uses `{s}`, which tql regexes do not support",
-                            .{ r, pcre2.unsupported(r).? },
-                        ),
+                        error.InvalidPattern => try self.sink.report(.invalid_regex, e.span, .{ diagnostic.code(r), " is not a valid regular expression" }),
+                        error.Backreference => try self.sink.report(.invalid_regex, e.span, .{ diagnostic.code(r), " uses a backreference, which tql regexes do not support" }),
+                        error.Unsupported => try self.sink.report(.invalid_regex, e.span, .{ diagnostic.code(r), " uses ", diagnostic.code(pcre2.unsupported(r).?), ", which tql regexes do not support" }),
                     }
                     return error.DesugarFailed;
                 };
@@ -275,22 +233,17 @@ pub const Lowerer = struct {
                     if (s.lookup(name)) |local| return self.builder.symbol(local, e.span);
                 }
                 if (try self.resolveGlobal(name, e.span)) |global| return self.builder.symbol(global, e.span);
-                try self.sink.report(
-                    .unresolved_name,
-                    e.span,
-                    "`{s}` is not defined",
-                    .{name},
-                );
+                try self.sink.report(.unresolved_name, e.span, .{ diagnostic.code(name), " is not defined" });
                 return error.DesugarFailed;
             },
 
             .primitive => |name| {
                 if (self.scope.module != .prim) {
-                    try self.sink.report(.unresolved_name, e.span, "`{s}` is not defined outside `Prim`", .{name});
+                    try self.sink.report(.unresolved_name, e.span, .{ diagnostic.code(name), " is not defined outside ", diagnostic.code("Prim") });
                     return error.DesugarFailed;
                 }
                 const primitive = self.env.interner.lookup(null, name) orelse {
-                    try self.sink.report(.unresolved_name, e.span, "`{s}` is not defined", .{name});
+                    try self.sink.report(.unresolved_name, e.span, .{ diagnostic.code(name), " is not defined" });
                     return error.DesugarFailed;
                 };
                 return switch (self.env.interner.details(primitive)) {
@@ -498,7 +451,7 @@ pub const Lowerer = struct {
     pub fn fieldFunction(self: *Lowerer, name: []const u8, span: diagnostic.Span) Error!core.Term {
         const id = (try self.grammar("field", name, span)).fieldIdForName(name);
         if (id == 0) {
-            try self.sink.report(.unknown_field, span, "`{s}` is not a field in this grammar", .{name});
+            try self.sink.report(.unknown_field, span, .{ diagnostic.code(name), " is not a field in this grammar" });
             return error.DesugarFailed;
         }
         return self.builder.symbol(
@@ -561,7 +514,7 @@ pub const Lowerer = struct {
         if (order.len > 1) for (order[0 .. order.len - 1], order[1..]) |previous, i| {
             const field = r.fields[i];
             if (!std.mem.eql(u8, r.fields[previous].name, field.name)) continue;
-            try self.sink.report(.duplicate_definition, field.span, "`{s}` labels two fields of one record", .{field.name});
+            try self.sink.report(.duplicate_definition, field.span, .{ diagnostic.code(field.name), " labels two fields of one record" });
             return error.DesugarFailed;
         };
 
@@ -612,7 +565,7 @@ pub const Lowerer = struct {
         const entries = try self.builder.slice(resolve.Scope.Entry, bindings.len);
         for (bindings, 0..) |b, i| {
             if (repeats(entries[0..i], b.name)) {
-                try self.sink.report(.duplicate_definition, b.span, "`{s}` is defined more than once", .{b.name.?});
+                try self.sink.report(.duplicate_definition, b.span, .{ diagnostic.code(b.name.?), " is defined more than once" });
                 return error.DesugarFailed;
             }
             entries[i] = .{
@@ -626,11 +579,11 @@ pub const Lowerer = struct {
         for (group.signatures, 0..) |sig, i| {
             for (group.signatures[0..i]) |earlier| {
                 if (!std.mem.eql(u8, earlier.name, sig.name)) continue;
-                try self.sink.report(.duplicate_signature, sig.span, "`{s}` has more than one signature", .{sig.name});
+                try self.sink.report(.duplicate_signature, sig.span, .{ diagnostic.code(sig.name), " has more than one signature" });
                 return error.DesugarFailed;
             }
             const symbol = own.lookup(sig.name) orelse {
-                try self.sink.report(.orphan_signature, sig.span, "`{s}` has a signature but no definition", .{sig.name});
+                try self.sink.report(.orphan_signature, sig.span, .{ diagnostic.code(sig.name), " has a signature but no definition" });
                 return error.DesugarFailed;
             };
             try self.annotate(symbol, &sig);

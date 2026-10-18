@@ -30,7 +30,7 @@ pub const command = .{
 
 pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     const gpa = ctx.gpa;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var grammars = try common.Grammars.init(gpa, ctx.environ_map);
     defer grammars.deinit(gpa);
@@ -135,7 +135,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
         .workers = workers,
         .progress = progress,
     }) catch |err| {
-        try common.reportFailure(stderr, null, .ofAny(err));
+        try common.reportFailure(ctx.stderr, null, .ofAny(err));
         return .runtime_error;
     };
 }

@@ -161,7 +161,7 @@ pub fn caseOf(
     const scrutinee = try lowerer.expression(c.scrutinee, scope);
 
     if (c.alternatives.len == 0) {
-        try lowerer.sink.report(.non_exhaustive, span, "a case has no alternatives", .{});
+        try lowerer.sink.report(.non_exhaustive, span, .{"a case has no alternatives"});
         return error.DesugarFailed;
     }
 
@@ -236,22 +236,12 @@ fn parameterNames(lowerer: *Lowerer, synonym: *const cst.PatternSynonym) Error![
     const names = try lowerer.builder.slice([]const u8, synonym.parameters.len);
     for (synonym.parameters, names, 0..) |parameter, *name, i| {
         name.* = parameter.name orelse {
-            try lowerer.sink.report(
-                .unresolved_name,
-                parameter.span,
-                "the parameter `_` of `{s}` is not bound by its pattern",
-                .{synonym.name},
-            );
+            try lowerer.sink.report(.unresolved_name, parameter.span, .{ "the parameter ", diagnostic.code("_"), " of ", diagnostic.code(synonym.name), " is not bound by its pattern" });
             return error.DesugarFailed;
         };
         for (names[0..i]) |earlier| {
             if (!std.mem.eql(u8, earlier, name.*)) continue;
-            try lowerer.sink.report(
-                .duplicate_definition,
-                parameter.span,
-                "`{s}` names two parameters of `{s}`",
-                .{ name.*, synonym.name },
-            );
+            try lowerer.sink.report(.duplicate_definition, parameter.span, .{ diagnostic.code(name.*), " names two parameters of ", diagnostic.code(synonym.name) });
             return error.DesugarFailed;
         }
     }
@@ -272,12 +262,7 @@ fn checkBinds(
         for (names) |name| {
             if (std.mem.eql(u8, name, variable.name)) break;
         } else {
-            try lowerer.sink.report(
-                .unresolved_name,
-                variable.span,
-                "`{s}` is not a parameter of `{s}`, and a synonym binds only its parameters",
-                .{ variable.name, synonym.name },
-            );
+            try lowerer.sink.report(.unresolved_name, variable.span, .{ diagnostic.code(variable.name), " is not a parameter of ", diagnostic.code(synonym.name), ", and a synonym binds only its parameters" });
             return error.DesugarFailed;
         }
     }
@@ -285,12 +270,7 @@ fn checkBinds(
         for (binders.items) |variable| {
             if (std.mem.eql(u8, name, variable.name)) break;
         } else {
-            try lowerer.sink.report(
-                .unresolved_name,
-                parameter.span,
-                "the parameter `{s}` of `{s}` is not bound by its pattern",
-                .{ name, synonym.name },
-            );
+            try lowerer.sink.report(.unresolved_name, parameter.span, .{ "the parameter ", diagnostic.code(name), " of ", diagnostic.code(synonym.name), " is not bound by its pattern" });
             return error.DesugarFailed;
         }
     }
@@ -346,12 +326,7 @@ fn lower(
 
     for (arms, matcher.uses) |arm, uses| {
         if (uses > 0) continue;
-        try lowerer.sink.report(
-            .redundant_alternative,
-            arm.written.span,
-            "`{f}` is never matched",
-            .{Written{ .pattern = arm.written }},
-        );
+        try lowerer.sink.report(.redundant_alternative, arm.written.span, .{ diagnostic.code(Written{ .pattern = arm.written }), " is never matched" });
         return error.DesugarFailed;
     }
 
@@ -404,7 +379,7 @@ fn kernel(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
     for (variables.items, 0..) |variable, i| {
         for (variables.items[0..i]) |earlier| {
             if (!std.mem.eql(u8, earlier.name, variable.name)) continue;
-            try lowerer.sink.report(.duplicate_definition, variable.span, "`{s}` is bound twice in one pattern", .{variable.name});
+            try lowerer.sink.report(.duplicate_definition, variable.span, .{ diagnostic.code(variable.name), " is bound twice in one pattern" });
             return error.DesugarFailed;
         }
     }
@@ -431,24 +406,14 @@ fn expand(lowerer: *Lowerer, pattern: cst.Pattern) Error!Pattern {
                 const matcher = lowerer.env.interner.details(symbol).synonym.matcher;
                 const arity = lowerer.env.interner.details(matcher).matcher.arity;
                 if (c.arguments.len != arity) {
-                    try lowerer.sink.report(
-                        .type_mismatch,
-                        span,
-                        "`{s}` takes {d} argument(s), given {d}",
-                        .{ c.name, arity, c.arguments.len },
-                    );
+                    try lowerer.sink.report(.type_mismatch, span, .{ diagnostic.code(c.name), " takes ", arity, " argument(s), given ", c.arguments.len });
                     return error.DesugarFailed;
                 }
                 break :blk .{ .synonym = .{ .symbol = symbol, .matcher = matcher, .arguments = try expandAll(lowerer, c.arguments) } };
             } else blk: {
                 const constructor = try constructorNamed(lowerer, c, span);
                 if (c.arguments.len != constructor.fields.len) {
-                    try lowerer.sink.report(
-                        .type_mismatch,
-                        span,
-                        "`{s}` binds {d} field(s), given {d}",
-                        .{ c.name, constructor.fields.len, c.arguments.len },
-                    );
+                    try lowerer.sink.report(.type_mismatch, span, .{ diagnostic.code(c.name), " binds ", constructor.fields.len, " field(s), given ", c.arguments.len });
                     return error.DesugarFailed;
                 }
                 break :blk .{ .constructor = .{ .symbol = constructor.symbol, .arguments = try expandAll(lowerer, c.arguments) } };
@@ -627,7 +592,7 @@ fn constructorNamed(
     if (try lowerer.resolveGlobal(c.name, span)) |id| {
         if (lowerer.scope.env.datatypes.constructorOf(&lowerer.env.interner, id)) |constructor| return constructor;
     }
-    try lowerer.sink.report(.unresolved_name, span, "`{s}` is not a constructor or a pattern synonym", .{c.name});
+    try lowerer.sink.report(.unresolved_name, span, .{ diagnostic.code(c.name), " is not a constructor or a pattern synonym" });
     return error.DesugarFailed;
 }
 
@@ -867,12 +832,7 @@ const Matcher = struct {
                 .fallthrough => return try self.node(.fail),
             };
             const note = if (report.list_literal) "; a list literal's length is not checked" else "";
-            try self.lowerer.sink.report(
-                .non_exhaustive,
-                self.span,
-                "`{f}` is not matched{s}",
-                .{ Witness{ .matcher = self, .occurrence = self.root, .nested = false }, note },
-            );
+            try self.lowerer.sink.report(.non_exhaustive, self.span, .{ diagnostic.code(Witness{ .matcher = self, .occurrence = self.root, .nested = false }), " is not matched", note });
             return error.DesugarFailed;
         }
 
@@ -986,12 +946,7 @@ const Matcher = struct {
                     continue;
                 };
                 if (this != expected) {
-                    try self.lowerer.sink.report(
-                        .type_mismatch,
-                        item.pattern.span,
-                        "`{s}` is not a constructor of `{s}`",
-                        .{ self.lowerer.env.interner.spelling(c.symbol), self.lowerer.scope.env.datatypes.get(expected).name },
-                    );
+                    try self.lowerer.sink.report(.type_mismatch, item.pattern.span, .{ diagnostic.code(self.lowerer.env.interner.spelling(c.symbol)), " is not a constructor of ", diagnostic.code(self.lowerer.scope.env.datatypes.get(expected).name) });
                     return error.DesugarFailed;
                 }
             }

@@ -212,18 +212,8 @@ pub const ModuleScope = struct {
         failure: Failure,
     ) !void {
         switch (failure) {
-            .ambiguous => |modules| try sink.report(
-                .ambiguous_name,
-                span,
-                "`{s}` is declared by both `{s}` and `{s}`",
-                .{ written, self.env.interner.moduleName(modules[0]), self.env.interner.moduleName(modules[1]) },
-            ),
-            .unknown_qualifier => |q| try sink.report(
-                .unresolved_name,
-                span,
-                "no import is qualified as `{s}`",
-                .{q},
-            ),
+            .ambiguous => |modules| try sink.report(.ambiguous_name, span, .{ diagnostic.code(written), " is declared by both ", diagnostic.code(self.env.interner.moduleName(modules[0])), " and ", diagnostic.code(self.env.interner.moduleName(modules[1])) }),
+            .unknown_qualifier => |q| try sink.report(.unresolved_name, span, .{ "no import is qualified as ", diagnostic.code(q) }),
         }
     }
 
@@ -248,29 +238,19 @@ pub const ModuleScope = struct {
             .value, .synonym => if (exports.values.get(item.name)) |symbol| self.itemNames(item, symbol) else false,
             .type, .type_and_constructors => exports.types.contains(item.name),
             .module => {
-                try sink.report(.unresolved_name, item.span, "`module {s}` belongs in an export list", .{item.name});
+                try sink.report(.unresolved_name, item.span, .{ diagnostic.code(.{ "module ", item.name }), " belongs in an export list" });
                 return false;
             },
         };
         if (!exported) {
-            try sink.report(
-                .unresolved_name,
-                item.span,
-                "`{s}` does not export `{s}`",
-                .{ self.env.interner.moduleName(module), item.name },
-            );
+            try sink.report(.unresolved_name, item.span, .{ diagnostic.code(self.env.interner.moduleName(module)), " does not export ", diagnostic.code(item.name) });
             return false;
         }
         if (item.kind != .type_and_constructors) return true;
         const name = exports.types.get(item.name).?;
         const noun = try membersNoun(name, item, sink) orelse return false;
         if (self.exportsMembers(exports, name)) return true;
-        try sink.report(
-            .unresolved_name,
-            item.span,
-            "`{s}` does not export the {s} of `{s}`",
-            .{ self.env.interner.moduleName(module), noun, item.name },
-        );
+        try sink.report(.unresolved_name, item.span, .{ diagnostic.code(self.env.interner.moduleName(module)), " does not export the ", noun, " of ", diagnostic.code(item.name) });
         return false;
     }
 
@@ -308,7 +288,7 @@ pub const ModuleScope = struct {
             .datatype => "constructors",
             .class => "methods",
             .alias => {
-                try sink.report(.unresolved_name, item.span, "`{s}` is an alias and has no constructors", .{item.name});
+                try sink.report(.unresolved_name, item.span, .{ diagnostic.code(item.name), " is an alias and has no constructors" });
                 return null;
             },
         };
@@ -366,7 +346,7 @@ pub const ModuleScope = struct {
                     try self.merge(arena, out, visible, item.span, sink);
                 }
                 if (!imported) {
-                    try sink.report(.unresolved_name, item.span, "`{s}` is not imported unqualified", .{item.name});
+                    try sink.report(.unresolved_name, item.span, .{ diagnostic.code(item.name), " is not imported unqualified" });
                 }
             },
         }
@@ -390,18 +370,7 @@ pub const ModuleScope = struct {
             return;
         }
         if (std.meta.eql(slot.value_ptr.*, entity)) return;
-        try sink.report(
-            .conflicting_export,
-            span,
-            "`{s}` is exported as both `{s}.{s}` and `{s}.{s}`",
-            .{
-                spelling,
-                self.env.interner.moduleName(self.origin(T, slot.value_ptr.*)),
-                spelling,
-                self.env.interner.moduleName(self.origin(T, entity)),
-                spelling,
-            },
-        );
+        try sink.report(.conflicting_export, span, .{ diagnostic.code(spelling), " is exported as both ", diagnostic.code(.{ self.env.interner.moduleName(self.origin(T, slot.value_ptr.*)), ".", spelling }), " and ", diagnostic.code(.{ self.env.interner.moduleName(self.origin(T, entity)), ".", spelling }) });
     }
 
     /// The module that declares `entity`.
@@ -438,7 +407,7 @@ pub const ModuleScope = struct {
     }
 
     fn reportUndeclared(item: cst.Item, sink: *diagnostic.Sink) !void {
-        try sink.report(.unresolved_name, item.span, "`{s}` is not declared in this module", .{item.name});
+        try sink.report(.unresolved_name, item.span, .{ diagnostic.code(item.name), " is not declared in this module" });
     }
 
     /// The spelling `name` was declared with.
