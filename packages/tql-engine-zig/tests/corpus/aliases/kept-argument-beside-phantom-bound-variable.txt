@@ -1,0 +1,25 @@
+title: a variable unified with an alias that mentions it in an argument its body drops
+grammar: typescript
+asserts: types, values
+
+`y` gets `Const Int b`, and unifying `b` with that solves `b` to `Int`.
+
+--- tql ---
+type Const a b = a;
+
+k :: Const Int b -> b -> Int;
+k x y = x;
+
+h y = k y y;
+
+main = pure (h 1);
+
+--- source ---
+class A {}
+
+--- values ---
+[1]
+--- types ---
+k :: Const Int a -> a -> Int
+h :: Const Int Int -> Int
+main :: Filter Node Int

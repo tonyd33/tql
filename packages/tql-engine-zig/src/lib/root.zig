@@ -38,6 +38,7 @@ pub const core_to_stg = @import("core_to_stg.zig");
 pub const stg = @import("stg.zig");
 
 pub const inspect = @import("inspect.zig");
+pub const kinds = @import("lang/kinds.zig");
 pub const utf8 = @import("utf8.zig");
 
 const grammar = @import("lang/grammar.zig");
@@ -568,6 +569,7 @@ test {
     refAllDecls(core_to_stg);
     refAllDecls(stg);
     refAllDecls(inspect);
+    refAllDecls(kinds);
 }
 
 test "a module both in the library and loaded is ambiguous" {

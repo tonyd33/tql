@@ -139,13 +139,13 @@ fn split(arena: Allocator, t: types.Type) Allocator.Error!?Split {
 }
 
 fn bindMeta(subst: *Substitution, id: types.Meta, t: types.Type) Allocator.Error!Result {
-    if (subst.occurs(id, t)) {
+    const solution = try subst.occursCheck(id, t) orelse {
         return .{ .mismatch = .{ .reason = .occurs, .expected = .{ .meta = id }, .found = t } };
-    }
+    };
     if (!try hasKind(subst, t, subst.kindOf(id))) {
         return .{ .mismatch = .{ .reason = .kind, .expected = .{ .meta = id }, .found = t } };
     }
-    subst.bind(id, t);
+    subst.bind(id, solution);
     return .unified;
 }
 

@@ -9,7 +9,7 @@ nothing. The diagnostic lists the subtypes to use instead.
 main = descendants_of_kind :expression_statement;
 
 --- error ---
-error[supertype-kind]: `expression_statement` is a supertype, so no node has this kind; use one of its subtypes: `assignment`, `augmented_assignment`, `expression`, `tuple_expression`, `yield`
+error[supertype-kind]: `expression_statement` is a supertype, so no node has this kind; use one of its subtypes: `:as_pattern`, `:assignment`, `:attribute`, `:augmented_assignment`, `:await`, `:binary_operator`, `:boolean_operator`, `:call`, `:comparison_operator`, `:concatenated_string`, `:conditional_expression`, `:dictionary`, `:dictionary_comprehension`, `:ellipsis`, `:false`, `:float`, `:generator_expression`, `:identifier`, `:integer`, `:lambda`, `:list`, `:list_comprehension`, `:list_splat`, `:named_expression`, `:none`, `:not_operator`, `:parenthesized_expression`, `:set`, `:set_comprehension`, `:string`, `:subscript`, `:true`, `:tuple`, `:tuple_expression`, `:unary_operator`, `:yield`
  --> 1:28
   |
 1 | main = descendants_of_kind :expression_statement;
