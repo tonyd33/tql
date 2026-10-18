@@ -38,6 +38,7 @@ pub const core_to_stg = @import("core_to_stg.zig");
 pub const stg = @import("stg.zig");
 
 pub const inspect = @import("inspect.zig");
+pub const utf8 = @import("utf8.zig");
 
 const grammar = @import("lang/grammar.zig");
 const string_literal = @import("lang/string_literal.zig");
@@ -517,6 +518,7 @@ test {
     const refAllDecls = std.testing.refAllDecls;
     refAllDecls(@This());
     refAllDecls(pcre2);
+    refAllDecls(utf8);
     refAllDecls(cst);
     refAllDecls(diagnostic);
     refAllDecls(parse);

@@ -161,6 +161,7 @@
 const std = @import("std");
 const ts = @import("tree-sitter");
 const pcre2 = @import("../regex.zig");
+const utf8 = @import("../utf8.zig");
 const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
@@ -1033,7 +1034,7 @@ pub const Machine = struct {
                     _ = try self.nodeArgument(arguments);
                     const target = self.target orelse return self.nothing();
                     const path = target.path orelse return self.nothing();
-                    return self.just(try self.valueThunk(.{ .string = try self.decoded(path) }));
+                    return self.just(try self.valueThunk(.{ .string = try utf8.decode(self.arena, path) }));
                 },
 
                 // Children and anonymous tokens, document order.
@@ -1069,14 +1070,7 @@ pub const Machine = struct {
     fn nodeText(self: *Machine, node: ts.Node) Error![]const u8 {
         const target = self.target orelse return error.TypeError;
         const bytes = target.source[node.startByte()..node.endByte()];
-        return if (target.utf8) bytes else self.decoded(bytes);
-    }
-
-    /// Returns `bytes` with each ill-formed UTF-8 sequence replaced by U+FFFD,
-    /// copied into the arena only when there is one.
-    fn decoded(self: *Machine, bytes: []const u8) Error![]const u8 {
-        if (std.unicode.utf8ValidateSlice(bytes)) return bytes;
-        return std.fmt.allocPrint(self.arena, "{f}", .{std.unicode.fmtUtf8(bytes)});
+        return if (target.utf8) bytes else utf8.decode(self.arena, bytes);
     }
 
     fn nodeArgument(self: *Machine, arguments: []const *value.Thunk) Error!ts.Node {

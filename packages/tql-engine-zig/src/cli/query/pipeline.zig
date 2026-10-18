@@ -305,15 +305,6 @@ fn warnSyntaxErrors(w: *std.Io.Writer, filename: []const u8, errors: []const tql
     });
 }
 
-/// Write `filename` as a JSON string, with each ill-formed UTF-8 sequence
-/// replaced by U+FFFD.
-fn writeFilename(jws: *std.json.Stringify, gpa: std.mem.Allocator, filename: []const u8) !void {
-    if (std.unicode.utf8ValidateSlice(filename)) return jws.write(filename);
-    const decoded = try std.fmt.allocPrint(gpa, "{f}", .{std.unicode.fmtUtf8(filename)});
-    defer gpa.free(decoded);
-    try jws.write(decoded);
-}
-
 fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
     var totals: FileStats = .{};
     try jws.beginObject();
@@ -324,7 +315,7 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         if (result.failure) |failure| {
             try jws.beginObject();
             try jws.objectField("file");
-            try writeFilename(jws, ctx.allocator, result.filename);
+            try jws.write(tql.utf8.Lossy{ .bytes = result.filename });
             try jws.objectField("failure");
             try jws.write(failure);
             try jws.endObject();
@@ -335,7 +326,7 @@ fn writerThreadJson(ctx: *SharedContext, jws: *std.json.Stringify) !void {
         totals.query_time = std.Io.Duration.fromNanoseconds(totals.query_time.nanoseconds + result.stats.query_time.nanoseconds);
         try jws.beginObject();
         try jws.objectField("file");
-        try writeFilename(jws, ctx.allocator, result.filename);
+        try jws.write(tql.utf8.Lossy{ .bytes = result.filename });
         try jws.objectField("values");
         try jws.beginWriteRaw();
         try jws.writer.writeAll(result.values);

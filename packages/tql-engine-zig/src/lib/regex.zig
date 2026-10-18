@@ -47,23 +47,22 @@ pub const Regex = struct {
     }
 
     /// Whether `haystack` contains a match, using `scratch` instead of
-    /// allocating where it can. An ill-formed UTF-8 sequence in `haystack`
-    /// matches as U+FFFD.
+    /// allocating where it can.
     ///
     /// Fails with `RegexFailed` only for a construct the DFA matcher rejects
     /// when it reaches it and `unsupported` lets through: a recursion that
     /// consumes nothing before recursing.
+    ///
+    /// Preconditions:
+    /// - `haystack` is well-formed UTF-8. Every string the machine holds is:
+    ///   the parser rejects an ill-formed literal, and `text` and `filename`
+    ///   decode what they read.
     pub fn isMatch(self: *const Self, haystack: []const u8, scratch: *MatchData) error{ OutOfMemory, RegexFailed }!bool {
-        const subject = if (std.unicode.utf8ValidateSlice(haystack)) haystack else blk: {
-            scratch.decoded.clearRetainingCapacity();
-            scratch.decoded.writer.print("{f}", .{std.unicode.fmtUtf8(haystack)}) catch return error.OutOfMemory;
-            break :blk scratch.decoded.written();
-        };
         while (true) {
             const rc = re.pcre2_dfa_match_8(
                 self.regex,
-                subject.ptr,
-                subject.len,
+                haystack.ptr,
+                haystack.len,
                 0,
                 re.PCRE2_DFA_SHORTEST | re.PCRE2_NO_UTF_CHECK,
                 scratch.data,
@@ -176,8 +175,6 @@ pub const MatchData = struct {
     context: *re.pcre2_match_context_8,
     /// The DFA matcher's state vectors. Doubled whenever a pattern needs more.
     workspace: []c_int,
-    /// The subject with each ill-formed UTF-8 sequence replaced by U+FFFD.
-    decoded: std.Io.Writer.Allocating,
 
     pub fn create(gpa: std.mem.Allocator) error{OutOfMemory}!MatchData {
         // One pair: a test reads only whether there was a match.
@@ -193,7 +190,6 @@ pub const MatchData = struct {
             .data = data,
             .context = context,
             .workspace = try gpa.alloc(c_int, 1024),
-            .decoded = .init(gpa),
         };
     }
 
@@ -204,7 +200,6 @@ pub const MatchData = struct {
     }
 
     pub fn deinit(self: *MatchData) void {
-        self.decoded.deinit();
         self.gpa.free(self.workspace);
         re.pcre2_match_context_free_8(self.context);
         re.pcre2_match_data_free_8(self.data);
@@ -227,15 +222,6 @@ test "a dot matches one code point" {
     defer scratch.deinit();
     try std.testing.expect(try regex.isMatch("é", &scratch));
     try std.testing.expect(!try regex.isMatch("e\u{301}", &scratch));
-}
-
-test "an ill-formed sequence matches as one replacement character" {
-    var regex = try Regex.compile("^a\u{FFFD}b$");
-    defer regex.deinit();
-    var scratch = try MatchData.create(std.testing.allocator);
-    defer scratch.deinit();
-    try std.testing.expect(try regex.isMatch("a\xe2\x82b", &scratch));
-    try std.testing.expect(!try regex.isMatch("a\xffb\xff", &scratch));
 }
 
 test "classes are ASCII" {
