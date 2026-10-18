@@ -19,4 +19,4 @@ class A {}
 
 --- types ---
 rewrap :: (a b -> c d) -> Wrap a b -> Wrap c d
-main :: Filter Node Int
+main :: Kleisli List Node Int

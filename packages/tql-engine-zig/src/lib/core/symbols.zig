@@ -35,8 +35,8 @@ pub const Known = enum {
     compose_flipped,
     kleisli,
     alt,
-    run,
-    Filter,
+    run_kleisli,
+    Kleisli,
     of_kind,
 };
 

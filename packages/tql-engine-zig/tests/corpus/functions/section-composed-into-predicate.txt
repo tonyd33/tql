@@ -15,4 +15,4 @@ f("y");
 ["import(\"x\")"]
 
 --- core ---
-main = compose_flipped (compose_flipped (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) (run (Filter field[function]))))) (arr text)
+main = compose_flipped (compose_flipped (descendants_of_kind :call_expression) (keep (compose (any (compose (\x -> eq x "import") text)) (run (Kleisli field[function]))))) (arr text)

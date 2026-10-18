@@ -13,7 +13,7 @@ sums = do {
   return $ l + r;
 };
 
-main = Filter (\_ -> sums);
+main = Kleisli $ \_ -> sums;
 
 --- source ---
 class A {}
@@ -23,8 +23,8 @@ class A {}
 
 --- types ---
 sums :: [Int]
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 sums = bind (Cons 10 (Cons 20 Nil)) (\l -> bind (Cons 1 (Cons 2 Nil)) (\r -> return (op[+] l r)))
-main = Filter (\_ -> sums)
+main = Kleisli (\_ -> sums)

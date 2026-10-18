@@ -4,7 +4,7 @@ asserts: values
 
 --- tql ---
 
-main = Filter (\_ -> ["abc" ~ r"b", "xyz" ~ r"b", "b" ~ r"b"]);
+main = Kleisli $ \_ -> ["abc" ~ r"b", "xyz" ~ r"b", "b" ~ r"b"];
 
 --- source ---
 class A {}

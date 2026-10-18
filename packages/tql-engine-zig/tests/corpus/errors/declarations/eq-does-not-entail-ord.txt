@@ -10,7 +10,7 @@ import Data.Function (const);
 
 less :: Eq a => a -> a -> Bool;
 less x y = x < y;
-main = Filter (const [less 1 2]);
+main = Kleisli $ const [less 1 2];
 
 --- error ---
 error[signature-mismatch]: `Ord a` is needed, but the signature of `less` does not give it.

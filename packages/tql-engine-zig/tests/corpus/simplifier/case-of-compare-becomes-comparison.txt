@@ -10,7 +10,7 @@ at_most x y = case compare x y of {
   GT -> False;
 };
 
-main = Filter (\_ -> [at_most 1 2, at_most 2 2, at_most 3 2]);
+main = Kleisli $ \_ -> [at_most 1 2, at_most 2 2, at_most 3 2];
 
 --- source ---
 class A {}

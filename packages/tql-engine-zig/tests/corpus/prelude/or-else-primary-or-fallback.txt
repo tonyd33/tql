@@ -20,5 +20,5 @@ class B {}
 ["m", "n", "none"]
 
 --- types ---
-method_names :: Filter Node String
-main :: Filter Node String
+method_names :: Kleisli List Node String
+main :: Kleisli List Node String

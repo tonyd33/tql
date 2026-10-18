@@ -301,10 +301,10 @@ pub const Lowerer = struct {
 
             .kind_test => |name| return try self.kindLiteral(name, e.span),
 
-            // A leading `#f` is `Filter field[f]`, and `x#f` is `field[f] x`.
+            // A leading `#f` is `Kleisli field[f]`, and `x#f` is `field[f] x`.
             .navigation => |n| {
                 const field = try self.fieldFunction(n.field, e.span);
-                const subject = n.node orelse return try self.builder.apply(try self.known(.Filter, e.span), field, e.span);
+                const subject = n.node orelse return try self.builder.apply(try self.known(.Kleisli, e.span), field, e.span);
                 return try self.builder.apply(field, try self.expression(subject, scope), e.span);
             },
 

@@ -6,7 +6,7 @@ asserts: stg, values
 rev xs = let {
   go ys acc = case ys of { [] -> acc; h : t -> go t (h : acc) };
 } in go xs [];
-main = Filter (\_ -> rev [1, 2]);
+main = Kleisli $ \_ -> rev [1, 2];
 
 --- source ---
 class A {}

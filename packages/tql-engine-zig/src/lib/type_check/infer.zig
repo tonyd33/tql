@@ -1273,10 +1273,11 @@ pub const Inference = struct {
         return self.inferred.get(id);
     }
 
-    /// `Filter input output`.
+    /// `Kleisli List input output`.
     fn filter(self: *Inference, input: types.Type, output: types.Type) Error!types.Type {
-        const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Filter).?).?;
-        return try types.constructed(self.subst.arena, id, self.env.datatypes.get(id).name, &.{ input, output });
+        const id = core.datatypes.ownerOf(&self.env.interner, self.env.known.get(.Kleisli).?).?;
+        const list = try types.constructed(self.subst.arena, core.datatypes.list_id, types.list_spelling, &.{});
+        return try types.constructed(self.subst.arena, id, self.env.datatypes.get(id).name, &.{ list, input, output });
     }
 
     /// The `tau` of `Filter Node tau` once `t` is unified with it, or null,

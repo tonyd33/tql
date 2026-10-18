@@ -44,7 +44,7 @@ main = \x -> bind[List] (%descendants_of_kind :call_expression x) (
 
 --- core ---
 $mCallee = \s -> \k -> \f ->
-  let view = run (of_kind :call_expression) s in
+  let view = run_kleisli (of_kind :call_expression) s in
   case view of
     Nil -> f
     Cons cons0 cons1 ->
@@ -58,7 +58,7 @@ $mCallee = \s -> \k -> \f ->
           Cons _ _ -> f
 $mMethod = \s -> \k -> \f -> $mCallee s (
   \callee0 ->
-    let view = run (of_kind :member_expression) callee0 in
+    let view = run_kleisli (of_kind :member_expression) callee0 in
     case view of
       Nil -> f
       Cons cons0 cons1 ->
@@ -79,7 +79,7 @@ $mMethod = \s -> \k -> \f -> $mCallee s (
 ) f
 $mConsoleCall = \s -> \k -> \f -> $mMethod s (
   \method0 -> \p ->
-    let view = run (of_kind :identifier) method0 in
+    let view = run_kleisli (of_kind :identifier) method0 in
     case view of
       Nil -> f
       Cons cons0 cons1 ->

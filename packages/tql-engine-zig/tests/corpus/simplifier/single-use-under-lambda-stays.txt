@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, simplified, values
 
 --- tql ---
-main = let { a = 2 * 3 } in Filter (\_ -> map (\x -> x + a) [1, 2]);
+main = let { a = 2 * 3 } in Kleisli $ \_ -> map (\x -> x + a) [1, 2];
 
 --- source ---
 class A {}
@@ -19,4 +19,4 @@ main =
 --- core ---
 main =
   let a = op[*] 2 3 in
-  Filter (\_ -> map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))
+  Kleisli (\_ -> map (\x -> op[+] x a) (Cons 1 (Cons 2 Nil)))

@@ -9,7 +9,7 @@ and used at two types (Declarations: Generalisation).
 f x = let {
   twice g y = g (g y);
 } in [{ n = twice (\n -> n + x) 1, b = twice not True }];
-main = Filter (\_ -> f 1);
+main = Kleisli $ \_ -> f 1;
 
 --- source ---
 f(x);

@@ -7,7 +7,7 @@ pattern does not match the empty string.
 
 --- tql ---
 
-main = Filter (\_ -> ["" ~ r"", "abc" ~ r"", "" ~ r"a"]);
+main = Kleisli $ \_ -> ["" ~ r"", "abc" ~ r"", "" ~ r"a"];
 
 --- source ---
 class A {}
@@ -16,4 +16,4 @@ class A {}
 [true, true, false]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

@@ -7,7 +7,7 @@ f b xs ys = case (if b then xs else ys) of {
   [] -> 0;
   h : t -> h * 2 + h * 3 + h * 4 + h * 5;
 };
-main = Filter (\_ -> [f True [1] [], f False [] [2]]);
+main = Kleisli $ \_ -> [f True [1] [], f False [] [2]];
 
 --- source ---
 class A {}

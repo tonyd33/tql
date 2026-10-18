@@ -15,4 +15,4 @@ let x = 1;
 
 --- types ---
 sure :: Bool -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

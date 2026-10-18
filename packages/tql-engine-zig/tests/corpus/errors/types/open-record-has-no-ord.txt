@@ -6,7 +6,7 @@ asserts: error
 import Data.Function (const);
 
 bigger r = r < r and r.x == 1;
-main = Filter (const [bigger {x = 1}]);
+main = Kleisli $ const [bigger {x = 1}];
 
 --- error ---
 error[unsatisfied-constraint]: `Ord {x: Int | a}` is not satisfied.

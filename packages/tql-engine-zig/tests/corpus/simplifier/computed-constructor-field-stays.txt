@@ -4,10 +4,10 @@ asserts: core, simplified, values
 
 --- tql ---
 data P = Mk Int Int;
-f x = let { p = Mk (x * 2) 3 } in Filter (\_ -> [
+f x = let { p = Mk (x * 2) 3 } in Kleisli $ \_ -> [
   case p of { Mk a b -> a + b },
   case p of { Mk a b -> a * b },
-]);
+];
 main = f 2;
 
 --- source ---
@@ -33,7 +33,7 @@ main = f 2
 --- core ---
 f = \x ->
   let p = Mk (op[*] x 2) 3 in
-  Filter (
+  Kleisli (
     \_ -> Cons (
       case p of
         Mk a b -> op[+] a b

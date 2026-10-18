@@ -22,4 +22,4 @@ main =
   \x -> bind[List] (p x) field[name]
 
 --- core ---
-main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Filter field[name])
+main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Kleisli field[name])

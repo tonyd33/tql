@@ -25,4 +25,4 @@ class B {}
 main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> bind[List] (field[name] y) (\y -> Cons ((,) (%kind_name x) (%text y)) Nil))
 
 --- types ---
-main :: Filter Node (String, String)
+main :: Kleisli List Node (String, String)

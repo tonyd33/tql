@@ -26,4 +26,4 @@ class B { p() {} }
 ]
 
 --- types ---
-main :: Filter Node {class: String, method: String}
+main :: Kleisli List Node {class: String, method: String}

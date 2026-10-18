@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 pick :: (Eq a, Sized a) => a -> a -> Int;
 pick x y = if x == y then length x else 0;
-main = Filter (\_ -> [pick "ab" "ab", pick "ab" "cd"]);
+main = Kleisli $ \_ -> [pick "ab" "ab", pick "ab" "cd"];
 
 --- source ---
 class A {}
@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 pick :: (Eq a, Sized a) => a -> a -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

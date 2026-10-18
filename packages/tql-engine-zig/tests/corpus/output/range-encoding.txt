@@ -19,4 +19,4 @@ class A {}
 ]
 
 --- types ---
-main :: Filter Node Range
+main :: Kleisli List Node Range

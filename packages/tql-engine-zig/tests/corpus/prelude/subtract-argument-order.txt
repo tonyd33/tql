@@ -5,7 +5,7 @@ asserts: types, values
 --- tql ---
 import Data.Int (subtract);
 
-main = Filter (\_ -> map (subtract 1) [5, 7]);
+main = Kleisli $ \_ -> map (subtract 1) [5, 7];
 
 --- source ---
 class A {}
@@ -14,4 +14,4 @@ class A {}
 [4, 6]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int

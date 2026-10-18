@@ -18,4 +18,4 @@ class A {}
 
 --- types ---
 pick :: (Eq b, Ord a) => a -> b -> a
-main :: Filter Node Int
+main :: Kleisli List Node Int

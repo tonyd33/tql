@@ -7,7 +7,7 @@ asserts: types, values
 
 --- tql ---
 pick x y = x;
-main = Filter (\_ -> [pick 1 2, length (pick "ab" "cd")]);
+main = Kleisli $ \_ -> [pick 1 2, length (pick "ab" "cd")];
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 pick :: a -> b -> a
-main :: Filter Node Int
+main :: Kleisli List Node Int

@@ -16,7 +16,7 @@ pairs = do {
   return (kind_name n, kind_name c);
 };
 
-main = descendants_of_kind :class_declaration | Filter (run_kleisli pairs);
+main = descendants_of_kind :class_declaration | Kleisli (run_kleisli pairs);
 
 --- source ---
 class A { b() {} }
@@ -33,4 +33,4 @@ main =
 --- types ---
 ask :: Kleisli List Node Node
 pairs :: Kleisli List Node (String, String)
-main :: Filter Node (String, String)
+main :: Kleisli List Node (String, String)

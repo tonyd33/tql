@@ -24,4 +24,4 @@ class Store {}
 --- types ---
 starts_with_s :: Node -> Bool
 named_s :: Node -> Bool
-main :: Filter Node String
+main :: Kleisli List Node String

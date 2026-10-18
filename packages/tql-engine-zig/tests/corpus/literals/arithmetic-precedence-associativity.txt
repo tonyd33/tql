@@ -6,7 +6,7 @@ asserts: core, types, values
 
 --- tql ---
 
-main = Filter (\_ -> [2 + 3 * 4, 10 - 3 - 2]);
+main = Kleisli $ \_ -> [2 + 3 * 4, 10 - 3 - 2];
 
 --- source ---
 class A {}
@@ -15,7 +15,7 @@ class A {}
 [14, 5]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
-main = Filter (\_ -> Cons (op[+] 2 (op[*] 3 4)) (Cons (op[-] (op[-] 10 3) 2) Nil))
+main = Kleisli (\_ -> Cons (op[+] 2 (op[*] 3 4)) (Cons (op[-] (op[-] 10 3) 2) Nil))

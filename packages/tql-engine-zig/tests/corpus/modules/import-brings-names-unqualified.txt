@@ -14,7 +14,7 @@ drop_through x xs = case xs of {
 --- tql ---
 import Lists;
 
-main = Filter (\_ -> drop_through 2 [1, 2, 3]);
+main = Kleisli $ \_ -> drop_through 2 [1, 2, 3];
 
 --- source ---
 let x = 1;
@@ -23,4 +23,4 @@ let x = 1;
 [3]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int

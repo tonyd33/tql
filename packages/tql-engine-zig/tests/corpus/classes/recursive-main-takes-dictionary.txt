@@ -11,10 +11,10 @@ instance Describe Node where {
   describe n = kind_name n;
 };
 
-main = Filter (\x -> case run children x of {
+main = Kleisli $ \x -> case run children x of {
   [] -> [describe x];
   c : _ -> run main c;
-});
+};
 
 --- source ---
 class A {}

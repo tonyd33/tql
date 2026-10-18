@@ -22,12 +22,12 @@ class A { m() {} n() {} }
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (
-  \c -> bind (compose_flipped (pure c) (Filter field[name])) (
+  \c -> bind (compose_flipped (pure c) (Kleisli field[name])) (
     \n ->
       let prefix = text n in
-      bind (compose_flipped (compose_flipped (compose_flipped (pure c) (Filter field[body])) children) (of_kind :method_definition)) (\m -> return prefix)
+      bind (compose_flipped (compose_flipped (compose_flipped (pure c) (Kleisli field[body])) children) (of_kind :method_definition)) (\m -> return prefix)
   )
 )
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String

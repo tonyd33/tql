@@ -12,7 +12,7 @@ class A {}
 [20]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 main = pure (op[*] (op[+] 2 3) 4)

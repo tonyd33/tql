@@ -20,4 +20,4 @@ class A {}
 [7]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int

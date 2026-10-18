@@ -40,10 +40,11 @@ const Argument = struct { parameter: core.SymbolId, term: core.Term };
 /// lambda. Its parameter is substituted when every call passes one closed
 /// dictionary there, counting a parameter passed on as the dictionary it is
 /// substituted by, and an instance applied to parameters as that instance
-/// applied to theirs. A function a law matches on, a join point, and one
-/// named anywhere but at the head of a call keep every parameter. An
-/// instance applied to dictionaries is a call of each method a law may
-/// select from it.
+/// applied to theirs. A function a law matches on, a join point, an
+/// instance's method, and one named anywhere but at the head of a call keep
+/// every parameter. A law selecting a method from an instance applied to
+/// dictionaries passes them to the method, so a method's parameters are
+/// fixed by its instance's context.
 ///
 /// Binders are unique, so one walk sees every call of every function.
 pub const Substituter = struct {
@@ -104,7 +105,10 @@ pub const Substituter = struct {
             }
             return;
         }
-        if (self.env.interner.details(name) == .join) return;
+        switch (self.env.interner.details(name)) {
+            .join, .instance_method => return,
+            else => {},
+        }
         if (laws.named(&self.env.interner, &self.env.classes, &self.env.known, name)) return;
         const parameters = try self.scratch.alloc(core.SymbolId, value.arity());
         _ = value.peel(parameters);
@@ -148,7 +152,6 @@ pub const Substituter = struct {
 
     /// Record what `id`, applied by each of `applications`, is passed.
     fn call(self: *Substituter, id: core.SymbolId, applications: []const core.Term) Error!void {
-        for (laws.selectable(&self.env.interner, &self.env.classes, id)) |method| try self.call(method, applications);
         const parameters = self.functions.get(id) orelse return;
         const applied = @min(parameters.len, applications.len);
         for (parameters[applied..]) |parameter| self.passed.getPtr(parameter).?.* = .varies;

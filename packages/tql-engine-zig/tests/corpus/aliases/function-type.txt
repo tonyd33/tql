@@ -16,4 +16,4 @@ class A {}
 
 --- types ---
 both :: Pred a -> Pred a -> Pred a
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

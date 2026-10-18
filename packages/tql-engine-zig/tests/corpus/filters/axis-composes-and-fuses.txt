@@ -30,5 +30,5 @@ names =
 main = names
 
 --- types ---
-names :: Filter Node String
-main :: Filter Node String
+names :: Kleisli List Node String
+main :: Kleisli List Node String

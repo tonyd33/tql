@@ -1,0 +1,28 @@
+title: an instance method keeps its context's dictionary parameters
+grammar: typescript
+asserts: values
+
+`empty` at `Kleisli List Node` is `empty[Kleisli]` applied to the
+`List` instance, selected from `instance[Alternative,Kleisli]` once `g`'s
+dictionary is known. Every call that selection makes passes the same
+dictionary, but the method keeps the parameter, since the selection
+passes it.
+
+--- tql ---
+g :: Alternative f => Bool -> f ();
+g b = case b of {
+  False -> empty;
+  True -> pure ();
+};
+
+main = do {
+  n <- Kleisli $ \x -> [x];
+  g False;
+  return 1;
+};
+
+--- source ---
+class A {}
+
+--- values ---
+[]

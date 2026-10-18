@@ -49,4 +49,4 @@ class A {}
 --- types ---
 tick :: a -> Counted a
 twice :: Counted Int
-main :: Filter Node (Counted Int)
+main :: Kleisli List Node (Counted Int)

@@ -15,7 +15,7 @@ class A {}
 [false]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
 
 --- core ---
 main = pure (and (not False) False)

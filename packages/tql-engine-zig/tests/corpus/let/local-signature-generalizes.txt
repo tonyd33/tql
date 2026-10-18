@@ -11,7 +11,7 @@ f x = let {
   pair :: b -> { a: Int, b: b };
   pair y = { a = x, b = y };
 } in [(pair 1).b, length (pair "st").b];
-main = Filter (\_ -> f 0);
+main = Kleisli $ \_ -> f 0;
 
 --- source ---
 f(x);

@@ -14,4 +14,4 @@ class A {}
 [{"tag":"Nothing","fields":[]}]
 
 --- types ---
-main :: Filter Node (Maybe String)
+main :: Kleisli List Node (Maybe String)

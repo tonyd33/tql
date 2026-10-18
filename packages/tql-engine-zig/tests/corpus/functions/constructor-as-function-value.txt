@@ -10,9 +10,9 @@ data Pair = Pair Int Int;
 second :: Pair -> Int;
 second p = case p of { Pair _ b -> b; };
 
-main = Filter (\_ -> append
+main = Kleisli $ \_ -> append
   [second (flip Pair 1 2), length (map (Cons 1) [[2], [3]])]
-  (map second (map (Pair 1) [2, 3])));
+  (map second (map (Pair 1) [2, 3]));
 
 --- source ---
 class A {}
@@ -22,4 +22,4 @@ class A {}
 
 --- types ---
 second :: Pair -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

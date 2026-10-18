@@ -16,4 +16,4 @@ class A {}
 
 --- types ---
 f :: {k: String, n: Int} -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

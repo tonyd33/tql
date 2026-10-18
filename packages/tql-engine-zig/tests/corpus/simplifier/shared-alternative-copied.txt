@@ -4,7 +4,7 @@ asserts: core, simplified, values
 
 --- tql ---
 size xs = case xs of { [x] -> 1; ys -> length ys };
-main = Filter (\_ -> map size [[1], [1, 2]]);
+main = Kleisli $ \_ -> map size [[1], [1, 2]];
 
 --- source ---
 class A {}
@@ -28,4 +28,4 @@ size = \xs ->
     Cons x cons1 -> case cons1 of
       Nil -> 1
       Cons _ _ -> jump alternative xs
-main = Filter (\_ -> map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))
+main = Kleisli (\_ -> map size (Cons (Cons 1 Nil) (Cons (Cons 1 (Cons 2 Nil)) Nil)))

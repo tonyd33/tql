@@ -8,7 +8,7 @@ f xs = case xs of {
   _ -> [];
 };
 
-main = Filter (\_ -> [f [5, 6], f [7], f [1, 2, 3]]);
+main = Kleisli $ \_ -> [f [5, 6], f [7], f [1, 2, 3]];
 
 --- source ---
 class A {}
@@ -26,4 +26,4 @@ f = \xs ->
       Cons _ cons1 -> case cons1 of
         Nil -> Cons x xs
         Cons _ _ -> jump alternative
-main = Filter (\_ -> Cons (f (Cons 5 (Cons 6 Nil))) (Cons (f (Cons 7 Nil)) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil)))
+main = Kleisli (\_ -> Cons (f (Cons 5 (Cons 6 Nil))) (Cons (f (Cons 7 Nil)) (Cons (f (Cons 1 (Cons 2 (Cons 3 Nil)))) Nil)))

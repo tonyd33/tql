@@ -19,4 +19,4 @@ class A {}
 [2]
 --- types ---
 bump :: Tagged String -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

@@ -17,4 +17,4 @@ int main() { int x = 1 return x; }
 [{"error":false,"has":true,"kind":"function_definition","missing":false,"text":"int main() { int x = 1 return x; }"},{"error":false,"has":true,"kind":"compound_statement","missing":false,"text":"{ int x = 1 return x; }"},{"error":false,"has":true,"kind":"declaration","missing":false,"text":"int x = 1"},{"error":false,"has":true,"kind":";","missing":true,"text":""},{"error":false,"has":false,"kind":";","missing":false,"text":";"}]
 
 --- types ---
-main :: Filter Node {error: Bool, has: Bool, kind: String, missing: Bool, text: String}
+main :: Kleisli List Node {error: Bool, has: Bool, kind: String, missing: Bool, text: String}

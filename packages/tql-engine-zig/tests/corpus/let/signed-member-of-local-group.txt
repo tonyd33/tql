@@ -18,7 +18,7 @@ f x = let {
     Cons _ rest -> evens rest;
   };
 } in [length (odds [1, 2, 3]), length (odds ["a", "b"]), x];
-main = Filter (\_ -> f 0);
+main = Kleisli $ \_ -> f 0;
 
 --- source ---
 f(x);

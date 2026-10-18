@@ -35,7 +35,7 @@ filtered = bind descendants (
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
-        let view = run (Filter field[arguments]) cons0 in
+        let view = run (Kleisli field[arguments]) cons0 in
         case view of
           Nil -> empty
           Cons cons0 cons1' ->
@@ -60,7 +60,7 @@ unfiltered = bind descendants (
     case view of
       Nil -> empty
       Cons cons0 cons1 ->
-        let view = run (Filter field[arguments]) cons0 in
+        let view = run (Kleisli field[arguments]) cons0 in
         case view of
           Nil -> empty
           Cons cons0 cons1' ->

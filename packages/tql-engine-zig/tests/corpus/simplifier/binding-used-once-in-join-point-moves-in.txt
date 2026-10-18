@@ -10,7 +10,7 @@ f b x = let {
   s = x * x;
   g y = s + y * 2 + y * 3 + y * 4 + y * 5;
 } in if b then g 1 else g 2;
-main = Filter (\_ -> [f True 3, f False 3]);
+main = Kleisli $ \_ -> [f True 3, f False 3];
 
 --- source ---
 class A {}

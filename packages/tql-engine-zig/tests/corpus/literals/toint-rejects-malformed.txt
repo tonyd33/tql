@@ -17,4 +17,4 @@ class A {}
 [[{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]]
 
 --- types ---
-main :: Filter Node [Maybe Int]
+main :: Kleisli List Node [Maybe Int]

@@ -4,7 +4,7 @@ asserts: core, types, values
 
 --- tql ---
 
-main = Filter (\_ -> [1 == 1, 1 != 1, "a" == "a", "a" == "b"]);
+main = Kleisli $ \_ -> [1 == 1, 1 != 1, "a" == "a", "a" == "b"];
 
 --- source ---
 class A {}
@@ -13,10 +13,10 @@ class A {}
 [true, false, true, false]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
 
 --- core ---
-main = Filter (
+main = Kleisli (
   \_ -> Cons (eq 1 1) (
     Cons (
       case eq 1 1 of

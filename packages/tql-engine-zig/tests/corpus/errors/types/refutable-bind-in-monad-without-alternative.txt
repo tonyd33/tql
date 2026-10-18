@@ -32,7 +32,7 @@ first_of = do {
   return x;
 };
 
-main = Filter (\root -> [first_of]);
+main = Kleisli $ \root -> [first_of];
 
 --- error ---
 error[unsatisfied-constraint]: `Alternative Done` is not satisfied.

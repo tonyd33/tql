@@ -5,11 +5,11 @@ asserts: error
 --- tql ---
 newtype Name = Name String;
 
-main = Filter (\root -> [Name "a" == Name "a"]);
+main = Kleisli $ \root -> [Name "a" == Name "a"];
 
 --- error ---
 error[unsatisfied-constraint]: `Eq Name` is not satisfied.
- --> 3:26
+ --> 3:28
   |
-3 | main = Filter (\root -> [Name "a" == Name "a"]);
-  |                          ^^^^^^^^^^^^^^^^^^^^
+3 | main = Kleisli $ \root -> [Name "a" == Name "a"];
+  |                            ^^^^^^^^^^^^^^^^^^^^

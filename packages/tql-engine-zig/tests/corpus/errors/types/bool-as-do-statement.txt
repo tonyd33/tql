@@ -13,7 +13,7 @@ main = do {
 };
 
 --- error ---
-error[type-mismatch]: Expected `Filter Node a`, found `Bool`.
+error[type-mismatch]: Expected `Kleisli List Node a`, found `Bool`.
  --> 3:3
   |
 3 |   is_kind :class_declaration c;

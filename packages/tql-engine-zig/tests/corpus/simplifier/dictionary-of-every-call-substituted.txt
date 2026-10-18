@@ -9,7 +9,7 @@ selects `length[List]` and takes no dictionary.
 size :: Sized s => s -> Int;
 size xs = length xs + length xs * 2 + length xs * 3;
 
-main = Filter (\_ -> [size [1], size [1, 2]]);
+main = Kleisli $ \_ -> [size [1], size [1, 2]];
 
 --- source ---
 class A {}

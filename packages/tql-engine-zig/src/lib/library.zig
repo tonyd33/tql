@@ -47,8 +47,8 @@ const known_owners: std.EnumArray(core.Known, []const u8) = .init(.{
     .compose_flipped = "Control.Category",
     .kleisli = "Control.Monad",
     .alt = "Control.Applicative",
-    .run = "Data.Filter",
-    .Filter = "Data.Filter",
+    .run_kleisli = "Control.Arrow",
+    .Kleisli = "Control.Arrow",
     .of_kind = "Data.Node",
 });
 

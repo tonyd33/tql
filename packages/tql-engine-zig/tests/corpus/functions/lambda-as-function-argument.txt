@@ -14,7 +14,7 @@ class A {}
 
 --- types ---
 apply :: (a -> b) -> a -> b
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 apply = \f -> \x -> f x

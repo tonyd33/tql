@@ -18,12 +18,12 @@
 //! ## Binding groups
 //!
 //! Generalizing too early loses information, and generalizing too late loses
-//! polymorphism. Consider
+//! polymorphism. Here `g` is used at two types:
 //!
 //! ```tql
 //! f x = g x;
 //! g y = y;
-//! main = Filter (\_ -> [(f 1, g "a")]);
+//! main = Kleisli $ \_ -> [(f 1, g "a")];
 //! ```
 //!
 //! Checked as one group, `f` and `g` share one monomorphic type until the
@@ -296,7 +296,7 @@
 //! must be determined. Consider
 //!
 //! ```tql
-//! main = Filter (\_ -> []);
+//! main = Kleisli $ \_ -> [];
 //! ```
 //!
 //! It returns nothing, but nothing says what it would return either, so
@@ -306,12 +306,12 @@
 //! ## Newtypes
 //!
 //! A `newtype` is a distinct type to the checker, which is what lets
-//! `Filter a b` have instances a plain function doesn't. Once checking is
+//! `Kleisli m a b` have instances a plain function doesn't. Once checking is
 //! done, the distinction has served its purpose, so erasure removes the
-//! constructor entirely: `Filter f` becomes `f`.
+//! constructor entirely: `Kleisli f` becomes `f`.
 //!
-//! Note that matching on a newtype doesn't force anything. `case e of
-//! { Filter g -> 1 }` becomes `let g = e in 1`, which is `1` even when `e` is
+//! Matching on a newtype doesn't force anything. `case e of
+//! { Kleisli g -> 1 }` becomes `let g = e in 1`, which is `1` even when `e` is
 //! `_|_`. That's the only reading under which erasing the constructor keeps
 //! the meaning, so it's the meaning the checker gives it too.
 //!

@@ -19,8 +19,8 @@ class A {}
 ["program"]
 
 --- types ---
-make_predicate :: Filter Node (Filter Node Kind)
-main :: Filter Node Kind
+make_predicate :: Kleisli List Node (Kleisli List Node Kind)
+main :: Kleisli List Node Kind
 
 --- core ---
 make_predicate = pure (arr kind)

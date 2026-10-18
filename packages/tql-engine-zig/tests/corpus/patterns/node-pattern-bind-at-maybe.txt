@@ -24,11 +24,11 @@ class A {}
 [{"tag":"Just","fields":["A"]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
 --- types ---
 name_of :: (Monad a, Alternative a) => a Node -> a String
-main :: Filter Node (Maybe String)
+main :: Kleisli List Node (Maybe String)
 --- core ---
 name_of = \m -> bind m (
   \scrutinee ->
-    let view = run (of_kind :class_declaration) scrutinee in
+    let view = run_kleisli (of_kind :class_declaration) scrutinee in
     case view of
       Nil -> empty
       Cons cons0 cons1 ->

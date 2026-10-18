@@ -9,7 +9,7 @@ size xs = let {
   f ys = length ys + length ys * 2 + length ys * 3;
 } in f xs + f (drop 1 xs);
 
-main = Filter (\_ -> [size [1], size [1, 2]]);
+main = Kleisli $ \_ -> [size [1], size [1, 2]];
 
 --- source ---
 class A {}

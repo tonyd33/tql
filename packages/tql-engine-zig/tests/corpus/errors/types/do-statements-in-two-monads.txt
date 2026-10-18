@@ -12,7 +12,7 @@ sums root = do {
   y <- Just 2;
   return (x + y);
 };
-main = Filter sums;
+main = Kleisli sums;
 
 --- error ---
 error[type-mismatch]: Expected `List`, found `Maybe`.

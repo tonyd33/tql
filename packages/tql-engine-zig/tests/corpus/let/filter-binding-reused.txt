@@ -19,4 +19,4 @@ class A { m() {} }
 ["class_declaration", "property_identifier"]
 
 --- types ---
-main :: Filter Node Kind
+main :: Kleisli List Node Kind

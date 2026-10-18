@@ -8,7 +8,7 @@ first_or_zero xs = case xs of {
   _ -> 0;
 };
 
-main = Filter (\_ -> [first_or_zero [7, 8], first_or_zero []]);
+main = Kleisli $ \_ -> [first_or_zero [7, 8], first_or_zero []];
 
 --- source ---
 class A {}
@@ -18,10 +18,10 @@ class A {}
 
 --- types ---
 first_or_zero :: [Int] -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 first_or_zero = \xs -> case xs of
   Nil -> 0
   Cons a _ -> a
-main = Filter (\_ -> Cons (first_or_zero (Cons 7 (Cons 8 Nil))) (Cons (first_or_zero Nil) Nil))
+main = Kleisli (\_ -> Cons (first_or_zero (Cons 7 (Cons 8 Nil))) (Cons (first_or_zero Nil) Nil))

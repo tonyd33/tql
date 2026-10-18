@@ -3,10 +3,10 @@ grammar: typescript
 asserts: values
 
 --- tql ---
-main = Filter (\_ -> do {
+main = Kleisli $ \_ -> do {
   x@y <- [1, 2];
   return (x + y);
-});
+};
 
 --- source ---
 class A {}

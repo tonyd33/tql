@@ -29,7 +29,7 @@
 //! e_1 != e_2                 case eq e_1 e_2 of { False -> True; True -> False }
 //! e_1 < e_2                  case compare e_1 e_2 of { LT -> True; EQ -> False; GT -> False }
 //! e_1 + e_2                  op[+] e_1 e_2
-//! #f                         Filter field[f]
+//! #f                         Kleisli field[f]
 //! e#f                        field[f] e
 //! (op e)                     \x -> x op e
 //! do { x <- e; s; r }        bind e (\x -> do { s; r })

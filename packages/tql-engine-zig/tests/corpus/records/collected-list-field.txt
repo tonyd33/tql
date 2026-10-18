@@ -25,7 +25,7 @@ class B {}
 ]
 
 --- types ---
-main :: Filter Node {methods: [String], name: String}
+main :: Kleisli List Node {methods: [String], name: String}
 
 --- core ---
-main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Filter field[name])) (\n -> bind (compose_flipped (pure c) (collect (compose_flipped (compose_flipped (compose_flipped (compose_flipped (Filter field[body]) children) (of_kind :method_definition)) (Filter field[name])) (arr text)))) (\methods -> return (record[methods,name] methods (text n)))))
+main = bind (children_of_kind :class_declaration) (\c -> bind (compose_flipped (pure c) (Kleisli field[name])) (\n -> bind (compose_flipped (pure c) (collect (compose_flipped (compose_flipped (compose_flipped (compose_flipped (Kleisli field[body]) children) (of_kind :method_definition)) (Kleisli field[name])) (arr text)))) (\methods -> return (record[methods,name] methods (text n)))))

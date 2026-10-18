@@ -22,4 +22,4 @@ class A {}
 --- types ---
 retag :: a -> Tagged a -> Int
 f :: Int -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

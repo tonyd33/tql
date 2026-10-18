@@ -7,7 +7,7 @@ is what left-associativity means here.
 
 --- tql ---
 add x y = x + y;
-main = Filter (\_ -> [add 2 3, (add 2) 3]);
+main = Kleisli $ \_ -> [add 2 3, (add 2) 3];
 
 --- source ---
 class A {}
@@ -17,8 +17,8 @@ class A {}
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 add = \x -> \y -> op[+] x y
-main = Filter (\_ -> Cons (add 2 3) (Cons (add 2 3) Nil))
+main = Kleisli (\_ -> Cons (add 2 3) (Cons (add 2 3) Nil))

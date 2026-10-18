@@ -16,4 +16,4 @@ let a;
 []
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String

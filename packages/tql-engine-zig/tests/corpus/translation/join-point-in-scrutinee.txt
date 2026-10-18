@@ -15,7 +15,7 @@ label xs = case (
   True -> "big";
   False -> "small";
 };
-main = Filter (\_ -> [label [1], label [1, 2], label [20]]);
+main = Kleisli $ \_ -> [label [1], label [1, 2], label [20]];
 
 --- source ---
 class A {}

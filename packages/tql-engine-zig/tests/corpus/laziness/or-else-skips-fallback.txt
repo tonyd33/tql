@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 from :: Alternative a => Int -> a Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

@@ -4,7 +4,7 @@ asserts: values
 
 --- tql ---
 main = do {
-  import <- Filter (\_ -> [1, 2]);
+  import <- Kleisli $ \_ -> [1, 2];
   module <- pure 10;
   return $ import + module;
 };

@@ -7,7 +7,7 @@ asserts: types, values
 
 --- tql ---
 same_as x = let { is_x y = x == y; } in is_x;
-main = Filter (\_ -> [same_as 1 1, same_as 1 2]);
+main = Kleisli $ \_ -> [same_as 1 1, same_as 1 2];
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 same_as :: Eq a => a -> a -> Bool
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

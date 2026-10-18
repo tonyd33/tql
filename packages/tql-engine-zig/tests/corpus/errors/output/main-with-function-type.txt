@@ -9,7 +9,7 @@ A query is a `Filter`, which is not a function. A parameter on the head makes
 main root = [root];
 
 --- error ---
-error[main-type]: Expected `Filter Node a`, found `b -> [b]`.
+error[main-type]: Expected `Kleisli List Node a`, found `b -> [b]`.
  --> 1:1
   |
 1 | main root = [root];

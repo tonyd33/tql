@@ -12,7 +12,7 @@ member x ys = case ys of {
   Cons y rest -> if x == y then True else member x rest;
 };
 
-main = Filter (\_ -> [member 2 [1, 2, 3], member "b" ["a"]]);
+main = Kleisli $ \_ -> [member 2 [1, 2, 3], member "b" ["a"]];
 
 --- source ---
 class A {}

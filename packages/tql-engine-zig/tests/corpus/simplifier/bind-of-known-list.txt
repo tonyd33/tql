@@ -16,7 +16,7 @@ none x = do {
   return (y + x);
 };
 
-main = Filter (\_ -> append (one 1) (none 2));
+main = Kleisli $ \_ -> append (one 1) (none 2);
 
 --- source ---
 class A {}

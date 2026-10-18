@@ -17,7 +17,7 @@ class A {}
 [[1,2],[]]
 --- types ---
 pair :: [a] -> [a]
-main :: Filter Node [Int]
+main :: Kleisli List Node [Int]
 
 --- core ---
 pair = \xs ->

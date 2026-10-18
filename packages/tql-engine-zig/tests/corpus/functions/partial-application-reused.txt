@@ -9,7 +9,7 @@ a reusable value rather than an error.
 add x y = x + y;
 main =
   let { add10 = add 10; }
-  in Filter (\_ -> [add10 1, add10 2]);
+  in Kleisli $ \_ -> [add10 1, add10 2];
 
 --- source ---
 class A {}
@@ -21,11 +21,11 @@ class A {}
 add = \x -> \y -> op[+] x y
 main =
   let add10 = add 10 in
-  Filter (\_ -> Cons (add10 1) (Cons (add10 2) Nil))
+  Kleisli (\_ -> Cons (add10 1) (Cons (add10 2) Nil))
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- stg ---
 add = {} \u {} ->

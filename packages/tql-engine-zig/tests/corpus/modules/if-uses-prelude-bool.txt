@@ -15,4 +15,4 @@ let x = 1;
 
 --- types ---
 score :: Flag -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

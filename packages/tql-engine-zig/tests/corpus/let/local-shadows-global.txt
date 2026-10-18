@@ -11,7 +11,7 @@ declared later also exercises forward reference.
 label = "global";
 main =
   let { label = "local" }
-  in Filter (\_ -> [label, other]);
+  in Kleisli $ \_ -> [label, other];
 other = label;
 
 --- source ---
@@ -22,12 +22,12 @@ class A {}
 
 --- types ---
 label :: String
-main :: Filter Node String
+main :: Kleisli List Node String
 other :: String
 
 --- core ---
 label = "global"
 main =
   let label = "local" in
-  Filter (\_ -> Cons label (Cons other Nil))
+  Kleisli (\_ -> Cons label (Cons other Nil))
 other = label

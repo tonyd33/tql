@@ -8,7 +8,7 @@ threes = do {
   return 3;
 };
 
-main = Filter (\_ -> threes);
+main = Kleisli $ \_ -> threes;
 
 --- source ---
 class A {}
@@ -18,8 +18,8 @@ class A {}
 
 --- types ---
 threes :: [Int]
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 threes = bind (Cons 1 (Cons 2 Nil)) (\_ -> return 3)
-main = Filter (\_ -> threes)
+main = Kleisli (\_ -> threes)

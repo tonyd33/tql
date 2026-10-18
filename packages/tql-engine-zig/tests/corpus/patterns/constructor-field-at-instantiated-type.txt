@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 or_default :: Maybe a -> a -> a
-main :: Filter Node Int
+main :: Kleisli List Node Int

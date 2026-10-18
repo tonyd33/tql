@@ -23,7 +23,7 @@ class A {}
 [{"in_list":["class A {}"],"in_maybe":{"tag":"Nothing","fields":[]}}]
 --- types ---
 class_name :: (Monad a, Alternative a) => a Node -> a String
-main :: Filter Node {in_list: [String], in_maybe: Maybe String}
+main :: Kleisli List Node {in_list: [String], in_maybe: Maybe String}
 --- simplified ---
 class_name = \d -> \d' ->
   let

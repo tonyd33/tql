@@ -23,7 +23,7 @@ right = base + 2;
 import Left;
 import Right;
 
-main = Filter (\_ -> [left, right]);
+main = Kleisli $ \_ -> [left, right];
 
 --- source ---
 let x = 1;

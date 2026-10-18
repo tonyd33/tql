@@ -14,4 +14,4 @@ class A {}
 [[{"tag":"Just","fields":[42]},{"tag":"Just","fields":[-7]}]]
 
 --- types ---
-main :: Filter Node [Maybe Int]
+main :: Kleisli List Node [Maybe Int]

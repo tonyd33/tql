@@ -4,7 +4,7 @@ asserts: types, values
 
 --- tql ---
 keep x = [x, x];
-main = Filter (\_ -> keep 1);
+main = Kleisli $ \_ -> keep 1;
 
 --- source ---
 let x = 1;
@@ -14,4 +14,4 @@ let x = 1;
 
 --- types ---
 keep :: a -> [a]
-main :: Filter Node Int
+main :: Kleisli List Node Int

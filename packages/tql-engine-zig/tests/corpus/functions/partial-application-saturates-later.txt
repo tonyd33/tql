@@ -4,7 +4,7 @@ asserts: values, stg
 
 --- tql ---
 add3 a b c = a + b + c;
-main = let { f = add3 1 } in let { g = f 2 } in Filter (\_ -> [g 3, g 4]);
+main = let { f = add3 1 } in let { g = f 2 } in Kleisli $ \_ -> [g 3, g 4];
 
 --- source ---
 class A {}

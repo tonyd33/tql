@@ -12,7 +12,7 @@ class A {}
 [true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
 
 --- core ---
 main = pure (eq (op[+] 1 1) 2)

@@ -20,7 +20,7 @@ class A {}
 [true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool
 
 --- core ---
 main =

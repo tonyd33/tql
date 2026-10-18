@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 same_name :: Eq a => {name: a | b} -> {name: a | c} -> Bool
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

@@ -16,7 +16,7 @@ class A {}
 [6]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 helper :: Int -> Int
 
 --- core ---

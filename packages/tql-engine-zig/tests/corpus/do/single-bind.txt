@@ -16,7 +16,7 @@ class B {}
 ["class A {}", "class B {}"]
 
 --- types ---
-main :: Filter Node String
+main :: Kleisli List Node String
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (\c -> return (text c))

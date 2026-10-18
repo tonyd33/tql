@@ -11,7 +11,7 @@ import Control.Monad (mfilter);
 
 positives xs = mfilter (\x -> x > 0) xs;
 
-main = Filter (\_ -> positives [0, 1, 2]);
+main = Kleisli $ \_ -> positives [0, 1, 2];
 
 --- source ---
 class A {}

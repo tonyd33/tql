@@ -5,7 +5,7 @@ asserts: core, values
 --- tql ---
 f b = case b of { True -> "yes"; False -> "no"; };
 
-main = Filter (\_ -> [f True, f False]);
+main = Kleisli $ \_ -> [f True, f False];
 
 --- source ---
 class A {}
@@ -17,4 +17,4 @@ class A {}
 f = \b -> case b of
   False -> "no"
   True -> "yes"
-main = Filter (\_ -> Cons (f True) (Cons (f False) Nil))
+main = Kleisli (\_ -> Cons (f True) (Cons (f False) Nil))

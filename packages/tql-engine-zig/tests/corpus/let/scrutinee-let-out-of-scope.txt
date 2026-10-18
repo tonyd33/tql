@@ -22,7 +22,7 @@ class A {}
 --- types ---
 fst :: P -> Int
 pick :: a -> P -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- stg ---
 pick = {} \u {} ->

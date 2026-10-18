@@ -19,5 +19,5 @@ class A {}
 
 --- types ---
 from :: Alternative a => Int -> a Int
-nats :: Filter Node Int
-main :: Filter Node Bool
+nats :: Kleisli List Node Int
+main :: Kleisli List Node Bool

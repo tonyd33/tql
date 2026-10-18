@@ -6,6 +6,7 @@
 
 - A top-level binding without parameters or a signature takes one type from its uses where its type is constrained: with `one = pure 1; main = one;`, `one` is `Filter Node Int`. Give it a signature to use it at two types.
 - A local binding that mentions a variable of an enclosing lambda, `case` alternative or `do` bind is not generalised: `f x = let { pair y = { a = x, b = y }; } in { p = pair 1, q = pair "s" }` is an error. Give it a local signature.
+- `Filter` is a synonym for `Kleisli List`, with `Kleisli`'s instances: make a filter with `Kleisli $ \x -> ...`, and import `Filter`, not `Filter(..)`. An inferred filter type prints as `Kleisli List Node Int`.
 
 ### New Features
 
@@ -15,6 +16,10 @@
 
 - The checker reports every independent type error, not only the first: `f x = 1 + "a"; g = "b" + 2;` reports both mismatches. An error that follows from an earlier one is not reported, and an ambiguous constraint names what is left undetermined: `Eq a`, not `Eq [a]`.
 - A body that disagrees with its signature is reported at the subterm: `f :: Int -> Int; f x = "s";` points at `"s"`. A type that does not fit a signature's variable names the variable as rigid, and a constraint the signature's context lacks is reported where it is needed.
+
+### Bug Fixes
+
+- An overloaded function whose dictionary is an instance applied to dictionaries no longer miscompiles: `g False` in a `do` block over `Kleisli List`, with `g b = case b of { False -> empty; True -> pure (); }`, yields nothing instead of a machine error.
 
 ## 0.4.1 (unreleased)
 

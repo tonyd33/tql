@@ -33,4 +33,4 @@ class A {}
 bottom :: Int
 double :: Int -> Int
 next :: Int -> Int
-main :: Filter Node (Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)
+main :: Kleisli List Node (Int, (Int, String), (String, Int), (Int, Int), (Int, Int), Int)

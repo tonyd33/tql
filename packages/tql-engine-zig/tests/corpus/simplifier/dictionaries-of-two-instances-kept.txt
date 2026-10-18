@@ -6,7 +6,7 @@ asserts: simplified, values
 size :: Sized s => s -> Int;
 size xs = length xs + length xs * 2 + length xs * 3;
 
-main = Filter (\_ -> [size [1], size "ab"]);
+main = Kleisli $ \_ -> [size [1], size "ab"];
 
 --- source ---
 class A {}

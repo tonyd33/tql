@@ -16,4 +16,4 @@ class A {}
 
 --- types ---
 size :: {name: String | a} -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

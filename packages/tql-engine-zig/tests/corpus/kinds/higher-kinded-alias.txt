@@ -21,4 +21,4 @@ class A {}
 [1]
 --- types ---
 ok :: Result Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

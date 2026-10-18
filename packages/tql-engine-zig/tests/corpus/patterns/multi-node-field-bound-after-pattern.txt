@@ -24,12 +24,12 @@ main = bind descendants (
     case view of
       Nil -> empty
       Cons class_ cons1 ->
-        let view = run (Filter field[name]) class_ in
+        let view = run (Kleisli field[name]) class_ in
         case view of
           Nil -> empty
           Cons name cons1' -> case cons1' of
             Nil -> case cons1 of
-              Nil -> bind (compose_flipped (pure class_) (Filter field[decorator])) (\decorator -> return (Cons (text name) (Cons (text decorator) Nil)))
+              Nil -> bind (compose_flipped (pure class_) (Kleisli field[decorator])) (\decorator -> return (Cons (text name) (Cons (text decorator) Nil)))
               Cons _ _ -> empty
             Cons _ _ -> empty
 )

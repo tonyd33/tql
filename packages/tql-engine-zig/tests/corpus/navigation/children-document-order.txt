@@ -14,4 +14,4 @@ function g() {}
 ["function_declaration", "class_declaration", "function_declaration"]
 
 --- types ---
-main :: Filter Node Kind
+main :: Kleisli List Node Kind

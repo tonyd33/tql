@@ -25,4 +25,4 @@ let x = 1;
 
 --- types ---
 double :: X -> X
-main :: Filter Node X
+main :: Kleisli List Node X

@@ -15,4 +15,4 @@ class A {}
 
 --- types ---
 line :: Range -> Point
-main :: Filter Node Point
+main :: Kleisli List Node Point

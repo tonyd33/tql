@@ -19,7 +19,7 @@ instance Ord Down where {
   };
 };
 
-main = Filter (\_ -> [1 < 2, Down 1 < Down 2, Down 1 == Down 1]);
+main = Kleisli $ \_ -> [1 < 2, Down 1 < Down 2, Down 1 == Down 1];
 
 --- source ---
 class A {}
@@ -28,4 +28,4 @@ class A {}
 [true,false,true]
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

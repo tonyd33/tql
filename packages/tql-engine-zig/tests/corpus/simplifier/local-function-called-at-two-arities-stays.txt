@@ -9,7 +9,7 @@ f b n =
     g x = seq (n * 2 + n * 3 + n * 4 + n * 5) x;
   }
   in if b then g (\y -> y + 1) 3 else g 3;
-main = Filter (\_ -> [f True 1, f False 1]);
+main = Kleisli $ \_ -> [f True 1, f False 1];
 
 --- source ---
 class A {}

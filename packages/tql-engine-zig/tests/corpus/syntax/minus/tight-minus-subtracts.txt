@@ -7,13 +7,13 @@ Only a prefix `-` starts a negative literal, as under GHC's `LexicalNegation`.
 
 --- tql ---
 x = 5;
-main = Filter (\_ -> [x-1, 5-1]);
+main = Kleisli $ \_ -> [x-1, 5-1];
 
 --- source ---
 class A {}
 
 --- tql tree ---
-(source_file (define x (params) 5) (define main (params) (apply Filter (paren (lambda (params _) (list (- x 1) (- 5 1)))))))
+(source_file (define x (params) 5) (define main (params) (apply Kleisli (lambda (params _) (list (- x 1) (- 5 1))))))
 
 --- values ---
 [4,4]

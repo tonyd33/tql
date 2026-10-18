@@ -25,4 +25,4 @@ let x = 1;
 
 --- types ---
 unwrap :: X -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

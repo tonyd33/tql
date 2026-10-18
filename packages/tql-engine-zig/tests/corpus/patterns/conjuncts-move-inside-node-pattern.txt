@@ -17,7 +17,7 @@ class A {}
 --- core ---
 main = bind children (
   \x ->
-    let view = run (of_kind :class_declaration) x in
+    let view = run_kleisli (of_kind :class_declaration) x in
     case view of
       Nil -> empty
       Cons x cons1 ->

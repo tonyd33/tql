@@ -17,4 +17,4 @@ class A {}
 
 --- types ---
 total :: Ints -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

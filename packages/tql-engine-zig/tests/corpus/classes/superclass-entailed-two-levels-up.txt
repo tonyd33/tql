@@ -35,4 +35,4 @@ class A {}
 
 --- types ---
 f :: Twin a => a -> Bool
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

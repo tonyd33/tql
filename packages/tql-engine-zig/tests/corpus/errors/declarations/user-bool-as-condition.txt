@@ -4,11 +4,11 @@ asserts: error
 
 --- tql ---
 data Bool = No | Yes;
-main = Filter (\root -> [if Yes then 1 else 2]);
+main = Kleisli $ \root -> [if Yes then 1 else 2];
 
 --- error ---
 error[type-mismatch]: Expected `Prim.Bool`, found `Main.Bool`.
- --> 2:29
+ --> 2:31
   |
-2 | main = Filter (\root -> [if Yes then 1 else 2]);
-  |                             ^^^
+2 | main = Kleisli $ \root -> [if Yes then 1 else 2];
+  |                               ^^^

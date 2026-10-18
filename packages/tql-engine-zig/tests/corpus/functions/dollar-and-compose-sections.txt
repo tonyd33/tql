@@ -3,7 +3,7 @@ grammar: typescript
 asserts: core, values
 
 --- tql ---
-main = Filter (\_ -> append (map ($ 1) [(+ 1), (* 2)]) [(. (+ 1)) (* 2) 5, ((* 2) .) (+ 1) 5]);
+main = Kleisli $ \_ -> append (map ($ 1) [(+ 1), (* 2)]) [(. (+ 1)) (* 2) 5, ((* 2) .) (+ 1) 5];
 
 --- source ---
 class A {}
@@ -12,7 +12,7 @@ class A {}
 [2, 2, 12, 12]
 
 --- core ---
-main = Filter (
+main = Kleisli (
   \_ -> append (map (\x -> x 1) (Cons (\x -> op[+] x 1) (Cons (\x -> op[*] x 2) Nil))) (
     Cons (
       (

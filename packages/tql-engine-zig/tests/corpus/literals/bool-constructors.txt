@@ -6,7 +6,7 @@ A list has one element type, so this case lists bools only.
 
 --- tql ---
 
-main = Filter (\_ -> [True, False, True]);
+main = Kleisli $ \_ -> [True, False, True];
 
 --- source ---
 class A {}
@@ -15,7 +15,7 @@ class A {}
 [true, false, true]
 
 --- core ---
-main = Filter (\_ -> Cons True (Cons False (Cons True Nil)))
+main = Kleisli (\_ -> Cons True (Cons False (Cons True Nil)))
 
 --- types ---
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

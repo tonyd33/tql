@@ -7,7 +7,7 @@ asserts: types, values, core
 
 --- tql ---
 
-main = Filter (\_ -> [length "\"ab\"", length "a\\b", length "\n\t\r"]);
+main = Kleisli $ \_ -> [length "\"ab\"", length "a\\b", length "\n\t\r"];
 
 --- source ---
 class A {}
@@ -16,7 +16,7 @@ class A {}
 [4, 3, 3]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
-main = Filter (\_ -> Cons (length "\"ab\"") (Cons (length "a\\b") (Cons (length "\n\t\r") Nil)))
+main = Kleisli (\_ -> Cons (length "\"ab\"") (Cons (length "a\\b") (Cons (length "\n\t\r") Nil)))

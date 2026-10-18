@@ -23,11 +23,11 @@ class Other {}
 ["Service"]
 
 --- types ---
-methods :: Filter Node Node
-main :: Filter Node String
+methods :: Kleisli List Node Node
+main :: Kleisli List Node String
 
 --- core ---
-methods = compose_flipped (compose_flipped (Filter field[body]) children) (of_kind :method_definition)
+methods = compose_flipped (compose_flipped (Kleisli field[body]) children) (of_kind :method_definition)
 main =
   let has = \p -> \x -> not (null (run p x)) in
-  compose_flipped (compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (keep (has methods))) (Filter field[name])) (arr text)
+  compose_flipped (compose_flipped (compose_flipped (compose_flipped children (of_kind :class_declaration)) (keep (has methods))) (Kleisli field[name])) (arr text)

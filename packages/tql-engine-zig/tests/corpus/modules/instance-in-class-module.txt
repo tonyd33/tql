@@ -22,7 +22,7 @@ instance Describe Shape where {
 import Classes;
 import Shapes;
 
-main = Filter (\_ -> [describe (Circle 1), describe (Square 2)]);
+main = Kleisli $ \_ -> [describe (Circle 1), describe (Square 2)];
 
 --- source ---
 class A {}

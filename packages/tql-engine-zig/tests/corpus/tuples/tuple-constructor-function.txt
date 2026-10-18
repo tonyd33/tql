@@ -14,4 +14,4 @@ class A {}
 [[[1,2,3],[[0,1],[0,2]]]]
 --- types ---
 pairs :: [(Int, Int)]
-main :: Filter Node ((Int, Int, Int), [(Int, Int)])
+main :: Kleisli List Node ((Int, Int, Int), [(Int, Int)])

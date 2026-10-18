@@ -46,7 +46,7 @@ class A {}
 [{"tag":"Done","fields":[4]}]
 --- types ---
 total :: Done Int
-main :: Filter Node (Done Int)
+main :: Kleisli List Node (Done Int)
 --- core ---
 total = bind (Done 1) (
   \x -> bind (Done 2) (

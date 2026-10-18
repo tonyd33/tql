@@ -18,5 +18,5 @@ class B {}
 [true, false]
 
 --- types ---
-methods :: Filter Node Node
-main :: Filter Node Bool
+methods :: Kleisli List Node Node
+main :: Kleisli List Node Bool

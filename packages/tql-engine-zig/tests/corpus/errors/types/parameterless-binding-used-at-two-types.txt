@@ -7,7 +7,7 @@ Generalisation).
 
 --- tql ---
 one = pure 1;
-main = Filter (\_ -> one);
+main = Kleisli $ \_ -> one;
 other = (one :: Maybe Int);
 
 --- source ---

@@ -30,7 +30,7 @@ main = bind descendants (
     case view of
       Nil -> empty
       Cons call cons1 ->
-        let view = run (Filter field[function]) call in
+        let view = run (Kleisli field[function]) call in
         case view of
           Nil -> empty
           Cons cons0 cons1' ->
@@ -38,7 +38,7 @@ main = bind descendants (
             case view of
               Nil -> empty
               Cons cons0 cons1'' ->
-                let view = run (Filter field[object]) cons0 in
+                let view = run (Kleisli field[object]) cons0 in
                 case view of
                   Nil -> empty
                   Cons cons0' cons1''' ->
@@ -47,7 +47,7 @@ main = bind descendants (
                       False -> empty
                       True -> case cons1''' of
                         Nil ->
-                          let view = run (Filter field[property]) cons0 in
+                          let view = run (Kleisli field[property]) cons0 in
                           case view of
                             Nil -> empty
                             Cons cons0 cons1''' ->

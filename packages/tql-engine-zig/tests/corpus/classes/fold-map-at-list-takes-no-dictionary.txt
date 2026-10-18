@@ -10,7 +10,7 @@ import Data.Foldable (fold_map);
 
 doubled xs = fold_map (\x -> [x, x]) xs;
 
-main = Filter (\_ -> doubled [1, 2]);
+main = Kleisli $ \_ -> doubled [1, 2];
 
 --- source ---
 class A {}

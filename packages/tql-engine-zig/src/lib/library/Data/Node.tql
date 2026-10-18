@@ -27,34 +27,32 @@ module Data.Node (
 
 import Prim;
 import Prim (parent, ancestors, children, named_children, descendants, named_descendants, children_of_kind, descendants_of_kind) as P;
-import Data.Filter (Filter(..));
+import Data.Filter (Filter);
+import Control.Arrow (Kleisli(..));
 
 parent :: Filter Node Node;
-parent = Filter P.parent;
+parent = Kleisli P.parent;
 
 ancestors :: Filter Node Node;
-ancestors = Filter P.ancestors;
+ancestors = Kleisli P.ancestors;
 
 children :: Filter Node Node;
-children = Filter P.children;
+children = Kleisli P.children;
 
 named_children :: Filter Node Node;
-named_children = Filter P.named_children;
+named_children = Kleisli P.named_children;
 
 descendants :: Filter Node Node;
-descendants = Filter P.descendants;
+descendants = Kleisli P.descendants;
 
 named_descendants :: Filter Node Node;
-named_descendants = Filter P.named_descendants;
+named_descendants = Kleisli P.named_descendants;
 
 children_of_kind :: Kind -> Filter Node Node;
-children_of_kind k = Filter (P.children_of_kind k);
+children_of_kind k = Kleisli $ P.children_of_kind k;
 
 descendants_of_kind :: Kind -> Filter Node Node;
-descendants_of_kind k = Filter (P.descendants_of_kind k);
+descendants_of_kind k = Kleisli $ P.descendants_of_kind k;
 
 of_kind :: Kind -> Filter Node Node;
-of_kind k = Filter (\x -> case is_kind k x of {
-  False -> Nil;
-  True -> Cons x Nil;
-});
+of_kind k = Kleisli $ \x -> if is_kind k x then [x] else [];

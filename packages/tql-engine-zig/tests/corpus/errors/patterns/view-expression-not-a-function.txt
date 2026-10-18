@@ -13,7 +13,7 @@ main = do {
 class A {}
 
 --- error ---
-error[type-mismatch]: The expression of a view pattern must be a function; found `Filter Node Node`.
+error[type-mismatch]: The expression of a view pattern must be a function; found `Kleisli List Node Node`.
  --> 3:4
   |
 3 |   (#decorator -> []) <- pure n;

@@ -16,7 +16,7 @@ class A {}
 
 --- types ---
 add :: Int -> Int -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- core ---
 add = \x -> \y -> op[+] x y

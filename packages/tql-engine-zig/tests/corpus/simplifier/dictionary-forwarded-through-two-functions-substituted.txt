@@ -12,7 +12,7 @@ size xs = length xs + length xs * 2 + length xs * 3;
 twice :: Sized s => s -> Int;
 twice xs = size xs + size xs * 2 + size xs * 3;
 
-main = Filter (\_ -> [twice [1], twice [1, 2]]);
+main = Kleisli $ \_ -> [twice [1], twice [1, 2]];
 
 --- source ---
 class A {}

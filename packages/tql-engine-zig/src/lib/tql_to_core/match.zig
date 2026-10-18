@@ -510,7 +510,7 @@ fn flatten(allocator: std.mem.Allocator, pattern: cst.Pattern, out: *std.ArrayLi
 
 /// `conjuncts` against one value, keeping the order they are written. A node
 /// pattern's fields become `(field[f] -> [p])` views. The first kinded node
-/// pattern `:k { .. }` becomes the outer view `(run (of_kind :k) -> [..])`
+/// pattern `:k { .. }` becomes the outer view `(run_kleisli (of_kind :k) -> [..])`
 /// holding every conjunct; a later one nests inside it.
 fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.Span) Error!Pattern {
     const b = lowerer.builder;
@@ -545,7 +545,7 @@ fn conjoin(lowerer: *Lowerer, conjuncts: []const cst.Pattern, span: diagnostic.S
         try all(lowerer, inside.items, span);
     const kind = try lowerer.expression(.{ .kind = .{ .kind_test = n.kind.? }, .span = n.kind_span }, null);
     const of_kind = try b.apply(try lowerer.known(.of_kind, node.span), kind, node.span);
-    const function = try b.apply(try lowerer.known(.run, node.span), of_kind, node.span);
+    const function = try b.apply(try lowerer.known(.run_kleisli, node.span), of_kind, node.span);
     return try view(lowerer, function, element, true, node.span);
 }
 

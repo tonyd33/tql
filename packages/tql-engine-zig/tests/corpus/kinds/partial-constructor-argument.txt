@@ -27,4 +27,4 @@ class A {}
 maybe :: Wrap Maybe Int
 either :: Wrap (Either String) Int
 count :: Wrap a Int -> Int
-main :: Filter Node Int
+main :: Kleisli List Node Int

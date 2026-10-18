@@ -4,7 +4,7 @@ asserts: simplified, values
 
 --- tql ---
 f b x = let { t = x * 2 + x * 3 + x * 4 + x * 5 } in if b then t else t;
-main = Filter (\_ -> [f True 1, f False 2]);
+main = Kleisli $ \_ -> [f True 1, f False 2];
 
 --- source ---
 class A {}

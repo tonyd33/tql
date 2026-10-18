@@ -1,5 +1,5 @@
 module Data.Filter (
-  Filter(..),
+  Filter,
   run,
   collect,
   keep,
@@ -7,75 +7,27 @@ module Data.Filter (
   or_else,
 );
 
-import Prim (Bool(..));
+import Prim (Bool, List);
 import Data.Bool (not);
-import Data.Tuple (fst, snd);
-import Data.Functor (Functor(..));
 import Control.Applicative (Applicative(..), Alternative(..));
 import Data.Foldable (null);
-import Control.Monad (Monad(..), kleisli);
-import Control.Category (Category(..));
-import Control.Arrow (Arrow(..), ArrowZero(..), ArrowPlus(..));
+import Control.Arrow (Kleisli(..), run_kleisli);
 
-newtype Filter a b = Filter (a -> [b]);
+type Filter = Kleisli List;
 
 run :: Filter a b -> a -> [b];
-run f = case f of {
-  Filter g -> g;
-};
-
-instance Functor (Filter a) where {
-  map f p = Filter (\x -> map f (run p x));
-};
-
-instance Applicative (Filter a) where {
-  pure y = Filter (\_ -> pure y);
-  ap pf py = Filter (\x -> ap (run pf x) (run py x));
-};
-
-instance Alternative (Filter a) where {
-  empty = Filter (\_ -> empty);
-  alt p q = Filter (\x -> alt (run p x) (run q x));
-};
-
-instance Monad (Filter a) where {
-  bind p f = Filter (\x -> bind (run p x) (\y -> run (f y) x));
-};
-
-instance Category Filter where {
-  identity = Filter pure;
-  compose g f = Filter (kleisli (run f) (run g));
-};
-
-instance Arrow Filter where {
-  arr f = Filter (pure . f);
-  first p = Filter (\q -> map (\b -> (b, snd q)) (run p (fst q)));
-  second p = Filter (\q -> map (\b -> (fst q, b)) (run p (snd q)));
-  split f g = Filter (\q -> ap (map (,) (run f (fst q))) (run g (snd q)));
-  fanout f g = ap (map (,) f) g;
-};
-
-instance ArrowZero Filter where {
-  zero_arrow = empty;
-};
-
-instance ArrowPlus Filter where {
-  plus = alt;
-};
+run = run_kleisli;
 
 collect :: Filter a b -> Filter a [b];
-collect p = Filter (\x -> pure (run p x));
+collect p = Kleisli $ \x -> pure $ run p x;
 
 keep :: (a -> Bool) -> Filter a a;
-keep p = Filter (\x -> case p x of {
-  False -> empty;
-  True -> pure x;
-});
+keep p = Kleisli $ \x -> if p x then pure x else empty;
 
 has :: Filter a b -> a -> Bool;
 has p x = not $ null $ run p x;
 
 or_else :: Filter a b -> Filter a b -> Filter a b;
-or_else primary fallback = Filter (\x -> let {
+or_else primary fallback = Kleisli $ \x -> let {
   results = run primary x;
-} in if null results then run fallback x else results);
+} in if null results then run fallback x else results;

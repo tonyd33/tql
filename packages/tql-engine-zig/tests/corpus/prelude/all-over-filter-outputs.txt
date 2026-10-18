@@ -22,6 +22,6 @@ class C {}
 [true, false, true]
 
 --- types ---
-method_names :: Filter Node Node
+method_names :: Kleisli List Node Node
 is_getter :: Node -> Bool
-main :: Filter Node Bool
+main :: Kleisli List Node Bool

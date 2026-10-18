@@ -19,7 +19,7 @@ class B {}
 
 --- core ---
 describe = \c ->
-  let view = run (Filter field[decorator]) c in
+  let view = run (Kleisli field[decorator]) c in
   case view of
     Nil -> "plain"
     Cons _ _ -> "decorated"

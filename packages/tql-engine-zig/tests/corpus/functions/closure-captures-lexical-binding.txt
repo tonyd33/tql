@@ -10,7 +10,7 @@ main =
     step = 5 + 5;
     bump = \x -> x + step;
   }
-  in Filter (\_ -> map bump [1, 2]);
+  in Kleisli $ \_ -> map bump [1, 2];
 
 --- source ---
 class A {}
@@ -19,7 +19,7 @@ class A {}
 [11, 12]
 
 --- types ---
-main :: Filter Node Int
+main :: Kleisli List Node Int
 
 --- stg ---
 main = {} \u {} ->

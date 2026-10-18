@@ -32,7 +32,7 @@ positive = do {
   return x;
 };
 
-main = Filter (\root -> [positive]);
+main = Kleisli $ \root -> [positive];
 
 --- error ---
 error[unsatisfied-constraint]: `Alternative Done` is not satisfied.

@@ -12,7 +12,7 @@ total xss = case xss of {
   Cons h t -> length h + total t;
 };
 
-main = Filter (\_ -> [total [[1], [2, 3]]]);
+main = Kleisli $ \_ -> [total [[1], [2, 3]]];
 
 --- source ---
 class A {}

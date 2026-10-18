@@ -9,7 +9,7 @@ pairs _ = do {
   f <- [\x -> x];
   return { a = f 1, b = f "s" };
 };
-main = Filter pairs;
+main = Kleisli pairs;
 
 --- error ---
 error[type-mismatch]: Expected `Int`, found `String`.
