@@ -1,13 +1,13 @@
 # Typed Core and the optimiser
 
-After checking, a program is translated to Core: System F with data types
-and casts. Every pass over Core keeps it well typed, and
+After checking, match compilation, operator lowering and elaboration
+translate a program to Core: System F with datatypes and casts. Every pass over Core keeps it well typed, and
 a lint checks that after every pass.
 
 ## Terms
 
 ```
-e ::= x | l
+e ::= x | lit
     | \(x : τ) -> e | e e
     | Λ(a : κ). e | e @τ
     | let x : τ = e in e
@@ -16,9 +16,6 @@ e ::= x | l
     | e ▷ γ
     | join j (x : τ)... = e in e | jump j e...
 ```
-
-A dictionary is a value of its class's dictionary type, and a constraint
-`C τ` in a source type is the argument type `Dict_C τ` in Core.
 
 ## Typing
 
@@ -63,9 +60,60 @@ A dictionary is a value of its class's dictionary type, and a constraint
 A `jump` to `j` appears only in tail position of `e`, and has the type of
 the `join` that binds `j`.
 
-`γ` is a coercion. A newtype `N ā = K τ` gives an axiom `N ā ~R τ`, and
+`γ` is a coercion. A newtype `T ā = K τ` gives an axiom `T ā ~R τ`, and
 coercions lift through type constructors by their parameters' roles. A
 newtype's constructor and its match are casts, which cost nothing.
+
+## Elaboration
+
+Elaboration makes evidence explicit. A constraint `C τ` in a source type
+is the argument type `Dict_C τ` in Core, and a dictionary is a value of
+it.
+
+A class is a dictionary type and selectors:
+
+```
+class (S1 a, ..., Sk a) => C a where { m1 :: τ1; ...; mn :: τn; }
+
+data Dict_C a = Dict_C (Dict_S1 a) ... (Dict_Sk a) τ1 ... τn
+mi       :: ∀a. Dict_C a -> τi
+super_Sj :: ∀a. Dict_C a -> Dict_Sj a
+```
+
+A method type that quantifies further variables gives a polymorphic
+field.
+
+An instance is a dictionary, a function of the context's dictionaries:
+
+```
+instance (C1 a1, ..., Cj aj) => C (T ā) where { ... }
+
+inst_C_T :: ∀ā. Dict_C1 a1 -> ... -> Dict_Cj aj -> Dict_C (T ā)
+```
+
+Its superclass fields are the evidence of the superclass wanteds
+([Instance](05-declarations.md#instance)).
+
+Each class wanted has an evidence variable. Solving it binds the variable
+in the scope that solved it:
+
+```
+let d : Dict_C (T τ̄) = inst_C_T d1 ... dj in e
+```
+
+A wanted for a constraint already solved in its scope, or an enclosing
+one, shares that evidence.
+
+A binding group takes its dictionaries once. Its members are monomorphic
+copies in a `letrec` inside the abstraction, and a recursive use reaches
+the copy, passing no dictionary:
+
+```
+f = \(d : Dict_C a) -> let ev : τ = ... in letrec { f' : τ' = ... f' ...; } in f'
+```
+
+A binding group of several members builds `\k -> k f1' ... fn'`, and each
+member applies it to the selector of its own copy.
 
 ## The optimiser
 
@@ -80,11 +128,17 @@ eta-expands a function that may be `⊥`.
 
 Every other equation is a rewrite rule written in the library:
 
-```tql
-rule "children/of_kind" forall k. children | of_kind k = children_of_kind k;
+```
+rule ::= "rule" string ("forall" var+ ".")? exp "=" exp
 ```
 
-Both sides of a rule are checked at one type, the right side with the
-left side's constraints as givens. A rule must hold of the meanings of its
+```tql
+rule "navigate/of_kind" forall a k.
+  Kleisli (navigate a Any) | of_kind k = Kleisli (navigate a $ OfKind k);
+```
+
+A rule's variables are the names its `forall` binds, quantified over
+the rule as a signature's are. Both sides of a rule are checked at one
+type, the right side with the left side's constraints as givens. A rule must hold of the meanings of its
 two sides for every value of its variables, `⊥` included. Only library
-modules may declare rules.
+modules may declare rules; a rule elsewhere is an error, `invalid-rule`.

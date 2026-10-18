@@ -8,7 +8,7 @@ TQL is built for querying syntax trees. Its foundation comes from Haskell and
 GHC: a lazy, typed functional core, type classes, and decades of research on
 making them sound. TQL takes those principles and applies them to its own
 goals. A reader who knows Haskell will find the differences that matter most in
-[For Haskell programmers](12-haskell.md).
+[For Haskell programmers](15-haskell.md).
 
 ## Foundations
 
@@ -73,16 +73,18 @@ Values:
 1. [Lexical structure](01-lexical.md)
 2. [Expressions](02-expressions.md)
 3. [Patterns](03-patterns.md)
-4. [Declarations and bindings](04-declarations.md)
-5. [Types and classes](05-types.md)
+4. [Types](04-types.md)
+5. [Declarations and bindings](05-declarations.md)
 6. [Static semantics](06-static-semantics.md)
 7. [Modules](07-modules.md)
 8. [Programs](08-programs.md)
 9. [The tree](09-tree.md)
 10. [Evaluation](10-evaluation.md)
-11. [The standard library](11-library.md)
-12. [For Haskell programmers](12-haskell.md)
-13. [Typed Core and the optimiser](13-core.md)
+11. [Predefined types and classes](11-library.md)
+12. [Typed Core and the optimiser](12-core.md)
+13. [Syntax reference](13-syntax.md)
+14. [Errors](14-errors.md)
+15. [For Haskell programmers](15-haskell.md)
 
 ## Notation
 
@@ -97,24 +99,87 @@ x | y     choice
 "k"       a literal token
 ```
 
-Translations are equations between source forms, read left to right. A
-name on the right that the left does not bind is fresh. `case`, `let`
-and `\` on the right are kernel forms, and the library names
-on the right (`bind`, `empty`, `Cons`) are the ones the `Prelude` exports,
-whatever the program's own scope holds.
+Each construct is given as a translation to the kernel
+([expressions](02-expressions.md#the-expression-kernel),
+[patterns](03-patterns.md#the-pattern-kernel)). A translation is an
+equation read left to right. Its right side is a kernel term, written in
+source syntax, except that it may apply the translation being defined to
+smaller source terms. A name on the right that the left does not bind is
+fresh, and a library name on the right (`bind`, `empty`, `Cons`) is the
+one the `Prelude` exports, whatever the program's own scope holds.
 
 ```
-do { e; ss }   =   e >> do { ss }
+do { e; ss }   =   (>>) e (do { ss })
 ```
+
+Library definitions are written as `tql` code. Laws, which are equations
+between meanings, are written in plain blocks.
 
 Typing rules are written as fractions. Premises are above the line and the
 conclusion below. Each rule has a name, which corpus cases cite.
 
 ```
-(T-App)   Γ ⊢ e1 ⇒ τ1 -> τ2     Γ ⊢ e2 ⇐ τ1
-          ──────────────────────────────────
-          Γ ⊢ e1 e2 ⇒ τ2
+(X-Name)  premise1     premise2
+          ─────────────────────
+          conclusion
 ```
+
+Judgements:
+
+| Form | Reads |
+|---|---|
+| `Γ ⊢ e ⇒ τ ⇝ W` | `e` infers type `τ`, provided `W` holds |
+| `Γ ⊢ e ⇐ τ ⇝ W` | `e` checks against `τ`, provided `W` holds |
+| `Γ ⊢ p : τ ⊣ Δ` | `p` matches a `τ` and binds `Δ` |
+| `Γ ⊢ bs ⊣ Γ' ⇝ W` | the bindings `bs` give the schemes `Γ'`, leaving `W` |
+| `Q ⊩ π ⇝ d` | the givens `Q` entail `π`, with evidence `d` |
+| `Ψ ⊢ τ : κ` | `τ` has kind `κ` |
+
+`⇒` is only the inference judgement. Types and schemes write `=>`:
+`∀ā. Q => τ`.
+
+Metavariables:
+
+| Letter | Ranges over |
+|---|---|
+| `e` | expressions |
+| `p`, `q` | patterns, and filters in laws |
+| `x`, `y`, `f` | variables |
+| `v` | values |
+| `lit` | literals |
+| `l` | record labels |
+| `K` | constructors |
+| `N` | newtype constructors |
+| `P` | pattern synonyms |
+| `T` | type constructors |
+| `C`, `S` | classes |
+| `τ` | types |
+| `σ` | type schemes |
+| `ρ` | rows |
+| `a`, `b`, `r` | type variables, `r` a row variable |
+| `α`, `β` | fresh type variables |
+| `κ` | kinds |
+| `π` | class constraints |
+| `Q` | givens |
+| `W` | wanteds |
+| `d` | evidence |
+| `Γ` | type environments |
+| `Δ` | pattern bindings |
+| `Ψ` | kind environments |
+| `bs`, `ss` | sequences of bindings and of statements |
+
+A bar marks a sequence: `ā` is `a1 ... an`.
+
+Terms:
+
+| Term | Means |
+|---|---|
+| datatype | a type declared by `data` or `newtype` |
+| filter | a value of type `Filter a b` |
+| binding group | a strongly connected component of bindings, typed together |
+| component | a strongly connected component of the import graph |
+| target file | a file a program runs on |
+| target grammar | the grammar the target files are parsed with |
 
 Rule-name prefixes:
 
@@ -129,26 +194,4 @@ Rule-name prefixes:
 
 A corpus case names the rule it tests by its name (`T-App`), or by its
 chapter and section heading when the rule is a translation
-(`Expressions: do`).
-
-## The kernel
-
-Every program translates to a small language. Its expressions are:
-
-```
-e ::= x                                   variable
-    | l                                   literal
-    | \x -> e                             abstraction
-    | e e                                 application
-    | let { x = e; ... } in e             recursive binding group
-    | case e of { p -> e; ... }           match over kernel patterns
-    | (e :: σ)                            annotation
-```
-
-Its patterns are in [Patterns](03-patterns.md#the-pattern-kernel).
-
-A source construct is well typed exactly when its translation is, and
-means what its translation means. The checker reads the source as
-written, so it reports an error at the construct, not at its
-translation. Match compilation, operator lowering and dictionary passing
-run after the checker and produce [typed Core](13-core.md).
+(`Expressions: Do expression`).

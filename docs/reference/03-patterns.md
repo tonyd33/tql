@@ -16,7 +16,7 @@ apat    ::= var | "_" | literal
           | "(" pat ("," pat)+ ")"   |   "(" ")"
           | "[" (pat ("," pat)*)? "]"
           | "(" exp "->" pat ")"             view
-          | kind "{" (fpat ("," fpat)*)? "}"  node pattern
+          | kindlit "{" (fpat ("," fpat)*)? "}"  node pattern
           | "{" fpat ("," fpat)* "}"         field pattern
 
 fpat    ::= "#" field "=" pat
@@ -29,7 +29,7 @@ Every pattern expands to these forms:
 ```
 p ::= x            variable
     | _            wildcard
-    | l            literal
+    | lit          literal
     | K p1 ... pn  constructor, saturated
     | P p1 ... pn  pattern synonym, saturated
     | (e -> p)     view
@@ -45,9 +45,10 @@ The surface forms expand as follows.
 | `[p1, ..., pn]` | `Cons p1 (... (Cons pn Nil))` |
 | `p : q` | `Cons p q` |
 | `(p1, ..., pn)`, `()` | the tuple constructor of arity n |
-| `:k {}` | `(run (of_kind :k) -> [_])` |
-| `:k { fs }` | `(run (of_kind :k) -> [{ fs }])` |
-| `{ #f1 = p1, ..., #fn = pn }` | `(run #f1 -> [p1]) & ... & (run #fn -> [pn])` |
+| `r"..."`, a regex literal | `((\s -> (~) s r"...") -> True)` |
+| `:k {}` | `(run (of_kind :k) -> Cons _ Nil)` |
+| `:k { fs }` | `(run (of_kind :k) -> Cons { fs } Nil)` |
+| `{ #f1 = p1, ..., #fn = pn }` | `(field_f1 -> Cons p1 Nil) & ... & (field_fn -> Cons pn Nil)` |
 
 So `:k {}` matches a node of kind `k`, and `{ #f = p }` matches a node
 with exactly one child in field `f`, which `p` matches.
@@ -76,8 +77,7 @@ Ok θ  ⊕ m  =  θ ∪ m          m runs with θ in scope
                                   =  match p1 v1 ⊕ ... ⊕ match pn vn      if v = K v1 ... vn
                                   =  Fail                                 otherwise
 (M-New)    match (N p) v          =  match p (unN v)                      N a newtype constructor
-(M-Lit)    match l v              =  if v == l then Ok [] else Fail
-(M-Regex)  match r v              =  if v ~ r then Ok [] else Fail        r a regex literal
+(M-Lit)    match lit v            =  if v == lit then Ok [] else Fail
 (M-View)   match (e -> p) v       =  match p (e v)
 (M-And)    match (p & q) v        =  match p v ⊕ match q v
 (M-Bang)   match !p v             =  seq v (match p v)
@@ -101,48 +101,48 @@ alternatives swapped it is `2`.
 
 ## Typing
 
-`Γ ⊢ p : τ ⇒ Δ` reads: in `Γ`, `p` matches values of type `τ` and binds
+`Γ ⊢ p : τ ⊣ Δ` reads: in `Γ`, `p` matches values of type `τ` and binds
 the variables in `Δ`. The checker checks a pattern against the type of
 the value it matches.
 
 ```
 (P-Var)    ─────────────────────
-           Γ ⊢ x : τ ⇒ {x : τ}
+           Γ ⊢ x : τ ⊣ {x : τ}
 
 (P-Wild)   ─────────────────
-           Γ ⊢ _ : τ ⇒ {}
+           Γ ⊢ _ : τ ⊣ {}
 
-(P-Lit)    ty(l) = τ     Eq τ
-           ────────────────────
-           Γ ⊢ l : τ ⇒ {}
+(P-Lit)    ty(lit) = τ     Eq τ
+           ──────────────────────
+           Γ ⊢ lit : τ ⊣ {}
 
-(P-Con)    K : ∀ā. τ1 -> ... -> τn -> T ā      Γ ⊢ pi : [ā := σ̄]τi ⇒ Δi
+(P-Con)    K : ∀ā. τ1 -> ... -> τn -> T ā      Γ ⊢ pi : [ā := σ̄]τi ⊣ Δi
            ──────────────────────────────────────────────────────────
-           Γ ⊢ K p1 ... pn : T σ̄ ⇒ Δ1 ∪ ... ∪ Δn
+           Γ ⊢ K p1 ... pn : T σ̄ ⊣ Δ1 ∪ ... ∪ Δn
 
-(P-View)   Γ, Δleft ⊢ e ⇒ τ -> τ'     Γ ⊢ p : τ' ⇒ Δ
+(P-View)   Γ, Δleft ⊢ e ⇒ τ -> τ'     Γ ⊢ p : τ' ⊣ Δ
            ─────────────────────────────────────────
-           Γ ⊢ (e -> p) : τ ⇒ Δ
+           Γ ⊢ (e -> p) : τ ⊣ Δ
 
-(P-And)    Γ ⊢ p : τ ⇒ Δp     Γ ⊢ q : τ ⇒ Δq     dom Δp ∩ dom Δq = ∅
+(P-And)    Γ ⊢ p : τ ⊣ Δp     Γ ⊢ q : τ ⊣ Δq     dom Δp ∩ dom Δq = ∅
            ─────────────────────────────────────────────────────────
-           Γ ⊢ p & q : τ ⇒ Δp ∪ Δq
+           Γ ⊢ p & q : τ ⊣ Δp ∪ Δq
 
-(P-Bang)   Γ ⊢ p : τ ⇒ Δ
+(P-Bang)   Γ ⊢ p : τ ⊣ Δ
            ──────────────────
-           Γ ⊢ !p : τ ⇒ Δ
+           Γ ⊢ !p : τ ⊣ Δ
 ```
 
-`ty(l)` is `Int` for an integer, `String` for a string and `Kind` for a
-kind literal. A regex literal pattern matches a `String`. In P-Con the
+`ty(lit)` is in [Expressions](06-static-semantics.md#expressions). In P-Con the
 `Δi` are pairwise disjoint. In P-View, `Δleft` is the variables bound to
 the view's left in the same pattern.
 
 A pattern synonym is typed by P-Con at its declared or inferred type
-([Pattern synonyms](04-declarations.md#pattern-synonyms)).
+([Pattern synonym](05-declarations.md#pattern-synonym)).
 
 A pattern that does not fit its scrutinee's type is reported at the
-pattern: `:identifier` against a `Node` is an error at `:identifier`,
+pattern: `:identifier` against a `Node` is an error, `type-mismatch`, at
+`:identifier`,
 since a kind literal matches a `Kind`. Write `:identifier {}` to match a
 node.
 
@@ -150,7 +150,7 @@ node.
 
 A variable is bound at most once in one pattern, and at most once among
 the patterns of one lambda, one clause and one `let` group. A repeat is an
-error. The rule is checked on the expanded pattern, so `x & x` and `x@x`
+error, `duplicate-definition`. The rule is checked on the expanded pattern, so `x & x` and `x@x`
 are rejected.
 
 A pattern variable shadows any binding of the same name outside the
@@ -169,7 +169,6 @@ rules:
 - A literal is a value with equality. A literal rules out other literals
   of its type, and only a variable or wildcard covers every value of a
   literal type.
-- A regex literal decides nothing.
 - A view, a guard and a pattern synonym are opaque: a row that uses one
   covers nothing beyond what the rest of the row covers.
 
@@ -181,8 +180,9 @@ Two judgements follow:
 - A row that no value reaches, given the rows above it, is an error,
   `redundant-alternative`.
 
-A `do` bind is the one position where a pattern may fail at run time; it
-falls through to `empty` ([Do](02-expressions.md#do)).
+A `do` bind is the one position where a refutable pattern is legal: its
+translation adds an alternative that yields `empty`
+([Do expression](02-expressions.md#do-expression)).
 
 A list literal scrutinee is treated as any list: `case [1, 2] of { [a, b] -> a; }`
 is non-exhaustive.
