@@ -54,21 +54,21 @@ fn progressThread(io: std.Io, p: *Progress, stop: *std.atomic.Value(bool), stder
         {
             try stderr.lock.lock(io);
             defer stderr.lock.unlock(io);
-            renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+            renderProgress(stderr.terminal.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
         }
         try io.sleep(std.Io.Duration.fromMilliseconds(1), .real);
     }
     try stderr.lock.lock(io);
     defer stderr.lock.unlock(io);
-    renderProgress(stderr.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
-    stderr.writer.print("\n", .{}) catch {};
-    stderr.writer.flush() catch {};
+    renderProgress(stderr.terminal.writer, p.done.load(.monotonic), p.total.load(.monotonic), p.done_walk.load(.acquire));
+    stderr.terminal.writer.print("\n", .{}) catch {};
+    stderr.terminal.writer.flush() catch {};
 }
 
 /// stderr, shared by the progress bar and the per-file error reports.
 // FIXME: I'm pretty sure there is a threadsafe version of this in 0.16 stdlib
 const Stderr = struct {
-    writer: *std.Io.Writer,
+    terminal: std.Io.Terminal,
     lock: std.Io.Mutex = .init,
 };
 
@@ -275,8 +275,8 @@ fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr
         if (result.syntax_errors.len > 0) {
             try stderr.lock.lock(ctx.io);
             defer stderr.lock.unlock(ctx.io);
-            try warnSyntaxErrors(stderr.writer, result.filename, result.syntax_errors, ctx.grammar.name);
-            try stderr.writer.flush();
+            try warnSyntaxErrors(stderr.terminal.writer, result.filename, result.syntax_errors, ctx.grammar.name);
+            try stderr.terminal.writer.flush();
         }
         if (result.count > 0) {
             try stdout.print("{s}: {s}\n", .{ result.filename, result.values.? });
@@ -286,8 +286,8 @@ fn writerThreadText(ctx: *SharedContext, stdout: *std.Io.Writer, stderr: *Stderr
         if (result.failure) |failure| {
             try stderr.lock.lock(ctx.io);
             defer stderr.lock.unlock(ctx.io);
-            try common.reportFailure(stderr.writer, result.filename, failure);
-            try stderr.writer.flush();
+            try common.reportFailure(stderr.terminal, result.filename, failure);
+            try stderr.terminal.writer.flush();
         }
     }
 }
@@ -489,7 +489,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
     const allocator = context.gpa;
     const io = context.io;
     const stdout = context.stdout;
-    const stderr = context.stderr;
+    const stderr = context.stderr.writer;
 
     var engine = try tql.Engine.init(.{
         .allocator = allocator,
@@ -504,8 +504,8 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
     defer sink.deinit();
 
     var compiled = engine.compileQuery(config.query, config.grammar, &sink) catch |err| {
-        try common.reportDiagnostics(&engine, &sink, config.query, config.query_path, stderr);
-        if (!sink.hasErrors()) try common.reportFailure(stderr, config.query_path, .ofAny(err));
+        try common.reportDiagnostics(&engine, &sink, config.query, config.query_path, context.stderr);
+        if (!sink.hasErrors()) try common.reportFailure(context.stderr, config.query_path, .ofAny(err));
         return .compilation_error;
     };
     defer compiled.deinit();
@@ -527,7 +527,7 @@ pub fn run(context: *const common.Context, config: Config) !ExitCode {
         .format = config.format,
     };
 
-    var shared_stderr: Stderr = .{ .writer = stderr };
+    var shared_stderr: Stderr = .{ .terminal = context.stderr };
     var progress_stop = std.atomic.Value(bool).init(false);
     var walker_thread = try std.Thread.spawn(.{}, walkerThread, .{&ctx});
     const writer_thread = switch (config.format) {

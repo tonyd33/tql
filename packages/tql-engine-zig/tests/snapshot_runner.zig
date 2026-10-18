@@ -12,8 +12,6 @@ const SectionKind = corpus_parser.SectionKind;
 
 const DEFAULT_CORPUS_DIR = "tests/corpus";
 
-const ansi = fmt.ansi;
-
 const COMPARABLE_SECTIONS = [_]SectionKind{
     .values,
     .runtime_error,
@@ -87,7 +85,7 @@ const Options = struct {
     max_pending: ?u32 = null,
     fail_fast: bool = false,
     safe: bool = false,
-    color: bool = true,
+    no_color: bool = false,
     jobs: ?u32 = null,
 };
 
@@ -126,6 +124,7 @@ const DiffEntry = struct {
 const TestRunContext = struct {
     gpa: std.mem.Allocator,
     stdout: *std.Io.Writer,
+    mode: std.Io.Terminal.Mode,
     opts: Options,
     /// Shared by every case.
     library: *const tql.Library,
@@ -139,10 +138,11 @@ const TestRunContext = struct {
     wall: std.Io.Duration = .zero,
     cpu: std.Io.Duration = .zero,
 
-    fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, opts: Options, library: *const tql.Library) TestRunContext {
+    fn init(gpa: std.mem.Allocator, stdout: *std.Io.Writer, mode: std.Io.Terminal.Mode, opts: Options, library: *const tql.Library) TestRunContext {
         return .{
             .gpa = gpa,
             .stdout = stdout,
+            .mode = mode,
             .opts = opts,
             .library = library,
             .diffs = .empty,
@@ -161,6 +161,10 @@ const TestRunContext = struct {
         self.diffs.deinit(self.gpa);
         self.reasons.deinit(self.gpa);
         if (self.unexpected) |text| self.gpa.free(text);
+    }
+
+    fn terminal(self: *const TestRunContext) std.Io.Terminal {
+        return .{ .writer = self.stdout, .mode = self.mode };
     }
 
     fn addReason(self: *TestRunContext, reason: []const u8) !void {
@@ -197,13 +201,13 @@ const CaseRun = struct {
 
     /// Preconditions:
     /// - `self` does not move after this call; `ctx` points into `log`.
-    fn init(self: *CaseRun, gpa: std.mem.Allocator, opts: Options, library: *const tql.Library, filename: []const u8) void {
+    fn init(self: *CaseRun, gpa: std.mem.Allocator, mode: std.Io.Terminal.Mode, opts: Options, library: *const tql.Library, filename: []const u8) void {
         self.* = .{
             .filename = filename,
             .log = .init(gpa),
             .ctx = undefined,
         };
-        self.ctx = .init(gpa, &self.log.writer, opts, library);
+        self.ctx = .init(gpa, &self.log.writer, mode, opts, library);
     }
 
     fn deinit(self: *CaseRun) void {
@@ -317,16 +321,19 @@ pub fn main(init: std.process.Init) !u8 {
     defer args_iter.deinit();
     _ = args_iter.next();
 
-    var opts = try parseArgs(&args_iter);
+    const opts = try parseArgs(&args_iter);
 
     if (opts.help) {
         try goz.printUsage(snapshot_cmd, stdout);
         return 0;
     }
 
-    if (opts.color) {
-        opts.color = try std.Io.File.stdout().isTty(io);
-    }
+    const t: std.Io.Terminal = .{ .writer = stdout, .mode = try .detect(
+        io,
+        .stdout(),
+        opts.no_color or init.minimal.environ.containsUnemptyConstant("NO_COLOR"),
+        init.minimal.environ.containsUnemptyConstant("CLICOLOR_FORCE"),
+    ) };
 
     const corpus_files = try collectCorpusFiles(gpa, io, opts.corpus_dir);
     defer {
@@ -359,7 +366,7 @@ pub fn main(init: std.process.Init) !u8 {
 
     const runs = try gpa.alloc(CaseRun, selected.items.len);
     defer gpa.free(runs);
-    for (runs, selected.items) |*run, filename| run.init(gpa, opts, &library, filename);
+    for (runs, selected.items) |*run, filename| run.init(gpa, t.mode, opts, &library, filename);
     defer for (runs) |*run| run.deinit();
 
     var shared: SharedOutput = .{ .writer = stdout };
@@ -394,25 +401,24 @@ pub fn main(init: std.process.Init) !u8 {
         pending += run.result.pending;
     }
 
-    try printSlowest(gpa, stdout, runs, opts.color);
+    try printSlowest(gpa, t, runs);
 
     try stdout.writeByte('\n');
-    if (opts.color) {
+    if (t.mode != .no_color) {
         if (failed > 0) {
-            try stdout.print("{s}✗ {d} failed{s}", .{ ansi.red_bold, failed, ansi.reset });
-            try stdout.print("{s}, {d} passed, {d} skipped{s}", .{ ansi.dim, passed, skipped, ansi.reset });
+            try paint(t, &.{ .bold, .red }, "✗ {d} failed", .{failed});
+            try paint(t, &.{.dim}, ", {d} passed, {d} skipped", .{ passed, skipped });
         } else {
-            try stdout.print("{s}✓ {d} passed{s}", .{ ansi.green_bold, passed, ansi.reset });
+            try paint(t, &.{ .bold, .green }, "✓ {d} passed", .{passed});
             if (skipped > 0) {
-                try stdout.print("{s}, {d} skipped{s}", .{ ansi.dim, skipped, ansi.reset });
+                try paint(t, &.{.dim}, ", {d} skipped", .{skipped});
             }
         }
-        try stdout.print("{s} in {f}, {f} CPU in cases{s}\n", .{ ansi.dim, elapsed, cpu, ansi.reset });
+        try paint(t, &.{.dim}, " in {f}, {f} CPU in cases", .{ elapsed, cpu });
+        try stdout.writeByte('\n');
         if (pending > 0) {
-            try stdout.print(
-                "{s}{d} pending section{s} not asserted{s}\n",
-                .{ ansi.yellow_bold, pending, if (pending == 1) "" else "s", ansi.reset },
-            );
+            try paint(t, &.{ .bold, .yellow }, "{d} pending section{s} not asserted", .{ pending, if (pending == 1) "" else "s" });
+            try stdout.writeByte('\n');
         }
     } else {
         try stdout.print(
@@ -426,7 +432,7 @@ pub fn main(init: std.process.Init) !u8 {
         for (runs) |*run| {
             if (!run.ran) break;
             if (run.result.failed == 0) continue;
-            try printFailureSummary(stdout, &run.ctx, run.name(), opts.color);
+            try printFailureSummary(t, &run.ctx, run.name());
         }
     }
 
@@ -444,40 +450,55 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 /// Print a failed case's reasons, unexpected diagnostics and section diffs.
-fn printFailureSummary(stdout: *std.Io.Writer, ctx: *const TestRunContext, name: []const u8, color: bool) !void {
-    const reasons = ctx.reasons.items;
-    if (color) {
-        try stdout.print("{s}✗{s} {s} {s}(", .{ ansi.red_bold, ansi.reset, name, ansi.dim });
-    } else {
-        try stdout.print("FAIL {s} (", .{name});
-    }
-    for (reasons, 0..) |r, i| {
+fn printFailureSummary(t: std.Io.Terminal, ctx: *const TestRunContext, name: []const u8) !void {
+    const stdout = t.writer;
+    try paintMark(t, .failed);
+    try stdout.print(" {s} ", .{name});
+    try t.setColor(.dim);
+    try stdout.writeByte('(');
+    for (ctx.reasons.items, 0..) |r, i| {
         if (i > 0) try stdout.writeAll(", ");
         try stdout.writeAll(r);
     }
-    if (color) {
-        try stdout.print("){s}\n", .{ansi.reset});
-    } else {
-        try stdout.writeAll(")\n");
-    }
-    if (ctx.unexpected) |text| {
-        var lines = std.mem.splitScalar(u8, text, '\n');
-        while (lines.next()) |line| {
-            if (color) {
-                try stdout.print("    {s}{s}{s}\n", .{ ansi.red, line, ansi.reset });
-            } else {
-                try stdout.print("    {s}\n", .{line});
-            }
-        }
-    }
+    try stdout.writeByte(')');
+    try t.setColor(.reset);
+    try stdout.writeByte('\n');
+    if (ctx.unexpected) |text| try printUnexpected(t, text);
     for (ctx.diffs.items) |d| {
-        try printDiff(stdout, d.section, d.expected, d.actual, color);
+        try printDiff(t, d.section, d.expected, d.actual);
     }
+}
+
+fn printUnexpected(t: std.Io.Terminal, text: []const u8) !void {
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        try t.writer.writeAll("    ");
+        try paint(t, &.{.red}, "{s}", .{line});
+        try t.writer.writeByte('\n');
+    }
+}
+
+fn paint(t: std.Io.Terminal, colors: []const std.Io.Terminal.Color, comptime fmt_: []const u8, args: anytype) !void {
+    for (colors) |color| try t.setColor(color);
+    try t.writer.print(fmt_, args);
+    try t.setColor(.reset);
+}
+
+/// Write the mark for `status`: a symbol in colour, a word without.
+fn paintMark(t: std.Io.Terminal, status: CaseResult) !void {
+    const plain = t.mode == .no_color;
+    const mark, const colors: []const std.Io.Terminal.Color = switch (status) {
+        .passed => .{ if (plain) "PASS" else "✓", &.{.green} },
+        .failed => .{ if (plain) "FAIL" else "✗", &.{ .bold, .red } },
+        .modified => .{ if (plain) "UPDATED" else "~", &.{ .bold, .yellow } },
+        .skipped => unreachable,
+    };
+    try paint(t, colors, "{s}", .{mark});
 }
 
 /// Prints the slowest executed cases. Prints nothing when every executed case
 /// would be listed.
-fn printSlowest(gpa: std.mem.Allocator, stdout: *std.Io.Writer, runs: []const CaseRun, color: bool) !void {
+fn printSlowest(gpa: std.mem.Allocator, t: std.Io.Terminal, runs: []const CaseRun) !void {
     var executed: std.ArrayList(usize) = .empty;
     defer executed.deinit(gpa);
     for (runs, 0..) |*run, i| {
@@ -486,13 +507,11 @@ fn printSlowest(gpa: std.mem.Allocator, stdout: *std.Io.Writer, runs: []const Ca
     if (executed.items.len <= SLOWEST_SHOWN) return;
 
     std.mem.sortUnstable(usize, executed.items, runs, slowerThan);
-    if (color) {
-        try stdout.print("\n{s}slowest{s}\n", .{ ansi.bold, ansi.reset });
-    } else {
-        try stdout.writeAll("\nslowest\n");
-    }
+    try t.writer.writeByte('\n');
+    try paint(t, &.{.bold}, "slowest", .{});
+    try t.writer.writeByte('\n');
     for (executed.items[0..SLOWEST_SHOWN]) |i| {
-        try stdout.print("  {f} {s}\n", .{ runs[i].ctx.cpu, runs[i].name() });
+        try t.writer.print("  {f} {s}\n", .{ runs[i].ctx.cpu, runs[i].name() });
     }
 }
 
@@ -569,14 +588,12 @@ fn testFile(
 
     var corpus = corpus_parser.parse(gpa, content) catch |err| {
         try ctx.addReason(@errorName(err));
-        if (ctx.opts.color) {
-            try ctx.stdout.print(
-                "  {s}✗{s} {s} {s}({s}){s}\n",
-                .{ ansi.red_bold, ansi.reset, name, ansi.dim, @errorName(err), ansi.reset },
-            );
-        } else {
-            try ctx.stdout.print("  FAIL {s} ({t})\n", .{ name, err });
-        }
+        const t = ctx.terminal();
+        try ctx.stdout.writeAll("  ");
+        try paintMark(t, .failed);
+        try ctx.stdout.print(" {s} ", .{name});
+        try paint(t, &.{.dim}, "({t})", .{err});
+        try ctx.stdout.writeByte('\n');
         result.failed = 1;
         result.failed_fast = ctx.opts.fail_fast;
         return result;
@@ -655,16 +672,7 @@ fn checkCase(
         try ctx.addReason(@errorName(err));
         if (unexpected) |text| ctx.unexpected = try gpa.dupe(u8, text);
         try printStatus(ctx, .failed, name, err);
-        if (unexpected) |text| {
-            var lines = std.mem.splitScalar(u8, text, '\n');
-            while (lines.next()) |line| {
-                if (ctx.opts.color) {
-                    try ctx.stdout.print("    {s}{s}{s}\n", .{ ansi.red, line, ansi.reset });
-                } else {
-                    try ctx.stdout.print("    {s}\n", .{line});
-                }
-            }
-        }
+        if (unexpected) |text| try printUnexpected(ctx.terminal(), text);
         return .failed;
     };
 
@@ -722,11 +730,7 @@ fn checkCase(
             try printStatus(ctx, .failed, name, null);
             test_failed = true;
         }
-        if (ctx.opts.color) {
-            try ctx.stdout.print("    {s}[memory leak]{s}\n", .{ ansi.red, ansi.reset });
-        } else {
-            try ctx.stdout.print("    [memory leak]\n", .{});
-        }
+        try printUnexpected(ctx.terminal(), "[memory leak]");
     }
 
     if (test_failed) {
@@ -741,18 +745,15 @@ fn checkCase(
 }
 
 fn printStatus(ctx: *TestRunContext, status: CaseResult, name: []const u8, err: ?anyerror) !void {
-    const color = ctx.opts.color;
-    const mark, const mark_color = switch (status) {
-        .passed => if (color) .{ "✓", ansi.green } else .{ "PASS", "" },
-        .failed => if (color) .{ "✗", ansi.red_bold } else .{ "FAIL", "" },
-        .modified => if (color) .{ "~", ansi.yellow_bold } else .{ "UPDATED", "" },
-        .skipped => unreachable,
-    };
-    const dim = if (color) ansi.dim else "";
-    const reset = if (color) ansi.reset else "";
-    try ctx.stdout.print("  {s}{s}{s} {s}{s}", .{ mark_color, mark, reset, name, dim });
+    const t = ctx.terminal();
+    try ctx.stdout.writeAll("  ");
+    try paintMark(t, status);
+    try ctx.stdout.print(" {s}", .{name});
+    try t.setColor(.dim);
     if (err) |e| try ctx.stdout.print(" ({t})", .{e});
-    try ctx.stdout.print(" {f} (cpu {f}){s}\n", .{ ctx.wall, ctx.cpu, reset });
+    try ctx.stdout.print(" {f} (cpu {f})", .{ ctx.wall, ctx.cpu });
+    try t.setColor(.reset);
+    try ctx.stdout.writeByte('\n');
 }
 
 /// Whether a produced section matches what the case asserts.
@@ -837,11 +838,35 @@ fn describeDiagnostics(
     errdefer w.deinit();
     for (diagnostics, 0..) |d, i| {
         if (i > 0) try w.writer.writeByte('\n');
-        try d.render(&w.writer, engine.sourceOf(d.span.source, .{ .name = null, .text = source }));
+        try renderPlain(allocator, &w.writer, d, .{engine.sourceOf(d.span.source, .{ .name = null, .text = source })});
     }
     const rendered = w.written();
     w.shrinkRetainingCapacity(std.mem.trimEnd(u8, rendered, "\n").len);
     return w.toOwnedSlice();
+}
+
+/// Write `value.render(terminal, args...)` to `w` without colour. Fails when
+/// the coloured render, its escape sequences removed, differs.
+fn renderPlain(allocator: std.mem.Allocator, w: *std.Io.Writer, value: anytype, args: anytype) !void {
+    const render = @TypeOf(value).render;
+    var plain: std.Io.Writer.Allocating = .init(allocator);
+    defer plain.deinit();
+    try @call(.auto, render, .{ value, std.Io.Terminal{ .writer = &plain.writer, .mode = .no_color } } ++ args);
+    var styled: std.Io.Writer.Allocating = .init(allocator);
+    defer styled.deinit();
+    try @call(.auto, render, .{ value, std.Io.Terminal{ .writer = &styled.writer, .mode = .escape_codes } } ++ args);
+
+    var stripped: std.Io.Writer.Allocating = .init(allocator);
+    defer stripped.deinit();
+    var rest = styled.written();
+    while (std.mem.indexOf(u8, rest, "\x1b[")) |start| {
+        try stripped.writer.writeAll(rest[0..start]);
+        const end = std.mem.indexOfScalarPos(u8, rest, start, 'm') orelse return error.UnterminatedEscape;
+        rest = rest[end + 1 ..];
+    }
+    try stripped.writer.writeAll(rest);
+    if (!std.mem.eql(u8, plain.written(), stripped.written())) return error.StyledRenderMismatch;
+    try w.writeAll(plain.written());
 }
 
 /// What running a compiled query over the case's target produced.
@@ -1083,7 +1108,7 @@ fn runTestCase(
                                 allocator.free(runtime_error_text);
                                 var rendered: std.Io.Writer.Allocating = .init(allocator);
                                 errdefer rendered.deinit();
-                                try f.render(&rendered.writer);
+                                try renderPlain(allocator, &rendered.writer, f, .{});
                                 runtime_error_text = try rendered.toOwnedSlice();
                             }
 
@@ -1174,12 +1199,11 @@ fn runTestCase(
     };
 }
 
-fn printDiff(writer: *std.Io.Writer, section: []const u8, expected: []const u8, actual: []const u8, color: bool) !void {
-    if (color) {
-        try writer.print("    {s}[{s}]{s}\n", .{ ansi.cyan, section, ansi.reset });
-    } else {
-        try writer.print("    [{s}]\n", .{section});
-    }
+fn printDiff(t: std.Io.Terminal, section: []const u8, expected: []const u8, actual: []const u8) !void {
+    const writer = t.writer;
+    try writer.writeAll("    ");
+    try paint(t, &.{.cyan}, "[{s}]", .{section});
+    try writer.writeByte('\n');
 
     var exp_list: std.ArrayListUnmanaged([]const u8) = .empty;
     defer exp_list.deinit(std.heap.page_allocator);
@@ -1253,29 +1277,14 @@ fn printDiff(writer: *std.Io.Writer, section: []const u8, expected: []const u8, 
                 continue;
             }
         }
-        switch (entry.op) {
-            .keep => {
-                if (color) {
-                    try writer.print("    {s}  {s}{s}\n", .{ ansi.dim, entry.line, ansi.reset });
-                } else {
-                    try writer.print("      {s}\n", .{entry.line});
-                }
-            },
-            .remove => {
-                if (color) {
-                    try writer.print("    {s}- {s}{s}\n", .{ ansi.red, entry.line, ansi.reset });
-                } else {
-                    try writer.print("    - {s}\n", .{entry.line});
-                }
-            },
-            .add => {
-                if (color) {
-                    try writer.print("    {s}+ {s}{s}\n", .{ ansi.green, entry.line, ansi.reset });
-                } else {
-                    try writer.print("    + {s}\n", .{entry.line});
-                }
-            },
-        }
+        const marker: u8, const color: std.Io.Terminal.Color = switch (entry.op) {
+            .keep => .{ ' ', .dim },
+            .remove => .{ '-', .red },
+            .add => .{ '+', .green },
+        };
+        try writer.writeAll("    ");
+        try paint(t, &.{color}, "{c} {s}", .{ marker, entry.line });
+        try writer.writeByte('\n');
         idx += 1;
     }
 }
@@ -1341,7 +1350,7 @@ fn parseArgs(iter: *std.process.Args.Iterator) !Options {
                 .help => opts.help = true,
                 .fail_fast => opts.fail_fast = true,
                 .safe => opts.safe = true,
-                .no_color => opts.color = false,
+                .no_color => opts.no_color = true,
             },
             .named_arg => |kv| switch (kv.field) {
                 .file_name => opts.file_name = kv.value,

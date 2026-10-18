@@ -203,10 +203,12 @@ pub const Diagnostic = struct {
     /// A span with no range gets neither location nor excerpt.
     pub fn render(
         self: Diagnostic,
-        w: *std.Io.Writer,
+        t: std.Io.Terminal,
         source: Source,
-    ) std.Io.Writer.Error!void {
-        try w.print("error[{s}]: {f}\n", .{ self.category.name(), self.message() });
+    ) std.Io.Terminal.SetColorError!void {
+        const w = t.writer;
+        try writeHeadline(t, self.category.name(), self.parts);
+        try w.writeByte('\n');
         const range = self.span.range orelse return;
 
         const start = range.start_point;
@@ -221,7 +223,8 @@ pub const Diagnostic = struct {
         const gutter = std.math.log10_int(end.row + 1) + 1; // digit count
 
         try w.splatByteAll(' ', gutter);
-        try w.writeAll("--> ");
+        try paint(t, .blue, "-->", .{});
+        try w.writeByte(' ');
         if (source.name) |name| try w.print("{s}:", .{name});
         try start.format(w);
         try w.writeByte('\n');
@@ -232,8 +235,8 @@ pub const Diagnostic = struct {
             if (lines.next() == null) return;
         }
 
-        try w.splatByteAll(' ', gutter);
-        try w.writeAll(" |\n");
+        try writeGutter(t, gutter, null);
+        try w.writeByte('\n');
         while (row <= end.row) : (row += 1) {
             const raw = lines.next() orelse break;
             const line = std.mem.trimEnd(u8, raw, "\r");
@@ -242,7 +245,10 @@ pub const Diagnostic = struct {
             if (shown_rows > MAX_EXCERPT_ROWS and
                 index >= MAX_EXCERPT_ROWS / 2 and index < shown_rows - MAX_EXCERPT_ROWS / 2)
             {
-                if (index == MAX_EXCERPT_ROWS / 2) try w.writeAll("...\n");
+                if (index == MAX_EXCERPT_ROWS / 2) {
+                    try paint(t, .blue, "...", .{});
+                    try w.writeByte('\n');
+                }
                 continue;
             }
 
@@ -251,10 +257,11 @@ pub const Diagnostic = struct {
             const to: usize = if (row == end.row) @min(end.column, line.len) else line.len;
             const at_edge = row == start.row or row == end.row;
 
-            try w.print("{d: >[1]} | {[2]s}\n", .{ row + 1, gutter, line });
+            try writeGutter(t, gutter, row + 1);
+            try w.print(" {s}\n", .{line});
             if (to <= from and !at_edge) continue;
-            try w.splatByteAll(' ', gutter);
-            try w.writeAll(" | ");
+            try writeGutter(t, gutter, null);
+            try w.writeByte(' ');
             for (line[0..from]) |c| {
                 if (isContinuationByte(c)) continue;
                 try w.writeByte(if (c == '\t') '\t' else ' ');
@@ -265,11 +272,48 @@ pub const Diagnostic = struct {
                     if (!isContinuationByte(c)) carets += 1;
                 }
             }
-            try w.splatByteAll('^', @max(carets, 1));
+            try paint(t, .red, "{[0]s:^>[1]}", .{ "", @max(carets, 1) });
             try w.writeByte('\n');
         }
     }
+
+    /// Write `row` right-aligned in `width` columns, or blanks when null,
+    /// then ` |`.
+    fn writeGutter(t: std.Io.Terminal, width: usize, row: ?u32) std.Io.Terminal.SetColorError!void {
+        if (row) |r| {
+            try paint(t, .blue, "{d: >[1]} |", .{ r, width });
+        } else {
+            try paint(t, .blue, "{[0]s: >[1]} |", .{ "", width });
+        }
+    }
 };
+
+/// Write `error[name]: message`, the message spelled by `parts`.
+pub fn writeHeadline(t: std.Io.Terminal, name: []const u8, parts: []const Part) std.Io.Terminal.SetColorError!void {
+    try paint(t, .red, "error[{s}]", .{name});
+    try t.writer.writeAll(": ");
+    for (parts) |part| {
+        switch (part) {
+            .text => |text| {
+                try t.setColor(.bold);
+                try t.writer.writeAll(text);
+            },
+            .code => |quoted| {
+                try t.setColor(.bold);
+                try t.setColor(.cyan);
+                try writeCode(t.writer, quoted);
+            },
+        }
+        try t.setColor(.reset);
+    }
+}
+
+fn paint(t: std.Io.Terminal, color: std.Io.Terminal.Color, comptime fmt: []const u8, args: anytype) std.Io.Terminal.SetColorError!void {
+    try t.setColor(.bold);
+    try t.setColor(color);
+    try t.writer.print(fmt, args);
+    try t.setColor(.reset);
+}
 
 /// An excerpt longer than this many rows has its middle elided.
 const MAX_EXCERPT_ROWS = 4;
@@ -284,35 +328,38 @@ fn freeRuns(allocator: std.mem.Allocator, parts: []const Part) void {
     };
 }
 
-/// Formats a message as plain text, each code part fenced as a CommonMark
-/// code span: one backtick more than its longest run of backticks, padded
-/// with a space when it starts or ends with one.
+/// Write `quoted` fenced as a CommonMark code span: one backtick more than
+/// its longest run of backticks, padded with a space when it starts or ends
+/// with one.
+fn writeCode(w: *std.Io.Writer, quoted: []const u8) std.Io.Writer.Error!void {
+    const fence = longestBacktickRun(quoted) + 1;
+    const pad = quoted.len > 0 and (quoted[0] == '`' or quoted[quoted.len - 1] == '`');
+    try w.splatByteAll('`', fence);
+    if (pad) try w.writeByte(' ');
+    try w.writeAll(quoted);
+    if (pad) try w.writeByte(' ');
+    try w.splatByteAll('`', fence);
+}
+
+fn longestBacktickRun(text: []const u8) usize {
+    var longest: usize = 0;
+    var run: usize = 0;
+    for (text) |c| {
+        run = if (c == '`') run + 1 else 0;
+        longest = @max(longest, run);
+    }
+    return longest;
+}
+
+/// Formats a message as plain text, with code fenced in backticks.
 const Plain = struct {
     parts: []const Part,
 
     pub fn format(self: Plain, w: *std.Io.Writer) std.Io.Writer.Error!void {
         for (self.parts) |part| switch (part) {
             .text => |text| try w.writeAll(text),
-            .code => |quoted| {
-                const fence = longestBacktickRun(quoted) + 1;
-                const pad = quoted.len > 0 and (quoted[0] == '`' or quoted[quoted.len - 1] == '`');
-                try w.splatByteAll('`', fence);
-                if (pad) try w.writeByte(' ');
-                try w.writeAll(quoted);
-                if (pad) try w.writeByte(' ');
-                try w.splatByteAll('`', fence);
-            },
+            .code => |quoted| try writeCode(w, quoted),
         };
-    }
-
-    fn longestBacktickRun(text: []const u8) usize {
-        var longest: usize = 0;
-        var run: usize = 0;
-        for (text) |c| {
-            run = if (c == '`') run + 1 else 0;
-            longest = @max(longest, run);
-        }
-        return longest;
     }
 };
 
@@ -483,6 +530,7 @@ pub const Sink = struct {
 
 fn expectRender(
     expected: []const u8,
+    mode: std.Io.Terminal.Mode,
     source: []const u8,
     path: ?[]const u8,
     start: Point,
@@ -495,7 +543,7 @@ fn expectRender(
     };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try d.render(&buf.writer, .{ .name = path, .text = source });
+    try d.render(.{ .writer = &buf.writer, .mode = mode }, .{ .name = path, .text = source });
     try std.testing.expectEqualStrings(expected, buf.written());
 }
 
@@ -507,14 +555,53 @@ test "render stops a span ending at column 0 on the line before" {
         \\1 | ab
         \\  | ^^
         \\
-    , "ab\ncd", null, .{ .row = 0, .column = 0 }, .{ .row = 1, .column = 0 });
+    , .no_color, "ab\ncd", null, .{ .row = 0, .column = 0 }, .{ .row = 1, .column = 0 });
+}
+
+test "render styles the label, message, code, location, gutter and carets" {
+    try expectRender(
+        "\x1b[1m\x1b[31merror[type-mismatch]\x1b[0m: " ++
+            "\x1b[1mExpected \x1b[0m\x1b[1m\x1b[36m`Int`\x1b[0m\x1b[1m, found \x1b[0m\x1b[1m\x1b[36m`String`\x1b[0m\x1b[1m.\x1b[0m\n" ++
+            " \x1b[1m\x1b[34m-->\x1b[0m a.tql:1:2\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m1 |\x1b[0m ab\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m  \x1b[1m\x1b[31m^\x1b[0m\n",
+        .escape_codes,
+        "ab",
+        "a.tql",
+        .{ .row = 0, .column = 1 },
+        .{ .row = 0, .column = 2 },
+    );
+}
+
+test "render styles the elision of a long excerpt" {
+    try expectRender(
+        "\x1b[1m\x1b[31merror[type-mismatch]\x1b[0m: " ++
+            "\x1b[1mExpected \x1b[0m\x1b[1m\x1b[36m`Int`\x1b[0m\x1b[1m, found \x1b[0m\x1b[1m\x1b[36m`String`\x1b[0m\x1b[1m.\x1b[0m\n" ++
+            " \x1b[1m\x1b[34m-->\x1b[0m 1:1\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m1 |\x1b[0m a\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m \x1b[1m\x1b[31m^\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m2 |\x1b[0m b\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m \x1b[1m\x1b[31m^\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m...\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m4 |\x1b[0m d\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m \x1b[1m\x1b[31m^\x1b[0m\n" ++
+            "\x1b[1m\x1b[34m5 |\x1b[0m e\n" ++
+            "\x1b[1m\x1b[34m  |\x1b[0m \x1b[1m\x1b[31m^\x1b[0m\n",
+        .escape_codes,
+        "a\nb\nc\nd\ne",
+        null,
+        .{ .row = 0, .column = 0 },
+        .{ .row = 4, .column = 1 },
+    );
 }
 
 test "render omits location and excerpt for an unknown span" {
     const d: Diagnostic = .{ .category = .missing_main, .span = .unknown, .parts = &.{ .{ .text = "No " }, .{ .code = "main" }, .{ .text = "." } } };
     var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer buf.deinit();
-    try d.render(&buf.writer, .{ .name = null, .text = "f = 1;" });
+    try d.render(.{ .writer = &buf.writer, .mode = .no_color }, .{ .name = null, .text = "f = 1;" });
     try std.testing.expectEqualStrings("error[missing-main]: No `main`.\n", buf.written());
 }
 

@@ -528,8 +528,8 @@ pub const Failure = union(enum) {
     }
 
     /// Write `error[name]: message`.
-    pub fn render(self: Failure, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("error[{s}]: {s}", .{ self.name(), self.message() });
+    pub fn render(self: Failure, t: std.Io.Terminal) std.Io.Terminal.SetColorError!void {
+        try diagnostic.writeHeadline(t, self.name(), &.{.{ .text = self.message() }});
     }
 
     /// Why a file could not be read, for a reader.
@@ -570,6 +570,14 @@ test {
     refAllDecls(stg);
     refAllDecls(inspect);
     refAllDecls(kinds);
+}
+
+test "a failure renders its label bold red and its message bold" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    const failure: Failure = .stack_overflow;
+    try failure.render(.{ .writer = &buf.writer, .mode = .escape_codes });
+    try std.testing.expectEqualStrings("\x1b[1m\x1b[31merror[stack-overflow]\x1b[0m: \x1b[1mrecursion exceeded the stack\x1b[0m", buf.written());
 }
 
 test "a module both in the library and loaded is ambiguous" {

@@ -2,19 +2,6 @@ const std = @import("std");
 const tql = @import("tql");
 const ts = tql.ts;
 
-pub const ansi = struct {
-    pub const reset = "\x1b[0m";
-    pub const bold = "\x1b[1m";
-    pub const dim = "\x1b[2m";
-    pub const green = "\x1b[32m";
-    pub const red = "\x1b[31m";
-    pub const yellow = "\x1b[33m";
-    pub const cyan = "\x1b[36m";
-    pub const green_bold = "\x1b[1;32m";
-    pub const red_bold = "\x1b[1;31m";
-    pub const yellow_bold = "\x1b[1;33m";
-};
-
 pub fn formatCst(allocator: std.mem.Allocator, tree: tql.cst.SourceFile) ![]const u8 {
     return tree.sexprAlloc(allocator);
 }

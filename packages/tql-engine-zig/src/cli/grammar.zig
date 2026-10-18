@@ -23,7 +23,7 @@ pub const command = .{
 
 pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     const gpa = ctx.gpa;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = goz.ArgTokenizer(command.opts).init(iter, &arg_diagnostic);
@@ -61,7 +61,7 @@ pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
 
 fn list(ctx: *const Context) !ExitCode {
     const gpa = ctx.gpa;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var grammars = try common.Grammars.init(gpa, ctx.environ_map);
     defer grammars.deinit(gpa);
