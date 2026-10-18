@@ -14,16 +14,20 @@ main = Kleisli $ \_ -> [traverse half [2, 4], traverse half [2, 3]];
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":[[1,2]]},{"tag":"Nothing","fields":[]}]
+[[1,2],null]
 
 --- types ---
 half :: Int -> Maybe Int
 main :: Kleisli List a (Maybe [Int])
-entry :: Node -> [Maybe [Int]]
+entry :: Node -> [Json]
 
 --- simplified ---
 half = \n -> case %eq_int (%mod n 2) 0 of
   False -> Nothing
   True -> Just (%div n 2)
 main = \_ -> Cons (traverse[List] instance[Applicative,Maybe] half (Cons 2 (Cons 4 Nil))) (Cons (traverse[List] instance[Applicative,Maybe] half (Cons 2 (Cons 3 Nil))) Nil)
-entry = main
+entry = \root -> map[List] (
+  \m -> case m of
+    Nothing -> JNull
+    Just x -> to_json[List] instance[ToJson,Int] x
+) (main root)

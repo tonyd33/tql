@@ -15,7 +15,7 @@ class A {}
 main =
   let y = op[+] 1 2 in
   \_ -> Cons y Nil
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 main = pure ((\x -> \y -> op[+] x y) 1 2)

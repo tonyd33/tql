@@ -35,4 +35,4 @@ class A {}
 [1]
 
 --- simplified ---
-entry = \_ -> Cons 1 Nil
+entry = \root -> map[List] JNumber (Cons 1 Nil)

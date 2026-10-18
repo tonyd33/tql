@@ -278,7 +278,6 @@ pub const Linker = struct {
 
         var selectors: std.ArrayList(classes.Selector) = .empty;
         for (class.superclasses) |super| {
-            if (self.env.classes.evidenceOf(super) != .dictionary) continue;
             const spelling = try std.fmt.allocPrint(self.arena(), "super[{s},{s}]", .{
                 declared.name,
                 self.env.classes.spelling(super),
@@ -311,6 +310,23 @@ pub const Linker = struct {
             },
             else => |e| return e,
         };
+        if (classes.isDerivable(id)) try self.derivableShape(id, declared, class.*);
+    }
+
+    /// Reports a derivable class with a method past its first that has no
+    /// default, or that covers records and has a superclass. A derived
+    /// instance defines only the first method, and a record's dictionary
+    /// has no superclass fields.
+    fn derivableShape(self: *Linker, id: classes.ClassId, declared: *const cst.ClassDeclaration, class: classes.Class) Error!void {
+        for (class.defaults[1..], class.methods[1..]) |default, method| {
+            if (default != null) continue;
+            try self.sink.report(.invalid_class, declared.span, .{ diagnostic.code(declared.name), " is derived, so ", diagnostic.code(self.env.interner.spelling(method)), " needs a default" });
+            self.failed = true;
+        }
+        if (classes.coversRecords(id) and class.superclasses.len > 0) {
+            try self.sink.report(.invalid_class, declared.span, .{ diagnostic.code(declared.name), " is derived at records, so it cannot have a superclass" });
+            self.failed = true;
+        }
     }
 
     /// Slots each of `definitions` at the index of the method of `class` it
@@ -454,11 +470,6 @@ pub const Linker = struct {
     ) annotation.Error!void {
         const class_id = try annotation.resolveClass(self.scope, declared.class, declared.span, self.sink);
         const class = self.env.classes.get(class_id);
-        if (self.env.classes.evidenceOf(class_id) == .builtin) {
-            try self.sink.report(.invalid_instance, declared.span, .{ diagnostic.code(class.name.name), " is built in and takes no instances" });
-            return error.BadAnnotation;
-        }
-
         const head = try annotation.translateInstance(self.arena(), self.gpa, declared, class.parameter, self.scope, self.sink);
         const head_datatype = self.env.datatypes.get(head.head());
         const head_name = head_datatype.name;
@@ -584,7 +595,7 @@ pub const Linker = struct {
 
         try self.inferContexts(pending.items);
         for (pending.items) |p| {
-            if (p.failed or self.env.classes.instance(p.instance).methods.len == 0) continue;
+            if (p.failed) continue;
             try self.generate(p.instance, p.datatype, out);
         }
     }
@@ -602,23 +613,18 @@ pub const Linker = struct {
             try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " is derived more than once" });
             return error.BadAnnotation;
         }
-        if (std.mem.indexOfScalar(classes.ClassId, &classes.derivable, class_id) == null) {
+        if (!classes.isDerivable(class_id)) {
             const shown = .{class_id} ++ classes.derivable;
             var names = try self.env.messageNames(self.gpa, &.{}, &shown);
             defer names.deinit(self.gpa);
             const registry = &self.env.classes;
-            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, registry.spelling(class_id))), " cannot be derived; only ", diagnostic.code(names.class(.eq, registry.spelling(.eq))), ", ", diagnostic.code(names.class(.ord, registry.spelling(.ord))), " and ", diagnostic.code(names.class(.serial, registry.spelling(.serial))), " can" });
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, registry.spelling(class_id))), " cannot be derived; only ", diagnostic.code(names.class(.eq, registry.spelling(.eq))), ", ", diagnostic.code(names.class(.ord, registry.spelling(.ord))), " and ", diagnostic.code(names.class(.to_json, registry.spelling(.to_json))), " can" });
             return error.BadAnnotation;
         }
-        if (declared.representation != null and self.env.classes.evidenceOf(class_id) == .dictionary) {
+        if (declared.representation != null) {
             try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " cannot be derived for ", diagnostic.code(declared.name), ", which the machine represents" });
             return error.BadAnnotation;
         }
-        if (declared.newtype and self.env.classes.evidenceOf(class_id) == .builtin) {
-            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " cannot be derived for ", diagnostic.code(declared.name), ", a ", diagnostic.code("newtype") });
-            return error.BadAnnotation;
-        }
-
         return try self.addInstance(.{
             .class = class_id,
             .type = try self.env.datatypes.applied(self.arena(), id),
@@ -630,13 +636,10 @@ pub const Linker = struct {
         });
     }
 
-    /// Appends the method of each instance tuple type `id` was declared
-    /// with that has one.
+    /// Appends the methods of each instance tuple type `id` was declared
+    /// with.
     pub fn deriveTuple(self: *Linker, id: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
-        for (classes.derivable) |class_id| {
-            const instance = self.env.classes.instanceFor(class_id, id).?;
-            if (self.env.classes.instance(instance).methods.len > 0) try self.generate(instance, id, out);
-        }
+        for (classes.derivable) |class_id| try self.generate(self.env.classes.instanceFor(class_id, id).?, id, out);
     }
 
     /// Sets each derived instance's context to what its fields need, reduced
@@ -711,8 +714,7 @@ pub const Linker = struct {
         const span = instance.span;
         const derivation: Derivation = .{
             .builder = .{ .allocator = self.arena() },
-            .interner = &self.env.interner,
-            .datatypes = &self.env.datatypes,
+            .env = self.env,
             .class = instance.class,
             .method = class.methods[0],
             .itself = instance.methods[0],
@@ -720,7 +722,11 @@ pub const Linker = struct {
             .span = span,
         };
         try self.annotateImplementation(id, 0, span);
-        try out.append(self.gpa, .{ .symbol = instance.methods[0], .body = try derivation.body(), .span = span });
+        const body = switch (instance.class) {
+            .to_json => try derivation.encoder(),
+            else => try derivation.comparison(),
+        };
+        try out.append(self.gpa, .{ .symbol = instance.methods[0], .body = body, .span = span });
         const defined = try self.gpa.alloc(bool, class.methods.len);
         defer self.gpa.free(defined);
         @memset(defined, false);
@@ -790,17 +796,12 @@ const Missing = struct {
     }
 };
 
-/// Builds a derived `eq` or `compare`, which compares constructor tags, then
-/// fields left to right through each field type's own instance.
-///
-/// Every field but the last is compared as a `case` scrutinee and the last in
-/// tail position. A field of the type itself, at its own parameters, is
-/// compared by the method being derived.
+/// Builds a derived method. A field of the type itself, at its own
+/// parameters, goes through the method being derived, and any other through
+/// its type's own instance.
 const Derivation = struct {
     builder: core.Builder,
-    interner: *core.Interner,
-    datatypes: *const datatypes.Registry,
-    /// `.eq` or `.ord`.
+    env: *core.env.Env,
     class: classes.ClassId,
     /// The class's method.
     method: core.SymbolId,
@@ -811,12 +812,63 @@ const Derivation = struct {
 
     const Alternative = core.Case.Alternative;
 
-    /// `\x y -> case x of { C_i xs -> case y of { C_j ys -> ... } }`.
-    fn body(self: Derivation) Error!core.Term {
+    /// `\x -> case x of { C_i xs -> ... }`, writing `C_i xs` as `Json` by
+    /// the datatype's shape: with one constructor, a lone field is itself and
+    /// any other number an array; with several, all without fields, the
+    /// constructor's name; otherwise an object of the `tag` and the
+    /// `contents`, the fields written as with one constructor.
+    fn encoder(self: Derivation) Error!core.Term {
         const b = self.builder;
-        const constructors = self.datatypes.get(self.datatype).constructors;
-        const x = try self.interner.fresh("x");
-        const y = try self.interner.fresh("y");
+        const declared = &self.env.datatypes;
+        const constructors = declared.get(self.datatype).constructors;
+        const nullary = for (constructors) |c| {
+            if (c.fields.len > 0) break false;
+        } else true;
+        const x = try self.env.interner.fresh("x");
+        const alternatives = try b.slice(Alternative, constructors.len);
+        for (constructors, alternatives) |c, *alternative| {
+            const xs = try self.binders(c.fields.len, "a");
+            const name = self.env.interner.spelling(c.symbol);
+            alternative.* = .{
+                .constructor = c.symbol,
+                .binders = xs,
+                .body = if (constructors.len == 1)
+                    try self.contents(c.fields, xs)
+                else if (nullary)
+                    try b.jsonString(declared, name, self.span)
+                else
+                    try self.tagged(name, c.fields, xs),
+            };
+        }
+        return try b.lambda(x, try b.case(b.symbol(x, self.span), alternatives, self.span), self.span);
+    }
+
+    /// `JObject [("tag", JString name), ("contents", ...)]`, without
+    /// `contents` when there are no fields.
+    fn tagged(self: Derivation, name: []const u8, field_types: []const types.Type, xs: []const core.SymbolId) Error!core.Term {
+        const b = self.builder;
+        const tag: core.Builder.Member = .{ .key = "tag", .value = try b.jsonString(&self.env.datatypes, name, self.span) };
+        if (xs.len == 0) return try b.jsonObject(&self.env.datatypes, &.{tag}, self.span);
+        return try b.jsonObject(&self.env.datatypes, &.{ tag, .{ .key = "contents", .value = try self.contents(field_types, xs) } }, self.span);
+    }
+
+    /// A lone field itself, and any other number an array.
+    fn contents(self: Derivation, field_types: []const types.Type, xs: []const core.SymbolId) Error!core.Term {
+        if (xs.len == 1) return try self.field(field_types[0], &.{xs[0]});
+        const items = try self.builder.slice(core.Term, xs.len);
+        for (field_types, xs, items) |t, x, *item| item.* = try self.field(t, &.{x});
+        return try self.builder.jsonArray(&self.env.datatypes, items, self.span);
+    }
+
+    /// `\x y -> case x of { C_i xs -> case y of { C_j ys -> ... } }`, a
+    /// derived `eq` or `compare`. Compares constructor tags, then fields left
+    /// to right. Every field but the last is compared as a `case` scrutinee
+    /// and the last in tail position.
+    fn comparison(self: Derivation) Error!core.Term {
+        const b = self.builder;
+        const constructors = self.env.datatypes.get(self.datatype).constructors;
+        const x = try self.env.interner.fresh("x");
+        const y = try self.env.interner.fresh("y");
         const outer = try b.slice(Alternative, constructors.len);
         for (constructors, outer, 0..) |left, *alternative, i| {
             const xs = try self.binders(left.fields.len, "a");
@@ -841,7 +893,7 @@ const Derivation = struct {
 
     fn binders(self: Derivation, count: usize, spelling: []const u8) Error![]core.SymbolId {
         const out = try self.builder.slice(core.SymbolId, count);
-        for (out) |*binder| binder.* = try self.interner.fresh(spelling);
+        for (out) |*binder| binder.* = try self.env.interner.fresh(spelling);
         return out;
     }
 
@@ -849,16 +901,16 @@ const Derivation = struct {
     /// declared `earlier` than the second or not.
     fn differ(self: Derivation, earlier: bool) core.Term {
         return switch (self.class) {
-            .eq => self.constant(self.datatypes.boolConstructor(false)),
-            else => self.constant(self.datatypes.orderingConstructor(if (earlier) .lt else .gt)),
+            .eq => self.constant(self.env.datatypes.boolConstructor(false)),
+            else => self.constant(self.env.datatypes.orderingConstructor(if (earlier) .lt else .gt)),
         };
     }
 
     /// The answer for two values whose fields all compare equal.
     fn same(self: Derivation) core.Term {
         return switch (self.class) {
-            .eq => self.constant(self.datatypes.boolConstructor(true)),
-            else => self.constant(self.datatypes.orderingConstructor(.eq)),
+            .eq => self.constant(self.env.datatypes.boolConstructor(true)),
+            else => self.constant(self.env.datatypes.orderingConstructor(.eq)),
         };
     }
 
@@ -872,23 +924,26 @@ const Derivation = struct {
         if (field_types.len == 0) return self.same();
         const b = self.builder;
         const last = field_types.len - 1;
-        var result = try self.field(field_types[last], xs[last], ys[last]);
+        var result = try self.field(field_types[last], &.{ xs[last], ys[last] });
         var i = last;
         while (i > 0) {
             i -= 1;
-            const compared = try self.field(field_types[i], xs[i], ys[i]);
+            const compared = try self.field(field_types[i], &.{ xs[i], ys[i] });
             result = switch (self.class) {
-                .eq => try b.choose(self.datatypes, compared, self.differ(true), result, self.span),
-                else => try b.chooseOrder(self.datatypes, compared, .{ self.differ(true), result, self.differ(false) }, self.span),
+                .eq => try b.choose(&self.env.datatypes, compared, self.differ(true), result, self.span),
+                else => try b.chooseOrder(&self.env.datatypes, compared, .{ self.differ(true), result, self.differ(false) }, self.span),
             };
         }
         return result;
     }
 
-    fn field(self: Derivation, t: types.Type, x: core.SymbolId, y: core.SymbolId) Error!core.Term {
+    /// The method applied to `values`, each a field of type `t`.
+    fn field(self: Derivation, t: types.Type, values: []const core.SymbolId) Error!core.Term {
         const b = self.builder;
         const function = if (self.isItself(t)) self.itself else self.method;
-        return try b.applyMany(b.symbol(function, self.span), &.{ b.symbol(x, self.span), b.symbol(y, self.span) }, self.span);
+        var arguments: [2]core.Term = undefined;
+        for (values, arguments[0..values.len]) |v, *argument| argument.* = b.symbol(v, self.span);
+        return try b.applyMany(b.symbol(function, self.span), arguments[0..values.len], self.span);
     }
 
     /// Whether `t` is the type being derived at its own parameters, in order.

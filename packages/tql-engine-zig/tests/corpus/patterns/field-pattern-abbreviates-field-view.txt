@@ -30,4 +30,4 @@ written = \n -> case field[function] n of
     Nil -> Cons f Nil
     Cons _ _ -> Nil
 main = \x -> bind[List] (%descendants x) (\x -> append[List] (sugar x) (written x))
-entry = main
+entry = \root -> map[List] to_json[Node] (main root)

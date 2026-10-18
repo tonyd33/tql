@@ -23,4 +23,4 @@ let s = "héllo";
 
 --- types ---
 main :: Kleisli List Node Range
-entry :: Node -> [Range]
+entry :: Node -> [Json]

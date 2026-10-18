@@ -11,8 +11,8 @@ main = pure $ map toint ["42", "-7"];
 class A {}
 
 --- values ---
-[[{"tag":"Just","fields":[42]},{"tag":"Just","fields":[-7]}]]
+[[42,-7]]
 
 --- types ---
 main :: Kleisli List Node [Maybe Int]
-entry :: Node -> [[Maybe Int]]
+entry :: Node -> [Json]

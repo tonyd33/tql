@@ -25,7 +25,8 @@ import Prim (
   Ordering(..),
   Eq(..),
   Ord(..),
-  Serial,
+  Json(..),
+  ToJson(..),
   seq,
 );
 import Data.Tuple (fst, snd, swap);

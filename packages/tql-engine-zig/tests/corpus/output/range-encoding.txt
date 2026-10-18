@@ -20,4 +20,4 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Range
-entry :: Node -> [Range]
+entry :: Node -> [Json]

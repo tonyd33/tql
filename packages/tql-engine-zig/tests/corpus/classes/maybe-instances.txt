@@ -27,4 +27,4 @@ class A {}
 --- types ---
 none_int :: Maybe Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

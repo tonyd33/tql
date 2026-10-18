@@ -1,0 +1,12 @@
+title: a node's points and a range's points are written alike
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = descendants_of_kind :return_statement | arr (\n -> (n, range n));
+
+--- source ---
+function f() { return 1; }
+
+--- values ---
+[[{"kind":"return_statement","text":"return 1;","start_byte":15,"end_byte":24,"start_point":{"column":15,"row":0},"end_point":{"column":24,"row":0}},{"end_byte":24,"end_point":{"column":24,"row":0},"start_byte":15,"start_point":{"column":15,"row":0}}]]

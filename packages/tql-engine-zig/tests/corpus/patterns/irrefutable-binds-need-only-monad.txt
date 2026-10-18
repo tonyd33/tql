@@ -6,7 +6,7 @@ A variable, `_`, `x@_` and a constructor of a one-constructor type match
 every value, so no `empty` is emitted and the block needs only `Monad`.
 
 --- tql ---
-data Done a = Done a deriving (Serial);
+data Done a = Done a deriving (ToJson);
 
 instance Functor Done where {
   map f d = case d of {
@@ -43,11 +43,11 @@ main = pure total;
 class A {}
 
 --- values ---
-[{"tag":"Done","fields":[4]}]
+[4]
 --- types ---
 total :: Done Int
 main :: Kleisli List Node (Done Int)
-entry :: Node -> [Done Int]
+entry :: Node -> [Json]
 --- core ---
 total = bind (Done 1) (
   \x -> bind (Done 2) (

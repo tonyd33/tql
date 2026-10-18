@@ -39,4 +39,4 @@ around :: Kleisli List Int Int
 doubled :: Kleisli List Int Int
 nothing :: Kleisli List Int Int
 main :: Kleisli List Node ([Int], [(Int, String)], [(String, Int)], [(Int, Int)], [(Int, Int)], [Int], [Int])
-entry :: Node -> [([Int], [(Int, String)], [(String, Int)], [(Int, Int)], [(Int, Int)], [Int], [Int])]
+entry :: Node -> [Json]

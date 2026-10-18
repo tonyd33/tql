@@ -16,4 +16,4 @@ class A {}
 
 --- simplified ---
 main = \_ -> Cons (%ne_int 1 2) (Cons (%ne_int 2 2) Nil)
-entry = main
+entry = \root -> map[List] JBool (main root)

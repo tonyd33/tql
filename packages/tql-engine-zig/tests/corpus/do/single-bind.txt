@@ -17,7 +17,7 @@ class B {}
 
 --- types ---
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 
 --- core ---
 main = bind (children_of_kind :class_declaration) (\c -> return (text c))

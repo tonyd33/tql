@@ -9,20 +9,11 @@ main = let { only k = descendants | of_kind k } in only :class_declaration;
 class A {}
 
 --- values ---
-[
-  {
-    "kind": "class_declaration",
-    "text": "class A {}",
-    "start_byte": 0,
-    "end_byte": 10,
-    "start_point": { "row": 0, "column": 0 },
-    "end_point": { "row": 0, "column": 10 }
-  }
-]
+[{"kind":"class_declaration","text":"class A {}","start_byte":0,"end_byte":10,"start_point":{"column":0,"row":0},"end_point":{"column":10,"row":0}}]
 
 --- simplified ---
 main = %descendants_of_kind :class_declaration
-entry = main
+entry = \root -> map[List] to_json[Node] (main root)
 
 --- core ---
 main =

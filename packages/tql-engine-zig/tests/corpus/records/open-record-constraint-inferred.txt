@@ -18,4 +18,4 @@ class A {}
 --- types ---
 same :: Eq {name: String | a} => {name: String | a} -> {name: String | a} -> Bool
 main :: Kleisli List Node [Bool]
-entry :: Node -> [[Bool]]
+entry :: Node -> [Json]

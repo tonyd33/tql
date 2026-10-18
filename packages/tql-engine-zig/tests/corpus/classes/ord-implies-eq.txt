@@ -19,4 +19,4 @@ class A {}
 --- types ---
 within :: Ord a => a -> a -> a -> Bool
 main :: Kleisli List a Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

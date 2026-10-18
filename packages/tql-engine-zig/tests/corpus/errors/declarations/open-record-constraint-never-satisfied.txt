@@ -2,7 +2,7 @@ title: a constraint on an open record no record satisfies
 grammar: typescript
 asserts: error
 
-Only `Eq` and `Serial` have instances at records, and an open record has
+Only `Eq` and `ToJson` have instances at records, and an open record has
 one only if each known field does.
 
 --- tql ---

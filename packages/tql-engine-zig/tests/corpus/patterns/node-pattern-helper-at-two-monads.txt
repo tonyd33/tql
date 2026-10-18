@@ -20,11 +20,11 @@ main = arr (\root -> {in_list = class_name (run children root), in_maybe = class
 class A {}
 
 --- values ---
-[{"in_list":["class A {}"],"in_maybe":{"tag":"Nothing","fields":[]}}]
+[{"in_list":["class A {}"],"in_maybe":null}]
 --- types ---
 class_name :: (Monad a, Alternative a) => a Node -> a String
 main :: Kleisli List Node {in_list: [String], in_maybe: Maybe String}
-entry :: Node -> [{in_list: [String], in_maybe: Maybe String}]
+entry :: Node -> [Json]
 --- simplified ---
 class_name = \d -> \d' ->
   let
@@ -40,4 +40,7 @@ class_name = \d -> \d' ->
           dict[Applicative] _ m _ -> m (%text c)
     )
 main = \x -> Cons (record[in_list,in_maybe] (class_name instance[Monad,List] instance[Alternative,List] (%children x)) (class_name instance[Monad,Maybe] instance[Alternative,Maybe] (Just x))) Nil
-entry = main
+entry = \root -> map[List] (
+  case evidence of
+    dict[ToJson] m -> m
+) (main root)

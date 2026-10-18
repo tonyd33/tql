@@ -1,4 +1,4 @@
-title: a function output is not serializable
+title: a function output has no `ToJson`
 grammar: typescript
 asserts: error
 
@@ -6,7 +6,7 @@ asserts: error
 main = pure (\x -> x + 1);
 
 --- error ---
-error[unsatisfied-constraint]: `Serial (Int -> Int)` is not satisfied.
+error[unsatisfied-constraint]: `ToJson (Int -> Int)` is not satisfied.
  --> 1:1
   |
 1 | main = pure (\x -> x + 1);

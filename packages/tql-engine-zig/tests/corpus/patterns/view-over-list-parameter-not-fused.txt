@@ -19,11 +19,11 @@ class A {}
 --- types ---
 names :: (Monad a, Alternative a) => a Node -> a String
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 --- simplified ---
 names = \xs -> bind[List] xs (
   \scrutinee -> case %is_kind :class_declaration scrutinee of
     False -> Nil
     True -> Cons (%text scrutinee) Nil
 )
-entry = \root -> names (%descendants root)
+entry = \root -> map[List] JString (names (%descendants root))

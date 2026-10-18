@@ -17,4 +17,4 @@ class A {}
 
 --- simplified ---
 names = \x -> Cons (bind[List] (%children x) (\x -> Cons (%text x) Nil)) Nil
-entry = names
+entry = \root -> map[List] (to_json[List] instance[ToJson,String]) (names root)

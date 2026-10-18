@@ -1,13 +1,13 @@
-title: a member of a recursive group whose `Serial` context is ambiguous
+title: a member of a recursive group whose `ToJson` context is ambiguous
 grammar: typescript
 asserts: error
 
 `g` calls `f` at `Maybe e` for an `e` nothing fixes, so its scheme would be
-`Serial e => Int -> Bool`. It is rejected where it is defined, as the same
+`ToJson e => Int -> Bool`. It is rejected where it is defined, as the same
 group under `Eq` is.
 
 --- tql ---
-s :: Serial a => a -> Bool;
+s :: ToJson a => a -> Bool;
 s x = True;
 
 f x = if s x then True else g 1;
@@ -16,7 +16,7 @@ g y = f (head []);
 main = pure (f (Just 1));
 
 --- error ---
-error[ambiguous-constraint]: `Serial a` is ambiguous: nothing determines its type.
+error[ambiguous-constraint]: `ToJson a` is ambiguous: nothing determines its type.
  --> 5:1
   |
 5 | g y = f (head []);

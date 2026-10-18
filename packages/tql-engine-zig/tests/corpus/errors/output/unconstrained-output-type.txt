@@ -3,13 +3,13 @@ grammar: typescript
 asserts: error
 
 `empty :: Filter a b` leaves `b` free. Nothing in the program fixes it, so no
-`Serial` instance can be selected.
+`ToJson` instance can be selected.
 
 --- tql ---
 main = empty;
 
 --- error ---
-error[ambiguous-constraint]: `Serial a` is ambiguous: nothing determines its type.
+error[ambiguous-constraint]: `ToJson a` is ambiguous: nothing determines its type.
  --> 1:1
   |
 1 | main = empty;

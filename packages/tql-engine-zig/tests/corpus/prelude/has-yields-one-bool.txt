@@ -20,4 +20,4 @@ class B {}
 --- types ---
 methods :: Kleisli List Node Node
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

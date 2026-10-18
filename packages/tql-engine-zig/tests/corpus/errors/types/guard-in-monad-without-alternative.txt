@@ -5,7 +5,7 @@ asserts: error
 `guard` fails by `empty`, which `Done` has no instance for.
 
 --- tql ---
-data Done a = Done a deriving (Serial);
+data Done a = Done a deriving (ToJson);
 
 instance Functor Done where {
   map f d = case d of {

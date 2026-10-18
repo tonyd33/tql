@@ -30,7 +30,7 @@ main =
         True -> False
     ) Nil
   )
-entry = main
+entry = \root -> map[List] JBool (main root)
 
 --- core ---
 main =

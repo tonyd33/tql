@@ -19,4 +19,4 @@ f(x);
 --- types ---
 one :: Kleisli List Node Int
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

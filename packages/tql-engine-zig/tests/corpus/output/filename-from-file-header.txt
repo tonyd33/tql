@@ -13,8 +13,8 @@ main = arr filename;
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":["src/service.ts"]}]
+["src/service.ts"]
 
 --- types ---
 main :: Kleisli List Node (Maybe String)
-entry :: Node -> [Maybe String]
+entry :: Node -> [Json]

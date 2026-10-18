@@ -90,7 +90,8 @@ pub const PrimOp = enum {
     /// U+FFFD.
     text,
     kind,
-    kind_name,
+    /// The kind's name.
+    kind_spelling,
     is_named,
     is_extra,
     /// An `ERROR` node: source tree-sitter skipped to recover from a parse

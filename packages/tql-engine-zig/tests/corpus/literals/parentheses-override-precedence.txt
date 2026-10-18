@@ -13,7 +13,7 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 main = pure (op[*] (op[+] 2 3) 4)

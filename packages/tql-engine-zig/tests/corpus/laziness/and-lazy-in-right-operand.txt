@@ -18,7 +18,7 @@ class A {}
 --- types ---
 loop :: a -> b
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]
 
 --- values ---
 [false]

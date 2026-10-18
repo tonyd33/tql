@@ -33,4 +33,4 @@ f = \xs ->
 main =
   let y = f (Cons 1 (Cons 2 (Cons 3 Nil))) in
   \_ -> Cons y Nil
-entry = main
+entry = \root -> map[List] JNumber (main root)

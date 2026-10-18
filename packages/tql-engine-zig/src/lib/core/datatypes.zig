@@ -18,6 +18,9 @@ pub fn list(arena: Allocator, element: types.Type) !types.Type {
     return try types.constructed(arena, list_id, types.list_spelling, &.{element});
 }
 
+/// The constructors of `Json`, by tag.
+pub const Json = enum(u32) { JNull, JBool, JNumber, JString, JArray, JObject };
+
 pub const Constructor = struct {
     symbol: symbols.SymbolId,
     /// Dispatch index within the datatype: `Nil` is 0, `Cons` is 1.
@@ -98,9 +101,9 @@ pub const Registry = struct {
 
     /// What the machine expects of a type it builds values of directly.
     ///
-    /// `Prim` declares the primitives, `List`, `Bool`, `Ordering` and `Maybe`; these
-    /// rows reserve their ids so a primitive scheme can name any of them
-    /// before `Prim` is parsed. No source declares `(->)`.
+    /// `Prim` declares the primitives, `List`, `Bool`, `Ordering`, `Maybe` and
+    /// `Json`; these rows reserve their ids so a primitive scheme can name
+    /// any of them before `Prim` is parsed. No source declares `(->)`.
     pub const Structural = struct {
         name: []const u8,
         parameters: []const types.Kind,
@@ -148,6 +151,12 @@ pub const Registry = struct {
             .constructors = &.{ "Nothing", "Just" },
         };
 
+        pub const json: Structural = .{
+            .name = types.json_spelling,
+            .parameters = &.{},
+            .constructors = std.meta.fieldNames(Json),
+        };
+
         pub const function: Structural = .{
             .name = types.function_spelling,
             .parameters = &.{ .type, .type },
@@ -166,6 +175,7 @@ pub const Registry = struct {
             Structural.boolean,
             Structural.ordering,
             Structural.maybe,
+            Structural.json,
             Structural.function,
         };
     };
@@ -242,6 +252,23 @@ pub const Registry = struct {
     /// `Just`, tag 1 of `Maybe`, taking its value.
     pub fn justConstructor(self: *const Registry) Constructor {
         return self.get(self.maybeId()).constructors[1];
+    }
+
+    pub fn jsonId(self: *const Registry) TypeId {
+        return self.lookup(.prim, types.json_spelling).?;
+    }
+
+    /// The constructor of `Json` that `j` names.
+    pub fn jsonConstructor(self: *const Registry, j: Json) Constructor {
+        return self.get(self.jsonId()).constructors[@intFromEnum(j)];
+    }
+
+    /// The constructor of pairs.
+    ///
+    /// Preconditions:
+    /// - `Prim` is linked, declaring the pair type in `Json`.
+    pub fn pairConstructor(self: *const Registry) Constructor {
+        return self.get(self.lookup(.prim, "(,)").?).constructors[0];
     }
 
     /// `Cons`, tag 1 of `List`, taking a head and a tail.

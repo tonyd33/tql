@@ -25,7 +25,7 @@ class Other {}
 --- types ---
 methods :: Kleisli List Node Node
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 
 --- core ---
 methods = compose_flipped (compose_flipped (Kleisli field[body]) children) (of_kind :method_definition)

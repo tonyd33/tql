@@ -16,4 +16,4 @@ class A {}
 
 --- simplified ---
 main = \x -> bind[List] (%descendants_of_kind :class_declaration x) (\y -> Cons (Cons (%text y) (Cons (%text y) Nil)) Nil)
-entry = main
+entry = \root -> map[List] (to_json[List] instance[ToJson,String]) (main root)

@@ -19,7 +19,7 @@ f = \b ->
     False -> op[+] a 1
     True -> a
 main = \_ -> map[List] f (Cons True (Cons False Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 f = \b ->

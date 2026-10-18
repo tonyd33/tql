@@ -29,7 +29,7 @@ f = \x ->
     ) Nil
   )
 main = f 2
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 f = \x ->

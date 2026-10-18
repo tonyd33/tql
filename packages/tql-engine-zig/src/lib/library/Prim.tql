@@ -1,22 +1,24 @@
 module Prim;
 
-data Int = %Int deriving (Serial);
+data Int = %Int;
 
-data String = %String deriving (Serial);
+data String = %String;
 
 data Regex = %Regex;
 
-data Node = %Node deriving (Serial);
+data Node = %Node;
 
-data Kind = %Kind deriving (Serial);
+data Kind = %Kind;
 
-data List a = Nil | Cons a (List a) deriving (Eq, Ord, Serial);
+data List a = Nil | Cons a (List a) deriving (Eq, Ord);
 
-data Bool = False | True deriving (Eq, Ord, Serial);
+data Bool = False | True deriving (Eq, Ord);
 
-data Ordering = LT | EQ | GT deriving (Eq, Ord);
+data Ordering = LT | EQ | GT deriving (Eq, Ord, ToJson);
 
-data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+data Maybe a = Nothing | Just a deriving (Eq, Ord);
+
+data Json = JNull | JBool Bool | JNumber Int | JString String | JArray [Json] | JObject [(String, Json)];
 
 class Eq a where {
   eq :: a -> a -> Bool;
@@ -50,6 +52,59 @@ instance Eq Kind where {
   eq = %eq_kind;
 };
 
+class ToJson a where {
+  to_json :: a -> Json;
+};
+
+instance ToJson Int where {
+  to_json = JNumber;
+};
+
+instance ToJson String where {
+  to_json = JString;
+};
+
+instance ToJson Bool where {
+  to_json = JBool;
+};
+
+instance ToJson Kind where {
+  to_json k = JString $ %kind_spelling k;
+};
+
+instance ToJson Node where {
+  to_json n = let {
+    r = range n;
+  } in JObject [
+    ("kind", JString $ kind_name n),
+    ("text", JString $ text n),
+    ("start_byte", JNumber r.start_byte),
+    ("end_byte", JNumber r.end_byte),
+    ("start_point", to_json r.start_point),
+    ("end_point", to_json r.end_point)
+  ];
+};
+
+instance ToJson a => ToJson (List a) where {
+  to_json xs = let {
+    each ys = case ys of {
+      Nil -> Nil;
+      Cons y rest -> Cons (to_json y) $ each rest;
+    };
+  } in JArray $ each xs;
+};
+
+instance ToJson a => ToJson (Maybe a) where {
+  to_json m = case m of {
+    Nothing -> JNull;
+    Just x -> to_json x;
+  };
+};
+
+instance ToJson Json where {
+  to_json j = j;
+};
+
 seq :: a -> b -> b;
 seq = %seq;
 
@@ -60,7 +115,7 @@ kind :: Node -> Kind;
 kind = %kind;
 
 kind_name :: Node -> String;
-kind_name = %kind_name;
+kind_name n = %kind_spelling $ kind n;
 
 is_named :: Node -> Bool;
 is_named = %is_named;

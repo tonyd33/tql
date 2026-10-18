@@ -3,7 +3,7 @@ grammar: typescript
 asserts: error
 
 `Eq` and the tuple types are both `Prim`'s, which gives every tuple type
-`Eq`, `Ord` and `Serial`.
+`Eq`, `Ord` and `ToJson`.
 
 --- tql ---
 instance Eq (a, b) where {

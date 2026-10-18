@@ -22,7 +22,7 @@ class A {}
 --- types ---
 shape :: [a] -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 shape = \xs -> case xs of

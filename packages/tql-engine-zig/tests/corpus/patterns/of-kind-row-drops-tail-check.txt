@@ -25,4 +25,4 @@ main = \x -> bind[List] (%children x) (
       True -> %text x
   ) Nil
 )
-entry = main
+entry = \root -> map[List] JString (main root)

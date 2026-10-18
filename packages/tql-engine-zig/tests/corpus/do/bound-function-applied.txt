@@ -21,7 +21,7 @@ class A {}
 --- types ---
 make_predicate :: Kleisli List Node (Kleisli List Node Kind)
 main :: Kleisli List Node Kind
-entry :: Node -> [Kind]
+entry :: Node -> [Json]
 
 --- core ---
 make_predicate = pure (arr kind)

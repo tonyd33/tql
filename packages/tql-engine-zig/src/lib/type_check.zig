@@ -183,10 +183,6 @@
 //! the dictionary there. Each use of a constrained name is applied to an
 //! evidence variable instead, and raises a wanted for it. See Solving.
 //!
-//! `Serial` is the exception. Nothing calls its methods, since the machine
-//! serializes `entry`'s output itself, so it's checked like any other class
-//! but has no dictionary.
-//!
 //! ## Solving
 //!
 //! A wanted is solved where it is generalized, not where it is raised. In
@@ -305,11 +301,11 @@
 //! entry = run_main main;
 //! ```
 //!
-//! to the entry module, with `run_main :: Serial t => Filter Node t -> Node
-//! -> [t]` from the library, and `entry` is checked like any definition
+//! to the entry module, with `run_main :: ToJson t => Filter Node t -> Node
+//! -> [Json]` from the library, and `entry` is checked like any definition
 //! written without parameters. `main` gets no rule of its own: one that isn't
 //! a filter from nodes is a mismatch at its use in `entry`, and `entry` wants
-//! `Serial` of its output.
+//! `ToJson` of its output.
 //!
 //! The output must be determined only as far as that constraint needs. In
 //!
@@ -317,9 +313,9 @@
 //! main = Kleisli $ \_ -> [];
 //! ```
 //!
-//! nothing says what `main` would return, so `Serial t` is ambiguous. But
-//! with `data P a = P deriving (Serial)`, `main = pure P` leaves `a` free and
-//! is fine: `Serial (P a)` holds whatever `a` is.
+//! nothing says what `main` would return, so `ToJson t` is ambiguous. But
+//! with `data P a = P deriving (ToJson)`, `main = pure P` leaves `a` free and
+//! is fine: `ToJson (P a)` holds whatever `a` is.
 //!
 //! ## Newtypes
 //!

@@ -1,0 +1,14 @@
+title: a derived `ToJson` writes a newtype as its field
+grammar: typescript
+asserts: values
+
+--- tql ---
+newtype Name = Name String deriving (ToJson);
+
+main = pure (Name "a");
+
+--- source ---
+class A {}
+
+--- values ---
+["a"]

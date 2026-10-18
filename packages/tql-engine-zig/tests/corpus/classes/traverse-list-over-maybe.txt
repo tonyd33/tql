@@ -11,8 +11,8 @@ main = Kleisli $ \_ -> append (traverse (\x -> [x, x + 10]) $ Just 1) (traverse 
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":[1]},{"tag":"Just","fields":[11]},{"tag":"Nothing","fields":[]}]
+[1,11,null]
 
 --- types ---
 main :: Kleisli List a (Maybe Int)
-entry :: Node -> [Maybe Int]
+entry :: Node -> [Json]

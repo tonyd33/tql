@@ -23,4 +23,4 @@ main = \x -> bind[List] (%descendants x) (
     False -> Nil
     True -> Cons (%text y) Nil
 )
-entry = main
+entry = \root -> map[List] JString (main root)

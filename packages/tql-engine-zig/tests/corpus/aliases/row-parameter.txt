@@ -17,4 +17,4 @@ class A {}
 --- types ---
 greet :: Named a -> String
 main :: Kleisli List a String
-entry :: Node -> [String]
+entry :: Node -> [Json]

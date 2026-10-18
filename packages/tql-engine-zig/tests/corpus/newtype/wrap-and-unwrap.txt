@@ -22,7 +22,7 @@ class A {}
 main =
   let y = "a" in
   \_ -> Cons y Nil
-entry = main
+entry = \root -> map[List] JString (main root)
 
 --- stg ---
 main = {} \u {} ->
@@ -33,9 +33,18 @@ main = {} \u {} ->
       Cons y@0 c0@2
   in
   t1@1
-entry = {} \u {} -> main
+entry = {} \u {} ->
+  let
+    t3 = {} \n {root} ->
+      let
+        t1 = {} \n {f0} -> JString f0@0
+        t2 = {root@0} \u {} -> main root@0
+      in
+      map[List] t1@1 t2@2
+  in
+  t3@0
 
 --- types ---
 unname :: Name -> String
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]

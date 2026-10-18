@@ -18,7 +18,7 @@ class A {}
 --- types ---
 main :: Kleisli List Node Int
 helper :: Int -> Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 main = pure (helper 3)

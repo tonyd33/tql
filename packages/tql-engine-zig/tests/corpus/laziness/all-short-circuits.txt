@@ -23,4 +23,4 @@ class A {}
 from :: Int -> [Int]
 negative :: Int -> Bool
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

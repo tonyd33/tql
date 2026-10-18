@@ -39,4 +39,4 @@ label = \xs ->
         True -> jump j'
       Cons _ _ -> jump alternative xs
 main = \_ -> Cons (label (Cons 1 Nil)) (Cons (label (Cons 1 (Cons 2 Nil))) (Cons (label (Cons 20 Nil)) Nil))
-entry = main
+entry = \root -> map[List] JString (main root)

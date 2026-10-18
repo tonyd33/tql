@@ -18,7 +18,7 @@ class A {}
 --- types ---
 sum :: [Int] -> Int
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 sum = \xs -> case xs of

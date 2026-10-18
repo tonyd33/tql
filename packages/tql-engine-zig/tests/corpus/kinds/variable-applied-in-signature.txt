@@ -20,4 +20,4 @@ class A {}
 --- types ---
 apply :: (a b -> c) -> a b -> c
 main :: Kleisli List a Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

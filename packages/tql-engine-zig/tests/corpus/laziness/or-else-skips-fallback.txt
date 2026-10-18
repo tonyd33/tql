@@ -18,4 +18,4 @@ class A {}
 --- types ---
 from :: Alternative a => Int -> a Int
 main :: Filter a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

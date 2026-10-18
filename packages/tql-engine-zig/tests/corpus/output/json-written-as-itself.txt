@@ -1,0 +1,15 @@
+title: a `Json` output is written as itself
+grammar: typescript
+asserts: values
+
+--- tql ---
+main = pure $ JObject [
+  ("a", JArray [JNull, JBool False, JNumber (-1)]),
+  ("quote\"d", JString "line\nbreak")
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[{"a":[null,false,-1],"quote\"d":"line\nbreak"}]

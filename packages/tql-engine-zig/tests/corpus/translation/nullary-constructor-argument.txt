@@ -14,11 +14,16 @@ class A {}
 --- stg ---
 entry = {} \u {} ->
   let
-    t2 = {} \n {_} ->
+    t5 = {} \n {root} ->
       let
-        c0 = True
-        c1 = Nil
+        t1 = {} \n {f0} -> JBool f0@0
+        t4 = {} \u {} ->
+          let
+            c2 = True
+            c3 = Nil
+          in
+          Cons c2@0 c3@1
       in
-      Cons c0@1 c1@2
+      map[List] t1@1 t4@2
   in
-  t2@0
+  t5@0

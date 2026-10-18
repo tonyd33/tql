@@ -25,14 +25,14 @@ class A { b() {} }
 [["class_declaration","type_identifier"],["class_declaration","class_body"]]
 
 --- simplified ---
-pairs = \x -> bind[List] (%named_children x) (\y -> Cons ((,) (%kind_name x) (%kind_name y)) Nil)
+pairs = \x -> bind[List] (%named_children x) (\y -> Cons ((,) (%kind_spelling (%kind x)) (%kind_spelling (%kind y))) Nil)
 main =
   let p = %descendants_of_kind :class_declaration in
   \x -> bind[List] (p x) pairs
-entry = main
+entry = \root -> map[List] (to_json[(,)] instance[ToJson,String] instance[ToJson,String]) (main root)
 
 --- types ---
 ask :: Kleisli List Node Node
 pairs :: Kleisli List Node (String, String)
 main :: Kleisli List Node (String, String)
-entry :: Node -> [(String, String)]
+entry :: Node -> [Json]

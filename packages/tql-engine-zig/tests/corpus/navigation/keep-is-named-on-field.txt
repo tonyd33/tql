@@ -15,4 +15,4 @@ ys = [x for x in a, b]
 
 --- types ---
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]

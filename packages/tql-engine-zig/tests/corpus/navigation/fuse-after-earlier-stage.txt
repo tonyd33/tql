@@ -20,7 +20,7 @@ main =
       \x -> bind[List] (%children x) q
   in
   \x -> bind[List] (p x) field[name]
-entry = main
+entry = \root -> map[List] to_json[Node] (main root)
 
 --- core ---
 main = compose_flipped (compose_flipped (compose_flipped children descendants) (of_kind :class_declaration)) (Kleisli field[name])

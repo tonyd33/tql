@@ -1,0 +1,32 @@
+title: an inferred `ToJson` context is reduced through instances
+grammar: typescript
+asserts: types, values
+
+`s [x]` raises `ToJson [a]`, which the instance for lists reduces to
+`ToJson a`. `s (P, x)` raises `ToJson (P a, b)`; `P`'s derived instance needs
+nothing of `a`, so it reduces to `ToJson b`.
+
+--- tql ---
+data P a = P deriving (ToJson);
+
+s :: ToJson a => a -> Int;
+s x = 1;
+
+f x = s [x];
+
+g x = s (P, x);
+
+main = pure (f 1 + g 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[2]
+
+--- types ---
+s :: ToJson a => a -> Int
+f :: ToJson a => a -> Int
+g :: ToJson a => a -> Int
+main :: Kleisli List Node Int
+entry :: Node -> [Json]

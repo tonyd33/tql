@@ -15,7 +15,7 @@ class A {}
 --- types ---
 apply :: (a -> b) -> a -> b
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 apply = \f -> \x -> f x

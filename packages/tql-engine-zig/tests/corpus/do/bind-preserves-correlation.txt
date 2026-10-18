@@ -27,4 +27,4 @@ class B { p() {} }
 
 --- types ---
 main :: Kleisli List Node {class: String, method: String}
-entry :: Node -> [{class: String, method: String}]
+entry :: Node -> [Json]

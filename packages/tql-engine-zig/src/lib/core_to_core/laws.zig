@@ -70,7 +70,7 @@ pub fn appliedInstance(
         .instance => |id| classes.instance(id),
         else => return null,
     };
-    if (t.spineLength() != classes.dictionaryCount(instance.context)) return null;
+    if (t.spineLength() != instance.context.len) return null;
     return instance;
 }
 

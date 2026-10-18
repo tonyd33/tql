@@ -25,7 +25,7 @@ class A {}
 --- types ---
 both :: Maybe Int -> Maybe Int -> Int
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]
 
 --- core ---
 both = \m -> \n ->

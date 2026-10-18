@@ -26,4 +26,4 @@ let x = 1;
 --- types ---
 unwrap :: X -> Int
 main :: Kleisli List Node Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

@@ -26,4 +26,4 @@ class A {}
 --- types ---
 twice :: Mappable b => (a -> a) -> b a -> b a
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

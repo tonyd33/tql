@@ -26,4 +26,4 @@ let x = 1;
 --- types ---
 double :: X -> X
 main :: Kleisli List Node X
-entry :: Node -> [X]
+entry :: Node -> [Json]

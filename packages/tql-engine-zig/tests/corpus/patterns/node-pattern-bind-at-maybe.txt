@@ -21,11 +21,11 @@ main = ((children <|> identity) | arr (name_of . Just)) <|> pure (name_of Nothin
 class A {}
 
 --- values ---
-[{"tag":"Just","fields":["A"]},{"tag":"Nothing","fields":[]},{"tag":"Nothing","fields":[]}]
+["A",null,null]
 --- types ---
 name_of :: (Monad a, Alternative a) => a Node -> a String
 main :: Kleisli List Node (Maybe String)
-entry :: Node -> [Maybe String]
+entry :: Node -> [Json]
 --- core ---
 name_of = \m -> bind m (
   \scrutinee ->
@@ -55,4 +55,8 @@ name_of = \m -> case m of
         Nil -> Just (%text n)
         Cons _ _ -> Nothing
 main = \x -> append[List] (bind[List] (append[List] (%children x) (Cons x Nil)) (\x -> Cons (name_of (Just x)) Nil)) (Cons Nothing Nil)
-entry = main
+entry = \root -> map[List] (
+  \m -> case m of
+    Nothing -> JNull
+    Just x -> JString x
+) (main root)

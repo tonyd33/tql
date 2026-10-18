@@ -33,4 +33,4 @@ class A {}
 --- types ---
 alike :: Same a => a -> Bool
 main :: Kleisli List a Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]

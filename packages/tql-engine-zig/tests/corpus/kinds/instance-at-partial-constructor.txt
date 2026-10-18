@@ -44,4 +44,4 @@ class A {}
 from_maybe :: a -> Maybe a -> a
 from_right :: a -> Either b a -> a
 main :: Kleisli List a Int
-entry :: Node -> [Int]
+entry :: Node -> [Json]

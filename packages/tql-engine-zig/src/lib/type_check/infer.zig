@@ -184,8 +184,7 @@ pub const Inference = struct {
 
     const Instantiated = struct {
         type: types.Type,
-        /// One evidence variable per dictionary constraint, in the scheme's
-        /// order.
+        /// One evidence variable per constraint, in the scheme's order.
         evidence: []const core.Term,
     };
 
@@ -197,15 +196,15 @@ pub const Inference = struct {
         var variables: std.ArrayList(core.Term) = .empty;
         for (scheme.constraints) |c| {
             const symbol = try self.raise(self.frame, c.class, try self.subst.instantiateWith(c.type, inst.metas), span);
-            if (symbol) |s| try variables.append(self.builder.allocator, self.builder.symbol(s, span));
+            try variables.append(self.builder.allocator, self.builder.symbol(symbol, span));
         }
         return .{ .type = inst.type, .evidence = variables.items };
     }
 
     /// Raises `class t` as a wanted of frame `at`. Returns its fresh
-    /// evidence variable, or null when the machine handles `class`.
-    fn raise(self: *Inference, at: u32, class: classes.ClassId, t: types.Type, origin: diagnostic.Span) Error!?core.SymbolId {
-        const symbol = if (self.env.classes.evidenceOf(class) == .dictionary) try self.env.interner.fresh("evidence") else null;
+    /// evidence variable.
+    fn raise(self: *Inference, at: u32, class: classes.ClassId, t: types.Type, origin: diagnostic.Span) Error!core.SymbolId {
+        const symbol = try self.env.interner.fresh("evidence");
         try self.evidence.want(at, .{ .class = class, .type = t, .evidence = symbol, .origin = origin });
         return symbol;
     }
@@ -220,18 +219,12 @@ pub const Inference = struct {
     }
 
     /// Binds each constraint of `context` as a given of `frame`. Returns the
-    /// dictionary parameters, one per constraint with dictionary evidence,
-    /// in order.
+    /// dictionary parameters, one per constraint, in order.
     fn parameters(self: *Inference, frame: u32, context: []const types.TypeClassConstraint) Error![]const core.SymbolId {
-        const bound = try self.builder.slice(core.SymbolId, self.env.classes.dictionaryCount(context));
-        var i: usize = 0;
-        for (context) |c| {
-            const parameter = if (self.env.classes.evidenceOf(c.class) == .dictionary) blk: {
-                bound[i] = try self.env.interner.fresh("d");
-                i += 1;
-                break :blk bound[i - 1];
-            } else null;
-            try self.evidence.give(frame, .{ .class = c.class, .type = c.type, .evidence = parameter });
+        const bound = try self.builder.slice(core.SymbolId, context.len);
+        for (context, bound) |c, *parameter| {
+            parameter.* = try self.env.interner.fresh("d");
+            try self.evidence.give(frame, .{ .class = c.class, .type = c.type, .evidence = parameter.* });
         }
         return bound;
     }
@@ -363,8 +356,14 @@ pub const Inference = struct {
     ///               -------------------------------------------------
     ///               Gamma |- e_1 e_2 => beta
     ///
-    /// over a whole spine `f e_1 .. e_n`: `f` is inferred and its type
-    /// split into `n` parameters and a result. A checked application
+    /// (T-App<=)     Gamma |- f => tau_0      alpha_1 .. alpha_n fresh
+    ///               tau_0 ~ alpha_1 -> .. -> alpha_n -> tau
+    ///               Gamma |- e_i <= alpha_i
+    ///               -------------------------------------------------
+    ///               Gamma |- f e_1 .. e_n <= tau
+    ///
+    /// Both run over a whole spine `f e_1 .. e_n`: `f` is inferred and its
+    /// type split into `n` parameters and a result. A checked application
     /// compares the result with what is expected before checking the
     /// arguments against the parameters, so an argument is checked against
     /// a parameter the context has already fixed.
@@ -1067,14 +1066,14 @@ pub const Inference = struct {
                 continue;
             }
             const settled = try self.subst.resolveDeep(w.type);
-            if (w.evidence) |symbol| if (self.evidence.solvedIn(at, w.class, settled)) |earlier| {
-                try self.evidence.bind(at, symbol, self.builder.symbol(earlier, w.origin));
+            if (self.evidence.solvedIn(at, w.class, settled)) |earlier| {
+                try self.evidence.bind(at, w.evidence, self.builder.symbol(earlier, w.origin));
                 continue;
-            };
+            }
             switch (try self.solveOne(at, w, quantified)) {
-                .solved => |e| if (w.evidence) |symbol| {
-                    try self.evidence.bind(at, symbol, e.?);
-                    try self.evidence.solve(at, .{ .class = w.class, .type = settled, .evidence = symbol });
+                .solved => |e| {
+                    try self.evidence.bind(at, w.evidence, e);
+                    try self.evidence.solve(at, .{ .class = w.class, .type = settled, .evidence = w.evidence });
                 },
                 .refuted => |culprit| try self.reportUnsolved(at, w, .{ .class = w.class, .type = culprit }, true),
                 .stuck => |leaf| try self.reportUnsolved(at, w, leaf, false),
@@ -1092,8 +1091,8 @@ pub const Inference = struct {
         return parent;
     }
 
-    fn solveOne(self: *Inference, at: u32, w: evidence.Wanted, quantified: []const types.Meta) Error!classes.Solution(?core.Term) {
-        var givens: std.ArrayList(classes.Given(?core.Term)) = .empty;
+    fn solveOne(self: *Inference, at: u32, w: evidence.Wanted, quantified: []const types.Meta) Error!classes.Solution(core.Term) {
+        var givens: std.ArrayList(classes.Given(core.Term)) = .empty;
         defer givens.deinit(self.gpa);
         try self.evidence.scope(self.builder, at, w.origin, &givens);
         const sink: evidence.Sink(Float) = .{
@@ -1112,12 +1111,10 @@ pub const Inference = struct {
         at: u32,
         quantified: []const types.Meta,
 
-        pub fn leaf(self: Float, class: classes.ClassId, t: types.Type, span: diagnostic.Span) Error!??core.Term {
+        pub fn leaf(self: Float, class: classes.ClassId, t: types.Type, span: diagnostic.Span) Error!?core.Term {
             const i = self.inference;
             const parent = try i.floatsTo(self.at, t, self.quantified) orelse return null;
-            const symbol = try i.raise(parent, class, t, span);
-            const term: ?core.Term = if (symbol) |s| i.builder.symbol(s, span) else null;
-            return term;
+            return i.builder.symbol(try i.raise(parent, class, t, span), span);
         }
     };
 
@@ -1251,12 +1248,11 @@ pub const Inference = struct {
         try self.solve(evidence.top, &.{});
     }
 
-    /// Solves each superclass of each instance with a dictionary, in a frame
-    /// whose givens are the instance's context.
+    /// Solves each superclass of each instance, in a frame whose givens are
+    /// the instance's context.
     fn superclasses(self: *Inference) Error!void {
         const registry = &self.env.classes;
         for (registry.instances.items, 0..) |instance, i| {
-            if (instance.dictionary == null) continue;
             const id: classes.InstanceId = @enumFromInt(i);
             const class = registry.get(instance.class);
             const frame = try self.evidence.frame(null, 0);
@@ -1266,14 +1262,8 @@ pub const Inference = struct {
             for (instance.context, context) |r, *slot| slot.* = r.constraint();
             const dictionaries = try self.parameters(frame, context);
 
-            const selected = try self.builder.slice(core.SymbolId, class.selectors.len);
-            var next: usize = 0;
-            for (class.superclasses) |super| {
-                if (try self.raise(frame, super, instance.type, instance.span)) |s| {
-                    selected[next] = s;
-                    next += 1;
-                }
-            }
+            const selected = try self.builder.slice(core.SymbolId, class.superclasses.len);
+            for (class.superclasses, selected) |super, *s| s.* = try self.raise(frame, super, instance.type, instance.span);
             try self.solve(frame, &.{});
             try self.instances.append(self.gpa, .{ .id = id, .frame = frame, .parameters = dictionaries, .superclasses = selected });
         }

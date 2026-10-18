@@ -1,0 +1,23 @@
+title: a derived `ToJson` encodes a datatype by its shape
+grammar: typescript
+asserts: values
+
+With one constructor, a lone field is written as itself and any other
+number as an array. With several, all without fields, a constructor is its
+name, as `Ordering`'s are. Otherwise it is an object of its `tag` and, when
+it has fields, its `contents`.
+
+--- tql ---
+data Wrap = Wrap Int deriving (ToJson);
+data Pair = Pair Int String deriving (ToJson);
+data Unit = Unit deriving (ToJson);
+data Color = Red | Green deriving (ToJson);
+data Shape = Empty | Circle Int | Rect Int Int deriving (ToJson);
+
+main = pure (Wrap 1, Pair 2 "b", Unit, [Red, Green], [LT, GT], [Empty, Circle 3, Rect 4 5]);
+
+--- source ---
+class A {}
+
+--- values ---
+[[1,[2,"b"],[],["Red","Green"],["LT","GT"],[{"tag":"Empty"},{"tag":"Circle","contents":3},{"tag":"Rect","contents":[4,5]}]]]

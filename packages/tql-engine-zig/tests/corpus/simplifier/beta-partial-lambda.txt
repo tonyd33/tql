@@ -16,7 +16,7 @@ main = \_ -> map[List] (
   let x = op[*] 2 3 in
   \y -> op[+] x y
 ) (Cons 1 (Cons 2 Nil))
-entry = main
+entry = \root -> map[List] JNumber (main root)
 
 --- core ---
 main = Kleisli (\_ -> map ((\x -> \y -> op[+] x y) (op[*] 2 3)) (Cons 1 (Cons 2 Nil)))

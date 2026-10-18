@@ -11,8 +11,8 @@ main = arr filename;
 class A {}
 
 --- values ---
-[{"tag":"Nothing","fields":[]}]
+[null]
 
 --- types ---
 main :: Kleisli List Node (Maybe String)
-entry :: Node -> [Maybe String]
+entry :: Node -> [Json]

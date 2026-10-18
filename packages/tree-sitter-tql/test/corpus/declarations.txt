@@ -400,7 +400,7 @@ data Int = %Int;
 a primitive data type deriving a class
 ========================================
 
-data Int = %Int deriving (Serial);
+data Int = %Int deriving (ToJson);
 
 ---
 
@@ -448,7 +448,7 @@ data Unit = Unit deriving (Eq);
 a parameterized data type deriving several classes
 ========================================
 
-data Maybe a = Nothing | Just a deriving (Eq, Ord, Serial);
+data Maybe a = Nothing | Just a deriving (Eq, Ord, ToJson);
 
 ---
 

@@ -44,4 +44,4 @@ class A {}
 --- types ---
 check :: Container a => a -> Bool
 main :: Kleisli List a [String]
-entry :: Node -> [[String]]
+entry :: Node -> [Json]

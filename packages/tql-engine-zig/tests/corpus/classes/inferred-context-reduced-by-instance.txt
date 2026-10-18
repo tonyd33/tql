@@ -34,4 +34,4 @@ class A {}
 --- types ---
 f :: Describe a => a -> [String]
 main :: Kleisli List a String
-entry :: Node -> [String]
+entry :: Node -> [Json]

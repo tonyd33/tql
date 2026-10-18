@@ -19,4 +19,4 @@ class A {}
 --- types ---
 name_of :: Filter Node String
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]

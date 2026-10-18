@@ -21,4 +21,4 @@ entry = run_main main
 
 --- types ---
 main :: Filter Node [String]
-entry :: Node -> [[String]]
+entry :: Node -> [Json]

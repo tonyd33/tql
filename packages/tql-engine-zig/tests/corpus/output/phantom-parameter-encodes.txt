@@ -2,11 +2,11 @@ title: a phantom parameter at a function type still encodes
 grammar: typescript
 asserts: values
 
-`Tagged`'s parameter appears in no field, so `Serial (Tagged t)` holds for
+`Tagged`'s parameter appears in no field, so `ToJson (Tagged t)` holds for
 every `t`.
 
 --- tql ---
-data Tagged t = Tagged Int deriving (Serial);
+data Tagged t = Tagged Int deriving (ToJson);
 tag :: Int -> Tagged (Int -> Int);
 tag n = Tagged n;
 main = pure $ tag 1;
@@ -15,4 +15,4 @@ main = pure $ tag 1;
 class A {}
 
 --- values ---
-[{"tag":"Tagged","fields":[1]}]
+[1]

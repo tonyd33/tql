@@ -19,7 +19,7 @@ class A {}
 --- types ---
 name_of :: Kleisli List Node String
 main :: Kleisli List Node String
-entry :: Node -> [String]
+entry :: Node -> [Json]
 
 --- core ---
 name_of = Kleisli (\n -> map text (field[name] n))

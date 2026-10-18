@@ -16,7 +16,7 @@ class A {}
 
 --- types ---
 main :: Kleisli List Node Bool
-entry :: Node -> [Bool]
+entry :: Node -> [Json]
 
 --- core ---
 main = pure (and (not False) False)

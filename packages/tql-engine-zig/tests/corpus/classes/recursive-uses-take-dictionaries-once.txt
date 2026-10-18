@@ -4,7 +4,7 @@ asserts: simplified, values
 
 `member` is generalized over `Eq a`. It takes the dictionary once, outside
 a monomorphic copy of itself that its recursive call reaches directly, so
-the call passes no dictionary (Static semantics: Bindings).
+the call passes no dictionary (Typed Core and the optimiser: Elaboration).
 
 --- tql ---
 member x ys = case ys of {
@@ -32,4 +32,4 @@ member = \d ->
   in
   member
 main = \_ -> Cons (member instance[Eq,Int] 2 (Cons 1 (Cons 2 (Cons 3 Nil)))) (Cons (member instance[Eq,String] "b" (Cons "a" Nil)) Nil)
-entry = main
+entry = \root -> map[List] JBool (main root)

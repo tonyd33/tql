@@ -30,4 +30,4 @@ main = \x -> bind[List] (%descendants x) (
       True -> Cons x Nil
   )
 )
-entry = main
+entry = \root -> map[List] to_json[Node] (main root)
