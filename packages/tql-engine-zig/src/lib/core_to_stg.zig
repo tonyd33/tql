@@ -99,7 +99,8 @@ const Placement = struct {
                 scope.shrinkRetainingCapacity(start);
                 if (c.binder) |binder| try scope.append(self.gpa, binder);
                 const mark = scope.items.len;
-                for (c.alternatives) |alternative| {
+                for (c.alternatives) |slot| {
+                    const alternative = slot orelse continue;
                     try scope.appendSlice(self.gpa, alternative.binders);
                     try self.expr(alternative.body, scope);
                     scope.shrinkRetainingCapacity(mark);

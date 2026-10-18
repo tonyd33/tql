@@ -16,6 +16,7 @@
 - Classes may give methods defaults, used by instances that omit them, and state which methods an instance must define with `minimal`: `class Same a where { same :: a -> a -> Bool; differ :: a -> a -> Bool; same x y = not $ differ x y; differ x y = not $ same x y; minimal same | differ; };`. `Foldable`'s `null` and `to_list` are methods with defaults, and `Arrow` defaults `second`, `split` and `fanout`.
 - Instances of `ToJson` may be written, and newtypes and `Ordering` can be output: `newtype Name = Name String deriving (ToJson);` writes `Name "a"` as `"a"`.
 - Added local signatures, `let { g :: a -> a; g x = x; } in g 1`, and type annotations, `([] :: [Int]) == []`.
+- `Functor`, `Foldable` and `Traversable` can be derived, over a datatype's last parameter: `data Tree a = Leaf | Node (Tree a) a (Tree a) deriving (Functor, Foldable, Traversable);`.
 
 ### Improvements
 

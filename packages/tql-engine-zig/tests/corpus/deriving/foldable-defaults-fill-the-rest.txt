@@ -1,0 +1,21 @@
+title: a derived `Foldable` defines `foldr`, and the class's defaults define the rest
+grammar: typescript
+asserts: values
+
+--- tql ---
+import Data.Foldable (null, to_list, concat);
+
+data Opt a = None | Some a deriving (Foldable);
+
+flag b = if b then 1 else 0;
+
+main = Kleisli $ \_ -> concat [
+  [flag $ null None, flag $ null $ Some 1],
+  to_list $ Some 2,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,0,2]

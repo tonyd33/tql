@@ -363,6 +363,7 @@ const Walker = struct {
         const methods = try self.fieldChildren(cst.Signature, node, "method", signature) orelse return null;
         const defaults = try self.fieldChildren(cst.Definition, node, "default", definition) orelse return null;
         const minimal = try self.fieldChildren(cst.Minimal, node, "minimal", minimalDeclaration) orelse return null;
+        const derivers = try self.fieldChildren(cst.Deriver, node, "deriver", classDeriver) orelse return null;
 
         return .{
             .name = try self.dupe(name_node),
@@ -371,8 +372,14 @@ const Walker = struct {
             .methods = methods,
             .defaults = defaults,
             .minimal = minimal,
+            .derivers = derivers,
             .span = spanOf(node, self.source_id),
         };
+    }
+
+    fn classDeriver(self: *Walker, node: ts.Node) !?cst.Deriver {
+        const primitive_node = try self.requiredField(node, "primitive") orelse return null;
+        return .{ .primitive = try self.dupe(primitive_node), .span = spanOf(node, self.source_id) };
     }
 
     fn minimalDeclaration(self: *Walker, node: ts.Node) !?cst.Minimal {

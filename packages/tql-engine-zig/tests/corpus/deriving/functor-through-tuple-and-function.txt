@@ -1,0 +1,18 @@
+title: a derived `map` reaches the last parameter through a tuple and a function's result
+grammar: typescript
+asserts: values
+
+--- tql ---
+data P a = P (Int, a) (Int -> a) deriving (Functor);
+
+run p = case p of {
+  P (n, x) f -> [n, x, f 5];
+};
+
+main = Kleisli $ \_ -> run $ map (+ 100) $ P (1, 2) (* 2);
+
+--- source ---
+class A {}
+
+--- values ---
+[1,102,110]

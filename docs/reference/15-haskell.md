@@ -55,8 +55,9 @@ links to the rule it summarises.
 - **`minimal` is a declaration in the class body**, not a pragma, and an
   instance that defines too few methods is an error, not a warning
   ([Class](05-declarations.md#class)).
-- **Any class can be derived**, through a generic representation of the
-  datatype. There is no `DeriveAnyClass`
+- **A class names its own deriver** in its body, so deriving is a
+  library declaration. A library class can also be derived through a
+  generic representation of the datatype. There is no `DeriveAnyClass`
   ([Deriving](05-declarations.md#deriving)).
 - **One instance per class and type, and no orphans.** An instance lives
   with its class or its type, so a program's instances never depend on

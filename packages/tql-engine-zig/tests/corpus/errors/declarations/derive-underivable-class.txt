@@ -1,4 +1,4 @@
-title: `Sized` cannot be derived
+title: a class whose body names no deriver cannot be derived
 grammar: typescript
 asserts: error
 
@@ -9,7 +9,7 @@ data S = S Int deriving (Sized);
 main = const [];
 
 --- error ---
-error[invalid-deriving]: `Sized` cannot be derived; only `Eq`, `Ord` and `ToJson` can
+error[invalid-deriving]: `Sized` cannot be derived; its class names no deriver
  --> 3:26
   |
 3 | data S = S Int deriving (Sized);

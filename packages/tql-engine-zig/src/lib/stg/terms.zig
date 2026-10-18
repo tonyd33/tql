@@ -178,11 +178,11 @@ pub const Expr = union(enum) {
         /// Bound to the evaluated scrutinee, in the slot after the ones the
         /// `case` started with and before an alternative's binders.
         binder: ?core.SymbolId = null,
-        /// In the datatype's tag order, covering every constructor exactly
-        /// once, so the tag indexes this directly. Empty when there is a
-        /// default.
-        alternatives: []const Alternative,
-        /// Taken for any value, constructed or not.
+        /// One slot per constructor of the scrutinee's datatype, indexed by
+        /// tag, or none when every value takes the default. A null slot takes
+        /// the default.
+        alternatives: []const ?Alternative,
+        /// Taken for a value no alternative matches, constructed or not.
         default: ?Expr = null,
 
         /// Returns the alternative for `v`, if there is one.
@@ -191,7 +191,8 @@ pub const Expr = union(enum) {
                 .constructed => |c| c.tag,
                 else => return null,
             };
-            return if (tag < self.alternatives.len) &self.alternatives[tag] else null;
+            if (tag >= self.alternatives.len) return null;
+            return if (self.alternatives[tag]) |*alternative| alternative else null;
         }
     };
 

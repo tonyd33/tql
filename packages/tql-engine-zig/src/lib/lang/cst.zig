@@ -152,6 +152,7 @@ pub const ClassDeclaration = struct {
     methods: []const Signature,
     defaults: []const Definition = &.{},
     minimal: []const Minimal = &.{},
+    derivers: []const Deriver = &.{},
     span: diagnostic.Span = .unknown,
 
     pub fn sexpr(self: ClassDeclaration, w: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -170,8 +171,15 @@ pub const ClassDeclaration = struct {
             try m.formula.sexpr(w);
             try w.writeByte(')');
         }
+        for (self.derivers) |d| try w.print(" (deriving {s})", .{d.primitive});
         try w.writeByte(')');
     }
+};
+
+/// `deriving %derive_eq;`
+pub const Deriver = struct {
+    primitive: Identifier,
+    span: diagnostic.Span = .unknown,
 };
 
 /// `minimal describe | label, tags;`

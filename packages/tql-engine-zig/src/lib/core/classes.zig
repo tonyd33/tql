@@ -7,28 +7,69 @@ const types = @import("types.zig");
 
 const Allocator = std.mem.Allocator;
 
-/// A class of one link. The classes the engine names hold the first ids.
-pub const ClassId = enum(u16) {
-    eq,
-    ord,
-    to_json,
-    _,
-};
+/// A class of one link.
+pub const ClassId = enum(u16) { _ };
 
 /// An instance of one link, in the order instances were declared.
 pub const InstanceId = enum(u32) { _ };
 
-/// The classes `deriving` accepts.
-pub const derivable = [_]ClassId{ .eq, .ord, .to_json };
+/// What a class's body names to derive it, `deriving %derive_eq;`. Each
+/// defines one method, by the datatype's shape.
+pub const Deriver = enum {
+    derive_eq,
+    derive_ord,
+    derive_to_json,
+    derive_functor,
+    derive_foldable,
+    derive_traversable,
 
-pub fn isDerivable(class: ClassId) bool {
-    return std.mem.indexOfScalar(ClassId, &derivable, class) != null;
-}
+    /// The deriver spelled `spelling`, `%` included.
+    pub fn named(spelling: []const u8) ?Deriver {
+        if (!std.mem.startsWith(u8, spelling, "%")) return null;
+        return std.meta.stringToEnum(Deriver, spelling[1..]);
+    }
 
-/// Whether a record has an instance of `class` when each of its fields does.
-pub fn coversRecords(class: ClassId) bool {
-    return class == .eq or class == .to_json;
-}
+    /// The spelling of the method it defines.
+    pub fn method(self: Deriver) []const u8 {
+        return switch (self) {
+            .derive_eq => "eq",
+            .derive_ord => "compare",
+            .derive_to_json => "to_json",
+            .derive_functor => "map",
+            .derive_foldable => "foldr",
+            .derive_traversable => "traverse",
+        };
+    }
+
+    /// Whether it ranges over the datatype's last parameter, which the
+    /// instance leaves unapplied.
+    pub fn overLast(self: Deriver) bool {
+        return switch (self) {
+            .derive_functor, .derive_foldable, .derive_traversable => true,
+            .derive_eq, .derive_ord, .derive_to_json => false,
+        };
+    }
+
+    /// Whether it also builds a record's method from its fields'.
+    pub fn coversRecords(self: Deriver) bool {
+        return self == .derive_eq or self == .derive_to_json;
+    }
+};
+
+/// A class's deriver, resolved against the class's methods.
+pub const Derived = struct {
+    deriver: Deriver,
+    /// The index of the method it defines.
+    method: u32,
+    /// For `derive_traversable`, the methods of `traverse`'s applicative.
+    applicative: ?Applicative = null,
+};
+
+/// The methods of the applicative a derived `traverse` rebuilds its value in.
+pub const Applicative = struct {
+    pure: symbols.SymbolId,
+    ap: symbols.SymbolId,
+};
 
 pub const Class = struct {
     name: symbols.QualifiedName,
@@ -41,13 +82,24 @@ pub const Class = struct {
     defaults: []const ?symbols.SymbolId = &.{},
     /// Which methods an instance must define.
     minimal: Minimal = .{ .all = &.{} },
+    /// What `deriving` generates its instances with. Null for a class that
+    /// cannot be derived.
+    deriver: ?Derived = null,
     /// `dict[C]`, the constructor of this class's dictionaries: one field per
-    /// selector, then one per method. Null for a reservation `Prim` has not
-    /// filled in.
+    /// selector, then one per method. Null for a class whose members failed
+    /// to declare.
     constructor: ?symbols.SymbolId = null,
     /// One per superclass, in `superclasses` order.
     selectors: []const Selector = &.{},
     span: diagnostic.Span = .unknown,
+
+    /// Returns the index of the method spelled `spelling`.
+    pub fn methodNamed(self: Class, interner: *const symbols.Interner, spelling: []const u8) ?u32 {
+        for (self.methods, 0..) |method, i| {
+            if (std.mem.eql(u8, interner.spelling(method), spelling)) return @intCast(i);
+        }
+        return null;
+    }
 };
 
 /// A formula over a class's methods, each by its index in `Class.methods`.
@@ -134,15 +186,6 @@ pub const Registry = struct {
         };
     }
 
-    /// Reserves the classes `ClassId` names, in `Prim`, at the ids it names
-    /// them by. `Prim`'s own declarations fill them in.
-    pub fn reserveBuiltins(self: *Registry) Allocator.Error!void {
-        for ([_][]const u8{ "Eq", "Ord", "ToJson" }, 0..) |name, i| {
-            const id = try self.declare(.{ .name = .{ .module = .prim, .name = name } });
-            std.debug.assert(@intFromEnum(id) == i);
-        }
-    }
-
     /// `class.name` and everything `class` points to must outlive the
     /// registry.
     pub fn declare(self: *Registry, class: Class) Allocator.Error!ClassId {
@@ -169,16 +212,21 @@ pub const Registry = struct {
         return self.by_name.get(.{ .module = module, .name = name });
     }
 
-    /// The reservation `Prim`'s declaration of `name` fills in, if it is
-    /// one and nothing has filled it yet.
-    pub fn reservation(self: *const Registry, name: []const u8) ?ClassId {
-        const id = self.lookup(.prim, name) orelse return null;
-        switch (id) {
-            .eq, .ord, .to_json => {},
-            _ => return null,
-        }
-        if (self.get(id).constructor != null) return null;
-        return id;
+    /// The deriver that builds `class`'s dictionary at a record from its
+    /// fields' dictionaries. A record's dictionary has no superclass fields,
+    /// so a class with superclasses has none.
+    pub fn recordDeriver(self: *const Registry, class: ClassId) ?Derived {
+        const c = self.get(class);
+        const derived = c.deriver orelse return null;
+        if (!derived.deriver.coversRecords() or c.superclasses.len > 0) return null;
+        return derived;
+    }
+
+    /// The deriver of `class` when it ranges over a whole type, so a tuple
+    /// has an instance of `class` when each of its components does.
+    pub fn wholeTypeDeriver(self: *const Registry, class: ClassId) ?Derived {
+        const derived = self.get(class).deriver orelse return null;
+        return if (derived.deriver.overLast()) null else derived;
     }
 
     pub const Addition = union(enum) { added: InstanceId, existing: InstanceId };
@@ -300,7 +348,7 @@ pub fn solve(
             return .{ .solved = try sink.instance(found, evidence) };
         },
         .record => |r| {
-            if (!coversRecords(class)) return .{ .refuted = written };
+            if (registry.recordDeriver(class) == null) return .{ .refuted = written };
             if (r.rest == null) {
                 const evidence = try gpa.alloc(E, r.fields.len);
                 defer gpa.free(evidence);

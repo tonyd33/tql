@@ -18,6 +18,7 @@ class Foldable t where {
   to_list :: t a -> [a];
   null xs = foldr (\_ _ -> False) True xs;
   to_list xs = foldr Cons Nil xs;
+  deriving %derive_foldable;
 };
 
 instance Foldable List where {

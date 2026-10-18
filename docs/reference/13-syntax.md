@@ -84,7 +84,7 @@ decl     ::= vars "::" sigtype
            | funlhs "=" exp
            | pat "=" exp
 
-cdecl    ::= vars "::" sigtype | funlhs "=" exp | "minimal" formula
+cdecl    ::= vars "::" sigtype | funlhs "=" exp | "minimal" formula | "deriving" primitive
 idecl    ::= funlhs "=" exp
 formula  ::= formula "|" formula | formula "," formula | "(" formula ")" | var
 

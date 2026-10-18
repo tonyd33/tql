@@ -1,0 +1,20 @@
+title: a derived `foldr` visits elements left to right, through nested containers
+grammar: typescript
+asserts: values
+
+--- tql ---
+import Data.Foldable (to_list, concat);
+
+data Rose a = Rose a [Rose a] deriving (Foldable);
+data Two a = Two (a, a) (Maybe a) deriving (Foldable);
+
+main = Kleisli $ \_ -> concat [
+  to_list $ Rose 1 [Rose 2 [Rose 3 []], Rose 4 []],
+  to_list $ Two (5, 6) $ Just 7,
+];
+
+--- source ---
+class A {}
+
+--- values ---
+[1,2,3,4,5,6,7]

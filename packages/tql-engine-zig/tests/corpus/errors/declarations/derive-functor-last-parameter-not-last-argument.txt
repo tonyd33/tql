@@ -1,0 +1,15 @@
+title: `Functor` cannot be derived where the last parameter is not a field type's last argument
+grammar: typescript
+asserts: error
+
+--- tql ---
+data Pair x y = Pair x y;
+data W a = W (Pair a Int) deriving (Functor);
+main = pure 1;
+
+--- error ---
+error[invalid-deriving]: `Functor` cannot be derived through `Pair a Int`
+ --> 2:14
+  |
+2 | data W a = W (Pair a Int) deriving (Functor);
+  |              ^^^^^^^^^^^^

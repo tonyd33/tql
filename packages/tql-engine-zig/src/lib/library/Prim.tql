@@ -22,10 +22,12 @@ data Json = JNull | JBool Bool | JNumber Int | JString String | JArray [Json] | 
 
 class Eq a where {
   eq :: a -> a -> Bool;
+  deriving %derive_eq;
 };
 
 class Eq a => Ord a where {
   compare :: a -> a -> Ordering;
+  deriving %derive_ord;
 };
 
 instance Eq Int where {
@@ -54,6 +56,7 @@ instance Eq Kind where {
 
 class ToJson a where {
   to_json :: a -> Json;
+  deriving %derive_to_json;
 };
 
 instance ToJson Int where {

@@ -4,6 +4,7 @@ import Prim (List(..), Maybe(..));
 
 class Functor f where {
   map :: (a -> b) -> f a -> f b;
+  deriving %derive_functor;
 };
 
 instance Functor List where {

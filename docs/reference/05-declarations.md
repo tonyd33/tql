@@ -22,7 +22,7 @@ decl    ::= vars "::" sigtype
           | funlhs "=" exp
           | pat "=" exp
 
-cdecl   ::= vars "::" sigtype | funlhs "=" exp | "minimal" formula
+cdecl   ::= vars "::" sigtype | funlhs "=" exp | "minimal" formula | "deriving" primitive
 idecl   ::= funlhs "=" exp
 formula ::= formula "|" formula | formula "," formula | "(" formula ")" | var
 
@@ -103,6 +103,7 @@ class Eq a where {
   x == y = not (x != y);
   x != y = not (x == y);
   minimal (==) | (!=);
+  deriving %derive_eq;
 };
 ```
 
@@ -120,11 +121,16 @@ tighter. For `Eq` it is `==` or `!=`. Without `minimal`, an instance must
 define every method without a default. An instance that defines too few
 is an error, `invalid-instance`.
 
-A class states `minimal` at most once, and a `minimal` or default names
-only methods of the class; otherwise it is an error, `invalid-class`. So
-is a `minimal` that an instance could satisfy while leaving a method
-without a default undefined. A default defined twice is
-`duplicate-definition`.
+`deriving` names the class's deriver, a primitive
+([Deriving](#deriving)). Only a library module names one
+([The library](07-modules.md#the-library)).
+
+A class states `minimal` and `deriving` at most once each, a `minimal` or
+default names only methods of the class, and its deriver defines a method
+the class has, at the type the class gives it, that satisfies `minimal`
+alone; otherwise it is an error, `invalid-class`. So is a `minimal` that
+an instance could satisfy while leaving a method without a default
+undefined. A default defined twice is `duplicate-definition`.
 
 A class is represented by a dictionary type
 ([Elaboration](12-core.md#elaboration)).
@@ -166,20 +172,47 @@ dictionaries ([Elaboration](12-core.md#elaboration)).
 ## Deriving
 
 `deriving (C1, ..., Cn)` on a `data` or `newtype` declaration generates an
-instance of each class. Its context is the least under which every
-field's wanted `C τ` is solved: starting from no context, each residual
-on a type variable is added until none is left. A residual on any other
-type is an error, `invalid-deriving`, and so is a class named twice in
-one clause. `data P a = P` derives `Eq (P a)` with no context.
+instance of each class. A class is derivable when its body names a
+deriver. The deriver defines methods by the datatype's shape, the class's
+defaults define the rest, and the instance is judged as a written one
+([Class](#class)). Deriving a class that is not derivable, or naming a
+class twice in one clause, is an error, `invalid-deriving`.
 
-| Class | Derived instance |
-|---|---|
-| `Eq` | equal when the constructors are equal and the fields are equal, left to right |
-| `Ord` | ordered by constructor, in declaration order, then by fields, left to right |
-| `ToJson` | by the datatype's shape, below |
-| `Functor`, `Foldable`, `Traversable` | over the last parameter, field by field |
+The library's derivers:
+
+| Class | Deriver | Defines |
+|---|---|---|
+| `Eq` | `%derive_eq` | `==`: equal when the constructors are equal and the fields are equal, left to right |
+| `Ord` | `%derive_ord` | `compare`: ordered by constructor, in declaration order, then by fields, left to right |
+| `ToJson` | `%derive_to_json` | `to_json`: by the datatype's shape, below |
+| `Functor` | `%derive_functor` | `map`, over the last parameter |
+| `Foldable` | `%derive_foldable` | `foldr`, over the last parameter |
+| `Traversable` | `%derive_traversable` | `traverse`, over the last parameter |
 
 A derived comparison forces fields only up to the first difference.
+
+An `Eq`, `Ord` or `ToJson` instance is for the datatype applied to its
+parameters, and each field of type `τ` wants `C τ`. A `Functor`,
+`Foldable` or `Traversable` instance is for the datatype applied to all
+its parameters but the last, `a`, which has kind `Type`. Each field is
+mapped, folded or traversed by its type, left to right:
+
+| Field type | Treated as |
+|---|---|
+| one not mentioning `a` | itself, untouched |
+| `a` | an element |
+| a tuple or a record | its components, each by its type |
+| `g τ`, `a` only in `τ` | through `g`'s instance of the class, which is wanted |
+| `σ -> τ`, `a` only in `τ`, for `Functor` | `τ`, after the function |
+
+`a` anywhere else, such as in `g`, in a function's argument, or in any
+function for `Foldable` or `Traversable`, is an error, `invalid-deriving`.
+
+The instance's context is the least under which its wanteds are solved:
+starting from no context, each residual on a type variable is added until
+none is left. A residual on any other type is an error,
+`invalid-deriving`. `data P a = P` derives `Eq (P a)` with no context,
+and `data T f a = T (f a)` derives `Functor f => Functor (T f)`.
 
 A derived `ToJson` encodes a datatype by its shape:
 
@@ -195,9 +228,9 @@ field. `data Shape = Circle Int | Rect Int Int deriving (ToJson);` writes
 `Rect 2 3` as `{"tag":"Rect","contents":[2,3]}`, and `Ordering` writes
 `LT` as `"LT"`.
 
-A class outside this table is derived through a generic representation
-of the datatype: its constructors and fields as a value the class's
-library code can traverse.
+A class may also be derivable through a generic representation of the
+datatype: its constructors and fields as a value the class's library code
+can traverse.
 
 `deriving newtype (C)` on a newtype reuses the field's instance through
 `coerce`.

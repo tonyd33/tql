@@ -139,7 +139,9 @@ enclosing scope.
 ```
 
 The evidence of `All C ρ` lists one dictionary per field, in label order.
-`derived_C` builds `C`'s methods over the fields from it.
+`C derivable` is as [Deriving](05-declarations.md#deriving) defines it,
+and `derived_C` builds `C`'s methods over the fields from it, as `C`'s
+deriver does over a constructor's.
 
 A program has at most one instance per class and head
 ([Instance](05-declarations.md#instance)), so E-Inst is

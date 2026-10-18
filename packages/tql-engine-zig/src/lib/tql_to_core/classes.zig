@@ -40,6 +40,7 @@ const core = @import("../core.zig");
 const cst = @import("../lang/cst.zig");
 const diagnostic = @import("../diagnostic.zig");
 const annotation = @import("annotation.zig");
+const deriving = @import("deriving.zig");
 const kinds = @import("kinds.zig");
 const ModuleScope = @import("scope.zig").ModuleScope;
 const classes = core.classes;
@@ -91,13 +92,6 @@ pub const Linker = struct {
         for (source.declarations) |*decl| {
             if (decl.* != .class_declaration) continue;
             const declared = &decl.class_declaration;
-            if (self.module() == .prim) {
-                if (self.env.classes.reservation(declared.name)) |id| {
-                    self.env.classes.getMut(id).span = declared.span;
-                    try ids.append(self.arena(), id);
-                    continue;
-                }
-            }
             if (self.scope.declaredType(self.module(), declared.name) != null) {
                 try self.sink.report(.duplicate_definition, declared.span, .{ diagnostic.code(declared.name), " is declared more than once" });
                 self.failed = true;
@@ -310,22 +304,60 @@ pub const Linker = struct {
             },
             else => |e| return e,
         };
-        if (classes.isDerivable(id)) try self.derivableShape(id, declared, class.*);
     }
 
-    /// Reports a derivable class with a method past its first that has no
-    /// default, or that covers records and has a superclass. A derived
-    /// instance defines only the first method, and a record's dictionary
-    /// has no superclass fields.
-    fn derivableShape(self: *Linker, id: classes.ClassId, declared: *const cst.ClassDeclaration, class: classes.Class) Error!void {
-        for (class.defaults[1..], class.methods[1..]) |default, method| {
-            if (default != null) continue;
-            try self.sink.report(.invalid_class, declared.span, .{ diagnostic.code(declared.name), " is derived, so ", diagnostic.code(self.env.interner.spelling(method)), " needs a default" });
-            self.failed = true;
+    /// The deriver `declared` names, if it names one. Reports a second, one
+    /// named outside the library, and a primitive that is not a deriver.
+    fn writtenDeriver(self: *Linker, declared: *const cst.ClassDeclaration) annotation.Error!?classes.Deriver {
+        if (declared.derivers.len == 0) return null;
+        if (declared.derivers.len > 1) {
+            try self.sink.report(.invalid_class, declared.derivers[1].span, .{ diagnostic.code(declared.name), " names its deriver more than once" });
+            return error.BadAnnotation;
         }
-        if (classes.coversRecords(id) and class.superclasses.len > 0) {
-            try self.sink.report(.invalid_class, declared.span, .{ diagnostic.code(declared.name), " is derived at records, so it cannot have a superclass" });
-            self.failed = true;
+        const written = declared.derivers[0];
+        if (!self.env.isLibrary(self.module())) {
+            try self.sink.report(.unresolved_name, written.span, .{ diagnostic.code(written.primitive), " is not defined outside the library" });
+            return error.BadAnnotation;
+        }
+        return classes.Deriver.named(written.primitive) orelse {
+            try self.sink.report(.unresolved_name, written.span, .{ diagnostic.code(written.primitive), " is not a deriver" });
+            return error.BadAnnotation;
+        };
+    }
+
+    /// Resolves the deriver each class of the module names. Reports one that
+    /// cannot derive its class, and leaves the class underivable.
+    ///
+    /// Preconditions:
+    /// - The module's classes' members are declared and kinded.
+    pub fn declareDerivers(self: *Linker, source: cst.SourceFile) Error!void {
+        var registered: std.ArrayList(Registered) = .empty;
+        defer registered.deinit(self.gpa);
+        try self.collectRegistered(source, &registered);
+        for (registered.items) |r| {
+            const written = self.writtenDeriver(r.declared) catch |err| switch (err) {
+                error.BadAnnotation => {
+                    self.failed = true;
+                    continue;
+                },
+                else => |e| return e,
+            } orelse continue;
+            const class = self.env.classes.getMut(r.id);
+            switch (try deriving.resolve(self.env, class.*, written)) {
+                .derived => |derived| class.deriver = derived,
+                .misfit => |misfit| {
+                    const span = r.declared.derivers[0].span;
+                    const primitive = diagnostic.code(.{ "%", @tagName(written) });
+                    const method = diagnostic.code(written.method());
+                    const name = diagnostic.code(class.name.name);
+                    switch (misfit) {
+                        .undeclared => try self.sink.report(.invalid_class, span, .{ primitive, " defines ", method, ", which ", name, " does not declare" }),
+                        .mistyped => try self.sink.report(.invalid_class, span, .{ primitive, " defines ", method, ", which ", name, " declares at another type" }),
+                        .unsatisfied => try self.sink.report(.invalid_class, span, .{ primitive, " defines only ", method, ", which does not satisfy ", name, "'s ", diagnostic.code("minimal") }),
+                    }
+                    self.failed = true;
+                },
+            }
         }
     }
 
@@ -342,7 +374,7 @@ pub const Linker = struct {
         @memset(out, null);
         var slotted = true;
         for (definitions) |*definition| {
-            const index = self.methodIndex(class, definition.name) orelse {
+            const index = class.methodNamed(&self.env.interner, definition.name) orelse {
                 try self.sink.report(category, definition.span, .{ diagnostic.code(definition.name), " is not a method of ", diagnostic.code(class.name.name) });
                 slotted = false;
                 continue;
@@ -355,13 +387,6 @@ pub const Linker = struct {
             out[index] = definition;
         }
         return slotted;
-    }
-
-    fn methodIndex(self: *const Linker, class: classes.Class, name: []const u8) ?u32 {
-        for (class.methods, 0..) |method, i| {
-            if (std.mem.eql(u8, self.env.interner.spelling(method), name)) return @intCast(i);
-        }
-        return null;
     }
 
     /// Every method without a default.
@@ -402,7 +427,7 @@ pub const Linker = struct {
     fn translateFormula(self: *Linker, class: classes.Class, written: cst.Minimal.Formula) annotation.Error!classes.Minimal {
         switch (written) {
             .method => |m| {
-                const index = self.methodIndex(class, m.name) orelse {
+                const index = class.methodNamed(&self.env.interner, m.name) orelse {
                     try self.sink.report(.invalid_class, m.span, .{ diagnostic.code(m.name), " is not a method of ", diagnostic.code(class.name.name) });
                     return error.BadAnnotation;
                 };
@@ -613,21 +638,32 @@ pub const Linker = struct {
             try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " is derived more than once" });
             return error.BadAnnotation;
         }
-        if (!classes.isDerivable(class_id)) {
-            const shown = .{class_id} ++ classes.derivable;
-            var names = try self.env.messageNames(self.gpa, &.{}, &shown);
+        const class = self.env.classes.get(class_id);
+        const resolved = class.deriver orelse {
+            var names = try self.env.messageNames(self.gpa, &.{}, &.{class_id});
             defer names.deinit(self.gpa);
-            const registry = &self.env.classes;
-            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, registry.spelling(class_id))), " cannot be derived; only ", diagnostic.code(names.class(.eq, registry.spelling(.eq))), ", ", diagnostic.code(names.class(.ord, registry.spelling(.ord))), " and ", diagnostic.code(names.class(.to_json, registry.spelling(.to_json))), " can" });
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(names.class(class_id, self.env.classes.spelling(class_id))), " cannot be derived; its class names no deriver" });
             return error.BadAnnotation;
-        }
+        };
         if (declared.representation != null) {
             try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " cannot be derived for ", diagnostic.code(declared.name), ", which the machine represents" });
             return error.BadAnnotation;
         }
+        const parameters = self.env.datatypes.get(id).parameters;
+        if (resolved.deriver.overLast() and parameters.len == 0) {
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " ranges over ", diagnostic.code(declared.name), "'s last parameter, which it does not have" });
+            return error.BadAnnotation;
+        }
+        const applied = if (resolved.deriver.overLast()) parameters.len - 1 else parameters.len;
+        const kind = try types.Kind.arrows(self.arena(), parameters[applied..], .type);
+        if (!class.parameter.eql(kind)) {
+            var names: types.KindNames = .{};
+            try self.sink.report(.invalid_deriving, derived.span, .{ diagnostic.code(derived.class), " ranges over kind ", diagnostic.code(class.parameter.named(&names)), ", but ", diagnostic.code(declared.name), if (resolved.deriver.overLast()) " without its last parameter" else "", " has kind ", diagnostic.code(kind.named(&names)) });
+            return error.BadAnnotation;
+        }
         return try self.addInstance(.{
             .class = class_id,
-            .type = try self.env.datatypes.applied(self.arena(), id),
+            .type = try self.env.datatypes.appliedTo(self.arena(), id, applied),
             .context = &.{},
             .methods = &.{},
             .dictionary = undefined,
@@ -636,54 +672,32 @@ pub const Linker = struct {
         });
     }
 
-    /// Appends the methods of each instance tuple type `id` was declared
-    /// with.
+    /// Appends the methods of each instance `Env.declareTupleInstances`
+    /// declared tuple type `id` with.
     pub fn deriveTuple(self: *Linker, id: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
-        for (classes.derivable) |class_id| try self.generate(self.env.classes.instanceFor(class_id, id).?, id, out);
+        for (0..self.env.classes.classes.items.len) |i| {
+            const class: classes.ClassId = @enumFromInt(i);
+            if (self.env.classes.wholeTypeDeriver(class) == null) continue;
+            try self.generate(self.env.classes.instanceFor(class, id).?, id, out);
+        }
     }
 
-    /// Sets each derived instance's context to what its fields need, reduced
+    /// Sets each derived instance's context to what its fields want, reduced
     /// to constraints on its type's parameters. Starts every context empty
     /// and grows them together until none grows.
     fn inferContexts(self: *Linker, pending: []Pending) Error!void {
-        var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
-        defer leaves.deinit(self.gpa);
-        var givens: std.ArrayList(classes.Given(void)) = .empty;
-        defer givens.deinit(self.gpa);
         var changed = true;
         while (changed) {
             changed = false;
             for (pending) |*p| {
                 if (p.failed) continue;
-                const instance = self.env.classes.instance(p.instance);
                 const grown = p.context.items.len;
                 fields: for (self.env.datatypes.get(p.datatype).constructors, p.declared.constructors) |constructor, written| {
                     for (constructor.fields, written.fields) |field, written_field| {
-                        leaves.clearRetainingCapacity();
-                        givens.clearRetainingCapacity();
-                        try classes.assume(self.gpa, p.context.items, &givens);
-                        const solution = try classes.solve(self.gpa, &self.env.classes, instance.class, field, classes.Bound{}, givens.items, classes.Check{ .collect = .{ .gpa = self.gpa, .out = &leaves } });
-                        if (solution == .refuted) {
-                            const culprit = solution.refuted;
-                            var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
-                            defer names.deinit(self.gpa);
-                            const class = self.env.classes.spelling(instance.class);
-                            try self.sink.report(.unsatisfied_constraint, written_field.span, .{ diagnostic.code(.{ class, " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ class, " ", culprit.namedOperand(&names) }) });
-                            p.failed = true;
-                            self.failed = true;
-                            break :fields;
-                        }
-                        for (leaves.items) |leaf| {
-                            if (leaf.type != .variable) {
-                                var names = try self.env.messageNames(self.gpa, &.{ instance.type, leaf.type }, &.{ instance.class, leaf.class });
-                                defer names.deinit(self.gpa);
-                                try self.sink.report(.invalid_deriving, written_field.span, .{ diagnostic.code(.{ names.class(instance.class, self.env.classes.spelling(instance.class)), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(leaf.class, self.env.classes.spelling(leaf.class)), " ", leaf.type.namedOperand(&names) }), ", but a derived instance can only require a class of a type variable" });
-                                p.failed = true;
-                                self.failed = true;
-                                break :fields;
-                            }
-                            try p.context.append(self.gpa, leaf);
-                        }
+                        try self.inferField(p, field, written_field.span);
+                        if (!p.failed) continue;
+                        self.failed = true;
+                        break :fields;
                     }
                 }
                 if (p.context.items.len == grown) continue;
@@ -699,6 +713,52 @@ pub const Linker = struct {
         }
     }
 
+    /// Grows `p`'s context by what a field of type `field` wants. Reports a
+    /// wanted no context can solve, and marks `p` failed.
+    fn inferField(self: *Linker, p: *Pending, field: types.Type, span: diagnostic.Span) Error!void {
+        var wanted: std.ArrayList(types.Type) = .empty;
+        defer wanted.deinit(self.gpa);
+        var leaves: std.ArrayList(types.TypeClassConstraint) = .empty;
+        defer leaves.deinit(self.gpa);
+        var givens: std.ArrayList(classes.Given(void)) = .empty;
+        defer givens.deinit(self.gpa);
+        const instance = self.env.classes.instance(p.instance);
+        const class = self.env.classes.spelling(instance.class);
+        const deriver = self.env.classes.get(instance.class).deriver.?.deriver;
+        const last: types.TypeVar = @intCast(self.env.datatypes.get(p.datatype).parameters.len -| 1);
+        if (try deriving.wanteds(self.gpa, self.env, deriver, field, last, &wanted)) |unreachable_at| {
+            var names = try self.env.messageNames(self.gpa, &.{unreachable_at}, &.{});
+            defer names.deinit(self.gpa);
+            try self.sink.report(.invalid_deriving, span, .{ diagnostic.code(class), " cannot be derived through ", diagnostic.code(unreachable_at.named(&names)) });
+            p.failed = true;
+            return;
+        }
+        for (wanted.items) |w| {
+            leaves.clearRetainingCapacity();
+            givens.clearRetainingCapacity();
+            try classes.assume(self.gpa, p.context.items, &givens);
+            const solution = try classes.solve(self.gpa, &self.env.classes, instance.class, w, classes.Bound{}, givens.items, classes.Check{ .collect = .{ .gpa = self.gpa, .out = &leaves } });
+            if (solution == .refuted) {
+                const culprit = solution.refuted;
+                var names = try self.env.messageNames(self.gpa, &.{ instance.type, culprit }, &.{});
+                defer names.deinit(self.gpa);
+                try self.sink.report(.unsatisfied_constraint, span, .{ diagnostic.code(.{ class, " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ class, " ", culprit.namedOperand(&names) }) });
+                p.failed = true;
+                return;
+            }
+            for (leaves.items) |leaf| {
+                if (leaf.type != .variable) {
+                    var names = try self.env.messageNames(self.gpa, &.{ instance.type, leaf.type }, &.{ instance.class, leaf.class });
+                    defer names.deinit(self.gpa);
+                    try self.sink.report(.invalid_deriving, span, .{ diagnostic.code(.{ names.class(instance.class, class), " ", instance.type.namedOperand(&names) }), " needs ", diagnostic.code(.{ names.class(leaf.class, self.env.classes.spelling(leaf.class)), " ", leaf.type.namedOperand(&names) }), ", but a derived instance can only require a class of a type variable" });
+                    p.failed = true;
+                    return;
+                }
+                try p.context.append(self.gpa, leaf);
+            }
+        }
+    }
+
     /// `context`, each a constraint on a bound variable, as requirements.
     fn requirements(self: *Linker, context: []const types.TypeClassConstraint) Error![]const classes.Requirement {
         const out = try self.arena().alloc(classes.Requirement, context.len);
@@ -706,31 +766,29 @@ pub const Linker = struct {
         return out;
     }
 
-    /// Appends the derived instance's first method, annotated with the class
-    /// method's scheme at its head, and its class's defaults for the rest.
+    /// Appends the method the derived instance's deriver defines, annotated
+    /// with the class method's scheme at its head, and its class's defaults
+    /// for the rest.
     fn generate(self: *Linker, id: classes.InstanceId, datatype: datatypes.TypeId, out: *std.ArrayList(core.Definition)) Error!void {
         const instance = self.env.classes.instance(id);
         const class = self.env.classes.get(instance.class);
+        const derived = class.deriver.?;
         const span = instance.span;
-        const derivation: Derivation = .{
+        const derivation: deriving.Derivation = .{
             .builder = .{ .allocator = self.arena() },
             .env = self.env,
-            .class = instance.class,
-            .method = class.methods[0],
-            .itself = instance.methods[0],
+            .derived = derived,
+            .method = class.methods[derived.method],
+            .itself = instance.methods[derived.method],
             .datatype = datatype,
             .span = span,
         };
-        try self.annotateImplementation(id, 0, span);
-        const body = switch (instance.class) {
-            .to_json => try derivation.encoder(),
-            else => try derivation.comparison(),
-        };
-        try out.append(self.gpa, .{ .symbol = instance.methods[0], .body = body, .span = span });
+        try self.annotateImplementation(id, derived.method, span);
+        try out.append(self.gpa, .{ .symbol = instance.methods[derived.method], .body = try derivation.body(), .span = span });
         const defined = try self.gpa.alloc(bool, class.methods.len);
         defer self.gpa.free(defined);
         @memset(defined, false);
-        defined[0] = true;
+        defined[derived.method] = true;
         self.complete(id, defined, out) catch |err| switch (err) {
             error.BadAnnotation => self.failed = true,
             else => |e| return e,
@@ -793,165 +851,5 @@ const Missing = struct {
                 if (grouped) try message.append(.{")"});
             },
         }
-    }
-};
-
-/// Builds a derived method. A field of the type itself, at its own
-/// parameters, goes through the method being derived, and any other through
-/// its type's own instance.
-const Derivation = struct {
-    builder: core.Builder,
-    env: *core.env.Env,
-    class: classes.ClassId,
-    /// The class's method.
-    method: core.SymbolId,
-    /// The method being derived.
-    itself: core.SymbolId,
-    datatype: datatypes.TypeId,
-    span: diagnostic.Span,
-
-    const Alternative = core.Case.Alternative;
-
-    /// `\x -> case x of { C_i xs -> ... }`, writing `C_i xs` as `Json` by
-    /// the datatype's shape: with one constructor, a lone field is itself and
-    /// any other number an array; with several, all without fields, the
-    /// constructor's name; otherwise an object of the `tag` and the
-    /// `contents`, the fields written as with one constructor.
-    fn encoder(self: Derivation) Error!core.Term {
-        const b = self.builder;
-        const declared = &self.env.datatypes;
-        const constructors = declared.get(self.datatype).constructors;
-        const nullary = for (constructors) |c| {
-            if (c.fields.len > 0) break false;
-        } else true;
-        const x = try self.env.interner.fresh("x");
-        const alternatives = try b.slice(Alternative, constructors.len);
-        for (constructors, alternatives) |c, *alternative| {
-            const xs = try self.binders(c.fields.len, "a");
-            const name = self.env.interner.spelling(c.symbol);
-            alternative.* = .{
-                .constructor = c.symbol,
-                .binders = xs,
-                .body = if (constructors.len == 1)
-                    try self.contents(c.fields, xs)
-                else if (nullary)
-                    try b.jsonString(declared, name, self.span)
-                else
-                    try self.tagged(name, c.fields, xs),
-            };
-        }
-        return try b.lambda(x, try b.case(b.symbol(x, self.span), alternatives, self.span), self.span);
-    }
-
-    /// `JObject [("tag", JString name), ("contents", ...)]`, without
-    /// `contents` when there are no fields.
-    fn tagged(self: Derivation, name: []const u8, field_types: []const types.Type, xs: []const core.SymbolId) Error!core.Term {
-        const b = self.builder;
-        const tag: core.Builder.Member = .{ .key = "tag", .value = try b.jsonString(&self.env.datatypes, name, self.span) };
-        if (xs.len == 0) return try b.jsonObject(&self.env.datatypes, &.{tag}, self.span);
-        return try b.jsonObject(&self.env.datatypes, &.{ tag, .{ .key = "contents", .value = try self.contents(field_types, xs) } }, self.span);
-    }
-
-    /// A lone field itself, and any other number an array.
-    fn contents(self: Derivation, field_types: []const types.Type, xs: []const core.SymbolId) Error!core.Term {
-        if (xs.len == 1) return try self.field(field_types[0], &.{xs[0]});
-        const items = try self.builder.slice(core.Term, xs.len);
-        for (field_types, xs, items) |t, x, *item| item.* = try self.field(t, &.{x});
-        return try self.builder.jsonArray(&self.env.datatypes, items, self.span);
-    }
-
-    /// `\x y -> case x of { C_i xs -> case y of { C_j ys -> ... } }`, a
-    /// derived `eq` or `compare`. Compares constructor tags, then fields left
-    /// to right. Every field but the last is compared as a `case` scrutinee
-    /// and the last in tail position.
-    fn comparison(self: Derivation) Error!core.Term {
-        const b = self.builder;
-        const constructors = self.env.datatypes.get(self.datatype).constructors;
-        const x = try self.env.interner.fresh("x");
-        const y = try self.env.interner.fresh("y");
-        const outer = try b.slice(Alternative, constructors.len);
-        for (constructors, outer, 0..) |left, *alternative, i| {
-            const xs = try self.binders(left.fields.len, "a");
-            const inner = try b.slice(Alternative, constructors.len);
-            for (constructors, inner, 0..) |right, *matched, j| {
-                const ys = try self.binders(right.fields.len, if (i == j) "b" else "_");
-                matched.* = .{
-                    .constructor = right.symbol,
-                    .binders = ys,
-                    .body = if (i == j) try self.fields(left.fields, xs, ys) else self.differ(i < j),
-                };
-            }
-            alternative.* = .{
-                .constructor = left.symbol,
-                .binders = xs,
-                .body = try b.case(b.symbol(y, self.span), inner, self.span),
-            };
-        }
-        const matched = try b.case(b.symbol(x, self.span), outer, self.span);
-        return try b.lambda(x, try b.lambda(y, matched, self.span), self.span);
-    }
-
-    fn binders(self: Derivation, count: usize, spelling: []const u8) Error![]core.SymbolId {
-        const out = try self.builder.slice(core.SymbolId, count);
-        for (out) |*binder| binder.* = try self.env.interner.fresh(spelling);
-        return out;
-    }
-
-    /// The answer for two values built by different constructors, the first
-    /// declared `earlier` than the second or not.
-    fn differ(self: Derivation, earlier: bool) core.Term {
-        return switch (self.class) {
-            .eq => self.constant(self.env.datatypes.boolConstructor(false)),
-            else => self.constant(self.env.datatypes.orderingConstructor(if (earlier) .lt else .gt)),
-        };
-    }
-
-    /// The answer for two values whose fields all compare equal.
-    fn same(self: Derivation) core.Term {
-        return switch (self.class) {
-            .eq => self.constant(self.env.datatypes.boolConstructor(true)),
-            else => self.constant(self.env.datatypes.orderingConstructor(.eq)),
-        };
-    }
-
-    fn constant(self: Derivation, c: datatypes.Constructor) core.Term {
-        return self.builder.symbol(c.symbol, self.span);
-    }
-
-    /// Compares `xs` with `ys` pairwise, stopping at the first pair that
-    /// decides.
-    fn fields(self: Derivation, field_types: []const types.Type, xs: []const core.SymbolId, ys: []const core.SymbolId) Error!core.Term {
-        if (field_types.len == 0) return self.same();
-        const b = self.builder;
-        const last = field_types.len - 1;
-        var result = try self.field(field_types[last], &.{ xs[last], ys[last] });
-        var i = last;
-        while (i > 0) {
-            i -= 1;
-            const compared = try self.field(field_types[i], &.{ xs[i], ys[i] });
-            result = switch (self.class) {
-                .eq => try b.choose(&self.env.datatypes, compared, self.differ(true), result, self.span),
-                else => try b.chooseOrder(&self.env.datatypes, compared, .{ self.differ(true), result, self.differ(false) }, self.span),
-            };
-        }
-        return result;
-    }
-
-    /// The method applied to `values`, each a field of type `t`.
-    fn field(self: Derivation, t: types.Type, values: []const core.SymbolId) Error!core.Term {
-        const b = self.builder;
-        const function = if (self.isItself(t)) self.itself else self.method;
-        var arguments: [2]core.Term = undefined;
-        for (values, arguments[0..values.len]) |v, *argument| argument.* = b.symbol(v, self.span);
-        return try b.applyMany(b.symbol(function, self.span), arguments[0..values.len], self.span);
-    }
-
-    /// Whether `t` is the type being derived at its own parameters, in order.
-    fn isItself(self: Derivation, t: types.Type) bool {
-        if (t != .constructor or t.constructor.name != self.datatype) return false;
-        for (t.constructor.arguments, 0..) |argument, i| {
-            if (argument != .variable or argument.variable != i) return false;
-        }
-        return true;
     }
 };

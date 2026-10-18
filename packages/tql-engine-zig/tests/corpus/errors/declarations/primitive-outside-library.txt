@@ -1,4 +1,4 @@
-title: a `%` name outside `Prim` is unresolved
+title: a `%` name outside the library is unresolved
 grammar: typescript
 asserts: error
 
@@ -6,7 +6,7 @@ asserts: error
 main = pure (%ne_int 1 2);
 
 --- error ---
-error[unresolved-name]: `%ne_int` is not defined outside `Prim`
+error[unresolved-name]: `%ne_int` is not defined outside the library
  --> 1:14
   |
 1 | main = pure (%ne_int 1 2);

@@ -1,0 +1,14 @@
+title: `Foldable` cannot be derived through a function
+grammar: typescript
+asserts: error
+
+--- tql ---
+data F a = F (Int -> a) deriving (Foldable);
+main = pure 1;
+
+--- error ---
+error[invalid-deriving]: `Foldable` cannot be derived through `Int -> a`
+ --> 1:14
+  |
+1 | data F a = F (Int -> a) deriving (Foldable);
+  |              ^^^^^^^^^^
