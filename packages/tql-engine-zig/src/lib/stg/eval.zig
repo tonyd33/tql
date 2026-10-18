@@ -166,6 +166,7 @@ const primitives = @import("../primitives.zig");
 const stg = @import("terms.zig");
 const core = @import("../core.zig");
 const value = @import("value.zig");
+const location = @import("../location.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -989,7 +990,7 @@ pub const Machine = struct {
                 },
                 .range => {
                     const subject = try self.nodeArgument(arguments);
-                    return try self.rangeRecord(rangeOf(subject));
+                    return try self.rangeRecord(.ofNode(subject));
                 },
 
                 .is_kind => {
@@ -1142,7 +1143,7 @@ pub const Machine = struct {
     }
 
     /// `range`'s record in one block: its four fields, then each point's two.
-    fn rangeRecord(self: *Machine, r: value.Range) Error!value.Value {
+    fn rangeRecord(self: *Machine, r: location.Range) Error!value.Value {
         note(.range_fields, 8 * (@sizeOf(value.Thunk) + @sizeOf(value.Field)));
         const thunks = try self.arena.alloc(value.Thunk, 8);
         const fields = try self.arena.alloc(value.Field, 8);
@@ -1594,17 +1595,6 @@ fn advancePreOrder(cursor: *ts.TreeCursor) bool {
 
 fn orderLabel(label: []const u8, field: value.Field) std.math.Order {
     return core.types.Type.Field.order(label, field.label);
-}
-
-fn rangeOf(n: ts.Node) value.Range {
-    const start = n.startPoint();
-    const end = n.endPoint();
-    return .{
-        .start_byte = n.startByte(),
-        .end_byte = n.endByte(),
-        .start_point = .{ .row = start.row, .column = start.column },
-        .end_point = .{ .row = end.row, .column = end.column },
-    };
 }
 
 /// An optional leading `-` and one or more ASCII decimal digits, fitting an

@@ -26,6 +26,7 @@ pub const ts = @import("tree-sitter");
 pub const cst = @import("lang/cst.zig");
 pub const core = @import("core.zig");
 pub const diagnostic = @import("diagnostic.zig");
+pub const location = @import("location.zig");
 pub const primitives = @import("primitives.zig");
 pub const types = core.types;
 
@@ -406,20 +407,24 @@ fn writeOutputs(
 }
 
 /// Where tree-sitter recovered from a target that does not parse: an `ERROR`
-/// node, or a token it inserted. The location fields are a node's.
+/// node, or a token it inserted.
 pub const SyntaxError = struct {
     /// `ERROR`, or the kind of the inserted token.
     kind: []const u8,
     missing: bool,
-    start_byte: u32,
-    end_byte: u32,
-    start_point: Point,
-    end_point: Point,
+    /// The node's.
+    range: location.Range,
 
-    pub const Point = struct {
-        row: u32,
-        column: u32,
-    };
+    /// Write the kind and flag, then the range's fields beside them.
+    pub fn jsonStringify(self: SyntaxError, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("kind");
+        try jws.write(self.kind);
+        try jws.objectField("missing");
+        try jws.write(self.missing);
+        try self.range.jsonFields(jws);
+        try jws.endObject();
+    }
 };
 
 /// Returns the outermost `ERROR` and missing nodes under `root`, in source
@@ -434,15 +439,10 @@ fn syntaxErrors(allocator: Allocator, root: ts.Node) ![]const SyntaxError {
         const node = cursor.node();
         const recovered = node.isError() or node.isMissing();
         if (recovered) {
-            const start = node.startPoint();
-            const end = node.endPoint();
             try errors.append(allocator, .{
                 .kind = node.kind(),
                 .missing = node.isMissing(),
-                .start_byte = node.startByte(),
-                .end_byte = node.endByte(),
-                .start_point = .{ .row = start.row, .column = start.column },
-                .end_point = .{ .row = end.row, .column = end.column },
+                .range = .ofNode(node),
             });
         }
         if (!recovered and node.hasError() and cursor.gotoFirstChild()) continue;
@@ -539,8 +539,8 @@ pub const Failure = union(enum) {
     }
 
     /// Write `error[name]: message`.
-    pub fn render(self: Failure, w: *std.Io.Writer) std.Io.Writer.Error!void {
-        try w.print("error[{s}]: {s}", .{ self.name(), self.message() });
+    pub fn render(self: Failure, t: std.Io.Terminal) std.Io.Terminal.SetColorError!void {
+        try diagnostic.writeHeadline(t, self.name(), &.{.{ .text = self.message() }});
     }
 
     /// Why a file could not be read, for a reader.
@@ -584,6 +584,14 @@ test {
     refAllDecls(kinds);
 }
 
+test "a failure renders its label bold red and its message bold" {
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    const failure: Failure = .stack_overflow;
+    try failure.render(.{ .writer = &buf.writer, .mode = .escape_codes });
+    try std.testing.expectEqualStrings("\x1b[1m\x1b[31merror[stack-overflow]\x1b[0m: \x1b[1mrecursion exceeded the stack\x1b[0m", buf.written());
+}
+
 test "a module both in the library and loaded is ambiguous" {
     const allocator = std.testing.allocator;
     var grammars = grammar.Registry.init(allocator, &.{});
@@ -602,7 +610,9 @@ test "a module both in the library and loaded is ambiguous" {
     ));
     try std.testing.expectEqual(1, sink.items().len);
     try std.testing.expectEqual(.ambiguous_module, sink.items()[0].category);
-    try std.testing.expectEqualStrings("`Data.List` is found as both `lib/Data/List.tql` and `Data/List.tql`", sink.items()[0].message);
+    const message = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{sink.items()[0].message()});
+    defer std.testing.allocator.free(message);
+    try std.testing.expectEqualStrings("`Data.List` is found as both `lib/Data/List.tql` and `Data/List.tql`", message);
 }
 
 test "compileQuery times every stage" {

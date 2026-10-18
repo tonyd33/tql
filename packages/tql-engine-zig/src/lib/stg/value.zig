@@ -19,18 +19,6 @@ const stg = @import("terms.zig");
 
 const Allocator = std.mem.Allocator;
 
-pub const Point = struct {
-    row: u32,
-    column: u32,
-};
-
-pub const Range = struct {
-    start_point: Point,
-    end_point: Point,
-    start_byte: u32,
-    end_byte: u32,
-};
-
 /// A node in the queried tree.
 ///
 /// Holds the tree-sitter node by value. The tree it points into must outlive

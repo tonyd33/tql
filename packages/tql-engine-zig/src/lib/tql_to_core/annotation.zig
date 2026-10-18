@@ -68,7 +68,7 @@ pub fn resolveClass(
         },
         .missing => {},
     }
-    try sink.report(.unresolved_name, span, "`{s}` is not a class", .{written});
+    try sink.report(.unresolved_name, span, .{ diagnostic.code(written), " is not a class" });
     return error.BadAnnotation;
 }
 
@@ -124,12 +124,7 @@ fn translateSignature(
     if (method_of) |m| context[0] = .{ .class = m.class, .type = types.variable_type(0) };
     for (signature.context, context[leading..]) |c, *slot| {
         if (method_of) |m| if (std.mem.eql(u8, c.variableName() orelse "", m.parameter)) {
-            try sink.report(
-                .invalid_class,
-                c.span,
-                "`{s}` constrains `{s}`, the parameter of `{s}`",
-                .{ signature.name, m.parameter, m.name },
-            );
+            try sink.report(.invalid_class, c.span, .{ diagnostic.code(signature.name), " constrains ", diagnostic.code(m.parameter), ", the parameter of ", diagnostic.code(m.name) });
             return error.BadAnnotation;
         };
         slot.* = try t.constraint(c);
@@ -144,12 +139,7 @@ fn translateSignature(
     if (types.ambiguity(scheme)) |found| {
         if (found.constraint < leading) {
             const m = method_of.?;
-            try sink.report(
-                .invalid_class,
-                signature.span,
-                "`{s}` does not mention `{s}`, the parameter of `{s}`",
-                .{ signature.name, m.parameter, m.name },
-            );
+            try sink.report(.invalid_class, signature.span, .{ diagnostic.code(signature.name), " does not mention ", diagnostic.code(m.parameter), ", the parameter of ", diagnostic.code(m.name) });
         } else try reportUndetermined(sink, signature.context[found.constraint - leading].span, vars.items[found.variable].name);
         return error.BadAnnotation;
     }
@@ -159,7 +149,7 @@ fn translateSignature(
 }
 
 fn reportUndetermined(sink: *diagnostic.Sink, span: diagnostic.Span, variable: []const u8) Error!void {
-    try sink.report(.ambiguous_constraint, span, "`{s}` is constrained, but the type does not determine it", .{variable});
+    try sink.report(.ambiguous_constraint, span, .{ diagnostic.code(variable), " is constrained, but the type does not determine it" });
 }
 
 /// An instance's head and context, translated.
@@ -207,23 +197,13 @@ pub fn translateInstance(
                 const argument = c.argument(i);
                 const w = headArgument(written, i);
                 if (argument != .variable) {
-                    try sink.report(
-                        .invalid_instance,
-                        w.span,
-                        "each argument of an instance head must be a type variable",
-                        .{},
-                    );
+                    try sink.report(.invalid_instance, w.span, .{"each argument of an instance head must be a type variable"});
                     return error.BadAnnotation;
                 }
                 // Variables are numbered by first appearance, so a lower
                 // number is a repeat.
                 if (argument.variable != i) {
-                    try sink.report(
-                        .invalid_instance,
-                        w.span,
-                        "`{s}` appears more than once in an instance head",
-                        .{vars.items[argument.variable].name},
-                    );
+                    try sink.report(.invalid_instance, w.span, .{ diagnostic.code(vars.items[argument.variable].name), " appears more than once in an instance head" });
                     return error.BadAnnotation;
                 }
             }
@@ -239,7 +219,7 @@ pub fn translateInstance(
     for (declared.context, constraints, context) |c, *translated, *slot| {
         translated.* = try t.constraint(c);
         if (translated.type != .variable) {
-            try sink.report(.invalid_instance, c.span, "an instance context may only constrain type variables", .{});
+            try sink.report(.invalid_instance, c.span, .{"an instance context may only constrain type variables"});
             return error.BadAnnotation;
         }
         slot.* = .{ .class = translated.class, .variable = translated.type.variable };
@@ -266,12 +246,7 @@ fn headArgument(written: cst.Type, i: usize) cst.Type {
 }
 
 fn badHead(sink: *diagnostic.Sink, span: diagnostic.Span, what: []const u8) Error!InstanceHead {
-    try sink.report(
-        .invalid_instance,
-        span,
-        "an instance head must be a declared type, not {s}",
-        .{what},
-    );
+    try sink.report(.invalid_instance, span, .{ "an instance head must be a declared type, not ", what });
     return error.BadAnnotation;
 }
 
@@ -289,12 +264,7 @@ pub fn translateSynonym(
     const declared = try translate(arena, gpa, &written, scope, sink);
     const scheme = declared.scheme;
     if (scheme.variables.len == std.math.maxInt(types.TypeVar)) {
-        try sink.report(
-            .limit,
-            signature.span,
-            "a signature has more than {d} type variables",
-            .{std.math.maxInt(types.TypeVar) - 1},
-        );
+        try sink.report(.limit, signature.span, .{ "a signature has more than ", std.math.maxInt(types.TypeVar) - 1, " type variables" });
         return error.BadAnnotation;
     }
 
@@ -303,12 +273,7 @@ pub fn translateSynonym(
     var matched = scheme.type;
     for (holes, 0..) |*hole, i| {
         const arrow = types.arrowOf(matched) orelse {
-            try sink.report(
-                .signature_mismatch,
-                signature.span,
-                "`{s}` takes {d} argument(s), but its signature gives {d}",
-                .{ signature.name, arity, i },
-            );
+            try sink.report(.signature_mismatch, signature.span, .{ diagnostic.code(signature.name), " takes ", arity, " argument(s), but its signature gives ", i });
             return error.BadAnnotation;
         };
         hole.* = arrow.from;
@@ -353,12 +318,7 @@ pub fn translateAlias(
     for (alias.parameters, 0..) |parameter, i| {
         for (alias.parameters[0..i]) |earlier| {
             if (!std.mem.eql(u8, earlier, parameter)) continue;
-            try sink.report(
-                .duplicate_definition,
-                alias.span,
-                "`{s}` names two parameters of `{s}`",
-                .{ parameter, alias.name },
-            );
+            try sink.report(.duplicate_definition, alias.span, .{ diagnostic.code(parameter), " names two parameters of ", diagnostic.code(alias.name) });
             return error.BadAnnotation;
         }
     }
@@ -405,7 +365,7 @@ pub fn translateField(
     try t.declaration(declared.name, declared.parameters, t.parameterKinds(id), declared.span);
     const field = try t.type(written, .type);
     if (hasRecord(field)) {
-        try sink.report(.type_mismatch, written.span, "a constructor field may not be a record yet", .{});
+        try sink.report(.type_mismatch, written.span, .{"a constructor field may not be a record yet"});
         return error.BadAnnotation;
     }
     return field;
@@ -486,7 +446,7 @@ const Translator = struct {
                 .record => "a record type",
                 .constructor, .application, .variable, .parenthesized, .tuple, .builtin_constructor => unreachable,
             };
-            return self.kindMismatch(node.span, what, .type, expected);
+            return self.kindMismatch(node.span, .{what}, .type, expected);
         }
         return switch (node.kind) {
             .list => |element| try datatypes.list(self.arena, try self.type(element.*, .type)),
@@ -534,7 +494,7 @@ const Translator = struct {
                 return error.BadAnnotation;
             },
             .missing => {
-                try self.sink.report(.unresolved_name, span, "`{s}` is not a type", .{name});
+                try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is not a type" });
                 return error.BadAnnotation;
             },
         }
@@ -549,12 +509,7 @@ const Translator = struct {
         expected: types.Kind,
     ) Error!types.Type {
         if (written.len < alias.parameters.len) {
-            try self.sink.report(
-                .type_mismatch,
-                span,
-                "`{s}` takes {d} type argument(s), given {d}",
-                .{ alias.name, alias.parameters.len, written.len },
-            );
+            try self.sink.report(.type_mismatch, span, .{ diagnostic.code(alias.name), " takes ", alias.parameters.len, " type argument(s), given ", written.len });
             return error.BadAnnotation;
         }
         return try self.spine(alias.name, .{ .alias = alias }, written, span, expected);
@@ -608,12 +563,7 @@ const Translator = struct {
                 const arrow = try self.arrowOf(rest) orelse {
                     var names: types.KindNames = .{};
                     const kind = try types.Kind.arrows(self.arena, parameters, result);
-                    try self.sink.report(
-                        .kind_mismatch,
-                        span,
-                        "`{s}` has kind `{f}`: it takes {d} type argument(s), given {d}",
-                        .{ name, (try self.group.inference.zonk(kind, null)).named(&names), taken, written.len },
-                    );
+                    try self.sink.report(.kind_mismatch, span, .{ diagnostic.code(name), " has kind ", diagnostic.code((try self.group.inference.zonk(kind, null)).named(&names)), ": it takes ", taken, " type argument(s), given ", written.len });
                     return error.BadAnnotation;
                 };
                 rest = arrow.to;
@@ -623,12 +573,11 @@ const Translator = struct {
         }
         if (written.len < parameters.len) rest = try types.Kind.arrows(self.arena, parameters[written.len..], rest);
         if (!self.group.inference.unify(rest, expected)) {
-            if (written.len == 0) return self.kindMismatch(span, try std.fmt.allocPrint(self.arena, "`{s}`", .{name}), rest, expected);
+            if (written.len == 0) return self.kindMismatch(span, .{diagnostic.code(name)}, rest, expected);
             var arity: usize = 0;
             var each = try self.group.inference.zonk(try types.Kind.arrows(self.arena, parameters, result), null);
             while (each == .arrow) : (each = each.arrow.to) arity += 1;
-            const subject = try std.fmt.allocPrint(self.arena, "`{s}` given {d} of its {d} type arguments", .{ name, written.len, arity });
-            return self.kindMismatch(span, subject, rest, expected);
+            return self.kindMismatch(span, .{ diagnostic.code(name), " given ", written.len, " of its ", arity, " type arguments" }, rest, expected);
         }
 
         return switch (head) {
@@ -661,19 +610,16 @@ const Translator = struct {
         }
     }
 
-    /// Report that `subject` has kind `has` where kind `wanted` is expected.
-    fn kindMismatch(self: *Translator, span: diagnostic.Span, subject: []const u8, has: types.Kind, wanted: types.Kind) Error {
+    /// Report that the message parts `subject` name something of kind `has`
+    /// where kind `wanted` is expected.
+    fn kindMismatch(self: *Translator, span: diagnostic.Span, subject: anytype, has: types.Kind, wanted: types.Kind) Error {
         var names: types.KindNames = .{};
-        try self.sink.report(.kind_mismatch, span, "{s} has kind `{f}`, but kind `{f}` is expected", .{
-            subject,
-            (try self.group.inference.zonk(has, null)).named(&names),
-            (try self.group.inference.zonk(wanted, null)).named(&names),
-        });
+        try self.sink.report(.kind_mismatch, span, subject ++ .{ " has kind ", diagnostic.code((try self.group.inference.zonk(has, null)).named(&names)), ", but kind ", diagnostic.code((try self.group.inference.zonk(wanted, null)).named(&names)), " is expected" });
         return error.BadAnnotation;
     }
 
     fn notAType(self: *Translator, name: []const u8, span: diagnostic.Span) Error!types.Type {
-        try self.sink.report(.unresolved_name, span, "`{s}` is a class, not a type", .{name});
+        try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is a class, not a type" });
         return error.BadAnnotation;
     }
 
@@ -688,10 +634,7 @@ const Translator = struct {
             const culprit = solution.refuted;
             var names = try env.messageNames(self.gpa, &.{culprit}, &.{class});
             defer names.deinit(self.gpa);
-            try self.sink.report(.unsatisfied_constraint, c.span, "`{f} {f}` is never satisfied", .{
-                names.class(class, env.classes.spelling(class)),
-                culprit.namedOperand(&names),
-            });
+            try self.sink.report(.unsatisfied_constraint, c.span, .{ diagnostic.code(.{ names.class(class, env.classes.spelling(class)), " ", culprit.namedOperand(&names) }), " is never satisfied" });
             return error.BadAnnotation;
         }
         const expanded = types.unalias(t);
@@ -699,12 +642,7 @@ const Translator = struct {
         var head = t;
         while (head == .application) head = head.application.head;
         if (head != .variable) {
-            try self.sink.report(
-                .invalid_class,
-                c.type.span,
-                "a constraint must be on a type variable, one applied to types, or an open record",
-                .{},
-            );
+            try self.sink.report(.invalid_class, c.type.span, .{"a constraint must be on a type variable, one applied to types, or an open record"});
             return error.BadAnnotation;
         }
         return .{ .class = class, .type = t };
@@ -726,24 +664,19 @@ const Translator = struct {
             if (!std.mem.eql(u8, seen.name, name)) continue;
             const wanted = kind orelse return @intCast(i);
             if (!self.group.inference.unify(seen.kind, wanted)) {
-                return self.kindMismatch(span, try std.fmt.allocPrint(self.arena, "`{s}`", .{name}), seen.kind, wanted);
+                return self.kindMismatch(span, .{diagnostic.code(name)}, seen.kind, wanted);
             }
             return @intCast(i);
         }
         switch (self.variables) {
             .free => {},
             .parameters_of => |owner| {
-                try self.sink.report(.unresolved_name, span, "`{s}` is not a parameter of `{s}`", .{ name, owner });
+                try self.sink.report(.unresolved_name, span, .{ diagnostic.code(name), " is not a parameter of ", diagnostic.code(owner) });
                 return error.BadAnnotation;
             },
         }
         if (self.vars.items.len == std.math.maxInt(types.TypeVar)) {
-            try self.sink.report(
-                .limit,
-                span,
-                "a signature has more than {d} type variables",
-                .{std.math.maxInt(types.TypeVar)},
-            );
+            try self.sink.report(.limit, span, .{ "a signature has more than ", std.math.maxInt(types.TypeVar), " type variables" });
             return error.BadAnnotation;
         }
         try self.vars.append(self.gpa, .{ .name = name, .kind = kind orelse try self.group.inference.fresh() });
@@ -761,12 +694,7 @@ const Translator = struct {
         std.mem.sort(types.Type.Field, copies, {}, types.Type.Field.lessThan);
         if (copies.len > 1) for (copies[0 .. copies.len - 1], copies[1..]) |previous, f| {
             if (!std.mem.eql(u8, previous.label, f.label)) continue;
-            try self.sink.report(
-                .duplicate_definition,
-                span,
-                "`{s}` labels two fields of one record",
-                .{f.label},
-            );
+            try self.sink.report(.duplicate_definition, span, .{ diagnostic.code(f.label), " labels two fields of one record" });
             return error.BadAnnotation;
         };
         const rest = if (r.row) |name|

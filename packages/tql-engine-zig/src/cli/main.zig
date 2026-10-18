@@ -42,14 +42,22 @@ pub fn main(init: std.process.Init) !u8 {
         .io = init.io,
         .gpa = init.gpa,
         .stdout = stdout,
-        .stderr = stderr,
+        .stderr = .{
+            .writer = stderr,
+            .mode = try .detect(
+                init.io,
+                .stderr(),
+                init.minimal.environ.containsUnemptyConstant("NO_COLOR"),
+                init.minimal.environ.containsUnemptyConstant("CLICOLOR_FORCE"),
+            ),
+        },
         .environ_map = init.environ_map,
     };
     return @intFromEnum(try dispatch(&ctx, &iter));
 }
 
 fn dispatch(ctx: *const common.Context, iter: *std.process.Args.Iterator) !ExitCode {
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = goz.ArgTokenizer(main_opts).init(iter, &arg_diagnostic);

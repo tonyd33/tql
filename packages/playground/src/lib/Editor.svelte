@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { EditorView, basicSetup } from "codemirror";
   import { EditorState, Compartment } from "@codemirror/state";
+  import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
   import { javascript } from "@codemirror/lang-javascript";
   import { cpp } from "@codemirror/lang-cpp";
   import { go } from "@codemirror/lang-go";
@@ -13,10 +14,12 @@
   let {
     value = $bindable(""),
     lang,
+    diagnostics = [],
     onReady,
   }: {
     value: string;
     lang?: Lang;
+    diagnostics?: Diagnostic[];
     onReady?: (view: EditorView) => void;
   } = $props();
 
@@ -82,6 +85,11 @@
   $effect(() => {
     if (!view) return;
     view.dispatch({ effects: langComp.reconfigure(extFor(lang)) });
+  });
+
+  $effect(() => {
+    if (!view) return;
+    view.dispatch(setDiagnostics(view.state, diagnostics));
   });
 </script>
 

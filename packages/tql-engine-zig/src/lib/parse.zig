@@ -96,15 +96,7 @@ pub const Parser = struct {
 };
 
 fn spanOf(node: ts.Node, source_id: diagnostic.SourceId) Span {
-    const start = node.startPoint();
-    const end = node.endPoint();
-    return .{
-        .start_byte = @intCast(node.startByte()),
-        .end_byte = @intCast(node.endByte()),
-        .start_point = .{ .row = @intCast(start.row), .column = @intCast(start.column) },
-        .end_point = .{ .row = @intCast(end.row), .column = @intCast(end.column) },
-        .source = source_id,
-    };
+    return .{ .range = .ofNode(node), .source = source_id };
 }
 
 fn isConstructor(kind: []const u8) bool {
@@ -127,18 +119,13 @@ fn textOf(node: ts.Node, source: []const u8) []const u8 {
 /// source order.
 fn collectSyntaxErrors(node: ts.Node, source_id: diagnostic.SourceId, sink: *Sink) !void {
     if (node.isError()) {
-        try sink.report(.parse, spanOf(node, source_id), "syntax error", .{});
+        try sink.report(.parse, spanOf(node, source_id), .{"syntax error"});
         // Children of an ERROR node are fragments of whatever the parser could
         // still shift. Reporting them too would turn one defect into a cascade.
         return;
     }
     if (node.isMissing()) {
-        try sink.report(
-            .parse,
-            spanOf(node, source_id),
-            "missing {s}",
-            .{node.grammarKind()},
-        );
+        try sink.report(.parse, spanOf(node, source_id), .{ "missing ", node.grammarKind() });
         return;
     }
     if (!node.hasError()) return;
@@ -173,12 +160,7 @@ const Walker = struct {
     /// A node the grammar guarantees but the tree lacks, because recovery ate
     /// it. Reported rather than propagated so the walk can continue.
     fn missingField(self: *Walker, node: ts.Node, field: []const u8) !void {
-        try self.sink.report(
-            .parse,
-            spanOf(node, self.source_id),
-            "expected {s} in {s}",
-            .{ field, node.grammarKind() },
-        );
+        try self.sink.report(.parse, spanOf(node, self.source_id), .{ "expected ", field, " in ", node.grammarKind() });
     }
 
     /// Returns `node`'s child in field `name`, or null after reporting it
@@ -485,7 +467,7 @@ const Walker = struct {
     /// a `what`.
     fn declaredName(self: *Walker, node: ts.Node, comptime what: []const u8) !?cst.Identifier {
         if (isWildcard(node)) {
-            try self.sink.report(.parse, spanOf(node, self.source_id), "`_` is a wildcard and cannot name a " ++ what, .{});
+            try self.sink.report(.parse, spanOf(node, self.source_id), .{ diagnostic.code("_"), " is a wildcard and cannot name a " ++ what });
             return null;
         }
         return try self.dupe(node);
@@ -589,7 +571,7 @@ const Walker = struct {
             .wildcard => {
                 // Reported, and still returned as a name so the enclosing form
                 // reports nothing more. A parse error stops compilation.
-                try self.sink.report(.parse, span, "`_` is a wildcard and has no value", .{});
+                try self.sink.report(.parse, span, .{ diagnostic.code("_"), " is a wildcard and has no value" });
                 return .{ .kind = .{ .name = try self.dupe(node) }, .span = span };
             },
             .primitive => return .{ .kind = .{ .primitive = try self.dupe(node) }, .span = span },
@@ -597,7 +579,7 @@ const Walker = struct {
             .number => {
                 const text = textOf(node, self.source);
                 const value = std.fmt.parseInt(i64, text, 10) catch {
-                    try self.sink.report(.parse, span, "integer literal out of range", .{});
+                    try self.sink.report(.parse, span, .{"integer literal out of range"});
                     return null;
                 };
                 return .{ .kind = .{ .number = value }, .span = span };
@@ -608,18 +590,13 @@ const Walker = struct {
                 switch (try string_literal.decode(self.allocator, body)) {
                     .bytes => |bytes| {
                         if (!std.unicode.utf8ValidateSlice(bytes)) {
-                            try self.sink.report(.parse, span, "a string literal must be UTF-8", .{});
+                            try self.sink.report(.parse, span, .{"a string literal must be UTF-8"});
                             return null;
                         }
                         return .{ .kind = .{ .string = bytes }, .span = span };
                     },
                     .invalid_escape => |at| {
-                        try self.sink.report(
-                            .parse,
-                            span,
-                            "`{s}` is not an escape; write `\\\\` for a backslash",
-                            .{body[at .. at + 2]},
-                        );
+                        try self.sink.report(.parse, span, .{ diagnostic.code(body[at .. at + 2]), " is not an escape; write ", diagnostic.code("\\\\"), " for a backslash" });
                         return null;
                     },
                 }
@@ -657,12 +634,7 @@ const Walker = struct {
             .record => return self.record(node, span),
             .negation => {
                 const operand = try self.requiredField(node, "operand") orelse return null;
-                try self.sink.report(
-                    .parse,
-                    span,
-                    "TQL has no negation; write `0 - {s}`",
-                    .{textOf(operand, self.source)},
-                );
+                try self.sink.report(.parse, span, .{ "TQL has no negation; write ", diagnostic.code(.{ "0 - ", textOf(operand, self.source) }) });
                 return null;
             },
             .parenthesized => {
@@ -696,7 +668,7 @@ const Walker = struct {
         // An ERROR or MISSING node, already reported by `collectSyntaxErrors`.
         if (node.isError() or node.isMissing()) return null;
 
-        try self.sink.report(.parse, span, "unexpected {s}", .{kind});
+        try self.sink.report(.parse, span, .{ "unexpected ", kind });
         return null;
     }
 
@@ -808,14 +780,9 @@ const Walker = struct {
     fn unknownOperator(self: *Walker, op_node: ts.Node) !void {
         const span = spanOf(op_node, self.source_id);
         if (std.mem.eql(u8, textOf(op_node, self.source), "/")) {
-            try self.sink.report(
-                .parse,
-                span,
-                "`/` is not an operator: write ``a `div` b``, which floors, or ``a `quot` b``, which truncates, with `import Data.Int (div, quot);`",
-                .{},
-            );
+            try self.sink.report(.parse, span, .{ diagnostic.code("/"), " is not an operator: write ", diagnostic.code("a `div` b"), ", which floors, or ", diagnostic.code("a `quot` b"), ", which truncates, with ", diagnostic.code("import Data.Int (div, quot);") });
         } else {
-            try self.sink.report(.parse, span, "unknown operator", .{});
+            try self.sink.report(.parse, span, .{"unknown operator"});
         }
     }
 
@@ -882,7 +849,7 @@ const Walker = struct {
         const keyword = try self.requiredField(node, "keyword") orelse return null;
         const newtype = std.mem.eql(u8, keyword.kind(), "newtype");
         if (newtype and (constructors.items.len != 1 or constructors.items[0].fields.len != 1)) {
-            try self.sink.report(.parse, spanOf(node, self.source_id), "a `newtype` has one constructor of one field; declare `{s}` with `data`", .{name});
+            try self.sink.report(.parse, spanOf(node, self.source_id), .{ "a ", diagnostic.code("newtype"), " has one constructor of one field; declare ", diagnostic.code(name), " with ", diagnostic.code("data") });
             return null;
         }
         return .{
@@ -1113,7 +1080,7 @@ const Walker = struct {
         }
         if (node.isError() or node.isMissing()) return null;
 
-        try self.sink.report(.parse, span, "unexpected {s}", .{kind});
+        try self.sink.report(.parse, span, .{ "unexpected ", kind });
         return null;
     }
 
@@ -1231,17 +1198,17 @@ const Walker = struct {
         }
 
         const last = statements.pop() orelse {
-            try self.sink.report(.parse, span, "a do block must end in an expression", .{});
+            try self.sink.report(.parse, span, .{"a do block must end in an expression"});
             return null;
         };
         const result = switch (last) {
             .expression => |e| e,
             .bind => |b| {
-                try self.sink.report(.parse, b.span, "a do block must end in an expression, not a bind statement", .{});
+                try self.sink.report(.parse, b.span, .{"a do block must end in an expression, not a bind statement"});
                 return null;
             },
             .let => |l| {
-                try self.sink.report(.parse, l.span, "a do block must end in an expression, not a let statement", .{});
+                try self.sink.report(.parse, l.span, .{"a do block must end in an expression, not a let statement"});
                 return null;
             },
         };
@@ -1284,7 +1251,7 @@ const Walker = struct {
     /// when it is not.
     fn withinTupleArity(self: *Walker, arity: usize, node: ts.Node) (error{OutOfMemory})!bool {
         if (arity <= cst.max_tuple_arity) return true;
-        try self.sink.report(.parse, spanOf(node, self.source_id), "a tuple has at most {d} components, given {d}", .{ cst.max_tuple_arity, arity });
+        try self.sink.report(.parse, spanOf(node, self.source_id), .{ "a tuple has at most ", cst.max_tuple_arity, " components, given ", arity });
         return false;
     }
 
@@ -1377,7 +1344,7 @@ const Walker = struct {
     /// A type variable's name, or null after reporting a type wildcard.
     fn typeVariable(self: *Walker, node: ts.Node) !?cst.Identifier {
         if (isWildcard(node)) {
-            try self.sink.report(.parse, spanOf(node, self.source_id), "type wildcards are not supported", .{});
+            try self.sink.report(.parse, spanOf(node, self.source_id), .{"type wildcards are not supported"});
             return null;
         }
         return try self.dupe(node);
@@ -1503,7 +1470,7 @@ const Walker = struct {
 
         if (node.isError() or node.isMissing()) return null;
 
-        try self.sink.report(.parse, span, "unexpected {s} in type", .{kind});
+        try self.sink.report(.parse, span, .{ "unexpected ", kind, " in type" });
         return null;
     }
 };

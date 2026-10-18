@@ -1,10 +1,12 @@
 <script lang="ts">
   import { EditorView } from "codemirror";
   import { EditorSelection } from "@codemirror/state";
-  import { type Diagnostic, type QueryResult, type TreeRow, type Grammar } from "tql";
+  import { type Diagnostic as Lint } from "@codemirror/lint";
+  import { type Diagnostic, type MessagePart, type QueryResult, type TreeRow, type Grammar } from "tql";
   import { engine, loadLanguage, availableGrammars } from "$lib/boot";
   import SyntaxTree from "$lib/SyntaxTree.svelte";
   import Editor from "$lib/Editor.svelte";
+  import { utf16Index } from "$lib/utf8";
 
   let query = $state(`int_type = #type | arr text | keep (\\t -> t == "int");
 
@@ -48,7 +50,7 @@ int main(int argc, char **argv) {
     if (!targetView) return;
     targetView.focus();
     targetView.dispatch({
-      selection: EditorSelection.single(start, end),
+      selection: EditorSelection.single(utf16Index(target, start), utf16Index(target, end)),
       scrollIntoView: true,
     });
   }
@@ -69,7 +71,8 @@ int main(int argc, char **argv) {
   });
 
   let result = $state<QueryResult | null>(null);
-  let error = $state<string | null>(null);
+  let error = $state<MessagePart[][] | null>(null);
+  let lints = $state<Lint[]>([]);
   function run() {
     if (!loaded) return;
     const outcome = engine.query({
@@ -81,23 +84,33 @@ int main(int argc, char **argv) {
       case "ok":
         result = outcome.result;
         error = null;
+        lints = [];
         break;
       case "rejected":
         result = null;
-        error = outcome.diagnostics.map(describe).join("\n");
+        error = outcome.diagnostics.map(describe);
+        lints = outcome.diagnostics.flatMap(lint);
         break;
       case "failed":
         result = outcome.result ?? null;
-        error = `error[${outcome.failure.category}]: ${outcome.failure.message}`;
+        error = [[{ text: `error[${outcome.failure.category}]: ${outcome.failure.message}` }]];
+        lints = [];
         break;
     }
   }
 
-  function describe(d: Diagnostic): string {
-    const header = `error[${d.category}]: ${d.message}`;
-    if (d.span === null) return header;
-    const at = `${d.span.start_point.row + 1}:${d.span.start_point.column + 1}`;
-    return `${d.module === null ? at : `${d.module}:${at}`}: ${header}`;
+  function describe(d: Diagnostic): MessagePart[] {
+    const header = `error[${d.category}]: `;
+    const at = d.span === null ? "" : `${d.span.start_point.row + 1}:${d.span.start_point.column + 1}: `;
+    const prefix = d.module === null || d.span === null ? at : `${d.module}:${at}`;
+    return [{ text: prefix + header }, ...d.parts];
+  }
+
+  function lint(d: Diagnostic): Lint[] {
+    if (d.module !== null || d.span === null) return [];
+    const from = utf16Index(query, d.span.start_byte);
+    const to = utf16Index(query, d.span.end_byte);
+    return [{ from, to, severity: "error", source: d.category, message: d.message }];
   }
 </script>
 
@@ -117,7 +130,7 @@ int main(int argc, char **argv) {
 
   <section class="panel panel-query">
     <header>Query</header>
-    <div class="panel-body"><Editor bind:value={query} /></div>
+    <div class="panel-body"><Editor bind:value={query} diagnostics={lints} /></div>
   </section>
 
   <section class="panel panel-target">
@@ -143,7 +156,7 @@ int main(int argc, char **argv) {
         <pre>{JSON.stringify(result, null, 2)}</pre>
       {/if}
       {#if error}
-        <pre class="error">{error}</pre>
+        <pre class="error">{#each error as line}{#each line as part}{#if "code" in part}`<code>{part.code}</code>`{:else}{part.text}{/if}{/each}{"\n"}{/each}</pre>
       {/if}
     </div>
   </section>
@@ -257,6 +270,10 @@ int main(int argc, char **argv) {
   .panel-body pre.error {
     color: #c62828;
     white-space: pre-wrap;
+  }
+  .panel-body pre.error code {
+    font-weight: 600;
+    color: #1a1a1a;
   }
   .panel-body :global(.editor) {
     height: 100%;

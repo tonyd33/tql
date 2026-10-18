@@ -26,7 +26,7 @@ pub const command = .{
 
 pub fn run(ctx: *const Context, iter: *std.process.Args.Iterator) !ExitCode {
     const gpa = ctx.gpa;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var arg_diagnostic: goz.Diagnostic = .{};
     var tokenizer = goz.ArgTokenizer(command.opts).init(iter, &arg_diagnostic);
@@ -82,7 +82,7 @@ fn dumpInstructions(
     const io = ctx.io;
     const gpa = ctx.gpa;
     const stdout = ctx.stdout;
-    const stderr = ctx.stderr;
+    const stderr = ctx.stderr.writer;
 
     var grammars = try common.Grammars.init(gpa, ctx.environ_map);
     defer grammars.deinit(gpa);
@@ -109,8 +109,8 @@ fn dumpInstructions(
     defer sink.deinit();
 
     var compiled = engine.compileQuery(query, grammar, &sink) catch |err| {
-        try common.reportDiagnostics(&engine, &sink, query, from_file, stderr);
-        if (!sink.hasErrors()) try common.reportFailure(stderr, from_file, .ofAny(err));
+        try common.reportDiagnostics(&engine, &sink, query, from_file, ctx.stderr);
+        if (!sink.hasErrors()) try common.reportFailure(ctx.stderr, from_file, .ofAny(err));
         return .compilation_error;
     };
     defer compiled.deinit();
